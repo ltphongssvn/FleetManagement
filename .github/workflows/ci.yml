@@ -1,0 +1,59 @@
+# FleetManagement/.github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint / Typecheck / Test / Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Verify repo layout
+        run: |
+          test -f .gitignore
+          echo "Repo layout OK (scaffold pending)"
+
+      - name: Install dependencies
+        if: hashFiles('pnpm-lock.yaml') != ''
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        if: hashFiles('pnpm-lock.yaml') != ''
+        run: pnpm -r --if-present lint
+
+      - name: Typecheck
+        if: hashFiles('pnpm-lock.yaml') != ''
+        run: pnpm -r --if-present typecheck
+
+      - name: Test
+        if: hashFiles('pnpm-lock.yaml') != ''
+        run: pnpm -r --if-present test
+
+      - name: Build
+        if: hashFiles('pnpm-lock.yaml') != ''
+        run: pnpm -r --if-present build
