@@ -1,0 +1,63 @@
+# FleetManagement/.gitignore
+
+# Node / pnpm
+node_modules/
+.pnpm-store/
+.pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+.turbo/
+.expo/
+.expo-shared/
+*.tsbuildinfo
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Logs / coverage / test artifacts
+logs/
+*.log
+coverage/
+.nyc_output/
+junit.xml
+playwright-report/
+test-results/
+
+# Terraform
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/*.tfvars
+!infra/terraform/*.tfvars.example
+infra/terraform/.terraform.lock.hcl.backup
+
+# Expo / native
+apps/driver-app/ios/
+apps/driver-app/android/
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+
+# Misc
+*.tgz
+.cache/
