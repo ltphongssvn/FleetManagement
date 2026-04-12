@@ -27,7 +27,14 @@ jobs:
         with:
           version: 10
 
-      - name: Setup Node
+      - name: Setup Node (no cache, pre-scaffold)
+        if: hashFiles('pnpm-lock.yaml') == ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Node (with pnpm cache)
+        if: hashFiles('pnpm-lock.yaml') != ''
         uses: actions/setup-node@v4
         with:
           node-version: 22
