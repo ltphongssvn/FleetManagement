@@ -3,17 +3,22 @@
 {
   "$schema": "./node_modules/turbo/schema.json",
 
+  // Strict Mode: only env vars declared in env/globalEnv/passThroughEnv are visible to tasks.
+  // Matches PDF's explicit config/secret discipline.
+  "envMode": "strict",
+
   // Files that invalidate the global cache key.
   // pnpm-lock.yaml: turbo does NOT auto-track (verified Global Files=0 without).
+  // .github/workflows/**: CI pipeline changes should invalidate cache (verified hash-busts).
   "globalDependencies": [
     "pnpm-lock.yaml",
     ".nvmrc",
-    ".node-version"
+    ".node-version",
+    ".github/workflows/**"
   ],
 
   "globalEnv": ["CI"],
 
-  // Forwarded to tasks but NOT part of cache key
   "globalPassThroughEnv": [
     "NODE_ENV",
     "VERCEL_ENV",
@@ -24,7 +29,6 @@
     "FEATURE_FLAGS_*"
   ],
 
-  // Task-granular --affected and turbo watch (verified parses)
   "futureFlags": {
     "affectedUsingTaskInputs": true,
     "watchUsingTaskInputs": true
@@ -36,9 +40,6 @@
   },
 
   "tasks": {
-    // Transit node: graph-only orchestration for parallel cacheable tasks
-    // that need dependency-awareness but NOT dependency artifacts.
-    // Verified: b#test → b#transit → a#transit (no commands execute).
     "transit": {
       "description": "Graph-only node for dependency-aware parallel tasks",
       "dependsOn": ["^transit"]
@@ -68,6 +69,12 @@
         ".eslintignore"
       ],
       "outputLogs": "new-only"
+    },
+
+    "lint:fix": {
+      "description": "Auto-fix lint violations — never cached, local/manual invocation only",
+      "dependsOn": [],
+      "cache": false
     },
 
     "typecheck": {
