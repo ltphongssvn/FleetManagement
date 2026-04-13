@@ -40,14 +40,14 @@
     },
 
     "build": {
-      "description": "Compile production artifacts (NestJS dist, Next.js .next, Expo build). Owns dist/** exclusively.",
+      "description": "Compile production artifacts (NestJS dist, Next.js .next, Expo build). Owns dist/** exclusively. BUILD_ID intentionally NOT hashed — stamp via deploy-time metadata (commit SHA or runtime env), not build-time cache key.",
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**", "out/**"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/tsconfig.base.json"
       ],
-      "env": ["NEXT_PUBLIC_*", "EXPO_PUBLIC_*", "APP_VERSION", "BUILD_ID"],
+      "env": ["NEXT_PUBLIC_*", "EXPO_PUBLIC_*", "APP_VERSION"],
       "outputLogs": "new-only"
     },
 
@@ -71,9 +71,9 @@
     },
 
     "typecheck": {
-      "description": "Pure TypeScript verification (tsc --noEmit). Owns .types/** exclusively — no dist/** overlap with build.",
+      "description": "Pure TypeScript verification (tsc --noEmit). Owns .types/** + **/*.tsbuildinfo (recursive for TS project references).",
       "dependsOn": ["__transit__"],
-      "outputs": [".types/**", "*.tsbuildinfo"],
+      "outputs": [".types/**", "**/*.tsbuildinfo"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tsconfig.json",
