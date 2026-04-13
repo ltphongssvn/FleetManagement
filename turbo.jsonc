@@ -4,12 +4,14 @@
 {
   "$schema": "https://turbo.build/schema.json",
 
-  "ui": "stream",
+  // NOTE: `ui` intentionally omitted. Turborepo auto-detects:
+  //   - Local dev with TTY  → TUI (per-task log navigation, interactive shells)
+  //   - CI (no TTY)         → stream/grouped logs automatically
+  //   - Manual override     → turbo run ... --ui=stream|tui
 
   // Files that invalidate the global cache key.
-  // pnpm-lock.yaml included explicitly: turbo does NOT auto-track it
+  // pnpm-lock.yaml explicit: turbo does NOT auto-track it
   // (verified: Global Files=0 without declaration, =1 with).
-  // This ensures transitive-dep changes bust the cache deterministically.
   "globalDependencies": [
     "pnpm-lock.yaml",
     "tsconfig.base.json",
@@ -17,12 +19,9 @@
     ".node-version"
   ],
 
-  // Env vars included in the cache key (changes bust cache)
   "globalEnv": ["CI"],
 
-  // Env vars forwarded to tasks but NOT part of cache key
-  // NODE_ENV passthrough: same code, different build per env (prod/dev)
-  // FEATURE_FLAGS_*: per PDF capability-flags architecture
+  // Forwarded to tasks but NOT part of cache key
   "globalPassThroughEnv": [
     "NODE_ENV",
     "VERCEL_ENV",
@@ -33,14 +32,12 @@
     "FEATURE_FLAGS_*"
   ],
 
-  // Remote cache stub — enable after Turborepo Cloud signup
   "remoteCache": {
     "enabled": false,
     "signature": true
   },
 
   "tasks": {
-    // Build: full compilation; depends on upstream builds for artifacts
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**", "out/**"],
@@ -57,8 +54,7 @@
       "outputLogs": "new-only"
     },
 
-    // Lint: depends on ^typecheck (NOT ^lint) because type-aware ESLint rules
-    // (@typescript-eslint/no-floating-promises, strict-boolean-expressions)
+    // Lint depends on ^typecheck (NOT ^lint): type-aware ESLint rules
     // need upstream .d.ts files. Verified ^lint self-chain provides no types.
     "lint": {
       "dependsOn": ["^typecheck"],
@@ -74,7 +70,6 @@
       "outputLogs": "new-only"
     },
 
-    // Typecheck: project-references semantics; upstream types resolve first
     "typecheck": {
       "dependsOn": ["^typecheck"],
       "cache": true,
@@ -88,8 +83,7 @@
       "outputLogs": "new-only"
     },
 
-    // Test (default alias): runs against source, NO upstream dependency
-    // Verified: standalone execution works; faster feedback loop
+    // Test runs against source, NO upstream dependency (verified standalone works)
     "test": {
       "dependsOn": [],
       "cache": true,
@@ -106,7 +100,6 @@
       "outputLogs": "new-only"
     },
 
-    // Unit tests: pure, no deps, fastest feedback
     "test:unit": {
       "dependsOn": [],
       "cache": true,
@@ -121,8 +114,7 @@
       "outputLogs": "new-only"
     },
 
-    // Integration tests: need Testcontainers-backed services; depend on ^build
-    // for compiled upstream artifacts (per PDF: "TDD + Testcontainers")
+    // Integration tests: Testcontainers-backed services; need ^build artifacts
     "test:integration": {
       "dependsOn": ["^build"],
       "cache": true,
@@ -137,7 +129,6 @@
       "outputLogs": "new-only"
     },
 
-    // E2E tests: never cached (flaky across envs); need full build
     "test:e2e": {
       "dependsOn": ["^build"],
       "cache": false,
@@ -145,13 +136,11 @@
       "env": ["DATABASE_URL", "REDIS_URL", "API_BASE_URL", "TESTCONTAINERS_*"]
     },
 
-    // Aggregate CI gate: lint → typecheck → test → build in parallel DAG
     "ci": {
       "dependsOn": ["lint", "typecheck", "test", "build"],
       "cache": false
     },
 
-    // Dev: persistent, interruptible on SIGINT, no upstream dev chain yet
     "dev": {
       "cache": false,
       "persistent": true,
