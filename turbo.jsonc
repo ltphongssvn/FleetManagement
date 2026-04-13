@@ -1,16 +1,80 @@
-// FleetManagement/turbo.jsonc
-// Turborepo 2.x pipeline — verified against turbo@2.9.6
+// ============================================================================
+// File:     FleetManagement/turbo.jsonc
+// Purpose:  Root Turborepo 2.x pipeline configuration for the Intermodal
+//           Fleet Platform monorepo. Defines the task graph, caching rules,
+//           environment contracts, and execution semantics that every
+//           workspace (apps/*, workers/*, packages/*) inherits.
+//
+// Why it exists:
+//   The Frozen Stack (Fleet-Management-Stack.pdf) mandates
+//   "pnpm workspaces + Turborepo; Node/TS only" as the monorepo foundation.
+//   This file is the single source of truth for how Turborepo orchestrates
+//   builds, tests, lint, typecheck, and dev loops across the Expo
+//   driver-app, Next.js ops-web, NestJS api, and BullMQ worker. It also
+//   encodes the PDF's TDD + Testcontainers mandate by splitting tests into
+//   unit / integration / e2e tasks with different cache semantics.
+//
+// Key decisions / invariants (all empirically verified against turbo@2.9.6):
+//   - Format: turbo.jsonc (native // comments supported) rather than
+//     turbo.json with "//" key hack, which only works at root level.
+//   - Schema: "./node_modules/turbo/schema.json" (versioned with installed
+//     turbo) instead of the hosted schema URL.
+//   - envMode: "strict" — only env vars declared in env/globalEnv/
+//     passThroughEnv are visible at runtime. Matches the PDF's explicit
+//     config/secret discipline.
+//   - Quality gates are DECOUPLED from builds:
+//       * lint:      dependsOn: ["^lint"]      (shared-config stability)
+//       * typecheck: dependsOn: ["transit"]    (parallel, not serialized)
+//       * test:      dependsOn: ["transit"]    (source-based, fast TDD loop)
+//     The "transit" task is a graph-only node (no command) used to express
+//     dependency-awareness without forcing upstream compilation.
+//   - Test taxonomy mirrors the PDF's TDD + Testcontainers requirement:
+//       * test:unit        — pure, no deps, fastest feedback, cacheable
+//       * test:watch       — persistent, uncached, for Red-Green-Refactor
+//       * test:integration — needs ^build + Testcontainers services
+//       * test:e2e         — Playwright, uncached (migration-hash TBD)
+//   - Global cache key includes pnpm-lock.yaml (verified NOT auto-tracked),
+//     .github/workflows/** (CI pipeline changes invalidate), tsconfig.base.
+//   - globalPassThroughEnv holds NODE_ENV + provider tokens + wildcard
+//     FEATURE_FLAGS_* (per PDF capability-flags architecture); values do
+//     NOT contribute to cache hash.
+//   - futureFlags enables task-granular --affected and turbo watch.
+//   - remoteCache.signature is pre-set so flipping enabled:true later
+//     requires no other changes.
 //
 // FUTURE WORK (when apps/packages land):
-// - Replace wildcard NEXT_PUBLIC_*/EXPO_PUBLIC_* in build.env with
-//   exact vars per app via workspace-level turbo.jsonc (extends: ["//"]).
-//   Wildcards at root over-invalidate: adding NEXT_PUBLIC_FOO to one app's
-//   .env busts build cache for ALL apps (verified empirically).
-// - Enable remoteCache after Turborepo Cloud / self-hosted signup.
-// - Wire test:e2e migration-aware caching when Drizzle migrations exist
-//   (Week 3 per PDF): add "$TURBO_ROOT$/<real-path>/migrations/**/*.sql"
-//   to test:e2e.inputs and flip cache:false -> cache:true. Likely path:
-//   apps/api/drizzle/migrations/** or packages/db/migrations/**.
+//   - Replace wildcard NEXT_PUBLIC_*/EXPO_PUBLIC_* in build.env with
+//     workspace-level turbo.jsonc (extends: ["//"]). Verified mechanism:
+//     $TURBO_DEFAULT$ auto-tracks .env files in each package, so per-app
+//     turbo.jsonc can drop explicit env lists entirely — edits to an app's
+//     .env change that app's hash only, not sibling apps.
+//     Wildcards at root over-invalidate: adding NEXT_PUBLIC_FOO to one
+//     app's .env busts build cache for ALL apps (verified empirically).
+//   - Enable remoteCache after Turborepo Cloud / self-hosted signup.
+//   - Wire test:e2e migration-aware caching when Drizzle migrations exist
+//     (Week 3 per PDF): add "$TURBO_ROOT$/<real-path>/migrations/**/*.sql"
+//     to test:e2e.inputs and flip cache:false -> cache:true. Likely path:
+//     apps/api/drizzle/migrations/** or packages/db/migrations/**.
+//   - Consolidate test runner + linter once chosen in Week 1 scaffolding:
+//       * If team picks Vitest only: drop "jest.config.*" from all test* inputs
+//       * If team picks Jest only:   drop "vitest.config.*" and "vitest.workspace.*"
+//       * If team picks flat ESLint only: drop ".eslintrc*" from lint.inputs
+//       * If team picks Biome (replacing ESLint + Prettier): replace lint
+//         task entirely with inputs ["$TURBO_DEFAULT$", "biome.json"] and
+//         outputs [".biomecache"]. Keep ^lint dependsOn for shared-config
+//         stability.
+//     PDF is silent on these choices, so dual patterns are kept defensively
+//     until Week 1 apps (NestJS api, Next.js ops-web, Expo driver-app) are
+//     scaffolded and their generators dictate the runtime defaults.
+//
+// Related files:
+//   - package.json              — packageManager, engines, root scripts
+//   - pnpm-workspace.yaml       — workspaces topology (apps, workers, packages)
+//   - tsconfig.base.json        — shared TS compiler options (referenced here)
+//   - .github/workflows/ci.yml  — CI pipeline that invokes these turbo tasks
+//   - .pre-commit-config.yaml   — local pre-commit/pre-push gates (mirror CI)
+//   - .gitignore                — excludes .turbo, dist, coverage, etc.
+// ============================================================================
 {
   "$schema": "./node_modules/turbo/schema.json",
 
