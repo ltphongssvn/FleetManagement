@@ -34,7 +34,7 @@
 //   - Quality gates DECOUPLED from builds via __transit__ node:
 //       * lint      dependsOn ["^lint"]           — shared-config stability
 //       * typecheck dependsOn ["__transit__"]     — parallel, not serialized
-//       * test      dependsOn ["__transit__"]     — source-based, fast TDD
+//       * test:unit dependsOn ["__transit__"]     — source-based, fast TDD
 //   - __transit__ (double-underscore prefix) is NAME-COLLISION-SAFE:
 //     verified that a plain "transit" name matches any package script
 //     of the same name and executes it, violating graph-only intent.
@@ -44,11 +44,17 @@
 //       * test:e2e         — needs full build
 //     Verified: ^build alone only produces upstream deps (a#build), adding
 //     "build" additionally produces self (b#build).
+//   - NO generic "test" task: forces explicit intent. Developers must call
+//     test:unit / test:integration / test:e2e. Ambiguity is the enemy of
+//     consistency — a bare "turbo run test" should not exist in policy.
 //   - CI tiers are EXPLICIT (no hidden policy):
 //       * ci:fast — lint + typecheck + test:unit (PR gate, <2 min target)
 //       * ci:full — ci:fast + test:integration (pre-merge to main)
 //       * ci      — alias for ci:fast for GitFlow PR convention
 //     test:e2e runs on separate release/nightly gate, not in ci:full.
+//     These aggregate tasks exist for LOCAL developer convenience
+//     (pnpm turbo run ci:full before pushing a release branch).
+//     CI itself should prefer a matrix-split workflow — see FUTURE WORK.
 //   - futureFlags enable task-granular --affected and turbo watch
 //     (both stable per docs, not experimental).
 //   - NEXT_PUBLIC_*/EXPO_PUBLIC_* in build.env are redundant for Next.js
@@ -68,7 +74,23 @@
 //     Current root build over-generalizes outputs (dist, .next, build, out)
 //     across all frameworks; package configs let each framework declare
 //     only its own artifacts. Rationale: cleaner ownership, clearer intent,
-//     better locality of framework-specific policy.
+//     better locality of framework-specific policy, reduced cache bloat
+//     on remote-cache hit efficiency.
+//   - Migrate this docstring block + architectural decisions into
+//     docs/adr/ (Architecture Decision Records) once that folder is
+//     scaffolded per PDF. Config files should contain configuration;
+//     architectural intent belongs in dedicated ADR markdown. Keep
+//     only a one-line "See docs/adr/NNN-turborepo-pipeline.md" pointer
+//     in turbo.jsonc after migration.
+//   - Split CI workflow (.github/workflows/ci.yml) into a matrix of
+//     parallel jobs instead of invoking ci:fast/ci:full as single
+//     monolithic runs. Example matrix: one job for `turbo run lint`,
+//     one for `turbo run typecheck`, one for `turbo run test:unit`.
+//     Benefits: (a) GitHub PR UI shows distinct green/red checkmarks
+//     per domain (easier triage), (b) parallelism across CI machines
+//     instead of single-runner contention, (c) remote cache is shared
+//     across jobs seamlessly. Keep ci:fast/ci:full in turbo.jsonc as
+//     LOCAL developer convenience — workflow owns production execution.
 //   - After package splits land: drop NEXT_PUBLIC_*/EXPO_PUBLIC_* from
 //     root build.env. Framework inference + per-package $TURBO_DEFAULT$
 //     auto-tracking of .env files supersede the root wildcard declaration.
@@ -90,6 +112,12 @@
 //     declared in globalDependencies (.nvmrc, .node-version, tsconfig.base)
 //     are referenced in pruned turbo.json but NOT copied into pruned
 //     output, causing pruned builds to behave differently than full.
+//   - Wire test:integration database-schema awareness as SOON as a schema
+//     file exists (do NOT wait for Week 3). Add $TURBO_ROOT$/packages/db/
+//     schema.ts (or apps/api/drizzle/schema.ts) to test:integration.inputs.
+//     Integration tests that depend on Testcontainers + Drizzle migrations
+//     must bust cache when schema changes even if app code didn't —
+//     otherwise cache hits falsely validate stale test results.
 //   - Wire test:e2e migration-aware caching when Drizzle migrations exist
 //     (Week 3 per PDF): add "$TURBO_ROOT$/<real-path>/migrations/**/*.sql"
 //     to test:e2e.inputs and flip cache:false -> cache:true. Likely path:
@@ -191,20 +219,6 @@
       "outputLogs": "new-only"
     },
 
-    "test": {
-      "description": "Generic test alias — source-based, parallel via __transit__. CI tiers should prefer test:unit / test:integration for explicit scope.",
-      "dependsOn": ["__transit__"],
-      "outputs": ["coverage/**", "test-results/**", "junit.xml"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "vitest.config.*",
-        "vitest.workspace.*",
-        "jest.config.*"
-      ],
-      "env": ["DATABASE_URL", "REDIS_URL", "TESTCONTAINERS_*", "VITEST_*", "JEST_*"],
-      "outputLogs": "new-only"
-    },
-
     "test:unit": {
       "description": "Unit tests only — fastest cacheable feedback loop (PR gate via ci:fast)",
       "dependsOn": ["__transit__"],
@@ -248,13 +262,13 @@
     },
 
     "ci:fast": {
-      "description": "PR gate — lint + typecheck + test:unit. Target <2 min. Invoked by .github/workflows/ci.yml on push.",
+      "description": "PR gate — lint + typecheck + test:unit. Target <2 min. Local convenience; CI workflow should matrix-split (see FUTURE WORK).",
       "dependsOn": ["lint", "typecheck", "test:unit"],
       "cache": false
     },
 
     "ci:full": {
-      "description": "Pre-merge gate — ci:fast + test:integration. Run before merging to main.",
+      "description": "Pre-merge gate — ci:fast + test:integration. Run before merging to main. Local convenience.",
       "dependsOn": ["lint", "typecheck", "test:unit", "test:integration"],
       "cache": false
     },
