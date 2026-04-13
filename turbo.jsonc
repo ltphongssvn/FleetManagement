@@ -1,8 +1,7 @@
 // ============================================================================
 // File:     FleetManagement/turbo.jsonc
 // Purpose:  Root Turborepo 2.x pipeline configuration.
-// Rationale: See docs/adr/001-turborepo-pipeline.md for full decision record
-//           (context, alternatives, invariants, future work, verification).
+// Rationale: See docs/adr/001-turborepo-pipeline.md for full decision record.
 // Related:  package.json, pnpm-workspace.yaml, tsconfig.base.json,
 //           .github/workflows/ci.yml, .pre-commit-config.yaml, .gitignore
 // ============================================================================
@@ -29,14 +28,19 @@
     "watchUsingTaskInputs": true
   },
 
+  "remoteCache": {
+    "enabled": false,
+    "signature": true
+  },
+
   "tasks": {
     "__transit__": {
-      "description": "Graph-only node for dependency-aware parallel tasks. Double-underscore prefix prevents collision with package scripts.",
+      "description": "Graph-only node. Double-underscore reduces but does not guarantee collision-freedom; reserved internal name — see ADR-001.",
       "dependsOn": ["^__transit__"]
     },
 
     "build": {
-      "description": "Compile production artifacts (NestJS dist, Next.js .next, Expo build).",
+      "description": "Compile production artifacts (NestJS dist, Next.js .next, Expo build). Owns dist/** exclusively.",
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**", "out/**"],
       "inputs": [
@@ -48,7 +52,7 @@
     },
 
     "lint": {
-      "description": "Static analysis (ESLint). ^lint ensures shared eslint-config package lints itself before consumers use it.",
+      "description": "Static analysis (ESLint). ^lint ensures shared eslint-config package lints itself before consumers.",
       "dependsOn": ["^lint"],
       "outputs": ["eslint-report.json", ".eslintcache"],
       "inputs": [
@@ -67,9 +71,9 @@
     },
 
     "typecheck": {
-      "description": "TypeScript verification (parallel via __transit__, not serialized behind builds).",
+      "description": "Pure TypeScript verification (tsc --noEmit). Owns .types/** exclusively — no dist/** overlap with build.",
       "dependsOn": ["__transit__"],
-      "outputs": ["*.tsbuildinfo", "dist/**/*.d.ts"],
+      "outputs": [".types/**", "*.tsbuildinfo"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tsconfig.json",
@@ -80,7 +84,7 @@
     },
 
     "test:unit": {
-      "description": "Unit tests only — fastest cacheable feedback loop (PR gate via ci:fast). Isolated coverage output: coverage/unit/**.",
+      "description": "Unit tests only — fastest cacheable feedback loop. Owns coverage/unit/** + test-results/unit/**.",
       "dependsOn": ["__transit__"],
       "outputs": ["coverage/unit/**", "test-results/unit/**"],
       "inputs": [
@@ -101,7 +105,7 @@
     },
 
     "test:integration": {
-      "description": "Integration tests — need own built artifacts + upstream builds + Testcontainers services. Isolated coverage output: coverage/integration/**.",
+      "description": "Integration tests — need own + upstream builds + Testcontainers. Owns coverage/integration/** + test-results/integration/**.",
       "dependsOn": ["build", "^build"],
       "outputs": ["coverage/integration/**", "test-results/integration/**"],
       "inputs": [
@@ -115,21 +119,27 @@
     },
 
     "test:e2e": {
-      "description": "End-to-end tests (Playwright) — need own + upstream builds. Never cached until migration-hash inputs wired (see ADR-001). Isolated output: playwright-report/**.",
+      "description": "End-to-end tests (Playwright). Owns playwright-report/**. Never cached until migration-hash wired (ADR-001).",
       "dependsOn": ["build", "^build"],
       "cache": false,
       "env": ["DATABASE_URL", "REDIS_URL", "API_BASE_URL", "TESTCONTAINERS_*"]
     },
 
     "ci:fast": {
-      "description": "PR gate — lint + typecheck + test:unit. Target <2 min. Local convenience; CI workflow should matrix-split (see ADR-001).",
+      "description": "PR gate — lint + typecheck + test:unit. Target <2 min. Local convenience; CI workflow should matrix-split (ADR-001).",
       "dependsOn": ["lint", "typecheck", "test:unit"],
       "cache": false
     },
 
     "ci:full": {
-      "description": "Pre-merge gate — ci:fast + test:integration. Run before merging to main. Local convenience.",
-      "dependsOn": ["lint", "typecheck", "test:unit", "test:integration"],
+      "description": "Pre-merge gate — cumulative on ci:fast + adds build (every package must compile) + test:integration.",
+      "dependsOn": ["ci:fast", "build", "test:integration"],
+      "cache": false
+    },
+
+    "ci:release": {
+      "description": "Release/nightly gate — cumulative on ci:full + test:e2e.",
+      "dependsOn": ["ci:full", "test:e2e"],
       "cache": false
     },
 
@@ -140,7 +150,7 @@
     },
 
     "//#graph": {
-      "description": "Root-level task: generate pipeline DAG visualization. Root script runs 'turbo run ci:full --graph=docs/pipeline.mermaid'. Prefix '//#' ensures this runs once at repo root, not per-package.",
+      "description": "Root-level task: generate pipeline DAG visualization. Prefix '//#' ensures repo-root-only, not per-package.",
       "cache": false
     },
 
