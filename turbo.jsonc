@@ -52,7 +52,7 @@
     },
 
     "lint": {
-      "description": "Static analysis (ESLint). ^lint ensures shared eslint-config package lints itself before consumers. Hashes both package-local and root-level ESLint configs.",
+      "description": "Static analysis (ESLint). ^lint ensures shared eslint-config package lints itself before consumers. Hashes both package-local and root-level ESLint configs + root tsconfig (type-aware rules depend on it).",
       "dependsOn": ["^lint"],
       "outputs": ["eslint-report.json", ".eslintcache"],
       "inputs": [
@@ -62,7 +62,8 @@
         ".eslintignore",
         "$TURBO_ROOT$/.eslintrc*",
         "$TURBO_ROOT$/eslint.config.*",
-        "$TURBO_ROOT$/.eslintignore"
+        "$TURBO_ROOT$/.eslintignore",
+        "$TURBO_ROOT$/tsconfig.base.json"
       ],
       "outputLogs": "new-only"
     },
@@ -89,7 +90,7 @@
     },
 
     "test:unit": {
-      "description": "Unit tests only — fastest cacheable feedback loop. Owns coverage/unit/** + test-results/unit/**. Hashes both package-local and root test configs.",
+      "description": "Unit tests only — fastest cacheable feedback loop. Owns coverage/unit/** + test-results/unit/**. Hashes package-local + root test configs + root tsconfig (transforms/path aliases depend on it).",
       "dependsOn": ["__transit__"],
       "outputs": ["coverage/unit/**", "test-results/unit/**"],
       "inputs": [
@@ -99,7 +100,8 @@
         "jest.config.*",
         "$TURBO_ROOT$/vitest.config.*",
         "$TURBO_ROOT$/vitest.workspace.*",
-        "$TURBO_ROOT$/jest.config.*"
+        "$TURBO_ROOT$/jest.config.*",
+        "$TURBO_ROOT$/tsconfig.base.json"
       ],
       "env": ["VITEST_*", "JEST_*"],
       "outputLogs": "new-only"
@@ -123,7 +125,8 @@
         "jest.config.*",
         "$TURBO_ROOT$/vitest.config.*",
         "$TURBO_ROOT$/vitest.workspace.*",
-        "$TURBO_ROOT$/jest.config.*"
+        "$TURBO_ROOT$/jest.config.*",
+        "$TURBO_ROOT$/tsconfig.base.json"
       ],
       "env": ["DATABASE_URL", "REDIS_URL", "S3_ENDPOINT", "TESTCONTAINERS_*"],
       "outputLogs": "new-only"
@@ -143,13 +146,13 @@
     },
 
     "__ci_full__": {
-      "description": "Pre-merge gate orchestration node — cumulative on __ci_fast__ + build + test:integration. Double-underscore prevents package-script collision.",
+      "description": "Pre-merge gate orchestration node — cumulative on __ci_fast__ + build + test:integration.",
       "dependsOn": ["__ci_fast__", "build", "test:integration"],
       "cache": false
     },
 
     "__ci_release__": {
-      "description": "Release/nightly gate orchestration node — cumulative on __ci_full__ + test:e2e. Double-underscore prevents package-script collision.",
+      "description": "Release/nightly gate orchestration node — cumulative on __ci_full__ + test:e2e.",
       "dependsOn": ["__ci_full__", "test:e2e"],
       "cache": false
     },
