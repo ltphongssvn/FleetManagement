@@ -31,10 +31,14 @@
 //         if/when a task script consumes them.
 //   - pnpm-lock.yaml intentionally NOT in globalDependencies: docs + test
 //     confirm root lockfile is already part of global hash automatically.
-//   - Quality gates DECOUPLED from builds via transit node:
-//       * lint      dependsOn ["^lint"]      — shared-config stability
-//       * typecheck dependsOn ["transit"]    — parallel, not serialized
-//       * test      dependsOn ["transit"]    — source-based, fast TDD
+//   - Quality gates DECOUPLED from builds via __transit__ node:
+//       * lint      dependsOn ["^lint"]           — shared-config stability
+//       * typecheck dependsOn ["__transit__"]     — parallel, not serialized
+//       * test      dependsOn ["__transit__"]     — source-based, fast TDD
+//   - __transit__ (double-underscore prefix) is NAME-COLLISION-SAFE:
+//     verified that a plain "transit" name matches any package script
+//     of the same name and executes it, violating graph-only intent.
+//     Internal-convention naming prevents accidental package-script match.
 //   - Tests needing SAME-package build artifacts use ["build", "^build"]:
 //       * test:integration — needs own dist + upstream dists
 //       * test:e2e         — needs full build
@@ -53,6 +57,8 @@
 //     documentation for reviewers, (b) coverage of NestJS api + worker
 //     packages where framework inference does not apply. Will move to
 //     package-level turbo.jsonc in Week 1 (see FUTURE WORK).
+//   - "cache: true" omitted from task definitions — it is the default
+//     per turbo 2.9.6 schema (verified). Only cache:false is explicit.
 //
 // FUTURE WORK (when apps/packages land in Week 1 per PDF day-one plan):
 //   - Split root build into package-level configurations
@@ -79,10 +85,18 @@
 //     Pair with futureFlags.longerSignatureKey (verified parses) for
 //     minimum 32-byte HMAC-SHA256 signing key enforcement.
 //     Omitted from this config until enabled (avoids smell).
+//   - Enable futureFlags.pruneIncludesGlobalFiles (verified parses) if
+//     adopting `turbo prune` for Docker/deploy builds. Without it, files
+//     declared in globalDependencies (.nvmrc, .node-version, tsconfig.base)
+//     are referenced in pruned turbo.json but NOT copied into pruned
+//     output, causing pruned builds to behave differently than full.
 //   - Wire test:e2e migration-aware caching when Drizzle migrations exist
 //     (Week 3 per PDF): add "$TURBO_ROOT$/<real-path>/migrations/**/*.sql"
 //     to test:e2e.inputs and flip cache:false -> cache:true. Likely path:
 //     apps/api/drizzle/migrations/** or packages/db/migrations/**.
+//     Hermeticity caveat: only enable caching if integration/e2e tests
+//     are deterministic — no mutable external services, stable seeds,
+//     frozen clocks. TDD trust requires reliable tests, not just fast ones.
 //   - Add coverage merge/report task when multiple test tiers land. Per
 //     turbo Vitest guide, per-package cacheable approach trades away
 //     out-of-the-box merged coverage; explicit merge task needed.
@@ -115,7 +129,6 @@
     ".github/workflows/**"
   ],
 
-  // Hashed: changes bust cache (output-affecting env vars)
   "globalEnv": [
     "CI",
     "NODE_ENV",
@@ -129,9 +142,9 @@
   },
 
   "tasks": {
-    "transit": {
-      "description": "Graph-only node for dependency-aware parallel tasks",
-      "dependsOn": ["^transit"]
+    "__transit__": {
+      "description": "Graph-only node for dependency-aware parallel tasks. Double-underscore prefix prevents collision with package scripts.",
+      "dependsOn": ["^__transit__"]
     },
 
     "build": {
@@ -149,7 +162,6 @@
     "lint": {
       "description": "Static analysis (ESLint). ^lint ensures shared eslint-config package (future packages/eslint-config) lints itself before consumers use it.",
       "dependsOn": ["^lint"],
-      "cache": true,
       "outputs": ["eslint-report.json", ".eslintcache"],
       "inputs": [
         "$TURBO_DEFAULT$",
@@ -167,9 +179,8 @@
     },
 
     "typecheck": {
-      "description": "TypeScript verification (parallel via transit, not serialized behind builds). When composite:true TS project references land, split into typecheck (--noEmit) + types:build (see FUTURE WORK).",
-      "dependsOn": ["transit"],
-      "cache": true,
+      "description": "TypeScript verification (parallel via __transit__, not serialized behind builds). When composite:true TS project references land, split into typecheck (--noEmit) + types:build (see FUTURE WORK).",
+      "dependsOn": ["__transit__"],
       "outputs": ["*.tsbuildinfo", "dist/**/*.d.ts"],
       "inputs": [
         "$TURBO_DEFAULT$",
@@ -181,9 +192,8 @@
     },
 
     "test": {
-      "description": "Generic test alias — source-based, parallel via transit. CI tiers should prefer test:unit / test:integration for explicit scope.",
-      "dependsOn": ["transit"],
-      "cache": true,
+      "description": "Generic test alias — source-based, parallel via __transit__. CI tiers should prefer test:unit / test:integration for explicit scope.",
+      "dependsOn": ["__transit__"],
       "outputs": ["coverage/**", "test-results/**", "junit.xml"],
       "inputs": [
         "$TURBO_DEFAULT$",
@@ -197,8 +207,7 @@
 
     "test:unit": {
       "description": "Unit tests only — fastest cacheable feedback loop (PR gate via ci:fast)",
-      "dependsOn": ["transit"],
-      "cache": true,
+      "dependsOn": ["__transit__"],
       "outputs": ["coverage/**"],
       "inputs": [
         "$TURBO_DEFAULT$",
@@ -220,7 +229,6 @@
     "test:integration": {
       "description": "Integration tests — need own built artifacts + upstream builds + Testcontainers services. dependsOn includes 'build' (self) not just '^build' (upstream only).",
       "dependsOn": ["build", "^build"],
-      "cache": true,
       "outputs": ["coverage/**", "test-results/**"],
       "inputs": [
         "$TURBO_DEFAULT$",
@@ -236,7 +244,6 @@
       "description": "End-to-end tests (Playwright) — need own + upstream builds. Never cached until migration-hash inputs wired (see FUTURE WORK).",
       "dependsOn": ["build", "^build"],
       "cache": false,
-      "outputs": ["playwright-report/**", "test-results/**"],
       "env": ["DATABASE_URL", "REDIS_URL", "API_BASE_URL", "TESTCONTAINERS_*"]
     },
 
