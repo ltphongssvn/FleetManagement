@@ -71,9 +71,9 @@
     },
 
     "typecheck": {
-      "description": "Pure TypeScript verification (tsc --noEmit). Owns .types/** + **/*.tsbuildinfo (recursive for TS project references).",
+      "description": "Pure TypeScript verification (tsc --noEmit). Owns **/*.tsbuildinfo (recursive for TS project references). When composite:true + declaration emission needed, split into separate types:build task per ADR-001.",
       "dependsOn": ["__transit__"],
-      "outputs": [".types/**", "**/*.tsbuildinfo"],
+      "outputs": ["**/*.tsbuildinfo"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tsconfig.json",
