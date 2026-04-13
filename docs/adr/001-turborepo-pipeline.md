@@ -152,6 +152,17 @@ Trigger-gated deferred items. Each names the condition and concrete change.
   For custom (non-Vercel) cache backends, `remoteCache.teamId` and `remoteCache.apiUrl` are valid fields (verified parse).
   HMAC-SHA256 signing-key enforcement.
 
+- **Root config hashing for lint/test tasks** (verified 2026-04-13): lint,
+  test:unit, test:integration include `$TURBO_ROOT$/tsconfig.base.json`,
+  `$TURBO_ROOT$/eslint.config.*`, `$TURBO_ROOT$/.eslintrc*`,
+  `$TURBO_ROOT$/vitest.config.*`, `$TURBO_ROOT$/vitest.workspace.*`,
+  `$TURBO_ROOT$/jest.config.*` in their `inputs`. Reason: package-local
+  globs do not match root files; without `$TURBO_ROOT$` prefix, changes
+  to shared root configs produce identical hashes (verified empirically).
+  Type-aware ESLint rules and Vitest/Jest TS transforms both depend on
+  root tsconfig.
+
+
 - **Enable `pruneIncludesGlobalFiles`** (trigger: `turbo prune` adopted
   for Docker/deploy builds):
   Without it, `globalDependencies` files are referenced in pruned
