@@ -1,4 +1,47 @@
-# FleetManagement/.github/workflows/ci.yml
+# ============================================================================
+# File:     FleetManagement/.github/workflows/ci.yml
+# Purpose:  GitHub Actions CI workflow that runs the Turborepo quality gates
+#           (lint, typecheck, test, build) on every push and on PRs targeting
+#           the long-lived GitFlow branches (main, develop).
+#
+# Why it exists:
+#   The Frozen Stack (Fleet-Management-Stack.pdf) mandates "TDD +
+#   Testcontainers + CI ephemeral schemas per parallel runner" and GitFlow.
+#   This workflow is the remote enforcement point that makes branch
+#   protection rules meaningful — main and develop require the
+#   "Lint / Typecheck / Test / Build" check to pass before merge. It is the
+#   CI-side counterpart to the local pre-commit/pre-push hooks defined in
+#   .pre-commit-config.yaml, and the task names align with turbo.jsonc so
+#   behavior matches local and remote.
+#
+# Key decisions / invariants:
+#   - Triggers: push on ALL branches (covers feature/*, release/*,
+#     hotfix/*, develop, main per GitFlow) + PRs into main and develop.
+#   - concurrency + cancel-in-progress: supersedes stale runs on
+#     force-push / rapid commits to save CI minutes.
+#   - pnpm/action-setup@v4 uses NO explicit version: the root
+#     package.json "packageManager" field is the single source of truth
+#     (declaring both caused ERR_PNPM_BAD_PM_VERSION — see commit history).
+#   - Two mutually-exclusive Setup Node steps gated by
+#     hashFiles('pnpm-lock.yaml'): pre-scaffold pushes (no lockfile yet)
+#     hit the no-cache variant; once scaffold lands, the cached variant
+#     activates automatically with zero workflow edits.
+#   - All install/lint/typecheck/test/build steps are guarded by the same
+#     lockfile hashFiles check so pre-scaffold commits get a meaningful
+#     green run instead of a failing --frozen-lockfile error.
+#   - fetch-depth: 0 required for future Turborepo --affected filtering
+#     and for release tagging.
+#   - timeout-minutes: 20 caps runaway jobs.
+#   - pnpm -r --if-present <script> runs across all workspaces only where
+#     the script is defined — lets packages adopt lint/typecheck/test
+#     incrementally without red CI.
+#
+# Related files:
+#   - turbo.jsonc              — task definitions this workflow invokes
+#   - package.json             — packageManager field (sole pnpm version)
+#   - .pre-commit-config.yaml  — local mirror of these gates
+#   - .gitignore               — excludes the artifacts this workflow caches
+# ============================================================================
 name: CI
 
 on:
