@@ -1,0 +1,157 @@
+// FleetManagement/turbo.jsonc
+// Turborepo 2.x pipeline — verified against turbo@2.9.6
+// Decoupled quality gates, split test taxonomy, JSONC for inline comments
+{
+  "$schema": "https://turbo.build/schema.json",
+
+  "ui": "stream",
+
+  // Files that invalidate the global cache key
+  "globalDependencies": ["tsconfig.base.json", ".nvmrc", ".node-version"],
+
+  // Env vars included in the cache key (changes bust cache)
+  "globalEnv": ["CI"],
+
+  // Env vars forwarded to tasks but NOT part of cache key
+  // NODE_ENV passthrough: same code, different build per env (prod/dev)
+  // FEATURE_FLAGS_*: per PDF capability-flags architecture
+  "globalPassThroughEnv": [
+    "NODE_ENV",
+    "VERCEL_ENV",
+    "GITHUB_TOKEN",
+    "VERCEL_TOKEN",
+    "TURBO_TOKEN",
+    "TURBO_TEAM",
+    "FEATURE_FLAGS_*"
+  ],
+
+  // Remote cache stub — enable after Turborepo Cloud signup
+  "remoteCache": {
+    "enabled": false,
+    "signature": true
+  },
+
+  "tasks": {
+    // Build: full compilation; depends on upstream builds for artifacts
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**", "out/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "src/**/*.{ts,tsx,js,jsx,json}",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "next.config.*",
+        "nest-cli.json"
+      ],
+      "env": ["NEXT_PUBLIC_*", "EXPO_PUBLIC_*", "APP_VERSION", "BUILD_ID"],
+      "outputLogs": "new-only"
+    },
+
+    // Lint: depends on ^typecheck (NOT ^lint) because type-aware ESLint rules
+    // (@typescript-eslint/no-floating-promises, strict-boolean-expressions)
+    // need upstream .d.ts files. Verified ^lint self-chain provides no types.
+    "lint": {
+      "dependsOn": ["^typecheck"],
+      "cache": true,
+      "outputs": ["eslint-report.json", ".eslintcache"],
+      "inputs": [
+        "src/**/*.{ts,tsx,js,jsx}",
+        ".eslintrc*",
+        "eslint.config.*",
+        ".eslintignore",
+        "package.json"
+      ],
+      "outputLogs": "new-only"
+    },
+
+    // Typecheck: project-references semantics; upstream types resolve first
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "cache": true,
+      "outputs": ["*.tsbuildinfo", "dist/**/*.d.ts"],
+      "inputs": [
+        "src/**/*.{ts,tsx}",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "package.json"
+      ],
+      "outputLogs": "new-only"
+    },
+
+    // Test (default alias): runs against source, NO upstream dependency
+    // Verified: standalone execution works; faster feedback loop
+    "test": {
+      "dependsOn": [],
+      "cache": true,
+      "outputs": ["coverage/**", "test-results/**", "junit.xml"],
+      "inputs": [
+        "src/**/*.{ts,tsx,js,jsx}",
+        "test/**",
+        "vitest.config.*",
+        "jest.config.*",
+        "package.json",
+        "tsconfig.json"
+      ],
+      "env": ["DATABASE_URL", "REDIS_URL", "TESTCONTAINERS_*", "VITEST_*", "JEST_*"],
+      "outputLogs": "new-only"
+    },
+
+    // Unit tests: pure, no deps, fastest feedback
+    "test:unit": {
+      "dependsOn": [],
+      "cache": true,
+      "outputs": ["coverage/**"],
+      "inputs": [
+        "src/**/*.{ts,tsx,js,jsx}",
+        "test/unit/**",
+        "vitest.config.*",
+        "jest.config.*"
+      ],
+      "env": ["VITEST_*", "JEST_*"],
+      "outputLogs": "new-only"
+    },
+
+    // Integration tests: need Testcontainers-backed services; depend on ^build
+    // for compiled upstream artifacts (per PDF: "TDD + Testcontainers")
+    "test:integration": {
+      "dependsOn": ["^build"],
+      "cache": true,
+      "outputs": ["coverage/**", "test-results/**"],
+      "inputs": [
+        "src/**/*.{ts,tsx,js,jsx}",
+        "test/integration/**",
+        "vitest.config.*",
+        "jest.config.*"
+      ],
+      "env": ["DATABASE_URL", "REDIS_URL", "S3_ENDPOINT", "TESTCONTAINERS_*"],
+      "outputLogs": "new-only"
+    },
+
+    // E2E tests: never cached (flaky across envs); need full build
+    "test:e2e": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "outputs": ["playwright-report/**", "test-results/**"],
+      "env": ["DATABASE_URL", "REDIS_URL", "API_BASE_URL", "TESTCONTAINERS_*"]
+    },
+
+    // Aggregate CI gate: lint → typecheck → test → build in parallel DAG
+    "ci": {
+      "dependsOn": ["lint", "typecheck", "test", "build"],
+      "cache": false
+    },
+
+    // Dev: persistent, interruptible on SIGINT, no upstream dev chain yet
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "interruptible": true
+    },
+
+    "clean": {
+      "cache": false
+    }
+  }
+}
