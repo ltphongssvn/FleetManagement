@@ -1,33 +1,90 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "//": "FleetManagement/turbo.json",
+  "//": "FleetManagement/turbo.json — Turborepo 2.x pipeline (verified against turbo@2.9.6, Apr 2026)",
   "ui": "stream",
-  "globalDependencies": ["**/.env.*local", "tsconfig.base.json"],
-  "globalEnv": ["NODE_ENV", "CI"],
+  "globalDependencies": ["tsconfig.base.json", ".nvmrc", ".node-version"],
+  "globalEnv": ["CI"],
+  "globalPassThroughEnv": ["NODE_ENV", "GITHUB_TOKEN", "VERCEL_TOKEN", "TURBO_TOKEN", "TURBO_TEAM"],
+  "remoteCache": {
+    "enabled": false,
+    "signature": true
+  },
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**"],
-      "inputs": ["src/**", "test/**", "package.json", "tsconfig.json"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**", "out/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "src/**",
+        "test/**",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "next.config.*",
+        "nest-cli.json"
+      ],
+      "env": ["NEXT_PUBLIC_*", "EXPO_PUBLIC_*"]
     },
     "lint": {
-      "dependsOn": ["^build"],
-      "outputs": [],
-      "inputs": ["src/**", "test/**", ".eslintrc*", "eslint.config.*", "package.json"]
+      "dependsOn": ["^typecheck"],
+      "cache": true,
+      "outputs": ["eslint-report.json", ".eslintcache"],
+      "inputs": [
+        "src/**",
+        "test/**",
+        ".eslintrc*",
+        "eslint.config.*",
+        ".eslintignore",
+        "package.json"
+      ]
     },
     "typecheck": {
-      "dependsOn": ["^build"],
-      "outputs": ["*.tsbuildinfo"],
-      "inputs": ["src/**", "test/**", "tsconfig.json", "tsconfig.*.json"]
+      "dependsOn": ["^typecheck"],
+      "cache": true,
+      "outputs": ["*.tsbuildinfo", "dist/**/*.d.ts"],
+      "inputs": ["src/**", "test/**", "tsconfig.json", "tsconfig.*.json", "package.json"]
     },
     "test": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^typecheck"],
+      "cache": true,
+      "outputs": ["coverage/**", "test-results/**", "junit.xml"],
+      "inputs": [
+        "src/**",
+        "test/**",
+        "vitest.config.*",
+        "jest.config.*",
+        "package.json",
+        "tsconfig.json"
+      ],
+      "env": ["DATABASE_URL", "REDIS_URL", "TESTCONTAINERS_*"]
+    },
+    "test:unit": {
+      "dependsOn": ["^typecheck"],
+      "cache": true,
       "outputs": ["coverage/**"],
-      "inputs": ["src/**", "test/**", "vitest.config.*", "jest.config.*", "package.json"]
+      "inputs": ["src/**", "test/unit/**", "vitest.config.*", "jest.config.*"]
+    },
+    "test:integration": {
+      "dependsOn": ["^build"],
+      "cache": true,
+      "outputs": ["coverage/**", "test-results/**"],
+      "inputs": ["src/**", "test/integration/**", "vitest.config.*", "jest.config.*"],
+      "env": ["DATABASE_URL", "REDIS_URL", "S3_ENDPOINT", "TESTCONTAINERS_*"]
+    },
+    "test:e2e": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "outputs": ["playwright-report/**", "test-results/**"],
+      "env": ["DATABASE_URL", "REDIS_URL", "API_BASE_URL", "TESTCONTAINERS_*"]
+    },
+    "ci": {
+      "dependsOn": ["lint", "typecheck", "test", "build"],
+      "cache": false
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "interruptible": true
     },
     "clean": {
       "cache": false
