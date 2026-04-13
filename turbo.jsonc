@@ -47,8 +47,27 @@
 //     test:e2e runs on separate release/nightly gate, not in ci:full.
 //   - futureFlags enable task-granular --affected and turbo watch
 //     (both stable per docs, not experimental).
+//   - NEXT_PUBLIC_*/EXPO_PUBLIC_* in build.env are redundant for Next.js
+//     and Expo packages (framework inference auto-adds these per-package
+//     when the framework is detected). Kept at root for: (a) self-
+//     documentation for reviewers, (b) coverage of NestJS api + worker
+//     packages where framework inference does not apply. Will move to
+//     package-level turbo.jsonc in Week 1 (see FUTURE WORK).
 //
-// FUTURE WORK (when apps/packages land):
+// FUTURE WORK (when apps/packages land in Week 1 per PDF day-one plan):
+//   - Split root build into package-level configurations
+//     (apps/ops-web/turbo.jsonc, apps/driver-app/turbo.jsonc,
+//     apps/api/turbo.jsonc, workers/main-worker/turbo.jsonc) using
+//     extends: ["//"] and $TURBO_EXTENDS$ for append-style overrides.
+//     Current root build over-generalizes outputs (dist, .next, build, out)
+//     across all frameworks; package configs let each framework declare
+//     only its own artifacts. Rationale: cleaner ownership, clearer intent,
+//     better locality of framework-specific policy.
+//   - After package splits land: drop NEXT_PUBLIC_*/EXPO_PUBLIC_* from
+//     root build.env. Framework inference + per-package $TURBO_DEFAULT$
+//     auto-tracking of .env files supersede the root wildcard declaration.
+//     Wildcards at root over-invalidate: adding NEXT_PUBLIC_FOO to one
+//     app's .env busts build cache for ALL apps (verified empirically).
 //   - Root .env is NOT auto-tracked by $TURBO_DEFAULT$ when filtering to
 //     specific packages (verified). If apps/* read root .env, add it to
 //     globalDependencies explicitly. Per-app .env files ARE auto-tracked.
@@ -56,15 +75,21 @@
 //       * typecheck   — tsc --noEmit verification (pure, no outputs)
 //       * types:build — declaration emission (outputs *.d.ts, .tsbuildinfo)
 //     Keeps pure tasks separate from artifact-emitting tasks.
-//   - Replace wildcard NEXT_PUBLIC_*/EXPO_PUBLIC_* in build.env with
-//     workspace-level turbo.jsonc (extends: ["//"]). $TURBO_DEFAULT$
-//     auto-tracks per-package .env files, so per-app configs can drop
-//     explicit env lists entirely. Wildcards at root over-invalidate.
 //   - Enable remoteCache + signature after Turborepo Cloud signup.
+//     Pair with futureFlags.longerSignatureKey (verified parses) for
+//     minimum 32-byte HMAC-SHA256 signing key enforcement.
 //     Omitted from this config until enabled (avoids smell).
 //   - Wire test:e2e migration-aware caching when Drizzle migrations exist
 //     (Week 3 per PDF): add "$TURBO_ROOT$/<real-path>/migrations/**/*.sql"
-//     to test:e2e.inputs and flip cache:false -> cache:true.
+//     to test:e2e.inputs and flip cache:false -> cache:true. Likely path:
+//     apps/api/drizzle/migrations/** or packages/db/migrations/**.
+//   - Add coverage merge/report task when multiple test tiers land. Per
+//     turbo Vitest guide, per-package cacheable approach trades away
+//     out-of-the-box merged coverage; explicit merge task needed.
+//   - Add eslint-config-turbo to surface envs used in code but not
+//     declared in turbo.jsonc (catches cache-correctness gaps at lint).
+//   - Add package tags + turbo boundaries when architectural invariants
+//     need enforcement (@domain cannot import from apps/*, etc.).
 //   - Consolidate test runner + linter once chosen in Week 1:
 //       * Vitest only: drop "jest.config.*" from test* inputs
 //       * Jest only:   drop "vitest.config.*" and "vitest.workspace.*"
@@ -110,7 +135,7 @@
     },
 
     "build": {
-      "description": "Compile production artifacts (NestJS dist, Next.js .next, Expo build)",
+      "description": "Compile production artifacts (NestJS dist, Next.js .next, Expo build). Will split into package-level configs in Week 1 — see FUTURE WORK.",
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**", "out/**"],
       "inputs": [
