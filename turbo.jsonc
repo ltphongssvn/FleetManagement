@@ -40,7 +40,7 @@
     },
 
     "build": {
-      "description": "Compile production artifacts (NestJS dist, Next.js .next, Expo build). Owns dist/** exclusively. BUILD_ID intentionally NOT hashed — stamp via deploy-time metadata (commit SHA or runtime env), not build-time cache key.",
+      "description": "Compile production artifacts (NestJS dist, Next.js .next, Expo build). Owns dist/** exclusively. BUILD_ID intentionally NOT hashed — stamp via deploy-time metadata.",
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**", "out/**"],
       "inputs": [
@@ -52,14 +52,17 @@
     },
 
     "lint": {
-      "description": "Static analysis (ESLint). ^lint ensures shared eslint-config package lints itself before consumers.",
+      "description": "Static analysis (ESLint). ^lint ensures shared eslint-config package lints itself before consumers. Hashes both package-local and root-level ESLint configs.",
       "dependsOn": ["^lint"],
       "outputs": ["eslint-report.json", ".eslintcache"],
       "inputs": [
         "$TURBO_DEFAULT$",
         ".eslintrc*",
         "eslint.config.*",
-        ".eslintignore"
+        ".eslintignore",
+        "$TURBO_ROOT$/.eslintrc*",
+        "$TURBO_ROOT$/eslint.config.*",
+        "$TURBO_ROOT$/.eslintignore"
       ],
       "outputLogs": "new-only"
     },
@@ -78,20 +81,25 @@
         "$TURBO_DEFAULT$",
         "tsconfig.json",
         "tsconfig.*.json",
-        "$TURBO_ROOT$/tsconfig.base.json"
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/tsconfig.json",
+        "$TURBO_ROOT$/tsconfig.*.json"
       ],
       "outputLogs": "new-only"
     },
 
     "test:unit": {
-      "description": "Unit tests only — fastest cacheable feedback loop. Owns coverage/unit/** + test-results/unit/**.",
+      "description": "Unit tests only — fastest cacheable feedback loop. Owns coverage/unit/** + test-results/unit/**. Hashes both package-local and root test configs.",
       "dependsOn": ["__transit__"],
       "outputs": ["coverage/unit/**", "test-results/unit/**"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "vitest.config.*",
         "vitest.workspace.*",
-        "jest.config.*"
+        "jest.config.*",
+        "$TURBO_ROOT$/vitest.config.*",
+        "$TURBO_ROOT$/vitest.workspace.*",
+        "$TURBO_ROOT$/jest.config.*"
       ],
       "env": ["VITEST_*", "JEST_*"],
       "outputLogs": "new-only"
@@ -112,7 +120,10 @@
         "$TURBO_DEFAULT$",
         "vitest.config.*",
         "vitest.workspace.*",
-        "jest.config.*"
+        "jest.config.*",
+        "$TURBO_ROOT$/vitest.config.*",
+        "$TURBO_ROOT$/vitest.workspace.*",
+        "$TURBO_ROOT$/jest.config.*"
       ],
       "env": ["DATABASE_URL", "REDIS_URL", "S3_ENDPOINT", "TESTCONTAINERS_*"],
       "outputLogs": "new-only"
