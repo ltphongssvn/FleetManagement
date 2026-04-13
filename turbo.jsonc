@@ -1,5 +1,16 @@
 // FleetManagement/turbo.jsonc
 // Turborepo 2.x pipeline — verified against turbo@2.9.6
+//
+// FUTURE WORK (when apps/packages land):
+// - Replace wildcard NEXT_PUBLIC_*/EXPO_PUBLIC_* in build.env with
+//   exact vars per app via workspace-level turbo.jsonc (extends: ["//"]).
+//   Wildcards at root over-invalidate: adding NEXT_PUBLIC_FOO to one app's
+//   .env busts build cache for ALL apps (verified empirically).
+// - Enable remoteCache after Turborepo Cloud / self-hosted signup.
+// - Wire test:e2e migration-aware caching when Drizzle migrations exist
+//   (Week 3 per PDF): add "$TURBO_ROOT$/<real-path>/migrations/**/*.sql"
+//   to test:e2e.inputs and flip cache:false -> cache:true. Likely path:
+//   apps/api/drizzle/migrations/** or packages/db/migrations/**.
 {
   "$schema": "./node_modules/turbo/schema.json",
 
@@ -53,7 +64,7 @@
     },
 
     "lint": {
-      "description": "Static analysis (ESLint)",
+      "description": "Static analysis (ESLint). ^lint ensures shared eslint-config package (future packages/eslint-config) lints itself before consumers use it.",
       "dependsOn": ["^lint"],
       "cache": true,
       "outputs": ["eslint-report.json", ".eslintcache"],
@@ -139,7 +150,7 @@
     },
 
     "test:e2e": {
-      "description": "End-to-end tests (Playwright) — never cached across envs",
+      "description": "End-to-end tests (Playwright) — never cached across envs until migration-hash inputs wired (see FUTURE WORK header)",
       "dependsOn": ["^build"],
       "cache": false,
       "outputs": ["playwright-report/**", "test-results/**"],
@@ -147,7 +158,7 @@
     },
 
     "ci": {
-      "description": "Aggregate CI gate: lint + typecheck + test + build in parallel DAG. Invoke with --summarize in CI for run metrics.",
+      "description": "Aggregate CI gate: lint + typecheck + test + build in parallel DAG. Invoke with --summarize for run metrics.",
       "dependsOn": ["lint", "typecheck", "test", "build"],
       "cache": false
     },
