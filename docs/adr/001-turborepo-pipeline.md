@@ -149,6 +149,7 @@ Trigger-gated deferred items. Each names the condition and concrete change.
 - **Enable remote cache** (trigger: Turborepo Cloud signup):
   Enable `remoteCache: { enabled: true, signature: true }` + pair with
   `futureFlags.longerSignatureKey` (verified parses) for ≥32-byte
+  For custom (non-Vercel) cache backends, `remoteCache.teamId` and `remoteCache.apiUrl` are valid fields (verified parse).
   HMAC-SHA256 signing-key enforcement.
 
 - **Enable `pruneIncludesGlobalFiles`** (trigger: `turbo prune` adopted
