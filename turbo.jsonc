@@ -1,150 +1,10 @@
 // ============================================================================
 // File:     FleetManagement/turbo.jsonc
-// Purpose:  Root Turborepo 2.x pipeline configuration for the Intermodal
-//           Fleet Platform monorepo. Defines the task graph, caching rules,
-//           environment contracts, and execution semantics that every
-//           workspace (apps/*, workers/*, packages/*) inherits.
-//
-// Why it exists:
-//   The Frozen Stack (Fleet-Management-Stack.pdf) mandates
-//   "pnpm workspaces + Turborepo; Node/TS only" as the monorepo foundation.
-//   This file is the single source of truth for how Turborepo orchestrates
-//   builds, tests, lint, typecheck, and dev loops across the Expo
-//   driver-app, Next.js ops-web, NestJS api, and BullMQ worker. It also
-//   encodes the PDF's TDD + Testcontainers mandate by splitting tests into
-//   unit / integration / e2e tasks with different cache semantics and
-//   splits CI gates (ci:fast vs ci:full) to make quality tiers explicit.
-//
-// Key decisions / invariants (all empirically verified against turbo@2.9.6):
-//   - Format: turbo.jsonc (native // comments). Schema pinned to installed
-//     turbo via ./node_modules/turbo/schema.json.
-//   - envMode: "strict" — only declared env vars visible at runtime.
-//   - CRITICAL env hashing discipline (verified):
-//       * NODE_ENV, VERCEL_ENV, FEATURE_FLAGS_* are in globalEnv (HASHED).
-//         Passthrough would cause stale-cache correctness bugs: a dev-mode
-//         build could be served for a prod invocation (verified identical
-//         hash for NODE_ENV=development vs production under passthrough).
-//       * Remote-cache secret tokens (TURBO_TOKEN, TURBO_TEAM, GITHUB_TOKEN,
-//         VERCEL_TOKEN) are NOT declared here — turbo reads them from
-//         process env natively. Declaring them globally would expose to
-//         every task; least-privilege places them on specific tasks only
-//         if/when a task script consumes them.
-//   - pnpm-lock.yaml intentionally NOT in globalDependencies: docs + test
-//     confirm root lockfile is already part of global hash automatically.
-//   - Quality gates DECOUPLED from builds via __transit__ node:
-//       * lint      dependsOn ["^lint"]           — shared-config stability
-//       * typecheck dependsOn ["__transit__"]     — parallel, not serialized
-//       * test:unit dependsOn ["__transit__"]     — source-based, fast TDD
-//   - __transit__ (double-underscore prefix) is NAME-COLLISION-SAFE:
-//     verified that a plain "transit" name matches any package script
-//     of the same name and executes it, violating graph-only intent.
-//     Internal-convention naming prevents accidental package-script match.
-//   - Tests needing SAME-package build artifacts use ["build", "^build"]:
-//       * test:integration — needs own dist + upstream dists
-//       * test:e2e         — needs full build
-//     Verified: ^build alone only produces upstream deps (a#build), adding
-//     "build" additionally produces self (b#build).
-//   - NO generic "test" task: forces explicit intent. Developers must call
-//     test:unit / test:integration / test:e2e. Ambiguity is the enemy of
-//     consistency — a bare "turbo run test" should not exist in policy.
-//   - CI tiers are EXPLICIT (no hidden policy):
-//       * ci:fast — lint + typecheck + test:unit (PR gate, <2 min target)
-//       * ci:full — ci:fast + test:integration (pre-merge to main)
-//       * ci      — alias for ci:fast for GitFlow PR convention
-//     test:e2e runs on separate release/nightly gate, not in ci:full.
-//     These aggregate tasks exist for LOCAL developer convenience
-//     (pnpm turbo run ci:full before pushing a release branch).
-//     CI itself should prefer a matrix-split workflow — see FUTURE WORK.
-//   - futureFlags enable task-granular --affected and turbo watch
-//     (both stable per docs, not experimental).
-//   - NEXT_PUBLIC_*/EXPO_PUBLIC_* in build.env are redundant for Next.js
-//     and Expo packages (framework inference auto-adds these per-package
-//     when the framework is detected). Kept at root for: (a) self-
-//     documentation for reviewers, (b) coverage of NestJS api + worker
-//     packages where framework inference does not apply. Will move to
-//     package-level turbo.jsonc in Week 1 (see FUTURE WORK).
-//   - "cache: true" omitted from task definitions — it is the default
-//     per turbo 2.9.6 schema (verified). Only cache:false is explicit.
-//
-// FUTURE WORK (when apps/packages land in Week 1 per PDF day-one plan):
-//   - Split root build into package-level configurations
-//     (apps/ops-web/turbo.jsonc, apps/driver-app/turbo.jsonc,
-//     apps/api/turbo.jsonc, workers/main-worker/turbo.jsonc) using
-//     extends: ["//"] and $TURBO_EXTENDS$ for append-style overrides.
-//     Current root build over-generalizes outputs (dist, .next, build, out)
-//     across all frameworks; package configs let each framework declare
-//     only its own artifacts. Rationale: cleaner ownership, clearer intent,
-//     better locality of framework-specific policy, reduced cache bloat
-//     on remote-cache hit efficiency.
-//   - Migrate this docstring block + architectural decisions into
-//     docs/adr/ (Architecture Decision Records) once that folder is
-//     scaffolded per PDF. Config files should contain configuration;
-//     architectural intent belongs in dedicated ADR markdown. Keep
-//     only a one-line "See docs/adr/NNN-turborepo-pipeline.md" pointer
-//     in turbo.jsonc after migration.
-//   - Split CI workflow (.github/workflows/ci.yml) into a matrix of
-//     parallel jobs instead of invoking ci:fast/ci:full as single
-//     monolithic runs. Example matrix: one job for `turbo run lint`,
-//     one for `turbo run typecheck`, one for `turbo run test:unit`.
-//     Benefits: (a) GitHub PR UI shows distinct green/red checkmarks
-//     per domain (easier triage), (b) parallelism across CI machines
-//     instead of single-runner contention, (c) remote cache is shared
-//     across jobs seamlessly. Keep ci:fast/ci:full in turbo.jsonc as
-//     LOCAL developer convenience — workflow owns production execution.
-//   - After package splits land: drop NEXT_PUBLIC_*/EXPO_PUBLIC_* from
-//     root build.env. Framework inference + per-package $TURBO_DEFAULT$
-//     auto-tracking of .env files supersede the root wildcard declaration.
-//     Wildcards at root over-invalidate: adding NEXT_PUBLIC_FOO to one
-//     app's .env busts build cache for ALL apps (verified empirically).
-//   - Root .env is NOT auto-tracked by $TURBO_DEFAULT$ when filtering to
-//     specific packages (verified). If apps/* read root .env, add it to
-//     globalDependencies explicitly. Per-app .env files ARE auto-tracked.
-//   - When composite: true TS project references land, split typecheck:
-//       * typecheck   — tsc --noEmit verification (pure, no outputs)
-//       * types:build — declaration emission (outputs *.d.ts, .tsbuildinfo)
-//     Keeps pure tasks separate from artifact-emitting tasks.
-//   - Enable remoteCache + signature after Turborepo Cloud signup.
-//     Pair with futureFlags.longerSignatureKey (verified parses) for
-//     minimum 32-byte HMAC-SHA256 signing key enforcement.
-//     Omitted from this config until enabled (avoids smell).
-//   - Enable futureFlags.pruneIncludesGlobalFiles (verified parses) if
-//     adopting `turbo prune` for Docker/deploy builds. Without it, files
-//     declared in globalDependencies (.nvmrc, .node-version, tsconfig.base)
-//     are referenced in pruned turbo.json but NOT copied into pruned
-//     output, causing pruned builds to behave differently than full.
-//   - Wire test:integration database-schema awareness as SOON as a schema
-//     file exists (do NOT wait for Week 3). Add $TURBO_ROOT$/packages/db/
-//     schema.ts (or apps/api/drizzle/schema.ts) to test:integration.inputs.
-//     Integration tests that depend on Testcontainers + Drizzle migrations
-//     must bust cache when schema changes even if app code didn't —
-//     otherwise cache hits falsely validate stale test results.
-//   - Wire test:e2e migration-aware caching when Drizzle migrations exist
-//     (Week 3 per PDF): add "$TURBO_ROOT$/<real-path>/migrations/**/*.sql"
-//     to test:e2e.inputs and flip cache:false -> cache:true. Likely path:
-//     apps/api/drizzle/migrations/** or packages/db/migrations/**.
-//     Hermeticity caveat: only enable caching if integration/e2e tests
-//     are deterministic — no mutable external services, stable seeds,
-//     frozen clocks. TDD trust requires reliable tests, not just fast ones.
-//   - Add coverage merge/report task when multiple test tiers land. Per
-//     turbo Vitest guide, per-package cacheable approach trades away
-//     out-of-the-box merged coverage; explicit merge task needed.
-//   - Add eslint-config-turbo to surface envs used in code but not
-//     declared in turbo.jsonc (catches cache-correctness gaps at lint).
-//   - Add package tags + turbo boundaries when architectural invariants
-//     need enforcement (@domain cannot import from apps/*, etc.).
-//   - Consolidate test runner + linter once chosen in Week 1:
-//       * Vitest only: drop "jest.config.*" from test* inputs
-//       * Jest only:   drop "vitest.config.*" and "vitest.workspace.*"
-//       * Flat ESLint: drop ".eslintrc*" from lint.inputs
-//       * Biome: replace lint task with biome.json inputs, .biomecache output
-//
-// Related files:
-//   - package.json              — packageManager, engines, root scripts
-//   - pnpm-workspace.yaml       — workspace topology
-//   - tsconfig.base.json        — shared TS compiler options
-//   - .github/workflows/ci.yml  — invokes ci:fast / ci:full tasks
-//   - .pre-commit-config.yaml   — local mirror of these gates
-//   - .gitignore                — excludes .turbo, dist, coverage
+// Purpose:  Root Turborepo 2.x pipeline configuration.
+// Rationale: See docs/adr/001-turborepo-pipeline.md for full decision record
+//           (context, alternatives, invariants, future work, verification).
+// Related:  package.json, pnpm-workspace.yaml, tsconfig.base.json,
+//           .github/workflows/ci.yml, .pre-commit-config.yaml, .gitignore
 // ============================================================================
 {
   "$schema": "./node_modules/turbo/schema.json",
@@ -176,7 +36,7 @@
     },
 
     "build": {
-      "description": "Compile production artifacts (NestJS dist, Next.js .next, Expo build). Will split into package-level configs in Week 1 — see FUTURE WORK.",
+      "description": "Compile production artifacts (NestJS dist, Next.js .next, Expo build).",
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**", "out/**"],
       "inputs": [
@@ -188,7 +48,7 @@
     },
 
     "lint": {
-      "description": "Static analysis (ESLint). ^lint ensures shared eslint-config package (future packages/eslint-config) lints itself before consumers use it.",
+      "description": "Static analysis (ESLint). ^lint ensures shared eslint-config package lints itself before consumers use it.",
       "dependsOn": ["^lint"],
       "outputs": ["eslint-report.json", ".eslintcache"],
       "inputs": [
@@ -207,7 +67,7 @@
     },
 
     "typecheck": {
-      "description": "TypeScript verification (parallel via __transit__, not serialized behind builds). When composite:true TS project references land, split into typecheck (--noEmit) + types:build (see FUTURE WORK).",
+      "description": "TypeScript verification (parallel via __transit__, not serialized behind builds).",
       "dependsOn": ["__transit__"],
       "outputs": ["*.tsbuildinfo", "dist/**/*.d.ts"],
       "inputs": [
@@ -241,7 +101,7 @@
     },
 
     "test:integration": {
-      "description": "Integration tests — need own built artifacts + upstream builds + Testcontainers services. dependsOn includes 'build' (self) not just '^build' (upstream only).",
+      "description": "Integration tests — need own built artifacts + upstream builds + Testcontainers services.",
       "dependsOn": ["build", "^build"],
       "outputs": ["coverage/**", "test-results/**"],
       "inputs": [
@@ -255,14 +115,14 @@
     },
 
     "test:e2e": {
-      "description": "End-to-end tests (Playwright) — need own + upstream builds. Never cached until migration-hash inputs wired (see FUTURE WORK).",
+      "description": "End-to-end tests (Playwright) — need own + upstream builds. Never cached until migration-hash inputs wired (see ADR-001).",
       "dependsOn": ["build", "^build"],
       "cache": false,
       "env": ["DATABASE_URL", "REDIS_URL", "API_BASE_URL", "TESTCONTAINERS_*"]
     },
 
     "ci:fast": {
-      "description": "PR gate — lint + typecheck + test:unit. Target <2 min. Local convenience; CI workflow should matrix-split (see FUTURE WORK).",
+      "description": "PR gate — lint + typecheck + test:unit. Target <2 min. Local convenience; CI workflow should matrix-split (see ADR-001).",
       "dependsOn": ["lint", "typecheck", "test:unit"],
       "cache": false
     },
@@ -274,7 +134,7 @@
     },
 
     "ci": {
-      "description": "Alias for ci:fast (GitFlow PR convention). Explicit tiers: ci:fast / ci:full above.",
+      "description": "Alias for ci:fast (GitFlow PR convention).",
       "dependsOn": ["ci:fast"],
       "cache": false
     },
