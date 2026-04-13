@@ -117,7 +117,7 @@
     },
 
     "test:watch": {
-      "description": "Fast local TDD loop (Red-Green-Refactor)",
+      "description": "Fast local TDD loop (Red-Green-Refactor). Package scripts invoke 'vitest --watch' or 'jest --watch'.",
       "cache": false,
       "persistent": true,
       "interruptible": true
@@ -149,6 +149,11 @@
     "ci": {
       "description": "Aggregate CI gate: lint + typecheck + test + build in parallel DAG. Invoke with --summarize in CI for run metrics.",
       "dependsOn": ["lint", "typecheck", "test", "build"],
+      "cache": false
+    },
+
+    "graph": {
+      "description": "Generate pipeline DAG visualization. Root script runs 'turbo run ci --graph=docs/pipeline.mermaid'.",
       "cache": false
     },
 
