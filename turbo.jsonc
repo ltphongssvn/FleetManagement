@@ -40,7 +40,7 @@
     },
 
     "build": {
-      "description": "Compile production artifacts (NestJS dist, Next.js .next, Expo build). Owns dist/** exclusively. BUILD_ID intentionally NOT hashed — stamp via deploy-time metadata.",
+      "description": "Compile production artifacts (NestJS dist, Next.js .next, Expo build). Owns dist/** exclusively. BUILD_ID policy: MUST NOT be read during build. Stamping happens at deploy time (commit SHA metadata) or runtime env — never consumed by build scripts. Not declared here (neither env nor passThroughEnv) because it must not be visible.",
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**", "out/**"],
       "inputs": [
@@ -136,32 +136,32 @@
       "env": ["DATABASE_URL", "REDIS_URL", "API_BASE_URL", "TESTCONTAINERS_*"]
     },
 
-    "ci:fast": {
-      "description": "PR gate — lint + typecheck + test:unit. Target <2 min. Local convenience; CI workflow should matrix-split (ADR-001).",
+    "__ci_fast__": {
+      "description": "PR gate orchestration node — lint + typecheck + test:unit. Double-underscore prevents package-script collision. Expose via root package.json script 'ci:fast' for friendly CLI. CI workflow should matrix-split (ADR-001).",
       "dependsOn": ["lint", "typecheck", "test:unit"],
       "cache": false
     },
 
-    "ci:full": {
-      "description": "Pre-merge gate — cumulative on ci:fast + adds build (every package must compile) + test:integration.",
-      "dependsOn": ["ci:fast", "build", "test:integration"],
+    "__ci_full__": {
+      "description": "Pre-merge gate orchestration node — cumulative on __ci_fast__ + build + test:integration. Double-underscore prevents package-script collision.",
+      "dependsOn": ["__ci_fast__", "build", "test:integration"],
       "cache": false
     },
 
-    "ci:release": {
-      "description": "Release/nightly gate — cumulative on ci:full + test:e2e.",
-      "dependsOn": ["ci:full", "test:e2e"],
+    "__ci_release__": {
+      "description": "Release/nightly gate orchestration node — cumulative on __ci_full__ + test:e2e. Double-underscore prevents package-script collision.",
+      "dependsOn": ["__ci_full__", "test:e2e"],
       "cache": false
     },
 
-    "ci": {
-      "description": "Alias for ci:fast (GitFlow PR convention).",
-      "dependsOn": ["ci:fast"],
+    "__ci__": {
+      "description": "Alias orchestration node for __ci_fast__ (GitFlow PR convention).",
+      "dependsOn": ["__ci_fast__"],
       "cache": false
     },
 
     "//#graph": {
-      "description": "Root-level task: generate pipeline DAG visualization. Prefix '//#' ensures repo-root-only, not per-package.",
+      "description": "Root-level task: generate pipeline DAG visualization (Mermaid for ADR/docs). Prefix '//#' ensures repo-root-only. For live operational inspection prefer 'turbo devtools' (2.7+) — browser-based package/task graph.",
       "cache": false
     },
 
