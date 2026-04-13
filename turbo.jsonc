@@ -80,9 +80,9 @@
     },
 
     "test:unit": {
-      "description": "Unit tests only — fastest cacheable feedback loop (PR gate via ci:fast)",
+      "description": "Unit tests only — fastest cacheable feedback loop (PR gate via ci:fast). Isolated coverage output: coverage/unit/**.",
       "dependsOn": ["__transit__"],
-      "outputs": ["coverage/**"],
+      "outputs": ["coverage/unit/**", "test-results/unit/**"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "vitest.config.*",
@@ -101,9 +101,9 @@
     },
 
     "test:integration": {
-      "description": "Integration tests — need own built artifacts + upstream builds + Testcontainers services.",
+      "description": "Integration tests — need own built artifacts + upstream builds + Testcontainers services. Isolated coverage output: coverage/integration/**.",
       "dependsOn": ["build", "^build"],
-      "outputs": ["coverage/**", "test-results/**"],
+      "outputs": ["coverage/integration/**", "test-results/integration/**"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "vitest.config.*",
@@ -115,7 +115,7 @@
     },
 
     "test:e2e": {
-      "description": "End-to-end tests (Playwright) — need own + upstream builds. Never cached until migration-hash inputs wired (see ADR-001).",
+      "description": "End-to-end tests (Playwright) — need own + upstream builds. Never cached until migration-hash inputs wired (see ADR-001). Isolated output: playwright-report/**.",
       "dependsOn": ["build", "^build"],
       "cache": false,
       "env": ["DATABASE_URL", "REDIS_URL", "API_BASE_URL", "TESTCONTAINERS_*"]
@@ -139,8 +139,8 @@
       "cache": false
     },
 
-    "graph": {
-      "description": "Generate pipeline DAG visualization. Root script runs 'turbo run ci:full --graph=docs/pipeline.mermaid'.",
+    "//#graph": {
+      "description": "Root-level task: generate pipeline DAG visualization. Root script runs 'turbo run ci:full --graph=docs/pipeline.mermaid'. Prefix '//#' ensures this runs once at repo root, not per-package.",
       "cache": false
     },
 
