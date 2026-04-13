@@ -1,20 +1,12 @@
 // FleetManagement/turbo.jsonc
 // Turborepo 2.x pipeline — verified against turbo@2.9.6
-// Decoupled quality gates, split test taxonomy, JSONC for inline comments
 {
-  "$schema": "https://turbo.build/schema.json",
-
-  // NOTE: `ui` intentionally omitted. Turborepo auto-detects:
-  //   - Local dev with TTY  → TUI (per-task log navigation, interactive shells)
-  //   - CI (no TTY)         → stream/grouped logs automatically
-  //   - Manual override     → turbo run ... --ui=stream|tui
+  "$schema": "./node_modules/turbo/schema.json",
 
   // Files that invalidate the global cache key.
-  // pnpm-lock.yaml explicit: turbo does NOT auto-track it
-  // (verified: Global Files=0 without declaration, =1 with).
+  // pnpm-lock.yaml: turbo does NOT auto-track (verified Global Files=0 without).
   "globalDependencies": [
     "pnpm-lock.yaml",
-    "tsconfig.base.json",
     ".nvmrc",
     ".node-version"
   ],
@@ -32,81 +24,87 @@
     "FEATURE_FLAGS_*"
   ],
 
+  // Task-granular --affected and turbo watch (verified parses)
+  "futureFlags": {
+    "affectedUsingTaskInputs": true,
+    "watchUsingTaskInputs": true
+  },
+
   "remoteCache": {
     "enabled": false,
     "signature": true
   },
 
   "tasks": {
+    // Transit node: graph-only orchestration for parallel cacheable tasks
+    // that need dependency-awareness but NOT dependency artifacts.
+    // Verified: b#test → b#transit → a#transit (no commands execute).
+    "transit": {
+      "description": "Graph-only node for dependency-aware parallel tasks",
+      "dependsOn": ["^transit"]
+    },
+
     "build": {
+      "description": "Compile production artifacts (NestJS dist, Next.js .next, Expo build)",
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**", "out/**"],
       "inputs": [
         "$TURBO_DEFAULT$",
-        "src/**/*.{ts,tsx,js,jsx,json}",
-        "package.json",
-        "tsconfig.json",
-        "tsconfig.*.json",
-        "next.config.*",
-        "nest-cli.json"
+        "$TURBO_ROOT$/tsconfig.base.json"
       ],
       "env": ["NEXT_PUBLIC_*", "EXPO_PUBLIC_*", "APP_VERSION", "BUILD_ID"],
       "outputLogs": "new-only"
     },
 
-    // Lint depends on ^typecheck (NOT ^lint): type-aware ESLint rules
-    // need upstream .d.ts files. Verified ^lint self-chain provides no types.
     "lint": {
-      "dependsOn": ["^typecheck"],
+      "description": "Static analysis (ESLint)",
+      "dependsOn": ["^lint"],
       "cache": true,
       "outputs": ["eslint-report.json", ".eslintcache"],
       "inputs": [
-        "src/**/*.{ts,tsx,js,jsx}",
+        "$TURBO_DEFAULT$",
         ".eslintrc*",
         "eslint.config.*",
-        ".eslintignore",
-        "package.json"
+        ".eslintignore"
       ],
       "outputLogs": "new-only"
     },
 
     "typecheck": {
-      "dependsOn": ["^typecheck"],
+      "description": "TypeScript verification (parallel via transit, not serialized behind builds)",
+      "dependsOn": ["transit"],
       "cache": true,
       "outputs": ["*.tsbuildinfo", "dist/**/*.d.ts"],
       "inputs": [
-        "src/**/*.{ts,tsx}",
+        "$TURBO_DEFAULT$",
         "tsconfig.json",
         "tsconfig.*.json",
-        "package.json"
+        "$TURBO_ROOT$/tsconfig.base.json"
       ],
       "outputLogs": "new-only"
     },
 
-    // Test runs against source, NO upstream dependency (verified standalone works)
     "test": {
-      "dependsOn": [],
+      "description": "CI test run — source-based, parallel via transit node",
+      "dependsOn": ["transit"],
       "cache": true,
       "outputs": ["coverage/**", "test-results/**", "junit.xml"],
       "inputs": [
-        "src/**/*.{ts,tsx,js,jsx}",
-        "test/**",
+        "$TURBO_DEFAULT$",
         "vitest.config.*",
-        "jest.config.*",
-        "package.json",
-        "tsconfig.json"
+        "jest.config.*"
       ],
       "env": ["DATABASE_URL", "REDIS_URL", "TESTCONTAINERS_*", "VITEST_*", "JEST_*"],
       "outputLogs": "new-only"
     },
 
     "test:unit": {
-      "dependsOn": [],
+      "description": "Unit tests only — fastest cacheable feedback loop",
+      "dependsOn": ["transit"],
       "cache": true,
       "outputs": ["coverage/**"],
       "inputs": [
-        "src/**/*.{ts,tsx,js,jsx}",
-        "test/unit/**",
+        "$TURBO_DEFAULT$",
         "vitest.config.*",
         "jest.config.*"
       ],
@@ -114,14 +112,20 @@
       "outputLogs": "new-only"
     },
 
-    // Integration tests: Testcontainers-backed services; need ^build artifacts
+    "test:watch": {
+      "description": "Fast local TDD loop (Red-Green-Refactor)",
+      "cache": false,
+      "persistent": true,
+      "interruptible": true
+    },
+
     "test:integration": {
+      "description": "Integration tests — need built artifacts + Testcontainers services",
       "dependsOn": ["^build"],
       "cache": true,
       "outputs": ["coverage/**", "test-results/**"],
       "inputs": [
-        "src/**/*.{ts,tsx,js,jsx}",
-        "test/integration/**",
+        "$TURBO_DEFAULT$",
         "vitest.config.*",
         "jest.config.*"
       ],
@@ -130,6 +134,7 @@
     },
 
     "test:e2e": {
+      "description": "End-to-end tests (Playwright) — never cached across envs",
       "dependsOn": ["^build"],
       "cache": false,
       "outputs": ["playwright-report/**", "test-results/**"],
@@ -137,17 +142,20 @@
     },
 
     "ci": {
+      "description": "Aggregate CI gate: lint + typecheck + test + build in parallel DAG",
       "dependsOn": ["lint", "typecheck", "test", "build"],
       "cache": false
     },
 
     "dev": {
+      "description": "Local dev server (persistent, turbo watch-aware)",
       "cache": false,
       "persistent": true,
       "interruptible": true
     },
 
     "clean": {
+      "description": "Remove build artifacts and caches",
       "cache": false
     }
   }
