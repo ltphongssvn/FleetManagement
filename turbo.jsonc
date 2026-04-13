@@ -6,8 +6,16 @@
 
   "ui": "stream",
 
-  // Files that invalidate the global cache key
-  "globalDependencies": ["tsconfig.base.json", ".nvmrc", ".node-version"],
+  // Files that invalidate the global cache key.
+  // pnpm-lock.yaml included explicitly: turbo does NOT auto-track it
+  // (verified: Global Files=0 without declaration, =1 with).
+  // This ensures transitive-dep changes bust the cache deterministically.
+  "globalDependencies": [
+    "pnpm-lock.yaml",
+    "tsconfig.base.json",
+    ".nvmrc",
+    ".node-version"
+  ],
 
   // Env vars included in the cache key (changes bust cache)
   "globalEnv": ["CI"],
