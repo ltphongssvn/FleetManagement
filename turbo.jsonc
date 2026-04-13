@@ -3,13 +3,8 @@
 {
   "$schema": "./node_modules/turbo/schema.json",
 
-  // Strict Mode: only env vars declared in env/globalEnv/passThroughEnv are visible to tasks.
-  // Matches PDF's explicit config/secret discipline.
   "envMode": "strict",
 
-  // Files that invalidate the global cache key.
-  // pnpm-lock.yaml: turbo does NOT auto-track (verified Global Files=0 without).
-  // .github/workflows/**: CI pipeline changes should invalidate cache (verified hash-busts).
   "globalDependencies": [
     "pnpm-lock.yaml",
     ".nvmrc",
@@ -99,6 +94,7 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "vitest.config.*",
+        "vitest.workspace.*",
         "jest.config.*"
       ],
       "env": ["DATABASE_URL", "REDIS_URL", "TESTCONTAINERS_*", "VITEST_*", "JEST_*"],
@@ -113,6 +109,7 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "vitest.config.*",
+        "vitest.workspace.*",
         "jest.config.*"
       ],
       "env": ["VITEST_*", "JEST_*"],
@@ -134,6 +131,7 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "vitest.config.*",
+        "vitest.workspace.*",
         "jest.config.*"
       ],
       "env": ["DATABASE_URL", "REDIS_URL", "S3_ENDPOINT", "TESTCONTAINERS_*"],
@@ -149,7 +147,7 @@
     },
 
     "ci": {
-      "description": "Aggregate CI gate: lint + typecheck + test + build in parallel DAG",
+      "description": "Aggregate CI gate: lint + typecheck + test + build in parallel DAG. Invoke with --summarize in CI for run metrics.",
       "dependsOn": ["lint", "typecheck", "test", "build"],
       "cache": false
     },
