@@ -288,6 +288,27 @@ Trigger-gated deferred items. Each names the condition and concrete change.
   - Biome (replaces ESLint + Prettier): replace lint task with
     `biome.json` inputs, `.biomecache` output
 
+### tsconfig.base.json (verified 2026-04-13)
+
+- Strict JSON (no JSONC comments): pre-commit `check-json` hook requires
+  valid JSON; tsc supports JSONC but the hook does not. Docstring lives
+  in this ADR instead.
+- All strict flags individually enumerated (not just `"strict": true`):
+  visibility + grep-ability in code review; prevents silent regressions
+  when TS adds new strict flags.
+- `strictBuiltinIteratorReturn: true` (verified valid in TS 6.0.2):
+  ensures generators and async iterators maintain strict type safety.
+- `target: ES2022` / `module: NodeNext`: matches Node 22 engines
+  requirement from PDF.
+- `composite + incremental + declaration + declarationMap`: enables TS
+  project references for cross-package type checking.
+- `verbatimModuleSyntax: false`: NestJS decorators + barrel exports
+  need type-only import elision that verbatim mode restricts.
+- `skipLibCheck: true`: speed tradeoff — skips .d.ts in node_modules.
+  Known TDD blind spot; mitigated by integration test tier.
+- `isolatedModules: true`: required by Vite/esbuild/SWC transforms.
+- Excludes: node_modules, dist, build, .next, .turbo, coverage.
+
 ## Verification
 
 ```bash
