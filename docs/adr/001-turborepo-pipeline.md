@@ -288,6 +288,24 @@ Trigger-gated deferred items. Each names the condition and concrete change.
   - Biome (replaces ESLint + Prettier): replace lint task with
     `biome.json` inputs, `.biomecache` output
 
+### tsconfig.base.json — additional flags (verified 2026-04-13)
+
+- `moduleDetection: "force"` (verified valid TS 6.0.2): ensures every
+  file is treated as a module regardless of structure. Prevents subtle
+  global-scope bugs in monorepo packages.
+- `strictBuiltinIteratorReturn: true` NOT covered by `strict: true`
+  (verified: `tsc --showConfig` with only `strict: true` does not list
+  `strictBuiltinIteratorReturn`). Must be declared explicitly.
+- `erasableSyntaxOnly: true` deferred to package-level configs for
+  non-NestJS apps. Conflicts with `emitDecoratorMetadata` which NestJS
+  requires.
+- `experimentalDecorators + emitDecoratorMetadata` deferred to
+  `apps/api/tsconfig.json` — NestJS-specific, not base-config.
+- Root `references` array deferred to Week 1 when package paths exist.
+- JSON5 tsconfig rejected: `tsc` parse error on JSON5 syntax.
+- `.editorconfig` added: ensures consistent formatting in editors
+  without Prettier plugin. Complements `.prettierrc`.
+
 ### ESLint + Prettier (verified 2026-04-13)
 
 - ESLint flat config (`eslint.config.mjs`) chosen over legacy `.eslintrc`:
