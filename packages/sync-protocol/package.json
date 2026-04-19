@@ -1,0 +1,29 @@
+{
+  "name": "@fleet/sync-protocol",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sync wire protocol types and contracts for the Intermodal Fleet Platform",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:watch": "vitest --watch",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo coverage"
+  },
+  "engines": {
+    "node": ">=22.0.0 <23.0.0"
+  }
+}

@@ -38,6 +38,8 @@ importers:
 
   packages/domain: {}
 
+  packages/sync-protocol: {}
+
 packages:
 
   '@emnapi/core@1.9.2':
