@@ -288,6 +288,25 @@ Trigger-gated deferred items. Each names the condition and concrete change.
   - Biome (replaces ESLint + Prettier): replace lint task with
     `biome.json` inputs, `.biomecache` output
 
+### ESLint + Prettier (verified 2026-04-13)
+
+- ESLint flat config (`eslint.config.mjs`) chosen over legacy `.eslintrc`:
+  ESLint v9+ default. Legacy globs kept in turbo.jsonc inputs for safety.
+- `typescript-eslint` strict + stylistic type-checked rules: maximum type
+  safety with project-aware parsing (`projectService: true`).
+- `@typescript-eslint/no-explicit-any: "error"`: bans explicit `any`,
+  forces `unknown` + runtime narrowing (Zod/class-validator at app level).
+- `@typescript-eslint/no-floating-promises`: prevents unawaited async.
+- `@typescript-eslint/consistent-type-imports`: enforces `import type`
+  for tree-shaking and clean boundaries.
+- `eslint-config-prettier` loaded last: disables formatting rules so
+  Prettier owns all formatting decisions.
+- Prettier config (`.prettierrc`): `singleQuote`, `trailingComma: "all"`,
+  `printWidth: 100`, `endOfLine: "lf"`. `.prettierignore` mirrors
+  `.gitignore` exclusions.
+- Zod deferred: runtime validation library, no app code exists yet.
+  Install when `apps/api` or `packages/domain` scaffolds (Week 2-3).
+
 ### tsconfig.base.json (verified 2026-04-13)
 
 - Strict JSON (no JSONC comments): pre-commit `check-json` hook requires
