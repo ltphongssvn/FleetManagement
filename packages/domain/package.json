@@ -1,0 +1,32 @@
+{
+  "name": "@fleet/domain",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Domain state machines + policy files for the Intermodal Fleet Platform",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "echo \"No tests yet\" && exit 0",
+    "test:unit": "echo \"No tests yet\" && exit 0",
+    "test:watch": "echo \"No tests yet\" && exit 0",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo"
+  },
+  "engines": {
+    "node": ">=22.0.0 <23.0.0"
+  }
+}
