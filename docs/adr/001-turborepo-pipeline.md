@@ -290,6 +290,29 @@ Trigger-gated deferred items. Each names the condition and concrete change.
   coverage thresholds (80% statements/branches/functions/lines) across
   all packages. Per-package vitest.config.ts can extend or override.
 
+- **Discriminated union for SyncResponse** (trigger: response variants
+  fully defined with distinct field shapes per status): replace single
+  broad `SyncResponse` interface with status-narrowed union variants.
+  E.g., `SyncResponseOk` (has `newCursor`), `SyncResponseRetryable`
+  (has `retryAfterMs`). TS narrowing verified to work. Makes
+  `retryAfterMs` status-dependent rather than globally optional.
+
+- **Compile-time type tests with `expect-type`** (trigger: Week 1 when
+  more domain/protocol types exist): verify at compile time that invalid
+  `SyncStatus` fails, `retryAfterMs` optionality preserved, barrel
+  exports exactly intended symbols. `expect-type@1.3.0` verified
+  available.
+
+- **Branded ISO timestamp type** (trigger: serialization contracts land):
+  replace `timestamp: string` and `serverTime: string` with branded
+  `ISOTimestamp` type. Enforces ISO 8601 UTC at compile time; pair with
+  runtime parser at boundary.
+
+- **Protocol versioning + migration tests** (trigger: second consumer
+  of `@fleet/sync-protocol` exists): add version field strategy,
+  backward/forward compatibility tests, schema evolution fixtures
+  across versions.
+
 - **Branded ID types** (applied 2026-04-13): ActionId, SyncCursor,
   AggregateId, ManifestCorrelationId use `string & { __brand }` pattern
   to prevent compile-time cross-contamination. Verified: TS error when
