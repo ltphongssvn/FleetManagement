@@ -281,6 +281,21 @@ Trigger-gated deferred items. Each names the condition and concrete change.
   invariants need enforcement, e.g., `@domain` cannot import from
   `apps/*`). Note: boundaries API is experimental per docs.
 
+- **Layered tsconfigs** (trigger: framework conflicts discovered in Week 1):
+  If one base config creates friction across Expo/Next.js/NestJS/workers,
+  split into `tsconfig.node.json`, `tsconfig.web.json`,
+  `tsconfig.react-native.json`, `tsconfig.lib.json`. Each extends
+  `tsconfig.base.json` and overrides only platform-specific fields.
+  Defer: no apps/packages exist yet to consume layers (verified).
+
+- **Config contract tests** (trigger: Week 1 packages scaffolded):
+  Verified feasibility: negative fixture (`noImplicitAny`) correctly
+  fails; positive fixture passes. Full suite when extending configs
+  exist: parse-and-assert (tsc --showConfig), negative compile tests
+  (implicit any, unchecked index, missing override), positive compile
+  tests (JSON imports, NodeNext resolution, declaration emit),
+  inheritance test (every package extends base).
+
 - **Runner + linter consolidation** (trigger: team chooses in Week 1):
   - Vitest only: drop `jest.config.*` from `test:*.inputs`
   - Jest only: drop `vitest.config.*` + `vitest.workspace.*`
