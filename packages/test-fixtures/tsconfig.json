@@ -6,7 +6,11 @@
     "composite": false,
     "declaration": false,
     "declarationMap": false,
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@fleet/domain": ["../domain/src/index.ts"],
+      "@fleet/sync-protocol": ["../sync-protocol/src/index.ts"]
+    }
   },
   "include": ["src/**/*", "test/**/*", "vitest.config.ts"]
 }
