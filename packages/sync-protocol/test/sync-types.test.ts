@@ -1,5 +1,6 @@
 // packages/sync-protocol/test/sync-types.test.ts
 // TDD: verify sync protocol wire types match PDF specification.
+// Imports from package barrel (not src/) to validate export surface.
 
 import { describe, it, expect } from 'vitest';
 import {
@@ -8,7 +9,7 @@ import {
   createActionId,
   createSyncCursor,
   createAggregateId,
-} from '../src/sync-types.js';
+} from '../src/index.js';
 
 describe('@fleet/sync-protocol — sync statuses', () => {
   it('should define exactly 8 sync statuses per PDF spec', () => {

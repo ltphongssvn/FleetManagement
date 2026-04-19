@@ -281,6 +281,15 @@ Trigger-gated deferred items. Each names the condition and concrete change.
   invariants need enforcement, e.g., `@domain` cannot import from
   `apps/*`). Note: boundaries API is experimental per docs.
 
+- **Tests import from barrel** (applied 2026-04-13): all package tests
+  import from `../src/index.js` (barrel) not from internal modules.
+  Validates the public export surface works correctly. Internal modules
+  are implementation details.
+
+- **Root vitest.config.ts** (applied 2026-04-13): enforces consistent
+  coverage thresholds (80% statements/branches/functions/lines) across
+  all packages. Per-package vitest.config.ts can extend or override.
+
 - **Branded ID types** (applied 2026-04-13): ActionId, SyncCursor,
   AggregateId, ManifestCorrelationId use `string & { __brand }` pattern
   to prevent compile-time cross-contamination. Verified: TS error when

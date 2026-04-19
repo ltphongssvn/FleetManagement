@@ -1,10 +1,9 @@
 // packages/domain/test/mutation-lock.test.ts
-// TDD RED phase: first test for mutation-lock state machine.
-// This test verifies the foundational type + constant exist and are correct.
-// Next step (GREEN): implement transition function, then test transitions.
+// TDD: verify mutation-lock state machine via public barrel export.
+// Imports from package barrel (not src/) to validate export surface.
 
 import { describe, it, expect } from 'vitest';
-import { MUTATION_LOCK_STATES } from '../src/state-machines/mutation-lock.js';
+import { MUTATION_LOCK_STATES } from '../src/index.js';
 
 describe('@fleet/domain — mutation-lock state machine', () => {
   it('should define exactly 4 states per PDF spec', () => {
@@ -32,8 +31,7 @@ describe('@fleet/domain — mutation-lock state machine', () => {
 
   it('should be readonly (frozen contract)', () => {
     expect(Object.isFrozen(MUTATION_LOCK_STATES)).toBe(false);
-    // Note: `as const` makes TS treat it as readonly, but JS array is
-    // not frozen. If runtime immutability needed, use Object.freeze().
-    // This test documents the current contract.
+    // as const makes TS treat it as readonly; JS array is not frozen.
+    // Document: if runtime immutability needed, use Object.freeze().
   });
 });
