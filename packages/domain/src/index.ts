@@ -1,4 +1,4 @@
 // packages/domain/src/index.ts
 // Barrel export for @fleet/domain package.
-// State machines + policy files will be exported here as implemented.
-export {};
+// Named exports only — no `export *` to prevent namespace pollution.
+export { type MutationLockState, MUTATION_LOCK_STATES } from './state-machines/mutation-lock.js';

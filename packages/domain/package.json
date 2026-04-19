@@ -19,14 +19,18 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:test": "tsc -p tsconfig.spec.json --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "echo \"No tests yet\" && exit 0",
-    "test:unit": "echo \"No tests yet\" && exit 0",
-    "test:watch": "echo \"No tests yet\" && exit 0",
-    "clean": "rm -rf dist .turbo *.tsbuildinfo"
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:watch": "vitest --watch",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo coverage"
   },
   "engines": {
     "node": ">=22.0.0 <23.0.0"
+  },
+  "devDependencies": {
+    "vitest": "workspace:*"
   }
 }
