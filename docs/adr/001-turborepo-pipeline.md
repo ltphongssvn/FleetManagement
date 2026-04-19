@@ -281,6 +281,17 @@ Trigger-gated deferred items. Each names the condition and concrete change.
   invariants need enforcement, e.g., `@domain` cannot import from
   `apps/*`). Note: boundaries API is experimental per docs.
 
+- **Branded ID types** (applied 2026-04-13): ActionId, SyncCursor,
+  AggregateId, ManifestCorrelationId use `string & { __brand }` pattern
+  to prevent compile-time cross-contamination. Verified: TS error when
+  passing Cursor where ActionId expected. Factory functions (`createActionId`
+  etc.) are the only way to construct branded values.
+
+- **Single-source-of-truth types** (applied 2026-04-13): types derived
+  from `as const` arrays via `typeof ARRAY[number]` — eliminates
+  duplication between runtime array and compile-time union. Applied to
+  MutationLockState, SyncStatus, SyncActionResult.
+
 - **Explainable rule outputs** (trigger: policy evaluation functions
   implemented): return structured decisions `{ allowed: boolean;
   reasons: string[] }` instead of bare booleans from policy functions.

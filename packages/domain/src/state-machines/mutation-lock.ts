@@ -2,25 +2,15 @@
 // Mutation-lock state machine per Frozen Stack PDF:
 //   unlocked | grace_active | locked_pending_refresh | locked_pending_reauth
 //
-// This is the first domain primitive — guards offline mutations on the
-// driver/yard app. The state machine prevents conflicting writes when
-// config refreshes or re-authentication are in progress.
+// Single source of truth: type derived from as const array (not duplicated).
 
-/**
- * The four legal states of the mutation lock.
- * Matches PDF: "Mutation-lock state machine: unlocked | grace_active |
- * locked_pending_refresh | locked_pending_reauth"
- */
-export type MutationLockState =
-  | 'unlocked'
-  | 'grace_active'
-  | 'locked_pending_refresh'
-  | 'locked_pending_reauth';
-
-/** Readonly tuple of all valid states for runtime validation. */
-export const MUTATION_LOCK_STATES: readonly MutationLockState[] = [
+/** Readonly tuple of all valid states — runtime + compile-time contract. */
+export const MUTATION_LOCK_STATES = [
   'unlocked',
   'grace_active',
   'locked_pending_refresh',
   'locked_pending_reauth',
 ] as const;
+
+/** Union type derived from the array — single source of truth. */
+export type MutationLockState = typeof MUTATION_LOCK_STATES[number];
