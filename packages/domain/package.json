@@ -10,10 +10,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./*": {
-      "types": "./dist/*.d.ts",
-      "import": "./dist/*.js"
     }
   },
   "scripts": {
@@ -24,6 +20,7 @@
     "test": "vitest run",
     "test:unit": "vitest run",
     "test:watch": "vitest --watch",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
     "clean": "rm -rf dist .turbo *.tsbuildinfo coverage"
   },
   "engines": {

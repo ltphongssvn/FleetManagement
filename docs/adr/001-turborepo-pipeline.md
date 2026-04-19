@@ -281,6 +281,12 @@ Trigger-gated deferred items. Each names the condition and concrete change.
   invariants need enforcement, e.g., `@domain` cannot import from
   `apps/*`). Note: boundaries API is experimental per docs.
 
+- **Explainable rule outputs** (trigger: policy evaluation functions
+  implemented): return structured decisions `{ allowed: boolean;
+  reasons: string[] }` instead of bare booleans from policy functions.
+  Enables debugging, auditability, simulation, and fleet_audit_log
+  correlation per PDF.
+
 - **Property-based testing with fast-check** (trigger: mutation-lock
   transition functions implemented): install `fast-check`, add property
   tests asserting state machine invariants (e.g., no invalid transitions,

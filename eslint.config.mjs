@@ -10,20 +10,20 @@ import tseslint from "typescript-eslint";
 import eslintConfigPrettier from "eslint-config-prettier";
 
 export default tseslint.config(
-  // Global ignores
+  // Global ignores — use **/pattern for nested workspace matches
   {
     ignores: [
-      "node_modules/**",
-      "dist/**",
-      "build/**",
-      "out/**",
-      ".next/**",
-      ".turbo/**",
-      ".expo/**",
-      "coverage/**",
-      "test-results/**",
-      "playwright-report/**",
-      "*.tsbuildinfo",
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/build/**",
+      "**/out/**",
+      "**/.next/**",
+      "**/.turbo/**",
+      "**/.expo/**",
+      "**/coverage/**",
+      "**/test-results/**",
+      "**/playwright-report/**",
+      "**/*.tsbuildinfo",
       "pnpm-lock.yaml",
     ],
   },
