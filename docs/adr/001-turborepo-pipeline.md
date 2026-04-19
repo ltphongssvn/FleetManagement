@@ -281,6 +281,17 @@ Trigger-gated deferred items. Each names the condition and concrete change.
   invariants need enforcement, e.g., `@domain` cannot import from
   `apps/*`). Note: boundaries API is experimental per docs.
 
+- **Property-based testing with fast-check** (trigger: mutation-lock
+  transition functions implemented): install `fast-check`, add property
+  tests asserting state machine invariants (e.g., no invalid transitions,
+  idempotent lock/unlock cycles). Verified: not installed yet.
+
+- **XState runtime dependency** (trigger: transition functions scaffolded):
+  PDF p4 mandates "XState → DB + audit + sync_feed + outbox (one tx)".
+  Install `xstate` as runtime dep for `@fleet/domain` when implementing
+  actual state transition logic. Current types-only approach is
+  intentional for Week 1 skeleton.
+
 - **Layered tsconfigs** (trigger: framework conflicts discovered in Week 1):
   If one base config creates friction across Expo/Next.js/NestJS/workers,
   split into `tsconfig.node.json`, `tsconfig.web.json`,
