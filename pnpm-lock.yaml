@@ -40,6 +40,15 @@ importers:
 
   packages/sync-protocol: {}
 
+  packages/test-fixtures:
+    dependencies:
+      '@fleet/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@fleet/sync-protocol':
+        specifier: workspace:*
+        version: link:../sync-protocol
+
 packages:
 
   '@emnapi/core@1.9.2':
