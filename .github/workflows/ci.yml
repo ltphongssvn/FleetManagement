@@ -90,6 +90,10 @@ jobs:
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm install --frozen-lockfile
 
+      - name: Build
+        if: hashFiles('pnpm-lock.yaml') != ''
+        run: pnpm -r --if-present build
+
       - name: Lint
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm -r --if-present lint
@@ -101,7 +105,3 @@ jobs:
       - name: Test (with coverage)
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm -r --if-present test:coverage
-
-      - name: Build
-        if: hashFiles('pnpm-lock.yaml') != ''
-        run: pnpm -r --if-present build
