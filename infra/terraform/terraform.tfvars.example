@@ -1,0 +1,8 @@
+# infra/terraform/terraform.tfvars.example
+# Copy to terraform.tfvars (gitignored) and fill in real values.
+
+fly_api_token = "fo1_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+fly_org       = "your-fly-org-slug"
+fly_region    = "sjc"
+aws_region    = "us-west-2"
+project_name  = "fleet-pilot"
