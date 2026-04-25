@@ -1,0 +1,41 @@
+{
+  "_comment": "FleetManagement/apps/api/package.json",
+  "name": "@fleet/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NestJS modular monolith (Socket.IO gateway added week 4 per day-one plan)",
+  "type": "module",
+  "main": "./dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prebuild": "rimraf dist *.tsbuildinfo",
+    "start": "node dist/main.js",
+    "start:prod": "node dist/main.js",
+    "dev": "tsx watch src/main.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest run --coverage",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "clean": "rimraf dist .turbo coverage && rimraf \"*.tsbuildinfo\""
+  },
+  "engines": {
+    "node": ">=22.0.0 <25.0.0"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.19",
+    "@nestjs/core": "^11.1.19",
+    "@nestjs/platform-express": "^11.1.19",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "tsx": "^4.19.2",
+    "@nestjs/testing": "^11.1.19",
+    "rimraf": "^6.0.1"
+  }
+}

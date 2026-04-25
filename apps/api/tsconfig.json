@@ -6,11 +6,10 @@
     "composite": false,
     "declaration": false,
     "declarationMap": false,
-    "noEmit": true
+    "noEmit": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "useDefineForClassFields": false
   },
-  "include": [
-    "src/**/*",
-    "test/**/*",
-    "vitest.config.ts"
-  ]
+  "include": ["src/**/*", "test/**/*", "vitest.config.ts"]
 }
