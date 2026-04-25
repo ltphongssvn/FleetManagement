@@ -1,0 +1,37 @@
+{
+  "_comment": "FleetManagement/workers/main-worker/package.json",
+  "name": "@fleet/main-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Single deployment with named BullMQ queues (outbox, projections, intake, reaper, erp, reminders, shadow-cleanup, arrival-hint-expiry, bootstrap-reaper, bootstrap-generator)",
+  "type": "module",
+  "main": "./dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prebuild": "rimraf dist *.tsbuildinfo",
+    "start": "node dist/main.js",
+    "start:prod": "node dist/main.js",
+    "dev": "tsx watch src/main.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest run --coverage",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "clean": "rimraf dist .turbo coverage && rimraf \"*.tsbuildinfo\""
+  },
+  "engines": {
+    "node": ">=22.0.0 <25.0.0"
+  },
+  "dependencies": {
+    "bullmq": "^5.76.2",
+    "ioredis": "^5.10.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.2"
+  }
+}

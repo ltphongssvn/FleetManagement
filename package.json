@@ -32,7 +32,8 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "@nestjs/core",
-      "esbuild"
+      "esbuild",
+      "msgpackr-extract"
     ]
   }
 }
