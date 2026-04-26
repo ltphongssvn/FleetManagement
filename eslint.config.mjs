@@ -27,6 +27,7 @@ export default tseslint.config(
       "pnpm-lock.yaml",
       "**/postcss.config.mjs",
       "**/next-env.d.ts",
+      "**/drizzle.config.ts",
     ],
   },
 
