@@ -25,6 +25,7 @@ export default tseslint.config(
       "**/playwright-report/**",
       "**/*.tsbuildinfo",
       "pnpm-lock.yaml",
+      "**/postcss.config.mjs",
     ],
   },
 

@@ -60,7 +60,6 @@ repos:
             yarn\.lock|
             \.secrets\.baseline
           )$
-
   - repo: local
     hooks:
       - id: block-large-binaries
@@ -68,26 +67,16 @@ repos:
         entry: sh -c 'git diff --cached --name-only | grep -qE "\.(h5|pkl|pth|onnx|parquet|sqlite3|ipa|apk|aab|keystore|jks|p8|p12|mobileprovision)$" && echo "ERROR - Large/native binary files detected. Remove with git rm --cached" && exit 1 || exit 0'
         language: system
         pass_filenames: false
-
       - id: check-env-files
         name: Block .env Files
         entry: sh -c 'git diff --cached --name-only | grep -vE "\.env\.example$" | grep -qE "(^|/)\.env(\..+)?$" && echo "ERROR - .env file detected. Never commit secrets! (.env.example is allowed)" && exit 1 || exit 0'
         language: system
         pass_filenames: false
-
       - id: block-terraform-state
         name: Block Terraform State & tfvars
         entry: sh -c 'git diff --cached --name-only | grep -vE "\.tfvars\.example$" | grep -qE "\.(tfstate|tfstate\.backup|tfvars)$" && echo "ERROR - Terraform state or tfvars detected. These contain secrets!" && exit 1 || exit 0'
         language: system
         pass_filenames: false
-
-      - id: verify-selective-staging
-        name: Verify Selective Staging
-        entry: sh -c 'echo "Staged files:" && git diff --cached --name-only'
-        language: system
-        pass_filenames: false
-        stages: [pre-commit]
-
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
@@ -111,7 +100,6 @@ repos:
         name: Check Case-Insensitive Filename Conflicts
       - id: detect-private-key
         name: Detect Private Keys
-
   - repo: local
     hooks:
       - id: pnpm-lint
@@ -120,14 +108,12 @@ repos:
         language: system
         pass_filenames: false
         types_or: [ts, tsx, javascript, jsx]
-
       - id: pnpm-typecheck
         name: pnpm Typecheck (CI Mirror)
         entry: bash -c 'command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ] && pnpm -r --if-present typecheck || echo "Skipped (pre-scaffold or pnpm missing)"'
         language: system
         pass_filenames: false
         types_or: [ts, tsx]
-
   - repo: local
     hooks:
       - id: pnpm-test-push
@@ -136,7 +122,6 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-push]
-
       - id: pnpm-build-push
         name: pnpm Build Verification (Pre-push)
         entry: bash -c 'command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ] && pnpm -r --if-present build || echo "Skipped (pre-scaffold or pnpm missing)"'

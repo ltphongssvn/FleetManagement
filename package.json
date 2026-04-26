@@ -33,7 +33,8 @@
     "onlyBuiltDependencies": [
       "@nestjs/core",
       "esbuild",
-      "msgpackr-extract"
+      "msgpackr-extract",
+      "sharp"
     ]
   }
 }
