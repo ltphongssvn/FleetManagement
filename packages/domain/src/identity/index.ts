@@ -1,7 +1,5 @@
-// packages/domain/src/index.ts
-// Barrel export for @fleet/domain package.
-// Named exports only - no `export *` to prevent namespace pollution.
-export { type MutationLockState, MUTATION_LOCK_STATES } from './state-machines/mutation-lock.js';
+// packages/domain/src/identity/index.ts
+// Identity sub-barrel.
 export {
   type SessionSurface,
   SessionSurfaceSchema,
@@ -9,10 +7,12 @@ export {
   type SessionMode,
   SessionModeSchema,
   SESSION_MODES,
+} from './surface.js';
+export {
   type RevocationReason,
   RevocationReasonSchema,
   REVOCATION_REASONS,
   REVOCATION_REASON_SCHEMA_VERSION,
   type RevocationEvent,
   RevocationEventSchema,
-} from './identity/index.js';
+} from './revocation.js';
