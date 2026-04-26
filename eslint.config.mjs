@@ -26,6 +26,7 @@ export default tseslint.config(
       "**/*.tsbuildinfo",
       "pnpm-lock.yaml",
       "**/postcss.config.mjs",
+      "**/next-env.d.ts",
     ],
   },
 
