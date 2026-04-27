@@ -1,5 +1,4 @@
 // apps/driver-app/test/action-queue-policy.test.ts
-// Pure-function tests for local action queue logic.
 import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
 import { createActionId, createAggregateId } from '@fleet/sync-protocol';
@@ -49,75 +48,102 @@ describe('@fleet/driver-app - nextSequence', () => {
 describe('@fleet/driver-app - dispatchableActions', () => {
   it('returns only pending actions', () => {
     const queue = [
-      action({ actionId: createActionId('a1'), status: 'pending' }),
-      action({ actionId: createActionId('a2'), status: 'synced' }),
-      action({ actionId: createActionId('a3'), status: 'rejected' }),
+      action({ actionId: createActionId('a1'), aggregateId: createAggregateId('agg-1'), status: 'pending' }),
+      action({ actionId: createActionId('a2'), aggregateId: createAggregateId('agg-2'), status: 'synced' }),
+      action({ actionId: createActionId('a3'), aggregateId: createAggregateId('agg-3'), status: 'rejected' }),
     ];
-    expect(dispatchableActions(queue)).toHaveLength(1);
-    expect(dispatchableActions(queue)[0]?.actionId).toBe(createActionId('a1'));
+    const out = dispatchableActions(queue);
+    expect(out).toHaveLength(1);
+    expect(out[0]?.actionId).toBe(createActionId('a1'));
   });
 
   it('blocks action when its dependency is not yet synced', () => {
     const queue = [
-      action({ actionId: createActionId('a1'), status: 'pending' }),
-      action({ actionId: createActionId('a2'), status: 'pending', blockedByActionId: createActionId('a1') }),
+      action({ actionId: createActionId('a1'), aggregateId: createAggregateId('agg-1'), status: 'pending' }),
+      action({ actionId: createActionId('a2'), aggregateId: createAggregateId('agg-2'), status: 'pending', blockedByActionId: createActionId('a1') }),
     ];
-    const out = dispatchableActions(queue);
-    expect(out.map((a) => a.actionId)).toEqual([createActionId('a1')]);
+    expect(dispatchableActions(queue).map((a) => a.actionId)).toEqual([createActionId('a1')]);
   });
 
   it('unblocks when dependency reaches synced status', () => {
     const queue = [
-      action({ actionId: createActionId('a1'), status: 'synced' }),
-      action({ actionId: createActionId('a2'), status: 'pending', blockedByActionId: createActionId('a1') }),
+      action({ actionId: createActionId('a1'), aggregateId: createAggregateId('agg-1'), status: 'synced' }),
+      action({ actionId: createActionId('a2'), aggregateId: createAggregateId('agg-2'), status: 'pending', blockedByActionId: createActionId('a1') }),
     ];
     expect(dispatchableActions(queue).map((a) => a.actionId)).toEqual([createActionId('a2')]);
   });
 
-  /**
-   * PDF design constraint: "blocked_by_action_id for upload->sync only" = 1 level deep.
-   * Upload actions have no blocker; only the paired sync action references the upload.
-   * This test pins the contract: A->B->C chains are NOT a valid input shape; if they
-   * occur, only A dispatches in cycle 1, B dispatches after A is synced (cycle 2),
-   * etc. Transitive resolution in a single pass is intentionally NOT supported.
-   */
+  it('keeps blocking when dependency is in syncing (not yet synced)', () => {
+    const queue = [
+      action({ actionId: createActionId('a1'), aggregateId: createAggregateId('agg-1'), status: 'syncing' }),
+      action({ actionId: createActionId('a2'), aggregateId: createAggregateId('agg-2'), status: 'pending', blockedByActionId: createActionId('a1') }),
+    ];
+    expect(dispatchableActions(queue)).toHaveLength(0);
+  });
+
+  it('keeps blocking when dependency is rejected (not synced)', () => {
+    const queue = [
+      action({ actionId: createActionId('a1'), aggregateId: createAggregateId('agg-1'), status: 'rejected' }),
+      action({ actionId: createActionId('a2'), aggregateId: createAggregateId('agg-2'), status: 'pending', blockedByActionId: createActionId('a1') }),
+    ];
+    expect(dispatchableActions(queue)).toHaveLength(0);
+  });
+
+  it('keeps blocking when dependency is superseded', () => {
+    const queue = [
+      action({ actionId: createActionId('a1'), aggregateId: createAggregateId('agg-1'), status: 'superseded' }),
+      action({ actionId: createActionId('a2'), aggregateId: createAggregateId('agg-2'), status: 'pending', blockedByActionId: createActionId('a1') }),
+    ];
+    expect(dispatchableActions(queue)).toHaveLength(0);
+  });
+
+  it('keeps blocking when blockedByActionId references a missing action', () => {
+    const queue = [
+      action({ actionId: createActionId('a1'), aggregateId: createAggregateId('agg-1'), status: 'pending', blockedByActionId: createActionId('does-not-exist') }),
+    ];
+    expect(dispatchableActions(queue)).toHaveLength(0);
+  });
+
+  it('returns only head-of-line per aggregate (lowest pending sequence)', () => {
+    const queue = [
+      action({ actionId: createActionId('a1'), aggregateId: createAggregateId('agg-1'), sequence: 1 }),
+      action({ actionId: createActionId('a2'), aggregateId: createAggregateId('agg-1'), sequence: 2 }),
+      action({ actionId: createActionId('a3'), aggregateId: createAggregateId('agg-1'), sequence: 3 }),
+    ];
+    expect(dispatchableActions(queue).map((a) => a.actionId)).toEqual([createActionId('a1')]);
+  });
+
   it('resolves chains across sync cycles, not in a single pass (1-level by design)', () => {
     const a = createActionId('A');
     const b = createActionId('B');
     const c = createActionId('C');
-    const cycle1 = [
+    const cycle1: QueueableAction[] = [
       action({ actionId: a, aggregateId: createAggregateId('ag-A'), status: 'pending' }),
       action({ actionId: b, aggregateId: createAggregateId('ag-B'), status: 'pending', blockedByActionId: a }),
       action({ actionId: c, aggregateId: createAggregateId('ag-C'), status: 'pending', blockedByActionId: b }),
     ];
     expect(dispatchableActions(cycle1).map((x) => x.actionId)).toEqual([a]);
-
-    // After A is synced, B becomes dispatchable; C still blocked.
     const cycle2 = cycle1.map((x): QueueableAction => (x.actionId === a ? { ...x, status: 'synced' } : x));
     expect(dispatchableActions(cycle2).map((x) => x.actionId)).toEqual([b]);
-
-    // After B is synced, C becomes dispatchable.
     const cycle3 = cycle2.map((x): QueueableAction => (x.actionId === b ? { ...x, status: 'synced' } : x));
     expect(dispatchableActions(cycle3).map((x) => x.actionId)).toEqual([c]);
   });
 
-  it('orders by (aggregateId, sequence) ascending', () => {
+  it('orders heads by aggregateId ascending', () => {
     const queue = [
       action({ actionId: createActionId('a1'), aggregateId: createAggregateId('agg-2'), sequence: 1 }),
-      action({ actionId: createActionId('a2'), aggregateId: createAggregateId('agg-1'), sequence: 2 }),
-      action({ actionId: createActionId('a3'), aggregateId: createAggregateId('agg-1'), sequence: 1 }),
+      action({ actionId: createActionId('a2'), aggregateId: createAggregateId('agg-1'), sequence: 1 }),
     ];
-    expect(dispatchableActions(queue).map((a) => a.actionId)).toEqual([
-      createActionId('a3'),
-      createActionId('a2'),
-      createActionId('a1'),
+    expect(dispatchableActions(queue).map((a) => a.aggregateId)).toEqual([
+      createAggregateId('agg-1'),
+      createAggregateId('agg-2'),
     ]);
   });
 
   it('does not mutate the input array', () => {
     const queue = [
-      action({ actionId: createActionId('a1'), sequence: 2 }),
-      action({ actionId: createActionId('a2'), sequence: 1 }),
+      action({ actionId: createActionId('a1'), aggregateId: createAggregateId('agg-1'), sequence: 2 }),
+      action({ actionId: createActionId('a2'), aggregateId: createAggregateId('agg-2'), sequence: 1 }),
     ];
     const snapshot = queue.map((a) => a.actionId);
     dispatchableActions(queue);
@@ -131,6 +157,7 @@ describe('@fleet/driver-app - isSupersededByServer', () => {
     expect(isSupersededByServer('applied')).toBe(false);
     expect(isSupersededByServer('duplicate')).toBe(false);
     expect(isSupersededByServer('rejected')).toBe(false);
+    expect(isSupersededByServer('awaiting_handoff')).toBe(false);
   });
 });
 
@@ -162,7 +189,7 @@ describe('@fleet/driver-app - dispatchableActions (property-based)', () => {
     );
   });
 
-  it('output is sorted by (aggregateId, sequence)', () => {
+  it('output is sorted by aggregateId', () => {
     fc.assert(
       fc.property(fc.array(arbAction, { maxLength: 50 }), (actions) => {
         const out = dispatchableActions(actions);
@@ -170,11 +197,21 @@ describe('@fleet/driver-app - dispatchableActions (property-based)', () => {
           const prev = out[i - 1];
           const cur = out[i];
           if (!prev || !cur) continue;
-          if (prev.aggregateId === cur.aggregateId) {
-            if (prev.sequence > cur.sequence) return false;
-          } else if (prev.aggregateId.localeCompare(cur.aggregateId) > 0) {
-            return false;
-          }
+          if (prev.aggregateId.localeCompare(cur.aggregateId) > 0) return false;
+        }
+        return true;
+      }),
+    );
+  });
+
+  it('returns at most one action per aggregateId (head-of-line)', () => {
+    fc.assert(
+      fc.property(fc.array(arbAction, { maxLength: 50 }), (actions) => {
+        const out = dispatchableActions(actions);
+        const seen = new Set<string>();
+        for (const a of out) {
+          if (seen.has(a.aggregateId)) return false;
+          seen.add(a.aggregateId);
         }
         return true;
       }),
