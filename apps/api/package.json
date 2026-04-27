@@ -26,6 +26,7 @@
     "node": ">=22.0.0 <25.0.0"
   },
   "dependencies": {
+    "@fleet/domain": "workspace:*",
     "@nestjs/common": "^11.1.19",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.19",
@@ -43,6 +44,7 @@
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.31.10",
     "rimraf": "^6.0.1",
-    "tsx": "^4.19.2"
+    "tsx": "^4.19.2",
+    "vitest-mock-extended": "^4.0.0"
   }
 }

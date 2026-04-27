@@ -1,7 +1,8 @@
 // apps/api/src/database/schema/device.ts
 // Device registry + session tables per Frozen Stack PDF "Session/revocation".
 // device_session.revoked_at is authoritative for session lifecycle.
-import { pgTable, uuid, varchar, timestamp, index } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { pgTable, uuid, varchar, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { tenancyColumns } from './tenancy.js';
 
 export const deviceRegistry = pgTable(
@@ -40,6 +41,12 @@ export const deviceSession = pgTable(
     index('device_session_device_idx').on(t.deviceId),
     index('device_session_operator_surface_idx').on(t.operatorId, t.surface),
     index('device_session_revoked_at_idx').on(t.revokedAt),
+    // Defense in depth: enforces "one mutating session per (operator, surface)"
+    // at DB level so concurrent issueSession calls cannot both succeed.
+    // Partial: only active (non-revoked) mutating sessions are constrained.
+    uniqueIndex('device_session_one_mutating_per_operator_surface_uq')
+      .on(t.operatorId, t.surface)
+      .where(sql`session_mode = 'mutating' AND revoked_at IS NULL`),
   ],
 );
 
