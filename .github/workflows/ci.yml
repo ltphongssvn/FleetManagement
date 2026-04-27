@@ -90,6 +90,10 @@ jobs:
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm install --frozen-lockfile
 
+      - name: Security audit
+        if: hashFiles('pnpm-lock.yaml') != ''
+        run: pnpm audit --audit-level=high
+
       - name: Build
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm -r --if-present build

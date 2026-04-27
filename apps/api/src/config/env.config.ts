@@ -8,6 +8,9 @@ export const EnvSchema = z.object({
   DB_POOL_MAX: z.coerce.number().int().positive().default(10),
   DB_IDLE_TIMEOUT_MS: z.coerce.number().int().nonnegative().default(30_000),
   REDIS_URL: z.string().url().default('redis://localhost:6379'),
+  OIDC_ISSUER: z.string().url(),
+  OIDC_AUDIENCE: z.string().min(1),
+  OIDC_JWKS_URI: z.string().url(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

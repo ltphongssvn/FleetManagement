@@ -6,6 +6,9 @@ describe('@fleet/api - validateEnv', () => {
   const validBase = {
     NODE_ENV: 'test',
     DATABASE_URL: 'postgres://localhost:5432/fleet_test',
+    OIDC_ISSUER: 'https://idp.example.com/',
+    OIDC_AUDIENCE: 'fleet-api',
+    OIDC_JWKS_URI: 'https://idp.example.com/.well-known/jwks.json',
   };
 
   describe('defaults', () => {
@@ -22,7 +25,8 @@ describe('@fleet/api - validateEnv', () => {
     });
 
     it('NODE_ENV defaults to development when omitted', () => {
-      expect(validateEnv({ DATABASE_URL: validBase.DATABASE_URL }).NODE_ENV).toBe('development');
+      const { NODE_ENV: _omit, ...withoutEnv } = validBase;
+      expect(validateEnv(withoutEnv).NODE_ENV).toBe('development');
     });
 
     it('REDIS_URL defaults to localhost', () => {
@@ -42,7 +46,8 @@ describe('@fleet/api - validateEnv', () => {
 
   describe('rejection - DATABASE_URL', () => {
     it('reports DATABASE_URL path when missing', () => {
-      expect(() => validateEnv({ NODE_ENV: 'test' })).toThrow(/DATABASE_URL/);
+      const { DATABASE_URL: _o, ...rest } = validBase;
+      expect(() => validateEnv(rest)).toThrow(/DATABASE_URL/);
     });
 
     it('reports DATABASE_URL path when malformed', () => {
@@ -73,6 +78,21 @@ describe('@fleet/api - validateEnv', () => {
   describe('rejection - NODE_ENV', () => {
     it('reports NODE_ENV path on invalid value', () => {
       expect(() => validateEnv({ ...validBase, NODE_ENV: 'staging' })).toThrow(/NODE_ENV/);
+    });
+  });
+
+  describe('rejection - OIDC', () => {
+    it('rejects missing OIDC_ISSUER', () => {
+      const { OIDC_ISSUER: _o, ...rest } = validBase;
+      expect(() => validateEnv(rest)).toThrow(/OIDC_ISSUER/);
+    });
+
+    it('rejects malformed OIDC_JWKS_URI', () => {
+      expect(() => validateEnv({ ...validBase, OIDC_JWKS_URI: 'not-a-url' })).toThrow(/OIDC_JWKS_URI/);
+    });
+
+    it('rejects empty OIDC_AUDIENCE', () => {
+      expect(() => validateEnv({ ...validBase, OIDC_AUDIENCE: '' })).toThrow(/OIDC_AUDIENCE/);
     });
   });
 });
