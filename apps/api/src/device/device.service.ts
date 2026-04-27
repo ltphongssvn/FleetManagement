@@ -34,9 +34,15 @@ interface PgError {
 }
 
 function isPgUniqueViolation(err: unknown, constraintName: string): boolean {
-  if (typeof err !== 'object' || err === null) return false;
-  const e = err as PgError;
-  return e.code === PG_UNIQUE_VIOLATION && e.constraint === constraintName;
+  // Drizzle wraps pg errors; walk the .cause chain to find the original.
+  let current: unknown = err;
+  for (let i = 0; i < 5; i++) {
+    if (typeof current !== 'object' || current === null) return false;
+    const e = current as PgError;
+    if (e.code === PG_UNIQUE_VIOLATION && e.constraint === constraintName) return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
 }
 
 export interface IssueSessionInput {

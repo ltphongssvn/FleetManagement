@@ -47,6 +47,7 @@ export default tseslint.config(
             "*.config.ts",
             "*.config.mjs",
             "vitest.config.ts",
+            "vitest.integration.config.ts",
           ],
           defaultProject: "tsconfig.base.json",
         },
