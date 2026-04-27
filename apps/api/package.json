@@ -40,10 +40,12 @@
   },
   "devDependencies": {
     "@nestjs/testing": "^11.1.19",
+    "@testcontainers/postgresql": "^11.14.0",
     "@types/express": "^5.0.0",
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.31.10",
     "rimraf": "^6.0.1",
+    "testcontainers": "^11.14.0",
     "tsx": "^4.19.2",
     "vitest-mock-extended": "^4.0.0"
   }

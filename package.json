@@ -32,9 +32,12 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "@nestjs/core",
+      "cpu-features",
       "esbuild",
       "msgpackr-extract",
-      "sharp"
+      "protobufjs",
+      "sharp",
+      "ssh2"
     ],
     "overrides": {
       "esbuild": ">=0.25.0",

@@ -3,9 +3,9 @@
 // Enforces: one mutating session per (operator_id, surface); revoked_at authoritative.
 //
 // Race-condition safety:
-// - issueSession runs inside a transaction
-// - DB-level unique partial index (device_session_one_mutating_per_operator_surface_uq)
-//   guarantees correctness even under concurrent calls
+// - Blind INSERT, catch Postgres 23505 (unique_violation) on partial unique index
+// - DB-level unique partial index device_session_one_mutating_per_operator_surface_uq
+//   is the sole authority; service translates DB errors to HTTP semantics
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, eq, isNull } from 'drizzle-orm';
 import {
@@ -26,6 +26,19 @@ import {
   SessionNotFoundError,
 } from './device.errors.js';
 
+const PG_UNIQUE_VIOLATION = '23505';
+
+interface PgError {
+  code?: string;
+  constraint?: string;
+}
+
+function isPgUniqueViolation(err: unknown, constraintName: string): boolean {
+  if (typeof err !== 'object' || err === null) return false;
+  const e = err as PgError;
+  return e.code === PG_UNIQUE_VIOLATION && e.constraint === constraintName;
+}
+
 export interface IssueSessionInput {
   readonly deviceId: string;
   readonly operatorId: string;
@@ -42,37 +55,16 @@ export class DeviceService {
   constructor(@Inject(DRIZZLE_DB) private readonly db: FleetDb) {}
 
   /**
-   * Issue a new device_session.
-   * Atomicity: SELECT + INSERT wrapped in a transaction.
-   * Defense in depth: DB unique partial index prevents duplicate mutating sessions
-   * even if two transactions interleave (one will fail with constraint violation).
+   * Issue a new device_session. Blind insert; rely on DB unique partial index
+   * to reject duplicate mutating sessions. Catches Postgres 23505 and translates
+   * to ConflictException.
    */
   async issueSession(input: IssueSessionInput): Promise<DeviceSession> {
     SessionSurfaceSchema.parse(input.surface);
     SessionModeSchema.parse(input.sessionMode);
 
-    return this.db.transaction(async (tx) => {
-      if (input.sessionMode === 'mutating') {
-        const existing = await tx
-          .select({ id: deviceSession.deviceSessionId })
-          .from(deviceSession)
-          .where(
-            and(
-              eq(deviceSession.operatorId, input.operatorId),
-              eq(deviceSession.surface, input.surface),
-              eq(deviceSession.sessionMode, 'mutating'),
-              isNull(deviceSession.revokedAt),
-            ),
-          )
-          .limit(1);
-        if (existing.length > 0) {
-          throw new ConflictException(
-            new SessionAlreadyActiveError(input.operatorId, input.surface).message,
-          );
-        }
-      }
-
-      const [row] = await tx
+    try {
+      const [row] = await this.db
         .insert(deviceSession)
         .values({
           deviceId: input.deviceId,
@@ -87,7 +79,14 @@ export class DeviceService {
         .returning();
       if (!row) throw new SessionInsertFailedError();
       return row;
-    });
+    } catch (err) {
+      if (isPgUniqueViolation(err, 'device_session_one_mutating_per_operator_surface_uq')) {
+        throw new ConflictException(
+          new SessionAlreadyActiveError(input.operatorId, input.surface).message,
+        );
+      }
+      throw err;
+    }
   }
 
   /** Revoke a session by id. Idempotent — re-revoking is a no-op. */

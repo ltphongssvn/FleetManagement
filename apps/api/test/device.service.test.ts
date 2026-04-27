@@ -1,7 +1,6 @@
 // apps/api/test/device.service.test.ts
-/* eslint-disable @typescript-eslint/unbound-method */
 // Behavior tests for DeviceService using vitest-mock-extended.
-// Real Postgres integration arrives Week 8 with Testcontainers per PDF.
+// Real Postgres concurrency tests live in test/device.service.integration.test.ts.
 import { describe, it, expect } from 'vitest';
 import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { ConflictException, NotFoundException } from '@nestjs/common';
@@ -30,47 +29,37 @@ const issuedRow = {
   tokenConsumedAt: null,
 } satisfies DeviceSession;
 
-/**
- * Build a DeepMockProxy<FleetDb> that lets tests script select/insert/update
- * results via the fluent Drizzle API without hand-coding chains.
- */
 function setupDb(opts: {
-  txSelectResults?: unknown[][];
-  txInsertReturning?: unknown[];
-  outerSelectResults?: unknown[][];
-  outerUpdateReturning?: unknown[];
+  insertReturning?: unknown[];
+  insertThrows?: unknown;
+  selectResults?: unknown[][];
+  updateReturning?: unknown[];
 }): DeepMockProxy<FleetDb> {
   const db = mockDeep<FleetDb>();
+  const selectQueue = [...(opts.selectResults ?? [])];
 
-  // Transaction passes a tx object with same select/insert API
-  db.transaction.mockImplementation((async (fn: (tx: FleetDb) => Promise<unknown>) => {
-    const tx = mockDeep<FleetDb>();
-    const txSelectQueue = [...(opts.txSelectResults ?? [])];
-    tx.select.mockImplementation(() => ({
-      from: () => ({
-        where: () => ({
-          limit: () => Promise.resolve(txSelectQueue.shift() ?? []),
-        }),
-      }),
-    }) as never);
-    tx.insert.mockImplementation(() => ({
-      values: () => ({ returning: () => Promise.resolve(opts.txInsertReturning ?? []) }),
-    }) as never);
-    return fn(tx);
+  db.insert.mockImplementation(() => ({
+    values: () => ({
+      returning: () => {
+        if (opts.insertThrows !== undefined) {
+          return Promise.reject(opts.insertThrows as Error);
+        }
+        return Promise.resolve(opts.insertReturning ?? []);
+      },
+    }),
   }) as never);
 
-  const outerSelectQueue = [...(opts.outerSelectResults ?? [])];
   db.select.mockImplementation(() => ({
     from: () => ({
       where: () => ({
-        limit: () => Promise.resolve(outerSelectQueue.shift() ?? []),
+        limit: () => Promise.resolve(selectQueue.shift() ?? []),
       }),
     }),
   }) as never);
 
   db.update.mockImplementation(() => ({
     set: () => ({
-      where: () => ({ returning: () => Promise.resolve(opts.outerUpdateReturning ?? []) }),
+      where: () => ({ returning: () => Promise.resolve(opts.updateReturning ?? []) }),
     }),
   }) as never);
 
@@ -78,22 +67,32 @@ function setupDb(opts: {
 }
 
 describe('@fleet/api - DeviceService.issueSession', () => {
-  it('issues a mutating session when none active', async () => {
-    const db = setupDb({ txSelectResults: [[]], txInsertReturning: [issuedRow] });
+  it('issues a mutating session via blind insert', async () => {
+    const db = setupDb({ insertReturning: [issuedRow] });
     const service = new DeviceService(db);
     const result = await service.issueSession(validInput);
     expect(result.deviceSessionId).toBe(issuedRow.deviceSessionId);
-    expect(db.transaction).toHaveBeenCalledOnce();
   });
 
-  it('rejects mutating session when active one exists', async () => {
-    const db = setupDb({ txSelectResults: [[{ id: 'existing' }]] });
+  it('translates Postgres 23505 unique violation to ConflictException', async () => {
+    const pgErr = Object.assign(new Error('duplicate key'), {
+      code: '23505',
+      constraint: 'device_session_one_mutating_per_operator_surface_uq',
+    });
+    const db = setupDb({ insertThrows: pgErr });
     const service = new DeviceService(db);
     await expect(service.issueSession(validInput)).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('skips uniqueness check for shadow sessions', async () => {
-    const db = setupDb({ txInsertReturning: [{ ...issuedRow, sessionMode: 'shadow' }] });
+  it('rethrows non-unique-violation DB errors', async () => {
+    const otherErr = Object.assign(new Error('undefined_table'), { code: '42P01' });
+    const db = setupDb({ insertThrows: otherErr });
+    const service = new DeviceService(db);
+    await expect(service.issueSession(validInput)).rejects.toEqual(otherErr);
+  });
+
+  it('issues a shadow session', async () => {
+    const db = setupDb({ insertReturning: [{ ...issuedRow, sessionMode: 'shadow' }] });
     const service = new DeviceService(db);
     const result = await service.issueSession({ ...validInput, sessionMode: 'shadow' });
     expect(result.sessionMode).toBe('shadow');
@@ -111,7 +110,7 @@ describe('@fleet/api - DeviceService.issueSession', () => {
 describe('@fleet/api - DeviceService.revokeSession', () => {
   it('revokes an active session', async () => {
     const revokedRow = { ...issuedRow, revokedAt: new Date(), revocationReason: 'admin_revoke' };
-    const db = setupDb({ outerUpdateReturning: [revokedRow] });
+    const db = setupDb({ updateReturning: [revokedRow] });
     const service = new DeviceService(db);
     const result = await service.revokeSession(issuedRow.deviceSessionId, 'admin_revoke');
     expect(result.revocationReason).toBe('admin_revoke');
@@ -119,14 +118,14 @@ describe('@fleet/api - DeviceService.revokeSession', () => {
 
   it('returns existing row when already revoked (idempotent)', async () => {
     const alreadyRevoked = { ...issuedRow, revokedAt: new Date(), revocationReason: 'shift_end' };
-    const db = setupDb({ outerUpdateReturning: [], outerSelectResults: [[alreadyRevoked]] });
+    const db = setupDb({ updateReturning: [], selectResults: [[alreadyRevoked]] });
     const service = new DeviceService(db);
     const result = await service.revokeSession(issuedRow.deviceSessionId, 'admin_revoke');
     expect(result.revocationReason).toBe('shift_end');
   });
 
   it('throws NotFoundException when session does not exist', async () => {
-    const db = setupDb({ outerUpdateReturning: [], outerSelectResults: [[]] });
+    const db = setupDb({ updateReturning: [], selectResults: [[]] });
     const service = new DeviceService(db);
     await expect(service.revokeSession('missing-id', 'admin_revoke')).rejects.toBeInstanceOf(
       NotFoundException,
@@ -144,14 +143,14 @@ describe('@fleet/api - DeviceService.revokeSession', () => {
 
 describe('@fleet/api - DeviceService.findActiveSession', () => {
   it('returns row when active session exists', async () => {
-    const db = setupDb({ outerSelectResults: [[issuedRow]] });
+    const db = setupDb({ selectResults: [[issuedRow]] });
     const service = new DeviceService(db);
     const result = await service.findActiveSession(issuedRow.deviceSessionId);
     expect(result?.deviceSessionId).toBe(issuedRow.deviceSessionId);
   });
 
   it('returns null when no active session', async () => {
-    const db = setupDb({ outerSelectResults: [[]] });
+    const db = setupDb({ selectResults: [[]] });
     const service = new DeviceService(db);
     const result = await service.findActiveSession('missing-id');
     expect(result).toBeNull();
@@ -160,13 +159,13 @@ describe('@fleet/api - DeviceService.findActiveSession', () => {
 
 describe('@fleet/api - DeviceService.deviceExists', () => {
   it('returns true when device registered', async () => {
-    const db = setupDb({ outerSelectResults: [[{ id: validInput.deviceId }]] });
+    const db = setupDb({ selectResults: [[{ id: validInput.deviceId }]] });
     const service = new DeviceService(db);
     expect(await service.deviceExists(validInput.deviceId)).toBe(true);
   });
 
   it('returns false when device unknown', async () => {
-    const db = setupDb({ outerSelectResults: [[]] });
+    const db = setupDb({ selectResults: [[]] });
     const service = new DeviceService(db);
     expect(await service.deviceExists('unknown')).toBe(false);
   });
