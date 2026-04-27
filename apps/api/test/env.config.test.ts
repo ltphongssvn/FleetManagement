@@ -8,28 +8,71 @@ describe('@fleet/api - validateEnv', () => {
     DATABASE_URL: 'postgres://localhost:5432/fleet_test',
   };
 
-  it('accepts valid env with defaults', () => {
-    const env = validateEnv(validBase);
-    expect(env.PORT).toBe(3000);
-    expect(env.DB_POOL_MAX).toBe(10);
-    expect(env.DB_IDLE_TIMEOUT_MS).toBe(30_000);
+  describe('defaults', () => {
+    it('PORT defaults to 3000', () => {
+      expect(validateEnv(validBase).PORT).toBe(3000);
+    });
+
+    it('DB_POOL_MAX defaults to 10', () => {
+      expect(validateEnv(validBase).DB_POOL_MAX).toBe(10);
+    });
+
+    it('DB_IDLE_TIMEOUT_MS defaults to 30_000', () => {
+      expect(validateEnv(validBase).DB_IDLE_TIMEOUT_MS).toBe(30_000);
+    });
+
+    it('NODE_ENV defaults to development when omitted', () => {
+      expect(validateEnv({ DATABASE_URL: validBase.DATABASE_URL }).NODE_ENV).toBe('development');
+    });
+
+    it('REDIS_URL defaults to localhost', () => {
+      expect(validateEnv(validBase).REDIS_URL).toBe('redis://localhost:6379');
+    });
   });
 
-  it('coerces numeric env vars from strings', () => {
-    const env = validateEnv({ ...validBase, PORT: '8080', DB_POOL_MAX: '50' });
-    expect(env.PORT).toBe(8080);
-    expect(env.DB_POOL_MAX).toBe(50);
+  describe('coercion', () => {
+    it('coerces PORT from string', () => {
+      expect(validateEnv({ ...validBase, PORT: '8080' }).PORT).toBe(8080);
+    });
+
+    it('coerces DB_POOL_MAX from string', () => {
+      expect(validateEnv({ ...validBase, DB_POOL_MAX: '50' }).DB_POOL_MAX).toBe(50);
+    });
   });
 
-  it('reports DATABASE_URL path when missing', () => {
-    expect(() => validateEnv({ NODE_ENV: 'test' })).toThrow(/DATABASE_URL/);
+  describe('rejection - DATABASE_URL', () => {
+    it('reports DATABASE_URL path when missing', () => {
+      expect(() => validateEnv({ NODE_ENV: 'test' })).toThrow(/DATABASE_URL/);
+    });
+
+    it('reports DATABASE_URL path when malformed', () => {
+      expect(() => validateEnv({ ...validBase, DATABASE_URL: 'not-a-url' })).toThrow(/DATABASE_URL/);
+    });
   });
 
-  it('reports DATABASE_URL path when malformed', () => {
-    expect(() => validateEnv({ ...validBase, DATABASE_URL: 'not-a-url' })).toThrow(/DATABASE_URL/);
+  describe('rejection - REDIS_URL', () => {
+    it('rejects malformed REDIS_URL', () => {
+      expect(() => validateEnv({ ...validBase, REDIS_URL: 'not-a-url' })).toThrow(/REDIS_URL/);
+    });
   });
 
-  it('reports NODE_ENV path on invalid value', () => {
-    expect(() => validateEnv({ ...validBase, NODE_ENV: 'staging' })).toThrow(/NODE_ENV/);
+  describe('rejection - PORT', () => {
+    it('rejects PORT=0 (must be positive)', () => {
+      expect(() => validateEnv({ ...validBase, PORT: '0' })).toThrow(/PORT/);
+    });
+
+    it('rejects negative PORT', () => {
+      expect(() => validateEnv({ ...validBase, PORT: '-1' })).toThrow(/PORT/);
+    });
+
+    it('rejects non-numeric PORT', () => {
+      expect(() => validateEnv({ ...validBase, PORT: 'abc' })).toThrow(/PORT/);
+    });
+  });
+
+  describe('rejection - NODE_ENV', () => {
+    it('reports NODE_ENV path on invalid value', () => {
+      expect(() => validateEnv({ ...validBase, NODE_ENV: 'staging' })).toThrow(/NODE_ENV/);
+    });
   });
 });

@@ -9,15 +9,25 @@ function makePool(queryImpl: () => Promise<unknown>): Pool {
 }
 
 describe('@fleet/api - HealthController', () => {
-  it('returns ok + database up when SELECT 1 succeeds', async () => {
-    const pool = makePool(() => Promise.resolve({ rows: [{ '?column?': 1 }] }));
-    const controller = new HealthController(pool);
-    await expect(controller.check()).resolves.toEqual({ status: 'ok', database: 'up' });
+  describe('liveness', () => {
+    it('returns ok without checking deps', () => {
+      const pool = makePool(() => Promise.reject(new Error('db down')));
+      const controller = new HealthController(pool);
+      expect(controller.liveness()).toEqual({ status: 'ok' });
+    });
   });
 
-  it('throws ServiceUnavailableException when DB query fails', async () => {
-    const pool = makePool(() => Promise.reject(new Error('connection refused')));
-    const controller = new HealthController(pool);
-    await expect(controller.check()).rejects.toBeInstanceOf(ServiceUnavailableException);
+  describe('readiness', () => {
+    it('returns ok + database up when SELECT 1 succeeds', async () => {
+      const pool = makePool(() => Promise.resolve({ rows: [{ '?column?': 1 }] }));
+      const controller = new HealthController(pool);
+      await expect(controller.readiness()).resolves.toEqual({ status: 'ok', database: 'up' });
+    });
+
+    it('throws ServiceUnavailableException when DB query fails', async () => {
+      const pool = makePool(() => Promise.reject(new Error('connection refused')));
+      const controller = new HealthController(pool);
+      await expect(controller.readiness()).rejects.toBeInstanceOf(ServiceUnavailableException);
+    });
   });
 });

@@ -19,9 +19,9 @@ export type FleetDb = NodePgDatabase<typeof schema>;
       inject: [ConfigService],
       useFactory: (config: ConfigService<Env, true>): Pool =>
         new Pool({
-          connectionString: config.get('DATABASE_URL', { infer: true }),
-          max: config.get('DB_POOL_MAX', { infer: true }),
-          idleTimeoutMillis: config.get('DB_IDLE_TIMEOUT_MS', { infer: true }),
+          connectionString: config.getOrThrow('DATABASE_URL', { infer: true }),
+          max: config.getOrThrow('DB_POOL_MAX', { infer: true }),
+          idleTimeoutMillis: config.getOrThrow('DB_IDLE_TIMEOUT_MS', { infer: true }),
         }),
     },
     {
