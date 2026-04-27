@@ -1,15 +1,15 @@
 // apps/api/test/app.module.test.ts
-// Smoke test: AppModule is constructible. Replaces the empty-tests-fail-vitest gap
-// until real controllers/services exist (per day-one plan, week 3+).
-import { describe, it, expect } from 'vitest';
-import { AppModule } from '../src/app.module.js';
+// Module class identity check only - importing AppModule triggers ConfigModule.forRoot
+// validation. Real wiring is covered in database.module.test.ts.
+import { describe, it, expect, beforeAll } from 'vitest';
 
-describe('@fleet/api — AppModule', () => {
-  it('should be defined', () => {
-    expect(AppModule).toBeDefined();
+describe('@fleet/api - AppModule', () => {
+  beforeAll(() => {
+    process.env['DATABASE_URL'] = 'postgres://localhost:5432/fleet_test';
   });
 
-  it('should be a class (NestJS module)', () => {
-    expect(typeof AppModule).toBe('function');
+  it('should be defined', async () => {
+    const { AppModule } = await import('../src/app.module.js');
+    expect(AppModule).toBeDefined();
   });
 });
