@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+out
+.next
+.turbo
+.expo
+coverage
+test-results
+playwright-report
+pnpm-lock.yaml
+*.tsbuildinfo

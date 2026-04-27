@@ -1,0 +1,53 @@
+{
+  "_comment": "FleetManagement/apps/api/package.json",
+  "name": "@fleet/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NestJS modular monolith (Socket.IO gateway added week 4 per day-one plan)",
+  "type": "module",
+  "main": "./dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prebuild": "rimraf dist *.tsbuildinfo",
+    "start": "node dist/main.js",
+    "start:prod": "node dist/main.js",
+    "dev": "tsx watch src/main.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "clean": "rimraf dist .turbo coverage && rimraf \"*.tsbuildinfo\""
+  },
+  "engines": {
+    "node": ">=22.0.0 <25.0.0"
+  },
+  "dependencies": {
+    "@fleet/domain": "workspace:*",
+    "@nestjs/common": "^11.1.19",
+    "@nestjs/config": "^4.0.4",
+    "@nestjs/core": "^11.1.19",
+    "@nestjs/platform-express": "^11.1.19",
+    "drizzle-orm": "^0.45.2",
+    "jose": "^6.2.2",
+    "pg": "^8.20.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "^11.1.19",
+    "@testcontainers/postgresql": "^11.14.0",
+    "@types/express": "^5.0.0",
+    "@types/pg": "^8.20.0",
+    "drizzle-kit": "^0.31.10",
+    "rimraf": "^6.0.1",
+    "testcontainers": "^11.14.0",
+    "tsx": "^4.19.2",
+    "vitest-mock-extended": "^4.0.0"
+  }
+}

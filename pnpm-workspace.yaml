@@ -1,0 +1,39 @@
+# ============================================================================
+# File:     FleetManagement/pnpm-workspace.yaml
+# Purpose:  Declares the pnpm workspace topology for the FleetManagement
+#           monorepo — the set of directories pnpm treats as linked packages
+#           and manages via a single lockfile and shared node_modules store.
+#
+# Why it exists:
+#   The Frozen Stack (Fleet-Management-Stack.pdf) mandates "pnpm workspaces
+#   + Turborepo; Node/TS only" and prescribes the exact top-level layout:
+#     apps/driver-app   — Expo native (phones + Android tablets)
+#     apps/ops-web      — Next.js App Router + shadcn/ui + Tailwind
+#     apps/api          — NestJS modular monolith + Socket.IO gateway
+#     workers/main-worker — single deployment with named BullMQ queues
+#     packages/@domain  — state machines + policies
+#     packages/@sync-protocol, @api-sdk, @design-tokens,
+#              @test-fixtures, @i18n
+#   pnpm needs this file (NOT the package.json "workspaces" field, which it
+#   ignores) to resolve workspace:* protocol links, run `pnpm -r <script>`
+#   across packages, and generate a unified pnpm-lock.yaml. Without it,
+#   Turborepo's workspace-aware task graph cannot function.
+#
+# Key decisions / invariants:
+#   - Three top-level glob patterns matching the PDF's mandated layout:
+#     apps/*, workers/*, packages/*. No nested globs (apps/*/*) — keeps
+#     the topology flat and predictable.
+#   - No catalog: or overrides: yet — dependencies will be pinned at
+#     package scaffolding time (Week 1 per PDF day-one plan).
+#   - Filename MUST be pnpm-workspace.yaml (pnpm rejects .yml).
+#
+# Related files:
+#   - package.json              — packageManager field, root scripts
+#   - turbo.jsonc               — task graph that iterates these workspaces
+#   - .github/workflows/ci.yml  — runs `pnpm install --frozen-lockfile`
+#   - .gitignore                — excludes node_modules, .pnpm-store
+# ============================================================================
+packages:
+  - "apps/*"
+  - "workers/*"
+  - "packages/*"

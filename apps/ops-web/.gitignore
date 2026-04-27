@@ -1,0 +1,8 @@
+# apps/ops-web/.gitignore
+.next/
+out/
+dist/
+node_modules/
+*.tsbuildinfo
+next-env.d.ts
+.env*.local

@@ -1,0 +1,44 @@
+{
+  "_comment": "FleetManagement/apps/ops-web/package.json",
+  "name": "@fleet/ops-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Next.js App Router dispatcher web UI (RSC default, Route Handlers BFF-only)",
+  "type": "module",
+  "scripts": {
+    "build": "next build",
+    "start": "next start",
+    "start:prod": "next start",
+    "dev": "next dev",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest run --coverage",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "clean": "rimraf .next dist .turbo coverage"
+  },
+  "engines": {
+    "node": ">=22.0.0 <25.0.0"
+  },
+  "dependencies": {
+    "next": "^16.2.4",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.4",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "~19.2.10",
+    "@types/react-dom": "~19.2.0",
+    "@vitejs/plugin-react": "^5.0.4",
+    "jsdom": "^25.0.1",
+    "postcss": "^8.4.49",
+    "rimraf": "^6.0.1",
+    "tailwindcss": "^4.2.4"
+  }
+}

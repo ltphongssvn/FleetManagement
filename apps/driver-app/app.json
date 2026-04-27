@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Fleet Driver",
+    "slug": "fleet-driver",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "fleetdriver",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.fleetmanagement.driver"
+    },
+    "android": {
+      "package": "com.fleetmanagement.driver",
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

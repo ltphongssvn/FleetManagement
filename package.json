@@ -1,0 +1,48 @@
+{
+  "_comment": "FleetManagement/package.json",
+  "name": "fleet-management",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Intermodal Fleet Platform \u2014 pnpm/Turborepo monorepo root",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=22.0.0 <25.0.0",
+    "pnpm": ">=10.0.0 <11.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "dev": "turbo run dev",
+    "clean": "turbo run clean && rm -rf node_modules .turbo"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.10.2",
+    "@vitest/coverage-v8": "4.1.4",
+    "eslint": "^10.2.1",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.8.3",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.58.2",
+    "vitest": "^4.1.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "cpu-features",
+      "esbuild",
+      "msgpackr-extract",
+      "protobufjs",
+      "sharp",
+      "ssh2"
+    ],
+    "overrides": {
+      "esbuild": ">=0.25.0",
+      "postcss": ">=8.5.10",
+      "uuid": ">=14.0.0"
+    }
+  }
+}
