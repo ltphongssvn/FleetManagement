@@ -32,11 +32,14 @@
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.19",
     "@nestjs/platform-express": "^11.1.19",
+    "@nestjs/platform-socket.io": "^11.1.19",
+    "@nestjs/websockets": "^11.1.19",
     "drizzle-orm": "^0.45.2",
     "jose": "^6.2.2",
     "pg": "^8.20.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "socket.io": "^4.8.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -46,6 +49,7 @@
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.31.10",
     "rimraf": "^6.0.1",
+    "socket.io-client": "^4.8.3",
     "testcontainers": "^11.14.0",
     "tsx": "^4.19.2",
     "vitest-mock-extended": "^4.0.0"
