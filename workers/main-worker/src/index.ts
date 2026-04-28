@@ -19,3 +19,15 @@ export {
   INTAKE_POLICY_VERSION,
   validateIntake,
 } from './intake/intake-policy.js';
+export {
+  type ErpSyncStatus,
+  type ErpRejectionCode,
+  type ErpInvoicePayload,
+  type ErpMappingContext,
+  type ErpDecision,
+  type ErpRejectionDetails,
+  type MappedErpPayload,
+  ERP_POLICY_VERSION,
+  buildErpInvoice,
+  nextErpStatus,
+} from './erp/erp-policy.js';
