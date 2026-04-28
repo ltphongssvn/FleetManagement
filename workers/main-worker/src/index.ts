@@ -12,3 +12,9 @@ export {
   nextStatusAfterAttempt,
   isEligibleForPickup,
 } from './outbox/outbox-policy.js';
+export {
+  type IntakeRejectionCode,
+  type IntakeInput,
+  type IntakeDecision,
+  validateIntake,
+} from './intake/intake-policy.js';
