@@ -25,8 +25,7 @@ describe('@fleet/api - CommandsGateway reconciler', () => {
       attempts: 3,
       policyVersion: COMMAND_DELIVERY_POLICY_VERSION,
     });
-    const fallbacks = gw.reconcileNow(new Date());
-    expect(fallbacks).toEqual(['c1']);
+    expect(gw.reconcileNow(new Date())).toEqual(['c1']);
     expect(pushSpy).toHaveBeenCalledOnce();
   });
 
@@ -68,6 +67,70 @@ describe('@fleet/api - CommandsGateway reconciler', () => {
       policyVersion: COMMAND_DELIVERY_POLICY_VERSION,
     });
     expect(noPush.reconcileNow(new Date())).toEqual(['c4']);
+  });
+
+  it('handleAck succeeds for rejected status with valid uuid + matching operator', () => {
+    const cmdId = '11111111-1111-4111-8111-111111111111';
+    const operatorId = '22222222-2222-4222-8222-222222222222';
+    (gw as unknown as PendingMap).pending.set(cmdId, {
+      operatorId,
+      issuedAt: new Date(),
+      attempts: 1,
+      policyVersion: COMMAND_DELIVERY_POLICY_VERSION,
+    });
+    const fakeSocket = { id: 'sock-1', data: { operatorId } } as never;
+    const result = gw.handleAck(
+      {
+        commandId: cmdId,
+        ackedAt: new Date().toISOString(),
+        status: 'rejected',
+        reasonCode: 'invalid_state',
+      },
+      fakeSocket,
+    );
+    expect(result.ok).toBe(true);
+    expect(gw.pendingCount()).toBe(0);
+  });
+
+  it('handleAck rejects malformed body with invalid_payload', () => {
+    const fakeSocket = { id: 'sock-bad', data: {} } as never;
+    const result = gw.handleAck({ garbage: true }, fakeSocket);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('invalid_payload');
+  });
+
+  it('handleAck returns operator_mismatch when socket operator differs from pending entry', () => {
+    const cmdId = '33333333-3333-4333-8333-333333333333';
+    (gw as unknown as PendingMap).pending.set(cmdId, {
+      operatorId: '44444444-4444-4444-8444-444444444444',
+      issuedAt: new Date(),
+      attempts: 1,
+      policyVersion: COMMAND_DELIVERY_POLICY_VERSION,
+    });
+    const fakeSocket = {
+      id: 'sock-other',
+      data: { operatorId: '55555555-5555-4555-8555-555555555555' },
+    } as never;
+    const result = gw.handleAck(
+      { commandId: cmdId, ackedAt: new Date().toISOString(), status: 'received' },
+      fakeSocket,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('operator_mismatch');
+  });
+
+  it('handleAck returns unknown_command for valid ack on missing entry', () => {
+    const fakeSocket = { id: 's', data: { operatorId: 'op' } } as never;
+    const result = gw.handleAck(
+      {
+        commandId: '66666666-6666-4666-8666-666666666666',
+        ackedAt: new Date().toISOString(),
+        status: 'received',
+      },
+      fakeSocket,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('unknown_command');
   });
 
   it('retains pending entry when push fallback rejects', async () => {

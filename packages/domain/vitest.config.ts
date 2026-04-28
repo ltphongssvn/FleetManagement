@@ -1,6 +1,10 @@
 // packages/domain/vitest.config.ts
 // Vitest config for @fleet/domain — unit tests for state machines + policies.
 import { defineConfig } from 'vitest/config';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   test: {
@@ -8,6 +12,14 @@ export default defineConfig({
     coverage: {
       exclude: ['**/index.ts', '**/*.config.ts', '**/dist/**', '**/test/**'],
       provider: 'v8',
+      include: [resolve(__dirname, 'src/**/*.ts')],
+      thresholds: {
+        statements: 80,
+        branches: 80,
+        functions: 80,
+        lines: 80,
+        perFile: true,
+      },
       reportsDirectory: 'coverage/unit',
     },
   },

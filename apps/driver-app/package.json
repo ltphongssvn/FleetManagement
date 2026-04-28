@@ -6,19 +6,19 @@
   "description": "Expo native driver app (phones + Android tablets); Expo Web read-only fallback",
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start",
     "android": "expo start --android",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "clean": "rimraf .expo dist .turbo coverage",
     "ios": "expo start --ios",
-    "web": "expo start --web",
-    "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix",
+    "start": "expo start",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:unit": "vitest run",
     "test:watch": "vitest --watch",
-    "test:coverage": "vitest run --coverage",
-    "check": "pnpm lint && pnpm typecheck && pnpm test",
-    "clean": "rimraf .expo dist .turbo coverage"
+    "typecheck": "tsc -p tsconfig.json",
+    "web": "expo start --web"
   },
   "engines": {
     "node": ">=22.0.0 <25.0.0"
@@ -40,6 +40,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.14",
+    "@vitest/coverage-istanbul": "^4.1.5",
+    "@vitest/coverage-v8": "4.1.4",
     "drizzle-kit": "^0.31.10",
     "fast-check": "^4.7.0",
     "rimraf": "^6.0.1"

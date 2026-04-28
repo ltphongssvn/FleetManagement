@@ -1,21 +1,28 @@
 // apps/api/src/main.ts
-// NestJS bootstrap entrypoint. Starts HTTP server on PORT (default 3000).
-// reflect-metadata MUST be the first import for NestJS DI to work.
-import 'reflect-metadata';
+// OTel SDK is started by ./observability/otel-bootstrap.ts via `node --import`.
 import { NestFactory } from '@nestjs/core';
-import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module.js';
 import { ZodExceptionFilter } from './common/zod-exception.filter.js';
+import { shutdownOtel } from './observability/otel.js';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule);
   app.useGlobalFilters(new ZodExceptionFilter());
   const port = Number(process.env['PORT'] ?? 3000);
   await app.listen(port);
-  Logger.log(`API listening on http://localhost:${String(port)}`, 'Bootstrap');
+
+  const shutdown = async (signal: string): Promise<void> => {
+    try {
+      await app.close();
+      await shutdownOtel();
+      process.exit(0);
+    } catch (err) {
+      console.error('Shutdown failed after ' + signal, err);
+      process.exit(1);
+    }
+  };
+  process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
+  process.once('SIGINT', () => { void shutdown('SIGINT'); });
 }
 
-bootstrap().catch((err: unknown) => {
-  console.error('Bootstrap failed', err);
-  process.exit(1);
-});
+void bootstrap();

@@ -8,11 +8,22 @@
     "declarationMap": false,
     "noEmit": true,
     "jsx": "react-native",
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "types": [
+      "react",
+      "react-native"
+    ],
+    "allowSyntheticDefaultImports": true,
     "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "lib": ["ES2022", "DOM"],
-    "types": ["react", "react-native"],
-    "allowSyntheticDefaultImports": true
+    "moduleResolution": "Bundler"
   },
-  "include": ["src/**/*", "test/**/*", "app/**/*", "vitest.config.ts"]
+  "include": [
+    "src/**/*",
+    "test/**/*",
+    "app/**/*",
+    "vitest.config.ts"
+  ]
 }

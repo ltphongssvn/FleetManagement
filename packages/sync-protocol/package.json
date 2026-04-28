@@ -14,15 +14,15 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo coverage",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:unit": "vitest run",
     "test:watch": "vitest --watch",
-    "test:coverage": "vitest run --coverage",
-    "check": "pnpm lint && pnpm typecheck && pnpm test",
-    "clean": "rm -rf dist .turbo *.tsbuildinfo coverage"
+    "typecheck": "tsc -p tsconfig.json"
   },
   "engines": {
     "node": ">=22.0.0 <25.0.0"

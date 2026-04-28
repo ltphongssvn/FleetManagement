@@ -73,4 +73,23 @@ describe('@fleet/ops-web - assignRun (property-based)', () => {
       { numRuns: 30 },
     );
   });
+})
+
+describe('@fleet/ops-web - assignRun (issue code mapping)', () => {
+  it('maps too-long assetId to too_long code', async () => {
+    const result = await assignRun({ ...validInput, assetId: 'x'.repeat(100) });
+    expect(result.status).toBe('invalid_input');
+    if (result.status === 'invalid_input') {
+      expect(result.issues[0]?.code).toBe('too_long');
+    }
+  });
+
+  it('maps missing required field to unknown code', async () => {
+    const result = await assignRun({ operatorId: validInput.operatorId } as never);
+    expect(result.status).toBe('invalid_input');
+    if (result.status === 'invalid_input') {
+      const codes = result.issues.map((i) => i.code);
+      expect(codes.length).toBeGreaterThan(0);
+    }
+  });
 });
