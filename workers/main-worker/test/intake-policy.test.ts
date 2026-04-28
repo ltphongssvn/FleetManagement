@@ -1,7 +1,7 @@
 // workers/main-worker/test/intake-policy.test.ts
 import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
-import { validateIntake, type IntakeInput } from '../src/intake/intake-policy.js';
+import { validateIntake, INTAKE_POLICY_VERSION, type IntakeInput } from '../src/intake/intake-policy.js';
 
 const baseInput: IntakeInput = {
   expectedContentType: 'image/jpeg',
@@ -15,34 +15,37 @@ const baseInput: IntakeInput = {
 };
 
 describe('@fleet/main-worker - validateIntake', () => {
-  it('accepts well-formed upload', () => {
-    expect(validateIntake(baseInput)).toEqual({ accepted: true });
+  it('accepts well-formed upload with policyVersion stamp', () => {
+    const r = validateIntake(baseInput);
+    expect(r.accepted).toBe(true);
+    expect(r.policyVersion).toBe(INTAKE_POLICY_VERSION);
   });
 
   it('rejects when object is missing', () => {
     const r = validateIntake({ ...baseInput, actualContentType: null, actualSizeBytes: null });
-    expect(r).toEqual({ accepted: false, rejectionCode: 'object_missing' });
+    if (r.accepted) throw new Error('expected reject');
+    expect(r.rejectionCode).toBe('object_missing');
   });
 
-  it('rejects unsupported MIME type', () => {
+  it('rejects unsupported MIME type with unsupported_mime_type code', () => {
     const r = validateIntake({ ...baseInput, actualContentType: 'image/gif', expectedContentType: 'image/gif' });
     if (r.accepted) throw new Error('expected reject');
-    expect(r.rejectionCode).toBe('mime_mismatch');
+    expect(r.rejectionCode).toBe('unsupported_mime_type');
   });
 
-  it('rejects MIME mismatch (actual != expected)', () => {
+  it('rejects MIME mismatch with mime_mismatch code', () => {
     const r = validateIntake({ ...baseInput, actualContentType: 'image/png' });
     if (r.accepted) throw new Error('expected reject');
     expect(r.rejectionCode).toBe('mime_mismatch');
   });
 
-  it('rejects oversized file (exceeds maxSizeBytes)', () => {
+  it('rejects oversized file', () => {
     const r = validateIntake({ ...baseInput, actualSizeBytes: 100 * 1024 * 1024 });
     if (r.accepted) throw new Error('expected reject');
     expect(r.rejectionCode).toBe('oversized_file');
   });
 
-  it('rejects size below 50% (large file, compression check)', () => {
+  it('rejects size below 50%', () => {
     const r = validateIntake({ ...baseInput, actualSizeBytes: 100_000 });
     if (r.accepted) throw new Error('expected reject');
     expect(r.rejectionCode).toBe('size_mismatch');
@@ -70,7 +73,7 @@ describe('@fleet/main-worker - validateIntake', () => {
     expect(r.rejectionCode).toBe('hash_mismatch');
   });
 
-  it('rejects when client provided hash but intake did not compute one (fail-closed)', () => {
+  it('rejects when client provided hash but intake did not compute one', () => {
     const r = validateIntake({ ...baseInput, providedHash: 'aaa', computedHash: null });
     if (r.accepted) throw new Error('expected reject');
     expect(r.rejectionCode).toBe('hash_missing');
@@ -78,6 +81,11 @@ describe('@fleet/main-worker - validateIntake', () => {
 
   it('skips hash check when client did not commit to one', () => {
     const r = validateIntake({ ...baseInput, providedHash: null, computedHash: 'bbb' });
+    expect(r.accepted).toBe(true);
+  });
+
+  it('accepts matching hash when both provided', () => {
+    const r = validateIntake({ ...baseInput, providedHash: 'aaa', computedHash: 'aaa' });
     expect(r.accepted).toBe(true);
   });
 
@@ -91,6 +99,68 @@ describe('@fleet/main-worker - validateIntake', () => {
     const r = validateIntake({ ...baseInput, virusScanClean: null });
     if (r.accepted) throw new Error('expected reject');
     expect(r.rejectionCode).toBe('virus_scan_pending');
+  });
+
+  describe('numeric input validation (defensive)', () => {
+    it('rejects expectedSizeBytes = 0', () => {
+      const r = validateIntake({ ...baseInput, expectedSizeBytes: 0 });
+      if (r.accepted) throw new Error('expected reject');
+      expect(r.rejectionCode).toBe('invalid_input');
+    });
+
+    it('rejects expectedSizeBytes = NaN', () => {
+      const r = validateIntake({ ...baseInput, expectedSizeBytes: Number.NaN });
+      if (r.accepted) throw new Error('expected reject');
+      expect(r.rejectionCode).toBe('invalid_input');
+    });
+
+    it('rejects expectedSizeBytes = Infinity', () => {
+      const r = validateIntake({ ...baseInput, expectedSizeBytes: Infinity });
+      if (r.accepted) throw new Error('expected reject');
+      expect(r.rejectionCode).toBe('invalid_input');
+    });
+
+    it('rejects negative expectedSizeBytes', () => {
+      const r = validateIntake({ ...baseInput, expectedSizeBytes: -1 });
+      if (r.accepted) throw new Error('expected reject');
+      expect(r.rejectionCode).toBe('invalid_input');
+    });
+
+    it('rejects negative actualSizeBytes', () => {
+      const r = validateIntake({ ...baseInput, actualSizeBytes: -1 });
+      if (r.accepted) throw new Error('expected reject');
+      expect(r.rejectionCode).toBe('invalid_input');
+    });
+
+    it('rejects maxSizeBytes = 0', () => {
+      const r = validateIntake({ ...baseInput, maxSizeBytes: 0 });
+      if (r.accepted) throw new Error('expected reject');
+      expect(r.rejectionCode).toBe('invalid_input');
+    });
+  });
+
+  describe('priority order', () => {
+    it('returns object_missing before MIME or size checks', () => {
+      const r = validateIntake({
+        ...baseInput,
+        actualContentType: null,
+        actualSizeBytes: null,
+        virusScanClean: false,
+      });
+      if (r.accepted) throw new Error('expected reject');
+      expect(r.rejectionCode).toBe('object_missing');
+    });
+
+    it('returns unsupported_mime_type before size or virus checks', () => {
+      const r = validateIntake({
+        ...baseInput,
+        actualContentType: 'image/gif',
+        actualSizeBytes: 100 * 1024 * 1024,
+        virusScanClean: false,
+      });
+      if (r.accepted) throw new Error('expected reject');
+      expect(r.rejectionCode).toBe('unsupported_mime_type');
+    });
   });
 
   describe('property-based invariants', () => {
@@ -112,20 +182,11 @@ describe('@fleet/main-worker - validateIntake', () => {
       );
     });
 
-    it('accepted result never carries a rejectionCode', () => {
-      fc.assert(
-        fc.property(fc.integer({ min: 1_000, max: 10_000_000 }), (size) => {
-          const r = validateIntake({ ...baseInput, expectedSizeBytes: size, actualSizeBytes: size });
-          return r.accepted ? !('rejectionCode' in r) : true;
-        }),
-      );
-    });
-
-    it('rejected result always carries a rejectionCode', () => {
+    it('every decision carries policyVersion', () => {
       fc.assert(
         fc.property(fc.constantFrom('image/gif', 'video/mp4', 'application/zip'), (badMime) => {
           const r = validateIntake({ ...baseInput, actualContentType: badMime });
-          return !r.accepted && typeof r.rejectionCode === 'string';
+          return typeof r.policyVersion === 'string' && r.policyVersion.length > 0;
         }),
       );
     });

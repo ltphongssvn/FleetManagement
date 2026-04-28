@@ -55,6 +55,9 @@ importers:
       '@fleet/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@fleet/sync-protocol':
+        specifier: workspace:*
+        version: link:../../packages/sync-protocol
       '@nestjs/common':
         specifier: ^11.1.19
         version: 11.1.19(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -259,6 +262,9 @@ importers:
 
   workers/main-worker:
     dependencies:
+      '@fleet/sync-protocol':
+        specifier: workspace:*
+        version: link:../../packages/sync-protocol
       bullmq:
         specifier: ^5.76.2
         version: 5.76.2

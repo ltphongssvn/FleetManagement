@@ -16,5 +16,6 @@ export {
   type IntakeRejectionCode,
   type IntakeInput,
   type IntakeDecision,
+  INTAKE_POLICY_VERSION,
   validateIntake,
 } from './intake/intake-policy.js';

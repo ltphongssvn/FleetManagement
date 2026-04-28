@@ -1,17 +1,11 @@
 // apps/api/src/manifest/manifest.dto.ts
 import { z } from 'zod';
-
-const ALLOWED_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/heic',
-  'application/pdf',
-] as const;
+import { ALLOWED_MANIFEST_MIME_TYPES } from '@fleet/sync-protocol';
 
 export const NegotiateUploadSchema = z.object({
   manifestCorrelationId: z.string().uuid(),
   transportOrderId: z.string().uuid(),
-  contentType: z.enum(ALLOWED_MIME_TYPES),
+  contentType: z.enum(ALLOWED_MANIFEST_MIME_TYPES),
   expectedSizeBytes: z.number().int().positive().max(50 * 1024 * 1024),
 });
 export type NegotiateUploadInput = z.infer<typeof NegotiateUploadSchema>;
