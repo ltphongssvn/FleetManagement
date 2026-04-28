@@ -2,7 +2,7 @@
 // Combined config: runs unit + integration tests in one pass for merged coverage.
 import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { dirname } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

@@ -11,5 +11,11 @@
     "emitDecoratorMetadata": true,
     "useDefineForClassFields": false
   },
-  "include": ["src/**/*", "test/**/*", "vitest.config.ts", "vitest.integration.config.ts"]
+  "include": [
+    "src/**/*",
+    "test/**/*",
+    "vitest.config.ts",
+    "vitest.integration.config.ts",
+    "vitest.coverage.config.ts"
+  ]
 }

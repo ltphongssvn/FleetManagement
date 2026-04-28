@@ -1,6 +1,6 @@
 // apps/api/test/zod-exception.filter.test.ts
 import { describe, it, expect, vi } from 'vitest';
-import { z, ZodError } from 'zod';
+import { z, type ZodError } from 'zod';
 import { ZodExceptionFilter } from '../src/common/zod-exception.filter.js';
 
 describe('@fleet/api - ZodExceptionFilter', () => {
