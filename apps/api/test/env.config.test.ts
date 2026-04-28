@@ -11,6 +11,7 @@ describe('@fleet/api - validateEnv', () => {
     OIDC_JWKS_URI: 'https://idp.example.com/.well-known/jwks.json',
     AWS_REGION: 'us-west-2',
     S3_ARTIFACTS_BUCKET: 'fleet-test',
+    OTEL_ENABLED: 'false',
   };
 
   describe('defaults', () => {
