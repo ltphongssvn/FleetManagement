@@ -12,6 +12,7 @@ describe('@fleet/api - validateEnv', () => {
     AWS_REGION: 'us-west-2',
     S3_ARTIFACTS_BUCKET: 'fleet-test',
     OTEL_ENABLED: 'false',
+    OTEL_SAMPLE_RATIO: '1.0',
   };
 
   describe('defaults', () => {

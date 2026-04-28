@@ -14,9 +14,10 @@ export const EnvSchema = z.object({
   AWS_REGION: z.string().min(1).default('us-west-2'),
   S3_ARTIFACTS_BUCKET: z.string().min(1).default('fleet-pilot-artifacts'),
   S3_PRESIGN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
-  OTEL_ENABLED: z.coerce.boolean().default(false),
-  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
+  OTEL_ENABLED: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: z.string().url().optional(),
   OTEL_SERVICE_NAME: z.string().default('fleet-api'),
+  OTEL_SAMPLE_RATIO: z.coerce.number().min(0).max(1).default(1.0),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
