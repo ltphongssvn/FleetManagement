@@ -2,6 +2,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module.js';
+import { CommandsModule } from './commands/commands.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { DeviceModule } from './device/device.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -16,6 +17,7 @@ import { validateEnv } from './config/env.config.js';
     DeviceModule,
     HealthModule,
     SyncModule,
+    CommandsModule,
   ],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
