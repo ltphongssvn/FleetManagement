@@ -13,6 +13,7 @@ export const deviceRegistry = pgTable(
     operatorId: uuid('operator_id').notNull(),
     platform: varchar('platform', { length: 32 }).notNull(),
     appVersion: varchar('app_version', { length: 32 }).notNull(),
+    expoPushToken: varchar('expo_push_token', { length: 256 }),
     enrolledAt: timestamp('enrolled_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' }),
   },

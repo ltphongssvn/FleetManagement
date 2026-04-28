@@ -1,7 +1,7 @@
 // apps/api/src/commands/commands.gateway.ts
 // In-process Socket.IO gateway per Frozen Stack PDF "Realtime".
 // Pilot scope: operator/depot rooms (no Redis adapter, no session rooms).
-import { Injectable, Logger, type OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional, type OnModuleDestroy } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
@@ -14,6 +14,7 @@ import {
 import type { Server, Socket } from 'socket.io';
 import { CommandAckSchema, type CommandAck, type CommandPayload } from './command.dto.js';
 import { shouldFallbackToPush, type PendingCommand } from './command-policy.js';
+import { PUSH_PROVIDER, type IPushProvider } from '../push/push-provider.interface.js';
 
 const RECONCILE_INTERVAL_MS = 2_000;
 export const COMMAND_DELIVERY_POLICY_VERSION = 'command-delivery-v1' as const;
@@ -55,6 +56,8 @@ export class CommandsGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   @WebSocketServer()
   server!: Server;
+
+  constructor(@Optional() @Inject(PUSH_PROVIDER) private readonly pushProvider?: IPushProvider) {}
 
   private readonly pending = new Map<string, PendingEntry>();
   private reconciler: ReturnType<typeof setInterval> | null = null;
@@ -139,9 +142,29 @@ export class CommandsGateway implements OnGatewayConnection, OnGatewayDisconnect
     for (const [commandId, entry] of this.pending) {
       const cmd: PendingCommand = { commandId, issuedAt: entry.issuedAt, attempts: entry.attempts };
       if (shouldFallbackToPush(cmd, now)) {
-        this.pending.delete(commandId);
         fallbackIds.push(commandId);
         this.logger.warn(`Command ${commandId} timed out after ${String(entry.attempts)} attempts -> push fallback`);
+        if (this.pushProvider) {
+          void this.pushProvider
+            .sendToOperator(entry.operatorId, {
+              title: 'Pending command',
+              body: `Command ${commandId} requires attention`,
+              data: { commandId },
+            })
+            .then((result) => {
+              this.pending.delete(commandId);
+              if (result.rejected > 0) {
+                this.logger.warn(`Push fallback partial: cmd=${commandId} accepted=${String(result.accepted)} rejected=${String(result.rejected)}`);
+              }
+            })
+            .catch((err: unknown) => {
+              // Keep pending so a future reconcile cycle or operator action can retry.
+              this.logger.error(`Push fallback failed; cmd=${commandId} retained as pending`, err);
+            });
+        } else {
+          // No provider: drop from pending (pilot path; production must inject provider).
+          this.pending.delete(commandId);
+        }
       }
     }
     return fallbackIds;
