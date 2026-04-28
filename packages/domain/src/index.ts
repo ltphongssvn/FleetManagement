@@ -37,4 +37,5 @@ export {
   isRoadRunTerminal,
   canTransitionRoadRun,
   transitionRoadRun,
+  ROAD_RUN_STATE_TONE,
 } from './transport/index.js';
