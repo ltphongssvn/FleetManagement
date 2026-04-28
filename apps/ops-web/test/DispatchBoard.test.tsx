@@ -61,3 +61,15 @@ describe('@fleet/ops-web - DispatchBoard (RSC)', () => {
     expect(cells.length).toBeGreaterThan(0);
   });
 });
+
+describe('@fleet/ops-web - DispatchBoard empty state', () => {
+  it('renders empty message when no runs are loaded', async () => {
+    vi.resetModules();
+    vi.doMock('../src/features/dispatch/load-board.js', () => ({
+      loadDispatchBoard: vi.fn().mockResolvedValue([]),
+    }));
+    const mod = await import('../src/features/dispatch/DispatchBoard.js');
+    render(await mod.DispatchBoard());
+    expect(screen.getByText(/No road runs/)).toBeInTheDocument();
+  });
+});

@@ -30,7 +30,7 @@ function mapZodIssue(issue: { code: string; path: readonly (string | number)[]; 
   return { code: 'unknown', path, message: issue.message };
 }
 
-export async function assignRun(input: AssignRunInput): Promise<AssignRunResult> {
+export async function assignRun(input: unknown): Promise<AssignRunResult> {
   const parsed = AssignRunInputSchema.safeParse(input);
   if (!parsed.success) {
     return {

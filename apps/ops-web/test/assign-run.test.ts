@@ -45,4 +45,32 @@ describe('@fleet/ops-web - assignRun', () => {
       expect(result.issues[0]?.code).toBe('too_short');
     }
   });
+})
+
+describe('@fleet/ops-web - assignRun (property-based)', () => {
+  it('rejects any random non-uuid roadRunId with invalid_uuid code', async () => {
+    const fc = await import('fast-check');
+    await fc.assert(
+      fc.asyncProperty(
+        fc.string({ minLength: 1, maxLength: 30 }).filter((s) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)),
+        async (badId) => {
+          const result = await assignRun({ ...validInput, roadRunId: badId });
+          if (result.status !== 'invalid_input') return false;
+          return result.issues.some((i) => i.code === 'invalid_uuid' && i.path.includes('roadRunId'));
+        },
+      ),
+      { numRuns: 30 },
+    );
+  });
+
+  it('always accepts well-formed UUIDs', async () => {
+    const fc = await import('fast-check');
+    await fc.assert(
+      fc.asyncProperty(fc.uuid(), fc.uuid(), async (rrId, opId) => {
+        const result = await assignRun({ roadRunId: rrId, operatorId: opId });
+        return result.status === 'ok';
+      }),
+      { numRuns: 30 },
+    );
+  });
 });

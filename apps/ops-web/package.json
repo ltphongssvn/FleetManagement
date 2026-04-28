@@ -38,6 +38,7 @@
     "@types/react": "~19.2.10",
     "@types/react-dom": "~19.2.0",
     "@vitejs/plugin-react": "^5.0.4",
+    "fast-check": "^4.7.0",
     "jsdom": "^25.0.1",
     "postcss": "^8.4.49",
     "rimraf": "^6.0.1",

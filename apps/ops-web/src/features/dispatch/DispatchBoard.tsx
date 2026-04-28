@@ -3,6 +3,17 @@ import { ROAD_RUN_STATE_TONE } from '@fleet/domain';
 import { loadDispatchBoard } from './load-board.js';
 import type { DispatchBoardRoadRun } from './types.js';
 
+const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
+
+function formatPlannedStart(iso: string | null): string {
+  if (iso === null) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : PLANNED_FORMATTER.format(d);
+}
+
 function StateBadge({ state }: { state: DispatchBoardRoadRun['state'] }): React.ReactElement {
   return (
     <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${ROAD_RUN_STATE_TONE[state]}`}>
@@ -35,7 +46,7 @@ export async function DispatchBoard(): Promise<React.ReactElement> {
               <td className="px-3 py-2"><StateBadge state={r.state} /></td>
               <td className="px-3 py-2">{r.assignedOperatorId ?? '—'}</td>
               <td className="px-3 py-2">{r.assignedAssetId ?? '—'}</td>
-              <td className="px-3 py-2">{r.plannedStartAt ?? '—'}</td>
+              <td className="px-3 py-2">{formatPlannedStart(r.plannedStartAt)}</td>
               <td className="px-3 py-2">{r.stopCount}</td>
               <td className="px-3 py-2">{r.transportOrderRefs.join(', ')}</td>
             </tr>
