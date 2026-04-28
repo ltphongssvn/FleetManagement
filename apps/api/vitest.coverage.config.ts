@@ -1,10 +1,6 @@
 // apps/api/vitest.coverage.config.ts
 // Combined config: runs unit + integration tests in one pass for merged coverage.
 import { defineConfig } from 'vitest/config';
-import { fileURLToPath } from 'node:url';
-import { dirname } from 'node:path';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   test: {
