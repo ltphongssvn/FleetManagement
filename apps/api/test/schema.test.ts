@@ -13,6 +13,9 @@ import {
   roadRunTransportOrder,
   manifest,
   uploadSession,
+  erpCustomerMap,
+  erpJobCodeMap,
+  erpInvoiceMap,
 } from '../src/database/schema/index.js';
 
 describe('@fleet/api - device schema', () => {
@@ -86,6 +89,27 @@ describe('@fleet/api - transport schema', () => {
     expect(cols).toContain('manifestCorrelationId');
     expect(cols).toContain('state');
     expect(cols).toContain('transportOrderId');
+  });
+
+  it('erp_customer_map has internal + external + erp_system', () => {
+    const cols = Object.keys(erpCustomerMap);
+    expect(cols).toContain('internalCustomerId');
+    expect(cols).toContain('externalErpId');
+    expect(cols).toContain('erpSystem');
+  });
+
+  it('erp_job_code_map has internal + external mapping', () => {
+    const cols = Object.keys(erpJobCodeMap);
+    expect(cols).toContain('internalJobCode');
+    expect(cols).toContain('externalErpCode');
+  });
+
+  it('erp_invoice_map has correlation id + status + direction', () => {
+    const cols = Object.keys(erpInvoiceMap);
+    expect(cols).toContain('manifestCorrelationId');
+    expect(cols).toContain('status');
+    expect(cols).toContain('direction');
+    expect(cols).toContain('externalErpInvoiceId');
   });
 
   it('upload_session has S3 key/bucket + state', () => {
