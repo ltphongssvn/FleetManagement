@@ -6,6 +6,8 @@ import {
   ManifestInsertFailedError,
   TransportOrderNotOwnedError,
   UploadSessionInsertFailedError,
+  UploadSessionNotFoundError,
+  UploadAlreadyCommittedError,
 } from '../src/manifest/manifest.errors.js';
 import type { FleetDb } from '../src/database/database.module.js';
 import type { IBlobStore, PresignedUpload } from '../src/storage/storage-provider.interface.js';
@@ -119,5 +121,62 @@ describe('@fleet/api - ManifestService.negotiateUpload', () => {
     const db = setupTxDb({ ownedTransportOrder: false });
     const service = new ManifestService(db, fakeBlobStore(), fakeConfig());
     await expect(service.negotiateUpload(validInput, OP)).rejects.toBeInstanceOf(TransportOrderNotOwnedError);
+  });
+});
+
+describe('@fleet/api - ManifestService.commitUpload', () => {
+  const validCommit = {
+    uploadSessionId: '00000000-0000-0000-0000-0000000000c1',
+    actualSizeBytes: 1_400_000,
+    contentHash: 'a'.repeat(64),
+  };
+
+  function setupCommitDb(opts: {
+    sessionRow?: unknown;
+    updateSessionReturning?: unknown[];
+  }): DeepMockProxy<FleetDb> {
+    const db = mockDeep<FleetDb>();
+    db.transaction.mockImplementation((async (fn: (tx: FleetDb) => Promise<unknown>) => {
+      const tx = mockDeep<FleetDb>();
+      tx.select.mockImplementation(() => ({
+        from: () => ({
+          where: () => ({
+            limit: () => Promise.resolve(opts.sessionRow !== undefined ? [opts.sessionRow] : []),
+          }),
+        }),
+      }) as never);
+      tx.update.mockImplementation(() => ({
+        set: () => ({
+          where: () => ({
+            returning: () => Promise.resolve(opts.updateSessionReturning ?? []),
+          }),
+        }),
+      }) as never);
+      return fn(tx);
+    }) as never);
+    return db;
+  }
+
+  it('commits upload session and transitions manifest to captured', async () => {
+    const db = setupCommitDb({
+      sessionRow: { state: 'initiated' },
+      updateSessionReturning: [{ uploadSessionId: validCommit.uploadSessionId, manifestId: 'm1' }],
+    });
+    const service = new ManifestService(db, fakeBlobStore(), fakeConfig());
+    const result = await service.commitUpload(validCommit, OP);
+    expect(result.state).toBe('verifying');
+    expect(result.manifestId).toBe('m1');
+  });
+
+  it('throws when session not found', async () => {
+    const db = setupCommitDb({});
+    const service = new ManifestService(db, fakeBlobStore(), fakeConfig());
+    await expect(service.commitUpload(validCommit, OP)).rejects.toBeInstanceOf(UploadSessionNotFoundError);
+  });
+
+  it('throws when session already committed', async () => {
+    const db = setupCommitDb({ sessionRow: { state: 'committed' } });
+    const service = new ManifestService(db, fakeBlobStore(), fakeConfig());
+    await expect(service.commitUpload(validCommit, OP)).rejects.toBeInstanceOf(UploadAlreadyCommittedError);
   });
 });

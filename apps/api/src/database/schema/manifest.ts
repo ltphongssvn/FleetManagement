@@ -8,6 +8,7 @@ import { transportOrder } from './transport.js';
 export const uploadSessionStateEnum = pgEnum('upload_session_state', [
   'initiated',
   'uploading',
+  'verifying',
   'committed',
   'rejected',
   'aborted',
@@ -27,6 +28,7 @@ export const manifestRejectionReasonEnum = pgEnum('manifest_rejection_reason', [
 
 export const manifestStateEnum = pgEnum('manifest_state', [
   'pending',
+  'verifying',
   'captured',
   'committed',
   'rejected',

@@ -2,7 +2,7 @@
 // Manifest service per Frozen Stack PDF "Manifest" + "Uploads".
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import mime from 'mime-types';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
@@ -10,8 +10,8 @@ import { manifest, uploadSession } from '../database/schema/manifest.js';
 import { transportOrder } from '../database/schema/transport.js';
 import { BLOB_STORE, type IBlobStore } from '../storage/storage-provider.interface.js';
 import type { Env } from '../config/env.config.js';
-import type { NegotiateUploadInput, NegotiateUploadResponse } from './manifest.dto.js';
-import { ManifestInsertFailedError, TransportOrderNotOwnedError, UploadSessionInsertFailedError } from './manifest.errors.js';
+import type { NegotiateUploadInput, NegotiateUploadResponse, CommitUploadInput, CommitUploadResponse } from './manifest.dto.js';
+import { ManifestInsertFailedError, TransportOrderNotOwnedError, UploadSessionInsertFailedError, UploadSessionMissingManifestError, UploadSessionNotFoundError, UploadAlreadyCommittedError } from './manifest.errors.js';
 
 export interface OperatorContext {
   readonly operatorId: string;
@@ -109,6 +109,67 @@ export class ManifestService {
       ))
       .limit(1);
     if (!row) throw new TransportOrderNotOwnedError(transportOrderId, op.companyId);
+  }
+
+  /**
+   * Mark a previously negotiated upload as ready for verification.
+   * Transitions upload_session: initiated/uploading -> verifying (atomic).
+   * Final 'committed' transition is performed by the intake worker after S3 HEAD,
+   * size/hash verification, and virus scan succeed.
+   * Returns 409 (UploadAlreadyCommittedError) if session already past initial state.
+   */
+  async commitUpload(input: CommitUploadInput, op: OperatorContext): Promise<CommitUploadResponse> {
+    return this.db.transaction(async (tx) => {
+      // Atomic: only transition if currently 'initiated' or 'uploading'.
+      // This collapses the SELECT-then-UPDATE race window.
+      const updated = await tx
+        .update(uploadSession)
+        .set({
+          state: 'verifying',
+          actualSizeBytes: input.actualSizeBytes,
+          contentHash: input.contentHash ?? null,
+        })
+        .where(and(
+          eq(uploadSession.uploadSessionId, input.uploadSessionId),
+          eq(uploadSession.companyId, op.companyId),
+          inArray(uploadSession.state, ['initiated', 'uploading']),
+        ))
+        .returning();
+
+      const updatedSession = updated[0];
+      if (!updatedSession) {
+        // Either not found, wrong tenant, or already past initial state.
+        // Disambiguate to give the client a useful error.
+        const [existing] = await tx
+          .select({ state: uploadSession.state })
+          .from(uploadSession)
+          .where(and(
+            eq(uploadSession.uploadSessionId, input.uploadSessionId),
+            eq(uploadSession.companyId, op.companyId),
+          ))
+          .limit(1);
+        if (!existing) throw new UploadSessionNotFoundError(input.uploadSessionId);
+        throw new UploadAlreadyCommittedError(input.uploadSessionId);
+      }
+      if (!updatedSession.manifestId) throw new UploadSessionMissingManifestError(input.uploadSessionId);
+
+      // Manifest enters 'verifying' state — intake worker will move it to 'captured'
+      // (or 'rejected') after running the validateIntake policy.
+      // Guard against backsliding from terminal states (committed/rejected).
+      await tx
+        .update(manifest)
+        .set({ state: 'verifying' })
+        .where(and(
+          eq(manifest.manifestId, updatedSession.manifestId),
+          inArray(manifest.state, ['pending', 'verifying']),
+        ));
+
+      return {
+        uploadSessionId: updatedSession.uploadSessionId,
+        manifestId: updatedSession.manifestId,
+        state: 'verifying',
+      };
+    });
   }
 
   private buildS3Key(op: OperatorContext, manifestId: string, correlationId: string, contentType: string): string {

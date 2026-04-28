@@ -1,6 +1,6 @@
 // apps/api/test/manifest.dto.test.ts
 import { describe, it, expect } from 'vitest';
-import { NegotiateUploadSchema } from '../src/manifest/manifest.dto.js';
+import { NegotiateUploadSchema, CommitUploadSchema } from '../src/manifest/manifest.dto.js';
 
 const valid = {
   manifestCorrelationId: '00000000-0000-0000-0000-000000000001',
@@ -28,5 +28,34 @@ describe('@fleet/api - NegotiateUploadSchema', () => {
 
   it('rejects non-uuid correlation id', () => {
     expect(NegotiateUploadSchema.safeParse({ ...valid, manifestCorrelationId: 'bad' }).success).toBe(false);
+  });
+});
+
+describe('@fleet/api - CommitUploadSchema', () => {
+  const valid = {
+    uploadSessionId: '00000000-0000-0000-0000-000000000001',
+    actualSizeBytes: 1_400_000,
+    contentHash: 'a'.repeat(64),
+  };
+
+  it('accepts valid commit', () => {
+    expect(CommitUploadSchema.parse(valid)).toEqual(valid);
+  });
+
+  it('accepts commit without contentHash', () => {
+    const { contentHash: _omit, ...without } = valid;
+    expect(CommitUploadSchema.parse(without).uploadSessionId).toBe(valid.uploadSessionId);
+  });
+
+  it('rejects non-uuid uploadSessionId', () => {
+    expect(CommitUploadSchema.safeParse({ ...valid, uploadSessionId: 'bad' }).success).toBe(false);
+  });
+
+  it('rejects size exceeding 50MB cap', () => {
+    expect(CommitUploadSchema.safeParse({ ...valid, actualSizeBytes: 60 * 1024 * 1024 }).success).toBe(false);
+  });
+
+  it('rejects too-short hash', () => {
+    expect(CommitUploadSchema.safeParse({ ...valid, contentHash: 'short' }).success).toBe(false);
   });
 });

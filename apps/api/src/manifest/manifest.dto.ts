@@ -18,3 +18,18 @@ export const NegotiateUploadResponseSchema = z.object({
   expiresAt: z.string().datetime(),
 });
 export type NegotiateUploadResponse = z.infer<typeof NegotiateUploadResponseSchema>;
+
+export const CommitUploadSchema = z.object({
+  uploadSessionId: z.string().uuid(),
+  contentHash: z.string().min(32).max(128).optional(),
+  actualSizeBytes: z.number().int().positive().max(50 * 1024 * 1024),
+});
+export type CommitUploadInput = z.infer<typeof CommitUploadSchema>;
+
+export const CommitUploadResponseSchema = z.object({
+  uploadSessionId: z.string().uuid(),
+  manifestId: z.string().uuid(),
+  state: z.literal('verifying'),
+  rejectionReasonCode: z.string().optional(),
+});
+export type CommitUploadResponse = z.infer<typeof CommitUploadResponseSchema>;

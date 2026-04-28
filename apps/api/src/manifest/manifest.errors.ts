@@ -23,3 +23,21 @@ export class TransportOrderNotOwnedError extends ManifestError {
     super(`Transport order ${transportOrderId} not owned by company ${companyId}`);
   }
 }
+
+export class UploadSessionNotFoundError extends ManifestError {
+  constructor(public readonly uploadSessionId: string) {
+    super(`Upload session ${uploadSessionId} not found or not owned by tenant`);
+  }
+}
+
+export class UploadAlreadyCommittedError extends ManifestError {
+  constructor(public readonly uploadSessionId: string) {
+    super(`Upload session ${uploadSessionId} is already committed`);
+  }
+}
+
+export class UploadSessionMissingManifestError extends ManifestError {
+  constructor(public readonly uploadSessionId: string) {
+    super(`Upload session ${uploadSessionId} has no associated manifest`);
+  }
+}
