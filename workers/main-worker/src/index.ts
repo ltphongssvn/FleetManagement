@@ -1,4 +1,14 @@
 // workers/main-worker/src/index.ts
-// Barrel export for @fleet/main-worker package.
 export { QUEUE_NAMES, QUEUE_CONCURRENCY, type QueueName } from './queues.js';
 export { loadConfig, type Config } from './config.js';
+export {
+  type OutboxStatus,
+  type OutboxRow,
+  type RetryPolicy,
+  type AttemptDeps,
+  type AttemptDecision,
+  DEFAULT_RETRY_POLICY,
+  OUTBOX_POLICY_VERSION,
+  nextStatusAfterAttempt,
+  isEligibleForPickup,
+} from './outbox/outbox-policy.js';

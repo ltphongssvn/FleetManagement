@@ -1,5 +1,4 @@
 // apps/api/src/database/schema/index.ts
-// Schema barrel — explicit named exports.
 export { tenancyColumns } from './tenancy.js';
 export {
   deviceRegistry,
@@ -17,3 +16,18 @@ export {
   type SyncChangeFeed,
   type Outbox,
 } from './append-paths.js';
+export {
+  transportOrder,
+  transportOrderStateEnum,
+  stop,
+  roadRun,
+  roadRunStateEnum,
+  roadRunTransportOrder,
+  type TransportOrder,
+  type NewTransportOrder,
+  type Stop,
+  type NewStop,
+  type RoadRun,
+  type NewRoadRun,
+  type RoadRunTransportOrder,
+} from './transport.js';
