@@ -17,3 +17,4 @@ export {
   canTransitionRoadRun,
   transitionRoadRun,
 } from './road-run-state.js';
+export { ROAD_RUN_STATE_TONE } from './road-run-presentation.js';
