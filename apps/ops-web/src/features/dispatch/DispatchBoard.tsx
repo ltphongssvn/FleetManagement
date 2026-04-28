@@ -1,7 +1,7 @@
 // apps/ops-web/src/features/dispatch/DispatchBoard.tsx
 import { ROAD_RUN_STATE_TONE } from '@fleet/domain';
-import { loadDispatchBoard } from './load-board.js';
-import type { DispatchBoardRoadRun } from './types.js';
+import { loadDispatchBoard } from './load-board';
+import type { DispatchBoardRoadRun } from './types';
 
 const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
