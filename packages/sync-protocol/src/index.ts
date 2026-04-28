@@ -17,3 +17,7 @@ export {
   type SyncRequest,
   type SyncResponse,
 } from './sync-types.js';
+export {
+  ALLOWED_MANIFEST_MIME_TYPES,
+  type ManifestMimeType,
+} from './manifest-types.js';

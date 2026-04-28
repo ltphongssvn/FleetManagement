@@ -11,6 +11,8 @@ import {
   stop,
   roadRun,
   roadRunTransportOrder,
+  manifest,
+  uploadSession,
 } from '../src/database/schema/index.js';
 
 describe('@fleet/api - device schema', () => {
@@ -77,6 +79,21 @@ describe('@fleet/api - transport schema', () => {
     expect(cols).toContain('state');
     expect(cols).toContain('assignedOperatorId');
     expect(cols).toContain('assignedAssetId');
+  });
+
+  it('manifest has correlation id + state', () => {
+    const cols = Object.keys(manifest);
+    expect(cols).toContain('manifestCorrelationId');
+    expect(cols).toContain('state');
+    expect(cols).toContain('transportOrderId');
+  });
+
+  it('upload_session has S3 key/bucket + state', () => {
+    const cols = Object.keys(uploadSession);
+    expect(cols).toContain('s3Key');
+    expect(cols).toContain('s3Bucket');
+    expect(cols).toContain('state');
+    expect(cols).toContain('manifestId');
   });
 
   it('road_run_transport_order is the join table for multi-stop LTL', () => {

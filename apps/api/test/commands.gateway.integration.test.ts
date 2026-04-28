@@ -6,6 +6,7 @@ import { type INestApplication } from '@nestjs/common';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import type { AddressInfo } from 'node:net';
 import { CommandsModule } from '../src/commands/commands.module.js';
+import { PUSH_PROVIDER } from '../src/push/push-provider.interface.js';
 import { CommandsGateway } from '../src/commands/commands.gateway.js';
 import type { CommandPayload } from '../src/commands/command.dto.js';
 
@@ -15,7 +16,10 @@ describe('@fleet/api - CommandsGateway (e2e)', () => {
   let port: number;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [CommandsModule] }).compile();
+    const moduleRef = await Test.createTestingModule({ imports: [CommandsModule] })
+      .overrideProvider(PUSH_PROVIDER)
+      .useValue({ sendToOperator: () => Promise.resolve({ accepted: 0, rejected: 0 }) })
+      .compile();
     app = moduleRef.createNestApplication();
     app.useWebSocketAdapter(new IoAdapter(app));
     await app.listen(0);

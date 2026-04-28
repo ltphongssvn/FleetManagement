@@ -11,6 +11,9 @@ export const EnvSchema = z.object({
   OIDC_ISSUER: z.string().url(),
   OIDC_AUDIENCE: z.string().min(1),
   OIDC_JWKS_URI: z.string().url(),
+  AWS_REGION: z.string().min(1).default('us-west-2'),
+  S3_ARTIFACTS_BUCKET: z.string().min(1).default('fleet-pilot-artifacts'),
+  S3_PRESIGN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

@@ -6,6 +6,8 @@ import { CommandsModule } from './commands/commands.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { DeviceModule } from './device/device.module.js';
 import { HealthModule } from './health/health.module.js';
+import { ManifestModule } from './manifest/manifest.module.js';
+import { StorageModule } from './storage/storage.module.js';
 import { SyncModule } from './sync/sync.module.js';
 import { validateEnv } from './config/env.config.js';
 
@@ -16,8 +18,10 @@ import { validateEnv } from './config/env.config.js';
     AuthModule,
     DeviceModule,
     HealthModule,
+    StorageModule,
     SyncModule,
     CommandsModule,
+    ManifestModule,
   ],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class

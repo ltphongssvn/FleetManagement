@@ -9,6 +9,8 @@ describe('@fleet/api - validateEnv', () => {
     OIDC_ISSUER: 'https://idp.example.com/',
     OIDC_AUDIENCE: 'fleet-api',
     OIDC_JWKS_URI: 'https://idp.example.com/.well-known/jwks.json',
+    AWS_REGION: 'us-west-2',
+    S3_ARTIFACTS_BUCKET: 'fleet-test',
   };
 
   describe('defaults', () => {
