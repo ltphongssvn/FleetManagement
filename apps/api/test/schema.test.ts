@@ -1,6 +1,5 @@
 // apps/api/test/schema.test.ts
 // Contract tests: verify Drizzle schema column shapes match Frozen Stack PDF spec.
-// Tests inspect $inferSelect type via runtime column metadata, not types alone.
 import { describe, it, expect } from 'vitest';
 import {
   deviceRegistry,
@@ -8,6 +7,10 @@ import {
   fleetAuditLog,
   syncChangeFeed,
   outbox,
+  transportOrder,
+  stop,
+  roadRun,
+  roadRunTransportOrder,
 } from '../src/database/schema/index.js';
 
 describe('@fleet/api - device schema', () => {
@@ -52,5 +55,34 @@ describe('@fleet/api - three append paths', () => {
     expect(cols).toContain('status');
     expect(cols).toContain('nextAttemptAt');
     expect(cols).toContain('queueName');
+  });
+});
+
+describe('@fleet/api - transport schema', () => {
+  it('transport_order has state + tenancy + external_ref', () => {
+    const cols = Object.keys(transportOrder);
+    expect(cols).toContain('state');
+    expect(cols).toContain('companyId');
+    expect(cols).toContain('externalRef');
+  });
+
+  it('stop references transport_order with cascade delete', () => {
+    expect(Object.keys(stop)).toContain('transportOrderId');
+    expect(Object.keys(stop)).toContain('sequence');
+    expect(Object.keys(stop)).toContain('stopType');
+  });
+
+  it('road_run has state + assignedOperatorId', () => {
+    const cols = Object.keys(roadRun);
+    expect(cols).toContain('state');
+    expect(cols).toContain('assignedOperatorId');
+    expect(cols).toContain('assignedAssetId');
+  });
+
+  it('road_run_transport_order is the join table for multi-stop LTL', () => {
+    const cols = Object.keys(roadRunTransportOrder);
+    expect(cols).toContain('roadRunId');
+    expect(cols).toContain('transportOrderId');
+    expect(cols).toContain('sequence');
   });
 });
