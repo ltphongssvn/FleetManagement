@@ -13,6 +13,8 @@ describe('@fleet/api - DatabaseModule', () => {
     process.env['OIDC_ISSUER'] = 'https://idp.example.com/';
     process.env['OIDC_AUDIENCE'] = 'fleet-api';
     process.env['OIDC_JWKS_URI'] = 'https://idp.example.com/.well-known/jwks.json';
+    process.env['AWS_REGION'] = 'us-west-2';
+    process.env['S3_ARTIFACTS_BUCKET'] = 'fleet-test';
 
     const moduleRef = await Test.createTestingModule({
       imports: [

@@ -31,3 +31,14 @@ export {
   type NewRoadRun,
   type RoadRunTransportOrder,
 } from './transport.js';
+export {
+  manifest,
+  manifestRejectionReasonEnum,
+  manifestStateEnum,
+  uploadSession,
+  uploadSessionStateEnum,
+  type Manifest,
+  type NewManifest,
+  type UploadSession,
+  type NewUploadSession,
+} from './manifest.js';
