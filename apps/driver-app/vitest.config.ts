@@ -1,14 +1,24 @@
 // apps/driver-app/vitest.config.ts
-// Vitest config for @fleet/driver-app — unit tests for pure logic only.
-// Component tests via React Native Testing Library deferred to week 4+.
 import { defineConfig } from 'vitest/config';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
     coverage: {
-      exclude: ['**/index.ts', '**/*.config.ts', '**/dist/**', '**/test/**', 'app/**'],
       provider: 'v8',
+      include: [resolve(__dirname, 'src/**/*.ts')],
+      exclude: ['**/index.ts', '**/*.config.ts', '**/test/**', '**/schema.ts'],
+      thresholds: {
+        statements: 80,
+        branches: 80,
+        functions: 80,
+        lines: 80,
+        perFile: true,
+      },
       reportsDirectory: 'coverage/unit',
     },
   },

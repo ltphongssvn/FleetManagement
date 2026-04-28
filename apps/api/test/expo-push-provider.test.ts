@@ -1,7 +1,7 @@
 // apps/api/test/expo-push-provider.test.ts
 import { describe, it, expect, vi } from 'vitest';
 import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
-import { ExpoPushProvider, type ExpoLike } from '../src/push/expo-push-provider.js';
+import { ExpoPushProvider, defaultExpoClient, type ExpoLike } from '../src/push/expo-push-provider.js';
 import type { FleetDb } from '../src/database/database.module.js';
 
 function dbWithTokens(tokens: (string | null)[]): DeepMockProxy<FleetDb> {
@@ -65,5 +65,18 @@ describe('@fleet/api - ExpoPushProvider', () => {
     const p = new ExpoPushProvider(dbWithTokens([VALID_TOKEN, 'bad', null]), fakeExpo({ ticketStatuses: ['ok'] }));
     const r = await p.sendToOperator('op1', { title: 't', body: 'b' });
     expect(r.accepted).toBe(1);
+  });
+
+  it('defaultExpoClient returns ExpoLike with all methods', () => {
+    const client = defaultExpoClient();
+    expect(typeof client.isExpoPushToken).toBe('function');
+    expect(typeof client.chunkPushNotifications).toBe('function');
+    expect(typeof client.sendPushNotificationsAsync).toBe('function');
+  });
+
+  it('defaultExpoClient.isExpoPushToken validates tokens', () => {
+    const client = defaultExpoClient();
+    expect(client.isExpoPushToken('ExponentPushToken[abc]')).toBe(true);
+    expect(client.isExpoPushToken('not-a-token')).toBe(false);
   });
 });

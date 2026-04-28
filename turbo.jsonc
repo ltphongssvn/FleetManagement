@@ -132,6 +132,20 @@
       "outputLogs": "new-only"
     },
 
+    "test:coverage": {
+      "description": "Coverage-gated tests — runs unit + integration with merged coverage thresholds. Owns coverage/merged/** + coverage/unit/**. Used by CI quality gate.",
+      "dependsOn": ["build", "^build"],
+      "outputs": ["coverage/merged/**", "coverage/unit/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "vitest.config.*",
+        "vitest.coverage.config.*",
+        "vitest.integration.config.*",
+        "$TURBO_ROOT$/tsconfig.base.json"
+      ],
+      "env": ["DATABASE_URL", "REDIS_URL", "S3_ENDPOINT", "TESTCONTAINERS_*", "VITEST_*"],
+      "outputLogs": "new-only"
+    },
     "test:e2e": {
       "description": "End-to-end tests (Playwright). Owns playwright-report/**. Never cached until migration-hash wired (ADR-001).",
       "dependsOn": ["build", "^build"],
@@ -147,7 +161,7 @@
 
     "__ci_full__": {
       "description": "Pre-merge gate orchestration node — cumulative on __ci_fast__ + build + test:integration.",
-      "dependsOn": ["__ci_fast__", "build", "test:integration"],
+      "dependsOn": ["__ci_fast__", "build", "test:integration", "test:coverage"],
       "cache": false
     },
 

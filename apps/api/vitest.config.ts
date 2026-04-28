@@ -1,14 +1,28 @@
 // apps/api/vitest.config.ts
-// Default config — unit tests only. Integration tests run via test:integration.
 import { defineConfig } from 'vitest/config';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
     exclude: ['test/**/*.integration.test.ts', 'node_modules', 'dist'],
     coverage: {
-      exclude: ['**/index.ts', '**/*.config.ts', '**/dist/**', '**/test/**'],
       provider: 'v8',
+      include: [resolve(__dirname, 'src/**/*.ts')],
+      exclude: [
+        '**/index.ts',
+        '**/main.ts',
+        '**/*.module.ts',
+        '**/*.controller.ts',
+        '**/*.config.ts',
+        '**/database/schema/**',
+        '**/otel-bootstrap.ts',
+        '**/dist/**',
+        '**/test/**',
+      ],
       reportsDirectory: 'coverage/unit',
     },
   },

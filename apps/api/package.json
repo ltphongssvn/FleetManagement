@@ -18,7 +18,7 @@
     "start:dev": "tsx --import ./src/observability/otel-bootstrap.ts src/main.ts",
     "start:prod": "node dist/main.js",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "rm -rf coverage && vitest run --config vitest.coverage.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:unit": "vitest run",
     "test:watch": "vitest --watch",

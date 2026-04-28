@@ -31,4 +31,10 @@ describe('@fleet/api - OTel', () => {
       recordSpanFailure('test_failure', 'no span attached');
     }).not.toThrow();
   });
+
+  it('recordSpanFailure with no message uses reasonCode', () => {
+    expect(() => {
+      recordSpanFailure('only_code');
+    }).not.toThrow();
+  });
 });
