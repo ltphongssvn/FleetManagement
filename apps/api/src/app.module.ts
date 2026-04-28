@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { DeviceModule } from './device/device.module.js';
 import { HealthModule } from './health/health.module.js';
+import { SyncModule } from './sync/sync.module.js';
 import { validateEnv } from './config/env.config.js';
 
 @Module({
@@ -14,6 +15,7 @@ import { validateEnv } from './config/env.config.js';
     AuthModule,
     DeviceModule,
     HealthModule,
+    SyncModule,
   ],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class

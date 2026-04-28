@@ -1,6 +1,7 @@
 // apps/api/vitest.integration.config.ts
-// Integration tests with Testcontainers — slower, real Postgres.
-// Run via: pnpm --filter @fleet/api test:integration
+// Integration tests with Testcontainers - real Postgres.
+// Serial execution (one suite at a time) prevents cross-suite deadlocks
+// when multiple suites share a reused container.
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -10,5 +11,6 @@ export default defineConfig({
     hookTimeout: 60_000,
     pool: 'forks',
     fileParallelism: false,
+    sequence: { concurrent: false },
   },
 });
