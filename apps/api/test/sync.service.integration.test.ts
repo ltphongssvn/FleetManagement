@@ -1,18 +1,13 @@
 // apps/api/test/sync.service.integration.test.ts
+// Schema applied via real drizzle migrations through migrate-test-db helper.
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
-import { Pool } from 'pg';
-import * as schema from '../src/database/schema/index.js';
-import { SyncService, type OperatorContext } from '../src/sync/sync.service.js';
+import { SyncService } from '../src/sync/sync.service.js';
+import type { OperatorContext } from '../src/auth/operator-context.js';
 import type { SyncActionInput } from '../src/sync/sync.dto.js';
+import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
 
-const POSTGRES_IMAGE = 'postgres:16.4-alpine3.20';
-
-let container: StartedPostgreSqlContainer;
-let pool: Pool;
-let db: NodePgDatabase<typeof schema>;
+let testDb: MigratedTestDb;
 let service: SyncService;
 
 const OP: OperatorContext = {
@@ -33,65 +28,21 @@ function makeAction(id: string): SyncActionInput {
   };
 }
 
-async function applySchema(d: NodePgDatabase<typeof schema>): Promise<void> {
-  await d.execute(sql`
-    CREATE TABLE fleet_audit_log (
-      audit_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      company_id UUID NOT NULL, business_unit_id UUID NOT NULL, depot_id UUID NOT NULL, legal_entity_id UUID NOT NULL,
-      server_seq BIGINT NOT NULL,
-      operator_id UUID,
-      event_type VARCHAR(64) NOT NULL,
-      aggregate_type VARCHAR(64) NOT NULL,
-      aggregate_id UUID NOT NULL,
-      payload JSONB NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-  await d.execute(sql`
-    CREATE TABLE sync_change_feed (
-      feed_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      company_id UUID NOT NULL, business_unit_id UUID NOT NULL, depot_id UUID NOT NULL, legal_entity_id UUID NOT NULL,
-      server_seq BIGINT NOT NULL,
-      action_id UUID NOT NULL UNIQUE,
-      aggregate_type VARCHAR(64) NOT NULL,
-      aggregate_id UUID NOT NULL,
-      delta JSONB NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-  await d.execute(sql`
-    CREATE TABLE outbox (
-      outbox_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      company_id UUID NOT NULL, business_unit_id UUID NOT NULL, depot_id UUID NOT NULL, legal_entity_id UUID NOT NULL,
-      queue_name VARCHAR(64) NOT NULL,
-      payload JSONB NOT NULL,
-      status VARCHAR(16) NOT NULL DEFAULT 'pending',
-      attempts BIGINT NOT NULL DEFAULT 0,
-      next_attempt_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-}
-
 describe('@fleet/api - SyncService (integration)', () => {
   beforeAll(async () => {
-    container = await new PostgreSqlContainer(POSTGRES_IMAGE).withDatabase('fleet_test').withReuse().start();
-    pool = new Pool({ connectionString: container.getConnectionUri() });
-    db = drizzle(pool, { schema, casing: 'snake_case' });
-    await applySchema(db);
-    service = new SyncService(db);
-  }, 60_000);
+    testDb = await startMigratedTestDb('fleet_test');
+    service = new SyncService(testDb.db);
+  }, 90_000);
 
   afterAll(async () => {
-    await pool.end();
-    await container.stop();
+    await stopMigratedTestDb(testDb);
   });
 
   beforeEach(async () => {
-    await db.execute(sql`
+    await testDb.db.execute(sql`
       DO $$ DECLARE r RECORD;
       BEGIN
-        FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = current_schema())
+        FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename != '__drizzle_migrations')
         LOOP EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
         END LOOP;
       END $$;
@@ -102,10 +53,9 @@ describe('@fleet/api - SyncService (integration)', () => {
     const res = await service.processSync({ cursor: '0', actions: [makeAction('00000000-0000-0000-0000-000000000aa1')] }, OP);
     expect(res.status).toBe('ok');
     expect(res.results).toEqual(['applied']);
-
-    const audit = await db.execute<{ count: string }>(sql`SELECT COUNT(*)::text as count FROM fleet_audit_log`);
-    const feed = await db.execute<{ count: string }>(sql`SELECT COUNT(*)::text as count FROM sync_change_feed`);
-    const outboxCount = await db.execute<{ count: string }>(sql`SELECT COUNT(*)::text as count FROM outbox`);
+    const audit = await testDb.db.execute<{ count: string }>(sql`SELECT COUNT(*)::text as count FROM fleet_audit_log`);
+    const feed = await testDb.db.execute<{ count: string }>(sql`SELECT COUNT(*)::text as count FROM sync_change_feed`);
+    const outboxCount = await testDb.db.execute<{ count: string }>(sql`SELECT COUNT(*)::text as count FROM outbox`);
     expect(audit.rows[0]?.count).toBe('1');
     expect(feed.rows[0]?.count).toBe('1');
     expect(outboxCount.rows[0]?.count).toBe('1');
@@ -128,7 +78,7 @@ describe('@fleet/api - SyncService (integration)', () => {
         makeAction('00000000-0000-0000-0000-000000000aa5'),
       ],
     }, OP);
-    const rows = await db.execute<{ server_seq: string }>(sql`SELECT server_seq::text FROM sync_change_feed ORDER BY server_seq`);
+    const rows = await testDb.db.execute<{ server_seq: string }>(sql`SELECT server_seq::text FROM sync_change_feed ORDER BY server_seq`);
     expect(rows.rows.map((r) => r.server_seq)).toEqual(['1', '2', '3']);
   });
 
