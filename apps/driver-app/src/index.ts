@@ -53,3 +53,17 @@ export {
   type PushRegistrationDecision,
   type PushTokenRejectionCode,
 } from './push/push-registration-policy.js';
+export {
+  SYNC_SCHEDULER_POLICY_VERSION,
+  SYNC_IDLE_INTERVAL_MS,
+  SYNC_BACKOFF_BASE_MS,
+  SYNC_BACKOFF_MAX_MS,
+  SYNC_BACKOFF_JITTER_RATIO,
+  SYNC_CIRCUIT_BREAKER_THRESHOLD,
+  decideSyncSchedule,
+  type SyncTrigger,
+  type SyncSchedulerOutcome,
+  type SyncSchedulerState,
+  type SyncSchedulerDecision,
+  type SyncSchedulerDeps,
+} from './sync/sync-scheduler-policy.js';
