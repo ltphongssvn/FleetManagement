@@ -18,6 +18,7 @@ export const EnvSchema = z.object({
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: z.string().url().optional(),
   OTEL_SERVICE_NAME: z.string().default('fleet-api'),
   OTEL_SAMPLE_RATIO: z.coerce.number().min(0).max(1).default(1.0),
+  FLEET_PILOT_SCOPE: z.string().uuid().default('00000000-0000-0000-0000-000000000000'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
