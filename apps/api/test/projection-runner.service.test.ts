@@ -57,8 +57,9 @@ function buildFakeDb(state: FakeState): FakeDb {
           if (existing) state.updated++; else state.inserted++;
           return Promise.resolve();
         };
+        const onConflictDoNothing = (): Promise<void> => Promise.resolve();
         if ((vals as { projectionName?: unknown }).projectionName !== undefined) {
-          return Promise.resolve();
+          return { onConflictDoNothing, then: (cb: () => void) => Promise.resolve().then(cb) };
         }
         return { onConflictDoUpdate };
       },

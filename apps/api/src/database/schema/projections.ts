@@ -48,7 +48,10 @@ export const projectionStatus = pgTable(
     /** Highest server_seq successfully applied to this projection. */
     watermark: bigint('watermark', { mode: 'bigint' }).notNull().default(sql`0`),
     lagMs: integer('lag_ms').notNull().default(0),
+    /** Per PDF: timestamp of last full rebuild. NOT updated on incremental drains. */
     lastRebuiltAt: timestamp('last_rebuilt_at', { withTimezone: true, mode: 'date' }),
+    /** Updated on every drainOnce, even when 0 events. Distinguishes idle vs stalled. */
+    lastAppliedAt: timestamp('last_applied_at', { withTimezone: true, mode: 'date' }),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
   (t) => [

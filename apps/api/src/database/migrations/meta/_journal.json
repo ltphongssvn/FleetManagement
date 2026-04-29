@@ -15,6 +15,13 @@
       "when": 1777480285967,
       "tag": "0001_cultured_luckman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777483976444,
+      "tag": "0002_gigantic_wendell_vaughn",
+      "breakpoints": true
     }
   ]
 }

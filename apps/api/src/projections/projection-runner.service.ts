@@ -47,7 +47,13 @@ export class ProjectionRunnerService {
    */
   async drainOnce(scope: string): Promise<RunnerResult> {
     return this.db.transaction(async (tx) => {
-      // Lock projection_status row for this scope so concurrent runners serialize.
+      // Concurrency safety: SELECT ... FOR UPDATE locks nothing if the row
+      // does not yet exist. Insert-on-conflict-do-nothing first guarantees the
+      // row exists, THEN FOR UPDATE actually serializes concurrent runners.
+      await tx
+        .insert(projectionStatus)
+        .values({ projectionName: DISPATCH_BOARD_PROJECTION_NAME, scope, watermark: 0n, lagMs: 0 })
+        .onConflictDoNothing();
       const statusRows = await tx.execute(sql`
         SELECT projection_name, scope, watermark, lag_ms
         FROM ${projectionStatus}
@@ -56,18 +62,8 @@ export class ProjectionRunnerService {
       `);
       const sRows = (statusRows as unknown as { rows?: { watermark: string | bigint }[] }).rows
         ?? (statusRows as unknown as { watermark: string | bigint }[]);
-      let watermark = 0n;
-      if (sRows.length === 0) {
-        await tx.insert(projectionStatus).values({
-          projectionName: DISPATCH_BOARD_PROJECTION_NAME,
-          scope,
-          watermark: 0n,
-          lagMs: 0,
-        });
-      } else {
-        const w = sRows[0]?.watermark;
-        watermark = typeof w === 'bigint' ? w : BigInt(w ?? '0');
-      }
+      const w = sRows[0]?.watermark;
+      const watermark: bigint = typeof w === 'bigint' ? w : BigInt(w ?? '0');
 
       const events = await tx
         .select({
@@ -103,7 +99,10 @@ export class ProjectionRunnerService {
         const currentRows = await tx
           .select()
           .from(dispatchBoardProjection)
-          .where(eq(dispatchBoardProjection.roadRunId, ev.aggregateId))
+          .where(and(
+            eq(dispatchBoardProjection.roadRunId, ev.aggregateId),
+            eq(dispatchBoardProjection.companyId, scope),
+          ))
           .limit(1);
         const currentRow = currentRows[0];
         const current: RoadRunProjectionRow | null = currentRow
@@ -136,7 +135,10 @@ export class ProjectionRunnerService {
         if (decision.kind === 'noop') {
           noops++;
         } else if (decision.kind === 'delete') {
-          await tx.delete(dispatchBoardProjection).where(eq(dispatchBoardProjection.roadRunId, decision.roadRunId));
+          await tx.delete(dispatchBoardProjection).where(and(
+            eq(dispatchBoardProjection.roadRunId, decision.roadRunId),
+            eq(dispatchBoardProjection.companyId, scope),
+          ));
           deletes++;
         } else {
           // upsert
@@ -184,7 +186,7 @@ export class ProjectionRunnerService {
       const lagMs = oldestEventCreatedAt ? Date.now() - oldestEventCreatedAt.getTime() : 0;
       await tx
         .update(projectionStatus)
-        .set({ watermark: newWatermark, lagMs, lastRebuiltAt: new Date(), updatedAt: new Date() })
+        .set({ watermark: newWatermark, lagMs, lastAppliedAt: new Date(), updatedAt: new Date() })
         .where(and(
           eq(projectionStatus.projectionName, DISPATCH_BOARD_PROJECTION_NAME),
           eq(projectionStatus.scope, scope),
