@@ -14,3 +14,18 @@ export {
   type SyncStateStore,
   type SyncLoopOutcome,
 } from './sync/sync-loop.js';
+export {
+  MANIFEST_CAPTURE_POLICY_VERSION,
+  MANIFEST_MAX_FILE_BYTES,
+  MANIFEST_MIN_FILE_BYTES,
+  SIGNATURE_MIN_PATH_POINTS,
+  SIGNATURE_MAX_PATH_POINTS,
+  SIGNATURE_MAX_PATH_CHARS,
+  validateCapturedFile,
+  validateSignaturePath,
+  type CapturedFile,
+  type CapturedFileDecision,
+  type SignaturePath,
+  type SignatureDecision,
+  type ManifestRejectionCode,
+} from './manifest/manifest-capture-policy.js';
