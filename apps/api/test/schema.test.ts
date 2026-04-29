@@ -16,6 +16,8 @@ import {
   erpCustomerMap,
   erpJobCodeMap,
   erpInvoiceMap,
+  dispatchBoardProjection,
+  projectionStatus,
 } from '../src/database/schema/index.js';
 
 describe('@fleet/api - device schema', () => {
@@ -125,5 +127,24 @@ describe('@fleet/api - transport schema', () => {
     expect(cols).toContain('roadRunId');
     expect(cols).toContain('transportOrderId');
     expect(cols).toContain('sequence');
+  });
+});
+
+describe('@fleet/api - projections schema', () => {
+  it('dispatch_board_projection mirrors road_run shape with monotonic serverSeq', () => {
+    const cols = Object.keys(dispatchBoardProjection);
+    expect(cols).toEqual(expect.arrayContaining([
+      'roadRunId', 'state', 'assignedOperatorId', 'assignedAssetId',
+      'plannedStartAt', 'stopCount', 'transportOrderRefs', 'serverSeq', 'updatedAt',
+      'companyId', 'businessUnitId', 'depotId', 'legalEntityId',
+    ]));
+  });
+
+  it('projection_status keyed by (projection_name, scope) per PDF', () => {
+    const cols = Object.keys(projectionStatus);
+    expect(cols).toEqual(expect.arrayContaining([
+      'projectionName', 'scope', 'watermark', 'lagMs', 'lastRebuiltAt', 'updatedAt',
+    ]));
+    expect(cols).not.toContain('projectionStatusId');
   });
 });
