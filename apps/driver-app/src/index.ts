@@ -69,6 +69,7 @@ export {
 } from './sync/sync-scheduler-policy.js';
 export {
   SYNC_STATUS_PRESENTER_VERSION,
+  SYNC_RECENT_THRESHOLD_MS,
   presentSyncStatus,
   type SyncStatusKind,
   type SyncStatusView,
