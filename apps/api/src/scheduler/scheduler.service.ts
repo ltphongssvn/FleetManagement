@@ -53,8 +53,11 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.outboxRelay.drainOnce();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error('Outbox drain failed: ' + msg);
+      if (err instanceof Error) {
+        this.logger.error('Outbox drain failed: ' + err.message, err.stack);
+      } else {
+        this.logger.error('Outbox drain failed: ' + String(err));
+      }
     } finally {
       this.scheduleNextOutbox();
     }
@@ -64,8 +67,11 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.projectionRunner.drainOnce(this.pilotScope);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error('Projection drain failed: ' + msg);
+      if (err instanceof Error) {
+        this.logger.error('Projection drain failed: ' + err.message, err.stack);
+      } else {
+        this.logger.error('Projection drain failed: ' + String(err));
+      }
     } finally {
       this.scheduleNextProjection();
     }

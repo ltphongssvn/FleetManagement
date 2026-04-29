@@ -48,7 +48,7 @@ describe('SchedulerService', () => {
     const proj = { drainOnce: vi.fn() } as unknown as ProjectionRunnerService;
     const svc = new SchedulerService(outbox, proj, makeConfig() as never);
     await svc.drainOutbox();
-    expect(logErr).toHaveBeenCalledWith(expect.stringContaining('redis down'));
+    expect(logErr).toHaveBeenCalledWith(expect.stringContaining('redis down'), expect.any(String));
     svc.onModuleDestroy.call(svc);
   });
 
@@ -57,7 +57,7 @@ describe('SchedulerService', () => {
     const proj = { drainOnce: vi.fn().mockRejectedValue(new Error('db locked')) } as unknown as ProjectionRunnerService;
     const svc = new SchedulerService(outbox, proj, makeConfig() as never);
     await svc.drainProjections();
-    expect(logErr).toHaveBeenCalledWith(expect.stringContaining('db locked'));
+    expect(logErr).toHaveBeenCalledWith(expect.stringContaining('db locked'), expect.any(String));
     svc.onModuleDestroy.call(svc);
   });
 
@@ -71,5 +71,17 @@ describe('SchedulerService', () => {
     svc.onModuleDestroy.call(svc);
     vi.advanceTimersByTime(60_000);
     expect(drainOutboxFn).not.toHaveBeenCalled();
+  });
+
+  it('onModuleInit fires drainOutbox after 5s tick (#626 cron-wired e2e)', async () => {
+    const drainOutboxFn = vi.fn().mockResolvedValue(undefined);
+    const outbox = { drainOnce: drainOutboxFn } as unknown as OutboxRelayService;
+    const proj = { drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as ProjectionRunnerService;
+    const svc = new SchedulerService(outbox, proj, makeConfig() as never);
+    svc.onModuleInit.bind(svc)();
+    expect(drainOutboxFn).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(drainOutboxFn).toHaveBeenCalledTimes(1);
+    svc.onModuleDestroy.bind(svc)();
   });
 });
