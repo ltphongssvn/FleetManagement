@@ -1,6 +1,6 @@
 // workers/main-worker/test/outbox-routing.test.ts
 import { describe, it, expect } from 'vitest';
-import { routeOutboxRow, OUTBOX_ROUTING_POLICY_VERSION } from '../src/outbox/outbox-routing.js';
+import { routeOutboxRow, OUTBOX_ROUTING_POLICY_VERSION } from '../src/outbox-routing.js';
 
 describe('@fleet/main-worker - routeOutboxRow', () => {
   it('routes manifest_intake.requested to intake queue', () => {
