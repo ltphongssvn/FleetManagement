@@ -29,3 +29,17 @@ export {
   type SignatureDecision,
   type ManifestRejectionCode,
 } from './manifest/manifest-capture-policy.js';
+export {
+  CAPTURE_SPOOL_POLICY_VERSION,
+  SPOOL_ENTRY_TTL_MS,
+  SPOOL_ENTRY_MIN_AGE_MS,
+  SPOOL_MAX_ATTEMPTS,
+  createSpoolEntry,
+  classifyForRecovery,
+  sweepSpool,
+  type SpoolEntry,
+  type SpoolEntryStatus,
+  type NewSpoolEntryInput,
+  type SweepClassification,
+  type SweepDecision,
+} from './manifest/capture-spool-policy.js';
