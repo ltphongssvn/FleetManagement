@@ -311,6 +311,9 @@ importers:
 
   workers/main-worker:
     dependencies:
+      '@fleet/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@fleet/sync-protocol':
         specifier: workspace:*
         version: link:../../packages/sync-protocol
