@@ -1,5 +1,6 @@
 // workers/main-worker/src/erp/erp-policy.ts
 // Pure functions for ERP outbound sync per Frozen Stack PDF "ERP outbound queue".
+import { PILOT_CURRENCY_SET, ERP_AMOUNT_CENTS_MAX } from '@fleet/sync-protocol';
 
 export type ErpSyncStatus = 'pending' | 'sent' | 'acknowledged' | 'failed';
 
@@ -18,6 +19,7 @@ export interface ErpInvoicePayload {
   readonly internalJobCode: string;
   readonly amountCents: number;
   readonly currency: string;
+  readonly erpSystem: string;
 }
 
 export interface ErpMappingContext {
@@ -44,6 +46,7 @@ export interface MappedErpPayload {
   readonly jobCodeExternalId: string;
   readonly amountCents: number;
   readonly currency: string;
+  readonly erpSystem: string;
 }
 
 /** Validate + map internal IDs to external ERP IDs. Pure given mapping context. */
@@ -54,10 +57,10 @@ export function buildErpInvoice(payload: ErpInvoicePayload, mapping: ErpMappingC
   if (mapping.jobCodeExternalId === null) {
     return { accepted: false, rejectionCode: 'unknown_job_code', details: { missingField: 'jobCodeExternalId', internalId: payload.internalJobCode }, policyVersion: ERP_POLICY_VERSION };
   }
-  if (!Number.isSafeInteger(payload.amountCents) || payload.amountCents <= 0) {
+  if (!Number.isSafeInteger(payload.amountCents) || payload.amountCents <= 0 || payload.amountCents > ERP_AMOUNT_CENTS_MAX) {
     return { accepted: false, rejectionCode: 'invalid_payload', details: { missingField: 'amountCents', invalidValue: payload.amountCents }, policyVersion: ERP_POLICY_VERSION };
   }
-  if (!ISO_4217_PILOT.has(payload.currency)) {
+  if (!PILOT_CURRENCY_SET.has(payload.currency)) {
     return { accepted: false, rejectionCode: 'invalid_payload', details: { missingField: 'currency', invalidValue: payload.currency }, policyVersion: ERP_POLICY_VERSION };
   }
   return {
@@ -69,14 +72,13 @@ export function buildErpInvoice(payload: ErpInvoicePayload, mapping: ErpMappingC
       jobCodeExternalId: mapping.jobCodeExternalId,
       amountCents: payload.amountCents,
       currency: payload.currency,
+      erpSystem: payload.erpSystem,
     },
     policyVersion: ERP_POLICY_VERSION,
   };
 }
 
 /** Decide next status after an ERP send attempt. */
-const ISO_4217_PILOT = new Set<string>(['USD', 'EUR', 'GBP', 'CAD', 'MXN']);
-
 export function nextErpStatus(current: ErpSyncStatus, outcome: 'sent' | 'acknowledged' | 'failed'): ErpSyncStatus {
   if (current === 'acknowledged') return 'acknowledged'; // terminal
   if (outcome === 'acknowledged') return 'acknowledged'; // webhook may beat local 'sent' write

@@ -16,6 +16,7 @@ const validPayload: ErpInvoicePayload = {
   internalJobCode: 'PICKUP-A',
   amountCents: 12500,
   currency: 'USD',
+    erpSystem: 'pilot-erp',
 };
 
 const validMapping: ErpMappingContext = {
