@@ -67,3 +67,9 @@ export {
   type SyncSchedulerDecision,
   type SyncSchedulerDeps,
 } from './sync/sync-scheduler-policy.js';
+export {
+  SYNC_STATUS_PRESENTER_VERSION,
+  presentSyncStatus,
+  type SyncStatusKind,
+  type SyncStatusView,
+} from './sync/sync-status-presenter.js';
