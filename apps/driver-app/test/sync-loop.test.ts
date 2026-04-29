@@ -201,6 +201,22 @@ describe('@fleet/driver-app - runSyncOnce', () => {
     expect(commitArg?.deltas).toHaveLength(1);
     expect(commitArg?.newCursor).toBe('200');
   });
+
+  it('returns storage_failure when rollback throws on protocol_violation', async () => {
+    const id1 = 'aaaaaaaa-1111-4111-8111-111111111111';
+    const id2 = 'bbbbbbbb-1111-4111-8111-111111111111';
+    const dbErr = new Error('rollback failed during protocol violation');
+    const f = makeStore({
+      dispatchable: [action(id1, 1), action(id2, 2)],
+      rollbackImpl: () => Promise.reject(dbErr),
+    });
+    const transport: SyncTransport = { post: vi.fn().mockResolvedValue(okResponse(['applied'])) };
+    const out = await runSyncOnce(transport, f.store);
+    expect(out.kind).toBe('storage_failure');
+    if (out.kind !== 'storage_failure') throw new Error('expected storage_failure');
+    expect(out.stage).toBe('rollback');
+    expect(out.error).toBe(dbErr);
+  });
   it('passes correct cursor + actions to transport', async () => {
     const id = 'aaaaaaaa-1111-4111-8111-111111111111';
     const cursor = createSyncCursor('42');
