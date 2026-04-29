@@ -1,22 +1,17 @@
 // apps/api/test/manifest.service.integration.test.ts
 // Full negotiate -> commit roundtrip against real Postgres.
+// Schema applied via real drizzle migrations through migrate-test-db helper.
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
-import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
-import { Pool } from 'pg';
-import * as schema from '../src/database/schema/index.js';
-import { ManifestService, type OperatorContext } from '../src/manifest/manifest.service.js';
+import { ManifestService } from '../src/manifest/manifest.service.js';
+import type { OperatorContext } from '../src/auth/operator-context.js';
 import { UploadAlreadyCommittedError, UploadSessionNotFoundError } from '../src/manifest/manifest.errors.js';
 import type { IBlobStore, PresignedUpload } from '../src/storage/storage-provider.interface.js';
 import type { ConfigService } from '@nestjs/config';
 import type { Env } from '../src/config/env.config.js';
+import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
 
-const POSTGRES_IMAGE = 'postgres:16.4-alpine3.20';
-
-let container: StartedPostgreSqlContainer;
-let pool: Pool;
-let db: NodePgDatabase<typeof schema>;
+let testDb: MigratedTestDb;
 let service: ManifestService;
 
 const OP: OperatorContext = {
@@ -30,59 +25,8 @@ const OP: OperatorContext = {
 const TRANSPORT_ORDER_ID = '00000000-0000-0000-0000-0000000000b1';
 const CORRELATION_ID = '00000000-0000-0000-0000-0000000000a1';
 
-async function applySchema(d: NodePgDatabase<typeof schema>): Promise<void> {
-  await d.execute(sql`CREATE TYPE transport_order_state AS ENUM ('draft','assigned','in_transit','completed','cancelled')`);
-  await d.execute(sql`CREATE TYPE manifest_state AS ENUM ('pending','verifying','captured','committed','rejected')`);
-  await d.execute(sql`CREATE TYPE upload_session_state AS ENUM ('initiated','uploading','verifying','committed','rejected','aborted')`);
-  await d.execute(sql`CREATE TYPE manifest_rejection_reason AS ENUM ('blurred_image','wrong_manifest','missing_page','oversized_file','unsupported_format','duplicate_upload','hash_mismatch','virus_detected','other')`);
-  await d.execute(sql`
-    CREATE TABLE transport_order (
-      transport_order_id UUID PRIMARY KEY,
-      company_id UUID NOT NULL, business_unit_id UUID NOT NULL, depot_id UUID NOT NULL, legal_entity_id UUID NOT NULL,
-      external_ref VARCHAR(64), state transport_order_state NOT NULL DEFAULT 'draft',
-      customer_id UUID, metadata JSONB,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-  await d.execute(sql`
-    CREATE TABLE manifest (
-      manifest_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      company_id UUID NOT NULL, business_unit_id UUID NOT NULL, depot_id UUID NOT NULL, legal_entity_id UUID NOT NULL,
-      transport_order_id UUID NOT NULL REFERENCES transport_order(transport_order_id) ON DELETE CASCADE,
-      manifest_correlation_id UUID NOT NULL UNIQUE,
-      state manifest_state NOT NULL DEFAULT 'pending',
-      captured_by_operator_id UUID,
-      captured_at TIMESTAMPTZ,
-      committed_at TIMESTAMPTZ,
-      rejection_reason_code manifest_rejection_reason,
-      rejection_reason_text VARCHAR(500),
-      metadata JSONB,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-  await d.execute(sql`
-    CREATE TABLE upload_session (
-      upload_session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      company_id UUID NOT NULL, business_unit_id UUID NOT NULL, depot_id UUID NOT NULL, legal_entity_id UUID NOT NULL,
-      manifest_id UUID REFERENCES manifest(manifest_id) ON DELETE CASCADE,
-      operator_id UUID NOT NULL,
-      s3_key VARCHAR(512) NOT NULL,
-      s3_bucket VARCHAR(128) NOT NULL,
-      content_type VARCHAR(128) NOT NULL,
-      expected_size_bytes INTEGER,
-      actual_size_bytes INTEGER,
-      state upload_session_state NOT NULL DEFAULT 'initiated',
-      content_hash VARCHAR(128),
-      initiated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      committed_at TIMESTAMPTZ,
-      aborted_at TIMESTAMPTZ
-    )
-  `);
-}
-
-async function seedTransportOrder(d: NodePgDatabase<typeof schema>): Promise<void> {
-  await d.execute(sql`
+async function seedTransportOrder(): Promise<void> {
+  await testDb.db.execute(sql`
     INSERT INTO transport_order (transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, state)
     VALUES (${TRANSPORT_ORDER_ID}::uuid, ${OP.companyId}::uuid, ${OP.businessUnitId}::uuid, ${OP.depotId}::uuid, ${OP.legalEntityId}::uuid, 'assigned')
     ON CONFLICT DO NOTHING
@@ -106,28 +50,24 @@ function fakeConfig(): ConfigService<Env, true> {
 
 describe('@fleet/api - ManifestService (integration)', () => {
   beforeAll(async () => {
-    container = await new PostgreSqlContainer(POSTGRES_IMAGE).withDatabase('fleet_test').withReuse().start();
-    pool = new Pool({ connectionString: container.getConnectionUri() });
-    db = drizzle(pool, { schema, casing: 'snake_case' });
-    await applySchema(db);
-    service = new ManifestService(db, fakeBlobStore(), fakeConfig());
-  }, 60_000);
+    testDb = await startMigratedTestDb('fleet_test');
+    service = new ManifestService(testDb.db, fakeBlobStore(), fakeConfig());
+  }, 90_000);
 
   afterAll(async () => {
-    await pool.end();
-    await container.stop();
+    await stopMigratedTestDb(testDb);
   });
 
   beforeEach(async () => {
-    await db.execute(sql`
+    await testDb.db.execute(sql`
       DO $$ DECLARE r RECORD;
       BEGIN
-        FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = current_schema())
+        FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename != '__drizzle_migrations')
         LOOP EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
         END LOOP;
       END $$;
     `);
-    await seedTransportOrder(db);
+    await seedTransportOrder();
   });
 
   it('completes negotiate -> commit roundtrip', async () => {
@@ -146,13 +86,13 @@ describe('@fleet/api - ManifestService (integration)', () => {
     }, OP);
     expect(committed.state).toBe('verifying');
 
-    const sessionRow = await db.execute<{ state: string; actual_size_bytes: number }>(sql`
+    const sessionRow = await testDb.db.execute<{ state: string; actual_size_bytes: number }>(sql`
       SELECT state, actual_size_bytes FROM upload_session WHERE upload_session_id = ${negotiated.uploadSessionId}::uuid
     `);
     expect(sessionRow.rows[0]?.state).toBe('verifying');
     expect(sessionRow.rows[0]?.actual_size_bytes).toBe(1_400_000);
 
-    const manifestRow = await db.execute<{ state: string }>(sql`
+    const manifestRow = await testDb.db.execute<{ state: string }>(sql`
       SELECT state FROM manifest WHERE manifest_correlation_id = ${CORRELATION_ID}::uuid
     `);
     expect(manifestRow.rows[0]?.state).toBe('verifying');
@@ -192,7 +132,7 @@ describe('@fleet/api - ManifestService (integration)', () => {
       expectedSizeBytes: 1_500_000,
     }, OP);
 
-    const manifests = await db.execute<{ count: string }>(sql`SELECT COUNT(*)::text as count FROM manifest`);
+    const manifests = await testDb.db.execute<{ count: string }>(sql`SELECT COUNT(*)::text as count FROM manifest`);
     expect(manifests.rows[0]?.count).toBe('1');
     expect(r1.uploadSessionId).not.toBe(r2.uploadSessionId);
   });
