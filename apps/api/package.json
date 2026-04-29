@@ -63,6 +63,7 @@
     "@types/mime-types": "^3.0.1",
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.31.10",
+    "fast-check": "^4.7.0",
     "rimraf": "^6.0.1",
     "socket.io-client": "^4.8.3",
     "testcontainers": "^11.14.0",
