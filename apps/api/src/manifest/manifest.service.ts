@@ -13,7 +13,8 @@ import type { Env } from '../config/env.config.js';
 import type { NegotiateUploadInput, NegotiateUploadResponse, CommitUploadInput, CommitUploadResponse } from './manifest.dto.js';
 import { ManifestInsertFailedError, TransportOrderNotOwnedError, UploadSessionInsertFailedError, UploadSessionMissingManifestError, UploadSessionNotFoundError, UploadAlreadyCommittedError } from './manifest.errors.js';
 
-export type { OperatorContext } from '../auth/operator-context.js';
+import type { OperatorContext } from '../auth/operator-context.js';
+export type { OperatorContext };
 
 @Injectable()
 export class ManifestService {

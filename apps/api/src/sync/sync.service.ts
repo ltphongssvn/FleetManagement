@@ -38,7 +38,8 @@ export interface SyncResponseOutput {
   readonly serverTime: string;
 }
 
-export type { OperatorContext } from '../auth/operator-context.js';
+import type { OperatorContext } from '../auth/operator-context.js';
+export type { OperatorContext };
 
 @Injectable()
 export class SyncService {
