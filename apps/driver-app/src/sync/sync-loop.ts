@@ -7,6 +7,17 @@
 // 'client dedup > last_seen_seq'. PDF Day-One #6: 'Expo Push fallback for
 // offline-to-online wake' (push triggers loop; loop itself is pull-based).
 import type { SyncCursor, SyncRequest, SyncResponse } from '@fleet/sync-protocol';
+
+export interface SyncCommit {
+  readonly transitions: readonly ActionTransition[];
+  readonly newCursor: SyncCursor;
+  // PDF wire protocol: cursor must advance only when these are durably applied.
+  readonly deltas: readonly unknown[];
+  readonly projectionStatus: Record<string, unknown>;
+  readonly hysteresisVersion: number;
+  readonly configFlagVersion: number;
+  readonly serverTime: string;
+}
 import {
   planSyncRequest,
   reconcileSyncAck,
@@ -23,7 +34,9 @@ export interface SyncTransport {
 export interface SyncStateStore {
   readDispatchable(): Promise<readonly QueuedActionWithPayload[]>;
   readCursor(): Promise<SyncCursor>;
-  applyAck(transitions: readonly ActionTransition[], newCursor: SyncCursor): Promise<void>;
+  /** Atomic commit: persist transitions + deltas + cursor in one DB tx so the
+   *  client cursor never advances ahead of applied server work. PDF requirement. */
+  applySyncCommit(commit: SyncCommit): Promise<void>;
   /** Roll dispatched actions back to 'pending' status. Used on transport
    *  failure or protocol_violation so they retry on the next loop. */
   rollbackDispatched(actionIds: readonly string[]): Promise<void>;
@@ -109,7 +122,15 @@ export async function runSyncOnce(
   }
 
   try {
-    await store.applyAck(outcome.transitions, outcome.newCursor);
+    await store.applySyncCommit({
+      transitions: outcome.transitions,
+      newCursor: outcome.newCursor,
+      deltas: response.deltas,
+      projectionStatus: response.projectionStatus,
+      hysteresisVersion: response.hysteresisVersion,
+      configFlagVersion: response.configFlagVersion,
+      serverTime: response.serverTime,
+    });
   } catch (err: unknown) {
     return {
       kind: 'storage_failure',
@@ -118,7 +139,9 @@ export async function runSyncOnce(
     };
   }
 
-  if (outcome.transitions.length === 0 && plan.dispatchedActionIds.length === 0) {
+  const hasLocalAcks = outcome.transitions.length > 0;
+  const hasRemoteWork = response.deltas.length > 0;
+  if (!hasLocalAcks && !hasRemoteWork && plan.dispatchedActionIds.length === 0) {
     return { kind: 'idle' };
   }
   return { kind: 'applied', newCursor: outcome.newCursor, transitions: outcome.transitions };

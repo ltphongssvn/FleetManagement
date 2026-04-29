@@ -21,7 +21,7 @@ function action(id: string, sequence: number): QueuedActionWithPayload {
 
 interface StoreFixture {
   store: SyncStateStore;
-  applyAck: ReturnType<typeof vi.fn>;
+  applySyncCommit: ReturnType<typeof vi.fn>;
   rollbackDispatched: ReturnType<typeof vi.fn>;
   resetForCursorExpired: ReturnType<typeof vi.fn>;
 }
@@ -29,21 +29,21 @@ interface StoreFixture {
 function makeStore(initial: {
   dispatchable?: readonly QueuedActionWithPayload[];
   cursor?: SyncCursor;
-  applyAckImpl?: () => Promise<void>;
+  applySyncCommitImpl?: () => Promise<void>;
   rollbackImpl?: () => Promise<void>;
   resetImpl?: () => Promise<void>;
 }): StoreFixture {
-  const applyAck = vi.fn(initial.applyAckImpl ?? (() => Promise.resolve()));
+  const applySyncCommit = vi.fn(initial.applySyncCommitImpl ?? (() => Promise.resolve()));
   const rollbackDispatched = vi.fn(initial.rollbackImpl ?? (() => Promise.resolve()));
   const resetForCursorExpired = vi.fn(initial.resetImpl ?? (() => Promise.resolve()));
   const store: SyncStateStore = {
     readDispatchable: () => Promise.resolve(initial.dispatchable ?? []),
     readCursor: () => Promise.resolve(initial.cursor ?? cursor0),
-    applyAck,
+    applySyncCommit,
     rollbackDispatched,
     resetForCursorExpired,
   };
-  return { store, applyAck, rollbackDispatched, resetForCursorExpired };
+  return { store, applySyncCommit, rollbackDispatched, resetForCursorExpired };
 }
 
 const okResponse = (results: readonly string[], newCursor = '100'): SyncResponse => ({
@@ -76,8 +76,8 @@ describe('@fleet/driver-app - runSyncOnce', () => {
     const transport: SyncTransport = { post: vi.fn().mockResolvedValue(okResponse([])) };
     const out = await runSyncOnce(transport, f.store);
     expect(out.kind).toBe('idle');
-    expect(f.applyAck).toHaveBeenCalledTimes(1);
-    expect(f.applyAck).toHaveBeenCalledWith([], expect.any(String));
+    expect(f.applySyncCommit).toHaveBeenCalledTimes(1);
+    expect(f.applySyncCommit).toHaveBeenCalledWith(expect.objectContaining({ transitions: [], deltas: [] }));
   });
 
   it('applies transitions + new cursor for accepted batch', async () => {
@@ -90,7 +90,7 @@ describe('@fleet/driver-app - runSyncOnce', () => {
     expect(out.newCursor).toBe('500');
     expect(out.transitions).toHaveLength(1);
     expect(out.transitions[0]?.newStatus).toBe('synced');
-    expect(f.applyAck).toHaveBeenCalledTimes(1);
+    expect(f.applySyncCommit).toHaveBeenCalledTimes(1);
   });
 
   it('triggers cursor_expired_recovered (no dispatched ids leak to store)', async () => {
@@ -101,7 +101,7 @@ describe('@fleet/driver-app - runSyncOnce', () => {
     expect(out.kind).toBe('cursor_expired_recovered');
     expect(f.resetForCursorExpired).toHaveBeenCalledTimes(1);
     expect(f.resetForCursorExpired).toHaveBeenCalledWith();
-    expect(f.applyAck).not.toHaveBeenCalled();
+    expect(f.applySyncCommit).not.toHaveBeenCalled();
   });
 
   it('rolls back dispatched ids on transport failure (preserves Error instance)', async () => {
@@ -115,7 +115,7 @@ describe('@fleet/driver-app - runSyncOnce', () => {
     expect(out.error).toBe(networkErr);
     expect(out.rolledBackCount).toBe(1);
     expect(f.rollbackDispatched).toHaveBeenCalledTimes(1);
-    expect(f.applyAck).not.toHaveBeenCalled();
+    expect(f.applySyncCommit).not.toHaveBeenCalled();
   });
 
   it('does NOT roll back when transport fails on empty heartbeat', async () => {
@@ -139,7 +139,7 @@ describe('@fleet/driver-app - runSyncOnce', () => {
     expect(out.expected).toBe(2);
     expect(out.actual).toBe(1);
     expect(f.rollbackDispatched).toHaveBeenCalledTimes(1);
-    expect(f.applyAck).not.toHaveBeenCalled();
+    expect(f.applySyncCommit).not.toHaveBeenCalled();
   });
 
   it('returns storage_failure when applyAck throws', async () => {
@@ -147,7 +147,7 @@ describe('@fleet/driver-app - runSyncOnce', () => {
     const dbErr = new Error('database is locked');
     const f = makeStore({
       dispatchable: [action(id, 1)],
-      applyAckImpl: () => Promise.reject(dbErr),
+      applySyncCommitImpl: () => Promise.reject(dbErr),
     });
     const transport: SyncTransport = { post: vi.fn().mockResolvedValue(okResponse(['applied'])) };
     const out = await runSyncOnce(transport, f.store);
@@ -175,7 +175,7 @@ describe('@fleet/driver-app - runSyncOnce', () => {
   it('returns storage_failure when resetForCursorExpired throws', async () => {
     const dbErr = new Error('cannot reset');
     const f = makeStore({
-      applyAckImpl: () => Promise.resolve(),
+      applySyncCommitImpl: () => Promise.resolve(),
       resetImpl: () => Promise.reject(dbErr),
     });
     const transport: SyncTransport = { post: vi.fn().mockResolvedValue(cursorExpiredResponse()) };
@@ -186,6 +186,21 @@ describe('@fleet/driver-app - runSyncOnce', () => {
     expect(out.error).toBe(dbErr);
   });
 
+
+  it('returns applied (not idle) when server pushes deltas during empty heartbeat', async () => {
+    const f = makeStore({});
+    const responseWithDeltas: SyncResponse = {
+      ...okResponse([], '200'),
+      deltas: [{ aggregate: 'road_run', id: 'x', state: 'started' }],
+    };
+    const transport: SyncTransport = { post: vi.fn().mockResolvedValue(responseWithDeltas) };
+    const out = await runSyncOnce(transport, f.store);
+    expect(out.kind).toBe('applied');
+    expect(f.applySyncCommit).toHaveBeenCalledTimes(1);
+    const commitArg = f.applySyncCommit.mock.calls[0]?.[0];
+    expect(commitArg?.deltas).toHaveLength(1);
+    expect(commitArg?.newCursor).toBe('200');
+  });
   it('passes correct cursor + actions to transport', async () => {
     const id = 'aaaaaaaa-1111-4111-8111-111111111111';
     const cursor = createSyncCursor('42');
@@ -216,7 +231,7 @@ describe('@fleet/driver-app - runSyncOnce property invariants', () => {
           const transport: SyncTransport = { post: vi.fn().mockRejectedValue(new Error('boom')) };
           const out = await runSyncOnce(transport, f.store);
           expect(out.kind === 'transport_failure' || out.kind === 'storage_failure').toBe(true);
-          expect(f.applyAck).not.toHaveBeenCalled();
+          expect(f.applySyncCommit).not.toHaveBeenCalled();
           return true;
         },
       ),
@@ -259,7 +274,7 @@ describe('@fleet/driver-app - runSyncOnce property invariants', () => {
           const out = await runSyncOnce(transport, f.store);
           expect(out.kind).toBe('cursor_expired_recovered');
           expect(f.resetForCursorExpired).toHaveBeenCalledTimes(1);
-          expect(f.applyAck).not.toHaveBeenCalled();
+          expect(f.applySyncCommit).not.toHaveBeenCalled();
           return true;
         },
       ),
