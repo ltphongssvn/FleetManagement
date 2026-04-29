@@ -11,6 +11,7 @@ import { StorageModule } from './storage/storage.module.js';
 import { SyncModule } from './sync/sync.module.js';
 import { validateEnv } from './config/env.config.js';
 import { OutboxModule } from './outbox/outbox.module.js';
+import { ProjectionsModule } from './projections/projections.module.js';
 
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { OutboxModule } from './outbox/outbox.module.js';
     StorageModule,
     SyncModule,
     CommandsModule,
-    ManifestModule, OutboxModule],
+    ManifestModule, OutboxModule, ProjectionsModule],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class AppModule {}

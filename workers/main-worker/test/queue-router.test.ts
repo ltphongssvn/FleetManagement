@@ -171,7 +171,7 @@ describe('@fleet/main-worker - queue-router rejected-decision summary branches',
 
   it('falls back to null jobId when job.id is undefined', async () => {
     const { sink, sent } = makeSink();
-    await routeJob('intake', { id: undefined, data: { manifestId: 'not-uuid' } }, sink);
+    await routeJob('intake', { data: { manifestId: 'not-uuid' } } as never, sink);
     const entry = sent[0]; if (!entry) throw new Error('expected entry');
     expect(entry.jobId).toBeNull();
   });

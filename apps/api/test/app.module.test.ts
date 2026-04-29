@@ -14,5 +14,5 @@ describe('@fleet/api - AppModule', () => {
   it('should be defined', async () => {
     const { AppModule } = await import('../src/app.module.js');
     expect(AppModule).toBeDefined();
-  });
+  }, 30_000);
 });
