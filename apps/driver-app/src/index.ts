@@ -8,3 +8,9 @@ export {
   dispatchableActions,
   isSupersededByServer,
 } from './storage/action-queue-policy.js';
+export {
+  runSyncOnce,
+  type SyncTransport,
+  type SyncStateStore,
+  type SyncLoopOutcome,
+} from './sync/sync-loop.js';
