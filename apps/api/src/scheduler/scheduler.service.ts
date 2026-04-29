@@ -1,9 +1,8 @@
 // apps/api/src/scheduler/scheduler.service.ts
 // PDF Day-One: outbox relay + projection runner must drain continuously.
 // Self-scheduling setTimeout prevents overlapping execution: next tick fires
-// only AFTER the current drain completes. Drain duration is variable (DB +
-// Redis + BullMQ enqueue), so blind cron risks concurrent runs. Multi-instance
-// safety relies on FOR UPDATE SKIP LOCKED in outbox-relay + projection-runner.
+// only AFTER the current drain completes. Multi-instance safety relies on
+// FOR UPDATE SKIP LOCKED in outbox-relay + projection-runner.
 import { Injectable, Logger, type OnModuleInit, type OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OutboxRelayService } from '../outbox/outbox-relay.service.js';
@@ -29,8 +28,8 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit(): void {
-    this.scheduleNextOutbox();
-    this.scheduleNextProjection();
+    this.scheduleNext('outbox');
+    this.scheduleNext('projection');
   }
 
   onModuleDestroy(): void {
@@ -39,41 +38,29 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     if (this.projectionTimer) clearTimeout(this.projectionTimer);
   }
 
-  private scheduleNextOutbox(): void {
+  private scheduleNext(kind: 'outbox' | 'projection'): void {
     if (this.stopped) return;
-    this.outboxTimer = setTimeout(() => { void this.drainOutbox(); }, DRAIN_INTERVAL_MS);
+    const tick = (): void => { void this.runDrain(kind); };
+    if (kind === 'outbox') this.outboxTimer = setTimeout(tick, DRAIN_INTERVAL_MS);
+    else this.projectionTimer = setTimeout(tick, DRAIN_INTERVAL_MS);
   }
 
-  private scheduleNextProjection(): void {
-    if (this.stopped) return;
-    this.projectionTimer = setTimeout(() => { void this.drainProjections(); }, DRAIN_INTERVAL_MS);
-  }
-
-  async drainOutbox(): Promise<void> {
+  private async runDrain(kind: 'outbox' | 'projection'): Promise<void> {
     try {
-      await this.outboxRelay.drainOnce();
+      if (kind === 'outbox') await this.outboxRelay.drainOnce();
+      else await this.projectionRunner.drainOnce(this.pilotScope);
     } catch (err: unknown) {
+      const label = kind === 'outbox' ? 'Outbox drain failed: ' : 'Projection drain failed: ';
       if (err instanceof Error) {
-        this.logger.error('Outbox drain failed: ' + err.message, err.stack);
+        this.logger.error(label + err.message, err.stack);
       } else {
-        this.logger.error('Outbox drain failed: ' + String(err));
+        this.logger.error(label + String(err));
       }
     } finally {
-      this.scheduleNextOutbox();
+      this.scheduleNext(kind);
     }
   }
 
-  async drainProjections(): Promise<void> {
-    try {
-      await this.projectionRunner.drainOnce(this.pilotScope);
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        this.logger.error('Projection drain failed: ' + err.message, err.stack);
-      } else {
-        this.logger.error('Projection drain failed: ' + String(err));
-      }
-    } finally {
-      this.scheduleNextProjection();
-    }
-  }
+  async drainOutbox(): Promise<void> { await this.runDrain('outbox'); }
+  async drainProjections(): Promise<void> { await this.runDrain('projection'); }
 }
