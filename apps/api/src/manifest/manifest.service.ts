@@ -13,13 +13,7 @@ import type { Env } from '../config/env.config.js';
 import type { NegotiateUploadInput, NegotiateUploadResponse, CommitUploadInput, CommitUploadResponse } from './manifest.dto.js';
 import { ManifestInsertFailedError, TransportOrderNotOwnedError, UploadSessionInsertFailedError, UploadSessionMissingManifestError, UploadSessionNotFoundError, UploadAlreadyCommittedError } from './manifest.errors.js';
 
-export interface OperatorContext {
-  readonly operatorId: string;
-  readonly companyId: string;
-  readonly businessUnitId: string;
-  readonly depotId: string;
-  readonly legalEntityId: string;
-}
+export type { OperatorContext } from '../auth/operator-context.js';
 
 @Injectable()
 export class ManifestService {

@@ -38,13 +38,7 @@ export interface SyncResponseOutput {
   readonly serverTime: string;
 }
 
-export interface OperatorContext {
-  readonly operatorId: string;
-  readonly companyId: string;
-  readonly businessUnitId: string;
-  readonly depotId: string;
-  readonly legalEntityId: string;
-}
+export type { OperatorContext } from '../auth/operator-context.js';
 
 @Injectable()
 export class SyncService {
