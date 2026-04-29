@@ -57,11 +57,6 @@ const FAST_TRACK_TRIGGERS: ReadonlySet<SyncTrigger> = new Set([
   'pending_action_added',
 ]);
 
-const WAKE_TRIGGERS: ReadonlySet<SyncTrigger> = new Set([
-  'push_wake',
-  'network_online',
-]);
-
 export interface SyncSchedulerDeps {
   readonly random: () => number;
 }
@@ -87,12 +82,17 @@ export function decideSyncSchedule(
   nowMs: number,
   deps: SyncSchedulerDeps = REAL_DEPS,
 ): SyncSchedulerDecision {
-  // Hard skip: cannot reach API.
-  if (!state.online) {
+  // Trigger-as-authority: network_online and app_foreground signal state
+  // transitions the adapter may not have committed to state yet. Treat the
+  // trigger as authoritative for its respective dimension so the policy doesn't
+  // skip a sync the OS just woke us up to do.
+  const triggerAssertsOnline = trigger === 'network_online';
+  const triggerAssertsActive = trigger === 'app_foreground' || trigger === 'network_online' || trigger === 'push_wake';
+
+  if (!state.online && !triggerAssertsOnline) {
     return { action: 'skip', reason: 'offline', policyVersion: SYNC_SCHEDULER_POLICY_VERSION };
   }
-  // App in background AND not a wake-up trigger: skip to save battery.
-  if (!state.appActive && !WAKE_TRIGGERS.has(trigger)) {
+  if (!state.appActive && !triggerAssertsActive) {
     return { action: 'skip', reason: 'app_inactive', policyVersion: SYNC_SCHEDULER_POLICY_VERSION };
   }
 

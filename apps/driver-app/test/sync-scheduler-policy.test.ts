@@ -52,6 +52,54 @@ describe('@fleet/driver-app - decideSyncSchedule basic', () => {
     if (r.action === 'skip') expect(r.reason).toBe('app_inactive');
   });
 
+
+  it('runs on app_foreground even when state.appActive is stale (#496)', () => {
+    const r = decideSyncSchedule(state({ appActive: false }), 'app_foreground', NOW);
+    expect(r.action).toBe('run_now');
+  });
+
+  it('runs on network_online even when state.online is stale (#497)', () => {
+    const r = decideSyncSchedule(state({ online: false }), 'network_online', NOW);
+    expect(r.action).toBe('run_now');
+  });
+
+  it('still skips offline for non-network_online triggers when state.online=false', () => {
+    const r = decideSyncSchedule(state({ online: false }), 'manual_retry', NOW);
+    expect(r.action).toBe('skip');
+    if (r.action === 'skip') expect(r.reason).toBe('offline');
+  });
+
+  it('still skips app_inactive when timer fires and state.appActive=false', () => {
+    const r = decideSyncSchedule(state({ appActive: false }), 'timer_tick', NOW);
+    expect(r.action).toBe('skip');
+    if (r.action === 'skip') expect(r.reason).toBe('app_inactive');
+  });
+
+  it('offline beats manual_retry (no run when network unreachable, #513)', () => {
+    const r = decideSyncSchedule(state({ online: false }), 'manual_retry', NOW);
+    expect(r.action).toBe('skip');
+    if (r.action === 'skip') expect(r.reason).toBe('offline');
+  });
+
+  it('app_inactive beats manual_retry (battery save when app backgrounded, #514)', () => {
+    const r = decideSyncSchedule(state({ appActive: false }), 'manual_retry', NOW);
+    expect(r.action).toBe('skip');
+    if (r.action === 'skip') expect(r.reason).toBe('app_inactive');
+  });
+
+  it('runs at exact backoff boundary (1 failure, age=BASE_MS, #516)', () => {
+    const r = decideSyncSchedule(
+      state({
+        lastSyncAtMs: NOW - SYNC_BACKOFF_BASE_MS,
+        lastOutcome: TRANSPORT_FAILURE_OUTCOME,
+        consecutiveTransportFailures: 1,
+      }),
+      'timer_tick',
+      NOW,
+      NO_JITTER,
+    );
+    expect(r.action).toBe('run_now');
+  });
   it('runs immediately on manual_retry', () => {
     const r = decideSyncSchedule(state(), 'manual_retry', NOW);
     expect(r.action).toBe('run_now');
@@ -264,10 +312,10 @@ describe('@fleet/driver-app - decideSyncSchedule circuit breaker recovery transi
 import fc from 'fast-check';
 
 describe('@fleet/driver-app - decideSyncSchedule property invariants', () => {
-  it('offline state always skips with offline reason regardless of trigger', () => {
+  it('offline state skips with offline reason for non-network_online triggers', () => {
     fc.assert(
       fc.property(
-        fc.constantFrom('app_foreground', 'timer_tick', 'push_wake', 'network_online', 'manual_retry', 'pending_action_added' as const),
+        fc.constantFrom('app_foreground', 'timer_tick', 'push_wake', 'manual_retry', 'pending_action_added' as const),
         fc.integer({ min: 0, max: 100 }),
         fc.boolean(),
         (trigger, failures, appActive) => {
