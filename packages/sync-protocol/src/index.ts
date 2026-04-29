@@ -33,3 +33,11 @@ export {
   ErpMappingContextWireSchema,
   ErpJobDataWireSchema,
 } from './erp-types.js';
+export {
+  OUTBOX_ROUTING_POLICY_VERSION,
+  routeOutboxRow,
+  type OutboxRoutingInput,
+  type OutboxRoutingDecision,
+  type OutboxRoutingRejectionCode,
+  type OutboxTargetQueue,
+} from './outbox-routing.js';

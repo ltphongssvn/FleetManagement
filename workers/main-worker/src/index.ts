@@ -49,3 +49,11 @@ export {
   type ProjectionDelta,
   SyncFeedEventSchema,
 } from './projections/projection-policy.js';
+export {
+  OUTBOX_ROUTING_POLICY_VERSION,
+  routeOutboxRow,
+  type OutboxRoutingInput,
+  type OutboxRoutingDecision,
+  type OutboxRoutingRejectionCode,
+  type OutboxTargetQueue,
+} from './outbox/outbox-routing.js';
