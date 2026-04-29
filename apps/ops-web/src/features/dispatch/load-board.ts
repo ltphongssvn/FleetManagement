@@ -1,7 +1,30 @@
 // apps/ops-web/src/features/dispatch/load-board.ts
-// Server-only RSC loader per PDF "RSC reads from dispatch_board_projection".
-// Pilot scope: in-memory mock until projection worker lands (week 7+).
+// Server-only RSC loader per PDF Day-One #7 "RSC reads from
+// dispatch_board_projection". Fetches from the api at /dispatch/board so
+// ops-web never holds DB credentials.
+//
+// PILOT_DATA fallback exists ONLY when NODE_ENV !== 'production'. In production
+// we surface the failure (Next.js error.tsx boundary) rather than silently
+// rendering stale fake data, which would let dispatchers act on hallucinated
+// fleet state.
+import 'server-only';
+import { z } from 'zod';
+import { ROAD_RUN_STATES, type RoadRunState } from '@fleet/domain';
 import type { DispatchBoardRoadRun } from './types.js';
+
+const BoardRowSchema = z.object({
+  roadRunId: z.string().uuid(),
+  state: z.enum(ROAD_RUN_STATES as unknown as [RoadRunState, ...RoadRunState[]]),
+  assignedOperatorId: z.union([z.string().uuid(), z.null()]),
+  assignedAssetId: z.union([z.string().uuid(), z.null()]),
+  plannedStartAt: z.union([z.string(), z.null()]),
+  stopCount: z.number().int().nonnegative(),
+  transportOrderRefs: z.array(z.string()).readonly(),
+});
+
+const BoardResponseSchema = z.object({
+  rows: z.array(BoardRowSchema).readonly(),
+});
 
 const PILOT_DATA = Object.freeze([
   Object.freeze({
@@ -24,7 +47,36 @@ const PILOT_DATA = Object.freeze([
   }),
 ]) satisfies readonly DispatchBoardRoadRun[];
 
+function isProduction(): boolean {
+  return process.env.NODE_ENV === 'production';
+}
+
 export async function loadDispatchBoard(): Promise<readonly DispatchBoardRoadRun[]> {
-  // Real implementation will query Postgres dispatch_board_projection.
-  return Promise.resolve(PILOT_DATA);
+  const apiUrl = process.env['FLEET_API_URL'];
+  const authToken = process.env['FLEET_API_TOKEN'];
+  if (!apiUrl || !authToken) {
+    if (isProduction()) {
+      throw new Error('FLEET_API_URL and FLEET_API_TOKEN must be set in production');
+    }
+    return PILOT_DATA;
+  }
+  const res = await fetch(`${apiUrl}/dispatch/board`, {
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${authToken}` },
+  });
+  if (!res.ok) {
+    if (isProduction()) {
+      throw new Error(`Dispatch board fetch failed: ${String(res.status)} ${res.statusText}`);
+    }
+    return PILOT_DATA;
+  }
+  const json = (await res.json()) as unknown;
+  const parsed = BoardResponseSchema.safeParse(json);
+  if (!parsed.success) {
+    if (isProduction()) {
+      throw new Error(`Dispatch board response shape invalid: ${parsed.error.message}`);
+    }
+    return PILOT_DATA;
+  }
+  return parsed.data.rows;
 }

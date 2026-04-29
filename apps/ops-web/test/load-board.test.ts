@@ -1,24 +1,109 @@
 // apps/ops-web/test/load-board.test.ts
-import { describe, it, expect } from 'vitest';
-import { loadDispatchBoard } from '../src/features/dispatch/load-board.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-describe('@fleet/ops-web - loadDispatchBoard', () => {
-  it('returns at least one road run for pilot data', async () => {
-    const runs = await loadDispatchBoard();
-    expect(runs.length).toBeGreaterThan(0);
+vi.mock('server-only', () => ({}));
+
+const ORIGINAL_ENV = { ...process.env };
+
+beforeEach(() => {
+  process.env = { ...ORIGINAL_ENV };
+  vi.resetModules();
+});
+
+afterEach(() => {
+  process.env = ORIGINAL_ENV;
+  vi.restoreAllMocks();
+});
+
+describe('loadDispatchBoard', () => {
+  it('returns PILOT_DATA in non-production when FLEET_API_URL is unset', async () => {
+    Object.assign(process.env, { NODE_ENV: 'development' });
+    delete process.env['FLEET_API_URL'];
+    delete process.env['FLEET_API_TOKEN'];
+    const { loadDispatchBoard } = await import('../src/features/dispatch/load-board.js');
+    const rows = await loadDispatchBoard();
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[0]?.state).toBe('planned');
   });
 
-  it('every run has roadRunId and a valid state', async () => {
-    const runs = await loadDispatchBoard();
-    for (const r of runs) {
-      expect(r.roadRunId).toMatch(/^[0-9a-f-]{36}$/);
-      expect(['planned', 'dispatched', 'started', 'completed', 'cancelled']).toContain(r.state);
-    }
+  it('throws in production when FLEET_API_URL is unset (no silent fallback)', async () => {
+    Object.assign(process.env, { NODE_ENV: 'production' });
+    delete process.env['FLEET_API_URL'];
+    delete process.env['FLEET_API_TOKEN'];
+    const { loadDispatchBoard } = await import('../src/features/dispatch/load-board.js');
+    await expect(loadDispatchBoard()).rejects.toThrow('FLEET_API_URL');
   });
 
-  it('returns frozen, readonly data', async () => {
-    const runs = await loadDispatchBoard();
-    expect(Object.isFrozen(runs)).toBe(true);
-    if (runs[0]) expect(Object.isFrozen(runs[0])).toBe(true);
+  it('parses valid api response with zod and returns rows', async () => {
+    Object.assign(process.env, { NODE_ENV: 'development' });
+    process.env['FLEET_API_URL'] = 'http://api.test';
+    process.env['FLEET_API_TOKEN'] = 'tok';
+    const apiRow = {
+      roadRunId: 'aaaaaaaa-1111-4111-8111-111111111111',
+      state: 'planned',
+      assignedOperatorId: null,
+      assignedAssetId: null,
+      plannedStartAt: '2026-04-29T12:00:00.000Z',
+      stopCount: 2,
+      transportOrderRefs: ['TO-1'],
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ rows: [apiRow] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { loadDispatchBoard } = await import('../src/features/dispatch/load-board.js');
+    const rows = await loadDispatchBoard();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.roadRunId).toBe(apiRow.roadRunId);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://api.test/dispatch/board',
+      expect.objectContaining({
+        cache: 'no-store',
+        headers: { Authorization: 'Bearer tok' },
+      }),
+    );
+  });
+
+  it('returns PILOT_DATA in dev when api response shape is invalid', async () => {
+    Object.assign(process.env, { NODE_ENV: 'development' });
+    process.env['FLEET_API_URL'] = 'http://api.test';
+    process.env['FLEET_API_TOKEN'] = 'tok';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ wrong: 'shape' }),
+    }));
+    const { loadDispatchBoard } = await import('../src/features/dispatch/load-board.js');
+    const rows = await loadDispatchBoard();
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[0]?.roadRunId).toBe('11111111-1111-4111-8111-111111111111');
+  });
+
+  it('throws in production when api response shape is invalid', async () => {
+    Object.assign(process.env, { NODE_ENV: 'production' });
+    process.env['FLEET_API_URL'] = 'http://api.test';
+    process.env['FLEET_API_TOKEN'] = 'tok';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ wrong: 'shape' }),
+    }));
+    const { loadDispatchBoard } = await import('../src/features/dispatch/load-board.js');
+    await expect(loadDispatchBoard()).rejects.toThrow(/shape invalid/);
+  });
+
+  it('throws in production when api returns non-2xx', async () => {
+    Object.assign(process.env, { NODE_ENV: 'production' });
+    process.env['FLEET_API_URL'] = 'http://api.test';
+    process.env['FLEET_API_TOKEN'] = 'tok';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: 'Service Unavailable',
+    }));
+    const { loadDispatchBoard } = await import('../src/features/dispatch/load-board.js');
+    await expect(loadDispatchBoard()).rejects.toThrow(/503/);
   });
 });
