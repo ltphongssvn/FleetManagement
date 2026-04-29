@@ -24,9 +24,17 @@ function bootstrap(): void {
   const workers = QUEUE_NAMES.map((name) => {
     const worker = new Worker(
       name,
-      (job) => {
+      async (job) => {
         // Stub: real processors land in week 3+. Logging only for now.
-        console.log(`[${name}] processing job ${String(job.id)}`);
+        if (name === 'intake') {
+            const { IntakeJobDataSchema } = await import('./intake/intake-job.js');
+            const { IntakeProcessor } = await import('./intake/intake-processor.js');
+            const data = IntakeJobDataSchema.parse(job.data);
+            const decision = new IntakeProcessor().process(data);
+            console.log(`[intake] job ${String(job.id)} decision=${decision.accepted ? 'accepted' : 'rejected:' + (decision as { rejectionCode: string }).rejectionCode} policy=${decision.policyVersion}`);
+            return decision;
+          }
+          console.log(`[${name}] processing job ${String(job.id)}`);
         return Promise.resolve({ processed: true });
       },
       { connection, concurrency: QUEUE_CONCURRENCY[name] },

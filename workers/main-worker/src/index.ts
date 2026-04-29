@@ -31,3 +31,5 @@ export {
   buildErpInvoice,
   nextErpStatus,
 } from './erp/erp-policy.js';
+export { IntakeProcessor } from './intake/intake-processor.js';
+export type { IntakeJobData } from './intake/intake-job.js';
