@@ -6,7 +6,7 @@ import { sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConflictException } from '@nestjs/common';
 import { DeviceService } from '../src/device/device.service.js';
-import * as schema from '../src/database/schema/index.js';
+import type * as schema from '../src/database/schema/index.js';
 import { TEST_TENANT, TEST_DEVICE_ID, TEST_OPERATOR_ID, makeIssueInput } from './fixtures/device.fixtures.js';
 import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
 
