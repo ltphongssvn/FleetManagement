@@ -1,4 +1,6 @@
-// apps/ops-web/sentry.edge.config.ts
+// apps/ops-web/instrumentation-client.ts
+// Next.js 16 client-side instrumentation (replaces sentry.client.config.ts
+// for Turbopack). Per Sentry docs for Turbopack setup.
 import * as Sentry from '@sentry/nextjs';
 import { scrubEvent } from '@fleet/observability';
 

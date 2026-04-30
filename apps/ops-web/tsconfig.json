@@ -35,10 +35,8 @@
     "vitest.config.ts",
     "next.config.ts",
     ".next/types/**/*.ts",
-    "sentry.client.config.ts",
-    "sentry.server.config.ts",
-    "sentry.edge.config.ts",
-    "instrumentation.ts"
+    "instrumentation.ts",
+    "instrumentation-client.ts"
   ],
   "exclude": [
     "node_modules",
