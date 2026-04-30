@@ -13,6 +13,7 @@ export default tseslint.config(
   // Global ignores — use **/pattern for nested workspace matches
   {
     ignores: [
+      "apps/driver-app/metro.config.js",
       "**/node_modules/**",
       "**/dist/**",
       "**/build/**",

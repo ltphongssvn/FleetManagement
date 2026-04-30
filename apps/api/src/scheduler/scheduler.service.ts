@@ -5,6 +5,7 @@
 // FOR UPDATE SKIP LOCKED in outbox-relay + projection-runner.
 import { Injectable, Logger, type OnModuleInit, type OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as Sentry from '@sentry/nestjs';
 import { OutboxRelayService } from '../outbox/outbox-relay.service.js';
 import { ProjectionRunnerService } from '../projections/projection-runner.service.js';
 import type { Env } from '../config/env.config.js';
@@ -46,19 +47,25 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async runDrain(kind: 'outbox' | 'projection'): Promise<void> {
-    try {
-      if (kind === 'outbox') await this.outboxRelay.drainOnce();
-      else await this.projectionRunner.drainOnce(this.pilotScope);
-    } catch (err: unknown) {
-      const label = kind === 'outbox' ? 'Outbox drain failed: ' : 'Projection drain failed: ';
-      if (err instanceof Error) {
-        this.logger.error(label + err.message, err.stack);
-      } else {
-        this.logger.error(label + String(err));
+    // PDF Day-One #9: isolate background job breadcrumbs from HTTP request scope.
+    // Sentry NestJS docs warn @Cron / BullMQ handlers leak into unrelated request errors.
+    await Sentry.withIsolationScope(async (scope) => {
+      scope.setTag('job', kind === 'outbox' ? 'outbox-drain' : 'projection-drain');
+      try {
+        if (kind === 'outbox') await this.outboxRelay.drainOnce();
+        else await this.projectionRunner.drainOnce(this.pilotScope);
+      } catch (err: unknown) {
+        Sentry.captureException(err);
+        const label = kind === 'outbox' ? 'Outbox drain failed: ' : 'Projection drain failed: ';
+        if (err instanceof Error) {
+          this.logger.error(label + err.message, err.stack);
+        } else {
+          this.logger.error(label + String(err));
+        }
+      } finally {
+        this.scheduleNext(kind);
       }
-    } finally {
-      this.scheduleNext(kind);
-    }
+    });
   }
 
   async drainOutbox(): Promise<void> { await this.runDrain('outbox'); }
