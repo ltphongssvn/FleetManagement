@@ -1,6 +1,6 @@
 // apps/ops-web/test/sentry-scrub.test.ts
 import { describe, it, expect } from 'vitest';
-import { scrub, scrubString } from '@/lib/sentry-scrub';
+import { scrub, scrubString, scrubEvent } from '@/lib/sentry-scrub';
 
 describe('@fleet/ops-web - PII scrubber', () => {
   it('redacts password (case-insensitive)', () => {
@@ -49,5 +49,40 @@ describe('@fleet/ops-web - PII scrubber', () => {
   it('handles empty object and empty array', () => {
     expect(scrub({})).toEqual({});
     expect(scrub([])).toEqual([]);
+  });
+
+  describe('scrubEvent', () => {
+    it('redacts authorization header', () => {
+      const e = { request: { headers: { Authorization: 'Bearer eyJ.aa.bb', 'X-Trace': 'ok' } } };
+      const r = scrubEvent(e as never);
+      const h = (r as { request: { headers: Record<string, string> } }).request.headers;
+      expect(h['Authorization']).toBe('[redacted]');
+      expect(h['X-Trace']).toBe('ok');
+    });
+
+    it('redacts string[] header values', () => {
+      const e = { request: { headers: { Cookie: ['a=1', 'b=2'] } } };
+      const r = scrubEvent(e as never);
+      expect((r as { request: { headers: Record<string, string[]> } }).request.headers['Cookie']).toEqual(['[redacted]']);
+    });
+
+    it('scrubs request.data, extra, contexts', () => {
+      const e = { request: { data: { password: 'p' } }, extra: { token: 't' }, contexts: { user: { email: 'a@b.com' } } };
+      const r = scrubEvent(e as never) as { request: { data: { password: string } }; extra: { token: string }; contexts: { user: { email: string } } };
+      expect(r.request.data.password).toBe('[redacted]');
+      expect(r.extra.token).toBe('[redacted]');
+      expect(r.contexts.user.email).toBe('[redacted]');
+    });
+
+    it('scrubs message and exception values', () => {
+      const e = { message: 'failed for a@b.com', exception: { values: [{ value: 'Bearer eyJ.x.y leaked' }] } };
+      const r = scrubEvent(e as never) as { message: string; exception: { values: { value: string }[] } };
+      expect(r.message).toBe('failed for [redacted]');
+      expect(r.exception.values[0]?.value).toBe('[redacted] leaked');
+    });
+
+    it('handles event without request/extra/contexts', () => {
+      expect(() => scrubEvent({} as never)).not.toThrow();
+    });
   });
 });
