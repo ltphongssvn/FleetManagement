@@ -1,5 +1,5 @@
 // apps/api/test/sync.service.test.ts
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { mockDeep } from 'vitest-mock-extended';
 import { SyncService } from '../src/sync/sync.service.js';
 import type { FleetDb } from '../src/database/database.module.js';

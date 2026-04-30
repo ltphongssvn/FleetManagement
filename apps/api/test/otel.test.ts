@@ -39,7 +39,7 @@ describe('@fleet/api - OTel', () => {
   });
 
   it('returns early when enabled=false (line 30-32)', () => {
-    expect(() => startOtel({ enabled: false, serviceName: 's', serviceVersion: 'v' })).not.toThrow();
+    expect(() => { startOtel({ enabled: false, serviceName: 's', serviceVersion: 'v' }); }).not.toThrow();
   });
 
   it('shutdownOtel returns early when sdk null (line 63-64)', async () => {
