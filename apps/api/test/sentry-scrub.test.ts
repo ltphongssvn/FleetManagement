@@ -1,6 +1,6 @@
 // apps/api/test/sentry-scrub.test.ts
 import { describe, it, expect } from 'vitest';
-import { scrub, scrubString, scrubEvent } from '../src/observability/sentry-scrub.js';
+import { scrub, scrubString, scrubEvent, type ScrubbableEvent } from '../src/observability/sentry-scrub.js';
 
 describe('@fleet/api - PII scrubber', () => {
   it('redacts password key (case-insensitive)', () => {
@@ -95,10 +95,11 @@ describe('@fleet/api - PII scrubber', () => {
     });
 
     it('scrubs message and exception values', () => {
-      const e = { message: 'failed for a@b.com', exception: { values: [{ value: 'Bearer eyJ.x.y leaked' }] } };
-      const r = scrubEvent(e);
+      const input: ScrubbableEvent = { message: 'failed for foo@example.com', exception: { values: [{ value: 'Bearer eyJ.x.y leaked' }] } };
+      const r = scrubEvent(input);
       expect(r.message).toBe('failed for [redacted]');
-      expect(r.exception?.values?.[0]?.value).toBe('[redacted] leaked');
+      const vals = r.exception?.values ?? [];
+      expect(vals[0]?.value).toBe('[redacted] leaked');
     });
 
     it('handles event without request/extra/contexts', () => {

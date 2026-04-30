@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "^55.0.10",
+    "@fleet/observability": "workspace:*",
     "@fleet/sync-protocol": "workspace:*",
     "@sentry/react-native": "^8.9.2",
     "drizzle-orm": "^0.45.2",

@@ -61,6 +61,9 @@ importers:
       '@fleet/main-worker':
         specifier: workspace:*
         version: link:../../workers/main-worker
+      '@fleet/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       '@fleet/sync-protocol':
         specifier: workspace:*
         version: link:../../packages/sync-protocol
@@ -191,6 +194,9 @@ importers:
       '@expo/metro-runtime':
         specifier: ^55.0.10
         version: 55.0.10(@expo/dom-webview@55.0.5)(expo@55.0.17)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
+      '@fleet/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       '@fleet/sync-protocol':
         specifier: workspace:*
         version: link:../../packages/sync-protocol
@@ -261,6 +267,9 @@ importers:
       '@fleet/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@fleet/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       '@sentry/nextjs':
         specifier: ^10.51.0
         version: 10.51.0(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(next@16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)(webpack@5.106.2(esbuild@0.27.7))
@@ -323,6 +332,8 @@ importers:
       fast-check:
         specifier: ^4.7.0
         version: 4.7.0
+
+  packages/observability: {}
 
   packages/sync-protocol:
     dependencies:
