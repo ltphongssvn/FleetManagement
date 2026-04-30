@@ -226,12 +226,13 @@ describe('@fleet/driver-app - runSyncOnce', () => {
     const dbErr = new Error('claim failed');
     const f = makeStore({ dispatchable: [action(id, 1)] });
     f.claimDispatched.mockRejectedValueOnce(dbErr);
-    const transport: SyncTransport = { post: vi.fn() };
+    const postFn = vi.fn();
+    const transport: SyncTransport = { post: postFn };
     const out = await runSyncOnce(transport, f.store);
     expect(out.kind).toBe('storage_failure');
     if (out.kind !== 'storage_failure') throw new Error('expected storage_failure');
     expect(out.error).toBe(dbErr);
-    expect(transport.post).not.toHaveBeenCalled();
+    expect(postFn).not.toHaveBeenCalled();
   });
   it('passes correct cursor + actions to transport', async () => {
     const id = 'aaaaaaaa-1111-4111-8111-111111111111';
