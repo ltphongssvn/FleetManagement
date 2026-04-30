@@ -1,6 +1,9 @@
 // apps/api/src/app.module.ts
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_FILTER } from '@nestjs/core';
+import { SentryModule } from '@sentry/nestjs/setup';
+import { SentryGlobalFilter } from '@sentry/nestjs/setup';
 import { AuthModule } from './auth/auth.module.js';
 import { CommandsModule } from './commands/commands.module.js';
 import { DatabaseModule } from './database/database.module.js';
@@ -18,6 +21,7 @@ import { SchedulerModule } from './scheduler/scheduler.module.js';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv, cache: true }),
+    SentryModule.forRoot(),
     DatabaseModule,
     AuthModule,
     DeviceModule,
@@ -25,7 +29,13 @@ import { SchedulerModule } from './scheduler/scheduler.module.js';
     StorageModule,
     SyncModule,
     CommandsModule,
-    ManifestModule, OutboxModule, ProjectionsModule, DispatchModule, SchedulerModule],
+    ManifestModule,
+    OutboxModule,
+    ProjectionsModule,
+    DispatchModule,
+    SchedulerModule,
+  ],
+  providers: [{ provide: APP_FILTER, useClass: SentryGlobalFilter }],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class AppModule {}

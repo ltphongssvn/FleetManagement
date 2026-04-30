@@ -1,5 +1,11 @@
 // apps/api/src/observability/sentry-bootstrap.ts
-import * as Sentry from '@sentry/node';
+import * as Sentry from '@sentry/nestjs';
+
+function parseSampleRate(raw: string | undefined): number {
+  const n = Number(raw ?? '0.1');
+  if (!Number.isFinite(n) || n < 0 || n > 1) return 0.1;
+  return n;
+}
 
 export function initSentry(): void {
   if (process.env['NODE_ENV'] === 'test') return;
@@ -8,7 +14,7 @@ export function initSentry(): void {
   Sentry.init({
     dsn,
     environment: process.env['NODE_ENV'] ?? 'development',
-    tracesSampleRate: Number(process.env['SENTRY_TRACES_SAMPLE_RATE'] ?? '0.1'),
+    tracesSampleRate: parseSampleRate(process.env['SENTRY_TRACES_SAMPLE_RATE']),
     release: process.env['npm_package_version'],
   });
 }

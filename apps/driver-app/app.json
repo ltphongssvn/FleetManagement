@@ -18,7 +18,15 @@
       }
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "fleet-driver",
+          "organization": "fleetmanagement"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
