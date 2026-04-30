@@ -15,6 +15,9 @@ const securityHeaders = [
 const config: NextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: path.join(import.meta.dirname, '../..'),
+  turbopack: {
+    root: path.join(import.meta.dirname, '../..'),
+  },
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
   },
