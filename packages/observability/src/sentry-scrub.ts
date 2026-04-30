@@ -3,12 +3,12 @@
 // No Sentry SDK imports — keeps this loadable from RN (no Flow syntax) and
 // from any Node/edge runtime. Pure functions, no I/O, no mutation of inputs.
 
-export const PII_HEADERS: ReadonlySet<string> = new Set([
+export const PII_HEADERS = new Set<string>([
   'authorization',
   'cookie',
   'set-cookie',
   'x-api-key',
-]);
+]) satisfies ReadonlySet<string>;
 
 export const PII_KEY_RE =
   /password|token|secret|authorization|apikey|cookie|push.*token|gps|lat|lng|latitude|longitude|phone|email|ssn|driver.*name/i;
@@ -27,6 +27,35 @@ export function scrubString(s: string): string {
   let out = s;
   for (const re of PII_VALUE_PATTERNS) out = out.replace(re, REDACTED);
   return out;
+}
+
+export interface ScrubberOptions {
+  /** Max recursion depth before bailing. Defaults to 6. */
+  depthLimit?: number;
+}
+
+/**
+ * Factory: returns a scrub function bound to the given options.
+ * Use when callers need a non-default depth limit.
+ */
+export function createScrubber(options: ScrubberOptions = {}): (value: unknown, depth?: number) => unknown {
+  const depthLimit = options.depthLimit ?? 6;
+  const fn = (value: unknown, depth = 0): unknown => {
+    if (depth > depthLimit || value === null || value === undefined) return value;
+    if (typeof value === 'string') return scrubString(value);
+    if (typeof value !== 'object') return value;
+    if (Array.isArray(value)) return value.map((v) => fn(v, depth + 1));
+    try {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        out[k] = PII_KEY_RE.test(k) ? REDACTED : fn(v, depth + 1);
+      }
+      return out;
+    } catch {
+      return UNSCRUBBABLE;
+    }
+  };
+  return fn;
 }
 
 /**
