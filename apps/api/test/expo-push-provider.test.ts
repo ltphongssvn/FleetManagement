@@ -79,4 +79,14 @@ describe('@fleet/api - ExpoPushProvider', () => {
     expect(client.isExpoPushToken('ExponentPushToken[abc]')).toBe(true);
     expect(client.isExpoPushToken('not-a-token')).toBe(false);
   });
+
+  it('defaultExpoClient wires Expo SDK (lines 22-29)', async () => {
+    const { defaultExpoClient } = await import('../src/push/expo-push-provider.js');
+    const client = defaultExpoClient();
+    expect(typeof client.isExpoPushToken).toBe('function');
+    expect(typeof client.chunkPushNotifications).toBe('function');
+    expect(typeof client.sendPushNotificationsAsync).toBe('function');
+    // isExpoPushToken returns false on garbage input (delegates to real SDK)
+    expect(client.isExpoPushToken('not-a-real-token')).toBe(false);
+  });
 });

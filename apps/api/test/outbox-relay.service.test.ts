@@ -228,4 +228,18 @@ describe('OutboxRelayService - drainOnce', () => {
     const result = await svc.drainOnce();
     expect(result).toEqual({ polled: 0, enqueued: 0, deadLettered: 0, retryScheduled: 0 });
   });
+
+  it('schedules retry with exponential backoff when queue.add fails below max attempts', async () => {
+    const failingQueue = { add: vi.fn().mockRejectedValue(new Error('redis flaky')), close: vi.fn() } as unknown as Queue;
+    const updateMock = vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) });
+    const dbStub = {
+      execute: vi.fn().mockResolvedValue({ rows: [{ outbox_id: 'r-retry', queue_name: 'projections', status: 'pending', attempts: 1, next_attempt_at: null, payload: { aggregateType: 'road_run', eventType: 'road_run_started' } }] }),
+      update: updateMock,
+    } as unknown as FleetDb;
+    const svc = new OutboxRelayService(dbStub, { host: 'localhost', port: 6379 });
+    Object.assign(svc as object, { getQueue: () => failingQueue });
+    const result = await svc.drainOnce();
+    expect(result.retryScheduled).toBe(1);
+    expect(result.deadLettered).toBe(0);
+  });
 });
