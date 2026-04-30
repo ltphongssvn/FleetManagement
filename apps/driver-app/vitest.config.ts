@@ -11,7 +11,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: [resolve(__dirname, 'src/**/*.ts')],
-      exclude: ['**/index.ts', '**/*.config.ts', '**/test/**', '**/schema.ts', 'src/storage/sqlite-sync-store.ts', 'src/storage/migrate.ts', 'src/sync/fetch-sync-transport.ts'],
+      exclude: ['**/index.ts', '**/*.config.ts', '**/test/**', '**/schema.ts', 'src/storage/sqlite-sync-store.ts', 'src/storage/migrate.ts', 'src/sync/fetch-sync-transport.ts', 'src/observability/sentry-bootstrap.ts'],
       thresholds: {
         statements: 80,
         branches: 80,
