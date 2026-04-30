@@ -62,13 +62,13 @@ describe('@fleet/ops-web - PII scrubber', () => {
 
     it('redacts string[] header values', () => {
       const e = { request: { headers: { Cookie: ['a=1', 'b=2'] } } };
-      const r = scrubEvent(e as never);
+      const r = scrubEvent(e as never) as unknown;
       expect((r as { request: { headers: Record<string, string[]> } }).request.headers['Cookie']).toEqual(['[redacted]']);
     });
 
     it('scrubs request.data, extra, contexts', () => {
       const e = { request: { data: { password: 'p' } }, extra: { token: 't' }, contexts: { user: { email: 'a@b.com' } } };
-      const r = scrubEvent(e as never) as { request: { data: { password: string } }; extra: { token: string }; contexts: { user: { email: string } } };
+      const r = scrubEvent(e as never) as unknown as { request: { data: { password: string } }; extra: { token: string }; contexts: { user: { email: string } } };
       expect(r.request.data.password).toBe('[redacted]');
       expect(r.extra.token).toBe('[redacted]');
       expect(r.contexts.user.email).toBe('[redacted]');
