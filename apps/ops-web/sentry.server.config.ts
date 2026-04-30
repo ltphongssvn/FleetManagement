@@ -1,6 +1,6 @@
 // apps/ops-web/sentry.server.config.ts
 import * as Sentry from '@sentry/nextjs';
-import { scrubEvent } from './src/lib/sentry-scrub';
+import { scrubEvent } from '@fleet/observability';
 
 const dsn = process.env['SENTRY_DSN'];
 if (dsn && process.env.NODE_ENV !== 'test') {
