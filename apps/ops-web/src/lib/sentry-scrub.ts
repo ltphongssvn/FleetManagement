@@ -1,12 +1,7 @@
-// apps/api/src/observability/sentry-bootstrap.ts
-import * as Sentry from '@sentry/nestjs';
-import type { ErrorEvent, EventHint } from '@sentry/core';
+// apps/ops-web/src/lib/sentry-scrub.ts
+import type * as Sentry from '@sentry/nextjs';
 
-function parseSampleRate(raw: string | undefined): number {
-  const n = Number(raw ?? '0.1');
-  if (!Number.isFinite(n) || n < 0 || n > 1) return 0.1;
-  return n;
-}
+type ErrorEvent = Parameters<NonNullable<Sentry.NodeOptions['beforeSend']>>[0];
 
 const PII_HEADERS = new Set(['authorization', 'cookie', 'set-cookie', 'x-api-key']);
 const PII_BODY_KEYS = new Set([
@@ -26,7 +21,7 @@ function scrub(value: unknown, depth = 0): unknown {
   return out;
 }
 
-function beforeSend(event: ErrorEvent, _hint: EventHint): ErrorEvent | null {
+export function scrubEvent(event: ErrorEvent): ErrorEvent {
   if (event.request?.headers) {
     const headers = event.request.headers as Record<string, string>;
     for (const k of Object.keys(headers)) {
@@ -34,23 +29,10 @@ function beforeSend(event: ErrorEvent, _hint: EventHint): ErrorEvent | null {
     }
   }
   if (event.request?.data !== undefined) {
-    event.request.data = scrub(event.request.data) as typeof event.request.data;
+    const req = event.request;
+    req.data = scrub(req.data);
   }
   if (event.extra) event.extra = scrub(event.extra) as typeof event.extra;
   if (event.contexts) event.contexts = scrub(event.contexts) as typeof event.contexts;
   return event;
-}
-
-export function initSentry(): void {
-  if (process.env['NODE_ENV'] === 'test') return;
-  const dsn = process.env['SENTRY_DSN'];
-  if (!dsn) return;
-  Sentry.init({
-    dsn,
-    environment: process.env['NODE_ENV'] ?? 'development',
-    tracesSampleRate: parseSampleRate(process.env['SENTRY_TRACES_SAMPLE_RATE']),
-    release: process.env['npm_package_version'],
-    sendDefaultPii: false,
-    beforeSend,
-  });
 }
