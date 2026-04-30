@@ -1,0 +1,17 @@
+# workers/main-worker/fly.toml
+app = "fleet-worker"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+
+[processes]
+  worker = "node dist/main.js"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

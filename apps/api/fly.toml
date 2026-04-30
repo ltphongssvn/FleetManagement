@@ -1,0 +1,32 @@
+# apps/api/fly.toml
+app = "fleet-api"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+  AWS_REGION = "us-west-2"
+  S3_ARTIFACTS_BUCKET = "fleet-pilot-artifacts"
+  OTEL_ENABLED = "false"
+  FLEET_PILOT_SCOPE = "00000000-0000-0000-0000-000000000000"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    path = "/health/live"
+    interval = "10s"
+    timeout = "2s"
+    grace_period = "5s"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
