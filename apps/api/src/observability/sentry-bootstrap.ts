@@ -2,7 +2,7 @@
 import * as Sentry from '@sentry/nestjs';
 import { scrubEvent } from './sentry-scrub.js';
 
-function parseSampleRate(raw: string | undefined): number {
+export function parseSampleRate(raw: string | undefined): number {
   const n = Number(raw ?? '0.1');
   if (!Number.isFinite(n) || n < 0 || n > 1) return 0.1;
   return n;

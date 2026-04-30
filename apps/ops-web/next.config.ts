@@ -14,6 +14,7 @@ const securityHeaders = [
 const config: NextConfig = {
   reactStrictMode: true,
   output: 'standalone',
+  transpilePackages: ['@fleet/observability'],
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
   },
