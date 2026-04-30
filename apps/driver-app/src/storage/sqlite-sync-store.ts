@@ -2,7 +2,7 @@
 // Native SyncStateStore adapter wrapping expo-sqlite via drizzle. Implements
 // the port from sync-loop.ts so runSyncOnce can drive real local persistence.
 import { drizzle, type ExpoSQLiteDatabase } from 'drizzle-orm/expo-sqlite';
-import { eq, inArray, asc } from 'drizzle-orm';
+import { eq, inArray, asc, sql } from 'drizzle-orm';
 import type * as SQLite from 'expo-sqlite';
 import { createSyncCursor, type SyncCursor, type ActionId } from '@fleet/sync-protocol';
 import type { SyncStateStore, SyncCommit } from '../sync/sync-loop.js';
@@ -46,12 +46,17 @@ export class SqliteSyncStore implements SyncStateStore {
           .set({ status: t.newStatus, syncedAt: t.newStatus === 'synced' ? now : null })
           .where(eq(localActionLog.actionId, t.actionId as ActionId)),
       ));
-      // Upsert cursor via ON CONFLICT (drizzle expo-sqlite supports onConflictDoUpdate).
+      // Upsert cursor + advance lastSeenSeq (PDF: client dedup > last_seen_seq).
+      // MAX() guards against out-of-order responses overwriting a higher seq with a lower one.
       await tx.insert(syncCursor)
-        .values({ id: 1, cursor: commit.newCursor, lastSeenSeq: 0, updatedAt: now })
+        .values({ id: 1, cursor: commit.newCursor, lastSeenSeq: commit.eventSeq, updatedAt: now })
         .onConflictDoUpdate({
           target: syncCursor.id,
-          set: { cursor: commit.newCursor, updatedAt: now },
+          set: {
+            cursor: commit.newCursor,
+            lastSeenSeq: sql`MAX(${syncCursor.lastSeenSeq}, ${commit.eventSeq})`,
+            updatedAt: now,
+          },
         });
       // Server deltas (commit.deltas) are read-model events; pilot scope: applied
       // by the worker's projection-runner server-side. Driver-app stores them

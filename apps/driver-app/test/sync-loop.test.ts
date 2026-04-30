@@ -80,7 +80,7 @@ describe('@fleet/driver-app - runSyncOnce', () => {
     const out = await runSyncOnce(transport, f.store);
     expect(out.kind).toBe('idle');
     expect(f.applySyncCommit).toHaveBeenCalledTimes(1);
-    expect(f.applySyncCommit).toHaveBeenCalledWith(expect.objectContaining({ transitions: [], deltas: [] }));
+    expect(f.applySyncCommit).toHaveBeenCalledWith(expect.objectContaining({ transitions: [], deltas: [], eventSeq: 100 }));
   });
 
   it('applies transitions + new cursor for accepted batch', async () => {
@@ -203,6 +203,7 @@ describe('@fleet/driver-app - runSyncOnce', () => {
     const commitArg = f.applySyncCommit.mock.calls[0]?.[0];
     expect(commitArg?.deltas).toHaveLength(1);
     expect(commitArg?.newCursor).toBe('200');
+    expect(commitArg?.eventSeq).toBe(200);
   });
 
   it('returns storage_failure when rollback throws on protocol_violation', async () => {

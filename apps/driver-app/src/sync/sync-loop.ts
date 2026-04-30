@@ -11,6 +11,8 @@ import type { SyncCursor, SyncRequest, SyncResponse } from '@fleet/sync-protocol
 export interface SyncCommit {
   readonly transitions: readonly ActionTransition[];
   readonly newCursor: SyncCursor;
+  /** PDF Day-One #4: client dedup > last_seen_seq. Must persist with cursor. */
+  readonly eventSeq: number;
   // PDF wire protocol: cursor must advance only when these are durably applied.
   readonly deltas: readonly unknown[];
   readonly projectionStatus: Record<string, unknown>;
@@ -142,6 +144,7 @@ export async function runSyncOnce(
     await store.applySyncCommit({
       transitions: outcome.transitions,
       newCursor: outcome.newCursor,
+      eventSeq: response.eventSeq,
       deltas: response.deltas,
       projectionStatus: response.projectionStatus,
       hysteresisVersion: response.hysteresisVersion,
