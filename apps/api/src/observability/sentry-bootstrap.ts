@@ -2,7 +2,7 @@
 import * as Sentry from '@sentry/nestjs';
 
 interface ScrubbableEvent {
-  request?: { headers?: Record<string, string>; data?: unknown };
+  request?: { headers?: Record<string, string | string[]>; data?: unknown };
   extra?: Record<string, unknown>;
   contexts?: Record<string, unknown>;
 }
@@ -48,8 +48,11 @@ function beforeSend(event: ScrubbableEvent2): ScrubbableEvent2 {
   if (typeof event.message === 'string') event.message = scrubString(event.message);
   if (event.exception?.values) for (const ex of event.exception.values) if (typeof ex.value === 'string') ex.value = scrubString(ex.value);
   if (event.request?.headers) {
-    for (const k of Object.keys(event.request.headers)) {
-      if (PII_HEADERS.has(k.toLowerCase())) event.request.headers[k] = '[redacted]';
+    const h = event.request.headers;
+    for (const k of Object.keys(h)) {
+      if (PII_HEADERS.has(k.toLowerCase())) {
+        h[k] = Array.isArray(h[k]) ? ['[redacted]'] : '[redacted]';
+      }
     }
   }
   if (event.request?.data !== undefined) {

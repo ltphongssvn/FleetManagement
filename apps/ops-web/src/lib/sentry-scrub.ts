@@ -37,9 +37,11 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
   if (typeof e.message === 'string') e.message = scrubString(e.message);
   if (e.exception?.values) for (const ex of e.exception.values) if (typeof ex.value === 'string') ex.value = scrubString(ex.value);
   if (event.request?.headers) {
-    const headers = event.request.headers as Record<string, string>;
-    for (const k of Object.keys(headers)) {
-      if (PII_HEADERS.has(k.toLowerCase())) headers[k] = '[redacted]';
+    const h = event.request.headers as Record<string, string | string[]>;
+    for (const k of Object.keys(h)) {
+      if (PII_HEADERS.has(k.toLowerCase())) {
+        h[k] = Array.isArray(h[k]) ? ['[redacted]'] : '[redacted]';
+      }
     }
   }
   if (event.request?.data !== undefined) {
