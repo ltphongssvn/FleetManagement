@@ -7,7 +7,7 @@ import type { OutboxRelayService } from '../src/outbox/outbox-relay.service.js';
 import type { ProjectionRunnerService } from '../src/projections/projection-runner.service.js';
 
 function makeConfig(scope = 'pilot-scope-uuid'): ConfigService {
-  return { get: vi.fn().mockReturnValue(scope) } as unknown as ConfigService;
+  return { get: vi.fn().mockReturnValue(scope), getOrThrow: vi.fn().mockReturnValue(scope) } as unknown as ConfigService;
 }
 
 describe('SchedulerService', () => {
@@ -82,6 +82,15 @@ describe('SchedulerService', () => {
     expect(drainOutboxFn).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(5_000);
     expect(drainOutboxFn).toHaveBeenCalledTimes(1);
+    svc.onModuleDestroy.bind(svc)();
+  });
+
+  it('drainOutbox swallows non-Error thrown values (#661)', async () => {
+    const outbox = { drainOnce: vi.fn().mockRejectedValue('redis exploded') } as unknown as OutboxRelayService;
+    const proj = { drainOnce: vi.fn() } as unknown as ProjectionRunnerService;
+    const svc = new SchedulerService(outbox, proj, makeConfig() as never);
+    await svc.drainOutbox();
+    expect(logErr).toHaveBeenCalledWith(expect.stringContaining('redis exploded'));
     svc.onModuleDestroy.bind(svc)();
   });
 });

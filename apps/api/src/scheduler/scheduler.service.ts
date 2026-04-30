@@ -24,7 +24,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     private readonly projectionRunner: ProjectionRunnerService,
     config: ConfigService<Env, true>,
   ) {
-    this.pilotScope = config.get('FLEET_PILOT_SCOPE', { infer: true });
+    this.pilotScope = config.getOrThrow('FLEET_PILOT_SCOPE', { infer: true });
   }
 
   onModuleInit(): void {
