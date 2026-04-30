@@ -99,7 +99,7 @@ jobs:
 
       - name: Build
         if: hashFiles('pnpm-lock.yaml') != ''
-        run: pnpm -r --if-present build
+        run: pnpm exec turbo run build
 
       - name: Lint
         if: hashFiles('pnpm-lock.yaml') != ''
