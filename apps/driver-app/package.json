@@ -26,6 +26,7 @@
   "dependencies": {
     "@expo/metro-runtime": "^55.0.10",
     "@fleet/sync-protocol": "workspace:*",
+    "@sentry/react-native": "^8.9.2",
     "drizzle-orm": "^0.45.2",
     "expo": "^55.0.17",
     "expo-linking": "^55.0.14",
@@ -41,11 +42,11 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.14",
+    "@types/uuid": "^10.0.0",
     "@vitest/coverage-istanbul": "^4.1.5",
     "@vitest/coverage-v8": "4.1.4",
     "drizzle-kit": "^0.31.10",
     "fast-check": "^4.7.0",
-    "rimraf": "^6.0.1",
-    "@types/uuid": "^10.0.0"
+    "rimraf": "^6.0.1"
   }
 }

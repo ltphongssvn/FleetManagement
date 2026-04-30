@@ -1,9 +1,12 @@
+import { initSentry } from './observability/sentry-bootstrap.js';
 // apps/api/src/main.ts
 // OTel SDK is started by ./observability/otel-bootstrap.ts via `node --import`.
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { ZodExceptionFilter } from './common/zod-exception.filter.js';
 import { shutdownOtel } from './observability/otel.js';
+
+initSentry();
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);

@@ -48,6 +48,8 @@
     "@opentelemetry/sdk-node": "^0.215.0",
     "@opentelemetry/sdk-trace-base": "^2.7.0",
     "@opentelemetry/semantic-conventions": "^1.40.0",
+    "@sentry/nestjs": "^10.51.0",
+    "@sentry/node": "^10.51.0",
     "bullmq": "^5.76.2",
     "drizzle-orm": "^0.45.2",
     "expo-server-sdk": "^3.15.0",
