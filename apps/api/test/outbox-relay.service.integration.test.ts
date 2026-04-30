@@ -66,7 +66,7 @@ describe('@fleet/api - OutboxRelayService (integration)', () => {
     const { svc, queues } = makeRelay();
     await svc.drainOnce();
     const rows = await testDb.db.execute(sql`SELECT status FROM outbox`);
-    const r = rowsOf<{ status: string }>(rows);
+    const r = rowsOf<{ status: string }>(rows as unknown as { rows: readonly { status: string }[] });
     expect(r[0]?.status).toBe('sent');
     const projAdd = queues['projections']?.add;
     if (!projAdd) throw new Error('projections queue missing');
@@ -104,7 +104,7 @@ describe('@fleet/api - OutboxRelayService (integration)', () => {
     const { svc } = makeRelay();
     await svc.drainOnce();
     const rows = await testDb.db.execute(sql`SELECT status FROM outbox`);
-    const r = rowsOf<{ status: string }>(rows);
+    const r = rowsOf<{ status: string }>(rows as unknown as { rows: readonly { status: string }[] });
     expect(r[0]?.status).toBe('dead_letter');
   });
 });

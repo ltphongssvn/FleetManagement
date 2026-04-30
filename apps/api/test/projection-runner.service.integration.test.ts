@@ -31,7 +31,7 @@ describe('@fleet/api - ProjectionRunnerService (integration)', () => {
     const svc = new ProjectionRunnerService(testDb.db);
     const result = await svc.drainOnce(COMPANY);
     expect(result.applied).toBe(1);
-    const r = rowsOf<{ state: string }>(await testDb.db.execute(sql`SELECT state FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID}`));
+    const r = rowsOf<{ state: string }>(await testDb.db.execute(sql`SELECT state FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID}`) as unknown as { rows: readonly { state: string }[] });
     expect(r[0]?.state).toBe('started');
   });
 
@@ -44,7 +44,7 @@ describe('@fleet/api - ProjectionRunnerService (integration)', () => {
     `);
     const svc = new ProjectionRunnerService(testDb.db);
     await svc.drainOnce(COMPANY);
-    const r = rowsOf<{ watermark: string }>(await testDb.db.execute(sql`SELECT watermark FROM projection_status WHERE projection_name = 'dispatch_board' AND scope = ${COMPANY}`));
+    const r = rowsOf<{ watermark: string }>(await testDb.db.execute(sql`SELECT watermark FROM projection_status WHERE projection_name = 'dispatch_board' AND scope = ${COMPANY}`) as unknown as { rows: readonly { watermark: string }[] });
     expect(String(r[0]?.watermark)).toBe('5');
   });
 
@@ -60,9 +60,9 @@ describe('@fleet/api - ProjectionRunnerService (integration)', () => {
     const second = await svc.drainOnce(COMPANY);
     expect(second.applied).toBe(0);
     // #702: stronger - no duplicate row, watermark stable
-    const projRows = rowsOf<{ road_run_id: string }>(await testDb.db.execute(sql`SELECT road_run_id FROM dispatch_board_projection`));
+    const projRows = rowsOf<{ road_run_id: string }>(await testDb.db.execute(sql`SELECT road_run_id FROM dispatch_board_projection`) as unknown as { rows: readonly { road_run_id: string }[] });
     expect(projRows).toHaveLength(1);
-    const wmRows = rowsOf<{ watermark: string }>(await testDb.db.execute(sql`SELECT watermark FROM projection_status WHERE scope = ${COMPANY}`));
+    const wmRows = rowsOf<{ watermark: string }>(await testDb.db.execute(sql`SELECT watermark FROM projection_status WHERE scope = ${COMPANY}`) as unknown as { rows: readonly { watermark: string }[] });
     expect(String(wmRows[0]?.watermark)).toBe('1');
   });
 
@@ -79,9 +79,9 @@ describe('@fleet/api - ProjectionRunnerService (integration)', () => {
     const svc = new ProjectionRunnerService(testDb.db);
     const result = await svc.drainOnce(COMPANY);
     expect(result.applied).toBe(2);
-    const r = rowsOf<{ state: string }>(await testDb.db.execute(sql`SELECT state FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID}`));
+    const r = rowsOf<{ state: string }>(await testDb.db.execute(sql`SELECT state FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID}`) as unknown as { rows: readonly { state: string }[] });
     expect(r[0]?.state).toBe('started');
-    const w = rowsOf<{ watermark: string }>(await testDb.db.execute(sql`SELECT watermark FROM projection_status WHERE scope = ${COMPANY}`));
+    const w = rowsOf<{ watermark: string }>(await testDb.db.execute(sql`SELECT watermark FROM projection_status WHERE scope = ${COMPANY}`) as unknown as { rows: readonly { watermark: string }[] });
     expect(String(w[0]?.watermark)).toBe('2');
   });
 
@@ -96,7 +96,7 @@ describe('@fleet/api - ProjectionRunnerService (integration)', () => {
     const svc = new ProjectionRunnerService(testDb.db);
     const result = await svc.drainOnce(COMPANY);
     expect(result.applied).toBe(0);
-    const r = rowsOf<{ road_run_id: string }>(await testDb.db.execute(sql`SELECT road_run_id FROM dispatch_board_projection`));
+    const r = rowsOf<{ road_run_id: string }>(await testDb.db.execute(sql`SELECT road_run_id FROM dispatch_board_projection`) as unknown as { rows: readonly { road_run_id: string }[] });
     expect(r).toHaveLength(0);
   });
 });
