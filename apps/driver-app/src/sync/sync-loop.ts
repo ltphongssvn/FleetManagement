@@ -34,6 +34,9 @@ export interface SyncTransport {
 export interface SyncStateStore {
   readDispatchable(): Promise<readonly QueuedActionWithPayload[]>;
   readCursor(): Promise<SyncCursor>;
+  /** Mark batch as 'syncing' before /sync POST. Prevents concurrent loop
+   *  from re-dispatching the same actions while transport is in flight. */
+  claimDispatched(actionIds: readonly string[]): Promise<void>;
   /** Atomic commit: persist transitions + deltas + cursor in one DB tx so the
    *  client cursor never advances ahead of applied server work. PDF requirement. */
   applySyncCommit(commit: SyncCommit): Promise<void>;
@@ -85,6 +88,20 @@ export async function runSyncOnce(
     store.readCursor(),
   ]);
   const plan = planSyncRequest(dispatchable, cursor);
+
+  // #718: claim before transport so a concurrent runSyncOnce sees these as
+  // 'syncing' and skips them in dispatchableActions().
+  if (plan.dispatchedActionIds.length > 0) {
+    try {
+      await store.claimDispatched(plan.dispatchedActionIds);
+    } catch (err: unknown) {
+      return {
+        kind: 'storage_failure',
+        error: err instanceof Error ? err : new Error(String(err)),
+        stage: 'apply_ack',
+      };
+    }
+  }
 
   let response: SyncResponse;
   try {

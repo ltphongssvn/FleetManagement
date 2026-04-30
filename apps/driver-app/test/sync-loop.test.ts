@@ -24,6 +24,7 @@ interface StoreFixture {
   applySyncCommit: ReturnType<typeof vi.fn>;
   rollbackDispatched: ReturnType<typeof vi.fn>;
   resetForCursorExpired: ReturnType<typeof vi.fn>;
+  claimDispatched: ReturnType<typeof vi.fn>;
 }
 
 function makeStore(initial: {
@@ -36,14 +37,16 @@ function makeStore(initial: {
   const applySyncCommit = vi.fn(initial.applySyncCommitImpl ?? (() => Promise.resolve()));
   const rollbackDispatched = vi.fn(initial.rollbackImpl ?? (() => Promise.resolve()));
   const resetForCursorExpired = vi.fn(initial.resetImpl ?? (() => Promise.resolve()));
+  const claimDispatched = vi.fn(() => Promise.resolve());
   const store: SyncStateStore = {
     readDispatchable: () => Promise.resolve(initial.dispatchable ?? []),
     readCursor: () => Promise.resolve(initial.cursor ?? cursor0),
     applySyncCommit,
     rollbackDispatched,
     resetForCursorExpired,
+    claimDispatched,
   };
-  return { store, applySyncCommit, rollbackDispatched, resetForCursorExpired };
+  return { store, applySyncCommit, rollbackDispatched, resetForCursorExpired, claimDispatched };
 }
 
 const okResponse = (results: readonly string[], newCursor = '100'): SyncResponse => ({
