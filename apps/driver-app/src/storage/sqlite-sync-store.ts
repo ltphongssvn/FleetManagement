@@ -69,8 +69,15 @@ export class SqliteSyncStore implements SyncStateStore {
 
   async resetForCursorExpired(): Promise<void> {
     await this.db.transaction(async (tx) => {
+      const now = new Date();
       await tx.update(localActionLog).set({ status: 'pending' }).where(eq(localActionLog.status, 'syncing'));
-      await tx.update(syncCursor).set({ cursor: '0', lastSeenSeq: 0, updatedAt: new Date() }).where(eq(syncCursor.id, 1));
+      // Upsert: if no cursor row exists yet (fresh app), insert; else reset.
+      await tx.insert(syncCursor)
+        .values({ id: 1, cursor: '0', lastSeenSeq: 0, updatedAt: now })
+        .onConflictDoUpdate({
+          target: syncCursor.id,
+          set: { cursor: '0', lastSeenSeq: 0, updatedAt: now },
+        });
     });
   }
 

@@ -1,7 +1,6 @@
 // apps/api/test/outbox-relay.service.integration.test.ts
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { Queue } from 'bullmq';
 import { OutboxRelayService } from '../src/outbox/outbox-relay.service.js';
 import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
 import { rowsOf } from './helpers/integration-rows.js';
@@ -12,23 +11,43 @@ const BU = '00000000-0000-0000-0000-000000000004';
 const DEPOT = '00000000-0000-0000-0000-000000000005';
 const LE = '00000000-0000-0000-0000-000000000006';
 
-function fakeQueue(): Queue {
-  return { add: vi.fn().mockResolvedValue(undefined), close: vi.fn().mockResolvedValue(undefined) } as unknown as Queue;
+interface FakeQueue {
+  add: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
 }
 
-function makeRelay(): { svc: OutboxRelayService; queues: Record<string, Queue> } {
-  const queues = { projections: fakeQueue(), erp: fakeQueue(), intake: fakeQueue(), 'outbox-dead-letter': fakeQueue() };
-  const ctor = OutboxRelayService.prototype.constructor as unknown as new (db: unknown, queues: unknown) => OutboxRelayService;
-  // Try the real DI shape; production uses BULLMQ_CONNECTION + factory. Here we patch private queue map.
-  const svc = new (OutboxRelayService as unknown as new (db: unknown, conn: unknown) => OutboxRelayService)(testDb.db, { host: 'localhost', port: 6379 });
-  // Inject our fake queues directly via reflection on the private getQueue map
-  Object.assign(svc as unknown as { queues: Record<string, Queue> }, { queues });
-  // Override getQueue to return our fakes
-  (svc as unknown as { getQueue: (name: string) => Queue }).getQueue = (name: string) => {
-    if (queues[name]) return queues[name];
-    queues[name] = fakeQueue();
-    return queues[name];
+function fakeQueue(): FakeQueue {
+  return {
+    add: vi.fn().mockResolvedValue(undefined),
+    close: vi.fn().mockResolvedValue(undefined),
   };
+}
+
+interface RelayHarness {
+  readonly svc: OutboxRelayService;
+  readonly queues: Record<string, FakeQueue>;
+}
+
+function makeRelay(): RelayHarness {
+  const queues: Record<string, FakeQueue> = {
+    projections: fakeQueue(),
+    erp: fakeQueue(),
+    intake: fakeQueue(),
+    'outbox-dead-letter': fakeQueue(),
+  };
+  const svc = new (OutboxRelayService as unknown as new (db: unknown, conn: unknown) => OutboxRelayService)(
+    testDb.db,
+    { host: 'localhost', port: 6379 },
+  );
+  const getQueue = (name: string): FakeQueue => {
+    let q = queues[name];
+    if (!q) {
+      q = fakeQueue();
+      queues[name] = q;
+    }
+    return q;
+  };
+  Object.assign(svc as unknown as { getQueue: typeof getQueue }, { getQueue });
   return { svc, queues };
 }
 
@@ -49,9 +68,9 @@ describe('@fleet/api - OutboxRelayService (integration)', () => {
     const rows = await testDb.db.execute(sql`SELECT status FROM outbox`);
     const r = rowsOf<{ status: string }>(rows);
     expect(r[0]?.status).toBe('sent');
-    const projAdd = queues['projections']?.add as ReturnType<typeof vi.fn>;
+    const projAdd = queues['projections']?.add;
+    if (!projAdd) throw new Error('projections queue missing');
     expect(projAdd).toHaveBeenCalledTimes(1);
-    // #692: verify the actual payload, not just call count
     expect(projAdd).toHaveBeenCalledWith(
       'road_run_started',
       expect.objectContaining({ aggregateType: 'road_run', eventType: 'road_run_started' }),
@@ -69,7 +88,10 @@ describe('@fleet/api - OutboxRelayService (integration)', () => {
     const a = makeRelay();
     const b = makeRelay();
     await Promise.all([a.svc.drainOnce(), b.svc.drainOnce()]);
-    const totalAddCalls = (a.queues['projections']?.add as ReturnType<typeof vi.fn>).mock.calls.length + (b.queues['projections']?.add as ReturnType<typeof vi.fn>).mock.calls.length;
+    const aAdd = a.queues['projections']?.add;
+    const bAdd = b.queues['projections']?.add;
+    if (!aAdd || !bAdd) throw new Error('projections queue missing');
+    const totalAddCalls = aAdd.mock.calls.length + bAdd.mock.calls.length;
     expect(totalAddCalls).toBe(1);
   });
 
