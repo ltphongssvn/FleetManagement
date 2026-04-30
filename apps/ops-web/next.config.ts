@@ -14,7 +14,6 @@ const securityHeaders = [
 
 const config: NextConfig = {
   reactStrictMode: true,
-  output: 'standalone',
   transpilePackages: ['@fleet/observability'],
   outputFileTracingRoot: path.join(import.meta.dirname, '../..'),
   env: {
