@@ -42,7 +42,9 @@ function parseSyncResponse(raw: unknown): SyncResponse {
     throw new Error(`SyncResponse: invalid status: ${String(r.status)}`);
   }
   if (typeof r.newCursor !== 'string') throw new Error('SyncResponse: newCursor must be string');
-  if (typeof r.eventSeq !== 'number') throw new Error('SyncResponse: eventSeq must be number');
+  if (typeof r.eventSeq !== 'number' || !Number.isSafeInteger(r.eventSeq) || r.eventSeq < 0) {
+    throw new Error('SyncResponse: eventSeq must be a non-negative safe integer');
+  }
   if (!Array.isArray(r.deltas)) throw new Error('SyncResponse: deltas must be array');
   if (!Array.isArray(r.results)) throw new Error('SyncResponse: results must be array');
   for (const x of r.results as unknown[]) {
