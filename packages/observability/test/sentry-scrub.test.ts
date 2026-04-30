@@ -95,7 +95,7 @@ describe('scrub (purity + structure)', () => {
       cur.next = {};
       cur = cur.next;
     }
-    expect(() => scrub(root)).not.toThrow();
+    expect(() => { scrub(root); }).not.toThrow();
   });
 
   it('returns UNSCRUBBABLE sentinel when Object.entries throws', () => {
@@ -123,7 +123,7 @@ describe('scrubEvent (purity)', () => {
       contexts: { os: { name: 'linux' } },
       exception: { values: [{ value: 'err with a@b.co' }] },
     };
-    const snapshot = JSON.parse(JSON.stringify(input)) as typeof input;
+    const snapshot: typeof input = JSON.parse(JSON.stringify(input));
     scrubEvent(input);
     expect(input).toEqual(snapshot);
   });

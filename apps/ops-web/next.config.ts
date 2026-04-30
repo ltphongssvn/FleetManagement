@@ -17,9 +17,6 @@ const config: NextConfig = {
   outputFileTracingRoot: path.join(import.meta.dirname, '../..'),
   turbopack: {
     root: path.join(import.meta.dirname, '../..'),
-    resolveAlias: {
-      '@fleet/observability': './packages/observability/dist/index.js',
-    },
   },
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,

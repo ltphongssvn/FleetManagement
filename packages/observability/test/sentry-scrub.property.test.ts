@@ -19,7 +19,7 @@ describe('scrub - property-based', () => {
   it('never throws on arbitrary JSON values', () => {
     fc.assert(
       fc.property(fc.jsonValue(), (v) => {
-        expect(() => scrub(v)).not.toThrow();
+        expect(() => { scrub(v); }).not.toThrow();
       }),
       { numRuns: 100 },
     );
@@ -28,7 +28,7 @@ describe('scrub - property-based', () => {
   it('does not mutate arbitrary input objects', () => {
     fc.assert(
       fc.property(fc.object(), (v) => {
-        const snapshot = structuredClone(v);
+        const snapshot: unknown = structuredClone(v);
         scrub(v);
         expect(v).toEqual(snapshot);
       }),

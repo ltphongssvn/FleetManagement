@@ -9,4 +9,4 @@ export {
   scrub,
   scrubEvent,
   type ScrubbableEvent,
-} from './sentry-scrub.js';
+} from './sentry-scrub.ts';
