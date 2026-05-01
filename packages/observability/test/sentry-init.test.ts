@@ -1,6 +1,6 @@
 // packages/observability/test/sentry-init.test.ts
 import { describe, it, expect } from 'vitest';
-import { buildSentryOptions, parseTracesSampleRate } from '../src/sentry-init.ts';
+import { buildSentryOptions, parseTracesSampleRate, createBeforeSend } from '../src/sentry-init.ts';
 import { scrubEvent } from '../src/sentry-scrub.ts';
 
 describe('parseTracesSampleRate', () => {
@@ -96,6 +96,32 @@ describe('buildSentryOptions release defaulting', () => {
       if (orig === undefined) delete process.env['npm_package_version'];
       else process.env['npm_package_version'] = orig;
     }
+  });
+});
+
+describe('createBeforeSend factory', () => {
+  it('returns scrubEvent function by default', () => {
+    const beforeSend = createBeforeSend();
+    expect(typeof beforeSend).toBe('function');
+    const out = beforeSend({ message: 'Bearer abc.def-ghi' });
+    expect(out.message).toBe('[redacted]');
+  });
+
+  it('accepts auditLog option to track redaction counts', () => {
+    const counts: number[] = [];
+    const beforeSend = createBeforeSend({
+      auditLog: (count: number) => counts.push(count),
+    });
+    beforeSend({ message: 'Bearer abc.def-ghi and jane@example.com', request: { data: { password: 'p' } } });
+    expect(counts).toHaveLength(1);
+    expect(counts[0]).toBeGreaterThanOrEqual(2);
+  });
+
+  it('does not call auditLog when no redactions occur', () => {
+    const counts: number[] = [];
+    const beforeSend = createBeforeSend({ auditLog: (c: number) => counts.push(c) });
+    beforeSend({ message: 'plain text' });
+    expect(counts).toEqual([0]);
   });
 });
 

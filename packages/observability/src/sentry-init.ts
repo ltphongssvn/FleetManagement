@@ -6,7 +6,7 @@
 // surface differs per runtime (@sentry/nestjs vs @sentry/nextjs vs
 // @sentry/react-native). This factory returns a fully-resolved options
 // bundle the consumer passes to its SDK's init().
-import { scrubEvent, type ScrubbableEvent } from './sentry-scrub.ts';
+import { scrubEvent, scrubString, createScrubber, PII_HEADERS, REDACTED, type ScrubbableEvent } from './sentry-scrub.ts';
 import { parseDsn } from './dsn.ts';
 
 export interface SentryInitInput {
@@ -68,3 +68,65 @@ export function buildSentryOptions(input: SentryInitInput): BuildSentryOptionsRe
   if (input.release !== undefined) options.release = input.release;
   return { options };
 }
+
+export interface CreateBeforeSendOptions {
+  /** Called once per beforeSend invocation with the redaction count. */
+  auditLog?: (redactionCount: number) => void;
+}
+
+/**
+ * Factory wrapping scrubEvent with optional audit logging. Returns a function
+ * suitable for Sentry.init({ beforeSend }).
+ */
+export function createBeforeSend(
+  options: CreateBeforeSendOptions = {},
+): (event: ScrubbableEvent) => ScrubbableEvent {
+  const { auditLog } = options;
+  if (!auditLog) return scrubEvent;
+  return (event) => {
+    let count = 0;
+    const scrubFn = createScrubber({ onRedact: () => { count++; } });
+    const out = { ...event } as ScrubbableEvent;
+    if (typeof out.message === 'string') {
+      const before = out.message;
+      out.message = scrubString(out.message);
+      if (before !== out.message) count++;
+    }
+    if (out.exception?.values) {
+      out.exception = {
+        ...out.exception,
+        values: out.exception.values.map((ex) => {
+          if (typeof ex.value !== 'string') return ex;
+          const before = ex.value;
+          const after = scrubString(ex.value);
+          if (before !== after) count++;
+          return { ...ex, value: after };
+        }),
+      };
+    }
+    if (out.request) {
+      const req = { ...out.request };
+      if (req.headers) {
+        const newHeaders: Record<string, string | string[]> = {};
+        for (const k of Object.keys(req.headers)) {
+          const v = req.headers[k];
+          if (v === undefined) continue;
+          if (PII_HEADERS.has(k.toLowerCase())) {
+            newHeaders[k] = Array.isArray(v) ? [REDACTED] : REDACTED;
+            count++;
+          } else {
+            newHeaders[k] = v;
+          }
+        }
+        req.headers = newHeaders;
+      }
+      if (req.data !== undefined) req.data = scrubFn(req.data);
+      out.request = req;
+    }
+    if (out.extra) out.extra = scrubFn(out.extra) as Record<string, unknown>;
+    if (out.contexts) out.contexts = scrubFn(out.contexts) as Record<string, unknown>;
+    auditLog(count);
+    return out;
+  };
+}
+

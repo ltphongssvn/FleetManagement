@@ -32,4 +32,6 @@ export {
   type SentryInitInput,
   type SentryInitOptions,
   type BuildSentryOptionsResult,
+  createBeforeSend,
+  type CreateBeforeSendOptions,
 } from './sentry-init.ts';
