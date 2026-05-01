@@ -1,6 +1,6 @@
 // packages/observability/test/sentry-init.test.ts
 import { describe, it, expect } from 'vitest';
-import { buildSentryOptions, parseTracesSampleRate, createBeforeSend } from '../src/sentry-init.ts';
+import { buildSentryOptions, parseTracesSampleRate, createBeforeSend, readDepthLimitFromEnv } from '../src/sentry-init.ts';
 import { scrubEvent } from '../src/sentry-scrub.ts';
 
 describe('parseTracesSampleRate', () => {
@@ -122,6 +122,41 @@ describe('createBeforeSend factory', () => {
     const beforeSend = createBeforeSend({ auditLog: (c: number) => counts.push(c) });
     beforeSend({ message: 'plain text' });
     expect(counts).toEqual([0]);
+  });
+});
+
+describe('createBeforeSend with audit metadata', () => {
+  it('adds __redaction metadata to event.extra when annotateEvent is true', () => {
+    const beforeSend = createBeforeSend({ annotateEvent: true });
+    const out = beforeSend({ message: 'Bearer abc.def-ghi', request: { data: { password: 'p' } } });
+    const meta = out.extra?.['__redaction'] as { count: number } | undefined;
+    expect(meta).toBeDefined();
+    expect(meta?.count).toBeGreaterThanOrEqual(2);
+  });
+
+  it('does not add __redaction metadata when annotateEvent is false (default)', () => {
+    const beforeSend = createBeforeSend();
+    const out = beforeSend({ message: 'Bearer abc.def-ghi' });
+    expect(out.extra?.['__redaction']).toBeUndefined();
+  });
+});
+
+describe('readDepthLimitFromEnv', () => {
+  it('returns env value when valid number', () => {
+    expect(readDepthLimitFromEnv({ FLEET_SCRUB_DEPTH: '4' })).toBe(4);
+  });
+
+  it('returns DEFAULT_DEPTH_LIMIT when env unset', () => {
+    expect(readDepthLimitFromEnv({})).toBe(6);
+  });
+
+  it('returns DEFAULT_DEPTH_LIMIT when env is non-numeric', () => {
+    expect(readDepthLimitFromEnv({ FLEET_SCRUB_DEPTH: 'abc' })).toBe(6);
+  });
+
+  it('returns DEFAULT_DEPTH_LIMIT when env value out of range', () => {
+    expect(readDepthLimitFromEnv({ FLEET_SCRUB_DEPTH: '999' })).toBe(6);
+    expect(readDepthLimitFromEnv({ FLEET_SCRUB_DEPTH: '-1' })).toBe(6);
   });
 });
 

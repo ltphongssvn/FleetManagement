@@ -33,5 +33,6 @@ export {
   type SentryInitOptions,
   type BuildSentryOptionsResult,
   createBeforeSend,
+  readDepthLimitFromEnv,
   type CreateBeforeSendOptions,
 } from './sentry-init.ts';

@@ -6,7 +6,7 @@
 // surface differs per runtime (@sentry/nestjs vs @sentry/nextjs vs
 // @sentry/react-native). This factory returns a fully-resolved options
 // bundle the consumer passes to its SDK's init().
-import { scrubEvent, scrubString, createScrubber, PII_HEADERS, REDACTED, type ScrubbableEvent } from './sentry-scrub.ts';
+import { scrubEvent, scrubString, createScrubber, PII_HEADERS, REDACTED, DEFAULT_DEPTH_LIMIT, type ScrubbableEvent } from './sentry-scrub.ts';
 import { parseDsn } from './dsn.ts';
 
 export interface SentryInitInput {
@@ -72,6 +72,23 @@ export function buildSentryOptions(input: SentryInitInput): BuildSentryOptionsRe
 export interface CreateBeforeSendOptions {
   /** Called once per beforeSend invocation with the redaction count. */
   auditLog?: (redactionCount: number) => void;
+  /** When true, attaches { count } to event.extra.__redaction for dashboards. */
+  annotateEvent?: boolean;
+}
+
+const ENV_DEPTH_VAR = 'FLEET_SCRUB_DEPTH';
+const MAX_ENV_DEPTH = 50;
+
+/**
+ * Read scrub depth limit from an env-like record. Returns DEFAULT_DEPTH_LIMIT
+ * for unset, non-numeric, or out-of-range values.
+ */
+export function readDepthLimitFromEnv(env: Record<string, string | undefined>): number {
+  const raw = env[ENV_DEPTH_VAR];
+  if (raw === undefined) return DEFAULT_DEPTH_LIMIT;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0 || n > MAX_ENV_DEPTH) return DEFAULT_DEPTH_LIMIT;
+  return n;
 }
 
 /**
@@ -81,8 +98,8 @@ export interface CreateBeforeSendOptions {
 export function createBeforeSend(
   options: CreateBeforeSendOptions = {},
 ): (event: ScrubbableEvent) => ScrubbableEvent {
-  const { auditLog } = options;
-  if (!auditLog) return scrubEvent;
+  const { auditLog, annotateEvent } = options;
+  if (!auditLog && !annotateEvent) return scrubEvent;
   return (event) => {
     let count = 0;
     const scrubFn = createScrubber({ onRedact: () => { count++; } });
@@ -125,7 +142,10 @@ export function createBeforeSend(
     }
     if (out.extra) out.extra = scrubFn(out.extra) as Record<string, unknown>;
     if (out.contexts) out.contexts = scrubFn(out.contexts) as Record<string, unknown>;
-    auditLog(count);
+    if (annotateEvent) {
+      out.extra = { ...(out.extra ?? {}), __redaction: { count } };
+    }
+    auditLog?.(count);
     return out;
   };
 }
