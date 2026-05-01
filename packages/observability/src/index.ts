@@ -8,5 +8,7 @@ export {
   scrubString,
   scrub,
   scrubEvent,
+  createScrubber,
+  type ScrubberOptions,
   type ScrubbableEvent,
 } from './sentry-scrub.ts';

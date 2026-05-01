@@ -4,6 +4,7 @@ import {
   scrub,
   scrubString,
   scrubEvent,
+  createScrubber,
   PII_KEY_RE,
   PII_HEADERS,
   REDACTED,
@@ -193,5 +194,58 @@ describe('scrubEvent (purity)', () => {
     expect(PII_HEADERS.has('cookie')).toBe(true);
     expect(PII_HEADERS.has('set-cookie')).toBe(true);
     expect(PII_HEADERS.has('x-api-key')).toBe(true);
+  });
+});
+
+describe('createScrubber', () => {
+  it('uses default depthLimit of 6', () => {
+    const fn = createScrubber();
+    expect(fn('hello')).toBe('hello');
+  });
+
+  it('respects custom depthLimit (shallow stops recursion)', () => {
+    const fn = createScrubber({ depthLimit: 0 });
+    const out = fn({ a: { password: 'p' } }) as Record<string, unknown>;
+    expect(out['a']).toEqual({ password: 'p' });
+  });
+
+  it('respects custom depthLimit (deep)', () => {
+    const fn = createScrubber({ depthLimit: 10 });
+    type Nest = Record<string, Record<string, Record<string, Record<string, unknown>>>>;
+    const out = fn({ a: { b: { c: { password: 'p' } } } }) as Nest;
+    expect(out['a']?.['b']?.['c']?.['password']).toBe(REDACTED);
+  });
+
+  it('redacts PII keys', () => {
+    const fn = createScrubber();
+    const out = fn({ password: 'secret', user: 'alice' }) as Record<string, unknown>;
+    expect(out['password']).toBe(REDACTED);
+    expect(out['user']).toBe('alice');
+  });
+
+  it('redacts strings via PII_VALUE_PATTERNS', () => {
+    const fn = createScrubber();
+    expect(fn('Bearer abc.def-ghi')).toBe(REDACTED);
+  });
+
+  it('handles arrays', () => {
+    const fn = createScrubber();
+    const out = fn(['a@b.co', 'fine']) as string[];
+    expect(out[0]).toBe(REDACTED);
+    expect(out[1]).toBe('fine');
+  });
+
+  it('returns UNSCRUBBABLE on throwing object', () => {
+    const fn = createScrubber();
+    const trap = new Proxy({}, { ownKeys() { throw new Error('nope'); } });
+    expect(fn(trap)).toBe(UNSCRUBBABLE);
+  });
+
+  it('passes through primitives', () => {
+    const fn = createScrubber();
+    expect(fn(null)).toBe(null);
+    expect(fn(undefined)).toBe(undefined);
+    expect(fn(42)).toBe(42);
+    expect(fn(true)).toBe(true);
   });
 });

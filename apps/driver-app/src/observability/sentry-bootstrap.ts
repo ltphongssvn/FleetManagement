@@ -1,6 +1,6 @@
 // apps/driver-app/src/observability/sentry-bootstrap.ts
 import * as Sentry from '@sentry/react-native';
-import { scrub, scrubString } from './sentry-scrub.js';
+import { scrub, scrubString } from '@fleet/observability';
 
 type ErrorEvent = Parameters<NonNullable<Parameters<typeof Sentry.init>[0]['beforeSend']>>[0];
 

@@ -1,6 +1,6 @@
 // apps/api/src/observability/sentry-bootstrap.ts
 import * as Sentry from '@sentry/nestjs';
-import { scrubEvent } from './sentry-scrub.js';
+import { scrubEvent } from '@fleet/observability';
 
 export function parseSampleRate(raw: string | undefined): number {
   const n = Number(raw ?? '0.1');

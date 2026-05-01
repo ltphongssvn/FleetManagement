@@ -1,6 +1,6 @@
 // apps/api/test/sentry-scrub.test.ts
 import { describe, it, expect } from 'vitest';
-import { scrub, scrubString, scrubEvent, type ScrubbableEvent } from '../src/observability/sentry-scrub.js';
+import { scrub, scrubString, scrubEvent, type ScrubbableEvent } from '@fleet/observability';
 
 describe('@fleet/api - PII scrubber', () => {
   it('redacts password key (case-insensitive)', () => {

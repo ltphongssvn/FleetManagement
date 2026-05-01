@@ -1,6 +1,6 @@
 // apps/driver-app/test/sentry-scrub.test.ts
 import { describe, it, expect } from 'vitest';
-import { scrub, scrubString } from '../src/observability/sentry-scrub.js';
+import { scrub, scrubString } from '@fleet/observability';
 
 describe('@fleet/driver-app - PII scrubber', () => {
   it('redacts password (case-insensitive)', () => {

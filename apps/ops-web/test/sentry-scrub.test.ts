@@ -1,6 +1,6 @@
 // apps/ops-web/test/sentry-scrub.test.ts
 import { describe, it, expect } from 'vitest';
-import { scrub, scrubString, scrubEvent } from '@/lib/sentry-scrub';
+import { scrub, scrubString, scrubEvent } from '@fleet/observability';
 
 describe('@fleet/ops-web - PII scrubber', () => {
   it('redacts password (case-insensitive)', () => {
