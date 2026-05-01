@@ -99,3 +99,20 @@ describe('PiiHeaderName branded type + validator', () => {
   });
 });
 
+describe('scrubberConfigSchema error messages (mutation hardening)', () => {
+  it('rejects non-RegExp piiKeyPattern with "must be a RegExp" message', () => {
+    try {
+      validateScrubberConfig({ piiKeyPattern: 'nope' });
+    } catch (err) {
+      const issues = (err as { issues: { message: string }[] }).issues;
+      expect(issues.some((i) => i.message === 'must be a RegExp')).toBe(true);
+    }
+  });
+
+  it('onScrubError validator rejects non-function values', () => {
+    expect(() => validateScrubberConfig({ onScrubError: 'not-a-function' })).toThrow();
+    expect(() => validateScrubberConfig({ onScrubError: 42 })).toThrow();
+    expect(() => validateScrubberConfig({ onScrubError: null })).toThrow();
+  });
+});
+

@@ -6,6 +6,7 @@ import {
   scrubEvent,
   createScrubber,
   setScrubErrorHandler,
+  assertPiiHeader,
   PII_KEY_RE,
   PII_HEADERS,
   REDACTED,
@@ -303,6 +304,57 @@ describe('createScrubber audit counts', () => {
     const fn = createScrubber({ onRedact: () => { count++; } });
     fn({ user: 'alice', count: 42 });
     expect(count).toBe(0);
+  });
+});
+
+describe('mutation-hardening tests', () => {
+  it('depthLimit boundary: at exact depth, value is still scrubbed (depth > limit, not >=)', () => {
+    // depthLimit=2 means depths 0, 1, 2 are processed; depth 3 returns raw
+    const fn = createScrubber({ depthLimit: 2 });
+    const out = fn({ a: { b: { password: 'p' } } }) as Record<string, Record<string, Record<string, unknown>>>;
+    // path: depth 0 (root) -> 1 (a) -> 2 (b) -> 3 (password key check at depth 3?)
+    // At root (depth 0) we recurse into 'a' at depth 1, then 'b' at depth 2.
+    // Inside 'b' we iterate keys at depth 2; PII_KEY_RE check happens, password redacted.
+    expect(out['a']?.['b']?.['password']).toBe('[redacted]');
+  });
+
+  it('default scrub recursion direction: deeper objects exceed DEFAULT_DEPTH_LIMIT', () => {
+    // Build object 8 levels deep with PII at leaf — beyond default 6, should NOT redact
+    let obj: Record<string, unknown> = { password: 'leaked' };
+    for (let i = 0; i < 8; i++) obj = { w: obj };
+    const out = scrub(obj) as Record<string, unknown>;
+    // Walk to depth 7 and check password remains (exceeded depth limit)
+    let cur: unknown = out;
+    for (let i = 0; i < 8; i++) cur = (cur as Record<string, unknown>)['w'];
+    expect((cur as Record<string, unknown>)['password']).toBe('leaked');
+  });
+
+  it('scrubEvent does not call scrub when request.data is absent', () => {
+    // Mutant: `if (req.data !== undefined)` -> `if (true)` would call scrub(undefined)
+    // and assign the result. We verify req.data stays absent (not set to scrubbed-undefined).
+    const out = scrubEvent({ request: { headers: {} } });
+    expect('data' in (out.request ?? {})).toBe(false);
+  });
+
+  it('scrubEvent does not add extra/contexts when absent', () => {
+    const out = scrubEvent({ message: 'hi' });
+    expect('extra' in out).toBe(false);
+    expect('contexts' in out).toBe(false);
+  });
+
+  it('Bearer pattern requires whitespace (\\s+, not \\s)', () => {
+    // Mutant Bearer\s -> still matches one space, hard to kill. Test the + quantifier
+    // by ensuring Bearer with multiple spaces still redacts entire token.
+    expect(scrubString('Bearer   abc.def-ghi')).toBe('[redacted]');
+  });
+
+  it('phone pattern: validates parenthesis presence is optional', () => {
+    expect(scrubString('call 415-555-0123')).toBe('call [redacted]');
+    expect(scrubString('call (415)555-0123')).toBe('call [redacted]');
+  });
+
+  it('assertPiiHeader error message names the offending header', () => {
+    expect(() => assertPiiHeader('made-up-header')).toThrow(/made-up-header/);
   });
 });
 
