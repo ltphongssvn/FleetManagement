@@ -79,3 +79,23 @@ describe('buildSentryOptions', () => {
     expect(r.options?.release).toBeUndefined();
   });
 });
+
+describe('buildSentryOptions release defaulting', () => {
+  it('uses provided release verbatim', () => {
+    const r = buildSentryOptions({ dsn: 'https://abc@host.io/1', release: 'v9.9.9' });
+    expect(r.options?.release).toBe('v9.9.9');
+  });
+
+  it('does not fall back to npm_package_version (env-derived release is brittle)', () => {
+    const orig = process.env['npm_package_version'];
+    process.env['npm_package_version'] = 'should-be-ignored';
+    try {
+      const r = buildSentryOptions({ dsn: 'https://abc@host.io/1' });
+      expect(r.options?.release).toBeUndefined();
+    } finally {
+      if (orig === undefined) delete process.env['npm_package_version'];
+      else process.env['npm_package_version'] = orig;
+    }
+  });
+});
+
