@@ -15,3 +15,11 @@ export {
 } from './sentry-scrub.ts';
 
 export { dsnSchema, parseDsn, type ValidatedDsn, type DsnParseResult } from './dsn.ts';
+
+export {
+  buildSentryOptions,
+  parseTracesSampleRate,
+  type SentryInitInput,
+  type SentryInitOptions,
+  type BuildSentryOptionsResult,
+} from './sentry-init.ts';

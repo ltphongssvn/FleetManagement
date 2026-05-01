@@ -1,36 +1,28 @@
 // apps/ops-web/instrumentation.ts
-// Next.js 16 App Router instrumentation hook with inlined Sentry init.
-// Inlining (instead of importing sentry.{server,edge}.config.ts) avoids
-// Turbopack workspace-package resolution issues in monorepos
-// (vercel/next.js#92540, sentry-javascript#8105 Turbopack era).
+// Next.js 16 App Router instrumentation hook. Sentry options are built by
+// @fleet/observability so init logic stays single-sourced.
 import * as Sentry from '@sentry/nextjs';
-import { scrubEvent, parseDsn } from '@fleet/observability';
+import { buildSentryOptions } from '@fleet/observability';
 
 export async function register(): Promise<void> {
   if (process.env['NEXT_RUNTIME'] === 'nodejs') {
-    const parsed = parseDsn(process.env['SENTRY_DSN']);
-    if (parsed.valid && process.env.NODE_ENV !== 'test') {
-      const dsn = parsed.dsn;
-      Sentry.init({
-        dsn,
-        environment: process.env.NODE_ENV,
-        tracesSampleRate: Number(process.env['SENTRY_TRACES_SAMPLE_RATE'] ?? '0.1'),
-        sendDefaultPii: false,
-        beforeSend: scrubEvent,
-      });
+    const result = buildSentryOptions({
+      dsn: process.env['SENTRY_DSN'],
+      environment: process.env.NODE_ENV,
+      tracesSampleRate: process.env['SENTRY_TRACES_SAMPLE_RATE'],
+    });
+    if (result.options && process.env.NODE_ENV !== 'test') {
+      Sentry.init(result.options as never);
     }
   }
   if (process.env['NEXT_RUNTIME'] === 'edge') {
-    const parsed = parseDsn(process.env['NEXT_PUBLIC_SENTRY_DSN']);
-    if (parsed.valid && process.env.NODE_ENV !== 'test') {
-      const dsn = parsed.dsn;
-      Sentry.init({
-        dsn,
-        environment: process.env.NODE_ENV,
-        tracesSampleRate: Number(process.env['NEXT_PUBLIC_SENTRY_SAMPLE_RATE'] ?? '0.1'),
-        sendDefaultPii: false,
-        beforeSend: scrubEvent,
-      });
+    const result = buildSentryOptions({
+      dsn: process.env['NEXT_PUBLIC_SENTRY_DSN'],
+      environment: process.env.NODE_ENV,
+      tracesSampleRate: process.env['NEXT_PUBLIC_SENTRY_SAMPLE_RATE'],
+    });
+    if (result.options && process.env.NODE_ENV !== 'test') {
+      Sentry.init(result.options as never);
     }
   }
   return Promise.resolve();
