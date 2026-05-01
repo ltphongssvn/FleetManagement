@@ -281,3 +281,28 @@ describe('scrub error observability (top-level)', () => {
   });
 });
 
+describe('createScrubber audit counts', () => {
+  it('reports redactionCount via onRedact callback', () => {
+    let count = 0;
+    const fn = createScrubber({ onRedact: () => { count++; } });
+    fn({ password: 'p', email: 'a@b.co', user: 'alice' });
+    // password key match + email value pattern in 'a@b.co'? value 'a@b.co' is under non-pii key,
+    // so only key-match (password) counts. email key also matches PII_KEY_RE.
+    expect(count).toBeGreaterThanOrEqual(2);
+  });
+
+  it('counts string-pattern redactions inside values', () => {
+    let count = 0;
+    const fn = createScrubber({ onRedact: () => { count++; } });
+    fn({ note: 'Bearer abc.def-ghi and jane@example.com' });
+    expect(count).toBeGreaterThanOrEqual(2);
+  });
+
+  it('does not call onRedact for non-PII data', () => {
+    let count = 0;
+    const fn = createScrubber({ onRedact: () => { count++; } });
+    fn({ user: 'alice', count: 42 });
+    expect(count).toBe(0);
+  });
+});
+

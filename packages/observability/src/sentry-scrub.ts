@@ -73,6 +73,11 @@ export interface ScrubberOptions {
   piiKeyPattern?: RegExp;
   /** Override PII value patterns. Defaults to PII_VALUE_PATTERNS. */
   piiValuePatterns?: readonly RegExp[];
+  /**
+   * Called once per redaction event (key-match or value-pattern hit).
+   * Hook for audit/metrics: count how often PII was found per request.
+   */
+  onRedact?: (info: { kind: 'key' | 'value'; key?: string; pattern?: RegExp }) => void;
 }
 
 /**
@@ -83,9 +88,14 @@ export function createScrubber(options: ScrubberOptions = {}): (value: unknown, 
   const depthLimit = options.depthLimit ?? DEFAULT_DEPTH_LIMIT;
   const keyPattern = options.piiKeyPattern ?? PII_KEY_RE;
   const valuePatterns = options.piiValuePatterns ?? PII_VALUE_PATTERNS;
+  const onRedact = options.onRedact;
   const scrubStringWithPatterns = (str: string): string => {
     let out = str;
-    for (const re of valuePatterns) out = out.replace(re, REDACTED);
+    for (const re of valuePatterns) {
+      const before = out;
+      out = out.replace(re, REDACTED);
+      if (onRedact && before !== out) onRedact({ kind: 'value', pattern: re });
+    }
     return out;
   };
   const fn = (value: unknown, depth = 0): unknown => {
@@ -96,7 +106,12 @@ export function createScrubber(options: ScrubberOptions = {}): (value: unknown, 
     try {
       const out: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-        out[k] = keyPattern.test(k) ? REDACTED : fn(v, depth + 1);
+        if (keyPattern.test(k)) {
+          out[k] = REDACTED;
+          onRedact?.({ kind: 'key', key: k });
+        } else {
+          out[k] = fn(v, depth + 1);
+        }
       }
       return out;
     } catch (err) {
