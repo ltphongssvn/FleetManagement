@@ -13,6 +13,9 @@ export {
   createScrubber,
   type ScrubberOptions,
   type ScrubbableEvent,
+  type PiiHeaderName,
+  isPiiHeader,
+  assertPiiHeader,
 } from './sentry-scrub.ts';
 
 export { dsnSchema, parseDsn, type ValidatedDsn, type DsnParseResult } from './dsn.ts';

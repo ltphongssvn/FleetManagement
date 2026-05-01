@@ -10,6 +10,24 @@ export const PII_HEADERS = new Set<string>([
   'x-api-key',
 ]) satisfies ReadonlySet<string>;
 
+declare const _piiHeaderBrand: unique symbol;
+/**
+ * Branded string type: only values that have passed isPiiHeader/assertPiiHeader
+ * carry this type. Lets APIs require a vetted PII header name in their signature.
+ */
+export type PiiHeaderName = string & { readonly [_piiHeaderBrand]: 'PiiHeaderName' };
+
+/** Type guard: true if the input is a known PII header (case-insensitive). */
+export function isPiiHeader(name: string): name is PiiHeaderName {
+  return PII_HEADERS.has(name.toLowerCase());
+}
+
+/** Asserts the input is a known PII header; throws otherwise. Returns branded value. */
+export function assertPiiHeader(name: string): PiiHeaderName {
+  if (!isPiiHeader(name)) throw new Error(`Not a known PII header: ${name}`);
+  return name;
+}
+
 export const PII_KEY_RE =
   /password|token|secret|authorization|apikey|cookie|push.*token|gps|lat|lng|latitude|longitude|phone|email|ssn|driver.*name/i;
 
