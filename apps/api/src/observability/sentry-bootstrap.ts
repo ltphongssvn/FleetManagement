@@ -1,6 +1,6 @@
 // apps/api/src/observability/sentry-bootstrap.ts
 import * as Sentry from '@sentry/nestjs';
-import { scrubEvent } from '@fleet/observability';
+import { scrubEvent, parseDsn } from '@fleet/observability';
 
 export function parseSampleRate(raw: string | undefined): number {
   const n = Number(raw ?? '0.1');
@@ -10,8 +10,9 @@ export function parseSampleRate(raw: string | undefined): number {
 
 export function initSentry(): void {
   if (process.env['NODE_ENV'] === 'test') return;
-  const dsn = process.env['SENTRY_DSN'];
-  if (!dsn) return;
+  const parsed = parseDsn(process.env['SENTRY_DSN']);
+  if (!parsed.valid) return;
+  const dsn = parsed.dsn;
   Sentry.init({
     dsn,
     environment: process.env['NODE_ENV'] ?? 'development',

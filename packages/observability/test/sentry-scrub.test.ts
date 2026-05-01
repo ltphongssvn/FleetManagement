@@ -241,6 +241,15 @@ describe('createScrubber', () => {
     expect(fn(trap)).toBe(UNSCRUBBABLE);
   });
 
+  it('calls onScrubError when scrub catches', () => {
+    const errors: unknown[] = [];
+    const fn = createScrubber({ onScrubError: (e) => errors.push(e) });
+    const trap = new Proxy({}, { ownKeys() { throw new Error('boom'); } });
+    expect(fn(trap)).toBe(UNSCRUBBABLE);
+    expect(errors).toHaveLength(1);
+    expect((errors[0] as Error).message).toBe('boom');
+  });
+
   it('passes through primitives', () => {
     const fn = createScrubber();
     expect(fn(null)).toBe(null);

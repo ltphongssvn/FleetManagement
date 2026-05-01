@@ -20,9 +20,22 @@ export const PII_VALUE_PATTERNS: readonly RegExp[] = [
   /(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
 ];
 
+/**
+ * Default maximum recursion depth when scrubbing nested structures.
+ * Chosen empirically: covers typical Sentry event shape (event → request →
+ * data → nested form fields, ~4-5 levels) with one level of headroom.
+ * Above 6, recursion is more likely to indicate a cycle or pathological
+ * input than legitimate data, so we bail with the original value.
+ */
+export const DEFAULT_DEPTH_LIMIT = 6;
+
 export const REDACTED = '[redacted]' as const;
 export const UNSCRUBBABLE = '[unscrubbable]' as const;
 
+/**
+ * Redact PII patterns (Bearer tokens, JWTs, emails, phone numbers) from a
+ * string. Returns the input unchanged if no patterns match. Pure.
+ */
 export function scrubString(s: string): string {
   let out = s;
   for (const re of PII_VALUE_PATTERNS) out = out.replace(re, REDACTED);
@@ -30,8 +43,14 @@ export function scrubString(s: string): string {
 }
 
 export interface ScrubberOptions {
-  /** Max recursion depth before bailing. Defaults to 6. */
+  /** Max recursion depth before bailing. Defaults to DEFAULT_DEPTH_LIMIT (6). */
   depthLimit?: number;
+  /**
+   * Called when scrub catches a throw (e.g. revoked Proxy, throwing getter).
+   * Hook for emitting metrics/breadcrumbs without coupling this package to
+   * a specific observability vendor. The scrubber still returns UNSCRUBBABLE.
+   */
+  onScrubError?: (err: unknown) => void;
 }
 
 /**
@@ -39,7 +58,7 @@ export interface ScrubberOptions {
  * Use when callers need a non-default depth limit.
  */
 export function createScrubber(options: ScrubberOptions = {}): (value: unknown, depth?: number) => unknown {
-  const depthLimit = options.depthLimit ?? 6;
+  const depthLimit = options.depthLimit ?? DEFAULT_DEPTH_LIMIT;
   const fn = (value: unknown, depth = 0): unknown => {
     if (depth > depthLimit || value === null || value === undefined) return value;
     if (typeof value === 'string') return scrubString(value);
@@ -51,7 +70,8 @@ export function createScrubber(options: ScrubberOptions = {}): (value: unknown, 
         out[k] = PII_KEY_RE.test(k) ? REDACTED : fn(v, depth + 1);
       }
       return out;
-    } catch {
+    } catch (err) {
+      options.onScrubError?.(err);
       return UNSCRUBBABLE;
     }
   };
@@ -63,7 +83,7 @@ export function createScrubber(options: ScrubberOptions = {}): (value: unknown, 
  * Defensive: catches throws from exotic objects (revoked Proxy, throwing getters).
  */
 export function scrub(value: unknown, depth = 0): unknown {
-  if (depth > 6 || value === null || value === undefined) return value;
+  if (depth > DEFAULT_DEPTH_LIMIT || value === null || value === undefined) return value;
   if (typeof value === 'string') return scrubString(value);
   if (typeof value !== 'object') return value;
   if (Array.isArray(value)) return value.map((v) => scrub(v, depth + 1));

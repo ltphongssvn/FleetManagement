@@ -334,6 +334,10 @@ importers:
         version: 4.7.0
 
   packages/observability:
+    dependencies:
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
     devDependencies:
       fast-check:
         specifier: ^4.7.0

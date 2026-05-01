@@ -4,12 +4,13 @@
 // Turbopack workspace-package resolution issues in monorepos
 // (vercel/next.js#92540, sentry-javascript#8105 Turbopack era).
 import * as Sentry from '@sentry/nextjs';
-import { scrubEvent } from '@fleet/observability';
+import { scrubEvent, parseDsn } from '@fleet/observability';
 
 export async function register(): Promise<void> {
   if (process.env['NEXT_RUNTIME'] === 'nodejs') {
-    const dsn = process.env['SENTRY_DSN'];
-    if (dsn && process.env.NODE_ENV !== 'test') {
+    const parsed = parseDsn(process.env['SENTRY_DSN']);
+    if (parsed.valid && process.env.NODE_ENV !== 'test') {
+      const dsn = parsed.dsn;
       Sentry.init({
         dsn,
         environment: process.env.NODE_ENV,
@@ -20,8 +21,9 @@ export async function register(): Promise<void> {
     }
   }
   if (process.env['NEXT_RUNTIME'] === 'edge') {
-    const dsn = process.env['NEXT_PUBLIC_SENTRY_DSN'];
-    if (dsn && process.env.NODE_ENV !== 'test') {
+    const parsed = parseDsn(process.env['NEXT_PUBLIC_SENTRY_DSN']);
+    if (parsed.valid && process.env.NODE_ENV !== 'test') {
+      const dsn = parsed.dsn;
       Sentry.init({
         dsn,
         environment: process.env.NODE_ENV,
