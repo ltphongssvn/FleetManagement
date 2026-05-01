@@ -160,3 +160,64 @@ describe('readDepthLimitFromEnv', () => {
   });
 });
 
+describe('createBeforeSend full coverage paths', () => {
+  it('counts redaction in exception.values strings', () => {
+    const counts: number[] = [];
+    const beforeSend = createBeforeSend({ auditLog: (c: number) => counts.push(c) });
+    beforeSend({
+      exception: { values: [{ value: 'Bearer abc.def-ghi' }, { value: 'fine' }] },
+    });
+    expect(counts[0]).toBeGreaterThanOrEqual(1);
+  });
+
+  it('skips non-string exception values', () => {
+    const counts: number[] = [];
+    const beforeSend = createBeforeSend({ auditLog: (c: number) => counts.push(c) });
+    beforeSend({
+      exception: { values: [{}, { value: 'plain' }] },
+    });
+    expect(counts).toEqual([0]);
+  });
+
+  it('counts redaction in request.headers (string and array)', () => {
+    const counts: number[] = [];
+    const beforeSend = createBeforeSend({ auditLog: (c: number) => counts.push(c) });
+    beforeSend({
+      request: {
+        headers: {
+          authorization: 'Bearer x',
+          'set-cookie': ['a=1', 'b=2'],
+          'x-trace': 't',
+        },
+      },
+    });
+    expect(counts[0]).toBeGreaterThanOrEqual(2);
+  });
+
+  it('skips undefined header values', () => {
+    const counts: number[] = [];
+    const beforeSend = createBeforeSend({ auditLog: (c: number) => counts.push(c) });
+    beforeSend({ request: { headers: { 'x-trace': undefined as unknown as string } } });
+    expect(counts).toEqual([0]);
+  });
+
+  it('scrubs request.data, extra, contexts', () => {
+    const counts: number[] = [];
+    const beforeSend = createBeforeSend({ auditLog: (c: number) => counts.push(c) });
+    const out = beforeSend({
+      request: { data: { password: 'p' } },
+      extra: { token: 't' },
+      contexts: { auth: { secret: 's' } },
+    });
+    expect((out.request?.data as Record<string, unknown>)['password']).toBe('[redacted]');
+    expect(out.extra?.['token']).toBe('[redacted]');
+  });
+
+  it('annotateEvent merges into existing extra', () => {
+    const beforeSend = createBeforeSend({ annotateEvent: true });
+    const out = beforeSend({ message: 'Bearer abc.def-ghi', extra: { existing: 'keep' } });
+    expect(out.extra?.['existing']).toBe('keep');
+    expect(out.extra?.['__redaction']).toBeDefined();
+  });
+});
+
