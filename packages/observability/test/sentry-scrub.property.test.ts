@@ -170,3 +170,36 @@ describe('scrub - PII redaction invariants (property-based)', () => {
   });
 });
 
+describe('PII no-leak invariant (property-based)', () => {
+  it('original PII value never appears in scrubbed output for any PII key', () => {
+    const PII_KEYS = ['password', 'authToken', 'cookie', 'pushToken', 'gps', 'email', 'ssn'];
+    fc.assert(
+      fc.property(
+        fc.constantFrom(...PII_KEYS),
+        fc.string({ minLength: 8, maxLength: 64 }),
+        (key, secret) => {
+          const out = scrub({ [key]: secret });
+          const serialized = JSON.stringify(out);
+          // The original secret string must not appear anywhere in the output
+          expect(serialized).not.toContain(secret);
+        },
+      ),
+      { numRuns: 50 },
+    );
+  });
+
+  it('original Bearer token never appears in scrubbed string', () => {
+    fc.assert(
+      fc.property(
+        fc.string({ minLength: 10, maxLength: 50 }).filter((s) => /^[A-Za-z0-9_.-]+$/.test(s)),
+        (token) => {
+          const input = `Bearer ${token}`;
+          const out = scrubString(input);
+          expect(out).not.toContain(token);
+        },
+      ),
+      { numRuns: 50 },
+    );
+  });
+});
+
