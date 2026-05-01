@@ -333,7 +333,7 @@ describe('mutation-hardening tests', () => {
     // Mutant: `if (req.data !== undefined)` -> `if (true)` would call scrub(undefined)
     // and assign the result. We verify req.data stays absent (not set to scrubbed-undefined).
     const out = scrubEvent({ request: { headers: {} } });
-    expect('data' in (out.request ?? {})).toBe(false);
+    expect('data' in out.request).toBe(false);
   });
 
   it('scrubEvent does not add extra/contexts when absent', () => {
@@ -355,6 +355,57 @@ describe('mutation-hardening tests', () => {
 
   it('assertPiiHeader error message names the offending header', () => {
     expect(() => assertPiiHeader('made-up-header')).toThrow(/made-up-header/);
+  });
+});
+
+describe('array redaction edge cases', () => {
+  it('redacts PII strings inside arrays', () => {
+    const out = scrub(['Bearer abc.def-ghi', 'jane@example.com', 'safe']) as string[];
+    expect(out[0]).toBe('[redacted]');
+    expect(out[1]).toBe('[redacted]');
+    expect(out[2]).toBe('safe');
+  });
+
+  it('redacts PII keys in objects nested in arrays', () => {
+    const out = scrub([{ password: 'p1' }, { password: 'p2' }, { user: 'alice' }]) as Record<string, unknown>[];
+    if (out.length !== 3) throw new Error('expected 3');
+    const [a, b, c] = out as [Record<string, unknown>, Record<string, unknown>, Record<string, unknown>];
+    expect(a['password']).toBe('[redacted]');
+    expect(b['password']).toBe('[redacted]');
+    expect(c['user']).toBe('alice');
+  });
+
+  it('handles arrays of arrays (jagged)', () => {
+    const out = scrub([['a@b.co'], ['safe', 'Bearer xyz.abc-def']]) as string[][];
+    const [r0, r1] = out as [string[], string[]];
+    expect(r0[0]).toBe('[redacted]');
+    expect(r1[1]).toBe('[redacted]');
+  });
+
+  it('handles empty arrays', () => {
+    expect(scrub([])).toEqual([]);
+  });
+
+  it('preserves array length', () => {
+    const input = ['a', 'b@c.de', 'd'];
+    const out = scrub(input) as unknown[];
+    expect(out).toHaveLength(3);
+  });
+
+  it('does not mutate input arrays', () => {
+    const input = ['Bearer abc.def-ghi', 'safe'];
+    const snap = [...input];
+    scrub(input);
+    expect(input).toEqual(snap);
+  });
+
+  it('respects depthLimit when array contains nested objects', () => {
+    const fn = createScrubber({ depthLimit: 1 });
+    // depth 0=root array, depth 1=object inside, depth 2=password key check
+    const out = fn([{ password: 'leaked' }]) as Record<string, unknown>[];
+    // At depth 1, key check happens; password is a key at depth 1's iteration
+    const [first] = out as [Record<string, unknown>];
+    expect(first['password']).toBe('[redacted]');
   });
 });
 
