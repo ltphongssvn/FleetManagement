@@ -51,6 +51,10 @@ export interface ScrubberOptions {
    * a specific observability vendor. The scrubber still returns UNSCRUBBABLE.
    */
   onScrubError?: (err: unknown) => void;
+  /** Override the PII key regex. Defaults to PII_KEY_RE. */
+  piiKeyPattern?: RegExp;
+  /** Override PII value patterns. Defaults to PII_VALUE_PATTERNS. */
+  piiValuePatterns?: readonly RegExp[];
 }
 
 /**
@@ -59,15 +63,22 @@ export interface ScrubberOptions {
  */
 export function createScrubber(options: ScrubberOptions = {}): (value: unknown, depth?: number) => unknown {
   const depthLimit = options.depthLimit ?? DEFAULT_DEPTH_LIMIT;
+  const keyPattern = options.piiKeyPattern ?? PII_KEY_RE;
+  const valuePatterns = options.piiValuePatterns ?? PII_VALUE_PATTERNS;
+  const scrubStringWithPatterns = (str: string): string => {
+    let out = str;
+    for (const re of valuePatterns) out = out.replace(re, REDACTED);
+    return out;
+  };
   const fn = (value: unknown, depth = 0): unknown => {
     if (depth > depthLimit || value === null || value === undefined) return value;
-    if (typeof value === 'string') return scrubString(value);
+    if (typeof value === 'string') return scrubStringWithPatterns(value);
     if (typeof value !== 'object') return value;
     if (Array.isArray(value)) return value.map((v) => fn(v, depth + 1));
     try {
       const out: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-        out[k] = PII_KEY_RE.test(k) ? REDACTED : fn(v, depth + 1);
+        out[k] = keyPattern.test(k) ? REDACTED : fn(v, depth + 1);
       }
       return out;
     } catch (err) {

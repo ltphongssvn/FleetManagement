@@ -17,6 +17,12 @@ export {
 export { dsnSchema, parseDsn, type ValidatedDsn, type DsnParseResult } from './dsn.ts';
 
 export {
+  scrubberConfigSchema,
+  validateScrubberConfig,
+  type ScrubberConfig,
+} from './scrubber-config.ts';
+
+export {
   buildSentryOptions,
   parseTracesSampleRate,
   type SentryInitInput,
