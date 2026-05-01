@@ -9,6 +9,7 @@ export {
   scrubString,
   scrub,
   scrubEvent,
+  setScrubErrorHandler,
   createScrubber,
   type ScrubberOptions,
   type ScrubbableEvent,

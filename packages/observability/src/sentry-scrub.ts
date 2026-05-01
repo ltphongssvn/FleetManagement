@@ -90,8 +90,24 @@ export function createScrubber(options: ScrubberOptions = {}): (value: unknown, 
 }
 
 /**
+ * Module-level error handler invoked by the default scrub() when it catches
+ * a throw. Set via setScrubErrorHandler. Apps wire this to Sentry/metrics.
+ */
+let moduleScrubErrorHandler: ((err: unknown) => void) | undefined;
+
+/**
+ * Register (or clear, with undefined) a global error handler for the default
+ * scrub() function. Process-level: callers using createScrubber should pass
+ * onScrubError per-instance instead.
+ */
+export function setScrubErrorHandler(handler: ((err: unknown) => void) | undefined): void {
+  moduleScrubErrorHandler = handler;
+}
+
+/**
  * Pure: returns a new value, never mutates input.
  * Defensive: catches throws from exotic objects (revoked Proxy, throwing getters).
+ * Errors caught here flow through the handler set by setScrubErrorHandler.
  */
 export function scrub(value: unknown, depth = 0): unknown {
   if (depth > DEFAULT_DEPTH_LIMIT || value === null || value === undefined) return value;
@@ -104,7 +120,8 @@ export function scrub(value: unknown, depth = 0): unknown {
       out[k] = PII_KEY_RE.test(k) ? REDACTED : scrub(v, depth + 1);
     }
     return out;
-  } catch {
+  } catch (err) {
+    moduleScrubErrorHandler?.(err);
     return UNSCRUBBABLE;
   }
 }

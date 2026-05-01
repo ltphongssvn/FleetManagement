@@ -5,6 +5,7 @@ import {
   scrubString,
   scrubEvent,
   createScrubber,
+  setScrubErrorHandler,
   PII_KEY_RE,
   PII_HEADERS,
   REDACTED,
@@ -258,3 +259,25 @@ describe('createScrubber', () => {
     expect(fn(true)).toBe(true);
   });
 });
+
+describe('scrub error observability (top-level)', () => {
+  it('exposes setScrubErrorHandler that receives errors from default scrub()', () => {
+    const errors: unknown[] = [];
+    setScrubErrorHandler((err) => errors.push(err));
+    try {
+      const trap = new Proxy({}, { ownKeys() { throw new Error('boom-default'); } });
+      expect(scrub(trap)).toBe(UNSCRUBBABLE);
+      expect(errors).toHaveLength(1);
+      expect((errors[0] as Error).message).toBe('boom-default');
+    } finally {
+      setScrubErrorHandler(undefined);
+    }
+  });
+
+  it('default scrub() works with no handler set', () => {
+    setScrubErrorHandler(undefined);
+    const trap = new Proxy({}, { ownKeys() { throw new Error('silent'); } });
+    expect(scrub(trap)).toBe(UNSCRUBBABLE);
+  });
+});
+
