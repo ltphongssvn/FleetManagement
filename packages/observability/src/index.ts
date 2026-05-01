@@ -1,6 +1,7 @@
 // packages/observability/src/index.ts
 export {
   PII_HEADERS,
+  PII_HEADERS_LITERALS,
   PII_KEY_RE,
   PII_VALUE_PATTERNS,
   DEFAULT_DEPTH_LIMIT,

@@ -1,7 +1,7 @@
 // packages/observability/test/scrubber-config.test.ts
 import { describe, it, expect } from 'vitest';
 import { validateScrubberConfig, scrubberConfigSchema } from '../src/scrubber-config.ts';
-import { isPiiHeader, assertPiiHeader, type PiiHeaderName } from '../src/sentry-scrub.ts';
+import { isPiiHeader, assertPiiHeader, PII_HEADERS_LITERALS, type PiiHeaderName } from '../src/sentry-scrub.ts';
 import { createScrubber, REDACTED } from '../src/sentry-scrub.ts';
 
 describe('scrubberConfigSchema', () => {
@@ -113,6 +113,18 @@ describe('scrubberConfigSchema error messages (mutation hardening)', () => {
     expect(() => validateScrubberConfig({ onScrubError: 'not-a-function' })).toThrow();
     expect(() => validateScrubberConfig({ onScrubError: 42 })).toThrow();
     expect(() => validateScrubberConfig({ onScrubError: null })).toThrow();
+  });
+});
+
+describe('PII_HEADERS literal type guarantees', () => {
+  it('exposes PII_HEADERS_LITERALS as readonly tuple of literals', () => {
+    // Compile-time guarantee: PII_HEADERS_LITERALS[number] is the union of literal strings
+    const lits = PII_HEADERS_LITERALS;
+    expect(lits).toContain('authorization');
+    expect(lits).toContain('cookie');
+    expect(lits).toContain('set-cookie');
+    expect(lits).toContain('x-api-key');
+    expect(lits.length).toBe(4);
   });
 });
 

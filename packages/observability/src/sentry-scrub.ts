@@ -3,12 +3,19 @@
 // No Sentry SDK imports — keeps this loadable from RN (no Flow syntax) and
 // from any Node/edge runtime. Pure functions, no I/O, no mutation of inputs.
 
-export const PII_HEADERS = new Set<string>([
+/**
+ * Canonical list of PII header names as a readonly literal tuple.
+ * The Set below is derived from this for O(1) lookup; the tuple preserves
+ * literal types for callers that need exhaustive checks.
+ */
+export const PII_HEADERS_LITERALS = [
   'authorization',
   'cookie',
   'set-cookie',
   'x-api-key',
-]) satisfies ReadonlySet<string>;
+] as const satisfies readonly string[];
+
+export const PII_HEADERS: ReadonlySet<string> = new Set<string>(PII_HEADERS_LITERALS);
 
 declare const _piiHeaderBrand: unique symbol;
 /**
