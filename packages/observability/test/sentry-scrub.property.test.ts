@@ -126,3 +126,47 @@ describe('scrubEvent - property-based purity', () => {
     );
   });
 });
+
+describe('scrub - PII redaction invariants (property-based)', () => {
+  const PII_KEY_SAMPLES = ['password', 'authToken', 'api_secret', 'cookie', 'pushToken', 'gps', 'latitude', 'longitude', 'phone', 'email', 'ssn', 'driver_name'];
+
+  it('redacts PII key at any nesting depth (1..5)', () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom(...PII_KEY_SAMPLES),
+        fc.integer({ min: 1, max: 5 }),
+        fc.string(),
+        (piiKey, depth, leakValue) => {
+          // Build a nested object: { a: { a: { ... { piiKey: leakValue } ... } } }
+          let obj: Record<string, unknown> = { [piiKey]: leakValue };
+          for (let i = 0; i < depth; i++) obj = { wrapper: obj };
+          const out = scrub(obj);
+          // Walk to the leaf and assert redaction
+          let cur: unknown = out;
+          for (let i = 0; i < depth; i++) {
+            cur = (cur as Record<string, unknown>)['wrapper'];
+          }
+          const leaf = cur as Record<string, unknown>;
+          expect(leaf[piiKey]).toBe('[redacted]');
+        },
+      ),
+      { numRuns: 50 },
+    );
+  });
+
+  it('redacts PII key alongside arbitrary sibling keys', () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom(...PII_KEY_SAMPLES),
+        fc.dictionary(fc.string({ minLength: 1 }).filter((k) => !/password|token|secret|authorization|apikey|cookie|push.*token|gps|lat|lng|latitude|longitude|phone|email|ssn|driver.*name/i.test(k)), fc.string()),
+        (piiKey, siblings) => {
+          const input = { ...siblings, [piiKey]: 'leaked' };
+          const out = scrub(input) as Record<string, unknown>;
+          expect(out[piiKey]).toBe('[redacted]');
+        },
+      ),
+      { numRuns: 50 },
+    );
+  });
+});
+
