@@ -33,6 +33,7 @@ describe('parseDsn', () => {
     const r = parseDsn('bad');
     expect(r.error).toBeDefined();
   });
+
 });
 
 describe('dsnSchema', () => {

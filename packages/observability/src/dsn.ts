@@ -30,6 +30,8 @@ export function parseDsn(input: string | undefined): DsnParseResult {
   }
   const result = dsnSchema.safeParse(input);
   if (!result.success) {
+    // zod safeParse always populates issues[0] on failure; non-null assertion is safe
+    /* c8 ignore next */
     return { valid: false, error: result.error.issues[0]?.message ?? 'Invalid DSN' };
   }
   return { valid: true, dsn: result.data };
