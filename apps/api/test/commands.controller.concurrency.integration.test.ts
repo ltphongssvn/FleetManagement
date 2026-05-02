@@ -26,9 +26,6 @@ const opCtx: OperatorContext = {
   businessUnitId: BU,
   depotId: DEPOT,
   legalEntityId: LE,
-  surface: 'road',
-  sessionMode: 'mutating',
-  deviceSessionId: '00000000-0000-0000-0000-0000000000a6',
 };
 
 function makeController(): CommandsController {
