@@ -32,7 +32,7 @@ const opCtx: OperatorContext = {
 };
 
 function makeController(): CommandsController {
-  const noopPush: IPushProvider['sendToOperator'] = async () => ({ accepted: 0, rejected: 0 });
+  const noopPush: IPushProvider['sendToOperator'] = () => Promise.resolve({ accepted: 0, rejected: 0 });
   const clock: Clock = { now: () => new Date('2026-05-02T10:00:00.000Z') };
   const gateway = new CommandsGateway({ sendToOperator: noopPush }, clock);
   // Stub Socket.IO server: pushCommand only reads sockets.adapter.rooms.get + .to().emit().

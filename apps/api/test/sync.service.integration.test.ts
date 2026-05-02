@@ -88,9 +88,11 @@ describe('@fleet/api - SyncService (integration)', () => {
     const rows = await testDb.db.execute<{ server_seq: string }>(sql`SELECT server_seq::text FROM sync_change_feed ORDER BY server_seq`);
     const seqs = rows.rows.map((r) => BigInt(r.server_seq));
     expect(seqs.length).toBe(3);
+    const [s0, s1, s2] = seqs;
+    if (s0 === undefined || s1 === undefined || s2 === undefined) throw new Error('seq undefined');
     // Behavior: strictly increasing, gap-free within a single processSync batch.
-    expect(seqs[1]! - seqs[0]!).toBe(1n);
-    expect(seqs[2]! - seqs[1]!).toBe(1n);
+    expect(s1 - s0).toBe(1n);
+    expect(s2 - s1).toBe(1n);
   });
 
   it('newCursor reflects max server_seq', async () => {
@@ -117,7 +119,9 @@ describe('@fleet/api - SyncService (integration)', () => {
     const deltas = await service.deltasAfter(firstSeq, OP);
     expect(deltas.length).toBe(2);
     const ds = deltas.map((d) => BigInt(d.serverSeq));
-    expect(ds[1]! > ds[0]!).toBe(true);
+    const [d0, d1] = ds;
+    if (d0 === undefined || d1 === undefined) throw new Error('delta seq undefined');
+    expect(d1 > d0).toBe(true);
   });
 
   it('isolates by company_id (no cross-tenant leak)', async () => {
