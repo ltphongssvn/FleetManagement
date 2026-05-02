@@ -26,24 +26,7 @@ import {
   SessionNotFoundError,
 } from './device.errors.js';
 
-const PG_UNIQUE_VIOLATION = '23505';
-
-interface PgError {
-  code?: string;
-  constraint?: string;
-}
-
-function isPgUniqueViolation(err: unknown, constraintName: string): boolean {
-  // Drizzle wraps pg errors; walk the .cause chain to find the original.
-  let current: unknown = err;
-  for (let i = 0; i < 5; i++) {
-    if (typeof current !== 'object' || current === null) return false;
-    const e = current as PgError;
-    if (e.code === PG_UNIQUE_VIOLATION && e.constraint === constraintName) return true;
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
-}
+import { isPgUniqueViolationOnConstraintInChain } from '../common/pg-errors.js';
 
 export interface IssueSessionInput {
   readonly deviceId: string;
@@ -86,7 +69,7 @@ export class DeviceService {
       if (!row) throw new SessionInsertFailedError();
       return row;
     } catch (err) {
-      if (isPgUniqueViolation(err, 'device_session_one_mutating_per_operator_surface_uq')) {
+      if (isPgUniqueViolationOnConstraintInChain(err, 'device_session_one_mutating_per_operator_surface_uq')) {
         throw new ConflictException(
           new SessionAlreadyActiveError(input.operatorId, input.surface).message,
         );

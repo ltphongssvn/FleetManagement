@@ -1,12 +1,14 @@
 // apps/api/src/manifest/manifest.service.ts
 // Manifest service per Frozen Stack PDF "Manifest" + "Uploads".
 import { Inject, Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import mime from 'mime-types';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { manifest, uploadSession } from '../database/schema/manifest.js';
+import { fleetAuditLog, syncChangeFeed, outbox } from '../database/schema/index.js';
 import { transportOrder } from '../database/schema/transport.js';
 import { BLOB_STORE, type IBlobStore } from '../storage/storage-provider.interface.js';
 import type { Env } from '../config/env.config.js';
@@ -167,6 +169,96 @@ export class ManifestService {
     });
   }
 
+
+  /**
+   * Worker callback after intake validation. Transitions manifest+upload_session
+   * to committed/rejected and emits manifest.committed event to outbox so the
+   * ERP queue picks it up. PDF Day-One #5 + #8.
+   */
+  async finalizeIntake(input: {
+    readonly uploadSessionId: string;
+    readonly accepted: boolean;
+    readonly rejectionReasonCode?: string;
+  }, op: OperatorContext): Promise<{ manifestId: string; state: 'committed' | 'rejected' }> {
+    return this.db.transaction(async (tx) => {
+      const targetUploadState = input.accepted ? 'committed' : 'rejected';
+
+      const updated = await tx
+        .update(uploadSession)
+        .set({
+          state: targetUploadState,
+          ...(input.accepted ? { committedAt: new Date() } : { abortedAt: new Date() }),
+        })
+        .where(and(
+          eq(uploadSession.uploadSessionId, input.uploadSessionId),
+          eq(uploadSession.companyId, op.companyId),
+          inArray(uploadSession.state, ['verifying']),
+        ))
+        .returning();
+      const session = updated[0];
+      if (!session) throw new UploadSessionNotFoundError(input.uploadSessionId);
+      if (!session.manifestId) throw new UploadSessionMissingManifestError(input.uploadSessionId);
+
+      await tx
+        .update(manifest)
+        .set({
+          state: input.accepted ? 'committed' : 'rejected',
+          ...(input.accepted ? { committedAt: new Date() } : {}),
+          ...(input.accepted ? {} : { rejectionReasonCode: input.rejectionReasonCode as 'other' | undefined }),
+        })
+        .where(and(
+          eq(manifest.manifestId, session.manifestId),
+          inArray(manifest.state, ['verifying']),
+        ));
+
+      // Three append paths for the manifest.committed event so outbox-routing
+      // can dispatch to ERP queue (per @fleet/sync-protocol routeOutboxRow).
+      if (input.accepted) {
+        const seqRow = await tx
+          .select({ maxSeq: sql<string>`COALESCE(MAX(${syncChangeFeed.serverSeq}), 0)::text` })
+          .from(syncChangeFeed)
+          .where(eq(syncChangeFeed.companyId, op.companyId));
+        const nextSeq = BigInt(seqRow[0]?.maxSeq ?? '0') + 1n;
+        const evtActionId = randomUUID();
+
+        await tx.insert(syncChangeFeed).values({
+          serverSeq: nextSeq,
+          actionId: evtActionId,
+          aggregateType: 'manifest',
+          aggregateId: session.manifestId,
+          delta: { state: 'committed' },
+          companyId: op.companyId,
+          businessUnitId: op.businessUnitId,
+          depotId: op.depotId,
+          legalEntityId: op.legalEntityId,
+        });
+
+        await tx.insert(fleetAuditLog).values({
+          serverSeq: nextSeq,
+          operatorId: op.operatorId,
+          eventType: 'manifest.committed',
+          aggregateType: 'manifest',
+          aggregateId: session.manifestId,
+          payload: { uploadSessionId: input.uploadSessionId },
+          companyId: op.companyId,
+          businessUnitId: op.businessUnitId,
+          depotId: op.depotId,
+          legalEntityId: op.legalEntityId,
+        });
+
+        await tx.insert(outbox).values({
+          queueName: 'erp',
+          payload: { aggregateType: 'manifest', eventType: 'manifest.committed', manifestId: session.manifestId, serverSeq: nextSeq.toString() },
+          companyId: op.companyId,
+          businessUnitId: op.businessUnitId,
+          depotId: op.depotId,
+          legalEntityId: op.legalEntityId,
+        });
+      }
+
+      return { manifestId: session.manifestId, state: input.accepted ? 'committed' : 'rejected' };
+    });
+  }
   private buildS3Key(op: OperatorContext, manifestId: string, correlationId: string, contentType: string): string {
     const ext = mime.extension(contentType);
     const safeExt = typeof ext === 'string' ? ext : 'bin';

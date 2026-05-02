@@ -1,0 +1,64 @@
+// apps/api/test/commands.controller.integration.test.ts
+// Integration test for CommandsController.issue: verifies 3 append paths
+// (fleet_audit_log + sync_change_feed + outbox) per PDF "Command flow".
+// PGLite-backed; no DB mocks.
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { sql } from 'drizzle-orm';
+import { CommandsController } from '../src/commands/commands.controller.js';
+import { CommandsGateway } from '../src/commands/commands.gateway.js';
+import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import { createOperatorContext, createCommandPayload } from '@fleet/test-fixtures';
+
+let testDb: PgliteTestDb;
+let ctrl: CommandsController;
+let gateway: CommandsGateway;
+
+const OP = createOperatorContext();
+
+describe('@fleet/api - CommandsController.issue (integration)', () => {
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+    gateway = new CommandsGateway();
+    // Gateway requires Server to push; for HTTP-path test we only need pushCommand
+    // to return a result without actually emitting. Stub server with sockets adapter.
+    (gateway as unknown as { server: { sockets: { adapter: { rooms: Map<string, Set<string>> } }; to: () => { emit: () => void } } }).server = {
+      sockets: { adapter: { rooms: new Map() } },
+      to: () => ({ emit: () => undefined }),
+    };
+    ctrl = new CommandsController(gateway, testDb.db as never);
+  }, 30_000);
+  afterAll(async () => stopPgliteTestDb(testDb));
+  beforeEach(async () => {
+    await testDb.db.execute(sql`TRUNCATE TABLE outbox, fleet_audit_log, sync_change_feed CASCADE`);
+  });
+
+  it('writes to all three append paths and emits audit row', async () => {
+    const cmd = createCommandPayload({ targetOperatorId: OP.operatorId });
+    const result = await ctrl.issue(cmd, OP);
+    expect(result.commandId).toBe(cmd.commandId);
+
+    const audit = await testDb.db.execute<{ count: string; event_type: string }>(sql`
+      SELECT COUNT(*)::text as count, MAX(event_type) as event_type FROM fleet_audit_log
+    `);
+    expect(audit.rows[0]?.count).toBe('1');
+    expect(audit.rows[0]?.event_type).toBe('road_run.command_issued');
+
+    const feed = await testDb.db.execute<{ count: string }>(sql`SELECT COUNT(*)::text as count FROM sync_change_feed`);
+    expect(feed.rows[0]?.count).toBe('1');
+
+    const ob = await testDb.db.execute<{ count: string; queue_name: string }>(sql`
+      SELECT COUNT(*)::text as count, MAX(queue_name) as queue_name FROM outbox
+    `);
+    expect(ob.rows[0]?.count).toBe('1');
+    expect(ob.rows[0]?.queue_name).toBe('projections');
+  });
+
+  it('records targetOperatorId in audit payload for traceability', async () => {
+    const cmd = createCommandPayload({ targetOperatorId: OP.operatorId });
+    await ctrl.issue(cmd, OP);
+    const r = await testDb.db.execute<{ payload: { targetOperatorId: string } }>(sql`
+      SELECT payload FROM fleet_audit_log LIMIT 1
+    `);
+    expect(r.rows[0]?.payload.targetOperatorId).toBe(OP.operatorId);
+  });
+});

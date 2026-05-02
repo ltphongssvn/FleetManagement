@@ -27,7 +27,7 @@ describe('SchedulerService', () => {
     const drainOutboxFn = vi.fn().mockResolvedValue(undefined);
     const outbox = { drainOnce: drainOutboxFn } as unknown as OutboxRelayService;
     const proj = { drainOnce: vi.fn() } as unknown as ProjectionRunnerService;
-    const svc = new SchedulerService(outbox, proj, makeConfig() as never);
+    const svc = new SchedulerService(outbox, proj, makeConfig() as never, { reconcileNow: () => [] } as never);
     await svc.drainOutbox();
     expect(drainOutboxFn).toHaveBeenCalledTimes(1);
     svc.onModuleDestroy.call(svc);
@@ -37,7 +37,7 @@ describe('SchedulerService', () => {
     const outbox = { drainOnce: vi.fn() } as unknown as OutboxRelayService;
     const drainProjFn = vi.fn().mockResolvedValue(undefined);
     const proj = { drainOnce: drainProjFn } as unknown as ProjectionRunnerService;
-    const svc = new SchedulerService(outbox, proj, makeConfig('scope-x') as never);
+    const svc = new SchedulerService(outbox, proj, makeConfig('scope-x') as never, { reconcileNow: () => [] } as never);
     await svc.drainProjections();
     expect(drainProjFn).toHaveBeenCalledWith('scope-x');
     svc.onModuleDestroy.call(svc);
@@ -46,7 +46,7 @@ describe('SchedulerService', () => {
   it('drainOutbox swallows errors and logs them (#615)', async () => {
     const outbox = { drainOnce: vi.fn().mockRejectedValue(new Error('redis down')) } as unknown as OutboxRelayService;
     const proj = { drainOnce: vi.fn() } as unknown as ProjectionRunnerService;
-    const svc = new SchedulerService(outbox, proj, makeConfig() as never);
+    const svc = new SchedulerService(outbox, proj, makeConfig() as never, { reconcileNow: () => [] } as never);
     await svc.drainOutbox();
     expect(logErr).toHaveBeenCalledWith(expect.stringContaining('redis down'), expect.any(String));
     svc.onModuleDestroy.call(svc);
@@ -55,7 +55,7 @@ describe('SchedulerService', () => {
   it('drainProjections swallows errors and logs', async () => {
     const outbox = { drainOnce: vi.fn() } as unknown as OutboxRelayService;
     const proj = { drainOnce: vi.fn().mockRejectedValue(new Error('db locked')) } as unknown as ProjectionRunnerService;
-    const svc = new SchedulerService(outbox, proj, makeConfig() as never);
+    const svc = new SchedulerService(outbox, proj, makeConfig() as never, { reconcileNow: () => [] } as never);
     await svc.drainProjections();
     expect(logErr).toHaveBeenCalledWith(expect.stringContaining('db locked'), expect.any(String));
     svc.onModuleDestroy.call(svc);
@@ -65,7 +65,7 @@ describe('SchedulerService', () => {
     const drainOutboxFn = vi.fn().mockResolvedValue(undefined);
     const outbox = { drainOnce: drainOutboxFn } as unknown as OutboxRelayService;
     const proj = { drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as ProjectionRunnerService;
-    const svc = new SchedulerService(outbox, proj, makeConfig() as never);
+    const svc = new SchedulerService(outbox, proj, makeConfig() as never, { reconcileNow: () => [] } as never);
     svc.onModuleInit.call(svc);
     expect(drainOutboxFn).not.toHaveBeenCalled();
     svc.onModuleDestroy.call(svc);
@@ -77,7 +77,7 @@ describe('SchedulerService', () => {
     const drainOutboxFn = vi.fn().mockResolvedValue(undefined);
     const outbox = { drainOnce: drainOutboxFn } as unknown as OutboxRelayService;
     const proj = { drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as ProjectionRunnerService;
-    const svc = new SchedulerService(outbox, proj, makeConfig() as never);
+    const svc = new SchedulerService(outbox, proj, makeConfig() as never, { reconcileNow: () => [] } as never);
     svc.onModuleInit.bind(svc)();
     expect(drainOutboxFn).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(5_000);
@@ -88,7 +88,7 @@ describe('SchedulerService', () => {
   it('drainOutbox swallows non-Error thrown values (#661)', async () => {
     const outbox = { drainOnce: vi.fn().mockRejectedValue('redis exploded') } as unknown as OutboxRelayService;
     const proj = { drainOnce: vi.fn() } as unknown as ProjectionRunnerService;
-    const svc = new SchedulerService(outbox, proj, makeConfig() as never);
+    const svc = new SchedulerService(outbox, proj, makeConfig() as never, { reconcileNow: () => [] } as never);
     await svc.drainOutbox();
     expect(logErr).toHaveBeenCalledWith(expect.stringContaining('redis exploded'));
     svc.onModuleDestroy.bind(svc)();

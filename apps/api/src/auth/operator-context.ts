@@ -1,9 +1,4 @@
 // apps/api/src/auth/operator-context.ts
-// Shared tenancy context. Sole authoritative definition for the codebase.
-export interface OperatorContext {
-  readonly operatorId: string;
-  readonly companyId: string;
-  readonly businessUnitId: string;
-  readonly depotId: string;
-  readonly legalEntityId: string;
-}
+// Re-exports the canonical OperatorContext from @fleet/domain.
+// Kept here as a compatibility re-export to avoid touching every importer.
+export type { OperatorContext } from '@fleet/domain';

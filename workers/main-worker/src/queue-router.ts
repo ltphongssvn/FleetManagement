@@ -14,6 +14,8 @@ import { IntakeJobDataSchema } from './intake/intake-job.js';
 import { IntakeProcessor } from './intake/intake-processor.js';
 import { ErpJobDataSchema } from './erp/erp-job.js';
 import { ErpProcessor } from './erp/erp-processor.js';
+import { sendErpInvoice, type ErpClientPort } from './erp/erp-send-flow.js';
+import type { IntakeCallback } from './intake/intake-callback.js';
 
 export interface RouterResult {
   readonly handled: boolean;
@@ -47,11 +49,21 @@ export async function routeJob(
   name: QueueName,
   job: Pick<Job<unknown>, 'id' | 'data'>,
   deadLetters: DeadLetterSink,
+  intakeCallback?: IntakeCallback,
+  erpClient?: ErpClientPort,
 ): Promise<RouterResult> {
   try {
     if (name === 'intake') {
       const data = IntakeJobDataSchema.parse(job.data);
       const decision = new IntakeProcessor().process(data);
+      // Worker reports back to API so it can transition manifest+upload_session
+      // and emit manifest.committed to outbox (PDF Day-One #5 + #8).
+      if (intakeCallback) {
+        const callbackInput = decision.accepted
+          ? { uploadSessionId: data.uploadSessionId, accepted: true }
+          : { uploadSessionId: data.uploadSessionId, accepted: false, rejectionReasonCode: decision.rejectionCode };
+        await intakeCallback.finalize(callbackInput);
+      }
       const summary = decision.accepted
         ? `accepted policy=${decision.policyVersion}`
         : `rejected:${decision.rejectionCode} policy=${decision.policyVersion}`;
@@ -59,6 +71,14 @@ export async function routeJob(
     }
     if (name === 'erp') {
       const data = ErpJobDataSchema.parse(job.data);
+      if (erpClient) {
+        const outcome = await sendErpInvoice(data, erpClient);
+        if (outcome.kind === 'failed') throw outcome.error;
+        const summary = outcome.kind === 'sent'
+          ? `sent externalInvoiceId=${outcome.externalInvoiceId}`
+          : `rejected:${outcome.rejectionCode}`;
+        return { handled: true, summary, deadLettered: false };
+      }
       const decision = new ErpProcessor().process(data);
       const summary = decision.accepted
         ? `accepted policy=${decision.policyVersion}`

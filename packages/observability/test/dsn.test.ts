@@ -64,6 +64,7 @@ describe('parseDsn anchor + error message tests (mutation hardening)', () => {
   });
   it('error for empty-min message contains "must not be empty"', () => {
     // dsnSchema.parse('') triggers .min(1, "DSN must not be empty")
+    expect.assertions(1);
     try {
       dsnSchema.parse('');
     } catch (err) {
@@ -72,4 +73,3 @@ describe('parseDsn anchor + error message tests (mutation hardening)', () => {
     }
   });
 });
-

@@ -3,14 +3,9 @@ import { describe, it, expect } from 'vitest';
 import { UnauthorizedException, type ExecutionContext } from '@nestjs/common';
 import { CurrentOperator, extractCurrentOperator } from '../src/auth/current-operator.decorator.js';
 import type { OperatorContext } from '../src/auth/operator-context.js';
+import { createOperatorContext } from '@fleet/test-fixtures';
 
-const validOp: OperatorContext = {
-  operatorId: '00000000-0000-0000-0000-000000000002',
-  companyId: '00000000-0000-0000-0000-000000000003',
-  businessUnitId: '00000000-0000-0000-0000-000000000000',
-  depotId: '00000000-0000-0000-0000-000000000000',
-  legalEntityId: '00000000-0000-0000-0000-000000000000',
-};
+const validOp: OperatorContext = createOperatorContext();
 
 function makeCtx(req: Record<string, unknown>): ExecutionContext {
   return {

@@ -47,14 +47,14 @@ export interface OutboxRelayResult {
   readonly retryScheduled: number;
 }
 
-interface ClaimedRow {
+type ClaimedRow = {
   readonly outbox_id: string;
   readonly queue_name: string;
   readonly status: string;
   readonly attempts: number;
   readonly next_attempt_at: Date | null;
   readonly payload: unknown;
-}
+} & Record<string, unknown>;
 
 @Injectable()
 export class OutboxRelayService implements OnModuleDestroy {
@@ -78,7 +78,7 @@ export class OutboxRelayService implements OnModuleDestroy {
   async drainOnce(): Promise<OutboxRelayResult> {
     // Claim a batch atomically. SKIP LOCKED ensures concurrent drainOnce calls
     // (or future multi-instance API deploys) never select the same row.
-    const claimResult = await this.db.execute(sql`
+    const claimResult = await this.db.execute<ClaimedRow>(sql`
       SELECT outbox_id, queue_name, status, attempts, next_attempt_at, payload
       FROM ${outbox}
       WHERE (status = 'pending'
@@ -87,8 +87,7 @@ export class OutboxRelayService implements OnModuleDestroy {
       LIMIT ${POLL_BATCH_SIZE}
       FOR UPDATE SKIP LOCKED
     `);
-    const rows = (claimResult as unknown as { rows?: ClaimedRow[] }).rows
-      ?? (claimResult as unknown as ClaimedRow[]);
+    const rows: readonly ClaimedRow[] = claimResult.rows;
 
     let enqueued = 0;
     let deadLettered = 0;

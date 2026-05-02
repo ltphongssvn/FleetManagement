@@ -1,8 +1,8 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nextjs",
-  "buildCommand": "cd ../.. && pnpm --filter @fleet/domain build && pnpm --filter @fleet/sync-protocol build && pnpm --filter @fleet/ops-web build",
+  "_comment": "apps/ops-web/vercel.json - Pilot deploy config per PDF Day-One #10.",
+  "buildCommand": "cd ../.. && pnpm exec turbo run build --filter=@fleet/ops-web",
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "framework": "nextjs",
   "outputDirectory": ".next",
   "regions": ["sfo1"]
 }

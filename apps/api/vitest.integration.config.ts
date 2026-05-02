@@ -7,6 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   test: {
+    clearMocks: true,
     include: ['test/**/*.integration.test.ts'],
     testTimeout: 60_000,
     hookTimeout: 60_000,

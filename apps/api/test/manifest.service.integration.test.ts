@@ -10,17 +10,12 @@ import type { IBlobStore, PresignedUpload } from '../src/storage/storage-provide
 import type { ConfigService } from '@nestjs/config';
 import type { Env } from '../src/config/env.config.js';
 import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
+import { createOperatorContext } from '@fleet/test-fixtures';
 
 let testDb: MigratedTestDb;
 let service: ManifestService;
 
-const OP: OperatorContext = {
-  operatorId: '00000000-0000-0000-0000-000000000002',
-  companyId: '00000000-0000-0000-0000-000000000003',
-  businessUnitId: '00000000-0000-0000-0000-000000000004',
-  depotId: '00000000-0000-0000-0000-000000000005',
-  legalEntityId: '00000000-0000-0000-0000-000000000006',
-};
+const OP: OperatorContext = createOperatorContext();
 
 const TRANSPORT_ORDER_ID = '00000000-0000-0000-0000-0000000000b1';
 const CORRELATION_ID = '00000000-0000-0000-0000-0000000000a1';
@@ -116,6 +111,43 @@ describe('@fleet/api - ManifestService (integration)', () => {
       uploadSessionId: '00000000-0000-0000-0000-0000000000ff',
       actualSizeBytes: 1000,
     }, OP)).rejects.toBeInstanceOf(UploadSessionNotFoundError);
+  });
+
+  it('finalizeIntake(accepted=true) writes audit row + outbox event for ERP', async () => {
+    const negotiated = await service.negotiateUpload({
+      manifestCorrelationId: CORRELATION_ID,
+      transportOrderId: TRANSPORT_ORDER_ID,
+      contentType: 'image/jpeg',
+      expectedSizeBytes: 1_500_000,
+    }, OP);
+    await service.commitUpload({ uploadSessionId: negotiated.uploadSessionId, actualSizeBytes: 1_400_000 }, OP);
+    const result = await service.finalizeIntake({ uploadSessionId: negotiated.uploadSessionId, accepted: true }, OP);
+    expect(result.state).toBe('committed');
+
+    const audit = await testDb.db.execute<{ count: string; event_type: string }>(sql`
+      SELECT COUNT(*)::text as count, MAX(event_type) as event_type FROM fleet_audit_log
+    `);
+    expect(audit.rows[0]?.count).toBe('1');
+    expect(audit.rows[0]?.event_type).toBe('manifest.committed');
+
+    const ob = await testDb.db.execute<{ count: string; queue_name: string }>(sql`
+      SELECT COUNT(*)::text as count, MAX(queue_name) as queue_name FROM outbox WHERE queue_name = 'erp'
+    `);
+    expect(ob.rows[0]?.count).toBe('1');
+    expect(ob.rows[0]?.queue_name).toBe('erp');
+  });
+
+  it('finalizeIntake(accepted=false) does NOT emit audit/outbox', async () => {
+    const negotiated = await service.negotiateUpload({
+      manifestCorrelationId: CORRELATION_ID,
+      transportOrderId: TRANSPORT_ORDER_ID,
+      contentType: 'image/jpeg',
+      expectedSizeBytes: 1_500_000,
+    }, OP);
+    await service.commitUpload({ uploadSessionId: negotiated.uploadSessionId, actualSizeBytes: 1_400_000 }, OP);
+    await service.finalizeIntake({ uploadSessionId: negotiated.uploadSessionId, accepted: false, rejectionReasonCode: 'other' }, OP);
+    const audit = await testDb.db.execute<{ count: string }>(sql`SELECT COUNT(*)::text as count FROM fleet_audit_log`);
+    expect(audit.rows[0]?.count).toBe('0');
   });
 
   it('reuses existing manifest on second negotiate with same correlation_id', async () => {

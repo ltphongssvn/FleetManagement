@@ -64,6 +64,8 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.4.5",
+    "@fleet/test-fixtures": "workspace:*",
     "@nestjs/testing": "^11.1.19",
     "@testcontainers/postgresql": "^11.14.0",
     "@types/express": "^5.0.0",

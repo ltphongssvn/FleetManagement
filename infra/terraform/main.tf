@@ -92,3 +92,34 @@ resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {
     }
   }
 }
+
+# ---------------------------------------------------------------------------
+# Fly Postgres (managed) — pilot single-instance per PDF Day-One #10
+# Per PDF: "Postgres (managed), Redis (for BullMQ), S3 bucket - Single region"
+# ---------------------------------------------------------------------------
+resource "fly_machine" "postgres" {
+  app    = fly_app.api.name
+  region = var.fly_region
+  name   = "${var.project_name}-pg"
+  image  = "flyio/postgres-flex:15"
+  env = {
+    PRIMARY_REGION = var.fly_region
+  }
+  services = [{
+    ports = [{
+      port     = 5432
+      handlers = ["pg_tls"]
+    }]
+    protocol      = "tcp"
+    internal_port = 5432
+  }]
+}
+
+# ---------------------------------------------------------------------------
+# Upstash Redis for BullMQ. Day-One: "Redis (for BullMQ)".
+# Outputs REDIS_URL via outputs.tf for Fly app secret injection.
+# ---------------------------------------------------------------------------
+# NOTE: Upstash provider provisioning is a follow-up. For pilot day-one we
+# document the manual creation step here so plan/apply does not silently skip
+# the dependency. Operator runs `flyctl redis create` once, sets REDIS_URL
+# via `flyctl secrets set` on both api + worker apps.

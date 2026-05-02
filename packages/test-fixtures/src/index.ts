@@ -6,3 +6,27 @@ export {
   createMockSyncResponse,
   createMockSyncAction,
 } from './sync-fixtures.js';
+
+export {
+  createOperatorContext,
+  createSyncAction,
+  type OperatorContextLike,
+  type SyncActionLike,
+} from './operator-fixtures.js';
+
+export {
+  createCommandPayload,
+  createNegotiateUploadInput,
+  createCommitUploadInput,
+  createCreateTransportOrderInput,
+  type CommandPayloadLike,
+  type NegotiateUploadInputLike,
+  type CommitUploadInputLike,
+  type CreateTransportOrderInputLike,
+  type StopLike,
+} from './payload-fixtures.js';
+
+export {
+  createPgUniqueViolation,
+  createWrappedError,
+} from './pg-error-fixtures.js';

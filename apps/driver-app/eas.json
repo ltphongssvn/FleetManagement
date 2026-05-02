@@ -1,15 +1,16 @@
 {
+  "_comment": "apps/driver-app/eas.json - EAS Build/Update profiles per PDF Day-One #10.",
   "cli": {
-    "version": ">= 14.0.0",
+    "version": ">= 16.0.0",
     "appVersionSource": "remote"
   },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "ios": {
-        "simulator": true
-      },
+      "ios": { "simulator": true },
+      "android": { "gradleCommand": ":app:assembleDebug", "buildType": "apk" },
+      "channel": "development",
       "env": {
         "APP_ENV": "development",
         "EXPO_PUBLIC_API_URL": "http://localhost:3000"
@@ -18,23 +19,19 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview",
-      "ios": {
-        "simulator": false
-      },
-      "android": {
-        "buildType": "apk"
-      },
+      "android": { "buildType": "apk" },
       "env": {
         "APP_ENV": "preview",
-        "EXPO_PUBLIC_API_URL": "https://preview-api.fleetmanagement.example"
+        "EXPO_PUBLIC_API_URL": "https://api-preview.fleet-pilot.dev"
       }
     },
     "production": {
       "channel": "production",
       "autoIncrement": true,
+      "android": { "buildType": "app-bundle" },
       "env": {
         "APP_ENV": "production",
-        "EXPO_PUBLIC_API_URL": "https://api.fleetmanagement.example"
+        "EXPO_PUBLIC_API_URL": "https://api.fleet-pilot.com"
       }
     }
   },

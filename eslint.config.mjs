@@ -8,6 +8,7 @@
 import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import eslintConfigPrettier from "eslint-config-prettier";
+import vitest from "@vitest/eslint-plugin";
 
 export default tseslint.config(
   // Global ignores — use **/pattern for nested workspace matches
@@ -58,13 +59,31 @@ export default tseslint.config(
     },
   },
 
-  // Test files: relax some rules that don't apply to tests
+  // Test files: relax some rules that don't apply to tests; enable vitest hygiene
   {
     files: ["**/test/**/*.ts", "**/*.test.ts", "**/*.spec.ts"],
+    plugins: { vitest },
     rules: {
       "@typescript-eslint/no-unsafe-assignment": "off",
       "@typescript-eslint/no-unsafe-call": "off",
       "@typescript-eslint/no-unsafe-member-access": "off",
+      "vitest/no-focused-tests": "error",
+      "vitest/no-disabled-tests": "warn",
+      "vitest/no-identical-title": "error",
+      "vitest/expect-expect": ["error", { assertFunctionNames: ["expect", "expectTypeOf", "fc.assert"] }],
+      "vitest/valid-expect": "error",
+    },
+  },
+  // Forbid test imports in production code
+  {
+    files: ["apps/*/src/**/*.ts", "workers/*/src/**/*.ts", "packages/*/src/**/*.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [{
+          group: ["vitest", "**/test/**", "@fleet/test-fixtures"],
+          message: "Test imports are forbidden in production code",
+        }],
+      }],
     },
   },
 

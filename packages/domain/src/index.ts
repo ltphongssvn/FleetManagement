@@ -21,6 +21,7 @@ export {
   REVOCATION_REASON_SCHEMA_VERSION,
   type RevocationEvent,
   RevocationEventSchema,
+  type OperatorContext,
 } from './identity/index.js';
 export {
   type TransportOrderState,

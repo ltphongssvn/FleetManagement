@@ -14,6 +14,9 @@ import { Worker, Queue, type ConnectionOptions } from 'bullmq';
 import { QUEUE_NAMES, QUEUE_CONCURRENCY } from './queues.js';
 import { loadConfig } from './config.js';
 import { routeJob, createBullDeadLetterSink } from './queue-router.js';
+import { FetchIntakeCallback, type IntakeCallback } from './intake/intake-callback.js';
+import { FetchErpClient } from './erp/fetch-erp-client.js';
+import type { ErpClientPort } from './erp/erp-send-flow.js';
 
 function bootstrap(): void {
   const config = loadConfig();
@@ -25,11 +28,29 @@ function bootstrap(): void {
   const deadLetterQueue = new Queue('outbox-dead-letter', { connection });
   const deadLetters = createBullDeadLetterSink(deadLetterQueue);
 
+  // Intake callback: only constructed if FLEET_API_URL + FLEET_API_TOKEN provided.
+  // Pilot scope: token is a static service-account JWT loaded from env. Production
+  // would mint a short-lived service-token via the IIdentityProvider seam.
+  let intakeCallback: IntakeCallback | undefined;
+  if (config.FLEET_API_URL && config.FLEET_API_TOKEN) {
+    const apiUrl = config.FLEET_API_URL;
+    const apiToken = config.FLEET_API_TOKEN;
+    intakeCallback = new FetchIntakeCallback({
+      apiUrl,
+      bearerToken: () => apiToken,
+    });
+  }
+
+  let erpClient: ErpClientPort | undefined;
+  if (config.ERP_API_URL && config.ERP_API_KEY) {
+    erpClient = new FetchErpClient({ baseUrl: config.ERP_API_URL, apiKey: config.ERP_API_KEY });
+  }
+
   const workers = QUEUE_NAMES.map((name) => {
     const worker = new Worker(
       name,
       async (job) => {
-        const result = await routeJob(name, job, deadLetters);
+        const result = await routeJob(name, job, deadLetters, intakeCallback, erpClient);
         console.log(`[${name}] job ${String(job.id)} ${result.summary}`);
         return { processed: true, deadLettered: result.deadLettered };
       },

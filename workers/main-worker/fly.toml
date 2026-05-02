@@ -1,5 +1,5 @@
-# workers/main-worker/fly.toml
-app = "fleet-worker"
+# workers/main-worker/fly.toml - Fleet worker Fly.io config per PDF Day-One #10.
+app = "fleet-pilot-worker"
 primary_region = "sjc"
 
 [build]
@@ -8,10 +8,6 @@ primary_region = "sjc"
 [env]
   NODE_ENV = "production"
 
-[processes]
-  worker = "node dist/main.js"
-
 [[vm]]
-  cpu_kind = "shared"
-  cpus = 1
-  memory_mb = 512
+  size = "shared-cpu-1x"
+  memory = "512mb"

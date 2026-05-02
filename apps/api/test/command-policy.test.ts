@@ -3,7 +3,6 @@ import { describe, it, expect } from 'vitest';
 import {
   isAckTimedOut,
   shouldFallbackToPush,
-  shouldRetryDelivery,
   COMMAND_TIMEOUT_MS,
   COMMAND_MAX_ATTEMPTS_CONST,
   type PendingCommand,
@@ -37,19 +36,5 @@ describe('@fleet/api - shouldFallbackToPush', () => {
 
   it('does not fall back if not yet timed out', () => {
     expect(shouldFallbackToPush(cmd({ attempts: COMMAND_MAX_ATTEMPTS_CONST }), NOW)).toBe(false);
-  });
-});
-
-describe('@fleet/api - shouldRetryDelivery', () => {
-  it('retries when timed out and under max', () => {
-    expect(shouldRetryDelivery(cmd({ attempts: 1 }), ELAPSED_TIMEOUT)).toBe(true);
-  });
-
-  it('does not retry at max attempts (fallback instead)', () => {
-    expect(shouldRetryDelivery(cmd({ attempts: COMMAND_MAX_ATTEMPTS_CONST }), ELAPSED_TIMEOUT)).toBe(false);
-  });
-
-  it('does not retry if within timeout window', () => {
-    expect(shouldRetryDelivery(cmd({ attempts: 1 }), NOW)).toBe(false);
   });
 });

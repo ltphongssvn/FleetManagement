@@ -2,6 +2,7 @@
 // Behavioral + contract tests: validate schema parsing, type exhaustiveness,
 // runtime immutability, and tolerant-reader version contract.
 import { describe, it, expect, expectTypeOf } from 'vitest';
+import type { OperatorContext } from '../src/index.js';
 import {
   SessionSurfaceSchema,
   SESSION_SURFACES,
@@ -148,5 +149,20 @@ describe('@fleet/domain - RevocationEventSchema', () => {
   it('rejects events with unknown reasons', () => {
     const bad = { ...validEvent, reason: 'mystery_v2' };
     expect(RevocationEventSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
+describe('@fleet/domain - OperatorContext', () => {
+  it('exports OperatorContext interface with all 5 tenancy fields', () => {
+    const op: OperatorContext = {
+      operatorId: 'op',
+      companyId: 'co',
+      businessUnitId: 'bu',
+      depotId: 'd',
+      legalEntityId: 'le',
+    };
+    expect(Object.keys(op).sort()).toEqual(
+      ['businessUnitId', 'companyId', 'depotId', 'legalEntityId', 'operatorId'],
+    );
   });
 });

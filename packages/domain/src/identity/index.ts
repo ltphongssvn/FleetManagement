@@ -16,3 +16,5 @@ export {
   type RevocationEvent,
   RevocationEventSchema,
 } from './revocation.js';
+
+export type { OperatorContext } from './operator-context.js';

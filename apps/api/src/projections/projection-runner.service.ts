@@ -54,15 +54,13 @@ export class ProjectionRunnerService {
         .insert(projectionStatus)
         .values({ projectionName: DISPATCH_BOARD_PROJECTION_NAME, scope, watermark: 0n, lagMs: 0 })
         .onConflictDoNothing();
-      const statusRows = await tx.execute(sql`
+      const statusRows = await tx.execute<{ watermark: string | bigint }>(sql`
         SELECT projection_name, scope, watermark, lag_ms
         FROM ${projectionStatus}
         WHERE projection_name = ${DISPATCH_BOARD_PROJECTION_NAME} AND scope = ${scope}
         FOR UPDATE
       `);
-      const sRows = (statusRows as unknown as { rows?: { watermark: string | bigint }[] }).rows
-        ?? (statusRows as unknown as { watermark: string | bigint }[]);
-      const w = sRows[0]?.watermark;
+      const w = statusRows.rows[0]?.watermark;
       const watermark: bigint = typeof w === 'bigint' ? w : BigInt(w ?? '0');
 
       const events = await tx

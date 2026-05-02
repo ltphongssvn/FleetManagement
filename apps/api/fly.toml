@@ -1,17 +1,13 @@
-# apps/api/fly.toml
-app = "fleet-api"
+# apps/api/fly.toml - Fleet API Fly.io config per PDF Day-One #10.
+app = "fleet-pilot-api"
 primary_region = "sjc"
 
 [build]
   dockerfile = "Dockerfile"
 
 [env]
-  NODE_ENV = "production"
   PORT = "3000"
-  AWS_REGION = "us-west-2"
-  S3_ARTIFACTS_BUCKET = "fleet-pilot-artifacts"
-  OTEL_ENABLED = "false"
-  FLEET_PILOT_SCOPE = "00000000-0000-0000-0000-000000000000"
+  NODE_ENV = "production"
 
 [http_service]
   internal_port = 3000
@@ -19,14 +15,20 @@ primary_region = "sjc"
   auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 200
+    hard_limit = 250
 
   [[http_service.checks]]
-    path = "/health/live"
-    interval = "10s"
-    timeout = "2s"
-    grace_period = "5s"
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/health/ready"
+    timeout = "5s"
 
 [[vm]]
-  cpu_kind = "shared"
-  cpus = 1
-  memory_mb = 512
+  size = "shared-cpu-1x"
+  memory = "512mb"

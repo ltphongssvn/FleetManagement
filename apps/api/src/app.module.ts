@@ -17,6 +17,10 @@ import { OutboxModule } from './outbox/outbox.module.js';
 import { ProjectionsModule } from './projections/projections.module.js';
 import { DispatchModule } from './dispatch/dispatch.module.js';
 import { SchedulerModule } from './scheduler/scheduler.module.js';
+import { TransportOrdersModule } from './transport-orders/transport-orders.module.js';
+import { ConfigClientModule } from './config-client/config-client.module.js';
+import { ErpInboundModule } from './erp-inbound/erp-inbound.module.js';
+import { MetricsModule } from './metrics/metrics.module.js';
 
 @Module({
   imports: [
@@ -34,6 +38,10 @@ import { SchedulerModule } from './scheduler/scheduler.module.js';
     ProjectionsModule,
     DispatchModule,
     SchedulerModule,
+    TransportOrdersModule,
+    ConfigClientModule,
+    ErpInboundModule,
+    MetricsModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: SentryGlobalFilter }],
 })

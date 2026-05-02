@@ -41,3 +41,4 @@ export {
   type OutboxRoutingRejectionCode,
   type OutboxTargetQueue,
 } from './outbox-routing.js';
+export { COMMAND_EVENTS, type CommandEventName } from './command-events.js';

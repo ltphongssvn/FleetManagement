@@ -38,3 +38,29 @@ export class ManifestController {
     return this.manifests.commitUpload(input, op);
   }
 }
+
+import { z } from 'zod';
+
+const FinalizeIntakeSchema = z.object({
+  uploadSessionId: z.string().uuid(),
+  accepted: z.boolean(),
+  rejectionReasonCode: z.string().min(1).max(64).optional(),
+}).strict();
+
+@Controller('upload')
+@UseGuards(JwtGuard)
+export class IntakeCallbackController {
+  constructor(private readonly manifests: ManifestService) {}
+
+  @Post('intake-result')
+  async finalize(
+    @Body() body: unknown,
+    @CurrentOperator() op: OperatorContext,
+  ): Promise<{ manifestId: string; state: 'committed' | 'rejected' }> {
+    const parsed = FinalizeIntakeSchema.parse(body);
+    const input = parsed.rejectionReasonCode === undefined
+      ? { uploadSessionId: parsed.uploadSessionId, accepted: parsed.accepted }
+      : { uploadSessionId: parsed.uploadSessionId, accepted: parsed.accepted, rejectionReasonCode: parsed.rejectionReasonCode };
+    return this.manifests.finalizeIntake(input, op);
+  }
+}
