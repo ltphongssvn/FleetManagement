@@ -45,4 +45,40 @@ describe('@fleet/driver-app - negotiateAndUploadManifest', () => {
       fetchFn: fetchFn as never,
     })).rejects.toThrow();
   });
+
+  it('throws on commit failure', async () => {
+    const fetchFn = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ uploadSessionId: '99999999-9999-7999-8999-999999999999', url: 'https://s3/up', key: 'k', bucket: 'b', expiresAt: '2026-12-31T00:00:00Z' }) })
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: false, status: 502, statusText: 'bad gateway' });
+    await expect(negotiateAndUploadManifest({
+      apiUrl: 'http://api', bearerToken: () => 't',
+      manifestCorrelationId: '11111111-1111-7111-8111-111111111111',
+      transportOrderId: '22222222-2222-7222-8222-222222222222',
+      contentType: 'image/jpeg',
+      fileBytes: new Uint8Array([1]),
+      fetchFn: fetchFn as never,
+    })).rejects.toThrow(/commit/i);
+  });
+
+  it('forwards contentHash to commit when provided', async () => {
+    let commitBody: string | undefined;
+    const fetchFn = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ uploadSessionId: '99999999-9999-7999-8999-999999999999', url: 'https://s3/up', key: 'k', bucket: 'b', expiresAt: '2026-12-31T00:00:00Z' }) })
+      .mockResolvedValueOnce({ ok: true })
+      .mockImplementationOnce((_url: string, init: { body: string }) => {
+        commitBody = init.body;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ uploadSessionId: '99999999-9999-7999-8999-999999999999', manifestId: '88888888-8888-7888-8888-888888888888', state: 'verifying' }) });
+      });
+    await negotiateAndUploadManifest({
+      apiUrl: 'http://api', bearerToken: () => 't',
+      manifestCorrelationId: '11111111-1111-7111-8111-111111111111',
+      transportOrderId: '22222222-2222-7222-8222-222222222222',
+      contentType: 'image/jpeg',
+      fileBytes: new Uint8Array([1]),
+      contentHash: 'sha256:abc',
+      fetchFn: fetchFn as never,
+    });
+    expect(commitBody).toContain('"contentHash":"sha256:abc"');
+  });
 });

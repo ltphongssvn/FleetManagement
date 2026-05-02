@@ -33,6 +33,31 @@ describe('@fleet/driver-app - exchangeAuthCode', () => {
       tokenEndpoint: 'http://idp/token', code: 'C', clientId: 'cid', redirectUri: 'x', fetchFn: fetchFn as never,
     })).rejects.toThrow();
   });
+
+  it('includes code_verifier in body when provided (PKCE)', async () => {
+    let capturedBody: string | undefined;
+    const fetchFn = vi.fn().mockImplementation((_url: string, init: { body: string }) => {
+      capturedBody = init.body;
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ access_token: 'a', expires_in: 3600 }) });
+    });
+    await exchangeAuthCode({
+      tokenEndpoint: 'http://idp/token', code: 'C', clientId: 'cid', redirectUri: 'x',
+      codeVerifier: 'verifier-abc',
+      fetchFn: fetchFn as never,
+    });
+    expect(capturedBody).toContain('code_verifier=verifier-abc');
+  });
+
+  it('returns refreshToken=null when token response omits refresh_token', async () => {
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: true, json: () => Promise.resolve({ access_token: 'a', expires_in: 3600 }),
+    });
+    const res = await exchangeAuthCode({
+      tokenEndpoint: 'http://idp/token', code: 'C', clientId: 'cid', redirectUri: 'x',
+      fetchFn: fetchFn as never,
+    });
+    expect(res.refreshToken).toBeNull();
+  });
 });
 
 describe('@fleet/driver-app - isTokenExpired', () => {

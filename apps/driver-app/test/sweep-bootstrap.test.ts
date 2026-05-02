@@ -44,4 +44,19 @@ describe('@fleet/driver-app - runSpoolSweepOnBoot', () => {
     expect(result.cleaned).toBe(1);
     expect(remove).toHaveBeenCalledOnce();
   });
+
+  it('skips in-progress entries without removing', async () => {
+    const now = Date.now();
+    const entries: readonly SpoolEntry[] = [baseEntry({ createdAtMs: now - 1000, status: 'uploading', attempts: 1 })];
+    const remove = vi.fn().mockResolvedValue(undefined);
+    const result = await runSpoolSweepOnBoot({ list: () => Promise.resolve(entries), remove, now: () => now });
+    expect(result.resumed + result.skipped).toBeGreaterThanOrEqual(1);
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('uses Date.now when deps.now is omitted', async () => {
+    const remove = vi.fn().mockResolvedValue(undefined);
+    const result = await runSpoolSweepOnBoot({ list: () => Promise.resolve([]), remove });
+    expect(result.scanned).toBe(0);
+  });
 });
