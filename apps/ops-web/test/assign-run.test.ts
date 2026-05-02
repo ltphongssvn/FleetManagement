@@ -93,3 +93,60 @@ describe('@fleet/ops-web - assignRun (issue code mapping)', () => {
     }
   });
 });
+
+describe('@fleet/ops-web - assignRun (api integration paths)', () => {
+  it('returns config_missing in production when env vars absent', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('FLEET_API_URL', '');
+    vi.stubEnv('FLEET_API_TOKEN', '');
+    try {
+      const result = await assignRun(validInput);
+      expect(result.status).toBe('config_missing');
+      if (result.status === 'config_missing') {
+        expect(result.message).toMatch(/FLEET_API_URL/);
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('posts to API and returns ok on 2xx', async () => {
+    process.env['FLEET_API_URL'] = 'http://api.test';
+    process.env['FLEET_API_TOKEN'] = 'tok';
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      { ok: true, status: 202, statusText: 'Accepted' } as Response,
+    );
+    try {
+      const result = await assignRun(validInput);
+      expect(result.status).toBe('ok');
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'http://api.test/commands',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    } finally {
+      fetchSpy.mockRestore();
+      delete process.env['FLEET_API_URL'];
+      delete process.env['FLEET_API_TOKEN'];
+    }
+  });
+
+  it('returns api_error when API responds non-2xx', async () => {
+    process.env['FLEET_API_URL'] = 'http://api.test';
+    process.env['FLEET_API_TOKEN'] = 'tok';
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      { ok: false, status: 503, statusText: 'Service Unavailable' } as Response,
+    );
+    try {
+      const result = await assignRun(validInput);
+      expect(result.status).toBe('api_error');
+      if (result.status === 'api_error') {
+        expect(result.httpStatus).toBe(503);
+        expect(result.message).toBe('Service Unavailable');
+      }
+    } finally {
+      fetchSpy.mockRestore();
+      delete process.env['FLEET_API_URL'];
+      delete process.env['FLEET_API_TOKEN'];
+    }
+  });
+});
