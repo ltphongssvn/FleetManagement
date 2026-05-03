@@ -95,4 +95,31 @@ describe('@fleet/api - CommandsController concurrency (integration, RED)', () =>
       expect(cur > prev).toBe(true);
     }
   });
+
+  it('returns idempotent success on duplicate commandId (replay) without throwing', async () => {
+    const ctrl = makeController();
+    const dupCmd = cmd('00000000-0000-0000-0000-0000000000d1');
+
+    const first = await ctrl.issue(dupCmd, opCtx);
+    expect(first.commandId).toBe('00000000-0000-0000-0000-0000000000d1');
+
+    // Replay: same commandId; must NOT throw, must return success shape.
+    const second = await ctrl.issue(dupCmd, opCtx);
+    expect(second.commandId).toBe('00000000-0000-0000-0000-0000000000d1');
+
+    // Side-effect contract: only ONE row in each append path (no duplicate
+    // audit/outbox emission on replay).
+    const feed = await testDb.db.execute<{ count: string }>(
+      sql`SELECT COUNT(*)::text AS count FROM sync_change_feed WHERE action_id = ${dupCmd.commandId}`,
+    );
+    expect(feed.rows[0]?.count).toBe('1');
+    const audit = await testDb.db.execute<{ count: string }>(
+      sql`SELECT COUNT(*)::text AS count FROM fleet_audit_log WHERE payload->>'commandId' = ${dupCmd.commandId}`,
+    );
+    expect(audit.rows[0]?.count).toBe('1');
+    const ob = await testDb.db.execute<{ count: string }>(
+      sql`SELECT COUNT(*)::text AS count FROM outbox WHERE payload->>'commandId' = ${dupCmd.commandId}`,
+    );
+    expect(ob.rows[0]?.count).toBe('1');
+  });
 });

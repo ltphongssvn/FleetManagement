@@ -39,10 +39,13 @@ export class CommandsController {
   ): Promise<IssueCommandResponse> {
     const cmd: CommandPayload = IssueCommandSchema.parse(body);
 
-    // Three append paths in same tx (PDF "Command flow"). On unique-violation
-    // for action_id (replay), no-op and return idempotent success.
-    // server_seq sourced from Postgres sequence fleet_server_seq (atomic, lock-free,
-    // monotonic). Replaces MAX()+1 race that produced duplicate seqs under concurrency.
+    // Three append paths in same tx (PDF "Command flow"). Idempotent on
+    // action_id (UNIQUE in sync_change_feed): replays return success without
+    // re-emitting audit/outbox rows. server_seq from fleet_server_seq sequence
+    // (atomic, lock-free, monotonic).
+    //
+    // On conflict, the consumed sequence value is "wasted" — acceptable because
+    // server_seq is documented as monotonic gap-tolerant (PDF §"Database").
     await this.db.transaction(async (tx) => {
       const seqRow = await tx.execute(
         sql<{ next_seq: string }>`SELECT nextval('fleet_server_seq')::text AS next_seq`,
@@ -52,7 +55,10 @@ export class CommandsController {
       if (nextSeqStr === undefined) throw new Error('fleet_server_seq nextval returned no row');
       const nextSeq = BigInt(nextSeqStr);
 
-      await tx.insert(syncChangeFeed).values({
+      // Insert change feed first; if action_id is a replay, onConflictDoNothing
+      // returns no rows and we skip audit+outbox to preserve at-most-once
+      // side effects.
+      const inserted = await tx.insert(syncChangeFeed).values({
         serverSeq: nextSeq,
         actionId: cmd.commandId,
         aggregateType: cmd.aggregateType,
@@ -62,7 +68,15 @@ export class CommandsController {
         businessUnitId: op.businessUnitId,
         depotId: op.depotId,
         legalEntityId: op.legalEntityId,
-      });
+      })
+      .onConflictDoNothing({ target: syncChangeFeed.actionId })
+      .returning({ feedId: syncChangeFeed.feedId });
+
+      if (inserted.length === 0) {
+        // Replay: row already exists. Audit+outbox were emitted on the original
+        // call; emitting them again would double-publish to projections/ERP.
+        return;
+      }
 
       await tx.insert(fleetAuditLog).values({
         serverSeq: nextSeq,
