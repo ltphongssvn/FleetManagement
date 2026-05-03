@@ -9,6 +9,7 @@ import { CommandsService } from './commands.service.js';
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
+import { tagActiveSpan } from '../observability/otel.js';
 
 const IssueCommandSchema = CommandPayloadSchema;
 export type IssueCommandInput = z.infer<typeof IssueCommandSchema>;
@@ -39,8 +40,18 @@ export class CommandsController {
 
     const { duplicate } = await this.service.persist(cmd, op);
     if (duplicate) {
+      tagActiveSpan({
+        'command.id': cmd.commandId,
+        'command.target_operator': cmd.targetOperatorId,
+        'command.outcome': 'duplicate',
+      });
       return { commandId: cmd.commandId, status: 'duplicate', recipientCount: 0 };
     }
+    tagActiveSpan({
+      'command.id': cmd.commandId,
+      'command.target_operator': cmd.targetOperatorId,
+      'command.outcome': 'persisted',
+    });
 
     // Push is best-effort: DB commit is the durable record (sync_change_feed +
     // outbox). If gateway throws (e.g., adapter unavailable during shutdown),
