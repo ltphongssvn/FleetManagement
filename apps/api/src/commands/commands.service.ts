@@ -12,6 +12,7 @@ import type { FleetDb } from '../database/database.module.js';
 import { fleetAuditLog, syncChangeFeed, outbox } from '../database/schema/index.js';
 import type { CommandPayload } from './command.dto.js';
 import type { OperatorContext } from '../auth/operator-context.js';
+import { commandIssuedEventType } from './command-events.js';
 
 export interface PersistResult {
   /** True when action_id already existed (replay). Audit/outbox skipped. */
@@ -51,7 +52,7 @@ export class CommandsService {
       await tx.insert(fleetAuditLog).values({
         serverSeq: nextSeq,
         operatorId: op.operatorId,
-        eventType: `${cmd.aggregateType}.command_issued`,
+        eventType: commandIssuedEventType(cmd.aggregateType),
         aggregateType: cmd.aggregateType,
         aggregateId: cmd.aggregateId,
         payload: { commandId: cmd.commandId, type: cmd.type, targetOperatorId: cmd.targetOperatorId },
@@ -63,7 +64,7 @@ export class CommandsService {
 
       await tx.insert(outbox).values({
         queueName: 'projections',
-        payload: { aggregateType: cmd.aggregateType, eventType: `${cmd.aggregateType}.command_issued`, commandId: cmd.commandId, serverSeq: nextSeq.toString() },
+        payload: { aggregateType: cmd.aggregateType, eventType: commandIssuedEventType(cmd.aggregateType), commandId: cmd.commandId, serverSeq: nextSeq.toString() },
         companyId: op.companyId,
         businessUnitId: op.businessUnitId,
         depotId: op.depotId,
