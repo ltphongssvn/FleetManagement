@@ -10,6 +10,7 @@ const payload: MappedErpPayload = {
   jobCodeExternalId: 'JOB-EXT-1',
   amountCents: 5000,
   currency: 'USD',
+  erpSystem: 'sap',
 };
 
 describe('@fleet/main-worker - FetchErpClient', () => {

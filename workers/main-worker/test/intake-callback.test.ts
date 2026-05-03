@@ -14,7 +14,7 @@ describe('@fleet/main-worker - FetchIntakeCallback', () => {
     const cb = new FetchIntakeCallback({ apiUrl: 'http://api', bearerToken: () => 'tok-1', fetchFn: fetchFn as never });
     await cb.finalize({ uploadSessionId: 'us-1', accepted: true });
     expect(captured.url).toBe('http://api/upload/intake-result');
-    expect(captured.headers?.Authorization).toBe('Bearer tok-1');
+    expect(captured.headers?.['Authorization']).toBe('Bearer tok-1');
     expect(captured.body).toContain('"accepted":true');
   });
 
