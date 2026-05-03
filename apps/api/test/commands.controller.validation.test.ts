@@ -6,6 +6,7 @@ import { ZodError } from 'zod';
 import { CommandsController } from '../src/commands/commands.controller.js';
 import type { CommandsService } from '../src/commands/commands.service.js';
 import type { CommandsGateway } from '../src/commands/commands.gateway.js';
+import type { TenantPolicy } from '../src/auth/tenant-policy.js';
 import type { OperatorContext } from '../src/auth/operator-context.js';
 
 const OP: OperatorContext = {
@@ -19,7 +20,8 @@ const OP: OperatorContext = {
 function makeCtrl(): CommandsController {
   const svc = { persist: vi.fn() } as unknown as CommandsService;
   const gw = { pushCommand: vi.fn() } as unknown as CommandsGateway;
-  return new CommandsController(gw, svc);
+  const policy = { assertOperatorInTenant: () => Promise.resolve(), assertAggregateInTenant: () => Promise.resolve() } as unknown as TenantPolicy;
+  return new CommandsController(gw, svc, policy);
 }
 
 describe('@fleet/api - CommandsController validation (inline parse)', () => {
