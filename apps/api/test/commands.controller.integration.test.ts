@@ -7,6 +7,7 @@ import { sql } from 'drizzle-orm';
 import { CommandsController } from '../src/commands/commands.controller.js';
 import { CommandsGateway } from '../src/commands/commands.gateway.js';
 import { CommandsService } from '../src/commands/commands.service.js';
+import { TenantPolicy } from '../src/auth/tenant-policy.js';
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
 import { createOperatorContext, createCommandPayload } from '@fleet/test-fixtures';
 
@@ -27,15 +28,25 @@ describe('@fleet/api - CommandsController.issue (integration)', () => {
       to: () => ({ emit: () => undefined }),
     };
     const service = new (CommandsService as unknown as new (db: unknown) => CommandsService)(testDb.db);
-    ctrl = new CommandsController(gateway, service);
+    const policy = new (TenantPolicy as unknown as new (db: unknown) => TenantPolicy)(testDb.db);
+    ctrl = new CommandsController(gateway, service, policy);
   }, 30_000);
   afterAll(async () => stopPgliteTestDb(testDb));
   beforeEach(async () => {
-    await testDb.db.execute(sql`TRUNCATE TABLE outbox, fleet_audit_log, sync_change_feed CASCADE`);
+    await testDb.db.execute(sql`TRUNCATE TABLE outbox, fleet_audit_log, sync_change_feed, device_registry, road_run CASCADE`);
+    // Seed tenancy: operator + road_run in OP.companyId so TenantPolicy passes.
+    await testDb.db.execute(sql`
+      INSERT INTO device_registry (device_id, company_id, business_unit_id, depot_id, legal_entity_id, operator_id, platform, app_version)
+      VALUES (gen_random_uuid(), ${OP.companyId}, ${OP.businessUnitId}, ${OP.depotId}, ${OP.legalEntityId}, ${OP.operatorId}, 'ios', '1.0')
+    `);
   });
 
   it('writes to all three append paths and emits audit row', async () => {
     const cmd = createCommandPayload({ targetOperatorId: OP.operatorId });
+    await testDb.db.execute(sql`
+      INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state)
+      VALUES (${cmd.aggregateId}::uuid, ${OP.companyId}, ${OP.businessUnitId}, ${OP.depotId}, ${OP.legalEntityId}, 'planned')
+    `);
     const result = await ctrl.issue(cmd, OP);
     expect(result.commandId).toBe(cmd.commandId);
 
@@ -57,6 +68,10 @@ describe('@fleet/api - CommandsController.issue (integration)', () => {
 
   it('records targetOperatorId in audit payload for traceability', async () => {
     const cmd = createCommandPayload({ targetOperatorId: OP.operatorId });
+    await testDb.db.execute(sql`
+      INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state)
+      VALUES (${cmd.aggregateId}::uuid, ${OP.companyId}, ${OP.businessUnitId}, ${OP.depotId}, ${OP.legalEntityId}, 'planned')
+    `);
     await ctrl.issue(cmd, OP);
     const r = await testDb.db.execute<{ payload: { targetOperatorId: string } }>(sql`
       SELECT payload FROM fleet_audit_log LIMIT 1

@@ -5,6 +5,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { CommandsController } from '../src/commands/commands.controller.js';
 import type { CommandsService } from '../src/commands/commands.service.js';
 import type { CommandsGateway } from '../src/commands/commands.gateway.js';
+import type { TenantPolicy } from '../src/auth/tenant-policy.js';
 import type { OperatorContext } from '../src/auth/operator-context.js';
 
 const OP: OperatorContext = {
@@ -31,7 +32,7 @@ describe('@fleet/api - CommandsController (thin HTTP layer)', () => {
     const pushCommand = vi.fn().mockReturnValue({ status: 'emitted', recipientCount: 1, room: 'operator:x' });
     const svc = { persist } as unknown as CommandsService;
     const gw = { pushCommand } as unknown as CommandsGateway;
-    const ctrl = new (CommandsController as unknown as new (g: CommandsGateway, s: CommandsService) => CommandsController)(gw, svc);
+    const ctrl = new CommandsController(gw, svc, { assertOperatorInTenant: () => Promise.resolve(), assertAggregateInTenant: () => Promise.resolve() } as unknown as TenantPolicy);
 
     const result = await ctrl.issue(validBody, OP);
 
@@ -47,7 +48,7 @@ describe('@fleet/api - CommandsController (thin HTTP layer)', () => {
     const pushCommand = vi.fn();
     const svc = { persist } as unknown as CommandsService;
     const gw = { pushCommand } as unknown as CommandsGateway;
-    const ctrl = new (CommandsController as unknown as new (g: CommandsGateway, s: CommandsService) => CommandsController)(gw, svc);
+    const ctrl = new CommandsController(gw, svc, { assertOperatorInTenant: () => Promise.resolve(), assertAggregateInTenant: () => Promise.resolve() } as unknown as TenantPolicy);
 
     const result = await ctrl.issue(validBody, OP);
 

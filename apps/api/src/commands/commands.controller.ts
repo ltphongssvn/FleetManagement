@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { CommandPayloadSchema, type CommandPayload } from './command.dto.js';
 import { CommandsGateway } from './commands.gateway.js';
 import { CommandsService } from './commands.service.js';
+import { TenantPolicy } from '../auth/tenant-policy.js';
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
@@ -28,6 +29,7 @@ export class CommandsController {
   constructor(
     private readonly gateway: CommandsGateway,
     private readonly service: CommandsService,
+    private readonly tenantPolicy: TenantPolicy,
   ) {}
 
   @Post()
@@ -37,6 +39,12 @@ export class CommandsController {
     @CurrentOperator() op: OperatorContext,
   ): Promise<IssueCommandResponse> {
     const cmd: CommandPayload = IssueCommandSchema.parse(body);
+
+    // Authorization: re-verify body-controlled tenant references against op.
+    // JwtGuard only proves op's tenancy; targetOperatorId / aggregateId come
+    // from the request body and could otherwise enable cross-tenant IDOR.
+    await this.tenantPolicy.assertOperatorInTenant(cmd.targetOperatorId, op);
+    await this.tenantPolicy.assertAggregateInTenant(cmd.aggregateType, cmd.aggregateId, op);
 
     const { duplicate } = await this.service.persist(cmd, op);
     if (duplicate) {

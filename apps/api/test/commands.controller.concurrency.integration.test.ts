@@ -7,6 +7,7 @@ import { sql } from 'drizzle-orm';
 import { CommandsController } from '../src/commands/commands.controller.js';
 import { CommandsGateway } from '../src/commands/commands.gateway.js';
 import { CommandsService } from '../src/commands/commands.service.js';
+import { TenantPolicy } from '../src/auth/tenant-policy.js';
 import type { IPushProvider } from '../src/push/push-provider.interface.js';
 import type { Clock } from '../src/common/clock.js';
 import type { OperatorContext } from '../src/auth/operator-context.js';
@@ -40,7 +41,8 @@ function makeController(): CommandsController {
   };
   Object.assign(gateway as unknown as { server: unknown }, { server: fakeServer });
   const service = new (CommandsService as unknown as new (db: unknown) => CommandsService)(testDb.db);
-  return new CommandsController(gateway, service);
+  const policy = new (TenantPolicy as unknown as new (db: unknown) => TenantPolicy)(testDb.db);
+  return new CommandsController(gateway, service, policy);
 }
 
 function cmd(commandId: string): unknown {
@@ -59,7 +61,16 @@ describe('@fleet/api - CommandsController concurrency (integration, RED)', () =>
   beforeAll(async () => { testDb = await startMigratedTestDb('fleet_cmd_concurrency'); }, 90_000);
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
-    await testDb.db.execute(sql`TRUNCATE TABLE sync_change_feed, fleet_audit_log, outbox CASCADE`);
+    await testDb.db.execute(sql`TRUNCATE TABLE sync_change_feed, fleet_audit_log, outbox, device_registry, road_run CASCADE`);
+    await testDb.db.execute(sql`
+      INSERT INTO device_registry (device_id, company_id, business_unit_id, depot_id, legal_entity_id, operator_id, platform, app_version)
+      VALUES (gen_random_uuid(), ${COMPANY}, ${BU}, ${DEPOT}, ${LE}, ${OP}, 'ios', '1.0')
+    `);
+    // Seed the single aggregate used by all tests' cmd() helper.
+    await testDb.db.execute(sql`
+      INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state)
+      VALUES ('00000000-0000-0000-0000-0000000000b1'::uuid, ${COMPANY}, ${BU}, ${DEPOT}, ${LE}, 'planned')
+    `);
   });
 
   it('assigns DISTINCT server_seq values to N concurrent commands for same company', async () => {

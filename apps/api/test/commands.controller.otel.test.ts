@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CommandsController } from '../src/commands/commands.controller.js';
 import type { CommandsService } from '../src/commands/commands.service.js';
 import type { CommandsGateway } from '../src/commands/commands.gateway.js';
+import type { TenantPolicy } from '../src/auth/tenant-policy.js';
 import type { OperatorContext } from '../src/auth/operator-context.js';
 
 const captured: Record<string, string | number | boolean>[] = [];
@@ -34,7 +35,7 @@ describe('@fleet/api - CommandsController OTel attributes', () => {
   it('tags span with command.id, target_operator, outcome on success', async () => {
     const svc = { persist: vi.fn().mockResolvedValue({ duplicate: false }) } as unknown as CommandsService;
     const gw = { pushCommand: vi.fn().mockReturnValue({ status: 'emitted', recipientCount: 1, room: 'r' }) } as unknown as CommandsGateway;
-    const ctrl = new CommandsController(gw, svc);
+    const ctrl = new CommandsController(gw, svc, { assertOperatorInTenant: () => Promise.resolve(), assertAggregateInTenant: () => Promise.resolve() } as unknown as TenantPolicy);
     await ctrl.issue(validBody, OP);
     const tagged = captured.find((a) => a['command.outcome'] === 'persisted');
     expect(tagged).toBeDefined();
@@ -45,7 +46,7 @@ describe('@fleet/api - CommandsController OTel attributes', () => {
   it('tags duplicate outcome on replay', async () => {
     const svc = { persist: vi.fn().mockResolvedValue({ duplicate: true }) } as unknown as CommandsService;
     const gw = { pushCommand: vi.fn() } as unknown as CommandsGateway;
-    const ctrl = new CommandsController(gw, svc);
+    const ctrl = new CommandsController(gw, svc, { assertOperatorInTenant: () => Promise.resolve(), assertAggregateInTenant: () => Promise.resolve() } as unknown as TenantPolicy);
     await ctrl.issue(validBody, OP);
     expect(captured.some((a) => a['command.outcome'] === 'duplicate')).toBe(true);
   });
