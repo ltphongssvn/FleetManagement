@@ -36,4 +36,14 @@ describe('@fleet/main-worker - sendErpInvoice', () => {
     const result = await sendErpInvoice(validJob, { sendInvoice: send });
     expect(result.kind).toBe('failed');
   });
+
+  it('wraps non-Error throw into Error in failed outcome', async () => {
+    const send = vi.fn().mockRejectedValue('plain string failure');
+    const result = await sendErpInvoice(validJob, { sendInvoice: send });
+    expect(result.kind).toBe('failed');
+    if (result.kind === 'failed') {
+      expect(result.error).toBeInstanceOf(Error);
+      expect(result.error.message).toBe('plain string failure');
+    }
+  });
 });

@@ -176,3 +176,46 @@ describe('@fleet/main-worker - queue-router rejected-decision summary branches',
     expect(entry.jobId).toBeNull();
   });
 });
+
+describe('@fleet/main-worker - queue-router with optional ports', () => {
+  it('invokes intakeCallback.finalize on accepted intake', async () => {
+    const { sink } = makeSink();
+    const calls: unknown[] = [];
+    const cb = { finalize: (input: unknown) => { calls.push(input); return Promise.resolve(); } };
+    const result = await routeJob('intake', { id: 'jc1', data: validIntakeJob }, sink, cb);
+    expect(result.handled).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ uploadSessionId: validIntakeJob.uploadSessionId, accepted: true });
+  });
+
+  it('invokes intakeCallback.finalize with rejection on rejected intake', async () => {
+    const { sink } = makeSink();
+    const calls: unknown[] = [];
+    const cb = { finalize: (input: unknown) => { calls.push(input); return Promise.resolve(); } };
+    await routeJob('intake', { id: 'jc2', data: { ...validIntakeJob, virusScanClean: false } }, sink, cb);
+    expect(calls[0]).toMatchObject({ accepted: false });
+  });
+
+  it('routes erp via sendErpInvoice when erpClient provided (sent path)', async () => {
+    const { sink } = makeSink();
+    const erp = { sendInvoice: () => Promise.resolve({ externalInvoiceId: 'EXT-77' }) };
+    const result = await routeJob('erp', { id: 'jc3', data: validErpJob }, sink, undefined, erp);
+    expect(result.summary).toContain('sent externalInvoiceId=EXT-77');
+  });
+
+  it('routes erp via sendErpInvoice when erpClient provided (rejected path)', async () => {
+    const { sink } = makeSink();
+    const erp = { sendInvoice: () => Promise.reject(new Error('unused')) };
+    const rejected = { ...validErpJob, mapping: { customerExternalId: null, jobCodeExternalId: 'EXT-J-1' } };
+    const result = await routeJob('erp', { id: 'jc4', data: rejected }, sink, undefined, erp);
+    expect(result.summary).toContain('rejected:');
+  });
+
+  it('rethrows when erpClient.sendInvoice fails (BullMQ retries infra failure)', async () => {
+    const { sink } = makeSink();
+    const erp = { sendInvoice: () => Promise.reject(new Error('erp 503')) };
+    await expect(
+      routeJob('erp', { id: 'jc5', data: validErpJob }, sink, undefined, erp),
+    ).rejects.toThrow('erp 503');
+  });
+});
