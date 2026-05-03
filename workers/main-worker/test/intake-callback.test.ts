@@ -4,16 +4,18 @@ import { FetchIntakeCallback } from '../src/intake/intake-callback.js';
 
 describe('@fleet/main-worker - FetchIntakeCallback', () => {
   it('POSTs to /upload/intake-result with bearer token on accepted', async () => {
-    let captured: { url: string; init: { headers: Record<string, string>; body: string } } | null = null;
+    const captured: { url?: string; headers?: Record<string, string>; body?: string } = {};
     const fetchFn = vi.fn().mockImplementation((url: string, init: { headers: Record<string, string>; body: string }) => {
-      captured = { url, init };
+      captured.url = url;
+      captured.headers = init.headers;
+      captured.body = init.body;
       return Promise.resolve({ ok: true });
     });
     const cb = new FetchIntakeCallback({ apiUrl: 'http://api', bearerToken: () => 'tok-1', fetchFn: fetchFn as never });
     await cb.finalize({ uploadSessionId: 'us-1', accepted: true });
-    expect(captured!.url).toBe('http://api/upload/intake-result');
-    expect(captured!.init.headers['Authorization']).toBe('Bearer tok-1');
-    expect(captured!.init.body).toContain('"accepted":true');
+    expect(captured.url).toBe('http://api/upload/intake-result');
+    expect(captured.headers?.Authorization).toBe('Bearer tok-1');
+    expect(captured.body).toContain('"accepted":true');
   });
 
   it('forwards rejectionReasonCode in body when provided', async () => {
