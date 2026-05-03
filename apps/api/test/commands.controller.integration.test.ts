@@ -6,6 +6,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { CommandsController } from '../src/commands/commands.controller.js';
 import { CommandsGateway } from '../src/commands/commands.gateway.js';
+import { CommandsService } from '../src/commands/commands.service.js';
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
 import { createOperatorContext, createCommandPayload } from '@fleet/test-fixtures';
 
@@ -25,7 +26,8 @@ describe('@fleet/api - CommandsController.issue (integration)', () => {
       sockets: { adapter: { rooms: new Map() } },
       to: () => ({ emit: () => undefined }),
     };
-    ctrl = new CommandsController(gateway, testDb.db as never);
+    const service = new (CommandsService as unknown as new (db: unknown) => CommandsService)(testDb.db);
+    ctrl = new CommandsController(gateway, service);
   }, 30_000);
   afterAll(async () => stopPgliteTestDb(testDb));
   beforeEach(async () => {

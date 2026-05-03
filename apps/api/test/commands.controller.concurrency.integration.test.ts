@@ -6,6 +6,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { CommandsController } from '../src/commands/commands.controller.js';
 import { CommandsGateway } from '../src/commands/commands.gateway.js';
+import { CommandsService } from '../src/commands/commands.service.js';
 import type { IPushProvider } from '../src/push/push-provider.interface.js';
 import type { Clock } from '../src/common/clock.js';
 import type { OperatorContext } from '../src/auth/operator-context.js';
@@ -38,10 +39,8 @@ function makeController(): CommandsController {
     to: () => ({ emit: () => undefined }),
   };
   Object.assign(gateway as unknown as { server: unknown }, { server: fakeServer });
-  return new (CommandsController as unknown as new (g: CommandsGateway, db: unknown) => CommandsController)(
-    gateway,
-    testDb.db,
-  );
+  const service = new (CommandsService as unknown as new (db: unknown) => CommandsService)(testDb.db);
+  return new CommandsController(gateway, service);
 }
 
 function cmd(commandId: string): unknown {
