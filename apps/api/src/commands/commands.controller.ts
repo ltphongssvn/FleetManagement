@@ -1,7 +1,7 @@
 // apps/api/src/commands/commands.controller.ts
 // Thin HTTP layer: parse body -> delegate to CommandsService -> push via gateway.
 // Tenancy from JwtGuard (defense against IDOR).
-import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Logger, Post, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { CommandPayloadSchema, type CommandPayload } from './command.dto.js';
 import { CommandsGateway } from './commands.gateway.js';
@@ -22,6 +22,8 @@ export interface IssueCommandResponse {
 @Controller('commands')
 @UseGuards(JwtGuard)
 export class CommandsController {
+  private readonly logger = new Logger(CommandsController.name);
+
   constructor(
     private readonly gateway: CommandsGateway,
     private readonly service: CommandsService,
@@ -40,7 +42,19 @@ export class CommandsController {
       return { commandId: cmd.commandId, status: 'duplicate', recipientCount: 0 };
     }
 
-    const result = this.gateway.pushCommand(cmd);
+    // Push is best-effort: DB commit is the durable record (sync_change_feed +
+    // outbox). If gateway throws (e.g., adapter unavailable during shutdown),
+    // surface as no_socket so the driver picks it up via /sync poll and the
+    // reconciler covers WS-connected drivers via push fallback.
+    let result;
+    try {
+      result = this.gateway.pushCommand(cmd);
+    } catch (err) {
+      this.logger.warn(
+        `pushCommand threw for ${cmd.commandId}; durable in DB. ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return { commandId: cmd.commandId, status: 'no_socket', recipientCount: 0 };
+    }
     return {
       commandId: cmd.commandId,
       status: result.status,
