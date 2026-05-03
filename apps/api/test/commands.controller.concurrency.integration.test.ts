@@ -97,7 +97,7 @@ describe('@fleet/api - CommandsController concurrency (integration, RED)', () =>
 
   it('returns idempotent success on duplicate commandId (replay) without throwing', async () => {
     const ctrl = makeController();
-    const dupCmd = cmd('00000000-0000-0000-0000-0000000000d1');
+    const dupCmd = cmd('00000000-0000-0000-0000-0000000000d1') as { commandId: string };
 
     const first = await ctrl.issue(dupCmd, opCtx);
     expect(first.commandId).toBe('00000000-0000-0000-0000-0000000000d1');
