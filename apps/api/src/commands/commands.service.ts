@@ -6,8 +6,8 @@
 // layer. Mirrors the service-owns-DB idiom used by manifest.service.ts and
 // sync.service.ts.
 import { Inject, Injectable } from '@nestjs/common';
-import { sql } from 'drizzle-orm';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
+import { allocateServerSeq } from '../database/server-seq.repository.js';
 import type { FleetDb } from '../database/database.module.js';
 import { fleetAuditLog, syncChangeFeed, outbox } from '../database/schema/index.js';
 import type { CommandPayload } from './command.dto.js';
@@ -25,13 +25,7 @@ export class CommandsService {
 
   async persist(cmd: CommandPayload, op: OperatorContext): Promise<PersistResult> {
     return this.db.transaction(async (tx) => {
-      const seqRow = await tx.execute(
-        sql<{ next_seq: string }>`SELECT nextval('fleet_server_seq')::text AS next_seq`,
-      );
-      const rows = (seqRow as unknown as { rows: readonly { next_seq: string }[] }).rows;
-      const nextSeqStr = rows[0]?.next_seq;
-      if (nextSeqStr === undefined) throw new Error('fleet_server_seq nextval returned no row');
-      const nextSeq = BigInt(nextSeqStr);
+      const nextSeq = await allocateServerSeq(tx);
 
       const inserted = await tx.insert(syncChangeFeed).values({
         serverSeq: nextSeq,

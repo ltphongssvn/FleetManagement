@@ -12,6 +12,7 @@ import {
   type SyncCursor,
 } from '@fleet/sync-protocol';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
+import { allocateServerSeq } from '../database/server-seq.repository.js';
 import type { FleetDb } from '../database/database.module.js';
 import {
   fleetAuditLog,
@@ -97,17 +98,8 @@ export class SyncService {
   private async applyAction(action: SyncActionInput, op: OperatorContext): Promise<SyncActionResult> {
     try {
       await this.db.transaction(async (tx) => {
-        // Allocate next server_seq atomically. In production this becomes a sequence;
-        // for pilot we use MAX+1 inside the tx (gap-tolerant per PDF).
-        // server_seq from Postgres sequence fleet_server_seq (atomic, lock-free).
-        // Replaces MAX()+1 race that produced duplicate seqs under concurrency.
-        const seqRow = await tx.execute(
-          sql<{ next_seq: string }>`SELECT nextval('fleet_server_seq')::text AS next_seq`,
-        );
-        const seqRows = (seqRow as unknown as { rows: readonly { next_seq: string }[] }).rows;
-        const nextSeqStr = seqRows[0]?.next_seq;
-        if (nextSeqStr === undefined) throw new Error('fleet_server_seq nextval returned no row');
-        const nextSeq = BigInt(nextSeqStr);
+        // server_seq via shared allocateServerSeq helper (atomic, lock-free).
+        const nextSeq = await allocateServerSeq(tx);
 
         await tx.insert(syncChangeFeed).values({
           serverSeq: nextSeq,

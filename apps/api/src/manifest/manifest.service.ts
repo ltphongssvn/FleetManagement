@@ -3,11 +3,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import mime from 'mime-types';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { manifest, uploadSession } from '../database/schema/manifest.js';
+import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { fleetAuditLog, syncChangeFeed, outbox } from '../database/schema/index.js';
 import { transportOrder } from '../database/schema/transport.js';
 import { BLOB_STORE, type IBlobStore } from '../storage/storage-provider.interface.js';
@@ -213,12 +214,9 @@ export class ManifestService {
 
       // Three append paths for the manifest.committed event so outbox-routing
       // can dispatch to ERP queue (per @fleet/sync-protocol routeOutboxRow).
+      // server_seq via shared allocateServerSeq helper (atomic, lock-free).
       if (input.accepted) {
-        const seqRow = await tx
-          .select({ maxSeq: sql<string>`COALESCE(MAX(${syncChangeFeed.serverSeq}), 0)::text` })
-          .from(syncChangeFeed)
-          .where(eq(syncChangeFeed.companyId, op.companyId));
-        const nextSeq = BigInt(seqRow[0]?.maxSeq ?? '0') + 1n;
+        const nextSeq = await allocateServerSeq(tx);
         const evtActionId = randomUUID();
 
         await tx.insert(syncChangeFeed).values({
