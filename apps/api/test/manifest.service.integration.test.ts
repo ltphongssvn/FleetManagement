@@ -168,4 +168,47 @@ describe('@fleet/api - ManifestService (integration)', () => {
     expect(manifests.rows[0]?.count).toBe('1');
     expect(r1.uploadSessionId).not.toBe(r2.uploadSessionId);
   });
+
+  it('finalizeIntake throws UploadSessionNotFoundError for unknown session', async () => {
+    await expect(service.finalizeIntake({
+      uploadSessionId: '00000000-0000-0000-0000-0000000000fe',
+      accepted: true,
+    }, OP)).rejects.toBeInstanceOf(UploadSessionNotFoundError);
+  });
+
+  it('finalizeIntake(accepted=false) records rejectionReasonCode on manifest', async () => {
+    const negotiated = await service.negotiateUpload({
+      manifestCorrelationId: CORRELATION_ID,
+      transportOrderId: TRANSPORT_ORDER_ID,
+      contentType: 'image/jpeg',
+      expectedSizeBytes: 1_500_000,
+    }, OP);
+    await service.commitUpload({ uploadSessionId: negotiated.uploadSessionId, actualSizeBytes: 1_400_000 }, OP);
+    const result = await service.finalizeIntake({
+      uploadSessionId: negotiated.uploadSessionId,
+      accepted: false,
+      rejectionReasonCode: 'other',
+    }, OP);
+    expect(result.state).toBe('rejected');
+    const row = await testDb.db.execute<{ rejection_reason_code: string | null }>(sql`
+      SELECT rejection_reason_code FROM manifest WHERE manifest_correlation_id = ${CORRELATION_ID}::uuid
+    `);
+    expect(row.rows[0]?.rejection_reason_code).toBe('other');
+  });
+
+  it('buildS3Key produces correlation-id keyed path with content-type extension', async () => {
+    const r = await service.negotiateUpload({
+      manifestCorrelationId: CORRELATION_ID,
+      transportOrderId: TRANSPORT_ORDER_ID,
+      contentType: 'application/pdf',
+      expectedSizeBytes: 1000,
+    }, OP);
+    // Read the real s3_key written by ManifestService.buildS3Key (not the mock's stub key).
+    const row = await testDb.db.execute<{ s3_key: string }>(sql`
+      SELECT s3_key FROM upload_session WHERE upload_session_id = ${r.uploadSessionId}::uuid
+    `);
+    const s3Key = row.rows[0]?.s3_key ?? '';
+    expect(s3Key).toContain(CORRELATION_ID);
+    expect(s3Key).toMatch(/\.(pdf|bin)$/);
+  });
 });

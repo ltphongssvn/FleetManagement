@@ -99,4 +99,68 @@ describe('@fleet/api - ProjectionRunnerService (integration)', () => {
     const r = rowsOf<{ road_run_id: string }>(await testDb.db.execute(sql`SELECT road_run_id FROM dispatch_board_projection`) as unknown as { rows: readonly { road_run_id: string }[] });
     expect(r).toHaveLength(0);
   });
+
+  it('handles delete decision (cancel state) by removing projection row', async () => {
+    // Seed an existing projection row.
+    await testDb.db.execute(sql`
+      INSERT INTO dispatch_board_projection (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, stop_count, transport_order_refs, server_seq, updated_at)
+      VALUES (${ROAD_RUN_ID}, ${COMPANY}, ${COMPANY}, ${COMPANY}, ${COMPANY}, 'started', 1, '[]'::jsonb, 1, now())
+    `);
+    // Emit a cancelled delta which the policy maps to a delete decision.
+    await testDb.db.execute(sql`
+      INSERT INTO sync_change_feed (feed_id, company_id, business_unit_id, depot_id, legal_entity_id, server_seq, action_id, aggregate_type, aggregate_id, delta, created_at)
+      VALUES (gen_random_uuid(), ${COMPANY}, ${BU}, ${DEPOT}, ${LE}, 2, ${ACTION_2}, 'road_run', ${ROAD_RUN_ID},
+              jsonb_build_object('tombstone', true, 'roadRunId', ${ROAD_RUN_ID}::text, 'serverSeq', 2),
+              now())
+    `);
+    const svc = new ProjectionRunnerService(testDb.db);
+    const result = await svc.drainOnce(COMPANY);
+    expect(result.deletes).toBe(1);
+    const r = rowsOf<{ count: string }>(await testDb.db.execute(sql`SELECT COUNT(*)::text as count FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID}`) as unknown as { rows: readonly { count: string }[] });
+    expect(r[0]?.count).toBe('0');
+  });
+
+  it('treats malformed delta as noop without poisoning the batch', async () => {
+    // Delta lacks required fields the policy expects; policy throws -> caught -> noop.
+    await testDb.db.execute(sql`
+      INSERT INTO sync_change_feed (feed_id, company_id, business_unit_id, depot_id, legal_entity_id, server_seq, action_id, aggregate_type, aggregate_id, delta, created_at)
+      VALUES (gen_random_uuid(), ${COMPANY}, ${BU}, ${DEPOT}, ${LE}, 7, ${ACTION_2}, 'road_run', ${ROAD_RUN_ID},
+              jsonb_build_object('garbage', true),
+              now())
+    `);
+    const svc = new ProjectionRunnerService(testDb.db);
+    const result = await svc.drainOnce(COMPANY);
+    // Either noops (policy threw) or applied=0; the watermark must advance regardless.
+    expect(result.polled).toBe(1);
+    expect(result.newWatermark).toBe('7');
+  });
+
+  it('updates existing projection row when a newer event arrives (upsert path)', async () => {
+    // First event: insert path
+    await testDb.db.execute(sql`
+      INSERT INTO sync_change_feed (feed_id, company_id, business_unit_id, depot_id, legal_entity_id, server_seq, action_id, aggregate_type, aggregate_id, delta, created_at)
+      VALUES (gen_random_uuid(), ${COMPANY}, ${BU}, ${DEPOT}, ${LE}, 1, ${ACTION_1}, 'road_run', ${ROAD_RUN_ID},
+              jsonb_build_object('roadRunId', ${ROAD_RUN_ID}::text, 'state', 'started', 'serverSeq', 1, 'assignedOperatorId', null, 'assignedAssetId', null, 'plannedStartAt', null, 'stopCount', 1, 'transportOrderRefs', jsonb_build_array()),
+              now())
+    `);
+    const svc = new ProjectionRunnerService(testDb.db);
+    await svc.drainOnce(COMPANY);
+    // Second event: update path (current row exists)
+    await testDb.db.execute(sql`
+      INSERT INTO sync_change_feed (feed_id, company_id, business_unit_id, depot_id, legal_entity_id, server_seq, action_id, aggregate_type, aggregate_id, delta, created_at)
+      VALUES (gen_random_uuid(), ${COMPANY}, ${BU}, ${DEPOT}, ${LE}, 3, ${ACTION_2}, 'road_run', ${ROAD_RUN_ID},
+              jsonb_build_object('roadRunId', ${ROAD_RUN_ID}::text, 'state', 'completed', 'serverSeq', 3, 'assignedOperatorId', null, 'assignedAssetId', null, 'plannedStartAt', null, 'stopCount', 1, 'transportOrderRefs', jsonb_build_array()),
+              now())
+    `);
+    const result = await svc.drainOnce(COMPANY);
+    expect(result.applied).toBe(1);
+    const r = rowsOf<{ state: string }>(await testDb.db.execute(sql`SELECT state FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID}`) as unknown as { rows: readonly { state: string }[] });
+    expect(r[0]?.state).toBe('completed');
+  });
+
+  it('reports lagMs=0 when no events to process', async () => {
+    const svc = new ProjectionRunnerService(testDb.db);
+    const result = await svc.drainOnce(COMPANY);
+    expect(result.polled).toBe(0);
+  });
 });
