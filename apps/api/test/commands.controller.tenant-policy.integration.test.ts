@@ -24,7 +24,7 @@ const ctxA: OperatorContext = {
 };
 
 function makeCtrl(): CommandsController {
-  const noopPush = () => Promise.resolve({ accepted: 0, rejected: 0 });
+  const noopPush = (): Promise<{ accepted: number; rejected: number }> => Promise.resolve({ accepted: 0, rejected: 0 });
   const gw = new CommandsGateway({ sendToOperator: noopPush }, { now: () => new Date() });
   Object.assign(gw as unknown as { server: unknown }, {
     server: { sockets: { adapter: { rooms: new Map() } }, to: () => ({ emit: () => undefined }) },
@@ -34,7 +34,7 @@ function makeCtrl(): CommandsController {
   return new CommandsController(gw, svc, policy);
 }
 
-const validCmd = (over: Partial<{ targetOperatorId: string; aggregateId: string }> = {}) => ({
+const validCmd = (over: Partial<{ targetOperatorId: string; aggregateId: string }> = {}): { commandId: string; type: string; targetOperatorId: string; aggregateType: string; aggregateId: string; payload: Record<string, unknown>; issuedAt: string } => ({
   commandId: '11111111-1111-7111-8111-111111111111',
   type: 'assign_run',
   targetOperatorId: over.targetOperatorId ?? OP_A,
