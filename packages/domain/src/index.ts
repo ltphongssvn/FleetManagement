@@ -50,3 +50,8 @@ export {
   type UploadSessionState,
   type ManifestState,
 } from './manifest/manifest-state.js';
+export {
+  MANIFEST_REJECTION_REASONS,
+  ManifestRejectionReasonSchema,
+  type ManifestRejectionReason,
+} from './manifest/manifest-rejection-reason.js';

@@ -16,13 +16,14 @@ import { transportOrder } from '../database/schema/transport.js';
 import { BLOB_STORE, type IBlobStore } from '../storage/storage-provider.interface.js';
 import type { Env } from '../config/env.config.js';
 import type { NegotiateUploadInput, NegotiateUploadResponse, CommitUploadInput, CommitUploadResponse } from './manifest.dto.js';
-import { ManifestInsertFailedError, TransportOrderNotOwnedError, UploadSessionInsertFailedError, UploadSessionMissingManifestError, UploadSessionNotFoundError, UploadAlreadyCommittedError } from './manifest.errors.js';
+import { ManifestInsertFailedError, TransportOrderNotOwnedError, UploadSessionInsertFailedError, UploadSessionMissingManifestError, UploadSessionNotFoundError, UploadSessionInvalidStateError, ManifestStateInvalidTransitionError } from './manifest.errors.js';
 
 import {
   UPLOAD_SESSION_COMMITTABLE_STATES,
   UPLOAD_SESSION_FINALIZABLE_STATES,
   MANIFEST_VERIFIABLE_STATES,
   MANIFEST_FINALIZABLE_STATES,
+  type ManifestRejectionReason,
 } from '@fleet/domain';
 import type { OperatorContext } from '../auth/operator-context.js';
 export type { OperatorContext };
@@ -155,7 +156,11 @@ export class ManifestService {
           ))
           .limit(1);
         if (!existing) throw new UploadSessionNotFoundError(input.uploadSessionId);
-        throw new UploadAlreadyCommittedError(input.uploadSessionId);
+        throw new UploadSessionInvalidStateError(
+          input.uploadSessionId,
+          existing.state,
+          [...UPLOAD_SESSION_COMMITTABLE_STATES],
+        );
       }
       if (!updatedSession.manifestId) throw new UploadSessionMissingManifestError(input.uploadSessionId);
 
@@ -187,13 +192,15 @@ export class ManifestService {
   async finalizeIntake(input: {
     readonly uploadSessionId: string;
     readonly accepted: boolean;
-    readonly rejectionReasonCode?: string;
+    readonly rejectionReasonCode?: ManifestRejectionReason;
   }, op: OperatorContext): Promise<{ manifestId: string; state: 'committed' | 'rejected' }> {
     return this.db.transaction(async (tx) => {
       const session = await this.transitionUploadSession(tx, input, op);
       await this.transitionManifest(tx, session.manifestId, input);
       if (input.accepted) {
         await this.emitManifestCommittedEvent(tx, session.manifestId, input.uploadSessionId, op);
+      } else {
+        await this.emitManifestRejectedEvent(tx, session.manifestId, input.uploadSessionId, input.rejectionReasonCode, op);
       }
       return { manifestId: session.manifestId, state: input.accepted ? 'committed' : 'rejected' };
     });
@@ -226,19 +233,23 @@ export class ManifestService {
   private async transitionManifest(
     tx: Tx,
     manifestId: string,
-    input: { readonly accepted: boolean; readonly rejectionReasonCode?: string },
+    input: { readonly accepted: boolean; readonly rejectionReasonCode?: ManifestRejectionReason },
   ): Promise<void> {
-    await tx
+    const updated = await tx
       .update(manifest)
       .set({
         state: input.accepted ? 'committed' : 'rejected',
         ...(input.accepted ? { committedAt: new Date() } : {}),
-        ...(input.accepted ? {} : { rejectionReasonCode: input.rejectionReasonCode as 'other' | undefined }),
+        ...(input.accepted ? {} : input.rejectionReasonCode !== undefined ? { rejectionReasonCode: input.rejectionReasonCode } : {}),
       })
       .where(and(
         eq(manifest.manifestId, manifestId),
         inArray(manifest.state, [...MANIFEST_FINALIZABLE_STATES]),
-      ));
+      ))
+      .returning({ manifestId: manifest.manifestId });
+    if (updated.length === 0) {
+      throw new ManifestStateInvalidTransitionError(manifestId, [...MANIFEST_FINALIZABLE_STATES]);
+    }
   }
 
   // Tri-write event via shared appendTriWrite helper.
@@ -262,6 +273,32 @@ export class ManifestService {
       operatorId: op.operatorId,
       queueName: OUTBOX_QUEUES.ERP,
       outboxPayload: { aggregateType: 'manifest', eventType: 'manifest.committed', manifestId },
+      op,
+    });
+  }
+
+  // Rejection event: audit + sync_change_feed are mandatory for observability
+  // (clients need to know rejection happened); outbox routes to projections,
+  // NOT erp (only accepted manifests go to ERP per outbox-routing policy).
+  private async emitManifestRejectedEvent(
+    tx: Tx,
+    manifestId: string,
+    uploadSessionId: string,
+    rejectionReasonCode: ManifestRejectionReason | undefined,
+    op: OperatorContext,
+  ): Promise<void> {
+    const serverSeq = await allocateServerSeq(tx);
+    await appendTriWrite(tx, {
+      serverSeq,
+      actionId: randomUUID(),
+      aggregateType: 'manifest',
+      aggregateId: manifestId,
+      delta: { state: 'rejected', rejectionReasonCode: rejectionReasonCode ?? null },
+      eventType: 'manifest.rejected',
+      auditPayload: { uploadSessionId, rejectionReasonCode: rejectionReasonCode ?? null },
+      operatorId: op.operatorId,
+      queueName: OUTBOX_QUEUES.PROJECTIONS,
+      outboxPayload: { aggregateType: 'manifest', eventType: 'manifest.rejected', manifestId, rejectionReasonCode: rejectionReasonCode ?? null },
       op,
     });
   }

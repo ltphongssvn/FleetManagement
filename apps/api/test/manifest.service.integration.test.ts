@@ -5,7 +5,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import { sql } from 'drizzle-orm';
 import { ManifestService } from '../src/manifest/manifest.service.js';
 import type { OperatorContext } from '../src/auth/operator-context.js';
-import { UploadAlreadyCommittedError, UploadSessionNotFoundError } from '../src/manifest/manifest.errors.js';
+import { UploadSessionInvalidStateError, UploadSessionNotFoundError } from '../src/manifest/manifest.errors.js';
 import type { IBlobStore, PresignedUpload } from '../src/storage/storage-provider.interface.js';
 import type { ConfigService } from '@nestjs/config';
 import type { Env } from '../src/config/env.config.js';
@@ -103,7 +103,7 @@ describe('@fleet/api - ManifestService (integration)', () => {
 
     const commit = { uploadSessionId: negotiated.uploadSessionId, actualSizeBytes: 1_400_000 };
     await service.commitUpload(commit, OP);
-    await expect(service.commitUpload(commit, OP)).rejects.toBeInstanceOf(UploadAlreadyCommittedError);
+    await expect(service.commitUpload(commit, OP)).rejects.toBeInstanceOf(UploadSessionInvalidStateError);
   });
 
   it('throws UploadSessionNotFoundError for unknown session', async () => {
@@ -137,7 +137,7 @@ describe('@fleet/api - ManifestService (integration)', () => {
     expect(ob.rows[0]?.queue_name).toBe('erp');
   });
 
-  it('finalizeIntake(accepted=false) does NOT emit audit/outbox', async () => {
+  it('finalizeIntake(accepted=false) emits manifest.rejected audit + feed but no ERP outbox', async () => {
     const negotiated = await service.negotiateUpload({
       manifestCorrelationId: CORRELATION_ID,
       transportOrderId: TRANSPORT_ORDER_ID,
@@ -146,8 +146,17 @@ describe('@fleet/api - ManifestService (integration)', () => {
     }, OP);
     await service.commitUpload({ uploadSessionId: negotiated.uploadSessionId, actualSizeBytes: 1_400_000 }, OP);
     await service.finalizeIntake({ uploadSessionId: negotiated.uploadSessionId, accepted: false, rejectionReasonCode: 'other' }, OP);
-    const audit = await testDb.db.execute<{ count: string }>(sql`SELECT COUNT(*)::text as count FROM fleet_audit_log`);
-    expect(audit.rows[0]?.count).toBe('0');
+
+    const audit = await testDb.db.execute<{ count: string; event_type: string }>(sql`
+      SELECT COUNT(*)::text AS count, MAX(event_type) AS event_type FROM fleet_audit_log
+    `);
+    expect(audit.rows[0]?.count).toBe('1');
+    expect(audit.rows[0]?.event_type).toBe('manifest.rejected');
+
+    const erpOutbox = await testDb.db.execute<{ count: string }>(sql`
+      SELECT COUNT(*)::text AS count FROM outbox WHERE queue_name = 'erp'
+    `);
+    expect(erpOutbox.rows[0]?.count).toBe('0');
   });
 
   it('reuses existing manifest on second negotiate with same correlation_id', async () => {

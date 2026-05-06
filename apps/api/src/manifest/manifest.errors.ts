@@ -30,6 +30,35 @@ export class UploadSessionNotFoundError extends ManifestError {
   }
 }
 
+export class ManifestStateInvalidTransitionError extends ManifestError {
+  constructor(
+    public readonly manifestId: string,
+    public readonly expectedStates: readonly string[],
+  ) {
+    super(
+      `Manifest ${manifestId} state transition refused; ` +
+      `expected current state in [${expectedStates.join(', ')}]`,
+    );
+  }
+}
+
+export class UploadSessionInvalidStateError extends ManifestError {
+  constructor(
+    public readonly uploadSessionId: string,
+    public readonly currentState: string,
+    public readonly expectedStates: readonly string[],
+  ) {
+    super(
+      `Upload session ${uploadSessionId} in state '${currentState}' cannot transition; ` +
+      `expected one of [${expectedStates.join(', ')}]`,
+    );
+  }
+}
+
+/**
+ * @deprecated Retained for backward compatibility. New code should throw
+ * UploadSessionInvalidStateError with currentState + expectedStates context.
+ */
 export class UploadAlreadyCommittedError extends ManifestError {
   constructor(public readonly uploadSessionId: string) {
     super(`Upload session ${uploadSessionId} is already committed`);

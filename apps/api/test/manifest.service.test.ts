@@ -8,7 +8,7 @@ import {
   UploadSessionInsertFailedError,
   UploadSessionMissingManifestError,
   UploadSessionNotFoundError,
-  UploadAlreadyCommittedError,
+  UploadSessionInvalidStateError,
 } from '../src/manifest/manifest.errors.js';
 
 describe('@fleet/api - ManifestService error classes', () => {
@@ -34,8 +34,8 @@ describe('@fleet/api - ManifestService error classes', () => {
     const e = new UploadSessionNotFoundError('s-2');
     expect(e.message).toContain('s-2');
   });
-  it('UploadAlreadyCommittedError carries sessionId', () => {
-    const e = new UploadAlreadyCommittedError('s-3');
+  it('UploadSessionInvalidStateError carries sessionId + currentState + expectedStates', () => {
+    const e = new UploadSessionInvalidStateError('s-3', 'committed', ['initiated', 'uploading']);
     expect(e.message).toContain('s-3');
   });
 });
