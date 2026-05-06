@@ -159,7 +159,10 @@ describe('@fleet/api - ManifestService (integration)', () => {
     expect(erpOutbox.rows[0]?.count).toBe('0');
   });
 
-  it('reuses existing manifest on second negotiate with same correlation_id', async () => {
+  // Idempotency contract: same correlation_id -> same Manifest aggregate (immutable),
+  // but each negotiate creates a NEW upload_session so retries get fresh presigned URLs
+  // and per-attempt state tracking. PDF "Manifest" + "Uploads".
+  it('reuses existing manifest on second negotiate with same correlation_id (new upload_session each time)', async () => {
     const r1 = await service.negotiateUpload({
       manifestCorrelationId: CORRELATION_ID,
       transportOrderId: TRANSPORT_ORDER_ID,
