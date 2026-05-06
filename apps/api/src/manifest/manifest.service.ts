@@ -16,6 +16,12 @@ import type { Env } from '../config/env.config.js';
 import type { NegotiateUploadInput, NegotiateUploadResponse, CommitUploadInput, CommitUploadResponse } from './manifest.dto.js';
 import { ManifestInsertFailedError, TransportOrderNotOwnedError, UploadSessionInsertFailedError, UploadSessionMissingManifestError, UploadSessionNotFoundError, UploadAlreadyCommittedError } from './manifest.errors.js';
 
+import {
+  UPLOAD_SESSION_COMMITTABLE_STATES,
+  UPLOAD_SESSION_FINALIZABLE_STATES,
+  MANIFEST_VERIFIABLE_STATES,
+  MANIFEST_FINALIZABLE_STATES,
+} from '@fleet/domain';
 import type { OperatorContext } from '../auth/operator-context.js';
 export type { OperatorContext };
 
@@ -130,7 +136,7 @@ export class ManifestService {
         .where(and(
           eq(uploadSession.uploadSessionId, input.uploadSessionId),
           eq(uploadSession.companyId, op.companyId),
-          inArray(uploadSession.state, ['initiated', 'uploading']),
+          inArray(uploadSession.state, [...UPLOAD_SESSION_COMMITTABLE_STATES]),
         ))
         .returning();
 
@@ -159,7 +165,7 @@ export class ManifestService {
         .set({ state: 'verifying' })
         .where(and(
           eq(manifest.manifestId, updatedSession.manifestId),
-          inArray(manifest.state, ['pending', 'verifying']),
+          inArray(manifest.state, [...MANIFEST_VERIFIABLE_STATES]),
         ));
 
       return {
@@ -193,7 +199,7 @@ export class ManifestService {
         .where(and(
           eq(uploadSession.uploadSessionId, input.uploadSessionId),
           eq(uploadSession.companyId, op.companyId),
-          inArray(uploadSession.state, ['verifying']),
+          inArray(uploadSession.state, [...UPLOAD_SESSION_FINALIZABLE_STATES]),
         ))
         .returning();
       const session = updated[0];
@@ -209,7 +215,7 @@ export class ManifestService {
         })
         .where(and(
           eq(manifest.manifestId, session.manifestId),
-          inArray(manifest.state, ['verifying']),
+          inArray(manifest.state, [...MANIFEST_FINALIZABLE_STATES]),
         ));
 
       // Tri-write event via shared appendTriWrite helper.

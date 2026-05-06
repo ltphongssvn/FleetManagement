@@ -40,3 +40,13 @@ export {
   transitionRoadRun,
   ROAD_RUN_STATE_TONE,
 } from './transport/index.js';
+export {
+  UPLOAD_SESSION_STATES,
+  UPLOAD_SESSION_COMMITTABLE_STATES,
+  UPLOAD_SESSION_FINALIZABLE_STATES,
+  MANIFEST_STATES,
+  MANIFEST_VERIFIABLE_STATES,
+  MANIFEST_FINALIZABLE_STATES,
+  type UploadSessionState,
+  type ManifestState,
+} from './manifest/manifest-state.js';
