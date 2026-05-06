@@ -13,11 +13,10 @@ import {
 } from '@fleet/sync-protocol';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
+import { appendTriWrite } from '../database/append-tri-write.js';
 import type { FleetDb } from '../database/database.module.js';
 import {
-  fleetAuditLog,
   syncChangeFeed,
-  outbox,
 } from '../database/schema/index.js';
 import type { SyncRequestInput, SyncActionInput } from './sync.dto.js';
 
@@ -98,41 +97,22 @@ export class SyncService {
   private async applyAction(action: SyncActionInput, op: OperatorContext): Promise<SyncActionResult> {
     try {
       await this.db.transaction(async (tx) => {
-        // server_seq via shared allocateServerSeq helper (atomic, lock-free).
-        const nextSeq = await allocateServerSeq(tx);
-
-        await tx.insert(syncChangeFeed).values({
-          serverSeq: nextSeq,
+        // Tri-write event via shared appendTriWrite helper.
+        // Note: sync.service relies on DB unique-violation throw -> mapDbErrorToSyncResult
+        // for duplicate detection (different from commands.service idempotent path).
+        const serverSeq = await allocateServerSeq(tx);
+        await appendTriWrite(tx, {
+          serverSeq,
           actionId: action.actionId,
           aggregateType: action.aggregateType,
           aggregateId: action.aggregateId,
-          delta: action.payload,
-          companyId: op.companyId,
-          businessUnitId: op.businessUnitId,
-          depotId: op.depotId,
-          legalEntityId: op.legalEntityId,
-        });
-
-        await tx.insert(fleetAuditLog).values({
-          serverSeq: nextSeq,
-          operatorId: op.operatorId,
+          delta: action.payload as Record<string, unknown>,
           eventType: `${action.aggregateType}.action_received`,
-          aggregateType: action.aggregateType,
-          aggregateId: action.aggregateId,
-          payload: action.payload,
-          companyId: op.companyId,
-          businessUnitId: op.businessUnitId,
-          depotId: op.depotId,
-          legalEntityId: op.legalEntityId,
-        });
-
-        await tx.insert(outbox).values({
+          auditPayload: action.payload as Record<string, unknown>,
+          operatorId: op.operatorId,
           queueName: 'projections',
-          payload: { actionId: action.actionId, aggregateType: action.aggregateType, aggregateId: action.aggregateId, serverSeq: nextSeq.toString() },
-          companyId: op.companyId,
-          businessUnitId: op.businessUnitId,
-          depotId: op.depotId,
-          legalEntityId: op.legalEntityId,
+          outboxPayload: { actionId: action.actionId, aggregateType: action.aggregateType, aggregateId: action.aggregateId },
+          op,
         });
       });
       return 'applied';

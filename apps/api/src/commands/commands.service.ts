@@ -9,7 +9,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
 import type { FleetDb } from '../database/database.module.js';
-import { fleetAuditLog, syncChangeFeed, outbox } from '../database/schema/index.js';
+import { appendTriWrite } from '../database/append-tri-write.js';
 import type { CommandPayload } from './command.dto.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import { commandIssuedEventType } from './command-events.js';
@@ -25,47 +25,21 @@ export class CommandsService {
 
   async persist(cmd: CommandPayload, op: OperatorContext): Promise<PersistResult> {
     return this.db.transaction(async (tx) => {
-      const nextSeq = await allocateServerSeq(tx);
-
-      const inserted = await tx.insert(syncChangeFeed).values({
-        serverSeq: nextSeq,
+      const serverSeq = await allocateServerSeq(tx);
+      return appendTriWrite(tx, {
+        serverSeq,
         actionId: cmd.commandId,
         aggregateType: cmd.aggregateType,
         aggregateId: cmd.aggregateId,
         delta: { type: cmd.type, payload: cmd.payload, targetOperatorId: cmd.targetOperatorId },
-        companyId: op.companyId,
-        businessUnitId: op.businessUnitId,
-        depotId: op.depotId,
-        legalEntityId: op.legalEntityId,
-      })
-      .onConflictDoNothing({ target: syncChangeFeed.actionId })
-      .returning({ feedId: syncChangeFeed.feedId });
-
-      if (inserted.length === 0) return { duplicate: true };
-
-      await tx.insert(fleetAuditLog).values({
-        serverSeq: nextSeq,
-        operatorId: op.operatorId,
         eventType: commandIssuedEventType(cmd.aggregateType),
-        aggregateType: cmd.aggregateType,
-        aggregateId: cmd.aggregateId,
-        payload: { commandId: cmd.commandId, type: cmd.type, targetOperatorId: cmd.targetOperatorId },
-        companyId: op.companyId,
-        businessUnitId: op.businessUnitId,
-        depotId: op.depotId,
-        legalEntityId: op.legalEntityId,
-      });
-
-      await tx.insert(outbox).values({
+        auditPayload: { commandId: cmd.commandId, type: cmd.type, targetOperatorId: cmd.targetOperatorId },
+        operatorId: op.operatorId,
         queueName: 'projections',
-        payload: { aggregateType: cmd.aggregateType, eventType: commandIssuedEventType(cmd.aggregateType), commandId: cmd.commandId, serverSeq: nextSeq.toString() },
-        companyId: op.companyId,
-        businessUnitId: op.businessUnitId,
-        depotId: op.depotId,
-        legalEntityId: op.legalEntityId,
+        outboxPayload: { aggregateType: cmd.aggregateType, eventType: commandIssuedEventType(cmd.aggregateType), commandId: cmd.commandId },
+        op,
+        idempotent: true,
       });
-
-      return { duplicate: false };
     });
   }
 }

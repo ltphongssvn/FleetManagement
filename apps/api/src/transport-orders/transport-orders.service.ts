@@ -8,7 +8,7 @@ import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { transportOrder, stop, roadRun, roadRunTransportOrder } from '../database/schema/transport.js';
-import { fleetAuditLog, syncChangeFeed, outbox } from '../database/schema/index.js';
+import { appendTriWrite } from '../database/append-tri-write.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import type { CreateTransportOrderInput, CreateTransportOrderResponse } from './transport-orders.dto.js';
 
@@ -64,15 +64,12 @@ export class TransportOrdersService {
 
       // 3 append paths so projection runner picks up the road_run
       if (roadRunId) {
-        // server_seq via shared allocateServerSeq helper (atomic, lock-free).
-        const nextSeq = await allocateServerSeq(tx);
-        const evtId = randomUUID();
-
+        // Tri-write event via shared appendTriWrite helper.
+        const serverSeq = await allocateServerSeq(tx);
         const refs = input.externalRef ? [input.externalRef] : [];
-        await tx.insert(syncChangeFeed).values({
-          ...tenancy,
-          serverSeq: nextSeq,
-          actionId: evtId,
+        await appendTriWrite(tx, {
+          serverSeq,
+          actionId: randomUUID(),
           aggregateType: 'road_run',
           aggregateId: roadRunId,
           delta: {
@@ -83,20 +80,12 @@ export class TransportOrdersService {
             stopCount: input.stops.length,
             transportOrderRefs: refs,
           },
-        });
-        await tx.insert(fleetAuditLog).values({
-          ...tenancy,
-          serverSeq: nextSeq,
-          operatorId: op.operatorId,
           eventType: 'road_run.created',
-          aggregateType: 'road_run',
-          aggregateId: roadRunId,
-          payload: { transportOrderId },
-        });
-        await tx.insert(outbox).values({
-          ...tenancy,
+          auditPayload: { transportOrderId },
+          operatorId: op.operatorId,
           queueName: 'projections',
-          payload: { aggregateType: 'road_run', eventType: 'road_run.created', roadRunId, serverSeq: nextSeq.toString() },
+          outboxPayload: { aggregateType: 'road_run', eventType: 'road_run.created', roadRunId },
+          op,
         });
       }
 

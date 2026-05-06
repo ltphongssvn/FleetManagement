@@ -9,7 +9,7 @@ import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { manifest, uploadSession } from '../database/schema/manifest.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
-import { fleetAuditLog, syncChangeFeed, outbox } from '../database/schema/index.js';
+import { appendTriWrite } from '../database/append-tri-write.js';
 import { transportOrder } from '../database/schema/transport.js';
 import { BLOB_STORE, type IBlobStore } from '../storage/storage-provider.interface.js';
 import type { Env } from '../config/env.config.js';
@@ -212,47 +212,23 @@ export class ManifestService {
           inArray(manifest.state, ['verifying']),
         ));
 
-      // Three append paths for the manifest.committed event so outbox-routing
-      // can dispatch to ERP queue (per @fleet/sync-protocol routeOutboxRow).
-      // server_seq via shared allocateServerSeq helper (atomic, lock-free).
+      // Tri-write event via shared appendTriWrite helper.
+      // TODO(audit): replace randomUUID + new Date() with injected IdGenerator + Clock
+      // when extending Clock pattern (see common/clock.ts) to ManifestService.
       if (input.accepted) {
-        const nextSeq = await allocateServerSeq(tx);
-        // TODO(audit): replace randomUUID + new Date() with injected IdGenerator + Clock
-        // when extending Clock pattern (see common/clock.ts) to ManifestService.
-        const evtActionId = randomUUID();
-
-        await tx.insert(syncChangeFeed).values({
-          serverSeq: nextSeq,
-          actionId: evtActionId,
+        const serverSeq = await allocateServerSeq(tx);
+        await appendTriWrite(tx, {
+          serverSeq,
+          actionId: randomUUID(),
           aggregateType: 'manifest',
           aggregateId: session.manifestId,
           delta: { state: 'committed' },
-          companyId: op.companyId,
-          businessUnitId: op.businessUnitId,
-          depotId: op.depotId,
-          legalEntityId: op.legalEntityId,
-        });
-
-        await tx.insert(fleetAuditLog).values({
-          serverSeq: nextSeq,
-          operatorId: op.operatorId,
           eventType: 'manifest.committed',
-          aggregateType: 'manifest',
-          aggregateId: session.manifestId,
-          payload: { uploadSessionId: input.uploadSessionId },
-          companyId: op.companyId,
-          businessUnitId: op.businessUnitId,
-          depotId: op.depotId,
-          legalEntityId: op.legalEntityId,
-        });
-
-        await tx.insert(outbox).values({
+          auditPayload: { uploadSessionId: input.uploadSessionId },
+          operatorId: op.operatorId,
           queueName: 'erp',
-          payload: { aggregateType: 'manifest', eventType: 'manifest.committed', manifestId: session.manifestId, serverSeq: nextSeq.toString() },
-          companyId: op.companyId,
-          businessUnitId: op.businessUnitId,
-          depotId: op.depotId,
-          legalEntityId: op.legalEntityId,
+          outboxPayload: { aggregateType: 'manifest', eventType: 'manifest.committed', manifestId: session.manifestId },
+          op,
         });
       }
 
