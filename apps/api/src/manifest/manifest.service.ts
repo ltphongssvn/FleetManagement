@@ -217,6 +217,8 @@ export class ManifestService {
       // server_seq via shared allocateServerSeq helper (atomic, lock-free).
       if (input.accepted) {
         const nextSeq = await allocateServerSeq(tx);
+        // TODO(audit): replace randomUUID + new Date() with injected IdGenerator + Clock
+        // when extending Clock pattern (see common/clock.ts) to ManifestService.
         const evtActionId = randomUUID();
 
         await tx.insert(syncChangeFeed).values({
