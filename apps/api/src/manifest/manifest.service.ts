@@ -1,3 +1,4 @@
+import { OUTBOX_QUEUES } from '@fleet/sync-protocol';
 // apps/api/src/manifest/manifest.service.ts
 // Manifest service per Frozen Stack PDF "Manifest" + "Uploads".
 import { Inject, Injectable } from '@nestjs/common';
@@ -232,7 +233,7 @@ export class ManifestService {
           eventType: 'manifest.committed',
           auditPayload: { uploadSessionId: input.uploadSessionId },
           operatorId: op.operatorId,
-          queueName: 'erp',
+          queueName: OUTBOX_QUEUES.ERP,
           outboxPayload: { aggregateType: 'manifest', eventType: 'manifest.committed', manifestId: session.manifestId },
           op,
         });

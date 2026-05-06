@@ -1,3 +1,4 @@
+import { OUTBOX_QUEUES } from '@fleet/sync-protocol';
 // apps/api/src/transport-orders/transport-orders.service.ts
 // Pilot seed: creates transport_order + stops + optional road_run, plus 3
 // append paths so the dispatch_board projection picks it up.
@@ -83,7 +84,7 @@ export class TransportOrdersService {
           eventType: 'road_run.created',
           auditPayload: { transportOrderId },
           operatorId: op.operatorId,
-          queueName: 'projections',
+          queueName: OUTBOX_QUEUES.PROJECTIONS,
           outboxPayload: { aggregateType: 'road_run', eventType: 'road_run.created', roadRunId },
           op,
         });

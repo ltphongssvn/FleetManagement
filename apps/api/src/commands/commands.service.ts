@@ -1,3 +1,4 @@
+import { OUTBOX_QUEUES } from '@fleet/sync-protocol';
 // apps/api/src/commands/commands.service.ts
 // Persists a command via the 3 append paths (sync_change_feed + fleet_audit_log
 // + outbox) in a single transaction. Idempotent on action_id (replay-safe).
@@ -35,7 +36,7 @@ export class CommandsService {
         eventType: commandIssuedEventType(cmd.aggregateType),
         auditPayload: { commandId: cmd.commandId, type: cmd.type, targetOperatorId: cmd.targetOperatorId },
         operatorId: op.operatorId,
-        queueName: 'projections',
+        queueName: OUTBOX_QUEUES.PROJECTIONS,
         outboxPayload: { aggregateType: cmd.aggregateType, eventType: commandIssuedEventType(cmd.aggregateType), commandId: cmd.commandId },
         op,
         idempotent: true,

@@ -7,6 +7,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, eq, gt, sql } from 'drizzle-orm';
 import {
   createSyncCursor,
+  OUTBOX_QUEUES,
   type SyncResponse,
   type SyncActionResult,
   type SyncCursor,
@@ -110,7 +111,7 @@ export class SyncService {
           eventType: `${action.aggregateType}.action_received`,
           auditPayload: action.payload as Record<string, unknown>,
           operatorId: op.operatorId,
-          queueName: 'projections',
+          queueName: OUTBOX_QUEUES.PROJECTIONS,
           outboxPayload: { actionId: action.actionId, aggregateType: action.aggregateType, aggregateId: action.aggregateId },
           op,
         });

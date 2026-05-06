@@ -10,7 +10,14 @@
 export const OUTBOX_ROUTING_POLICY_VERSION = 'outbox-routing-v1' as const;
 
 /** Queue names the outbox can dispatch to. Subset of QUEUE_NAMES from worker. */
-export type OutboxTargetQueue = 'intake' | 'erp' | 'projections';
+export const OUTBOX_QUEUES = {
+  INTAKE: 'intake',
+  ERP: 'erp',
+  PROJECTIONS: 'projections',
+} as const;
+export type OutboxQueueName = typeof OUTBOX_QUEUES[keyof typeof OUTBOX_QUEUES];
+/** Alias kept for routing-policy callsites; new code should use OutboxQueueName. */
+export type OutboxTargetQueue = OutboxQueueName;
 
 export type OutboxRoutingRejectionCode =
   | 'unknown_aggregate'
