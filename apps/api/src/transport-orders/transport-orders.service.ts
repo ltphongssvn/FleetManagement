@@ -2,10 +2,11 @@
 // Pilot seed: creates transport_order + stops + optional road_run, plus 3
 // append paths so the dispatch_board projection picks it up.
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, sql } from 'drizzle-orm';
+
 import { randomUUID } from 'node:crypto';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
+import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { transportOrder, stop, roadRun, roadRunTransportOrder } from '../database/schema/transport.js';
 import { fleetAuditLog, syncChangeFeed, outbox } from '../database/schema/index.js';
 import type { OperatorContext } from '../auth/operator-context.js';
@@ -63,11 +64,8 @@ export class TransportOrdersService {
 
       // 3 append paths so projection runner picks up the road_run
       if (roadRunId) {
-        const seqRow = await tx
-          .select({ maxSeq: sql<string>`COALESCE(MAX(${syncChangeFeed.serverSeq}), 0)::text` })
-          .from(syncChangeFeed)
-          .where(eq(syncChangeFeed.companyId, op.companyId));
-        const nextSeq = BigInt(seqRow[0]?.maxSeq ?? '0') + 1n;
+        // server_seq via shared allocateServerSeq helper (atomic, lock-free).
+        const nextSeq = await allocateServerSeq(tx);
         const evtId = randomUUID();
 
         const refs = input.externalRef ? [input.externalRef] : [];
