@@ -8,6 +8,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import mime from 'mime-types';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
+type Tx = Parameters<Parameters<FleetDb['transaction']>[0]>[0];
 import { manifest, uploadSession } from '../database/schema/manifest.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { appendTriWrite } from '../database/append-tri-write.js';
@@ -72,7 +73,7 @@ export class ManifestService {
     });
   }
 
-  private async findOrCreateManifest(tx: FleetDb, input: NegotiateUploadInput, op: OperatorContext): Promise<{ manifestId: string }> {
+  private async findOrCreateManifest(tx: Tx, input: NegotiateUploadInput, op: OperatorContext): Promise<{ manifestId: string }> {
     const [created] = await tx
       .insert(manifest)
       .values({
@@ -101,7 +102,7 @@ export class ManifestService {
   }
 
   private async assertTransportOrderOwnership(
-    tx: FleetDb,
+    tx: Tx,
     transportOrderId: string,
     op: OperatorContext,
   ): Promise<void> {
@@ -189,57 +190,79 @@ export class ManifestService {
     readonly rejectionReasonCode?: string;
   }, op: OperatorContext): Promise<{ manifestId: string; state: 'committed' | 'rejected' }> {
     return this.db.transaction(async (tx) => {
-      const targetUploadState = input.accepted ? 'committed' : 'rejected';
-
-      const updated = await tx
-        .update(uploadSession)
-        .set({
-          state: targetUploadState,
-          ...(input.accepted ? { committedAt: new Date() } : { abortedAt: new Date() }),
-        })
-        .where(and(
-          eq(uploadSession.uploadSessionId, input.uploadSessionId),
-          eq(uploadSession.companyId, op.companyId),
-          inArray(uploadSession.state, [...UPLOAD_SESSION_FINALIZABLE_STATES]),
-        ))
-        .returning();
-      const session = updated[0];
-      if (!session) throw new UploadSessionNotFoundError(input.uploadSessionId);
-      if (!session.manifestId) throw new UploadSessionMissingManifestError(input.uploadSessionId);
-
-      await tx
-        .update(manifest)
-        .set({
-          state: input.accepted ? 'committed' : 'rejected',
-          ...(input.accepted ? { committedAt: new Date() } : {}),
-          ...(input.accepted ? {} : { rejectionReasonCode: input.rejectionReasonCode as 'other' | undefined }),
-        })
-        .where(and(
-          eq(manifest.manifestId, session.manifestId),
-          inArray(manifest.state, [...MANIFEST_FINALIZABLE_STATES]),
-        ));
-
-      // Tri-write event via shared appendTriWrite helper.
-      // TODO(audit): replace randomUUID + new Date() with injected IdGenerator + Clock
-      // when extending Clock pattern (see common/clock.ts) to ManifestService.
+      const session = await this.transitionUploadSession(tx, input, op);
+      await this.transitionManifest(tx, session.manifestId, input);
       if (input.accepted) {
-        const serverSeq = await allocateServerSeq(tx);
-        await appendTriWrite(tx, {
-          serverSeq,
-          actionId: randomUUID(),
-          aggregateType: 'manifest',
-          aggregateId: session.manifestId,
-          delta: { state: 'committed' },
-          eventType: 'manifest.committed',
-          auditPayload: { uploadSessionId: input.uploadSessionId },
-          operatorId: op.operatorId,
-          queueName: OUTBOX_QUEUES.ERP,
-          outboxPayload: { aggregateType: 'manifest', eventType: 'manifest.committed', manifestId: session.manifestId },
-          op,
-        });
+        await this.emitManifestCommittedEvent(tx, session.manifestId, input.uploadSessionId, op);
       }
-
       return { manifestId: session.manifestId, state: input.accepted ? 'committed' : 'rejected' };
+    });
+  }
+
+  private async transitionUploadSession(
+    tx: Tx,
+    input: { readonly uploadSessionId: string; readonly accepted: boolean },
+    op: OperatorContext,
+  ): Promise<{ manifestId: string }> {
+    const targetUploadState = input.accepted ? 'committed' : 'rejected';
+    const updated = await tx
+      .update(uploadSession)
+      .set({
+        state: targetUploadState,
+        ...(input.accepted ? { committedAt: new Date() } : { abortedAt: new Date() }),
+      })
+      .where(and(
+        eq(uploadSession.uploadSessionId, input.uploadSessionId),
+        eq(uploadSession.companyId, op.companyId),
+        inArray(uploadSession.state, [...UPLOAD_SESSION_FINALIZABLE_STATES]),
+      ))
+      .returning();
+    const session = updated[0];
+    if (!session) throw new UploadSessionNotFoundError(input.uploadSessionId);
+    if (!session.manifestId) throw new UploadSessionMissingManifestError(input.uploadSessionId);
+    return { manifestId: session.manifestId };
+  }
+
+  private async transitionManifest(
+    tx: Tx,
+    manifestId: string,
+    input: { readonly accepted: boolean; readonly rejectionReasonCode?: string },
+  ): Promise<void> {
+    await tx
+      .update(manifest)
+      .set({
+        state: input.accepted ? 'committed' : 'rejected',
+        ...(input.accepted ? { committedAt: new Date() } : {}),
+        ...(input.accepted ? {} : { rejectionReasonCode: input.rejectionReasonCode as 'other' | undefined }),
+      })
+      .where(and(
+        eq(manifest.manifestId, manifestId),
+        inArray(manifest.state, [...MANIFEST_FINALIZABLE_STATES]),
+      ));
+  }
+
+  // Tri-write event via shared appendTriWrite helper.
+  // TODO(audit): replace randomUUID + new Date() with injected IdGenerator + Clock
+  // when extending Clock pattern (see common/clock.ts) to ManifestService.
+  private async emitManifestCommittedEvent(
+    tx: Tx,
+    manifestId: string,
+    uploadSessionId: string,
+    op: OperatorContext,
+  ): Promise<void> {
+    const serverSeq = await allocateServerSeq(tx);
+    await appendTriWrite(tx, {
+      serverSeq,
+      actionId: randomUUID(),
+      aggregateType: 'manifest',
+      aggregateId: manifestId,
+      delta: { state: 'committed' },
+      eventType: 'manifest.committed',
+      auditPayload: { uploadSessionId },
+      operatorId: op.operatorId,
+      queueName: OUTBOX_QUEUES.ERP,
+      outboxPayload: { aggregateType: 'manifest', eventType: 'manifest.committed', manifestId },
+      op,
     });
   }
   private buildS3Key(op: OperatorContext, manifestId: string, correlationId: string, contentType: string): string {
