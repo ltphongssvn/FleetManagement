@@ -43,8 +43,11 @@ export function createStateMachine<S extends string>(def: FsmDefinition<S>): Fin
       }
     }
   }
-  // Terminal states must have empty transition set.
+  // Terminal states must be declared in states[] and have empty transition set.
   for (const t of def.terminal) {
+    if (!def.states.includes(t)) {
+      throw new Error("createStateMachine: terminal state '" + t + "' is not declared in states[]");
+    }
     const targets = def.transitions.get(t);
     if (targets && targets.size > 0) {
       throw new Error("createStateMachine: terminal state '" + t + "' must have no outgoing transitions");
