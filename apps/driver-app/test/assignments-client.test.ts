@@ -1,17 +1,17 @@
 // apps/driver-app/test/assignments-client.test.ts
-// TDD RED: AssignmentsClient fetches GET /driver/assignments with bearer token.
+// TDD RED: AssignmentsClient fetches GET /transport-orders/assigned with bearer token.
 import { describe, it, expect, vi } from 'vitest';
 import { AssignmentsClient } from '../src/assignments/assignments-client.js';
 
 describe('AssignmentsClient', () => {
-  it('GETs /driver/assignments with bearer token', async () => {
+  it('GETs /transport-orders/assigned with bearer token', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ rows: [{ roadRunId: 'r1', state: 'dispatched', plate: '62H-12345', orderRef: 'XT.001', customerName: 'ABC', pickupName: 'Kho A', deliveryName: 'Kho B', plannedStartAt: '2026-05-10T08:00:00Z', startedAt: null, completedAt: null }] }),
     });
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't0k', fetchFn: fetchFn as never });
     const result = await client.list();
-    expect(fetchFn).toHaveBeenCalledWith('http://api/driver/assignments', expect.objectContaining({
+    expect(fetchFn).toHaveBeenCalledWith('http://api/transport-orders/assigned', expect.objectContaining({
       method: 'GET',
       headers: expect.objectContaining({ Authorization: 'Bearer t0k' }),
     }));

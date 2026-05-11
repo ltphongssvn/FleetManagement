@@ -1,5 +1,5 @@
 // apps/driver-app/src/assignments/assignments-client.ts
-// HTTP client for GET /driver/assignments. Validates wire-shape at boundary.
+// HTTP client for GET /transport-orders/assigned. Validates wire-shape at boundary.
 export type FetchFn = typeof globalThis.fetch;
 
 export interface AssignmentRow {
@@ -51,12 +51,12 @@ export class AssignmentsClient {
   async list(): Promise<readonly AssignmentRow[]> {
     const token = await this.config.bearerToken();
     const fetchFn: FetchFn = this.config.fetchFn ?? globalThis.fetch;
-    const res = await fetchFn(`${this.config.apiUrl}/driver/assignments`, {
+    const res = await fetchFn(`${this.config.apiUrl}/transport-orders/assigned`, {
       method: 'GET',
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) {
-      throw new Error(`/driver/assignments HTTP ${String(res.status)} ${res.statusText}`);
+      throw new Error(`/transport-orders/assigned HTTP ${String(res.status)} ${res.statusText}`);
     }
     const raw = (await res.json()) as unknown;
     if (typeof raw !== 'object' || raw === null) throw new Error('Response: not an object');
