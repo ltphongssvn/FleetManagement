@@ -111,4 +111,15 @@ jobs:
 
       - name: Test (with coverage)
         if: hashFiles('pnpm-lock.yaml') != ''
-        run: pnpm -r --if-present test:coverage
+        env:
+          VITEST_REPORTERS: "github-actions,json"
+          VITEST_OUTPUT_JSON: "coverage/vitest-results.json"
+        run: pnpm -r --if-present test:coverage -- --reporter=github-actions --reporter=json --outputFile.json=coverage/vitest-results.json
+
+      - name: Upload Vitest JSON results
+        if: always() && hashFiles('pnpm-lock.yaml') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-results
+          path: '**/coverage/vitest-results.json'
+          if-no-files-found: ignore
