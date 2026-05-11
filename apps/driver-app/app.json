@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "scheme": "fleetdriver",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.fleetmanagement.driver"
@@ -26,13 +25,14 @@
           "project": "fleet-driver",
           "organization": "fleetmanagement"
         }
-      ]
+      ],
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true
     },
     "updates": {
-      "url": "https://u.expo.dev/00000000-0000-0000-0000-000000000000",
+      "url": "https://u.expo.dev/0d98c859-b2bc-4412-be8d-f9bc83bbb239",
       "fallbackToCacheTimeout": 0
     },
     "runtimeVersion": {
@@ -40,8 +40,10 @@
     },
     "extra": {
       "eas": {
-        "projectId": "00000000-0000-0000-0000-000000000000"
-      }
-    }
+        "projectId": "0d98c859-b2bc-4412-be8d-f9bc83bbb239"
+      },
+      "router": {}
+    },
+    "owner": "ltphongssvn"
   }
 }
