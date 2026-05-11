@@ -97,3 +97,5 @@ apps/driver-app/android/
 # Misc
 *.tgz
 .cache/
+packages/*/reports/
+packages/*/.stryker-tmp/
