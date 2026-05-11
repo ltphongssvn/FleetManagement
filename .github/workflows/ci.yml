@@ -103,7 +103,9 @@ jobs:
 
       - name: Build workspace packages (deps for lint/typecheck)
         if: hashFiles('pnpm-lock.yaml') != ''
-        run: pnpm --filter @fleet/observability --filter @fleet/sync-protocol --filter @fleet/domain --filter @fleet/test-fixtures build
+        run: |
+          find packages -name "*.tsbuildinfo" -delete
+          pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures
 
       - name: Lint
         if: hashFiles('pnpm-lock.yaml') != ''
