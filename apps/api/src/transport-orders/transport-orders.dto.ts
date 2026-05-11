@@ -31,12 +31,12 @@ export interface ListAssignedRow {
   readonly roadRunId: string;
   readonly state: string;
   readonly plannedStartAt: string | null;
-  readonly stops: ReadonlyArray<{
+  readonly stops: readonly {
     readonly sequence: number;
     readonly stopType: string;
     readonly plannedAt: string | null;
-  }>;
+  }[];
 }
 export interface ListAssignedResponse {
-  readonly rows: ReadonlyArray<ListAssignedRow>;
+  readonly rows: readonly ListAssignedRow[];
 }

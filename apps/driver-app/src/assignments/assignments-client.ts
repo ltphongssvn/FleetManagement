@@ -24,24 +24,24 @@ export interface AssignmentsClientConfig {
 function parseRow(raw: unknown): AssignmentRow {
   if (typeof raw !== 'object' || raw === null) throw new Error('AssignmentRow: not an object');
   const r = raw as Record<string, unknown>;
-  if (typeof r.roadRunId !== 'string') throw new Error('AssignmentRow: roadRunId must be string');
-  if (typeof r.state !== 'string') throw new Error('AssignmentRow: state must be string');
+  if (typeof r['roadRunId'] !== 'string') throw new Error('AssignmentRow: roadRunId must be string');
+  if (typeof r['state'] !== 'string') throw new Error('AssignmentRow: state must be string');
   const nullableStr = (v: unknown, name: string): string | null => {
     if (v === null) return null;
     if (typeof v === 'string') return v;
     throw new Error(`AssignmentRow: ${name} must be string|null`);
   };
   return {
-    roadRunId: r.roadRunId,
-    state: r.state,
-    plannedStartAt: nullableStr(r.plannedStartAt, 'plannedStartAt'),
-    startedAt: nullableStr(r.startedAt, 'startedAt'),
-    completedAt: nullableStr(r.completedAt, 'completedAt'),
-    plate: nullableStr(r.plate, 'plate'),
-    orderRef: nullableStr(r.orderRef, 'orderRef'),
-    customerName: nullableStr(r.customerName, 'customerName'),
-    pickupName: nullableStr(r.pickupName, 'pickupName'),
-    deliveryName: nullableStr(r.deliveryName, 'deliveryName'),
+    roadRunId: r['roadRunId'],
+    state: r['state'],
+    plannedStartAt: nullableStr(r['plannedStartAt'], 'plannedStartAt'),
+    startedAt: nullableStr(r['startedAt'], 'startedAt'),
+    completedAt: nullableStr(r['completedAt'], 'completedAt'),
+    plate: nullableStr(r['plate'], 'plate'),
+    orderRef: nullableStr(r['orderRef'], 'orderRef'),
+    customerName: nullableStr(r['customerName'], 'customerName'),
+    pickupName: nullableStr(r['pickupName'], 'pickupName'),
+    deliveryName: nullableStr(r['deliveryName'], 'deliveryName'),
   };
 }
 

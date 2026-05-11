@@ -4,14 +4,14 @@ import { describe, it, expect, vi } from 'vitest';
 import { fetchAssignmentsState, type AssignmentsState } from '../src/assignments/assignments-state.js';
 import type { AssignmentRow } from '../src/assignments/assignments-client.js';
 
-function mkClient(rows: AssignmentRow[], err?: Error) {
+function mkClient(rows: AssignmentRow[], err?: Error): { list: ReturnType<typeof vi.fn> } {
   return { list: vi.fn().mockImplementation(() => err ? Promise.reject(err) : Promise.resolve(rows)) };
 }
 
 describe('fetchAssignmentsState', () => {
   it('returns loaded state with rows when fetch succeeds', async () => {
     const rows: AssignmentRow[] = [
-      { roadRunId: 'r1', state: 'dispatched', assignedAssetId: 'v1', plannedStartAt: null, startedAt: null, completedAt: null },
+      { roadRunId: 'r1', state: 'dispatched', plate: null, orderRef: null, customerName: null, pickupName: null, deliveryName: null, plannedStartAt: null, startedAt: null, completedAt: null },
     ];
     const state: AssignmentsState = await fetchAssignmentsState(mkClient(rows) as never);
     expect(state.kind).toBe('loaded');

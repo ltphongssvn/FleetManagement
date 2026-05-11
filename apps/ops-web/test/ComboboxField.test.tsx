@@ -5,6 +5,12 @@ import { describe, it, expect } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import { ComboboxField } from '@/features/dispatch/ui/ComboboxField';
 
+function qsInput(root: ParentNode, sel: string): HTMLInputElement {
+  const el = root.querySelector<HTMLInputElement>(sel);
+  if (el === null) throw new Error('querySelector returned null: ' + sel);
+  return el;
+}
+
 const opts = [
   { id: 'id-1', label: 'Alpha' },
   { id: 'id-2', label: 'Beta' },
@@ -19,13 +25,13 @@ describe('ComboboxField', () => {
 
   it('renders a visible combobox input with placeholder', () => {
     const { container } = render(<ComboboxField name="x" options={opts} placeholder="— pick —" />);
-    const input = container.querySelector('input[role="combobox"]') as HTMLInputElement;
+    const input = qsInput(container, 'input[role="combobox"]');
     expect(input.getAttribute('placeholder')).toBe('— pick —');
   });
 
   it('hidden input default value is empty when nothing selected', () => {
     const { container } = render(<ComboboxField name="x" options={opts} placeholder="p" />);
-    const hidden = container.querySelector('input[type="hidden"][name="x"]') as HTMLInputElement;
+    const hidden = qsInput(container, 'input[type="hidden"][name="x"]');
     expect(hidden.value).toBe('');
   });
 
@@ -33,7 +39,7 @@ describe('ComboboxField', () => {
     const { container } = render(
       <ComboboxField name="x" options={opts} placeholder="p" defaultValue="Alpha" />,
     );
-    const hidden = container.querySelector('input[type="hidden"][name="x"]') as HTMLInputElement;
+    const hidden = qsInput(container, 'input[type="hidden"][name="x"]');
     expect(hidden.value).toBe('Alpha');
   });
 
@@ -41,13 +47,13 @@ describe('ComboboxField', () => {
     const { container } = render(
       <ComboboxField name="x" options={opts} placeholder="p" submitValue="id" defaultValue="id-2" />,
     );
-    const hidden = container.querySelector('input[type="hidden"][name="x"]') as HTMLInputElement;
+    const hidden = qsInput(container, 'input[type="hidden"][name="x"]');
     expect(hidden.value).toBe('id-2');
   });
 
   it('typing into the input does not crash and updates value', () => {
     const { container } = render(<ComboboxField name="x" options={opts} placeholder="p" />);
-    const input = container.querySelector('input[role="combobox"]') as HTMLInputElement;
+    const input = qsInput(container, 'input[role="combobox"]');
     fireEvent.change(input, { target: { value: 'Al' } });
     expect(input.value).toBe('Al');
   });

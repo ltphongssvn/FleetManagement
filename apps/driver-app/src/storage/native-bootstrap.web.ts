@@ -5,6 +5,9 @@ export interface NativeBootstrapConfig {
   readonly dbName: string;
   readonly bearerToken: () => string;
 }
-export async function startNativeSyncLoop(_cfg: NativeBootstrapConfig): Promise<() => void> {
-  return () => {};
+function noopTeardown(): void {
+  // No native sync loop on web; nothing to tear down.
+}
+export function startNativeSyncLoop(_cfg: NativeBootstrapConfig): Promise<() => void> {
+  return Promise.resolve(noopTeardown);
 }

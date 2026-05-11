@@ -12,7 +12,7 @@ const op: OperatorContext = Object.freeze({
   legalEntityId: '00000000-0000-0000-0000-000000000000',
 });
 
-function makeDb(rows: ReadonlyArray<Record<string, unknown>>) {
+function makeDb(rows: readonly Record<string, unknown>[]): { select: ReturnType<typeof vi.fn>; _chain: { from: ReturnType<typeof vi.fn>; leftJoin: ReturnType<typeof vi.fn>; where: ReturnType<typeof vi.fn>; orderBy: ReturnType<typeof vi.fn>; limit: ReturnType<typeof vi.fn> } } {
   const chain = {
     from: vi.fn().mockReturnThis(),
     leftJoin: vi.fn().mockReturnThis(),

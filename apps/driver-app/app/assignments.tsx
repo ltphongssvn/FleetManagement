@@ -7,11 +7,11 @@ import { AssignmentsClient } from '../src/assignments/assignments-client.js';
 import { fetchAssignmentsState, type AssignmentsState } from '../src/assignments/assignments-state.js';
 
 function getApiUrl(): string {
-  return process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+  return (process.env['EXPO_PUBLIC_API_URL'] as string | undefined) ?? 'http://localhost:3000';
 }
 
 function getBearerToken(): string {
-  return process.env.EXPO_PUBLIC_FLEET_API_TOKEN ?? '';
+  return (process.env['EXPO_PUBLIC_FLEET_API_TOKEN'] as string | undefined) ?? '';
 }
 
 export default function Assignments(): JSX.Element {

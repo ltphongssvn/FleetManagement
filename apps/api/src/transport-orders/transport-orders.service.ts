@@ -128,7 +128,7 @@ export class TransportOrdersService {
             eq(stop.companyId, op.companyId),
           ))
           .orderBy(asc(stop.sequence));
-    const stopsByOrder = new Map<string, Array<{ sequence: number; stopType: string; plannedAt: Date | null }>>();
+    const stopsByOrder = new Map<string, { sequence: number; stopType: string; plannedAt: Date | null }[]>();
     for (const sr of stopRows) {
       if (!transportOrderIds.includes(sr.transportOrderId)) continue;
       const list = stopsByOrder.get(sr.transportOrderId) ?? [];

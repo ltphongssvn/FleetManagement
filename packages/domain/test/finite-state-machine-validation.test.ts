@@ -30,9 +30,9 @@ describe('createStateMachine validation error messages', () => {
       version: 1,
       states: ['a', 'b'] as const,
       terminal: ['b'],
-      transitions: new Map([
-        ['a', new Set(['b'] as const)],
-        ['b', new Set(['a'] as const)],
+      transitions: new Map<'a' | 'b', ReadonlySet<'a' | 'b'>>([
+        ['a', new Set(['b'])],
+        ['b', new Set(['a'])],
       ]),
     })).toThrow(/createStateMachine: terminal state 'b' must have no outgoing transitions/);
   });

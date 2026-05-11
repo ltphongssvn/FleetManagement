@@ -7,7 +7,7 @@ describe('AssignmentsClient', () => {
   it('GETs /driver/assignments with bearer token', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ rows: [{ roadRunId: 'r1', state: 'dispatched', plate: '62H-12345', orderRef: 'XT.001', customerName: 'ABC', pickupName: 'Kho A', deliveryName: 'Kho B', plannedStartAt: '2026-05-10T08:00:00Z', startedAt: null, completedAt: null }] }),
+      json: () => Promise.resolve({ rows: [{ roadRunId: 'r1', state: 'dispatched', plate: '62H-12345', orderRef: 'XT.001', customerName: 'ABC', pickupName: 'Kho A', deliveryName: 'Kho B', plannedStartAt: '2026-05-10T08:00:00Z', startedAt: null, completedAt: null }] }),
     });
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't0k', fetchFn: fetchFn as never });
     const result = await client.list();
@@ -31,14 +31,14 @@ describe('AssignmentsClient', () => {
   });
 
   it('rejects malformed response shape', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ rows: 'not-an-array' }) });
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ rows: 'not-an-array' }) });
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow();
   });
 
   it('awaits async bearerToken provider', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ rows: [] }) });
-    const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: async () => 'async-tok', fetchFn: fetchFn as never });
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ rows: [] }) });
+    const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => Promise.resolve('async-tok'), fetchFn: fetchFn as never });
     await client.list();
     expect(fetchFn).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
       headers: expect.objectContaining({ Authorization: 'Bearer async-tok' }),
@@ -47,7 +47,7 @@ describe('AssignmentsClient', () => {
 
   it('uses global fetch when fetchFn not provided', async () => {
     const originalFetch = globalThis.fetch;
-    const spy = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ rows: [] }) });
+    const spy = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ rows: [] }) });
     globalThis.fetch = spy as never;
     try {
       const { AssignmentsClient } = await import('../src/assignments/assignments-client.js');
@@ -60,35 +60,35 @@ describe('AssignmentsClient', () => {
   });
 
   it('rejects when response is not an object', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: async () => null });
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(null) });
     const { AssignmentsClient } = await import('../src/assignments/assignments-client.js');
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow(/not an object/);
   });
 
   it('rejects when a row is not an object', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ rows: ['not-obj'] }) });
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ rows: ['not-obj'] }) });
     const { AssignmentsClient } = await import('../src/assignments/assignments-client.js');
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow(/not an object/);
   });
 
   it('rejects when roadRunId is not a string', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ rows: [{ roadRunId: 1 }] }) });
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ rows: [{ roadRunId: 1 }] }) });
     const { AssignmentsClient } = await import('../src/assignments/assignments-client.js');
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow(/roadRunId/);
   });
 
   it('rejects when state is not a string', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ rows: [{ roadRunId: 'r', state: 1 }] }) });
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ rows: [{ roadRunId: 'r', state: 1 }] }) });
     const { AssignmentsClient } = await import('../src/assignments/assignments-client.js');
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow(/state/);
   });
 
   it('rejects when nullable field is wrong type', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ rows: [{ roadRunId: 'r', state: 's', plate: 123, plannedStartAt: null, startedAt: null, completedAt: null }] }) });
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ rows: [{ roadRunId: 'r', state: 's', plate: 123, plannedStartAt: null, startedAt: null, completedAt: null }] }) });
     const { AssignmentsClient } = await import('../src/assignments/assignments-client.js');
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow(/plate/);

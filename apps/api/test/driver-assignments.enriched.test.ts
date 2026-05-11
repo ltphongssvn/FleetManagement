@@ -1,6 +1,6 @@
 // apps/api/test/driver-assignments.enriched.test.ts
 // TDD RED: assignments include human-readable order ref, customer, plate, pickup, delivery.
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { DriverAssignmentsController } from '../src/dispatch/driver-assignments.controller.js';
 import type { OperatorContext } from '../src/auth/operator-context.js';
 
@@ -12,7 +12,7 @@ const op: OperatorContext = Object.freeze({
   legalEntityId: '00000000-0000-0000-0000-000000000000',
 });
 
-function makeDb(rows: ReadonlyArray<Record<string, unknown>>) {
+function makeDb(rows: readonly Record<string, unknown>[]): { select: ReturnType<typeof vi.fn>; _chain: { from: ReturnType<typeof vi.fn>; leftJoin: ReturnType<typeof vi.fn>; where: ReturnType<typeof vi.fn>; orderBy: ReturnType<typeof vi.fn>; limit: ReturnType<typeof vi.fn> } } {
   const chain = {
     from: vi.fn().mockReturnThis(),
     leftJoin: vi.fn().mockReturnThis(),

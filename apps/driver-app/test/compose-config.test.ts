@@ -20,7 +20,8 @@ describe('compose.yaml driver-app service', () => {
   });
 
   it('depends on api service', () => {
-    const driverBlock = compose.match(/^\s{2}driver-app:[\s\S]*?(?=^\s{0,2}\S|\Z)/m)?.[0] ?? '';
+    const driverBlockMatch = /^ {2}driver-app:[\s\S]*?(?=\n {0,2}\S|$(?![\s\S]))/m.exec(compose);
+    const driverBlock = driverBlockMatch?.[0] ?? '';
     expect(driverBlock).toMatch(/depends_on:[\s\S]*?api:/);
   });
 });

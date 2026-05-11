@@ -12,7 +12,7 @@ const TENANCY = {
   legalEntityId: COMPANY_ID,
 };
 
-const TRUCKS: ReadonlyArray<{ plate: string; driverName: string | null }> = [
+const TRUCKS: readonly { plate: string; driverName: string | null }[] = [
   { plate: '62H 05194', driverName: 'NGUYỄN THANH PHONG' },
   { plate: '62H 05800', driverName: 'NGUYỄN THÀNH ĐỨC' },
   { plate: '62H 05809', driverName: 'NGUYỄN HỮU TÂM' },
@@ -40,7 +40,7 @@ const TRUCKS: ReadonlyArray<{ plate: string; driverName: string | null }> = [
   { plate: '70H 08777', driverName: 'MAI HIỀN DIỆU' },
 ];
 
-const PICKUP_WAREHOUSES: ReadonlyArray<string> = [
+const PICKUP_WAREHOUSES: readonly string[] = [
   'Cần Thơ', 'Chơn Chính', 'Cường Thắng ( Cần Thơ )', 'Cường Thắng ( Kiến Tường )',
   'Đức Tài', 'Hậu Thạnh Đông', 'Hiệp Hưng ( Tam Nông )',
   'Lương Thực ( Bình Minh Đồng Tháp )', 'Lương Thực ( Đồng Tháp )',
@@ -54,14 +54,14 @@ const PICKUP_WAREHOUSES: ReadonlyArray<string> = [
   'Vĩnh Hưng', 'XN Tân Thạnh',
 ];
 
-const DELIVERY_WAREHOUSES: ReadonlyArray<string> = [
+const DELIVERY_WAREHOUSES: readonly string[] = [
   'ĐA NĂNG', 'ĐẠI THÀNH', 'DƯƠNG VŨ', '8 ĐẠT', 'CHỢ GẠO', 'ĐẠI HỮU',
   'HIỀN NGUYỄN', '8 TẺO', '3 ĐỰC',
 ];
 
-const CARGO_TYPES: ReadonlyArray<string> = ['TẤM', 'CHI', 'CÁM', 'GẠO', 'TRẤU', 'XI MĂNG'];
+const CARGO_TYPES: readonly string[] = ['TẤM', 'CHI', 'CÁM', 'GẠO', 'TRẤU', 'XI MĂNG'];
 
-const CUSTOMERS: ReadonlyArray<string> = ['ĐA NĂNG', 'ĐẠI THÀNH'];
+const CUSTOMERS: readonly string[] = ['ĐA NĂNG', 'ĐẠI THÀNH'];
 
 export async function seedReference(db: FleetDb): Promise<void> {
   for (const t of TRUCKS) {

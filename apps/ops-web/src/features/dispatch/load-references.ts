@@ -24,11 +24,11 @@ async function getList(apiUrl: string, token: string, path: string): Promise<rea
       cache: 'no-store',
     });
     if (!res.ok) {
-      console.error(`[loadReferences] ${path} -> ${res.status} ${res.statusText}`);
+      console.error(`[loadReferences] ${path} -> ${String(res.status)} ${res.statusText}`);
       return [];
     }
     const json = (await res.json()) as { items?: readonly RefItem[] };
-    console.log(`[loadReferences] ${path} -> ${json.items?.length ?? 0} items`);
+    console.log(`[loadReferences] ${path} -> ${String(json.items?.length ?? 0)} items`);
     return json.items ?? [];
   } catch (err) {
     console.error(`[loadReferences] ${path} threw:`, err);
@@ -40,10 +40,10 @@ export async function loadReferences(): Promise<FormReferences> {
   if (!apiUrl) { console.error('[loadReferences] FLEET_API_URL not set'); return EMPTY; }
   const token = (await cookies()).get('fleet_session')?.value;
   if (!token) { console.error('[loadReferences] no fleet_session cookie'); return EMPTY; }
-  console.log(`[loadReferences] apiUrl=${apiUrl} tokenLen=${token.length}`);
+  console.log(`[loadReferences] apiUrl=${apiUrl} tokenLen=${String(token.length)}`);
   const peekRes = await fetch(`${apiUrl}/reference/peek-order-ref?prefix=XT`, {
     headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
-  }).catch((e) => { console.error('[loadReferences] peek threw:', e); return null; });
+  }).catch((e: unknown) => { console.error('[loadReferences] peek threw:', e); return null; });
   const peekJson = peekRes?.ok ? (await peekRes.json()) as { ref?: string } : { ref: '' };
   const nextOrderRef = peekJson.ref ?? '';
   const [drivers, vehicles, customers, cargoTypes, pickupWarehouses, deliveryWarehouses] = await Promise.all([

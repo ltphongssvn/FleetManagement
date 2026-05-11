@@ -1,3 +1,4 @@
+import type * as ReactNS from 'react';
 // apps/ops-web/test/login-form-branches.test.tsx
 // TDD: cover LoginForm error rendering branches.
 import { describe, it, expect, vi } from 'vitest';
@@ -5,10 +6,10 @@ import { render, screen, cleanup } from '@testing-library/react';
 
 vi.mock('@/features/auth/login.action', () => ({ login: vi.fn() }));
 
-const reactMock = (state: unknown) => {
+const reactMock = (state: unknown): void => {
   vi.doMock('react', async () => {
-    const actual = await vi.importActual<typeof import('react')>('react');
-    return { ...actual, useActionState: () => [state, () => {}, false] };
+    const actual = await vi.importActual<typeof ReactNS>('react');
+    return { ...actual, useActionState: (): unknown => [state, function noopAction(): void { /* noop */ }, false] };
   });
 };
 
@@ -38,8 +39,8 @@ describe('LoginForm branches', () => {
 
   it('renders pending state', async () => {
     vi.doMock('react', async () => {
-      const actual = await vi.importActual<typeof import('react')>('react');
-      return { ...actual, useActionState: () => [undefined, () => {}, true] };
+      const actual = await vi.importActual<typeof ReactNS>('react');
+      return { ...actual, useActionState: (): unknown => [undefined, function noopAction(): void { /* noop */ }, true] };
     });
     const { LoginForm } = await import('@/features/auth/LoginForm');
     const { container } = render(<LoginForm />);
