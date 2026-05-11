@@ -17,15 +17,15 @@ export {
   type PiiHeaderName,
   isPiiHeader,
   assertPiiHeader,
-} from './sentry-scrub.ts';
+} from './sentry-scrub.js';
 
-export { dsnSchema, parseDsn, type ValidatedDsn, type DsnParseResult } from './dsn.ts';
+export { dsnSchema, parseDsn, type ValidatedDsn, type DsnParseResult } from './dsn.js';
 
 export {
   scrubberConfigSchema,
   validateScrubberConfig,
   type ScrubberConfig,
-} from './scrubber-config.ts';
+} from './scrubber-config.js';
 
 export {
   buildSentryOptions,
@@ -36,4 +36,4 @@ export {
   createBeforeSend,
   readDepthLimitFromEnv,
   type CreateBeforeSendOptions,
-} from './sentry-init.ts';
+} from './sentry-init.js';

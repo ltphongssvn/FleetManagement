@@ -1,4 +1,7 @@
 // apps/ops-web/test/load-board.test.ts
+const cookieGet = vi.fn(() => ({ value: 'test-token' }));
+vi.mock('next/headers', () => ({ cookies: () => Promise.resolve({ get: cookieGet }) }));
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('server-only', () => ({}));
@@ -61,7 +64,7 @@ describe('loadDispatchBoard', () => {
       'http://api.test/dispatch/board',
       expect.objectContaining({
         cache: 'no-store',
-        headers: { Authorization: 'Bearer tok' },
+        headers: { Authorization: 'Bearer test-token' },
       }),
     );
   });

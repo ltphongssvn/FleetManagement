@@ -5,15 +5,16 @@
   "description": "Shared observability primitives: PII scrubber for Sentry events across api, ops-web, driver-app",
   "sideEffects": false,
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     }
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "clean": "rm -rf dist .turbo *.tsbuildinfo coverage",
     "lint": "eslint .",

@@ -25,9 +25,29 @@ async function maybeMigrate(): Promise<void> {
   }
 }
 
+async function maybeSeed(): Promise<void> {
+  if (process.env['DB_AUTO_MIGRATE'] !== 'true') return;
+  const { drizzle } = await import('drizzle-orm/node-postgres');
+  const { Pool } = await import('pg');
+  const schema = await import('./database/schema/index.js');
+  const { seedReference } = await import('./database/seeds/reference-seed.js');
+  const url = process.env['DATABASE_URL'];
+  if (!url) return;
+  const pool = new Pool({ connectionString: url, max: 1 });
+  try {
+    await seedReference(drizzle(pool, { schema, casing: 'snake_case' }));
+  } finally {
+    await pool.end();
+  }
+}
 async function bootstrap(): Promise<void> {
   await maybeMigrate();
+  await maybeSeed();
   const app = await NestFactory.create(AppModule);
+  app.enableCors({
+    origin: (process.env['CORS_ORIGINS'] ?? 'http://localhost:8081,http://localhost:3001').split(','),
+    credentials: true,
+  });
   app.useGlobalFilters(new ZodExceptionFilter());
   const port = Number(process.env['PORT'] ?? 3000);
   await app.listen(port);

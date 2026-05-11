@@ -1,17 +1,14 @@
 // apps/ops-web/src/features/dispatch/load-board.ts
-// Server-only RSC loader per PDF Day-One #7 "RSC reads from
-// dispatch_board_projection". Fetches from the api at /dispatch/board so
-// ops-web never holds DB credentials.
-//
+// Server-only RSC loader. Reads JWT from fleet_session httpOnly cookie set by
+// login server action (industry pattern: never expose token to client JS).
 // PILOT_DATA fallback exists ONLY when NODE_ENV !== 'production'. In production
 // we surface the failure (Next.js error.tsx boundary) rather than silently
-// rendering stale fake data, which would let dispatchers act on hallucinated
-// fleet state.
+// rendering stale fake data.
 import 'server-only';
+import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { ROAD_RUN_STATES, type RoadRunState } from '@fleet/domain';
 import type { DispatchBoardRoadRun } from './types.js';
-
 const BoardRowSchema = z.object({
   roadRunId: z.string().uuid(),
   state: z.enum(ROAD_RUN_STATES as unknown as [RoadRunState, ...RoadRunState[]]),
@@ -21,11 +18,9 @@ const BoardRowSchema = z.object({
   stopCount: z.number().int().nonnegative(),
   transportOrderRefs: z.array(z.string()).readonly(),
 });
-
 const BoardResponseSchema = z.object({
   rows: z.array(BoardRowSchema).readonly(),
 });
-
 const PILOT_DATA = Object.freeze([
   Object.freeze({
     roadRunId: '11111111-1111-4111-8111-111111111111',
@@ -46,17 +41,22 @@ const PILOT_DATA = Object.freeze([
     transportOrderRefs: Object.freeze(['TO-1003']),
   }),
 ]) satisfies readonly DispatchBoardRoadRun[];
-
 function isProduction(): boolean {
   return process.env.NODE_ENV === 'production';
 }
-
 export async function loadDispatchBoard(): Promise<readonly DispatchBoardRoadRun[]> {
   const apiUrl = process.env['FLEET_API_URL'];
-  const authToken = process.env['FLEET_API_TOKEN'];
-  if (!apiUrl || !authToken) {
+  if (!apiUrl) {
     if (isProduction()) {
-      throw new Error('FLEET_API_URL and FLEET_API_TOKEN must be set in production');
+      throw new Error('FLEET_API_URL must be set in production');
+    }
+    return PILOT_DATA;
+  }
+  const cookieStore = await cookies();
+  const authToken = cookieStore.get('fleet_session')?.value;
+  if (!authToken) {
+    if (isProduction()) {
+      throw new Error('No active session: fleet_session cookie missing');
     }
     return PILOT_DATA;
   }

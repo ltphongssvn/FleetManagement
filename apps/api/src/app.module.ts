@@ -21,6 +21,7 @@ import { TransportOrdersModule } from './transport-orders/transport-orders.modul
 import { ConfigClientModule } from './config-client/config-client.module.js';
 import { ErpInboundModule } from './erp-inbound/erp-inbound.module.js';
 import { MetricsModule } from './metrics/metrics.module.js';
+import { ReferenceModule } from './reference/reference.module.js';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { MetricsModule } from './metrics/metrics.module.js';
     ConfigClientModule,
     ErpInboundModule,
     MetricsModule,
+    ReferenceModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: SentryGlobalFilter }],
 })

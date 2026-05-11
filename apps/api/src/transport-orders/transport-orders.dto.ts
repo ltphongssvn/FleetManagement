@@ -4,6 +4,7 @@ import { z } from 'zod';
 export const CreateTransportOrderSchema = z.object({
   externalRef: z.string().min(1).max(64).optional(),
   customerId: z.string().uuid().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   stops: z.array(z.object({
     sequence: z.number().int().positive(),
     stopType: z.string().min(1).max(32),
@@ -22,4 +23,20 @@ export type CreateTransportOrderInput = z.infer<typeof CreateTransportOrderSchem
 export interface CreateTransportOrderResponse {
   readonly transportOrderId: string;
   readonly roadRunId: string | null;
+}
+
+export interface ListAssignedRow {
+  readonly transportOrderId: string;
+  readonly externalRef: string | null;
+  readonly roadRunId: string;
+  readonly state: string;
+  readonly plannedStartAt: string | null;
+  readonly stops: ReadonlyArray<{
+    readonly sequence: number;
+    readonly stopType: string;
+    readonly plannedAt: string | null;
+  }>;
+}
+export interface ListAssignedResponse {
+  readonly rows: ReadonlyArray<ListAssignedRow>;
 }

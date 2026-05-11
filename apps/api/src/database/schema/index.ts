@@ -63,3 +63,23 @@ export {
   type ProjectionStatus,
   type NewProjectionStatus,
 } from './projections.js';
+export {
+  driver,
+  vehicle,
+  customer,
+  cargoType,
+  warehouse,
+  type Driver,
+  type NewDriver,
+  type Vehicle,
+  type NewVehicle,
+  type Customer,
+  type NewCustomer,
+  type CargoType,
+  type NewCargoType,
+  type Warehouse,
+  type NewWarehouse,
+  orderSequence,
+  type OrderSequence,
+  type NewOrderSequence,
+} from './reference.js';

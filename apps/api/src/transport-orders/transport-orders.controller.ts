@@ -1,10 +1,10 @@
 // apps/api/src/transport-orders/transport-orders.controller.ts
 // Pilot seed endpoint. Disabled unless FLEET_PILOT_SEED_ENABLED=true.
-import { Body, Controller, ForbiddenException, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Post, UseGuards } from '@nestjs/common';
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
-import { CreateTransportOrderSchema, type CreateTransportOrderResponse } from './transport-orders.dto.js';
+import { CreateTransportOrderSchema, type CreateTransportOrderResponse, type ListAssignedResponse } from './transport-orders.dto.js';
 import { TransportOrdersService } from './transport-orders.service.js';
 
 @Controller('transport-orders')
@@ -19,5 +19,10 @@ export class TransportOrdersController {
     }
     const input = CreateTransportOrderSchema.parse(body);
     return this.svc.create(input, op);
+  }
+
+  @Get('assigned')
+  async listAssigned(@CurrentOperator() op: OperatorContext): Promise<ListAssignedResponse> {
+    return this.svc.listAssigned(op);
   }
 }

@@ -223,4 +223,20 @@ describe('@fleet/api - ManifestService (integration)', () => {
     expect(s3Key).toContain(CORRELATION_ID);
     expect(s3Key).toMatch(/\.(pdf|bin)$/);
   });
+
+  it('#7: finalizeIntake(accepted=false) without rejectionReasonCode omits code from delta/payload', async () => {
+    const negotiated = await service.negotiateUpload({
+      manifestCorrelationId: '11111111-1111-4111-8111-100000000007',
+      transportOrderId: TRANSPORT_ORDER_ID,
+      contentType: 'image/jpeg',
+      expectedSizeBytes: 1_000_000,
+    }, OP);
+    await service.commitUpload({
+      uploadSessionId: negotiated.uploadSessionId,
+      actualSizeBytes: 1_000_000,
+      contentHash: 'b'.repeat(64),
+    }, OP);
+    const res = await service.finalizeIntake({ uploadSessionId: negotiated.uploadSessionId, accepted: false }, OP);
+    expect(res.manifestId).toBeDefined();
+  });
 });

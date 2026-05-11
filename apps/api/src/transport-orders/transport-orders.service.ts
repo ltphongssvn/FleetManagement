@@ -6,12 +6,13 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { randomUUID } from 'node:crypto';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
+import { eq, and, asc } from 'drizzle-orm';
 import type { FleetDb } from '../database/database.module.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { transportOrder, stop, roadRun, roadRunTransportOrder } from '../database/schema/transport.js';
 import { appendTriWrite } from '../database/append-tri-write.js';
 import type { OperatorContext } from '../auth/operator-context.js';
-import type { CreateTransportOrderInput, CreateTransportOrderResponse } from './transport-orders.dto.js';
+import type { CreateTransportOrderInput, CreateTransportOrderResponse, ListAssignedResponse } from './transport-orders.dto.js';
 
 @Injectable()
 export class TransportOrdersService {
@@ -30,6 +31,7 @@ export class TransportOrdersService {
         ...tenancy,
         ...(input.externalRef !== undefined ? { externalRef: input.externalRef } : {}),
         ...(input.customerId !== undefined ? { customerId: input.customerId } : {}),
+        ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
       }).returning();
       if (!created) throw new Error('transport_order insert failed');
       const transportOrderId = created.transportOrderId;
@@ -92,5 +94,60 @@ export class TransportOrdersService {
 
       return { transportOrderId, roadRunId };
     });
+  }
+
+  async listAssigned(op: OperatorContext): Promise<ListAssignedResponse> {
+    const rows = await this.db
+      .select({
+        transportOrderId: transportOrder.transportOrderId,
+        externalRef: transportOrder.externalRef,
+        roadRunId: roadRun.roadRunId,
+        state: roadRun.state,
+        plannedStartAt: roadRun.plannedStartAt,
+      })
+      .from(roadRun)
+      .innerJoin(roadRunTransportOrder, eq(roadRunTransportOrder.roadRunId, roadRun.roadRunId))
+      .innerJoin(transportOrder, eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId))
+      .where(and(
+        eq(roadRun.companyId, op.companyId),
+        eq(roadRun.assignedOperatorId, op.operatorId),
+      ))
+      .orderBy(asc(roadRun.plannedStartAt));
+    const transportOrderIds = rows.map((r) => r.transportOrderId);
+    const stopRows = transportOrderIds.length === 0
+      ? []
+      : await this.db
+          .select({
+            transportOrderId: stop.transportOrderId,
+            sequence: stop.sequence,
+            stopType: stop.stopType,
+            plannedAt: stop.plannedAt,
+          })
+          .from(stop)
+          .where(and(
+            eq(stop.companyId, op.companyId),
+          ))
+          .orderBy(asc(stop.sequence));
+    const stopsByOrder = new Map<string, Array<{ sequence: number; stopType: string; plannedAt: Date | null }>>();
+    for (const sr of stopRows) {
+      if (!transportOrderIds.includes(sr.transportOrderId)) continue;
+      const list = stopsByOrder.get(sr.transportOrderId) ?? [];
+      list.push({ sequence: sr.sequence, stopType: sr.stopType, plannedAt: sr.plannedAt });
+      stopsByOrder.set(sr.transportOrderId, list);
+    }
+    return {
+      rows: rows.map((r) => ({
+        transportOrderId: r.transportOrderId,
+        externalRef: r.externalRef ?? null,
+        roadRunId: r.roadRunId,
+        state: r.state,
+        plannedStartAt: r.plannedStartAt ? r.plannedStartAt.toISOString() : null,
+        stops: (stopsByOrder.get(r.transportOrderId) ?? []).map((s) => ({
+          sequence: s.sequence,
+          stopType: s.stopType,
+          plannedAt: s.plannedAt ? s.plannedAt.toISOString() : null,
+        })),
+      })),
+    };
   }
 }

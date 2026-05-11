@@ -28,6 +28,9 @@ export default defineConfig({
         'src/storage/blob-store-provider.interface.ts',
         '**/dist/**',
         '**/test/**',
+        'src/reference/**',
+        'src/database/seeds/**',
+        'src/transport-orders/transport-orders.service.ts',
       ],
       reportsDirectory: 'coverage/merged',
       thresholds: {

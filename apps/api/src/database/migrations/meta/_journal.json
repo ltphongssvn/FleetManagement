@@ -29,6 +29,20 @@
       "when": 1777761324855,
       "tag": "0003_server_seq_sequence",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778207580140,
+      "tag": "0004_reference_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778209487810,
+      "tag": "0005_order_sequence",
+      "breakpoints": true
     }
   ]
 }

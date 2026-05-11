@@ -4,6 +4,7 @@ node_modules
 **/.next
 **/coverage
 **/.turbo
+**/*.tsbuildinfo
 .git
 .github
 **/.env
@@ -11,3 +12,10 @@ node_modules
 !**/.env.example
 **/*.log
 **/.DS_Store
+**/.terraform/
+**/.terraform.lock.hcl
+**/.expo/
+**/.idea/
+**/test-results/
+**/coverage/
+**/*.tfstate*

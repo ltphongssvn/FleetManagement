@@ -1,6 +1,7 @@
 // apps/ops-web/src/features/dispatch/DispatchBoard.tsx
 import { ROAD_RUN_STATE_TONE } from '@fleet/domain';
 import { loadDispatchBoard } from './load-board';
+import { LogoutButton } from '../auth/LogoutButton';
 import type { DispatchBoardRoadRun } from './types';
 
 const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-US', {
@@ -26,7 +27,10 @@ export async function DispatchBoard(): Promise<React.ReactElement> {
   const runs = await loadDispatchBoard();
   return (
     <section className="p-6">
-      <h1 className="mb-4 text-2xl font-semibold">Dispatch board</h1>
+      <header className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Dispatch board</h1>
+        <LogoutButton />
+      </header>
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b text-left">
