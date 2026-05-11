@@ -28,7 +28,7 @@
     "@expo/metro-runtime": "^55.0.11",
     "@fleet/observability": "workspace:*",
     "@fleet/sync-protocol": "workspace:*",
-    "@sentry/react-native": "^7.11.0",
+    "@sentry/react-native": "^8.11.1",
     "drizzle-orm": "^0.45.2",
     "expo": "^55.0.23",
     "expo-linking": "^55.0.15",
