@@ -99,3 +99,4 @@ apps/driver-app/android/
 .cache/
 packages/*/reports/
 packages/*/.stryker-tmp/
+/playwright/.cache/
