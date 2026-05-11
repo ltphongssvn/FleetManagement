@@ -18,7 +18,8 @@
     "test:unit": "vitest run",
     "test:watch": "vitest --watch",
     "typecheck": "tsc -p tsconfig.json",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test:changed": "vitest run --changed HEAD~1"
   },
   "engines": {
     "node": ">=22.0.0 <25.0.0"

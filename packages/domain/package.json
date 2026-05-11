@@ -24,7 +24,8 @@
     "test:unit": "vitest run",
     "test:watch": "vitest --watch",
     "typecheck": "tsc -p tsconfig.json",
-    "test:mutation": "stryker run"
+    "test:mutation": "stryker run",
+    "test:changed": "vitest run --changed HEAD~1"
   },
   "engines": {
     "node": ">=22.0.0 <25.0.0"
