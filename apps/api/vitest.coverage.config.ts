@@ -33,6 +33,9 @@ export default defineConfig({
         'src/transport-orders/transport-orders.service.ts',
         'src/driver/driver-me.service.ts',
         'src/device/device-enrollment.service.ts',
+        'src/admin/admin-drivers-list.service.ts',
+        'src/admin/admin-assignment.service.ts',
+        'src/admin/admin-device-enroll.service.ts',
       ],
       reportsDirectory: 'coverage/merged',
       thresholds: {
