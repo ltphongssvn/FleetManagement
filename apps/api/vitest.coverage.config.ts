@@ -31,6 +31,8 @@ export default defineConfig({
         'src/reference/**',
         'src/database/seeds/**',
         'src/transport-orders/transport-orders.service.ts',
+        'src/driver/driver-me.service.ts',
+        'src/device/device-enrollment.service.ts',
       ],
       reportsDirectory: 'coverage/merged',
       thresholds: {
