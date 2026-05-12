@@ -1,10 +1,12 @@
 // apps/api/src/device/device.module.ts
 import { Module } from '@nestjs/common';
 import { DeviceService } from './device.service.js';
-
+import { DeviceEnrollmentService } from './device-enrollment.service.js';
+import { DeviceEnrollmentController } from './device-enrollment.controller.js';
 @Module({
-  providers: [DeviceService],
-  exports: [DeviceService],
+  controllers: [DeviceEnrollmentController],
+  providers: [DeviceService, DeviceEnrollmentService],
+  exports: [DeviceService, DeviceEnrollmentService],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class DeviceModule {}

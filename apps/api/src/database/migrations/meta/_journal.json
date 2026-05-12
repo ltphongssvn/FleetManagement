@@ -43,6 +43,13 @@
       "when": 1778209487810,
       "tag": "0005_order_sequence",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778547949009,
+      "tag": "0006_left_shocker",
+      "breakpoints": true
     }
   ]
 }

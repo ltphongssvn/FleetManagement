@@ -22,6 +22,7 @@ import { ConfigClientModule } from './config-client/config-client.module.js';
 import { ErpInboundModule } from './erp-inbound/erp-inbound.module.js';
 import { MetricsModule } from './metrics/metrics.module.js';
 import { ReferenceModule } from './reference/reference.module.js';
+import { DriverModule } from './driver/driver.module.js';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { ReferenceModule } from './reference/reference.module.js';
     ErpInboundModule,
     MetricsModule,
     ReferenceModule,
+    DriverModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: SentryGlobalFilter }],
 })

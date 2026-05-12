@@ -83,3 +83,9 @@ export {
   type OrderSequence,
   type NewOrderSequence,
 } from './reference.js';
+
+export {
+  driverVehicleAssignment,
+  type DriverVehicleAssignment,
+  type NewDriverVehicleAssignment,
+} from './driver-vehicle-assignment.js';
