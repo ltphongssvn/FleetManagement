@@ -1,9 +1,8 @@
-// apps/driver-app/app/index.tsx
+// apps/driver-app/app/(app)/index.tsx
 import type { JSX } from 'react';
-import { Text, View, Pressable, ActivityIndicator } from 'react-native';
+import { Text, View, Pressable } from 'react-native';
 import { Link } from 'expo-router';
-import { APP_VERSION, presentSyncStatus, type SyncSchedulerState } from '../src/index.js';
-import { useAuth } from '../src/auth/use-auth.js';
+import { APP_VERSION, presentSyncStatus, type SyncSchedulerState } from '../../src/index.js';
 const PLACEHOLDER_STATE: SyncSchedulerState = {
   online: true,
   appActive: true,
@@ -12,14 +11,6 @@ const PLACEHOLDER_STATE: SyncSchedulerState = {
   consecutiveTransportFailures: 0,
 };
 export default function Home(): JSX.Element {
-  const { status } = useAuth();
-  if (status !== 'authenticated') {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
   const view = presentSyncStatus(PLACEHOLDER_STATE, Date.now());
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>

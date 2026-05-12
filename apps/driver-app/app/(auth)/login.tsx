@@ -2,7 +2,7 @@
 // Driver login screen — initiates OIDC PKCE flow via system browser.
 import type { JSX } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useAuth } from '../src/auth/use-auth.js';
+import { useAuth } from '../../src/auth/use-auth.js';
 
 export default function Login(): JSX.Element {
   const { status, error, login } = useAuth();

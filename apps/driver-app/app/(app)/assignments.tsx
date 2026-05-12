@@ -2,9 +2,9 @@
 import type { JSX } from 'react';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Text, View, StyleSheet } from 'react-native';
-import { AssignmentsClient } from '../src/assignments/assignments-client.js';
-import { fetchAssignmentsState, type AssignmentsState } from '../src/assignments/assignments-state.js';
-import { useAuth } from '../src/auth/use-auth.js';
+import { AssignmentsClient } from '../../src/assignments/assignments-client.js';
+import { fetchAssignmentsState, type AssignmentsState } from '../../src/assignments/assignments-state.js';
+import { useAuth } from '../../src/auth/use-auth.js';
 
 function getApiUrl(): string {
   return (process.env['EXPO_PUBLIC_API_URL'] as string | undefined) ?? 'http://localhost:3000';
