@@ -1,26 +1,24 @@
 // apps/driver-app/app/assignments.tsx
-// Driver assignments screen: lists road runs assigned to the authenticated driver.
 import type { JSX } from 'react';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Text, View, StyleSheet } from 'react-native';
 import { AssignmentsClient } from '../src/assignments/assignments-client.js';
 import { fetchAssignmentsState, type AssignmentsState } from '../src/assignments/assignments-state.js';
+import { useAuth } from '../src/auth/use-auth.js';
 
 function getApiUrl(): string {
   return (process.env['EXPO_PUBLIC_API_URL'] as string | undefined) ?? 'http://localhost:3000';
 }
 
-function getBearerToken(): string {
-  return (process.env['EXPO_PUBLIC_FLEET_API_TOKEN'] as string | undefined) ?? '';
-}
-
 export default function Assignments(): JSX.Element {
   const [state, setState] = useState<AssignmentsState>({ kind: 'loading' });
+  const { getAccessToken, status } = useAuth();
 
   useEffect(() => {
-    const client = new AssignmentsClient({ apiUrl: getApiUrl(), bearerToken: getBearerToken });
+    if (status !== 'authenticated') return;
+    const client = new AssignmentsClient({ apiUrl: getApiUrl(), bearerToken: getAccessToken });
     void fetchAssignmentsState(client).then(setState);
-  }, []);
+  }, [getAccessToken, status]);
 
   if (state.kind === 'loading') {
     return (

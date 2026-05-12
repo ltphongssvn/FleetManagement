@@ -6,7 +6,7 @@ import type { SyncSchedulerState, SyncSchedulerOutcome } from '../index.js';
 export interface NativeBootstrapConfig {
   readonly apiUrl: string;
   readonly dbName: string;
-  readonly bearerToken: () => string;
+  readonly bearerToken: () => string | Promise<string>;
 }
 
 export async function startNativeSyncLoop(cfg: NativeBootstrapConfig): Promise<() => void> {
