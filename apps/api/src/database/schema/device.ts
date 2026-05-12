@@ -14,12 +14,14 @@ export const deviceRegistry = pgTable(
     platform: varchar('platform', { length: 32 }).notNull(),
     appVersion: varchar('app_version', { length: 32 }).notNull(),
     expoPushToken: varchar('expo_push_token', { length: 256 }),
+    udid: varchar('udid', { length: 128 }),
     enrolledAt: timestamp('enrolled_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' }),
   },
   (t) => [
     index('device_registry_operator_idx').on(t.operatorId),
     index('device_registry_company_idx').on(t.companyId),
+    uniqueIndex('device_registry_operator_platform_uq').on(t.operatorId, t.platform),
   ],
 );
 

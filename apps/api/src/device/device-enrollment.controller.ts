@@ -1,5 +1,6 @@
 // apps/api/src/device/device-enrollment.controller.ts
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { JwtGuard } from '../auth/jwt.guard.js';
 import { z } from 'zod';
 import type { OperatorContext } from '@fleet/domain';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
@@ -11,6 +12,7 @@ const EnrollRequestSchema = z.object({
   expoPushToken: z.string().min(1).max(256).optional(),
 });
 
+@UseGuards(JwtGuard)
 @Controller('devices')
 export class DeviceEnrollmentController {
   constructor(private readonly service: DeviceEnrollmentService) {}

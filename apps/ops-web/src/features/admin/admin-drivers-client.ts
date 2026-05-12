@@ -1,0 +1,68 @@
+// apps/ops-web/src/features/admin/admin-drivers-client.ts
+import type { DriverRow } from './drivers-state.js';
+
+export type FetchFn = typeof globalThis.fetch;
+
+export interface AdminDriversClientConfig {
+  readonly apiUrl: string;
+  readonly bearerToken: () => string | Promise<string>;
+  readonly fetchFn?: FetchFn;
+}
+
+export interface AssignResult {
+  readonly assignmentId: string;
+}
+
+export interface RevokeResult {
+  readonly assignmentId: string;
+  readonly revokedAt: string;
+}
+
+export class AdminDriversClient {
+  constructor(private readonly config: AdminDriversClientConfig) {}
+
+  async list(): Promise<readonly DriverRow[]> {
+    const token = await this.config.bearerToken();
+    const fetchFn = this.config.fetchFn ?? globalThis.fetch;
+    const res = await fetchFn(`/api/admin/drivers`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error(`/admin/drivers HTTP ${String(res.status)}`);
+    return (await res.json()) as readonly DriverRow[];
+  }
+
+  async assign(input: { driverId: string; vehicleId: string }): Promise<AssignResult> {
+    const token = await this.config.bearerToken();
+    const fetchFn = this.config.fetchFn ?? globalThis.fetch;
+    const res = await fetchFn(`/api/admin/driver-vehicle-assignments`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) throw new Error(`POST /admin/driver-vehicle-assignments HTTP ${String(res.status)}`);
+    return (await res.json()) as AssignResult;
+  }
+
+  async enrollDevice(input: { driverId: string; udid: string; platform: string }): Promise<{ deviceId: string }> {
+    const fetchFn = this.config.fetchFn ?? globalThis.fetch;
+    const res = await fetchFn('/api/admin/devices', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return (await res.json()) as { deviceId: string };
+  }
+
+  async revoke(assignmentId: string, reason: string): Promise<RevokeResult> {
+    const token = await this.config.bearerToken();
+    const fetchFn = this.config.fetchFn ?? globalThis.fetch;
+    const res = await fetchFn(`/api/admin/driver-vehicle-assignments/${assignmentId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    });
+    if (!res.ok) throw new Error(`DELETE /admin/driver-vehicle-assignments/:id HTTP ${String(res.status)}`);
+    return (await res.json()) as RevokeResult;
+  }
+}

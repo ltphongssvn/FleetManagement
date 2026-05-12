@@ -23,6 +23,7 @@ import { ErpInboundModule } from './erp-inbound/erp-inbound.module.js';
 import { MetricsModule } from './metrics/metrics.module.js';
 import { ReferenceModule } from './reference/reference.module.js';
 import { DriverModule } from './driver/driver.module.js';
+import { AdminModule } from './admin/admin.module.js';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { DriverModule } from './driver/driver.module.js';
     MetricsModule,
     ReferenceModule,
     DriverModule,
+    AdminModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: SentryGlobalFilter }],
 })
