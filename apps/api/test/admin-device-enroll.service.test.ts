@@ -1,6 +1,6 @@
 // apps/api/test/admin-device-enroll.service.test.ts
 // RED: AdminDeviceEnrollService enrolls a device for a driver by udid + platform.
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { AdminDeviceEnrollService } from '../src/admin/admin-device-enroll.service.js';
 
 interface DriverRow { driverId: string; operatorId: string | null; companyId: string; businessUnitId: string; depotId: string; legalEntityId: string; }

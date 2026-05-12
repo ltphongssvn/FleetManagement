@@ -33,7 +33,7 @@ export default function AdminDriversPage(): JSX.Element {
     try {
       const res = await fetch('/api/reference/vehicles');
       if (res.ok) {
-        const data = await res.json() as { items?: Array<{ id: string; label: string }> };
+        const data = await res.json() as { items?: { id: string; label: string }[] };
         const list = (data.items ?? []).map((it) => ({ vehicleId: it.id, plate: it.label }));
         setVehicles(list);
       }
