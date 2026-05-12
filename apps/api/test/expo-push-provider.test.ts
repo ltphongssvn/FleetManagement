@@ -23,7 +23,7 @@ async function seedTokens(tokens: (string | null)[]): Promise<void> {
     const token = tokens[i];
     await testDb.db.execute(sql.raw(`
       INSERT INTO device_registry (company_id, business_unit_id, depot_id, legal_entity_id, operator_id, platform, app_version, expo_push_token)
-      VALUES (${TENANCY_VALS}, '${OPERATOR_ID}'::uuid, 'platform-${i}', '1.0.0', ${token === null || token === undefined ? 'NULL' : `'${token}'`})
+      VALUES (${TENANCY_VALS}, '${OPERATOR_ID}'::uuid, 'platform-${String(i)}', '1.0.0', ${token === null || token === undefined ? 'NULL' : `'${token}'`})
     `));
   }
 }
