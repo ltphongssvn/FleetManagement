@@ -269,4 +269,35 @@ describe('@fleet/driver-app - sync-policy batchSize validation', () => {
   it('throws on batchSize = 1.5 (not integer)', () => {
     expect(() => planSyncRequest([], cursor, 1.5)).toThrow(RangeError);
   });
+
+  it('reconcileSyncAck: ill-typed response.status (defensive line 80) returns empty transitions', () => {
+    // Simulate a malformed server response where status is neither 'ok' nor
+    // 'cursor_expired' (e.g., parsed from JSON without zod validation).
+    const malformed = { status: 'wat', newCursor: createSyncCursor('1'), results: [] } as unknown as SyncResponse;
+    const outcome = reconcileSyncAck(['a' as never], malformed);
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind !== 'ok') throw new Error('narrow');
+    expect(outcome.transitions).toEqual([]);
+  });
+
+  it('reconcileSyncAck: unknown SyncActionResult value triggers the never-exhaustiveness path (lines 120-121)', () => {
+    // Force-feed a result value outside the SyncActionResult union to exercise
+    // the default branch in mapResultToStatus. Runtime behavior here is
+    // intentionally undefined (the `never` returns the value verbatim).
+    const actionId = createActionId('22222222-2222-4222-8222-222222222222');
+    const malformed: SyncResponse = {
+      status: 'ok',
+      newCursor: createSyncCursor('2'),
+      results: ['mystery_result' as never],
+    };
+    const outcome = reconcileSyncAck([actionId], malformed);
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind !== 'ok') throw new Error('narrow');
+    expect(outcome.transitions).toHaveLength(1);
+    // Any value satisfies the runtime contract: the `never` branch returns the
+    // unknown result as-is. We assert the actionId pass-through to lock in
+    // current behavior; if a future SyncActionResult is added, this test will
+    // continue to pass while TS forces the developer to map it explicitly.
+    expect(outcome.transitions[0]?.actionId).toBe(actionId);
+  });
 });

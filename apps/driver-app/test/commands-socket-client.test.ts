@@ -114,4 +114,49 @@ describe("CommandsSocketClient", () => {
     expect(client.getInbox()).toHaveLength(1);
     expect(client.getInbox()[0]?.commandId).toBe(validCmd.commandId);
   });
+
+  it("onCommand returns an unsubscribe function that removes the handler", () => {
+    const fake = makeFakeSocket();
+    const client = new CommandsSocketClient({ socket: fake.socket, clock: () => new Date("2026-05-13T10:00:05.000Z") });
+    const sub = vi.fn();
+    const unsubscribe = client.onCommand(sub);
+    client.attach();
+    fake.listeners.get("command")?.(validCmd);
+    expect(sub).toHaveBeenCalledTimes(1);
+    unsubscribe();
+    // A different valid command (new commandId) so it isn't a duplicate
+    const cmd2 = { ...validCmd, commandId: "44444444-4444-4444-8444-444444444444" };
+    fake.listeners.get("command")?.(cmd2);
+    expect(sub).toHaveBeenCalledTimes(1); // still 1 — unsubscribed
+  });
+
+  it("attach is idempotent (does not register a second listener)", () => {
+    const fake = makeFakeSocket();
+    const onSpy = vi.fn();
+    const socketWithSpy: SocketLike = {
+      ...fake.socket,
+      on(event: string, cb: (data: unknown) => void): void { onSpy(event, cb); fake.socket.on(event, cb); },
+    };
+    const client = new CommandsSocketClient({ socket: socketWithSpy, clock: () => new Date("2026-05-13T10:00:05.000Z") });
+    client.attach();
+    client.attach();
+    expect(onSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("detach before attach is a no-op (does not crash)", () => {
+    const fake = makeFakeSocket();
+    const client = new CommandsSocketClient({ socket: fake.socket, clock: () => new Date("2026-05-13T10:00:05.000Z") });
+    expect(() => { client.detach(); }).not.toThrow();
+  });
+
+  it("constructor without explicit clock uses real Date", () => {
+    const fake = makeFakeSocket();
+    const client = new CommandsSocketClient({ socket: fake.socket });
+    client.attach();
+    fake.listeners.get("command")?.(validCmd);
+    const ack = fake.emitted[0]?.payload as { ackedAt: string };
+    // ackedAt is an ISO 8601 timestamp produced from new Date()
+    expect(typeof ack.ackedAt).toBe("string");
+    expect(Number.isNaN(Date.parse(ack.ackedAt))).toBe(false);
+  });
 });

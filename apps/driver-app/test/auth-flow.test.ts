@@ -67,4 +67,25 @@ describe('@fleet/driver-app - isTokenExpired', () => {
   it('returns false when before expiresAt', () => {
     expect(isTokenExpired({ accessToken: 'a', expiresAt: Date.now() / 1000 + 600 } as never, Date.now() / 1000)).toBe(false);
   });
+
+  it('uses globalThis.fetch when fetchFn is not provided', async () => {
+    const originalFetch = globalThis.fetch;
+    const spy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ access_token: 'a', expires_in: 3600 }),
+    });
+    globalThis.fetch = spy as never;
+    try {
+      const res = await exchangeAuthCode({
+        tokenEndpoint: 'http://idp/token',
+        code: 'C',
+        clientId: 'cid',
+        redirectUri: 'fleetdriver://cb',
+      });
+      expect(res.accessToken).toBe('a');
+      expect(spy).toHaveBeenCalled();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

@@ -81,4 +81,26 @@ describe('@fleet/driver-app - negotiateAndUploadManifest', () => {
     });
     expect(commitBody).toContain('"contentHash":"sha256:abc"');
   });
+
+  it('uses globalThis.fetch when fetchFn is not provided', async () => {
+    const originalFetch = globalThis.fetch;
+    const spy = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ uploadSessionId: '99999999-9999-7999-8999-999999999999', url: 'https://s3/up', key: 'k', bucket: 'b', expiresAt: '2026-12-31T00:00:00Z' }) })
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ uploadSessionId: '99999999-9999-7999-8999-999999999999', manifestId: '88888888-8888-7888-8888-888888888888', state: 'verifying' }) });
+    globalThis.fetch = spy as never;
+    try {
+      const result = await negotiateAndUploadManifest({
+        apiUrl: 'http://api', bearerToken: () => 't',
+        manifestCorrelationId: '11111111-1111-7111-8111-111111111111',
+        transportOrderId: '22222222-2222-7222-8222-222222222222',
+        contentType: 'image/jpeg',
+        fileBytes: new Uint8Array([1, 2, 3]),
+      });
+      expect(result.manifestId).toBe('88888888-8888-7888-8888-888888888888');
+      expect(spy).toHaveBeenCalledTimes(3);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

@@ -59,4 +59,17 @@ describe('@fleet/driver-app - runSpoolSweepOnBoot', () => {
     const result = await runSpoolSweepOnBoot({ list: () => Promise.resolve([]), remove });
     expect(result.scanned).toBe(0);
   });
+
+  it('counts skip_in_progress for entries within the min-age window (line 29 coverage)', async () => {
+    const now = Date.now();
+    // pending_upload entry created 1 s ago — under SPOOL_ENTRY_MIN_AGE_MS (5 s)
+    const entries: readonly SpoolEntry[] = [
+      baseEntry({ createdAtMs: now - 1000, status: 'pending_upload', attempts: 0 }),
+    ];
+    const remove = vi.fn().mockResolvedValue(undefined);
+    const result = await runSpoolSweepOnBoot({ list: () => Promise.resolve(entries), remove, now: () => now });
+    expect(result.skipped).toBe(1);
+    expect(result.resumed).toBe(0);
+    expect(remove).not.toHaveBeenCalled();
+  });
 });

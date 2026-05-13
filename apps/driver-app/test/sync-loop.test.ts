@@ -247,6 +247,82 @@ describe('@fleet/driver-app - runSyncOnce', () => {
     expect(req?.cursor).toBe('42');
     expect(req?.actions).toHaveLength(1);
   });
+
+  it('claimDispatched failure -> storage_failure stage=apply_ack', async () => {
+    const id = 'bbbbbbbb-1111-4111-8111-111111111111';
+    const f = makeStore({ dispatchable: [action(id, 1)] });
+    f.claimDispatched.mockRejectedValueOnce(new Error('claim boom'));
+    const transport: SyncTransport = { post: vi.fn() };
+    const out = await runSyncOnce(transport, f.store);
+    expect(out.kind).toBe('storage_failure');
+    if (out.kind !== 'storage_failure') throw new Error('narrow');
+    expect(out.stage).toBe('apply_ack');
+    expect(out.error.message).toBe('claim boom');
+    expect(transport.post).not.toHaveBeenCalled();
+  });
+
+  it('claimDispatched non-Error rejection -> wraps in Error', async () => {
+    const id = 'cccccccc-1111-4111-8111-111111111111';
+    const f = makeStore({ dispatchable: [action(id, 1)] });
+    f.claimDispatched.mockRejectedValueOnce('claim string failure');
+    const transport: SyncTransport = { post: vi.fn() };
+    const out = await runSyncOnce(transport, f.store);
+    expect(out.kind).toBe('storage_failure');
+    if (out.kind !== 'storage_failure') throw new Error('narrow');
+    expect(out.error).toBeInstanceOf(Error);
+    expect(out.error.message).toBe('claim string failure');
+  });
+
+  it('transport non-Error rejection is wrapped into Error', async () => {
+    const id = 'dddddddd-1111-4111-8111-111111111111';
+    const f = makeStore({ dispatchable: [action(id, 1)] });
+    const transport: SyncTransport = { post: vi.fn().mockRejectedValueOnce('transport string failure') };
+    const out = await runSyncOnce(transport, f.store);
+    expect(out.kind).toBe('transport_failure');
+    if (out.kind !== 'transport_failure') throw new Error('narrow');
+    expect(out.error).toBeInstanceOf(Error);
+    expect(out.error.message).toBe('transport string failure');
+  });
+
+  it('rollbackDispatched non-Error rejection is wrapped', async () => {
+    const id = 'eeeeeeee-1111-4111-8111-111111111111';
+    const f = makeStore({ dispatchable: [action(id, 1)] });
+    const transport: SyncTransport = { post: vi.fn().mockRejectedValueOnce(new Error('net down')) };
+    f.rollbackDispatched.mockRejectedValueOnce('rollback string failure');
+    const out = await runSyncOnce(transport, f.store);
+    expect(out.kind).toBe('storage_failure');
+    if (out.kind !== 'storage_failure') throw new Error('narrow');
+    expect(out.stage).toBe('rollback');
+    expect(out.error).toBeInstanceOf(Error);
+    expect(out.error.message).toBe('rollback string failure');
+  });
+
+  it('resetForCursorExpired non-Error rejection is wrapped', async () => {
+    const f = makeStore({});
+    f.resetForCursorExpired.mockRejectedValueOnce('reset string failure');
+    const transport: SyncTransport = { post: vi.fn().mockResolvedValue(cursorExpiredResponse()) };
+    const out = await runSyncOnce(transport, f.store);
+    expect(out.kind).toBe('storage_failure');
+    if (out.kind !== 'storage_failure') throw new Error('narrow');
+    expect(out.stage).toBe('reset');
+    expect(out.error).toBeInstanceOf(Error);
+    expect(out.error.message).toBe('reset string failure');
+  });
+
+  it('applySyncCommit non-Error rejection is wrapped', async () => {
+    const id = 'ffffffff-1111-4111-8111-111111111111';
+    const f = makeStore({
+      dispatchable: [action(id, 1)],
+      applySyncCommitImpl: () => Promise.reject('apply string failure'),
+    });
+    const transport: SyncTransport = { post: vi.fn().mockResolvedValue(okResponse(['applied'])) };
+    const out = await runSyncOnce(transport, f.store);
+    expect(out.kind).toBe('storage_failure');
+    if (out.kind !== 'storage_failure') throw new Error('narrow');
+    expect(out.stage).toBe('apply_ack');
+    expect(out.error).toBeInstanceOf(Error);
+    expect(out.error.message).toBe('apply string failure');
+  });
 });
 
 import fc from 'fast-check';

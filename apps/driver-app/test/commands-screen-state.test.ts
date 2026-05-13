@@ -64,4 +64,25 @@ describe("commands-screen-state", () => {
     if (vm.kind !== "list") throw new Error("narrow");
     expect(vm.items[0]?.roadRunId).toBeNull();
   });
+
+  it("roadRunId is null when payload is null (line 27 right-side branch)", () => {
+    const nullPayload: CommandPayload = { ...cmdA, payload: null };
+    const vm = presentCommands([nullPayload]);
+    if (vm.kind !== "list") throw new Error("narrow");
+    expect(vm.items[0]?.roadRunId).toBeNull();
+  });
+
+  it("roadRunId is null when payload is a non-object primitive (line 27 left-side branch)", () => {
+    const primitivePayload: CommandPayload = { ...cmdA, payload: "not-an-object" as never };
+    const vm = presentCommands([primitivePayload]);
+    if (vm.kind !== "list") throw new Error("narrow");
+    expect(vm.items[0]?.roadRunId).toBeNull();
+  });
+
+  it("roadRunId is null when payload.roadRunId is not a string", () => {
+    const intRr: CommandPayload = { ...cmdA, payload: { roadRunId: 12345 } };
+    const vm = presentCommands([intRr]);
+    if (vm.kind !== "list") throw new Error("narrow");
+    expect(vm.items[0]?.roadRunId).toBeNull();
+  });
 });
