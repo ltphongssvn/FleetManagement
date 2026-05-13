@@ -23,7 +23,7 @@ describe('JWT round-trip: login signer → JoseIdentityProvider verifier', () =>
         JWT_PUBLIC_KEY_PEM: PUBLIC_PEM,
       }[k] ?? ''),
     } as unknown as ConfigService;
-    provider = new JoseIdentityProvider(config);
+    provider = new JoseIdentityProvider(config as never);
     await provider.onModuleInit();
   });
 
