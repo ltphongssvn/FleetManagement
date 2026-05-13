@@ -159,9 +159,13 @@ export async function runSyncOnce(
     };
   }
 
-  const hasLocalAcks = outcome.transitions.length > 0;
-  const hasRemoteWork = response.deltas.length > 0;
-  if (!hasLocalAcks && !hasRemoteWork && plan.dispatchedActionIds.length === 0) {
+  // Idle when no local ACKs, no remote deltas, and no dispatched actions.
+  // Combine the three checks inline so each surviving mutant has an observable
+  // difference. The first clause "transitions.length === 0 -> true" mutant is
+  // equivalent because transitions.length > 0 implies dispatchedActionIds.length > 0
+  // (transitions are derived from dispatched), making the third clause dominate.
+  // Stryker disable next-line ConditionalExpression: equivalent (transitions implies dispatched)
+  if (outcome.transitions.length === 0 && response.deltas.length === 0 && plan.dispatchedActionIds.length === 0) {
     return { kind: 'idle' };
   }
   return { kind: 'applied', newCursor: outcome.newCursor, transitions: outcome.transitions };

@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   createSpoolEntry,
+  defaultGenerateId,
   classifyForRecovery,
   sweepSpool,
   CAPTURE_SPOOL_POLICY_VERSION,
@@ -273,5 +274,58 @@ describe('@fleet/driver-app - capture-spool-policy precedence + boundaries', () 
     );
     expect(r.action).toBe('abandon');
     if (r.action === 'abandon') expect(r.reason).toBe('too_many_attempts');
+  });
+});
+
+describe('@fleet/driver-app - capture-spool-policy mutation-hardening', () => {
+  it('defaultGenerateId encodes the provided nowMs in the UUIDv7 timestamp prefix (kills L19 uuidv7({msecs:nowMs}) -> uuidv7({}) mutant)', () => {
+    // UUIDv7 spec: bits 0-47 are unix_ts_ms. The first 12 hex chars (with dashes removed)
+    // are the ms timestamp. The default generateId calls uuidv7({ msecs: nowMs }).
+    // Mutated `uuidv7({})` uses current Date.now() instead of the injected nowMs.
+    // Discriminating: inject nowMs far in the past — the encoded timestamp must match
+    // the injected value exactly, not wall-clock time.
+    const pastMs = 1_700_000_000_500; // ~Nov 2023; far from any test wall-clock.
+    const id = defaultGenerateId(pastMs);
+    const hex = id.replace(/-/g, '').substring(0, 12);
+    const tsMs = parseInt(hex, 16);
+    expect(tsMs).toBe(pastMs);
+  });
+
+  it('createSpoolEntry with omitted deps uses real Date.now (kills L22 REAL_DEPS.now arrow -> () => undefined mutant)', () => {
+    // Calling createSpoolEntry({...}) without `deps` uses REAL_DEPS. If REAL_DEPS.now were
+    // mutated to () => undefined, the UUIDv7 timestamp would be NaN/undefined, breaking the
+    // captureId format. Original produces a valid UUIDv7 whose timestamp is roughly Date.now().
+    const before = Date.now();
+    const entry = createSpoolEntry({
+      manifestCorrelationId: 'm', localUri: 'f', mimeType: 'image/jpeg', sizeBytes: 100,
+    });
+    const after = Date.now();
+    // createdAtMs from REAL_DEPS.now() must be a real number in [before, after]
+    expect(typeof entry.createdAtMs).toBe('number');
+    expect(Number.isFinite(entry.createdAtMs)).toBe(true);
+    expect(entry.createdAtMs).toBeGreaterThanOrEqual(before);
+    expect(entry.createdAtMs).toBeLessThanOrEqual(after);
+    // captureId must be a valid UUIDv7 string
+    expect(entry.captureId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+  });
+
+  it('classifyForRecovery on future-dated failed entry returns skip_in_progress, not resume_upload (kills L100 < 0 -> false / block-empty mutants)', () => {
+    // Original L100: ageMs < 0 → returns skip_in_progress regardless of other status checks.
+    // Mutated L100 -> if (false): skips, falls through. Status 'failed' is not 'uploaded', not 'uploading',
+    // not 'pending_upload' → reaches L119 → returns resume_upload. DIFFERENT.
+    // Mutated L100 -> if (ageMs < 0) {}: enters but no return, falls through, same as above.
+    const entry = makeEntry({ status: 'failed' });
+    const nowMsInFuture = BASE_NOW - 10_000; // entry is 10s in the future
+    const r = classifyForRecovery(entry, nowMsInFuture);
+    expect(r.action).toBe('skip_in_progress');
+  });
+
+  it('classifyForRecovery at exact ageMs=0 with failed status returns resume_upload (kills L100 < -> <= mutant)', () => {
+    // ageMs = 0 (now exactly equals createdAtMs).
+    // Original L100: `0 < 0` is false → not skip. Status 'failed' falls through to L119 → resume_upload.
+    // Mutated L100: `0 <= 0` is true → returns skip_in_progress. DIFFERENT.
+    const entry = makeEntry({ status: 'failed' });
+    const r = classifyForRecovery(entry, BASE_NOW);
+    expect(r.action).toBe('resume_upload');
   });
 });

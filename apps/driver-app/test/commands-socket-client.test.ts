@@ -160,3 +160,53 @@ describe("CommandsSocketClient", () => {
     expect(Number.isNaN(Date.parse(ack.ackedAt))).toBe(false);
   });
 });
+
+describe('CommandsSocketClient mutation-hardening', () => {
+  it('detach before attach does NOT call socket.off (kills L57 early-return mutant)', () => {
+    // Original: if (boundListener === null) return; → detach is a no-op when not attached.
+    // Mutated `if (false) return;`: does not return early → calls socket.off("command", null).
+    // Track .off() calls via a custom socket fake.
+    let offCallCount = 0;
+    let onCallCount = 0;
+    let emitCallCount = 0;
+    let disconnectCallCount = 0;
+    const trackedSocket = {
+      on: (): void => { onCallCount += 1; },
+      off: (): void => { offCallCount += 1; },
+      emit: (): void => { emitCallCount += 1; },
+      disconnect: (): void => { disconnectCallCount += 1; },
+      get connected(): boolean { return true; },
+    };
+    const client = new CommandsSocketClient({ socket: trackedSocket as never, clock: () => new Date('2026-05-13T10:00:05.000Z') });
+    client.detach(); // detach without attach
+    expect(offCallCount).toBe(0);
+    // Also lock down that detach without attach doesn\'t call on/emit/disconnect either
+    expect(onCallCount).toBe(0);
+    expect(emitCallCount).toBe(0);
+    expect(disconnectCallCount).toBe(0);
+  });
+
+  it('detach after attach calls socket.off exactly once (positive case for the early-return guard)', () => {
+    let offCallCount = 0;
+    let onCallCount = 0;
+    let emitCallCount = 0;
+    let disconnectCallCount = 0;
+    const trackedSocket = {
+      on: (): void => { onCallCount += 1; },
+      off: (): void => { offCallCount += 1; },
+      emit: (): void => { emitCallCount += 1; },
+      disconnect: (): void => { disconnectCallCount += 1; },
+      get connected(): boolean { return true; },
+    };
+    const client = new CommandsSocketClient({ socket: trackedSocket as never, clock: () => new Date('2026-05-13T10:00:05.000Z') });
+    client.attach();
+    expect(onCallCount).toBe(1);
+    client.detach();
+    expect(offCallCount).toBe(1);
+    // Calling detach again should not call socket.off a second time
+    client.detach();
+    expect(offCallCount).toBe(1);
+    expect(emitCallCount).toBe(0);
+    expect(disconnectCallCount).toBe(0);
+  });
+});

@@ -86,3 +86,18 @@ describe("commands-screen-state", () => {
     expect(vm.items[0]?.roadRunId).toBeNull();
   });
 });
+
+describe('commands-screen-state mutation-hardening', () => {
+  it('roadRunId is null when payload is undefined (kills L27 typeof !== object || === null -> false mutant)', () => {
+    // Original L27: typeof undefined !== "object" is true → return null. Safe.
+    // Mutated `false || payload === null`: false || undefined === null (false) → fall through.
+    //   Then (undefined)["roadRunId"] → TypeError: Cannot read properties of undefined.
+    // So with payload=undefined: original returns null cleanly; mutated throws.
+    const undefPayload: CommandPayload = { ...cmdA, payload: undefined as never };
+    expect(() => {
+      const vm = presentCommands([undefPayload]);
+      if (vm.kind !== 'list') throw new Error('narrow');
+      expect(vm.items[0]?.roadRunId).toBeNull();
+    }).not.toThrow();
+  });
+});

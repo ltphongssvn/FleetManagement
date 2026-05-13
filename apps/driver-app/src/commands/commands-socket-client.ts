@@ -43,11 +43,11 @@ export class CommandsSocketClient {
       const result = receiveCommand(this.state, raw, this.clock());
       this.state = result.state;
       this.config.socket.emit(COMMAND_EVENTS.clientAck, result.ack);
-      if (result.ack.status === "received") {
-        const last = this.state.inbox[this.state.inbox.length - 1];
-        if (last !== undefined) {
-          for (const sub of this.subscribers) sub(last);
-        }
+      // result.command is set if-and-only-if ack.status === "received" (see
+      // command-receiver-policy.ts). Use a single truthy check on result.command
+      // to avoid Stryker creating mutants that are structurally equivalent.
+      if (result.command) {
+        for (const sub of this.subscribers) sub(result.command);
       }
     };
     this.config.socket.on(COMMAND_EVENTS.serverCommand, this.boundListener);

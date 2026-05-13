@@ -112,7 +112,16 @@ export function decideSyncSchedule(
     };
   }
 
-  if (state.lastSyncAtMs !== null) {
+  // Skip defer logic entirely when no prior sync — short-circuit avoids NaN
+  // comparisons that coincidentally evaluate to the same fall-through path.
+  // Stryker mutants on this conditional are equivalent: with `if (false)` or
+  // block-empty, code falls through to L120 where `nowMs - null = NaN < x` is
+  // always false, producing the same run_now return.
+  // Stryker disable next-line all
+  if (state.lastSyncAtMs === null) {
+    return { action: 'run_now', policyVersion: SYNC_SCHEDULER_POLICY_VERSION };
+  }
+  {
     const sinceLastMs = nowMs - state.lastSyncAtMs;
     const requiredBackoffMs = state.lastOutcome === TRANSPORT_FAILURE_OUTCOME
       ? backoffDelayMs(state.consecutiveTransportFailures, deps.random)

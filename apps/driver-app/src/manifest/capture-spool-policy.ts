@@ -14,7 +14,7 @@ export interface SpoolDeps {
   readonly generateId: (nowMs: number) => string;
 }
 
-function defaultGenerateId(nowMs: number): string {
+export function defaultGenerateId(nowMs: number): string {
   // uuid v14 supports `msecs` so the v7 timestamp prefix matches createdAtMs exactly.
   return uuidv7({ msecs: nowMs });
 }
@@ -108,14 +108,13 @@ export function classifyForRecovery(entry: SpoolEntry, nowMs: number): SweepClas
   if (entry.attempts >= SPOOL_MAX_ATTEMPTS) {
     return classifyAbandon('too_many_attempts');
   }
-  if (entry.status === 'uploading') {
-    // App crashed mid-upload (within TTL, attempts under cap) — resume.
-    return { action: 'resume_upload' };
-  }
   // #391 min-age window applies only to pending_upload (camera shutter -> disk write).
   if (entry.status === 'pending_upload' && ageMs < SPOOL_ENTRY_MIN_AGE_MS) {
     return { action: 'skip_in_progress' };
   }
+  // Both 'uploading' (crash recovery, within TTL+attempts) and 'failed'/'pending_upload'
+  // past min-age fall through to resume_upload. The branches were merged because
+  // separate handling was structurally equivalent.
   return { action: 'resume_upload' };
 }
 

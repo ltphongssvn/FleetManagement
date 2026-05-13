@@ -51,6 +51,8 @@ export interface ReceiverState {
 export interface ReceiveResult {
   readonly state: ReceiverState;
   readonly ack: CommandAck;
+  /** The accepted command, set only when ack.status === "received". */
+  readonly command?: CommandPayload;
 }
 
 const UNKNOWN_COMMAND_ID = "00000000-0000-0000-0000-000000000000" as const;
@@ -67,6 +69,11 @@ export function initialReceiverState(): ReceiverState {
  * - Duplicate commandId -> rejected/duplicate_command, state unchanged.
  * - Valid + new -> appended to inbox, commandId remembered, received ack.
  */
+/** Type guard: rawPayload is a non-null, non-array, non-primitive object we can index. */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 export function receiveCommand(
   state: ReceiverState,
   rawPayload: unknown,
@@ -77,10 +84,10 @@ export function receiveCommand(
   if (!parsed.success) {
     // Surface commandId if the raw object happens to carry a string at that key,
     // otherwise use the all-zero sentinel. Keeps ack shape valid for the server.
-    const rawObj = (typeof rawPayload === "object" && rawPayload !== null)
-      ? (rawPayload as Record<string, unknown>)
-      : null;
-    const rawCommandId = rawObj !== null ? rawObj["commandId"] : undefined;
+    // Narrow rawPayload to an indexable Record only when it is a real object
+    // (excludes null, primitives, and undefined). Using a typeguard function
+    // gives Stryker fewer redundant conditional mutants than an inlined `&&`.
+    const rawCommandId = isPlainObject(rawPayload) ? rawPayload["commandId"] : undefined;
     const maybeId: string = typeof rawCommandId === "string"
       ? rawCommandId
       : UNKNOWN_COMMAND_ID;
@@ -91,6 +98,7 @@ export function receiveCommand(
         ackedAt,
         status: "rejected",
         reasonCode: "client_error",
+        // Stryker disable next-line OptionalChaining,StringLiteral: zod guarantees issues[0] is set when success=false; the optional-chain mutant is equivalent, and the fallback string is unreachable.
         reasonText: parsed.error.issues[0]?.message ?? "invalid payload",
       },
     };
@@ -119,5 +127,6 @@ export function receiveCommand(
       ackedAt,
       status: "received",
     },
+    command: cmd,
   };
 }

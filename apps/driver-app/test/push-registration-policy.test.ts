@@ -198,3 +198,17 @@ describe('@fleet/driver-app - push-registration-policy property invariants', () 
     );
   });
 });
+
+describe('@fleet/driver-app - push-registration-policy mutation-hardening', () => {
+  it('isValidExpoPushToken rejects token with leading junk (kills L39 regex /^Ex.../ -> /Ex.../ mutant)', () => {
+    // Original anchors at start with ^Ex. 'JUNKExponentPushToken[abc]' starts with J → reject.
+    // Mutated /Ex.../ (no ^): matches substring 'ExponentPushToken[abc]' → accept. DIFFERENT.
+    expect(isValidExpoPushToken('JUNKExponentPushToken[abc123]')).toBe(false);
+  });
+
+  it('isValidExpoPushToken rejects token with trailing junk (kills L39 regex /...$/ -> /.../ mutant)', () => {
+    // Original anchors at end with \]$. 'ExpoPushToken[abc]junk' ends with k → reject.
+    // Mutated /...\]/ (no $): matches prefix 'ExpoPushToken[abc]' → accept. DIFFERENT.
+    expect(isValidExpoPushToken('ExpoPushToken[abc123]junk')).toBe(false);
+  });
+});

@@ -307,3 +307,97 @@ describe('@fleet/driver-app - sync-policy batchSize validation', () => {
     expect(outcome.transitions[0]?.actionId).toBe(actionId);
   });
 });
+
+describe('@fleet/driver-app - sync-policy mutation-hardening', () => {
+  it('planSyncRequest builds actions with all required fields populated (kills slice.map -> undefined / {} mutants)', () => {
+    // Mutated to () => undefined → actions = [undefined]. Mutated to () => ({}) → actions = [{}].
+    // Original populates actionId, aggregateType, aggregateId, payload, timestamp.
+    const dispatchable = [{
+      actionId: createActionId('11111111-1111-4111-8111-111111111111'),
+      aggregateType: 'transport_order',
+      aggregateId: createAggregateId('22222222-2222-4222-8222-222222222222'),
+      payload: { key: 'value' },
+      status: 'pending' as const,
+      sequence: 1,
+      blockedByActionId: null,
+    }];
+    const plan = planSyncRequest(dispatchable as never, createSyncCursor('cursor-0'));
+    expect(plan.request.actions).toHaveLength(1);
+    const a = plan.request.actions[0];
+    expect(a).toBeDefined();
+    if (!a) throw new Error('narrow');
+    expect(a.actionId).toBe('11111111-1111-4111-8111-111111111111');
+    expect(a.aggregateType).toBe('transport_order');
+    expect(a.aggregateId).toBe('22222222-2222-4222-8222-222222222222');
+    expect(a.payload).toEqual({ key: 'value' });
+    expect(typeof a.timestamp).toBe('string');
+    expect(a.timestamp.length).toBeGreaterThan(0);
+  });
+
+  it('batchSize RangeError message names "positive safe integer" and the bad value (kills empty-string mutant on L40)', () => {
+    expect(() => planSyncRequest([], createSyncCursor('c'), 0)).toThrow(/positive safe integer.*got 0/);
+    expect(() => planSyncRequest([], createSyncCursor('c'), -1)).toThrow(/positive safe integer.*got -1/);
+    expect(() => planSyncRequest([], createSyncCursor('c'), NaN)).toThrow(/positive safe integer.*got NaN/);
+  });
+
+  it('protocol_violation outcome has reason "results_length_mismatch" (kills L89 string-literal mutant)', () => {
+    const id = createActionId('11111111-1111-4111-8111-111111111111');
+    const res: SyncResponse = {
+      status: 'ok', newCursor: createSyncCursor('1'), eventSeq: 1, results: [],
+      deltas: [], projectionStatus: {}, hysteresisVersion: 0, configFlagVersion: 0,
+      serverTime: '',
+    };
+    const outcome = reconcileSyncAck([id], res);
+    expect(outcome.kind).toBe('protocol_violation');
+    if (outcome.kind !== 'protocol_violation') throw new Error('narrow');
+    expect(outcome.reason).toBe('results_length_mismatch');
+    expect(outcome.expected).toBe(1);
+    expect(outcome.actual).toBe(0);
+  });
+
+  it('reconcile loop pairs each transition.actionId with the dispatchedActionId at the same index (kills L95 i< -> i<= mutant)', () => {
+    // L95: for (let i = 0; i < dispatchedActionIds.length; i++)
+    // Mutated to i <= length: extra iteration with i = length, where dispatchedActionIds[i] and
+    // results[i] are both undefined. The continue at L98 skips, so transitions count stays the same.
+    // BUT — to also lock down the indices, we assert each transition matches its corresponding
+    // input. This protects against any future mutation that misaligns positionally.
+    const ids = [
+      createActionId('aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa'),
+      createActionId('bbbbbbbb-2222-4bbb-8bbb-bbbbbbbbbbbb'),
+      createActionId('cccccccc-3333-4ccc-8ccc-cccccccccccc'),
+    ];
+    const res: SyncResponse = {
+      status: 'ok', newCursor: createSyncCursor('1'), eventSeq: 1,
+      results: ['applied', 'rejected', 'superseded'],
+      deltas: [], projectionStatus: {}, hysteresisVersion: 0, configFlagVersion: 0,
+      serverTime: '',
+    };
+    const outcome = reconcileSyncAck(ids, res);
+    if (outcome.kind !== 'ok') throw new Error('narrow');
+    expect(outcome.transitions).toHaveLength(3);
+    expect(outcome.transitions[0]?.actionId).toBe(ids[0]);
+    expect(outcome.transitions[0]?.result).toBe('applied');
+    expect(outcome.transitions[1]?.actionId).toBe(ids[1]);
+    expect(outcome.transitions[1]?.result).toBe('rejected');
+    expect(outcome.transitions[2]?.actionId).toBe(ids[2]);
+    expect(outcome.transitions[2]?.result).toBe('superseded');
+  });
+
+  it('mapResultToStatus default branch: unknown result returns the value verbatim (kills default-empty-block mutant)', () => {
+    // L117 mutated to `default: {}` → mapResultToStatus returns undefined → newStatus = undefined.
+    // Original: `const _exhaustive: never = result; return _exhaustive;` returns the input string verbatim.
+    const actionId = createActionId('22222222-2222-4222-8222-222222222222');
+    const malformed: SyncResponse = {
+      status: 'ok', newCursor: createSyncCursor('2'), eventSeq: 2,
+      results: ['mystery_result' as never],
+      deltas: [], projectionStatus: {}, hysteresisVersion: 0, configFlagVersion: 0,
+      serverTime: '',
+    };
+    const outcome = reconcileSyncAck([actionId], malformed);
+    if (outcome.kind !== 'ok') throw new Error('narrow');
+    expect(outcome.transitions).toHaveLength(1);
+    // KEY assertion: newStatus is defined and equals the unknown result string (verbatim pass-through).
+    // Mutated empty-default returns undefined → this fails.
+    expect(outcome.transitions[0]?.newStatus).toBe('mystery_result');
+  });
+});

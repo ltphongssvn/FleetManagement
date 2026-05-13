@@ -177,3 +177,63 @@ describe('@fleet/driver-app - presenter <-> scheduler coherence', () => {
     );
   });
 });
+
+describe('@fleet/driver-app - presentSyncStatus mutation-hardening labels', () => {
+  it('offline view: label is exactly "Offline" and secondary is exactly "Will sync when connection returns"', () => {
+    const v = presentSyncStatus(s({ online: false }), NOW);
+    expect(v).toEqual({ kind: 'offline', label: 'Offline', secondary: 'Will sync when connection returns' });
+  });
+
+  it('app_inactive view: label is exactly "Paused" and secondary is exactly "Open the app to sync"', () => {
+    const v = presentSyncStatus(s({ appActive: false }), NOW);
+    expect(v).toEqual({ kind: 'app_inactive', label: 'Paused', secondary: 'Open the app to sync' });
+  });
+
+  it('circuit_open view: label is exactly "Sync paused"', () => {
+    const v = presentSyncStatus(s({ consecutiveTransportFailures: 5, lastOutcome: 'last_transport_failure' }), NOW);
+    expect(v.label).toBe('Sync paused');
+  });
+
+  it('backoff view: label is exactly "Retrying..."', () => {
+    const v = presentSyncStatus(s({ consecutiveTransportFailures: 2, lastOutcome: 'last_transport_failure' }), NOW);
+    expect(v.label).toBe('Retrying...');
+  });
+
+  it('never_synced view: label is exactly "Not yet synced" and secondary is exactly "Sync will start automatically"', () => {
+    const v = presentSyncStatus(s(), NOW);
+    expect(v).toEqual({ kind: 'never_synced', label: 'Not yet synced', secondary: 'Sync will start automatically' });
+  });
+
+  it('just-synced view: label is exactly "All caught up" and secondary is exactly "Just synced"', () => {
+    const v = presentSyncStatus(s({ lastSyncAtMs: NOW - 30_000, lastOutcome: 'last_idle' }), NOW);
+    expect(v).toEqual({ kind: 'idle', label: 'All caught up', secondary: 'Just synced' });
+  });
+
+  it('older-sync idle view: label is exactly "All caught up" and secondary uses "Synced <rel> ago"', () => {
+    const v = presentSyncStatus(s({ lastSyncAtMs: NOW - 3 * 60_000, lastOutcome: 'last_idle' }), NOW);
+    expect(v.label).toBe('All caught up');
+    expect(v.secondary).toBe('Synced 3m ago');
+  });
+
+  it('formatRelative: at exactly 60 minutes, transitions to hours (kills minutes < 60 -> minutes <= 60 mutant)', () => {
+    // 60 minutes: original `minutes < 60` is false → goes to hours = 1h.
+    // Mutated `minutes <= 60` is true → returns `60m`. Different output.
+    const v = presentSyncStatus(s({ lastSyncAtMs: NOW - 60 * 60_000, lastOutcome: 'last_idle' }), NOW);
+    expect(v.secondary).toBe('Synced 1h ago');
+  });
+
+  it('formatRelative: at 59 minutes, still shows minutes (boundary on the under side)', () => {
+    const v = presentSyncStatus(s({ lastSyncAtMs: NOW - 59 * 60_000, lastOutcome: 'last_idle' }), NOW);
+    expect(v.secondary).toBe('Synced 59m ago');
+  });
+
+  it('formatRelative: at exactly 24 hours, transitions to days (kills hours < 24 -> hours <= 24 mutant)', () => {
+    const v = presentSyncStatus(s({ lastSyncAtMs: NOW - 24 * 60 * 60_000, lastOutcome: 'last_idle' }), NOW);
+    expect(v.secondary).toBe('Synced 1d ago');
+  });
+
+  it('formatRelative: at 23 hours, still shows hours', () => {
+    const v = presentSyncStatus(s({ lastSyncAtMs: NOW - 23 * 60 * 60_000, lastOutcome: 'last_idle' }), NOW);
+    expect(v.secondary).toBe('Synced 23h ago');
+  });
+});

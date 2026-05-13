@@ -393,3 +393,74 @@ describe('@fleet/driver-app - runSyncOnce property invariants', () => {
     );
   });
 });
+
+describe('@fleet/driver-app - runSyncOnce mutation-hardening', () => {
+  it('does NOT call claimDispatched when dispatchedActionIds is empty (kills L96 length > 0 -> true / >= 0 mutants)', async () => {
+    const f = makeStore({});
+    const transport: SyncTransport = { post: vi.fn().mockResolvedValue(okResponse([])) };
+    await runSyncOnce(transport, f.store);
+    expect(f.claimDispatched).not.toHaveBeenCalled();
+  });
+
+  it('calls claimDispatched exactly once with the dispatched ids when non-empty', async () => {
+    const id = 'aaaaaaaa-1111-4111-8111-111111111111';
+    const f = makeStore({ dispatchable: [action(id, 1)] });
+    const transport: SyncTransport = { post: vi.fn().mockResolvedValue(okResponse(['applied'])) };
+    await runSyncOnce(transport, f.store);
+    expect(f.claimDispatched).toHaveBeenCalledTimes(1);
+    expect(f.claimDispatched).toHaveBeenCalledWith([id]);
+  });
+
+  it('returns idle (not applied) when all three conditions are met: no transitions, no deltas, no dispatched (kills L162/L164 mutants)', async () => {
+    // hasLocalAcks=false (transitions.length=0), hasRemoteWork=false (deltas.length=0),
+    // plan.dispatchedActionIds.length=0 → returns idle. Mutated L162 hasLocalAcks=false
+    // doesn't matter here (already false). Mutated L164 `&& true` doesn't change result.
+    // Locks down the idle path.
+    const f = makeStore({});
+    const transport: SyncTransport = { post: vi.fn().mockResolvedValue(okResponse([])) };
+    const out = await runSyncOnce(transport, f.store);
+    expect(out.kind).toBe('idle');
+  });
+
+  it('returns applied (NOT idle) when transitions are non-empty even with no remote deltas (kills L162 transitions.length > 0 -> false mutant)', async () => {
+    // hasLocalAcks=true (transitions=[1 entry]), hasRemoteWork=false, dispatchedIds.length>0 (=1).
+    // Original L164 condition `!true && ...` is false → returns 'applied'.
+    // Mutated L162 hasLocalAcks=false → L164 `!false && !false && (dispatchedIds.length === 0)`.
+    //   dispatchedIds.length is 1, so `1 === 0` is false → still returns 'applied'. Same result.
+    // But mutated L164 third clause `&& true`: `!false && !false && true` = true → returns 'idle'.
+    // Discriminating output for L164 mutant. Original returns 'applied'.
+    const id = 'aaaaaaaa-1111-4111-8111-111111111111';
+    const f = makeStore({ dispatchable: [action(id, 1)] });
+    const transport: SyncTransport = { post: vi.fn().mockResolvedValue(okResponse(['applied'])) };
+    const out = await runSyncOnce(transport, f.store);
+    expect(out.kind).toBe('applied');
+  });
+
+  it('returns applied (NOT idle) when transport sends deltas during empty heartbeat (kills L162 + L164 combined)', async () => {
+    // hasLocalAcks=false (empty heartbeat), hasRemoteWork=true (deltas non-empty), dispatched.length=0.
+    // Original L164: `!false && !true && (0 === 0)` = false → 'applied'.
+    // Mutated L164 `&& true`: `!false && !true && true` = true && false && true = false → still 'applied'.
+    // Same. The L162 false mutant: hasLocalAcks=false (already false). No diff.
+    // The DIFFERENCE comes from a case where applied is returned ONLY because L164 third clause
+    // is false (dispatched.length !== 0). Setup: status non-ok (so transitions empty), deltas
+    // empty, dispatched non-empty.
+    const id = 'aaaaaaaa-1111-4111-8111-111111111111';
+    const f = makeStore({ dispatchable: [action(id, 1)] });
+    const nonOkResponse: SyncResponse = {
+      status: 'rate_limit' as never, // non-ok, non-cursor_expired status
+      newCursor: createSyncCursor('999'),
+      eventSeq: 999,
+      results: [],
+      serverTime: '',
+      deltas: [],
+      projectionStatus: {},
+      hysteresisVersion: 0,
+      configFlagVersion: 0,
+    };
+    const transport: SyncTransport = { post: vi.fn().mockResolvedValue(nonOkResponse) };
+    const out = await runSyncOnce(transport, f.store);
+    // Original: transitions=[] (non-ok), deltas=[], dispatchedIds.length=1 (not 0) → 'applied'.
+    // Mutated L164 third clause `true`: !false && !false && true = true → 'idle'.
+    expect(out.kind).toBe('applied');
+  });
+});

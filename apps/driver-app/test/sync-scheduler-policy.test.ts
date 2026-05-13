@@ -394,3 +394,56 @@ describe('@fleet/driver-app - decideSyncSchedule property invariants', () => {
     );
   });
 });
+
+describe('@fleet/driver-app - decideSyncSchedule mutation-hardening', () => {
+  it('pending_action_added bypasses idle-interval defer (kills L57 FAST_TRACK_TRIGGERS literal mutant)', () => {
+    // Setup state where the non-fast-track path would DEFER (within idle interval).
+    // If 'pending_action_added' is in FAST_TRACK_TRIGGERS (original), trigger fast-tracks → run_now.
+    // Mutated `''` removes it → trigger falls through to idle-interval check → defer.
+    const r = decideSyncSchedule(
+      state({ lastSyncAtMs: NOW - 1000, lastOutcome: null }), // 1s ago, within idle interval
+      'pending_action_added',
+      NOW,
+    );
+    expect(r.action).toBe('run_now');
+  });
+
+  it('backoffDelayMs at 0 failures returns 0 (kills L67 <=0 -> <0 mutant)', () => {
+    // With 0 failures, lastSyncAtMs in the recent past, no transport failure outcome:
+    // Original: backoffDelay returns 0 (because consecutiveFailures <= 0). requiredBackoff = IDLE_INTERVAL.
+    // For the run path to hinge on backoff vs idle, we need lastOutcome = TRANSPORT_FAILURE with 0 failures.
+    // Even though that\'s an unusual state (orchestrator never produces it), the policy must defend it.
+    // Mutated `<` (instead of `<=`): with 0 failures, falls through to compute 2^-1*BASE = 2500 (then jitter).
+    // requiredBackoff = 2500. If sinceLast=0 (just synced), original: requiredBackoff=0 (from backoffDelay)
+    // → sinceLast(0) < requiredBackoff(0) is false → run_now.
+    // Mutated: requiredBackoff = ~2500 → sinceLast(0) < 2500 is true → defer.
+    const r = decideSyncSchedule(
+      state({
+        lastSyncAtMs: NOW, // just synced (sinceLast = 0)
+        lastOutcome: TRANSPORT_FAILURE_OUTCOME,
+        consecutiveTransportFailures: 0,
+      }),
+      'timer_tick',
+      NOW,
+      NO_JITTER,
+    );
+    expect(r.action).toBe('run_now');
+  });
+
+  it('backoffDelayMs at 0 failures with timer_tick + just-synced runs (kills L67 conditional -> false mutant)', () => {
+    // Original L67 `if (consecutiveFailures <= 0) return 0;` with failures=0 returns 0.
+    // Mutated `if (false)` skips, computes baseDelay = BASE * 2^-1 = positive number.
+    // Same test as above kills this too: requiredBackoff differs → action differs.
+    const r = decideSyncSchedule(
+      state({
+        lastSyncAtMs: NOW, // sinceLast = 0
+        lastOutcome: TRANSPORT_FAILURE_OUTCOME,
+        consecutiveTransportFailures: 0,
+      }),
+      'timer_tick',
+      NOW,
+      NO_JITTER,
+    );
+    expect(r.action).toBe('run_now');
+  });
+});
