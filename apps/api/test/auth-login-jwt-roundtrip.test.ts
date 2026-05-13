@@ -3,7 +3,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { SignJWT, generateKeyPair, exportSPKI, type CryptoKey } from 'jose';
 import { JoseIdentityProvider } from '../src/auth/jose-identity-provider.js';
-import { ConfigService } from '@nestjs/config';
+import type { ConfigService } from '@nestjs/config';
 
 // Test-only key pair generated at runtime so no PEM is committed.
 let PUBLIC_PEM = '';
