@@ -5,6 +5,7 @@
 //   - pending === true -> submit button shows "submitting" label
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import type * as ReactModule from 'react';
 
 vi.mock('@/features/dispatch/create-order.action', () => ({ createOrder: vi.fn() }));
 
@@ -12,7 +13,7 @@ vi.mock('@/features/dispatch/create-order.action', () => ({ createOrder: vi.fn()
 // The component imports it from 'react'; replace the export.
 const mockUseActionState = vi.fn();
 vi.mock('react', async () => {
-  const actual = await vi.importActual<typeof import('react')>('react');
+  const actual = await vi.importActual<typeof ReactModule>('react');
   return { ...actual, useActionState: mockUseActionState };
 });
 
