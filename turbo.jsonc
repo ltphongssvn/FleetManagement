@@ -146,6 +146,19 @@
       "env": ["DATABASE_URL", "REDIS_URL", "S3_ENDPOINT", "TESTCONTAINERS_*", "VITEST_*"],
       "outputLogs": "new-only"
     },
+    "test:mutation": {
+      "description": "Stryker mutation testing — slow (minutes per package). Each package config sets its own break threshold. Cache key includes src/** + test/** + stryker.config.json so a clean repo state replays from .stryker-tmp/incremental.json.",
+      "dependsOn": [],
+      "outputs": ["reports/mutation/**", ".stryker-tmp/incremental.json"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "stryker.config.json",
+        "vitest.config.*",
+        "$TURBO_ROOT$/tsconfig.base.json"
+      ],
+      "env": ["STRYKER_*"],
+      "outputLogs": "new-only"
+    },
     "test:e2e": {
       "description": "End-to-end tests (Playwright). Owns playwright-report/**. Never cached until migration-hash wired (ADR-001).",
       "dependsOn": ["build", "^build"],

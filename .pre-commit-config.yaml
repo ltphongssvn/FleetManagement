@@ -128,3 +128,19 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-push]
+      - id: pnpm-test-coverage-push
+        name: pnpm Test Coverage — Per-File Threshold Gate (Pre-push)
+        entry: bash -c 'command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ] && pnpm -r --if-present test:coverage || echo "Skipped (pre-scaffold or pnpm missing)"'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      # NOTE: pnpm-test-mutation is intentionally NOT wired to pre-push.
+      # Stryker mutation testing on apps/api takes ~34 minutes wall time
+      # and on apps/ops-web ~7 minutes — combined with the other 5
+      # packages, a pre-push run would block developers for >45 minutes.
+      # Mutation testing should run in CI on a scheduled basis (nightly)
+      # or be invoked manually with `pnpm -r --if-present test:mutation`
+      # when working on hardening a specific package. Each package\'s
+      # stryker.config.json owns its break threshold (90% for the small
+      # packages, 60% for apps/api + apps/ops-web during the baseline
+      # phase).
