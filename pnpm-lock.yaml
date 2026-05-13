@@ -296,6 +296,12 @@ importers:
         specifier: ^4.4.1
         version: 4.4.1
     devDependencies:
+      '@stryker-mutator/core':
+        specifier: ^9.6.1
+        version: 9.6.1(@types/node@22.19.17)
+      '@stryker-mutator/vitest-runner':
+        specifier: ^9.6.1
+        version: 9.6.1(@stryker-mutator/core@9.6.1(@types/node@22.19.17))(vitest@4.1.5)
       '@types/react':
         specifier: ~19.2.14
         version: 19.2.14
