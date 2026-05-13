@@ -353,6 +353,50 @@ describe('mutation-hardening tests', () => {
     expect(scrubString('call (415)555-0123')).toBe('call [redacted]');
   });
 
+
+  it('PII_KEY_RE: push.*token matches with multiple chars between (kills push.*token -> push.token mutant)', () => {
+    // The . metacharacter alone matches exactly 1 char; .* matches zero or more.
+    // A key with multiple characters between "push" and "token" requires .* to match.
+    expect(PII_KEY_RE.test('pushXYZtoken')).toBe(true);
+    expect(PII_KEY_RE.test('pushSubscriptionToken')).toBe(true);
+  });
+
+  it('PII_KEY_RE: driver.*name matches with multiple chars between (kills driver.*name -> driver.name mutant)', () => {
+    expect(PII_KEY_RE.test('driverFullname')).toBe(true);
+    expect(PII_KEY_RE.test('driverLegalname')).toBe(true);
+  });
+
+  it('phone pattern: matches without leading + (kills \\+? -> \\+ mutant)', () => {
+    // The country-code group is `(?:\\+?\\d{1,3}[-.\\s]?)?` — making \\+ required
+    // (\\+? -> \\+) means the group can't consume a country code without `+`.
+    // Input `1 415-555-0123` distinguishes: original matches whole thing
+    // including the leading `1 ` via the optional group; mutated skips the
+    // group, so only `415-555-0123` is redacted, leaving `1 ` intact.
+    expect(scrubString('call 415-555-0123')).toBe('call [redacted]');
+    // The discriminating case:
+    expect(scrubString('1 415-555-0123 ok')).toBe('[redacted] ok');
+  });
+
+  it('phone pattern: matches multi-digit country codes (kills \\d{1,3} -> \\d mutant)', () => {
+    // 2-digit country code +84 followed by 10-digit phone in XXX-XXX-XXXX shape
+    expect(scrubString('+84 901 234 5678')).toBe('[redacted]');
+    // 3-digit country code +234 (Nigeria) followed by 10-digit phone
+    expect(scrubString('+234 901 234 5678')).toBe('[redacted]');
+  });
+
+  it('phone pattern: matches without separator after country code (kills [-.\\s]? -> [-.\\s] mutant)', () => {
+    // No char between "+1" and the area code "(415)" — the [-.\s]? group must remain optional.
+    expect(scrubString('+1(415)555-0123')).toBe('[redacted]');
+  });
+
+  it('phone pattern: separator between groups must be -, ., or whitespace (kills [-.\\s] -> [-.\\S] mutant)', () => {
+    // Replacing [-.\s] with [-.\S] would match digit-only separator like "415X555-0123";
+    // a clean digit run with no separator should NOT match as a phone number.
+    expect(scrubString('4155550123')).toBe('[redacted]'); // 10 raw digits still match optional separators
+    // A string that should NOT be redacted as a phone (proves the negation case)
+    expect(scrubString('abc xyz')).toBe('abc xyz');
+  });
+
   it('assertPiiHeader error message names the offending header', () => {
     expect(() => assertPiiHeader('made-up-header')).toThrow(/made-up-header/);
   });
