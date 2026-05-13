@@ -22,4 +22,10 @@ describe('reduceAdminDriversState', () => {
     expect(next.kind).toBe('error');
     if (next.kind === 'error') expect(next.message).toBe('boom');
   });
+
+  it("transitions back to loading on reset (line 44)", () => {
+    const loaded: AdminDriversState = { kind: "loaded", rows: [] };
+    const next = reduceAdminDriversState(loaded, { type: "reset" });
+    expect(next.kind).toBe("loading");
+  });
 });
