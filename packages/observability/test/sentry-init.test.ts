@@ -276,13 +276,13 @@ describe('createBeforeSend mutation-hardening', () => {
     // pass through unmolested).
     const out = beforeSend({
       exception: { values: [{ value: 'Bearer abc.def-ghi' }] },
-    }) as { exception?: { values?: Array<{ value?: string; type?: string; mechanism?: unknown }> } };
+    }) as { exception?: { values?: { value?: string; type?: string; mechanism?: unknown }[] } };
     // Re-build a richer event via JSON to get the extra fields without
     // tripping the strict ScrubbableEvent type.
     const richEvent = JSON.parse(JSON.stringify({
       exception: { values: [{ value: 'Bearer abc.def-ghi', type: 'AuthError', mechanism: { handled: false } }] },
     })) as Parameters<typeof beforeSend>[0];
-    const out2 = beforeSend(richEvent) as { exception?: { values?: Array<{ value?: string; type?: string; mechanism?: unknown }> } };
+    const out2 = beforeSend(richEvent) as { exception?: { values?: { value?: string; type?: string; mechanism?: unknown }[] } };
     const ex = out2.exception?.values?.[0];
     expect(ex?.value).toBe('[redacted]');
     expect(ex?.type).toBe('AuthError');
@@ -308,7 +308,8 @@ describe('createBeforeSend mutation-hardening', () => {
         },
       },
     });
-    const h = out.request?.headers as Record<string, string | string[]>;
+    const h = out.request?.headers;
+    if (!h) throw new Error('out.request.headers unexpectedly missing');
     // PII header was redacted with REDACTED in its array
     expect(h['set-cookie']).toEqual(['[redacted]']);
     expect(h['authorization']).toBe('[redacted]');
@@ -356,13 +357,13 @@ describe('scrub depth-boundary mutation-hardening', () => {
     let n5 = fivedeep;
     for (let i = 0; i < 5; i++) n5 = { w: n5 };
     // Pass through scrubEvent.extra so the top-level scrub is invoked.
-    const ev = (await import('../src/sentry-scrub.js')).scrubEvent({ extra: { root: n5 as Record<string, unknown> } });
+    const ev = (await import('../src/sentry-scrub.js')).scrubEvent({ extra: { root: n5 } });
     // Walk down to find the password
-    let cur: unknown = ev.extra?.['root'];
+    let cur: unknown = ev.extra.root;
     for (let i = 0; i < 5 && cur && typeof cur === 'object'; i++) {
       cur = (cur as Record<string, unknown>)['w'];
     }
     const final = cur as Record<string, unknown>;
-    expect(final?.['password']).toBe('[redacted]');
+    expect(final['password']).toBe('[redacted]');
   });
 });
