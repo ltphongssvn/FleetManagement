@@ -252,13 +252,14 @@ describe('@fleet/driver-app - runSyncOnce', () => {
     const id = 'bbbbbbbb-1111-4111-8111-111111111111';
     const f = makeStore({ dispatchable: [action(id, 1)] });
     f.claimDispatched.mockRejectedValueOnce(new Error('claim boom'));
-    const transport: SyncTransport = { post: vi.fn() };
+    const post = vi.fn();
+    const transport: SyncTransport = { post };
     const out = await runSyncOnce(transport, f.store);
     expect(out.kind).toBe('storage_failure');
     if (out.kind !== 'storage_failure') throw new Error('narrow');
     expect(out.stage).toBe('apply_ack');
     expect(out.error.message).toBe('claim boom');
-    expect(transport.post).not.toHaveBeenCalled();
+    expect(post).not.toHaveBeenCalled();
   });
 
   it('claimDispatched non-Error rejection -> wraps in Error', async () => {
@@ -313,6 +314,7 @@ describe('@fleet/driver-app - runSyncOnce', () => {
     const id = 'ffffffff-1111-4111-8111-111111111111';
     const f = makeStore({
       dispatchable: [action(id, 1)],
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- intentional non-Error rejection to cover the wrap-in-Error branch
       applySyncCommitImpl: () => Promise.reject('apply string failure'),
     });
     const transport: SyncTransport = { post: vi.fn().mockResolvedValue(okResponse(['applied'])) };
