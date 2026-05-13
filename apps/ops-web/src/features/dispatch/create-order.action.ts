@@ -52,6 +52,9 @@ export async function createOrder(_prev: CreateOrderState, formData: FormData): 
     const errors: Record<string, string> = {};
     for (const issue of parsed.error.issues) {
       const k = issue.path[0];
+      // Defensive: FormSchema's paths are always strings at runtime. The else
+      // branch is unreachable through the schema.
+      /* c8 ignore next */
       if (typeof k === 'string') errors[k] = issue.message;
     }
     return { status: 'invalid', errors };

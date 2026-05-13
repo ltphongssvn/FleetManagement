@@ -59,4 +59,52 @@ describe('createOrder server action', () => {
     const r = await createOrder(undefined, fd);
     expect(r).toEqual({ status: 'api_error', message: expect.stringContaining('400') });
   });
+
+  it('passes plannedAt through unchanged when it already has seconds (line 33 else branch)', async () => {
+    vi.stubEnv('FLEET_API_URL', 'http://api:3000');
+    cookieGet.mockReturnValue({ value: 'tok' });
+    const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ transportOrderId: 't1', roadRunId: 'r1' }), { status: 201 })));
+    vi.stubGlobal('fetch', fetchMock);
+    const { createOrder } = await import('@/features/dispatch/create-order.action');
+    const fd = new FormData();
+    fd.set('externalRef', 'TO-1');
+    fd.set('plannedStartAt', '2026-05-08T08:00:00'); // 19 chars, already has seconds
+    fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
+    fd.set('pickupAt', '2026-05-08T09:00:00');
+    fd.set('deliveryAt', '2026-05-08T11:00:00');
+    await expect(createOrder(undefined, fd)).rejects.toThrow('NEXT_REDIRECT');
+    const calls = fetchMock.mock.calls as unknown as [string, { body: string }][];
+    const firstCall = calls[0];
+    if (!firstCall) throw new Error('no fetch call');
+    const body = JSON.parse(firstCall[1].body);
+    expect(body.roadRun.plannedStartAt).toBe('2026-05-08T08:00:00.000Z');
+  });
+
+  it('returns server_error when FLEET_API_URL is not set (line 60)', async () => {
+    vi.stubEnv('FLEET_API_URL', '');
+    cookieGet.mockReturnValue({ value: 'tok' });
+    const { createOrder } = await import('@/features/dispatch/create-order.action');
+    const fd = new FormData();
+    fd.set('externalRef', 'TO-1');
+    fd.set('plannedStartAt', '2026-05-08T08:00');
+    fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
+    fd.set('pickupAt', '2026-05-08T09:00');
+    fd.set('deliveryAt', '2026-05-08T11:00');
+    const r = await createOrder(undefined, fd);
+    expect(r).toEqual({ status: 'server_error', message: expect.stringContaining('FLEET_API_URL') });
+  });
+
+  it('returns server_error when fleet_session cookie missing (line 63)', async () => {
+    vi.stubEnv('FLEET_API_URL', 'http://api:3000');
+    cookieGet.mockReturnValue(undefined);
+    const { createOrder } = await import('@/features/dispatch/create-order.action');
+    const fd = new FormData();
+    fd.set('externalRef', 'TO-1');
+    fd.set('plannedStartAt', '2026-05-08T08:00');
+    fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
+    fd.set('pickupAt', '2026-05-08T09:00');
+    fd.set('deliveryAt', '2026-05-08T11:00');
+    const r = await createOrder(undefined, fd);
+    expect(r).toEqual({ status: 'server_error', message: 'Not authenticated' });
+  });
 });

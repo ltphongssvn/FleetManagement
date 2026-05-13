@@ -28,6 +28,9 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
     const errors: { username?: string; password?: string } = {};
     for (const issue of parsed.error.issues) {
       const k = issue.path[0];
+      // Defensive: CredentialsSchema only has 'username' and 'password' keys, so
+      // path[0] is always one of those at runtime. The else branch is unreachable.
+      /* c8 ignore next */
       if (k === 'username' || k === 'password') errors[k] = issue.message;
     }
     return { status: 'invalid', errors };

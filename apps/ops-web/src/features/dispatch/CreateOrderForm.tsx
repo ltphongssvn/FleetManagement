@@ -29,7 +29,7 @@ const sectionTitleCls = 'mb-4 flex items-center gap-2 text-sm font-semibold text
 const stepBadgeCls =
   'inline-flex h-6 w-6 items-center justify-center rounded-full bg-indigo-50 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200';
 
-function FieldError({ msg }: { msg?: string | undefined }): JSX.Element | null {
+export function FieldError({ msg }: { msg?: string | undefined }): JSX.Element | null {
   if (!msg) return null;
   return <p className="mt-1 text-xs text-red-600">{msg}</p>;
 }

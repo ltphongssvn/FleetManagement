@@ -42,4 +42,13 @@ describe('login.action branches', () => {
     const r = await login(undefined, fd);
     expect(r).toMatchObject({ status: 'invalid', errors: { password: 'Required' } });  // pragma: allowlist secret
   });
+
+  it('defaults maxAge to 3600 when expires_in is omitted (line 56 ?? branch)', async () => {
+    vi.stubEnv('OIDC_TOKEN_ENDPOINT', 'http://x/token');
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify({ access_token: 'tok' }), { status: 200 }))));
+    const { login } = await import('@/features/auth/login.action');
+    const fd = new FormData(); fd.set('username', 'u'); fd.set('password', 'p');
+    await expect(login(undefined, fd)).rejects.toThrow('NEXT_REDIRECT');
+    expect(cookieSet).toHaveBeenCalledWith('fleet_session', 'tok', expect.objectContaining({ maxAge: 3600 }));
+  });
 });
