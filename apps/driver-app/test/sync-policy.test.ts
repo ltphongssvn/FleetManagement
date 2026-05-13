@@ -285,11 +285,17 @@ describe('@fleet/driver-app - sync-policy batchSize validation', () => {
     // the default branch in mapResultToStatus. Runtime behavior here is
     // intentionally undefined (the `never` returns the value verbatim).
     const actionId = createActionId('22222222-2222-4222-8222-222222222222');
-    const malformed: SyncResponse = {
-      status: 'ok',
+    const malformed = {
+      status: 'ok' as const,
       newCursor: createSyncCursor('2'),
+      eventSeq: 2,
       results: ['mystery_result' as never],
-    };
+      deltas: [],
+      projectionStatus: {},
+      hysteresisVersion: 0,
+      configFlagVersion: 0,
+      serverTime: '2026-05-13T00:00:00.000Z',
+    } satisfies SyncResponse;
     const outcome = reconcileSyncAck([actionId], malformed);
     expect(outcome.kind).toBe('ok');
     if (outcome.kind !== 'ok') throw new Error('narrow');
