@@ -7,6 +7,15 @@ describe('@fleet/test-fixtures - pg-error fixtures', () => {
     const err = createPgUniqueViolation();
     expect((err as { code?: string }).code).toBe('23505');
     expect(err).toBeInstanceOf(Error);
+    // Assert exact default message (kills the ?? -> && and string -> '' mutants)
+    expect(err.message).toBe('duplicate key value violates unique constraint');
+    // Assert constraint key is OMITTED (not just undefined) when not provided.
+    // The mutated ternary (-> true) would spread `{ constraint: undefined }` into err,
+    // making 'constraint' in err truthy. The original omits the key entirely.
+    expect('constraint' in err).toBe(false);
+    // Assert overrides.message wins
+    const errCustom = createPgUniqueViolation({ message: 'custom' });
+    expect(errCustom.message).toBe('custom');
   });
   it('createPgUniqueViolation accepts constraint name', () => {
     const err = createPgUniqueViolation({ constraint: 'my_uq' });

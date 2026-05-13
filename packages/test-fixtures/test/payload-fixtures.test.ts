@@ -41,13 +41,18 @@ describe('@fleet/test-fixtures - payload fixtures', () => {
     const c = createCommitUploadInput();
     expect(c.uploadSessionId).toMatch(/^[0-9a-f-]{36}$/i);
     expect(c.actualSizeBytes).toBeGreaterThan(0);
-    expect(typeof c.contentHash).toBe('string');
+    // Assert exact default string content (kills 'a' -> '' mutant)
+    expect(c.contentHash).toBe('a'.repeat(64));
+    expect(c.contentHash.length).toBe(64);
   });
 
   it('createCreateTransportOrderInput returns valid defaults', () => {
     const t = createCreateTransportOrderInput();
     expect(t.stops.length).toBeGreaterThan(0);
     expect(t.stops[0]?.sequence).toBe(1);
+    // Assert exact default externalRef + stopType (kills 'TO-DEFAULT' -> '' and 'pickup' -> '' mutants)
+    expect(t.externalRef).toBe('TO-DEFAULT');
+    expect(t.stops[0]?.stopType).toBe('pickup');
   });
   it('createCreateTransportOrderInput accepts stops override', () => {
     const t = createCreateTransportOrderInput({

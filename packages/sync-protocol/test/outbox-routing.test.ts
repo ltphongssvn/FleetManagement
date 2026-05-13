@@ -42,6 +42,16 @@ describe('@fleet/main-worker - routeOutboxRow', () => {
     if (r.accepted) expect(r.queueName).toBe('projections');
   });
 
+  it('eventType "manifest.committed" with non-manifest aggregate routes to projections, not erp (kills line 58 left-side mutant)', () => {
+    // The condition is `aggregateType === 'manifest' && eventType === 'manifest.committed'`.
+    // Mutating the left side to `true` would route any 'manifest.committed' event
+    // to 'erp' regardless of aggregateType. With a road_run aggregate, the
+    // original routes to 'projections' (PROJECTION_AGGREGATES).
+    const r = routeOutboxRow({ aggregateType: 'road_run', eventType: 'manifest.committed' });
+    expect(r.accepted).toBe(true);
+    if (r.accepted) expect(r.queueName).toBe('projections');
+  });
+
   it('rejects unknown aggregate types with policy version', () => {
     const r = routeOutboxRow({ aggregateType: 'rocket', eventType: 'rocket.launched' });
     expect(r.accepted).toBe(false);
