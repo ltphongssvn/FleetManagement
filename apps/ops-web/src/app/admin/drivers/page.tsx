@@ -9,11 +9,28 @@ import {
 
 interface VehicleOption { vehicleId: string; plate: string; }
 
+interface CreateFormState {
+  fullName: string;
+  phone: string;
+  password: string;
+  submitting: boolean;
+  error: string | null;
+}
+
+const EMPTY_CREATE_FORM: CreateFormState = {
+  fullName: '',
+  phone: '',
+  password: '',
+  submitting: false,
+  error: null,
+};
+
 export default function AdminDriversPage(): JSX.Element {
   const [state, dispatch] = useReducer(reduceAdminDriversState, { kind: 'loading' });
   const [vehicleSelect, setVehicleSelect] = useState<Record<string, string>>({});
   const [deviceIdInput, setDeviceIdInput] = useState<Record<string, string>>({});
   const [vehicles, setVehicles] = useState<readonly VehicleOption[]>([]);
+  const [createForm, setCreateForm] = useState<CreateFormState>(EMPTY_CREATE_FORM);
 
   const client = new AdminDriversClient({
     apiUrl: '',
@@ -44,6 +61,29 @@ export default function AdminDriversPage(): JSX.Element {
     void refresh();
     void loadVehicles();
   }, []);
+
+  const handleCreateDriver = async (): Promise<void> => {
+    if (createForm.fullName.length === 0 || createForm.phone.length < 8 || createForm.password.length < 6) {
+      setCreateForm((f) => ({ ...f, error: 'Vui lòng nhập đầy đủ Họ tên, Số điện thoại (≥8), Mật khẩu (≥6)' }));
+      return;
+    }
+    setCreateForm((f) => ({ ...f, submitting: true, error: null }));
+    try {
+      await client.create({
+        fullName: createForm.fullName,
+        phone: createForm.phone,
+        password: createForm.password,
+      });
+      setCreateForm(EMPTY_CREATE_FORM);
+      await refresh();
+    } catch (e) {
+      setCreateForm((f) => ({
+        ...f,
+        submitting: false,
+        error: e instanceof Error ? e.message : 'tạo tài xế thất bại',
+      }));
+    }
+  };
 
   const handleAssignAndEnroll = async (driverId: string): Promise<void> => {
     const vehicleId = vehicleSelect[driverId];
@@ -77,6 +117,54 @@ export default function AdminDriversPage(): JSX.Element {
     <div className="p-6">
       <div className="mb-4"><a href="/" className="text-blue-600 hover:underline text-sm">← Quay lại Bảng điều phối</a></div>
       <h1 className="text-2xl font-semibold mb-6">Quản lý tài xế &amp; xe</h1>
+
+      <section className="mb-8 p-4 border rounded bg-gray-50">
+        <h2 className="text-lg font-semibold mb-3">Đăng ký tài xế mới</h2>
+        <div className="flex flex-wrap gap-2 items-end">
+          <div>
+            <label className="block text-sm text-gray-700 mb-1">Họ và tên</label>
+            <input
+              type="text"
+              value={createForm.fullName}
+              onChange={(e) => { setCreateForm((f) => ({ ...f, fullName: e.target.value, error: null })); }}
+              className="border rounded px-2 py-1 text-sm w-64"
+              placeholder="Nguyễn Văn A"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-700 mb-1">Số điện thoại</label>
+            <input
+              type="tel"
+              value={createForm.phone}
+              onChange={(e) => { setCreateForm((f) => ({ ...f, phone: e.target.value, error: null })); }}
+              className="border rounded px-2 py-1 text-sm w-48"
+              placeholder="+84901000001"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-700 mb-1">Mật khẩu</label>
+            <input
+              type="password"
+              value={createForm.password}
+              onChange={(e) => { setCreateForm((f) => ({ ...f, password: e.target.value, error: null })); }}
+              className="border rounded px-2 py-1 text-sm w-48"
+              placeholder="≥ 6 ký tự"
+            />
+          </div>
+          <button
+            type="button"
+            disabled={createForm.submitting}
+            onClick={() => { void handleCreateDriver(); }}
+            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-1 rounded text-sm h-fit"
+          >
+            {createForm.submitting ? 'Đang tạo…' : 'Đăng ký tài xế'}
+          </button>
+        </div>
+        {createForm.error !== null ? (
+          <div className="mt-2 text-red-600 text-sm">{createForm.error}</div>
+        ) : null}
+      </section>
+
       <table className="w-full border-collapse">
         <thead>
           <tr className="border-b bg-gray-50">

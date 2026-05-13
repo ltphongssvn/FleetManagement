@@ -100,3 +100,7 @@ apps/driver-app/android/
 packages/*/reports/
 packages/*/.stryker-tmp/
 /playwright/.cache/
+
+# Stryker mutation-testing temporary artifacts (large; never commit)
+.stryker-tmp/
+**/.stryker-tmp/

@@ -320,7 +320,7 @@ describe('mutation-hardening tests', () => {
 
   it('default scrub recursion direction: deeper objects exceed DEFAULT_DEPTH_LIMIT', () => {
     // Build object 8 levels deep with PII at leaf — beyond default 6, should NOT redact
-    let obj: Record<string, unknown> = { password: 'leaked' };
+    let obj: Record<string, unknown> = { password: 'leaked' }; // pragma: allowlist secret
     for (let i = 0; i < 8; i++) obj = { w: obj };
     const out = scrub(obj) as Record<string, unknown>;
     // Walk to depth 7 and check password remains (exceeded depth limit)
@@ -408,4 +408,3 @@ describe('array redaction edge cases', () => {
     expect(first['password']).toBe('[redacted]');
   });
 });
-

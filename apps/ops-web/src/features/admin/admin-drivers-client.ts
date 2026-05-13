@@ -18,6 +18,17 @@ export interface RevokeResult {
   readonly revokedAt: string;
 }
 
+export interface CreateDriverInput {
+  readonly fullName: string;
+  readonly phone: string;
+  readonly password: string;
+}
+
+export interface CreateDriverResult {
+  readonly driverId: string;
+  readonly operatorId: string;
+}
+
 export class AdminDriversClient {
   constructor(private readonly config: AdminDriversClientConfig) {}
 
@@ -30,6 +41,18 @@ export class AdminDriversClient {
     });
     if (!res.ok) throw new Error(`/admin/drivers HTTP ${String(res.status)}`);
     return (await res.json()) as readonly DriverRow[];
+  }
+
+  async create(input: CreateDriverInput): Promise<CreateDriverResult> {
+    const token = await this.config.bearerToken();
+    const fetchFn = this.config.fetchFn ?? globalThis.fetch;
+    const res = await fetchFn(`/api/admin/drivers`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) throw new Error(`POST /admin/drivers HTTP ${String(res.status)}`);
+    return (await res.json()) as CreateDriverResult;
   }
 
   async assign(input: { driverId: string; vehicleId: string }): Promise<AssignResult> {

@@ -7,11 +7,28 @@ import { AdminDriversListService } from './admin-drivers-list.service.js';
 import { AdminDriversListController } from './admin-drivers-list.controller.js';
 import { AdminDeviceEnrollService } from './admin-device-enroll.service.js';
 import { AdminDeviceEnrollController } from './admin-device-enroll.controller.js';
+import { AdminDriversCreateService } from './admin-drivers-create.service.js';
+import { AdminDriversCreateController } from './admin-drivers-create.controller.js';
 @Module({
   imports: [AuthModule],
-  controllers: [AdminAssignmentController, AdminDriversListController, AdminDeviceEnrollController],
-  providers: [AdminAssignmentService, AdminDriversListService, AdminDeviceEnrollService],
-  exports: [AdminAssignmentService, AdminDriversListService, AdminDeviceEnrollService],
+  controllers: [
+    AdminAssignmentController,
+    AdminDriversListController,
+    AdminDeviceEnrollController,
+    AdminDriversCreateController,
+  ],
+  providers: [
+    AdminAssignmentService,
+    AdminDriversListService,
+    AdminDeviceEnrollService,
+    AdminDriversCreateService,
+  ],
+  exports: [
+    AdminAssignmentService,
+    AdminDriversListService,
+    AdminDeviceEnrollService,
+    AdminDriversCreateService,
+  ],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class AdminModule {}

@@ -4,7 +4,7 @@ import { scrub, scrubString, scrubEvent, type ScrubbableEvent } from '@fleet/obs
 
 describe('@fleet/api - PII scrubber', () => {
   it('redacts password key (case-insensitive)', () => {
-    expect(scrub({ Password: 'hunter2' })).toEqual({ Password: '[redacted]' });
+    expect(scrub({ Password: 'hunter2' })).toEqual({ Password: '[redacted]' }); // pragma: allowlist secret
     expect(scrub({ user_password: 'x' })).toEqual({ user_password: '[redacted]' });
   });
 

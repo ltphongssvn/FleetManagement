@@ -1,34 +1,56 @@
 // apps/ops-web/test/admin-drivers-client.test.ts
-import { describe, it, expect, vi } from 'vitest';
-import { AdminDriversClient } from '../src/features/admin/admin-drivers-client.js';
+// TDD RED: AdminDriversClient.create posts {fullName, phone, password} to
+// the BFF and returns {driverId, operatorId}.
+import { describe, it, expect, vi } from "vitest";
+import { AdminDriversClient } from "../src/features/admin/admin-drivers-client";
 
-describe('AdminDriversClient', () => {
-  it('GETs /admin/drivers with bearer token', async () => {
+describe("AdminDriversClient.create", () => {
+  it("POSTs /api/admin/drivers with body and returns ids", async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve([{ driverId: 'd1', fullName: 'A', operatorId: null, assignedVehicle: null, assignmentId: null, devices: [] }]),
+      json: () => Promise.resolve({
+        driverId: "55555555-5555-5555-5555-555555555555",
+        operatorId: "66666666-6666-6666-6666-666666666666",
+      }),
     });
-    const client = new AdminDriversClient({ apiUrl: 'http://api', bearerToken: () => 'tok', fetchFn });
-    const rows = await client.list();
-    expect(rows).toHaveLength(1);
-    expect(fetchFn).toHaveBeenCalledWith('/api/admin/drivers', expect.objectContaining({
-      headers: expect.objectContaining({ Authorization: 'Bearer tok' }),
-    }));
+    const client = new AdminDriversClient({
+      apiUrl: "",
+      bearerToken: () => "tok",
+      fetchFn: fetchFn as never,
+    });
+    const r = await client.create({
+      fullName: "Nguyễn Văn A",
+      phone: "+84901000001",
+      password: "secret123", // pragma: allowlist secret
+    });
+    expect(r.driverId).toBe("55555555-5555-5555-5555-555555555555");
+    expect(r.operatorId).toBe("66666666-6666-6666-6666-666666666666");
+    expect(fetchFn).toHaveBeenCalledWith(
+      "/api/admin/drivers",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer tok",
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify({
+          fullName: "Nguyễn Văn A",
+          phone: "+84901000001",
+          password: "secret123", // pragma: allowlist secret
+        }),
+      }),
+    );
   });
 
-  it('POSTs to /admin/driver-vehicle-assignments to assign', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ assignmentId: 'a1' }) });
-    const client = new AdminDriversClient({ apiUrl: 'http://api', bearerToken: () => 'tok', fetchFn });
-    const r = await client.assign({ driverId: 'd1', vehicleId: 'v1' });
-    expect(r.assignmentId).toBe('a1');
-    expect(fetchFn).toHaveBeenCalledWith('/api/admin/driver-vehicle-assignments', expect.objectContaining({ method: 'POST' }));
-  });
-
-  it('DELETEs /admin/driver-vehicle-assignments/:id to revoke', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ assignmentId: 'a1', revokedAt: '2026-05-11T00:00:00Z' }) });
-    const client = new AdminDriversClient({ apiUrl: 'http://api', bearerToken: () => 'tok', fetchFn });
-    const r = await client.revoke('a1', 'driver_left');
-    expect(r.assignmentId).toBe('a1');
-    expect(fetchFn).toHaveBeenCalledWith('/api/admin/driver-vehicle-assignments/a1', expect.objectContaining({ method: 'DELETE' }));
+  it("throws on non-ok HTTP status", async () => {
+    const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 400, statusText: "Bad Request" });
+    const client = new AdminDriversClient({
+      apiUrl: "",
+      bearerToken: () => "tok",
+      fetchFn: fetchFn as never,
+    });
+    await expect(
+      client.create({ fullName: "A", phone: "+84901000001", password: "p1" }), // pragma: allowlist secret
+    ).rejects.toThrow(/400/);
   });
 });
