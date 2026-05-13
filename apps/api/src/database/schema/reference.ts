@@ -10,6 +10,8 @@ export const driver = pgTable(
     driverId: uuid('driver_id').primaryKey().defaultRandom(),
     ...tenancyColumns,
     fullName: varchar('full_name', { length: 200 }).notNull(),
+    phone: varchar('phone', { length: 32 }),
+    passwordHash: varchar('password_hash', { length: 128 }),
     operatorId: uuid('operator_id'),
     active: boolean('active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
@@ -17,6 +19,7 @@ export const driver = pgTable(
   (t) => [
     index('driver_company_idx').on(t.companyId),
     unique('driver_company_name_uq').on(t.companyId, t.fullName),
+    unique('driver_company_phone_uq').on(t.companyId, t.phone),
   ],
 );
 

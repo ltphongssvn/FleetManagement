@@ -60,6 +60,10 @@ services:
       OIDC_ISSUER: http://mock-oauth2:8080/fleet
       OIDC_AUDIENCE: fleet-pilot
       OIDC_JWKS_URI: http://mock-oauth2:8080/fleet/jwks
+      JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
+      JWT_PUBLIC_KEY_PEM: ${JWT_PUBLIC_KEY_PEM}
+      JWT_ISSUER: fleet-pilot-api
+      JWT_AUDIENCE: fleet-driver
       AWS_REGION: us-west-2
       S3_ARTIFACTS_BUCKET: fleet-pilot-artifacts
       OTEL_ENABLED: "false"
