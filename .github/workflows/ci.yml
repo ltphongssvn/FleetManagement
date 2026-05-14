@@ -69,7 +69,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Setup Node (no cache, pre-scaffold)
         if: hashFiles('pnpm-lock.yaml') == ''
@@ -124,7 +124,7 @@ jobs:
 
       - name: Upload Vitest JSON results
         if: always() && hashFiles('pnpm-lock.yaml') != ''
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: vitest-results
           path: '**/coverage/vitest-results.json'
