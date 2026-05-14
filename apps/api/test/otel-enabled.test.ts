@@ -1,7 +1,17 @@
 // apps/api/test/otel-enabled.test.ts
 // Kills survivors on otel.ts lines 28-58 (startOtel enabled path) and 61-65 (shutdownOtel populated path).
 import { describe, it, expect, afterEach } from 'vitest';
-import { startOtel, shutdownOtel } from '../src/observability/otel.js';
+import {
+  startOtel,
+  shutdownOtel,
+  resolveEndpoint,
+  resolveSampleRatio,
+  buildResourceAttributes,
+  buildInstrumentationConfig,
+  DEFAULT_OTLP_ENDPOINT,
+  DEFAULT_SAMPLE_RATIO,
+} from '../src/observability/otel.js';
+import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
 
 describe('@fleet/api - OTel enabled path', () => {
   afterEach(async () => {
@@ -60,5 +70,48 @@ describe('@fleet/api - OTel enabled path', () => {
     expect(() => {
       startOtel({ serviceName: 'svc', serviceVersion: '1.0.0', enabled: true });
     }).not.toThrow();
+  });
+});
+
+describe('@fleet/api - OTel config builders (pure)', () => {
+  it('resolveEndpoint returns the provided endpoint verbatim when set (kills ?? LogicalOperator)', () => {
+    expect(resolveEndpoint('http://collector:4318/v1/traces')).toBe('http://collector:4318/v1/traces');
+  });
+
+  it('resolveEndpoint falls back to DEFAULT_OTLP_ENDPOINT when undefined (kills ?? -> && + StringLiteral mutants)', () => {
+    expect(resolveEndpoint(undefined)).toBe(DEFAULT_OTLP_ENDPOINT);
+    expect(DEFAULT_OTLP_ENDPOINT).toBe('http://localhost:4318/v1/traces');
+  });
+
+  it('resolveSampleRatio returns the provided ratio verbatim when set, including 0 (kills ?? -> && which would drop 0)', () => {
+    expect(resolveSampleRatio(0.25)).toBe(0.25);
+    // 0 is falsy: ?? keeps it, && would replace it with DEFAULT_SAMPLE_RATIO.
+    expect(resolveSampleRatio(0)).toBe(0);
+  });
+
+  it('resolveSampleRatio falls back to DEFAULT_SAMPLE_RATIO when undefined (kills ?? -> && + numeric literal mutants)', () => {
+    expect(resolveSampleRatio(undefined)).toBe(DEFAULT_SAMPLE_RATIO);
+    expect(DEFAULT_SAMPLE_RATIO).toBe(1.0);
+  });
+
+  it('buildResourceAttributes maps serviceName + serviceVersion to OTel semantic keys (kills ObjectLiteral {} mutant)', () => {
+    const attrs = buildResourceAttributes({
+      serviceName: 'fleet-api',
+      serviceVersion: '2.3.4',
+      enabled: true,
+    });
+    expect(attrs[ATTR_SERVICE_NAME]).toBe('fleet-api');
+    expect(attrs[ATTR_SERVICE_VERSION]).toBe('2.3.4');
+  });
+
+  it('buildInstrumentationConfig disables fs and dns instrumentation (kills ObjectLiteral {} + BooleanLiteral mutants)', () => {
+    const cfg = buildInstrumentationConfig();
+    if (cfg === undefined) throw new Error('expected config');
+    const fs = cfg['@opentelemetry/instrumentation-fs'];
+    const dns = cfg['@opentelemetry/instrumentation-dns'];
+    // ObjectLiteral mutant -> {} : both entries undefined.
+    // BooleanLiteral mutant enabled:false -> true : enabled would be true.
+    expect(fs).toEqual({ enabled: false });
+    expect(dns).toEqual({ enabled: false });
   });
 });
