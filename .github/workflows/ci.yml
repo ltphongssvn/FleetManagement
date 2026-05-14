@@ -64,7 +64,7 @@ jobs:
         shell: bash
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -73,13 +73,13 @@ jobs:
 
       - name: Setup Node (no cache, pre-scaffold)
         if: hashFiles('pnpm-lock.yaml') == ''
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
 
       - name: Setup Node (with pnpm cache)
         if: hashFiles('pnpm-lock.yaml') != ''
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
@@ -124,7 +124,7 @@ jobs:
 
       - name: Upload Vitest JSON results
         if: always() && hashFiles('pnpm-lock.yaml') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: vitest-results
           path: '**/coverage/vitest-results.json'
