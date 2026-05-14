@@ -78,7 +78,7 @@ describe('@fleet/api - ErpInboundService.recordInvoiceAck (unit)', () => {
     await svc.recordInvoiceAck({ ...BASE, invoiceId: 'INV-EXT-42' });
     const setCall = fake.setCalls[0];
     if (!setCall) throw new Error('expected set call');
-    expect(setCall.values.externalErpInvoiceId).toBe('INV-EXT-42');
+    expect(setCall.values['externalErpInvoiceId']).toBe('INV-EXT-42');
   });
 
   it('maps status="acknowledged" to "acknowledged" and includes acknowledgedAt (kills EqualityOperator + ConditionalExpression mutants)', async () => {
@@ -87,8 +87,8 @@ describe('@fleet/api - ErpInboundService.recordInvoiceAck (unit)', () => {
     await svc.recordInvoiceAck({ ...BASE, status: 'acknowledged' });
     const setCall = fake.setCalls[0];
     if (!setCall) throw new Error('expected set call');
-    expect(setCall.values.status).toBe('acknowledged');
-    expect(setCall.values.acknowledgedAt).toBeInstanceOf(Date);
+    expect(setCall.values['status']).toBe('acknowledged');
+    expect(setCall.values['acknowledgedAt']).toBeInstanceOf(Date);
   });
 
   it('maps status="failed" to "failed" and omits acknowledgedAt (kills conditional-spread mutants)', async () => {
@@ -97,7 +97,7 @@ describe('@fleet/api - ErpInboundService.recordInvoiceAck (unit)', () => {
     await svc.recordInvoiceAck({ ...BASE, status: 'failed' });
     const setCall = fake.setCalls[0];
     if (!setCall) throw new Error('expected set call');
-    expect(setCall.values.status).toBe('failed');
+    expect(setCall.values['status']).toBe('failed');
     expect(setCall.values).not.toHaveProperty('acknowledgedAt');
   });
 
@@ -116,7 +116,7 @@ describe('@fleet/api - ErpInboundService.recordInvoiceAck (unit)', () => {
     await svc.recordInvoiceAck({ ...BASE, status: 'failed', failureReason: 'duplicate_invoice' });
     const setCall = fake.setCalls[0];
     if (!setCall) throw new Error('expected set call');
-    expect(setCall.values.failureReason).toBe('duplicate_invoice');
+    expect(setCall.values['failureReason']).toBe('duplicate_invoice');
   });
 
   it('filters by (manifestCorrelationId AND erpSystem) — kills and()/eq()/ObjectLiteral mutants', async () => {
@@ -151,8 +151,8 @@ describe('@fleet/api - ErpInboundService.recordInvoiceAck (unit)', () => {
     await svc.recordInvoiceAck({ ...BASE, status: 'acknowledged' });
     await new Promise((r) => setTimeout(r, 2));
     await svc.recordInvoiceAck({ ...BASE, status: 'acknowledged' });
-    const first = fake.setCalls[0]?.values.acknowledgedAt as Date | undefined;
-    const second = fake.setCalls[1]?.values.acknowledgedAt as Date | undefined;
+    const first = fake.setCalls[0]?.values['acknowledgedAt'] as Date | undefined;
+    const second = fake.setCalls[1]?.values['acknowledgedAt'] as Date | undefined;
     if (!first || !second) throw new Error('expected both acknowledgedAt');
     expect(second.getTime()).toBeGreaterThanOrEqual(first.getTime());
   });
