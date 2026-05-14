@@ -39,39 +39,90 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleDestroy(): void {
+    if (this.outboxTimer !== null) {
+      clearTimeout(this.outboxTimer);
+      this.outboxTimer = null;
+    }
+    if (this.projectionTimer !== null) {
+      clearTimeout(this.projectionTimer);
+      this.projectionTimer = null;
+    }
+    if (this.reconcilerTimer !== null) {
+      clearTimeout(this.reconcilerTimer);
+      this.reconcilerTimer = null;
+    }
     this.stopped = true;
-    if (this.outboxTimer) clearTimeout(this.outboxTimer);
-    if (this.projectionTimer) clearTimeout(this.projectionTimer);
-    if (this.reconcilerTimer) clearTimeout(this.reconcilerTimer);
   }
 
   private scheduleNext(kind: 'outbox' | 'projection' | 'reconciler'): void {
     if (this.stopped) return;
     const tick = (): void => { void this.runDrain(kind); };
-    if (kind === 'outbox') this.outboxTimer = setTimeout(tick, DRAIN_INTERVAL_MS);
-    else if (kind === 'projection') this.projectionTimer = setTimeout(tick, DRAIN_INTERVAL_MS);
-    else this.reconcilerTimer = setTimeout(tick, RECONCILE_INTERVAL_MS);
+    switch (kind) {
+      case 'outbox':
+        this.outboxTimer = setTimeout(tick, DRAIN_INTERVAL_MS);
+        return;
+      case 'projection':
+        this.projectionTimer = setTimeout(tick, DRAIN_INTERVAL_MS);
+        return;
+      case 'reconciler':
+        this.reconcilerTimer = setTimeout(tick, RECONCILE_INTERVAL_MS);
+        return;
+      default: {
+        const _exhaustive: never = kind;
+        throw new Error(`unknown scheduler kind: ${String(_exhaustive)}`);
+      }
+    }
   }
 
+  private tagFor(kind: 'outbox' | 'projection' | 'reconciler'): string {
+    switch (kind) {
+      case 'outbox': return 'outbox-drain';
+      case 'projection': return 'projection-drain';
+      case 'reconciler': return 'commands-reconciler';
+      default: {
+        const _exhaustive: never = kind;
+        throw new Error(`unknown scheduler kind: ${String(_exhaustive)}`);
+      }
+    }
+  }
+  private labelFor(kind: 'outbox' | 'projection' | 'reconciler'): string {
+    switch (kind) {
+      case 'outbox': return 'Outbox drain failed: ';
+      case 'projection': return 'Projection drain failed: ';
+      case 'reconciler': return 'Reconciler tick failed: ';
+      default: {
+        const _exhaustive: never = kind;
+        throw new Error(`unknown scheduler kind: ${String(_exhaustive)}`);
+      }
+    }
+  }
+  private async invokeDrain(kind: 'outbox' | 'projection' | 'reconciler'): Promise<void> {
+    switch (kind) {
+      case 'outbox':
+        await this.outboxRelay.drainOnce();
+        return;
+      case 'projection':
+        await this.projectionRunner.drainOnce(this.pilotScope);
+        return;
+      case 'reconciler':
+        this.commandsGateway.reconcileNow();
+        return;
+      default: {
+        const _exhaustive: never = kind;
+        throw new Error(`unknown scheduler kind: ${String(_exhaustive)}`);
+      }
+    }
+  }
   private async runDrain(kind: 'outbox' | 'projection' | 'reconciler'): Promise<void> {
     // PDF Day-One #9: isolate background job breadcrumbs from HTTP request scope.
     // Sentry NestJS docs warn @Cron / BullMQ handlers leak into unrelated request errors.
     await Sentry.withIsolationScope(async (scope) => {
-      const tag =
-        kind === 'outbox' ? 'outbox-drain' :
-        kind === 'projection' ? 'projection-drain' :
-        'commands-reconciler';
-      scope.setTag('job', tag);
+      scope.setTag('job', this.tagFor(kind));
       try {
-        if (kind === 'outbox') await this.outboxRelay.drainOnce();
-        else if (kind === 'projection') await this.projectionRunner.drainOnce(this.pilotScope);
-        else this.commandsGateway.reconcileNow();
+        await this.invokeDrain(kind);
       } catch (err: unknown) {
         Sentry.captureException(err);
-        const label =
-          kind === 'outbox' ? 'Outbox drain failed: ' :
-          kind === 'projection' ? 'Projection drain failed: ' :
-          'Reconciler tick failed: ';
+        const label = this.labelFor(kind);
         if (err instanceof Error) {
           this.logger.error(label + err.message, err.stack);
         } else {
