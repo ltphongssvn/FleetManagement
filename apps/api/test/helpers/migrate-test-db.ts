@@ -32,6 +32,11 @@ export async function startMigratedTestDb(databaseName = 'fleet_test'): Promise<
 }
 
 export async function stopMigratedTestDb(testDb: MigratedTestDb): Promise<void> {
+  // Only end THIS file's pool. The container is started with .withReuse() and is
+  // shared across every integration-test file in the run; calling container.stop()
+  // here terminates Postgres while other files' pools still have connections in
+  // flight, surfacing as a FATAL 57P01 (ProcessInterrupts) unhandled error that
+  // fails the whole vitest run. Testcontainers' reuse mechanism owns the shared
+  // container lifecycle -- per-file teardown must not stop it.
   await testDb.pool.end();
-  await testDb.container.stop();
 }
