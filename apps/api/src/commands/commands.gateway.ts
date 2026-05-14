@@ -38,7 +38,7 @@ interface AuthenticatedSocketData {
   readonly fleetOperator: OperatorContext;
 }
 
-function extractToken(handshake: { auth: Record<string, unknown>; headers: Record<string, string | undefined> }): string | undefined {
+export function extractToken(handshake: { auth: Record<string, unknown>; headers: Record<string, string | undefined> }): string | undefined {
   const fromAuth = handshake.auth['token'];
   if (typeof fromAuth === 'string' && fromAuth.length > 0) return fromAuth;
   const header = handshake.headers['authorization'];
