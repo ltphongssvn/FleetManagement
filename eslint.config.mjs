@@ -23,6 +23,7 @@ export default tseslint.config(
       "**/.turbo/**",
       "**/.expo/**",
       "**/coverage/**",
+      "**/.stryker-tmp/**",
       "**/test-results/**",
       "**/playwright-report/**",
       "**/*.tsbuildinfo",

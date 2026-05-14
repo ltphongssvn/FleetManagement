@@ -1,6 +1,6 @@
 // apps/api/test/otel-enabled.test.ts
 // Kills survivors on otel.ts lines 28-58 (startOtel enabled path) and 61-65 (shutdownOtel populated path).
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import {
   startOtel,
   shutdownOtel,
@@ -113,5 +113,182 @@ describe('@fleet/api - OTel config builders (pure)', () => {
     // BooleanLiteral mutant enabled:false -> true : enabled would be true.
     expect(fs).toEqual({ enabled: false });
     expect(dns).toEqual({ enabled: false });
+  });
+});
+
+import { vi } from 'vitest';
+import {
+  buildSdkConfig,
+  isOtelStarted,
+  DEFAULT_OTLP_ENDPOINT as DEF_EP,
+} from '../src/observability/otel.js';
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import { ParentBasedSampler } from '@opentelemetry/sdk-trace-base';
+import type * as ExporterModule from '@opentelemetry/exporter-trace-otlp-http';
+import type * as SdkTraceBaseModule from '@opentelemetry/sdk-trace-base';
+
+describe('@fleet/api - OTel buildSdkConfig (pure SDK config)', () => {
+  const opts = {
+    serviceName: 'fleet-api',
+    serviceVersion: '9.9.9',
+    enabled: true,
+    endpoint: 'http://collector:4318/v1/traces',
+    sampleRatio: 0.25,
+  };
+
+  it('returns a config object with all four NodeSDK fields populated (kills NodeSDK({}) ObjectLiteral mutant)', () => {
+    const cfg = buildSdkConfig(opts);
+    expect(cfg.resource).toBeDefined();
+    expect(cfg.sampler).toBeDefined();
+    expect(cfg.traceExporter).toBeDefined();
+    expect(cfg.instrumentations).toBeDefined();
+  });
+
+  it('resource carries the service name + version attributes (kills resourceFromAttributes input mutants)', () => {
+    const cfg = buildSdkConfig(opts);
+    const attrs = (cfg.resource as unknown as { attributes: Record<string, unknown> }).attributes;
+    expect(attrs[ATTR_SERVICE_NAME]).toBe('fleet-api');
+    expect(attrs[ATTR_SERVICE_VERSION]).toBe('9.9.9');
+  });
+
+  it('sampler is a ParentBasedSampler (kills ParentBasedSampler({}) ObjectLiteral mutant)', () => {
+    const cfg = buildSdkConfig(opts);
+    expect(cfg.sampler).toBeInstanceOf(ParentBasedSampler);
+  });
+
+  it('traceExporter is built with the resolved endpoint url (kills OTLPTraceExporter({}) + resolveEndpoint mutants)', () => {
+    const cfg = buildSdkConfig(opts);
+    expect(cfg.exporterUrl).toBe('http://collector:4318/v1/traces');
+  });
+
+  it('exporterUrl falls back to DEFAULT_OTLP_ENDPOINT when no endpoint given', () => {
+    const cfg = buildSdkConfig({ serviceName: 's', serviceVersion: 'v', enabled: true });
+    expect(cfg.exporterUrl).toBe(DEF_EP);
+  });
+
+  it('samplerRatio reflects the resolved sample ratio, preserving 0 (kills resolveSampleRatio + literal mutants)', () => {
+    expect(buildSdkConfig(opts).samplerRatio).toBe(0.25);
+    expect(buildSdkConfig({ serviceName: 's', serviceVersion: 'v', enabled: true, sampleRatio: 0 }).samplerRatio).toBe(0);
+    expect(buildSdkConfig({ serviceName: 's', serviceVersion: 'v', enabled: true }).samplerRatio).toBe(DEFAULT_SAMPLE_RATIO);
+  });
+
+  it('instrumentations is a non-empty array (kills instrumentations: [] ArrayDeclaration mutant)', () => {
+    const cfg = buildSdkConfig(opts);
+    expect(Array.isArray(cfg.instrumentations)).toBe(true);
+    expect(cfg.instrumentations.length).toBeGreaterThan(0);
+  });
+});
+
+describe('@fleet/api - OTel startOtel/shutdownOtel lifecycle (NodeSDK spies)', () => {
+  let startSpy: ReturnType<typeof vi.spyOn>;
+  let shutdownSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    startSpy = vi.spyOn(NodeSDK.prototype, 'start').mockImplementation(() => undefined);
+    shutdownSpy = vi
+      .spyOn(NodeSDK.prototype, 'shutdown')
+      .mockImplementation(() => Promise.resolve());
+  });
+
+  afterEach(async () => {
+    await shutdownOtel();
+    vi.restoreAllMocks();
+  });
+
+  it('startOtel(enabled=true) constructs the SDK and calls start() exactly once (kills startOtel BlockStatement + !opts.enabled cond/bool mutants)', () => {
+    expect(isOtelStarted()).toBe(false);
+    startOtel({ serviceName: 's', serviceVersion: 'v', enabled: true });
+    expect(startSpy).toHaveBeenCalledTimes(1);
+    expect(isOtelStarted()).toBe(true);
+  });
+
+  it('startOtel(enabled=false) does NOT start the SDK (kills !opts.enabled -> opts.enabled / true / false cond mutants)', () => {
+    startOtel({ serviceName: 's', serviceVersion: 'v', enabled: false });
+    expect(startSpy).not.toHaveBeenCalled();
+    expect(isOtelStarted()).toBe(false);
+  });
+
+  it('startOtel is idempotent: a second call does not start a second SDK (kills sdk !== null cond/equality mutants)', () => {
+    startOtel({ serviceName: 's', serviceVersion: 'v', enabled: true });
+    startOtel({ serviceName: 's', serviceVersion: 'v', enabled: true });
+    expect(startSpy).toHaveBeenCalledTimes(1);
+    expect(isOtelStarted()).toBe(true);
+  });
+
+  it('shutdownOtel after a start calls shutdown() once and clears state (kills shutdownOtel BlockStatement + sdk === null cond mutants)', async () => {
+    startOtel({ serviceName: 's', serviceVersion: 'v', enabled: true });
+    await shutdownOtel();
+    expect(shutdownSpy).toHaveBeenCalledTimes(1);
+    expect(isOtelStarted()).toBe(false);
+  });
+
+  it('shutdownOtel with no active SDK does NOT call shutdown() (kills sdk === null -> true / false cond mutants)', async () => {
+    await shutdownOtel();
+    expect(shutdownSpy).not.toHaveBeenCalled();
+  });
+
+  it('after shutdown, startOtel can start a fresh SDK again (kills shutdownOtel sdk=null reset BlockStatement mutant)', async () => {
+    startOtel({ serviceName: 's', serviceVersion: 'v', enabled: true });
+    await shutdownOtel();
+    startOtel({ serviceName: 's', serviceVersion: 'v', enabled: true });
+    expect(startSpy).toHaveBeenCalledTimes(2);
+    expect(isOtelStarted()).toBe(true);
+  });
+});
+
+
+// --- Constructor-wiring spies: kill OTLPTraceExporter({}) and ParentBasedSampler({}) survivors ---
+// vi.mock is hoisted; it intercepts the modules before otel.ts imports them, so we
+// can assert the exact constructor arguments buildSdkConfig passes through.
+const exporterCtorArgs: unknown[] = [];
+const samplerRootArgs: unknown[] = [];
+
+vi.mock('@opentelemetry/exporter-trace-otlp-http', async (importOriginal) => {
+  const actual = await importOriginal<typeof ExporterModule>();
+  return {
+    ...actual,
+    OTLPTraceExporter: class extends actual.OTLPTraceExporter {
+      constructor(cfg?: ConstructorParameters<typeof actual.OTLPTraceExporter>[0]) {
+        exporterCtorArgs.push(cfg);
+        super(cfg);
+      }
+    },
+  };
+});
+
+vi.mock('@opentelemetry/sdk-trace-base', async (importOriginal) => {
+  const actual = await importOriginal<typeof SdkTraceBaseModule>();
+  return {
+    ...actual,
+    TraceIdRatioBasedSampler: class extends actual.TraceIdRatioBasedSampler {
+      constructor(ratio?: number) {
+        samplerRootArgs.push(ratio);
+        super(ratio);
+      }
+    },
+  };
+});
+
+describe('@fleet/api - OTel buildSdkConfig constructor wiring', () => {
+  beforeEach(() => {
+    exporterCtorArgs.length = 0;
+    samplerRootArgs.length = 0;
+  });
+
+  it('passes { url: resolvedEndpoint } into the OTLPTraceExporter constructor (kills OTLPTraceExporter({}) ObjectLiteral mutant)', () => {
+    buildSdkConfig({
+      serviceName: 's',
+      serviceVersion: 'v',
+      enabled: true,
+      endpoint: 'http://spy:4318/v1/traces',
+    });
+    expect(exporterCtorArgs).toHaveLength(1);
+    expect(exporterCtorArgs[0]).toEqual({ url: 'http://spy:4318/v1/traces' });
+  });
+
+  it('passes the resolved sample ratio into the TraceIdRatioBasedSampler constructor (kills ParentBasedSampler({}) + sampler-input mutants)', () => {
+    buildSdkConfig({ serviceName: 's', serviceVersion: 'v', enabled: true, sampleRatio: 0.42 });
+    expect(samplerRootArgs).toHaveLength(1);
+    expect(samplerRootArgs[0]).toBe(0.42);
   });
 });
