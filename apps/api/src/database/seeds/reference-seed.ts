@@ -1,9 +1,9 @@
 // apps/api/src/database/seeds/reference-seed.ts
 // Seed reference tables from VẬN CHUYỂN Xe Thùng PDFs.
 // Idempotent via ON CONFLICT DO NOTHING on unique constraints.
+import bcrypt from 'bcryptjs';
 import type { FleetDb } from '../database.module.js';
 import { driver, vehicle, customer, cargoType, warehouse, orderSequence } from '../schema/reference.js';
-
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 const TENANCY = {
   companyId: COMPANY_ID,
@@ -11,7 +11,21 @@ const TENANCY = {
   depotId: COMPANY_ID,
   legalEntityId: COMPANY_ID,
 };
-
+// Login-capable pilot driver so the deployed API's real JWT /auth/login
+// flow can authenticate the mobile app end-to-end. bcrypt cost 10.
+const LOGIN_DRIVERS: readonly {
+  fullName: string;
+  phone: string;
+  password: string;
+  operatorId: string;
+}[] = [
+  {
+    fullName: 'TÀI XẾ THỬ NGHIỆM 1',
+    phone: '0900000001',
+    password: 'driver1pass', // pragma: allowlist secret
+    operatorId: '00000000-0000-0000-0000-000000000001',
+  },
+];
 const TRUCKS: readonly { plate: string; driverName: string | null }[] = [
   { plate: '62H 05194', driverName: 'NGUYỄN THANH PHONG' },
   { plate: '62H 05800', driverName: 'NGUYỄN THÀNH ĐỨC' },
@@ -39,7 +53,6 @@ const TRUCKS: readonly { plate: string; driverName: string | null }[] = [
   { plate: '62H 06295', driverName: 'NGUYỄN VĂN THẲNG' },
   { plate: '70H 08777', driverName: 'MAI HIỀN DIỆU' },
 ];
-
 const PICKUP_WAREHOUSES: readonly string[] = [
   'Cần Thơ', 'Chơn Chính', 'Cường Thắng ( Cần Thơ )', 'Cường Thắng ( Kiến Tường )',
   'Đức Tài', 'Hậu Thạnh Đông', 'Hiệp Hưng ( Tam Nông )',
@@ -53,17 +66,23 @@ const PICKUP_WAREHOUSES: readonly string[] = [
   'Tâm Thành Phát ( Cái Bè )', 'Thốt Nốt', 'Trí Mai', 'Út Hạnh',
   'Vĩnh Hưng', 'XN Tân Thạnh',
 ];
-
 const DELIVERY_WAREHOUSES: readonly string[] = [
   'ĐA NĂNG', 'ĐẠI THÀNH', 'DƯƠNG VŨ', '8 ĐẠT', 'CHỢ GẠO', 'ĐẠI HỮU',
   'HIỀN NGUYỄN', '8 TẺO', '3 ĐỰC',
 ];
-
 const CARGO_TYPES: readonly string[] = ['TẤM', 'CHI', 'CÁM', 'GẠO', 'TRẤU', 'XI MĂNG'];
-
 const CUSTOMERS: readonly string[] = ['ĐA NĂNG', 'ĐẠI THÀNH'];
-
 export async function seedReference(db: FleetDb): Promise<void> {
+  for (const d of LOGIN_DRIVERS) {
+    const passwordHash = await bcrypt.hash(d.password, 10);
+    await db.insert(driver).values({
+      ...TENANCY,
+      fullName: d.fullName,
+      phone: d.phone,
+      passwordHash,
+      operatorId: d.operatorId,
+    }).onConflictDoNothing();
+  }
   for (const t of TRUCKS) {
     await db.insert(vehicle).values({ ...TENANCY, plate: t.plate, vehicleType: 'box_truck' }).onConflictDoNothing();
     if (t.driverName) {
