@@ -31,6 +31,9 @@ export function simulateReconnectStorm(input: ReconnectStormInput): ReconnectSto
     if (reconnectMs > input.reconnectBudgetMs || ackMs > input.ackBudgetMs) stuck++;
   }
   reconnectTimes.sort((a, b) => a - b);
+  // Stryker disable next-line ArithmeticOperator: `length - 1` -> `length + 1` is an
+  // equivalent mutant. floor(length * 0.95) <= length - 1 < length + 1 for all length >= 0,
+  // so Math.min always selects floor(length * 0.95); the left operand never wins.
   const p95Idx = Math.min(reconnectTimes.length - 1, Math.floor(reconnectTimes.length * 0.95));
   return {
     trucks: input.trucks,
