@@ -75,13 +75,19 @@ const CUSTOMERS: readonly string[] = ['ĐA NĂNG', 'ĐẠI THÀNH'];
 export async function seedReference(db: FleetDb): Promise<void> {
   for (const d of LOGIN_DRIVERS) {
     const passwordHash = await bcrypt.hash(d.password, 10);
+    // Upsert on the (company_id, phone) unique constraint so a pre-existing
+    // row with a stale password hash is corrected on every boot — the seed
+    // is authoritative for the pilot login driver's credentials.
     await db.insert(driver).values({
       ...TENANCY,
       fullName: d.fullName,
       phone: d.phone,
       passwordHash,
       operatorId: d.operatorId,
-    }).onConflictDoNothing();
+    }).onConflictDoUpdate({
+      target: [driver.companyId, driver.phone],
+      set: { fullName: d.fullName, passwordHash, operatorId: d.operatorId, active: true },
+    });
   }
   for (const t of TRUCKS) {
     await db.insert(vehicle).values({ ...TENANCY, plate: t.plate, vehicleType: 'box_truck' }).onConflictDoNothing();

@@ -7,8 +7,18 @@ import { AdminDriversListService } from './admin-drivers-list.service.js';
 import { AdminDriversListController } from './admin-drivers-list.controller.js';
 import { AdminDeviceEnrollService } from './admin-device-enroll.service.js';
 import { AdminDeviceEnrollController } from './admin-device-enroll.controller.js';
-import { AdminDriversCreateService } from './admin-drivers-create.service.js';
+import {
+  AdminDriversCreateService,
+  BCRYPT_HASH,
+  type BcryptHashFn,
+} from './admin-drivers-create.service.js';
 import { AdminDriversCreateController } from './admin-drivers-create.controller.js';
+import * as bcrypt from 'bcryptjs';
+const bcryptHashProvider = {
+  provide: BCRYPT_HASH,
+  useValue: ((plain: string, rounds: number) =>
+    bcrypt.hash(plain, rounds)) satisfies BcryptHashFn,
+};
 @Module({
   imports: [AuthModule],
   controllers: [
@@ -22,6 +32,7 @@ import { AdminDriversCreateController } from './admin-drivers-create.controller.
     AdminDriversListService,
     AdminDeviceEnrollService,
     AdminDriversCreateService,
+    bcryptHashProvider,
   ],
   exports: [
     AdminAssignmentService,
