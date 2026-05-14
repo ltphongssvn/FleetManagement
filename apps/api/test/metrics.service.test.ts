@@ -21,7 +21,7 @@ interface FakeDb {
   whereCalls: WhereCall[];
   db: object;
 }
-function makeFakeDb(rowsToReturn: Array<{ count: string | null | undefined }>): FakeDb {
+function makeFakeDb(rowsToReturn: { count: string | null | undefined }[]): FakeDb {
   const selectCalls: SelectCall[] = [];
   const whereCalls: WhereCall[] = [];
   const db = {

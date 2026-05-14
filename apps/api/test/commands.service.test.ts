@@ -3,14 +3,16 @@
 // the transaction + appendTriWrite + allocateServerSeq seam.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const mockAppendTriWrite = vi.fn();
-const mockAllocateServerSeq = vi.fn();
+const { mockAppendTriWrite, mockAllocateServerSeq } = vi.hoisted(() => ({
+  mockAppendTriWrite: vi.fn(),
+  mockAllocateServerSeq: vi.fn(),
+}));
 
 vi.mock('../src/database/append-tri-write.js', () => ({
-  appendTriWrite: (...args: unknown[]) => mockAppendTriWrite(...args),
+  appendTriWrite: mockAppendTriWrite,
 }));
 vi.mock('../src/database/server-seq.repository.js', () => ({
-  allocateServerSeq: (...args: unknown[]) => mockAllocateServerSeq(...args),
+  allocateServerSeq: mockAllocateServerSeq,
 }));
 
 import { CommandsService } from '../src/commands/commands.service.js';
@@ -81,7 +83,9 @@ describe('@fleet/api - CommandsService.persist (unit)', () => {
     await svc.persist(CMD, OP);
     expect(mockAllocateServerSeq).toHaveBeenCalledWith(FAKE_TX);
     expect(mockAppendTriWrite).toHaveBeenCalledTimes(1);
-    const [tx, params] = mockAppendTriWrite.mock.calls[0]!;
+    const call = mockAppendTriWrite.mock.calls[0];
+    if (!call) throw new Error('expected appendTriWrite to be called');
+    const [tx, params] = call;
     expect(tx).toBe(FAKE_TX);
     expect(params.serverSeq).toBe(123n);
   });
@@ -90,7 +94,9 @@ describe('@fleet/api - CommandsService.persist (unit)', () => {
     const fake = makeDb();
     const svc = new CommandsService(fake.db as never);
     await svc.persist(CMD, OP);
-    const [, params] = mockAppendTriWrite.mock.calls[0]!;
+    const call = mockAppendTriWrite.mock.calls[0];
+    if (!call) throw new Error('expected appendTriWrite to be called');
+    const [, params] = call;
     expect(params.idempotent).toBe(true);
   });
 
@@ -98,7 +104,9 @@ describe('@fleet/api - CommandsService.persist (unit)', () => {
     const fake = makeDb();
     const svc = new CommandsService(fake.db as never);
     await svc.persist(CMD, OP);
-    const [, params] = mockAppendTriWrite.mock.calls[0]!;
+    const call = mockAppendTriWrite.mock.calls[0];
+    if (!call) throw new Error('expected appendTriWrite to be called');
+    const [, params] = call;
     expect(params.actionId).toBe(CMD.commandId);
     expect(params.aggregateType).toBe(CMD.aggregateType);
     expect(params.aggregateId).toBe(CMD.aggregateId);
@@ -110,7 +118,9 @@ describe('@fleet/api - CommandsService.persist (unit)', () => {
     const fake = makeDb();
     const svc = new CommandsService(fake.db as never);
     await svc.persist(CMD, OP);
-    const [, params] = mockAppendTriWrite.mock.calls[0]!;
+    const call = mockAppendTriWrite.mock.calls[0];
+    if (!call) throw new Error('expected appendTriWrite to be called');
+    const [, params] = call;
     expect(params.delta).toEqual({
       type: CMD.type,
       payload: CMD.payload,
@@ -122,7 +132,9 @@ describe('@fleet/api - CommandsService.persist (unit)', () => {
     const fake = makeDb();
     const svc = new CommandsService(fake.db as never);
     await svc.persist(CMD, OP);
-    const [, params] = mockAppendTriWrite.mock.calls[0]!;
+    const call = mockAppendTriWrite.mock.calls[0];
+    if (!call) throw new Error('expected appendTriWrite to be called');
+    const [, params] = call;
     expect(params.auditPayload).toEqual({
       commandId: CMD.commandId,
       type: CMD.type,
@@ -134,7 +146,9 @@ describe('@fleet/api - CommandsService.persist (unit)', () => {
     const fake = makeDb();
     const svc = new CommandsService(fake.db as never);
     await svc.persist(CMD, OP);
-    const [, params] = mockAppendTriWrite.mock.calls[0]!;
+    const call = mockAppendTriWrite.mock.calls[0];
+    if (!call) throw new Error('expected appendTriWrite to be called');
+    const [, params] = call;
     expect(params.outboxPayload).toEqual({
       aggregateType: CMD.aggregateType,
       eventType: `${CMD.aggregateType}.command_issued`,
@@ -146,7 +160,9 @@ describe('@fleet/api - CommandsService.persist (unit)', () => {
     const fake = makeDb();
     const svc = new CommandsService(fake.db as never);
     await svc.persist(CMD, OP);
-    const [, params] = mockAppendTriWrite.mock.calls[0]!;
+    const call = mockAppendTriWrite.mock.calls[0];
+    if (!call) throw new Error('expected appendTriWrite to be called');
+    const [, params] = call;
     expect(params.eventType).toBe('road_run.command_issued');
   });
 
@@ -154,7 +170,9 @@ describe('@fleet/api - CommandsService.persist (unit)', () => {
     const fake = makeDb();
     const svc = new CommandsService(fake.db as never);
     await svc.persist(CMD, OP);
-    const [, params] = mockAppendTriWrite.mock.calls[0]!;
+    const call = mockAppendTriWrite.mock.calls[0];
+    if (!call) throw new Error('expected appendTriWrite to be called');
+    const [, params] = call;
     expect(params.queueName).toBe('projections');
   });
 });
