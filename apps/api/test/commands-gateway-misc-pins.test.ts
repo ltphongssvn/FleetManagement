@@ -11,7 +11,7 @@ import { CommandsGateway, COMMAND_DELIVERY_POLICY_VERSION } from '../src/command
 import type { Clock } from '../src/common/clock.js';
 import type { IIdentityProvider } from '../src/auth/identity-provider.interface.js';
 import type { IPushProvider } from '../src/push/push-provider.interface.js';
-import type { OperatorContextFactory } from '../src/auth/operator-context.factory.js';
+import { OperatorContextFactory } from '../src/auth/operator-context.factory.js';
 
 interface PendingEntry { operatorId: string; issuedAt: Date; attempts: number; pushAttempts: number; pushInFlight: boolean; policyVersion: string }
 interface PendingMap { readonly pending: Map<string, PendingEntry>; readonly deadLetters: unknown[] }
@@ -94,6 +94,30 @@ describe('@fleet/api - CommandsGateway misc pins', () => {
     expect(errors).toHaveLength(1);
     expect(errors[0]).toContain('IdentityProvider');
     expect(errors[0]).toContain('not wired');
+  });
+
+  it('handleConnection with idp=undef but factory=defined logs "IdentityProvider not wired" (kills line 159 idp-side cond mutant)', async () => {
+    // Mutant `false || factory === undefined` skips the idp guard, falls through to verifyToken on undefined idp,
+    // which throws TypeError caught by line 178 catch -> "WS connect rejected" warn (NOT the "not wired" error).
+    // Original triggers line 160 error log first.
+    const factory = new OperatorContextFactory();
+    const fakeClock: Clock = { now: () => new Date('2026-05-02T10:00:00.000Z') };
+    const gw = new CommandsGateway(undefined, fakeClock, undefined, undefined, factory);
+    const warns: string[] = [];
+    const errors: string[] = [];
+    (gw as unknown as { logger: unknown }).logger = {
+      warn: (m: unknown) => { if (typeof m === 'string') warns.push(m); },
+      log: vi.fn(),
+      error: (m: unknown) => { if (typeof m === 'string') errors.push(m); },
+      debug: vi.fn(),
+    };
+    const sock = { id: 's', handshake: { auth: { token: 'good' }, headers: {} }, disconnect: vi.fn(), data: {}, join: vi.fn() } as never;
+    await gw.handleConnection(sock);
+    // Original: error log fires, warn does NOT fire (early return before extractToken).
+    // Mutant: error log does NOT fire (guard skipped), warn fires from catch path.
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('not wired');
+    expect(warns).toHaveLength(0);
   });
 
   it('handleConnection warns with socket id when token missing (kills line 170 StringLiteral template)', async () => {
