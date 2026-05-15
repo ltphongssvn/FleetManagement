@@ -7,11 +7,17 @@ export default defineConfig({
     include: ['test/**/*.test.ts'],
     testTimeout: 60_000,
     hookTimeout: 60_000,
-    pool: 'forks',
+    // fileParallelism:false is LOAD-BEARING: the *.integration.test.ts files
+    // share one Postgres database and each does TRUNCATE ... CASCADE in
+    // beforeEach. Running them in parallel causes mutual-lock deadlocks
+    // (Postgres 40P01). They must serialize.
     fileParallelism: false,
-    sequence: { concurrent: false },
+    // clean:true wipes any stale coverage/.tmp before the run. This — not
+    // changing parallelism — is what fixes the prior ENOENT on
+    // coverage-N.json at provider read time (stale dir from an aborted run).
     coverage: {
       provider: 'v8',
+      clean: true,
       include: ['src/**/*.ts'],
       exclude: [
         '**/index.ts',
@@ -39,13 +45,11 @@ export default defineConfig({
       ],
       reportsDirectory: 'coverage/merged',
       thresholds: {
-        // Lowest acceptable per-file thresholds (global floor).
         statements: 80,
         branches: 50,
         functions: 70,
         lines: 80,
         perFile: true,
-        // Stricter thresholds for pure logic / non-glue source code:
         'src/auth/**/*.ts': { statements: 80, branches: 80, functions: 80, lines: 80 },
         'src/commands/command-policy.ts': { statements: 80, branches: 80, functions: 80, lines: 80 },
         'src/commands/command.dto.ts': { statements: 80, branches: 80, functions: 80, lines: 80 },
@@ -55,13 +59,11 @@ export default defineConfig({
         'src/manifest/**/*.ts': { statements: 80, branches: 80, functions: 80, lines: 80 },
         'src/storage/**/*.ts': { statements: 80, branches: 80, functions: 80, lines: 80 },
         'src/sync/sync.dto.ts': { statements: 80, branches: 80, functions: 80, lines: 80 },
-        // IO-heavy files: real SDK init paths intentionally untested in unit (see integration tests)
         'src/observability/otel.ts': { statements: 80, branches: 50, functions: 80, lines: 80 },
         'src/outbox/outbox-relay.service.ts': { statements: 80, branches: 70, functions: 80, lines: 80 },
         'src/projections/projection-runner.service.ts': { statements: 80, branches: 70, functions: 80, lines: 80 },
         'src/push/expo-push-provider.ts': { statements: 80, branches: 80, functions: 70, lines: 80 },
         'src/commands/commands.gateway.ts': { statements: 80, branches: 80, functions: 80, lines: 80 },
-
       },
     },
   },
