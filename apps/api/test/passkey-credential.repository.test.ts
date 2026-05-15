@@ -75,7 +75,7 @@ describe('PasskeyCredentialRepository', () => {
   let repo: PasskeyCredentialRepository;
   beforeEach(async () => {
     db = await setupDb();
-    repo = new PasskeyCredentialRepository(db);
+    repo = new PasskeyCredentialRepository(db as never);
   });
 
   it('insert + findByCredentialId round-trip', async () => {
