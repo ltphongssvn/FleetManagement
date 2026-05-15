@@ -72,7 +72,7 @@ describe('passkey_credential schema', () => {
 
   it('has unique index on credential_id (global WebAuthn uniqueness)', () => {
     const hasUniqueOnCredentialId = cfg.indexes.some(
-      (idx) => idx.config.unique === true && idx.config.columns.some((col) => 'name' in col && col.name === 'credential_id'),
+      (idx) => idx.config.unique && idx.config.columns.some((col) => 'name' in col && col.name === 'credential_id'),
     );
     expect(hasUniqueOnCredentialId).toBe(true);
   });
