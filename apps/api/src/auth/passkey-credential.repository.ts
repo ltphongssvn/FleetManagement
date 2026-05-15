@@ -60,7 +60,7 @@ export class PasskeyCredentialRepository {
     const rows = await this.db.select({ c: sql<number>`count(*)::int` })
       .from(passkeyCredential)
       .where(eq(passkeyCredential.driverId, driverId));
-    return rows[0].c;
+    return rows[0]?.c ?? 0;
   }
 
   async updateSignCountAndLastUsed(credentialId: Buffer, newSignCount: number): Promise<void> {
