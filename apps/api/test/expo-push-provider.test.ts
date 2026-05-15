@@ -85,13 +85,12 @@ describe('@fleet/api - ExpoPushProvider (integration)', () => {
   });
   it('attaches body.data to the Expo message when provided (covers line 55 branch)', async () => {
     await seedTokens([VALID_TOKEN]);
-    let sent: unknown;
     const expo = fakeExpo({ ticketStatuses: ['ok'] });
-    const spy = expo.sendPushNotificationsAsync as unknown as { mock: { calls: unknown[][] } };
+    const calls = (expo.sendPushNotificationsAsync as unknown as { mock: { calls: unknown[][] } }).mock.calls;
     const p = new ExpoPushProvider(testDb.db as never, expo);
     const r = await p.sendToOperator(OPERATOR_ID, { title: 't', body: 'b', data: { kind: 'cmd', id: '7' } });
     expect(r).toEqual({ accepted: 1, rejected: 0 });
-    sent = spy.mock.calls[0]?.[0];
+    const sent = calls[0]?.[0];
     expect(Array.isArray(sent)).toBe(true);
     expect((sent as { data?: unknown }[])[0]?.data).toEqual({ kind: 'cmd', id: '7' });
   });
