@@ -88,9 +88,9 @@ export class PasskeyAuthenticationService {
       expectedOrigin: this.config.expectedOrigin ?? defaultOrigin,
       credential: {
         id: response.id,
-        publicKey: new Uint8Array(stored.publicKey),
+        publicKey: new Uint8Array(stored.publicKey) as never,
         counter: stored.signCount,
-        transports,
+        ...(transports !== undefined ? { transports } : {}),
       },
     });
     if (!verification.verified || verification.authenticationInfo === undefined) {

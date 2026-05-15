@@ -136,7 +136,7 @@ class InMemoryChallengeStore implements RegChallengeStore, AuthChallengeStore {
         const genOpts: GenerateRegistrationOptionsFn = (input) => swaGenReg({
           rpID: input.rpID,
           rpName: input.rpName,
-          userID: input.userID,
+          userID: input.userID as never,
           userName: input.userName,
           userDisplayName: input.userDisplayName,
           excludeCredentials: input.excludeCredentials.map((c) => ({ id: c.id, transports: c.transports as never })),
@@ -196,7 +196,7 @@ class InMemoryChallengeStore implements RegChallengeStore, AuthChallengeStore {
             expectedOrigin: input.expectedOrigin,
             credential: {
               id: input.credential.id,
-              publicKey: input.credential.publicKey,
+              publicKey: input.credential.publicKey as never,
               counter: input.credential.counter,
               transports: input.credential.transports as never,
             },
