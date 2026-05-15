@@ -1,7 +1,7 @@
 // apps/api/src/auth/passkey-credential.repository.ts
 // Repository encapsulating all passkey_credential table access. Pure data layer:
 // no policy decisions, no crypto. Drizzle-typed; uses Buffer for bytea columns.
-import { and, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { FleetDb } from '../database/database.module.js';
 import { passkeyCredential, type PasskeyCredential } from '../database/schema/passkey-credential.js';
 
