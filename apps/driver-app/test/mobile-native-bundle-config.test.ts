@@ -3,7 +3,7 @@
 // iOS/Android devices, otherwise Expo Go cannot mount the app and the
 // login screen never appears on the phone.
 //
-// Verified invariants (each currently fails -> RED):
+// Verified invariants:
 //   1. EXPO_PUBLIC_API_URL must be LAN-reachable (not localhost / 127.0.0.1).
 //      The value is baked into the JS bundle that the phone downloads, so
 //      "localhost" on the phone means the phone itself, not the dev host.
@@ -47,12 +47,12 @@ describe('driver-app mobile native bundle config', () => {
     const cmdMatch = /CMD\s+\[([^\]]+)\]/.exec(dockerfile);
     expect(cmdMatch, 'Dockerfile must declare a CMD').not.toBeNull();
     const cmd = cmdMatch?.[1] ?? '';
-    expect(cmd).not.toMatch(/\"--web\"/);
+    expect(cmd).not.toMatch(/"--web"/);
   });
 
   it('Dockerfile CMD passes --host lan so Metro binds a LAN-reachable interface', () => {
     const cmdMatch = /CMD\s+\[([^\]]+)\]/.exec(dockerfile);
     const cmd = cmdMatch?.[1] ?? '';
-    expect(cmd).toMatch(/\"--host\"\s*,\s*\"lan\"/);
+    expect(cmd).toMatch(/"--host"\s*,\s*"lan"/);
   });
 });
