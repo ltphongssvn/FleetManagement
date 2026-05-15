@@ -5,15 +5,18 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
-
 export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
     include: ['test/**/*.test.{ts,tsx}'],
     setupFiles: ['./test/setup.ts'],
+    // Raised from the 5s default: under the parallel 8-package turbo run,
+    // jsdom render of Headless UI Combobox-heavy forms can exceed 5s purely
+    // from CPU contention (passes in ~1s in isolation). Prevents flaky
+    // timeouts in CI without masking real hangs.
+    testTimeout: 30000,
     coverage: {
       exclude: ['**/index.ts', '**/types.ts', '**/*.config.{ts,mjs}', '**/dist/**', '**/.next/**', '**/test/**', 'src/app/**', '**/*.stories.tsx', '**/*.mock.ts'],
       provider: 'v8',
