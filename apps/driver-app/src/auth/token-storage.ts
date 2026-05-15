@@ -28,12 +28,9 @@ function webStorage(): WebStorageLike | null {
 }
 
 export async function loadToken(): Promise<StoredToken | null> {
-  let raw: string | null = null;
-  if (Platform.OS === 'web') {
-    raw = webStorage()?.getItem(TOKEN_KEY) ?? null;
-  } else {
-    raw = await SecureStore.getItemAsync(TOKEN_KEY);
-  }
+  const raw: string | null = Platform.OS === 'web'
+    ? webStorage()?.getItem(TOKEN_KEY) ?? null
+    : await SecureStore.getItemAsync(TOKEN_KEY);
   if (raw === null) return null;
   try {
     return JSON.parse(raw) as StoredToken;

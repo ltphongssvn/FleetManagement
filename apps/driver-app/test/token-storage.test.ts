@@ -27,9 +27,9 @@ describe('token-storage on web', () => {
     vi.resetModules();
     vi.doMock('react-native', () => ({ Platform: { OS: 'web' } }));
     vi.doMock('expo-secure-store', () => ({
-      getItemAsync: vi.fn(async () => { throw new Error('SecureStore not available on web'); }),
-      setItemAsync: vi.fn(async () => { throw new Error('SecureStore not available on web'); }),
-      deleteItemAsync: vi.fn(async () => { throw new Error('SecureStore not available on web'); }),
+      getItemAsync: vi.fn(() => Promise.reject(new Error('SecureStore not available on web'))),
+      setItemAsync: vi.fn(() => Promise.reject(new Error('SecureStore not available on web'))),
+      deleteItemAsync: vi.fn(() => Promise.reject(new Error('SecureStore not available on web'))),
     }));
     (globalThis as unknown as { localStorage: MemStore }).localStorage = makeMemStore();
   });
@@ -66,12 +66,12 @@ describe('token-storage on native (ios/android)', () => {
   });
 
   it('saveToken delegates to SecureStore.setItemAsync', async () => {
-    const setItemAsync = vi.fn(async () => undefined);
+    const setItemAsync = vi.fn(() => Promise.resolve(undefined));
     vi.doMock('react-native', () => ({ Platform: { OS: 'ios' } }));
     vi.doMock('expo-secure-store', () => ({
-      getItemAsync: vi.fn(async () => null),
+      getItemAsync: vi.fn(() => Promise.resolve(null)),
       setItemAsync,
-      deleteItemAsync: vi.fn(async () => undefined),
+      deleteItemAsync: vi.fn(() => Promise.resolve(undefined)),
     }));
     const mod = await import('../src/auth/token-storage.js');
     await mod.saveToken(sample);
@@ -81,20 +81,20 @@ describe('token-storage on native (ios/android)', () => {
   it('loadToken delegates to SecureStore.getItemAsync and parses JSON', async () => {
     vi.doMock('react-native', () => ({ Platform: { OS: 'android' } }));
     vi.doMock('expo-secure-store', () => ({
-      getItemAsync: vi.fn(async () => JSON.stringify(sample)),
-      setItemAsync: vi.fn(async () => undefined),
-      deleteItemAsync: vi.fn(async () => undefined),
+      getItemAsync: vi.fn(() => Promise.resolve(JSON.stringify(sample))),
+      setItemAsync: vi.fn(() => Promise.resolve(undefined)),
+      deleteItemAsync: vi.fn(() => Promise.resolve(undefined)),
     }));
     const mod = await import('../src/auth/token-storage.js');
     expect(await mod.loadToken()).toEqual(sample);
   });
 
   it('clearToken delegates to SecureStore.deleteItemAsync', async () => {
-    const deleteItemAsync = vi.fn(async () => undefined);
+    const deleteItemAsync = vi.fn(() => Promise.resolve(undefined));
     vi.doMock('react-native', () => ({ Platform: { OS: 'ios' } }));
     vi.doMock('expo-secure-store', () => ({
-      getItemAsync: vi.fn(async () => null),
-      setItemAsync: vi.fn(async () => undefined),
+      getItemAsync: vi.fn(() => Promise.resolve(null)),
+      setItemAsync: vi.fn(() => Promise.resolve(undefined)),
       deleteItemAsync,
     }));
     const mod = await import('../src/auth/token-storage.js');

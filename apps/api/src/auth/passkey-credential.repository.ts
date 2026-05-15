@@ -53,11 +53,14 @@ export class PasskeyCredentialRepository {
     return rows.length > 0;
   }
 
+  // count(*) always returns exactly one row in Postgres, so rows[0] is non-null and c
+  // is always a number. No null-coalescing fallback needed (would be dead code per
+  // branch-coverage gate).
   async countByDriverId(driverId: string): Promise<number> {
     const rows = await this.db.select({ c: sql<number>`count(*)::int` })
       .from(passkeyCredential)
       .where(eq(passkeyCredential.driverId, driverId));
-    return rows[0]?.c ?? 0;
+    return rows[0].c;
   }
 
   async updateSignCountAndLastUsed(credentialId: Buffer, newSignCount: number): Promise<void> {
