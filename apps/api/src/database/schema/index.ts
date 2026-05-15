@@ -89,3 +89,9 @@ export {
   type DriverVehicleAssignment,
   type NewDriverVehicleAssignment,
 } from './driver-vehicle-assignment.js';
+
+export {
+  passkeyCredential,
+  type PasskeyCredential,
+  type NewPasskeyCredential,
+} from './passkey-credential.js';
