@@ -11,6 +11,7 @@ import {
   UploadSessionInvalidStateError,
   UploadAlreadyCommittedError,
 } from '../src/manifest/manifest.errors.js';
+import { ManifestService } from '../src/manifest/manifest.service.js';
 
 describe('@fleet/api - ManifestService error classes', () => {
   it('ManifestInsertFailedError carries correlationId', () => {
@@ -49,7 +50,6 @@ describe('@fleet/api - ManifestService error classes', () => {
 });
 describe('@fleet/api - ManifestService defensive guards (unit, no DB)', () => {
   it('commitUpload throws UploadSessionMissingManifestError when updated session has null manifestId (line 165 branch)', async () => {
-    const { ManifestService } = await import('../src/manifest/manifest.service.js');
     // Fake db.transaction calls back with a tx whose update().set().where().returning()
     // resolves to a session that has manifestId=null. This is unreachable through normal
     // schema (FK constraint) but the runtime guard is real defense-in-depth.
@@ -67,7 +67,6 @@ describe('@fleet/api - ManifestService defensive guards (unit, no DB)', () => {
       .rejects.toThrow(/has no associated manifest/);
   });
   it('finalizeIntake throws UploadSessionMissingManifestError when updated session has null manifestId (line 229 branch)', async () => {
-    const { ManifestService } = await import('../src/manifest/manifest.service.js');
     const tx = {
       update: (): { set: (s: unknown) => { where: (w: unknown) => { returning: () => Promise<unknown[]> } } } => ({
         set: () => ({

@@ -5,7 +5,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import { sql } from 'drizzle-orm';
 import { ManifestService } from '../src/manifest/manifest.service.js';
 import type { OperatorContext } from '../src/auth/operator-context.js';
-import { UploadSessionInvalidStateError, UploadSessionNotFoundError } from '../src/manifest/manifest.errors.js';
+import { TransportOrderNotOwnedError, UploadSessionInvalidStateError, UploadSessionNotFoundError } from '../src/manifest/manifest.errors.js';
 import type { IBlobStore, PresignedUpload } from '../src/storage/storage-provider.interface.js';
 import type { ConfigService } from '@nestjs/config';
 import type { Env } from '../src/config/env.config.js';
@@ -237,7 +237,6 @@ describe('@fleet/api - ManifestService (integration)', () => {
     expect(s3Key).toMatch(/\.bin$/);
   });
   it('negotiateUpload throws TransportOrderNotOwnedError when transport order not in tenant (line 118 branch)', async () => {
-    const { TransportOrderNotOwnedError } = await import('../src/manifest/manifest.errors.js');
     await expect(service.negotiateUpload({
       manifestCorrelationId: '33333333-3333-4333-8333-300000000118',
       transportOrderId: '00000000-0000-0000-0000-000000000118',
