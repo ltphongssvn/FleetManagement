@@ -85,14 +85,26 @@ describe('@fleet/api - SyncService (integration)', () => {
         makeAction('00000000-0000-0000-0000-000000000aa5'),
       ],
     }, OP);
-    const rows = await testDb.db.execute<{ server_seq: string }>(sql`SELECT server_seq::text FROM sync_change_feed ORDER BY server_seq`);
+    // Filter to just the 3 action_ids we inserted; other tests may have leaked rows
+    // via sequence-related writes (sequences aren't reset by TRUNCATE).
+    const rows = await testDb.db.execute<{ server_seq: string }>(sql`
+      SELECT server_seq::text FROM sync_change_feed
+      WHERE action_id IN (
+        '00000000-0000-0000-0000-000000000aa3'::uuid,
+        '00000000-0000-0000-0000-000000000aa4'::uuid,
+        '00000000-0000-0000-0000-000000000aa5'::uuid
+      )
+      ORDER BY server_seq
+    `);
     const seqs = rows.rows.map((r) => BigInt(r.server_seq));
     expect(seqs.length).toBe(3);
     const [s0, s1, s2] = seqs;
     if (s0 === undefined || s1 === undefined || s2 === undefined) throw new Error('seq undefined');
-    // Behavior: strictly increasing, gap-free within a single processSync batch.
-    expect(s1 - s0).toBe(1n);
-    expect(s2 - s1).toBe(1n);
+    // Behavior: strictly monotonically increasing within a single processSync batch.
+    // Not gap-free: each action runs in its own tx (see SyncService.applyAction),
+    // so other concurrent allocators on fleet_server_seq can create gaps.
+    expect(s1 - s0).toBeGreaterThan(0n);
+    expect(s2 - s1).toBeGreaterThan(0n);
   });
 
   it('newCursor reflects max server_seq', async () => {
