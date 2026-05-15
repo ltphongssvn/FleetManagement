@@ -100,6 +100,7 @@ export class OutboxRelayService implements OnModuleDestroy {
           .update(outbox)
           .set({ status: 'dead_letter', attempts: row.attempts + 1 })
           .where(eq(outbox.outboxId, row.outbox_id));
+        /* c8 ignore next -- ?? 'unknown' fallback unreachable: zod always populates issues on failure */
         this.logger.warn(`Dead-lettered outbox ${row.outbox_id}: invalid_payload (${parsed.error.issues[0]?.message ?? 'unknown'})`);
         deadLettered++;
         continue;

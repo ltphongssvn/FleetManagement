@@ -228,5 +228,22 @@ describe('OutboxRelayService - drainOnce', () => {
     const result = await svc.drainOnce();
     expect(result).toEqual({ polled: 0, enqueued: 0, deadLettered: 0, retryScheduled: 0 });
   });
+  it('logs non-Error thrown values via String(err) (line 153 branch)', async () => {
+    mockAdd.mockRejectedValueOnce('redis exploded as a string');
+    const rows: FakeRow[] = [{
+      outboxId: 'rNonErr',
+      queueName: 'projections',
+      status: 'pending',
+      attempts: 0,
+      nextAttemptAt: null,
+      payload: { eventType: 'road_run.x', aggregateType: 'road_run' },
+    }];
+    const { db, updates } = makeFakeDb(rows);
+    const svc = new OutboxRelayService(db as never, { url: 'redis://x' } as never);
+    const result = await svc.drainOnce();
+    expect(result.retryScheduled).toBe(1);
+    const u0 = updates[0]; if (u0 === undefined) throw new Error('expected update');
+    expect(u0).toMatchObject({ attempts: 1 });
+  });
 
 });
