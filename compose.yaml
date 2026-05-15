@@ -100,10 +100,20 @@ services:
       api:
         condition: service_healthy
     environment:
-      EXPO_PUBLIC_API_URL: http://localhost:3000
+      # HOST_LAN_IP is the dev host's LAN IP (set in repo-root .env).
+      # The phone running Expo Go fetches the JS bundle and hits this API,
+      # so both URLs must resolve from the phone's perspective on the LAN.
+      EXPO_PUBLIC_API_URL: http://${HOST_LAN_IP}:3000
+      # Tells Metro which hostname to advertise in the QR code / bundle URL.
+      # Without this, Metro picks the container's internal Docker IP, which
+      # the phone cannot reach, so the JS bundle never downloads and the
+      # app (including the login screen) never mounts.
+      REACT_NATIVE_PACKAGER_HOSTNAME: ${HOST_LAN_IP}
       EXPO_PUBLIC_FLEET_API_TOKEN: eyJraWQiOiJmbGVldCIsInR5cCI6IkpXVCIsImFsZyI6IkVTMjU2In0.eyJzdWIiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwYWEiLCJhdWQiOiJmbGVldC1waWxvdCIsIm5iZiI6MTc3ODQ2OTE1NiwiY29tcGFueV9pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMCIsIm9wZXJhdG9yX2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMGFhIiwiaXNzIjoiaHR0cDovL21vY2stb2F1dGgyOjgwODAvZmxlZXQiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJkaXNwYXRjaGVyIiwiZXhwIjoxNzc4NTU1NTU2LCJpYXQiOjE3Nzg0NjkxNTYsImp0aSI6IjdlODNjMTkzLTc4MDUtNGVhZi05YTI4LTAxYjVjZTQ1MWRjOSJ9.AlRrn_PliltGVIgOIcxH3u5hcTscQ7NchDtXW2C68PcJn-S4ApvIPkxiab50T-H1p09l495WZ0De8YzNbdZraw  # pragma: allowlist secret
     ports:
       - "8081:8081"
+      - "19000:19000"
+      - "19001:19001"
 
   ops-web:
     build:
