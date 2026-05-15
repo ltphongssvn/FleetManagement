@@ -223,6 +223,28 @@ describe('@fleet/api - ManifestService (integration)', () => {
     expect(s3Key).toContain(CORRELATION_ID);
     expect(s3Key).toMatch(/\.(pdf|bin)$/);
   });
+  it("buildS3Key falls back to 'bin' for unknown content-types (line 307 branch)", async () => {
+    const r = await service.negotiateUpload({
+      manifestCorrelationId: '22222222-2222-4222-8222-200000000307',
+      transportOrderId: TRANSPORT_ORDER_ID,
+      contentType: 'application/x-totally-fake-mimetype' as never,
+      expectedSizeBytes: 1000,
+    }, OP);
+    const row = await testDb.db.execute<{ s3_key: string }>(sql`
+      SELECT s3_key FROM upload_session WHERE upload_session_id = ${r.uploadSessionId}::uuid
+    `);
+    const s3Key = row.rows[0]?.s3_key ?? '';
+    expect(s3Key).toMatch(/\.bin$/);
+  });
+  it('negotiateUpload throws TransportOrderNotOwnedError when transport order not in tenant (line 118 branch)', async () => {
+    const { TransportOrderNotOwnedError } = await import('../src/manifest/manifest.errors.js');
+    await expect(service.negotiateUpload({
+      manifestCorrelationId: '33333333-3333-4333-8333-300000000118',
+      transportOrderId: '00000000-0000-0000-0000-000000000118',
+      contentType: 'image/jpeg',
+      expectedSizeBytes: 1000,
+    }, OP)).rejects.toBeInstanceOf(TransportOrderNotOwnedError);
+  });
 
   it('#7: finalizeIntake(accepted=false) without rejectionReasonCode omits code from delta/payload', async () => {
     const negotiated = await service.negotiateUpload({
