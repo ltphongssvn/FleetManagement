@@ -82,4 +82,13 @@ describe("AdminDriversCreateService", () => {
     await svc.create({ fullName: "B", phone: "+84901000005", password: "samepw", ...tenancy }); // pragma: allowlist secret
     expect(mock.inserts[0]?.passwordHash).not.toBe(mock.inserts[1]?.passwordHash);
   });
+  it("throws when the DB returns no row (line 49 branch)", async () => {
+    const emptyDb = {
+      insert: (): { values: (v: unknown) => { returning: () => Promise<unknown[]> } } => ({
+        values: () => ({ returning: (): Promise<unknown[]> => Promise.resolve([]) }),
+      }),
+    };
+    const svc = new AdminDriversCreateService(emptyDb as never);
+    await expect(svc.create({ fullName: "A", phone: "+84901000099", password: "pw", ...tenancy })).rejects.toThrow(/Driver insert failed/); // pragma: allowlist secret
+  });
 });
