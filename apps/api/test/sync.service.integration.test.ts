@@ -87,8 +87,10 @@ describe('@fleet/api - SyncService (integration)', () => {
     }, OP);
     // Filter to just the 3 action_ids we inserted; other tests may have leaked rows
     // via sequence-related writes (sequences aren't reset by TRUNCATE).
-    const rows = await testDb.db.execute<{ server_seq: string }>(sql`
-      SELECT server_seq::text FROM sync_change_feed
+    // Note: alias as seq_text so ORDER BY references the underlying bigint column,
+    // not the text-cast output column (which would sort lexicographically: '10'<'11'<'9').
+    const rows = await testDb.db.execute<{ seq_text: string }>(sql`
+      SELECT server_seq::text AS seq_text FROM sync_change_feed
       WHERE action_id IN (
         '00000000-0000-0000-0000-000000000aa3'::uuid,
         '00000000-0000-0000-0000-000000000aa4'::uuid,
@@ -96,9 +98,7 @@ describe('@fleet/api - SyncService (integration)', () => {
       )
       ORDER BY server_seq
     `);
-    const seqs = rows.rows.map((r) => BigInt(r.server_seq));
-    // Print raw rows for CI diagnostics; if assertion fails we need to see what came back.
-    console.error('DIAG seqs:', seqs.map(String), 'raw:', JSON.stringify(rows.rows));
+    const seqs = rows.rows.map((r) => BigInt(r.seq_text));
     expect(seqs.length).toBe(3);
     const [s0, s1, s2] = seqs;
     if (s0 === undefined || s1 === undefined || s2 === undefined) throw new Error('seq undefined');
