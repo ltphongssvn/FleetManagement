@@ -97,6 +97,8 @@ describe('@fleet/api - SyncService (integration)', () => {
       ORDER BY server_seq
     `);
     const seqs = rows.rows.map((r) => BigInt(r.server_seq));
+    // Print raw rows for CI diagnostics; if assertion fails we need to see what came back.
+    console.error('DIAG seqs:', seqs.map(String), 'raw:', JSON.stringify(rows.rows));
     expect(seqs.length).toBe(3);
     const [s0, s1, s2] = seqs;
     if (s0 === undefined || s1 === undefined || s2 === undefined) throw new Error('seq undefined');
