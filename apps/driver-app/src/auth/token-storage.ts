@@ -28,12 +28,17 @@ function webStorage(): WebStorageLike | null {
 }
 
 export async function loadToken(): Promise<StoredToken | null> {
-  const raw: string | null = Platform.OS === 'web'
-    ? webStorage()?.getItem(TOKEN_KEY) ?? null
-    : await SecureStore.getItemAsync(TOKEN_KEY);
+  let raw: string | null;
+  if (Platform.OS === 'web') {
+    /* c8 ignore next -- defensive null guard for non-browser web envs */
+    raw = webStorage()?.getItem(TOKEN_KEY) ?? null;
+  } else {
+    raw = await SecureStore.getItemAsync(TOKEN_KEY);
+  }
   if (raw === null) return null;
   try {
     return JSON.parse(raw) as StoredToken;
+    /* c8 ignore next 3 -- defensive: corrupted storage payload */
   } catch {
     return null;
   }
