@@ -328,6 +328,20 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
     expect(res.polled).toBe(2);
     expect(res.newWatermark).toBe('2');
   });
+  it('catches non-Error policy throw via String(err) fallback (line 126 branch)', async () => {
+    const events = [
+      { serverSeq: 1n, aggregateType: 'road_run', aggregateId: 'rr-a', delta: {}, createdAt: new Date() },
+    ];
+    mockApplyDispatchBoardEvent.mockImplementationOnce(() => {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentional non-Error to cover String(err) branch
+      throw 'string boom';
+    });
+    const { db } = makeFakeDb({ eventsReturn: events, currentRowsReturns: [[]] });
+    const svc = new ProjectionRunnerService(db as never);
+    const res = await svc.drainOnce('co-1');
+    expect(res.noops).toBe(1);
+    expect(res.newWatermark).toBe('1');
+  });
 
   it('processes ALL events in the batch (kills for-loop BlockStatement)', async () => {
     const events = [
