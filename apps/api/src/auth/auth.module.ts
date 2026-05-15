@@ -45,14 +45,15 @@ const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 // is fine if the API runs as a single Railway replica (current deployment).
 class InMemoryChallengeStore implements RegChallengeStore, AuthChallengeStore {
   private readonly m = new Map<string, { value: string; expiresAt: number }>();
-  async put(key: string, value: string): Promise<void> {
+  put(key: string, value: string): Promise<void> {
     this.m.set(key, { value, expiresAt: Date.now() + 60_000 });
+    return Promise.resolve();
   }
-  async take(key: string): Promise<string | null> {
+  take(key: string): Promise<string | null> {
     const entry = this.m.get(key);
     this.m.delete(key);
-    if (entry === undefined || entry.expiresAt < Date.now()) return null;
-    return entry.value;
+    if (entry === undefined || entry.expiresAt < Date.now()) return Promise.resolve(null);
+    return Promise.resolve(entry.value);
   }
 }
 

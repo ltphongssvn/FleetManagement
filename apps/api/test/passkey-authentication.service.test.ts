@@ -1,4 +1,5 @@
 // apps/api/test/passkey-authentication.service.test.ts
+/* eslint-disable @typescript-eslint/unbound-method -- vitest mock method references are safe */
 // RED: PasskeyAuthenticationService orchestrates:
 //   1) beginAuthentication() — produces challenge for client (usernameless flow OK)
 //   2) finishAuthentication() — verifies assertion, updates sign_count, returns LoginClaims
@@ -42,8 +43,8 @@ function makeRepo(overrides: Partial<PasskeyCredentialRepository> = {}): Passkey
 function makeStore(): ChallengeStore {
   const m = new Map<string, string>();
   return {
-    put: vi.fn(async (k: string, v: string) => { m.set(k, v); }),
-    take: vi.fn(async (k: string) => { const v = m.get(k); m.delete(k); return v ?? null; }),
+    put: vi.fn((k: string, v: string) => { m.set(k, v); return Promise.resolve(); }),
+    take: vi.fn((k: string) => { const v = m.get(k); m.delete(k); return Promise.resolve(v ?? null); }),
   };
 }
 

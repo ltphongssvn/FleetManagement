@@ -32,7 +32,7 @@ export type VerifyAuthenticationResponseFn = (input: {
   expectedChallenge: string;
   expectedRPID: string;
   expectedOrigin: string | string[];
-  credential: { id: string; publicKey: Uint8Array; counter: number; transports?: ReadonlyArray<string> };
+  credential: { id: string; publicKey: Uint8Array; counter: number; transports?: readonly string[] };
 }) => Promise<{
   verified: boolean;
   authenticationInfo?: { newCounter: number; credentialID: string };
@@ -79,7 +79,7 @@ export class PasskeyAuthenticationService {
     if (stored === null) throw new UnauthorizedException('credential_not_found');
     const defaultOrigin = 'https://' + this.config.rpId;
     const transports = stored.transports !== null
-      ? stored.transports.split(',') as ReadonlyArray<string>
+      ? stored.transports.split(',') as readonly string[]
       : undefined;
     const verification = await this.verifyResponse({
       response,

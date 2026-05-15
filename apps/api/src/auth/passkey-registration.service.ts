@@ -31,7 +31,7 @@ export type GenerateRegistrationOptionsFn = (input: {
   userID: Uint8Array;
   userName: string;
   userDisplayName: string;
-  excludeCredentials: ReadonlyArray<{ id: string; transports?: ReadonlyArray<string> }>;
+  excludeCredentials: readonly { id: string; transports?: readonly string[] }[];
 }) => Promise<{ challenge: string; rp: unknown; user: unknown; pubKeyCredParams: unknown }>;
 
 export type VerifyRegistrationResponseFn = (input: {
@@ -42,7 +42,7 @@ export type VerifyRegistrationResponseFn = (input: {
 }) => Promise<{
   verified: boolean;
   registrationInfo?: {
-    credential: { id: string; publicKey: Uint8Array; counter: number; transports?: ReadonlyArray<string> };
+    credential: { id: string; publicKey: Uint8Array; counter: number; transports?: readonly string[] };
     aaguid?: string;
   };
 }>;

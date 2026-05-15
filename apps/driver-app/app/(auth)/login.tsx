@@ -1,15 +1,25 @@
 // apps/driver-app/app/(auth)/login.tsx
 // Driver login screen — phone + password via POST /auth/login.
-import { useState, type JSX } from 'react';
+import { useEffect, useState, type JSX } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/auth/use-auth.js';
 import { decideLoginSubmit } from '../../src/auth/login-form-policy.js';
 
 export default function Login(): JSX.Element {
   const { status, error, login } = useAuth();
+  const router = useRouter();
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
+
+  // Post-success navigation: when auth state flips to 'authenticated' while
+  // on /login, push the user into the (app) group so the home screen renders.
+  useEffect(() => {
+    if (status === 'authenticated') {
+      router.replace('/');
+    }
+  }, [status, router]);
 
   if (status === 'loading') {
     return (
@@ -48,6 +58,7 @@ export default function Login(): JSX.Element {
         autoCorrect={false}
         value={phone}
         onChangeText={setPhone}
+        accessibilityLabel="Số điện thoại"
       />
       <Text style={styles.label}>Mật khẩu</Text>
       <TextInput
@@ -58,8 +69,14 @@ export default function Login(): JSX.Element {
         autoCorrect={false}
         value={password}
         onChangeText={setPassword}
+        accessibilityLabel="Mật khẩu"
       />
-      <Pressable style={styles.button} onPress={submit}>
+      <Pressable
+        style={styles.button}
+        onPress={submit}
+        accessibilityRole="button"
+        accessibilityLabel="Đăng nhập"
+      >
         <Text style={styles.buttonText}>Đăng nhập</Text>
       </Pressable>
       {displayError !== null ? <Text style={styles.error}>{displayError}</Text> : null}

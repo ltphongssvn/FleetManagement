@@ -39,6 +39,7 @@ describe('AuthModule wires PasskeyController', () => {
   });
   afterAll(() => {
     for (const k of Object.keys(ENV)) {
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- restoring env vars in test teardown
       if (saved[k] === undefined) delete process.env[k];
       else process.env[k] = saved[k];
     }

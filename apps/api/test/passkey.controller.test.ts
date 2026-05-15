@@ -1,4 +1,5 @@
 // apps/api/test/passkey.controller.test.ts
+/* eslint-disable @typescript-eslint/unbound-method -- vitest mock method references are safe */
 // RED: PasskeyController exposes 4 endpoints:
 //   POST /auth/passkey/register/options        -> begin registration (requires JWT)
 //   POST /auth/passkey/register/verify         -> finish registration (requires JWT)
