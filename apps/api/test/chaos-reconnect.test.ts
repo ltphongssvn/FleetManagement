@@ -228,4 +228,19 @@ describe('@fleet/api - simulateReconnectStorm', () => {
     });
     expect(r.p95ReconnectMs).toBe(42);
   });
+  it('falls back to Math.random when random is omitted (kills ?? Math.random branch at line 24)', () => {
+    // No deterministic RNG -> input.random is undefined -> ?? Math.random arm.
+    // Output is non-deterministic; assert only structural invariants.
+    const r = simulateReconnectStorm({
+      trucks: 10,
+      jitterMs: 100,
+      reconnectBudgetMs: 1000,
+      ackBudgetMs: 1000,
+    });
+    expect(r.trucks).toBe(10);
+    expect(r.reconnectedCount + r.stuckCommands).toBe(10);
+    expect(r.p95ReconnectMs).toBeGreaterThanOrEqual(0);
+    expect(r.p95ReconnectMs).toBeLessThan(100);
+    expect(typeof r.allReconnected).toBe('boolean');
+  });
 });
