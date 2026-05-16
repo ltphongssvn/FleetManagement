@@ -15,22 +15,25 @@ const OP: OperatorContext = {
   legalEntityId: '00000000-0000-0000-0000-000000000004',
 };
 
-function makeRepo(): { markAttestationVerified: ReturnType<typeof vi.fn> } {
-  return { markAttestationVerified: vi.fn().mockResolvedValue(undefined) };
+type MarkFn = (input: { deviceId: string; platform: 'android' | 'ios'; tokenHashHex: string }) => Promise<void>;
+type IssueFn = (op: string) => Promise<string>;
+type ConsumeFn = (op: string) => Promise<string | null>;
+function makeRepo(): { markAttestationVerified: ReturnType<typeof vi.fn<MarkFn>> } {
+  return { markAttestationVerified: vi.fn<MarkFn>().mockResolvedValue(undefined) };
 }
 function makeNonceStore(): {
-  issue: ReturnType<typeof vi.fn>;
-  consume: ReturnType<typeof vi.fn>;
+  issue: ReturnType<typeof vi.fn<IssueFn>>;
+  consume: ReturnType<typeof vi.fn<ConsumeFn>>;
   store: Map<string, string>;
 } {
   const store = new Map<string, string>();
   return {
-    issue: vi.fn((op: string) => {
+    issue: vi.fn<IssueFn>((op: string) => {
       const n = `nonce-for-${op}`;
       store.set(op, n);
       return Promise.resolve(n);
     }),
-    consume: vi.fn((op: string) => Promise.resolve(store.get(op) ?? null)),
+    consume: vi.fn<ConsumeFn>((op: string) => Promise.resolve(store.get(op) ?? null)),
     store,
   };
 }
