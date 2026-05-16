@@ -42,7 +42,6 @@ export default defineConfig({
         'src/database/seeds/**',
         'src/transport-orders/transport-orders.service.ts',
         'src/admin/admin-drivers-list.service.ts',
-        'src/admin/admin-assignment.service.ts',
         'src/admin/admin-device-enroll.service.ts',
       ],
       reportsDirectory: 'coverage/merged',

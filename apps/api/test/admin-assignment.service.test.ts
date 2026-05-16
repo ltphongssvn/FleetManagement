@@ -1,71 +1,75 @@
 // apps/api/test/admin-assignment.service.test.ts
-// RED: AdminAssignmentService creates and revokes driver-vehicle assignments.
-import { describe, it, expect, beforeEach } from 'vitest';
+// RED: AdminAssignmentService.assign + revoke. PGlite-backed.
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import { AdminAssignmentService } from '../src/admin/admin-assignment.service.js';
+import { driver, vehicle } from '../src/database/schema/reference.js';
+import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
 
-interface MockRow { assignmentId: string; driverId: string; vehicleId: string; companyId: string; revokedAt: Date | null; revocationReason: string | null; }
+let testDb: MigratedTestDb;
+const TENANCY = {
+  companyId: '00000000-0000-0000-0000-000000000000',
+  businessUnitId: '00000000-0000-0000-0000-000000000002',
+  depotId: '00000000-0000-0000-0000-000000000003',
+  legalEntityId: '00000000-0000-0000-0000-000000000004',
+};
 
-function makeDb(): { db: unknown; rows: MockRow[] } {
-  const rows: MockRow[] = [];
-  const db = {
-    insert: () => ({
-      values: (v: Partial<MockRow>): { returning: () => Promise<MockRow[]> } => ({
-        returning: (): Promise<MockRow[]> => {
-          const row: MockRow = {
-            assignmentId: 'asg-' + String(rows.length + 1),
-            driverId: v.driverId ?? "",
-            vehicleId: v.vehicleId ?? "",
-            companyId: v.companyId ?? "",
-            revokedAt: null,
-            revocationReason: null,
-          };
-          rows.push(row);
-          return Promise.resolve([row]);
-        },
-      }),
-    }),
-    update: () => ({
-      set: (s: Partial<MockRow>) => ({
-        where: () => ({
-          returning: (): Promise<MockRow[]> => {
-            const r = rows.find((x) => x.assignmentId === 'asg-1' && x.revokedAt === null);
-            if (!r) return Promise.resolve([]);
-            r.revokedAt = s.revokedAt ?? new Date();
-            r.revocationReason = s.revocationReason ?? null;
-            return Promise.resolve([r]);
-          },
-        }),
-      }),
-    }),
-  };
-  return { db, rows };
+async function seedDriverVehicle(): Promise<{ driverId: string; vehicleId: string }> {
+  const [d] = await testDb.db.insert(driver)
+    .values({ ...TENANCY, fullName: 'D-' + randomUUID().slice(0, 8) })
+    .returning({ driverId: driver.driverId });
+  const [v] = await testDb.db.insert(vehicle)
+    .values({ ...TENANCY, plate: 'P-' + randomUUID().slice(0, 8) })
+    .returning({ vehicleId: vehicle.vehicleId });
+  if (d === undefined || v === undefined) throw new Error('seed failed');
+  return { driverId: d.driverId, vehicleId: v.vehicleId };
 }
 
-describe('AdminAssignmentService', () => {
-  const tenancy = {
-    companyId: '11111111-1111-1111-1111-111111111111',
-    businessUnitId: '22222222-2222-2222-2222-222222222222',
-    depotId: '33333333-3333-3333-3333-333333333333',
-    legalEntityId: '44444444-4444-4444-4444-444444444444',
-  };
-  let mock: ReturnType<typeof makeDb>;
-  let svc: AdminAssignmentService;
-
-  beforeEach(() => {
-    mock = makeDb();
-    svc = new AdminAssignmentService(mock.db as never);
+describe('@fleet/api - AdminAssignmentService', () => {
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_adminassign'); }, 90_000);
+  afterAll(async () => { await stopMigratedTestDb(testDb); });
+  beforeEach(async () => {
+    await testDb.db.execute(sql`
+      DO $$ DECLARE r RECORD;
+      BEGIN
+        FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename!='__drizzle_migrations')
+        LOOP EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
+        END LOOP;
+      END $$;
+    `);
   });
 
-  it('assigns a driver to a vehicle', async () => {
-    const r = await svc.assign({ driverId: 'd1', vehicleId: 'v1', ...tenancy });
-    expect(r.assignmentId).toBe('asg-1');
-    expect(r.revokedAt).toBeNull();
+  function svc(): AdminAssignmentService {
+    return new AdminAssignmentService(testDb.db as never);
+  }
+
+  it('assign() inserts a driver-vehicle assignment row', async () => {
+    const { driverId, vehicleId } = await seedDriverVehicle();
+    const row = await svc().assign({ ...TENANCY, driverId, vehicleId });
+    expect(row.driverId).toBe(driverId);
+    expect(row.vehicleId).toBe(vehicleId);
+    expect(row.revokedAt).toBeNull();
+  }, 30_000);
+
+  it('revoke() soft-revokes an active assignment with a reason', async () => {
+    const { driverId, vehicleId } = await seedDriverVehicle();
+    const created = await svc().assign({ ...TENANCY, driverId, vehicleId });
+    const revoked = await svc().revoke({ assignmentId: created.assignmentId, reason: 'reassigned' });
+    expect(revoked.revokedAt).not.toBeNull();
+    expect(revoked.revocationReason).toBe('reassigned');
+  }, 30_000);
+
+  it('revoke() throws when the assignment does not exist', async () => {
+    await expect(svc().revoke({ assignmentId: randomUUID(), reason: 'x' }))
+      .rejects.toThrow(/not found or already revoked/i);
   });
 
-  it('revokes an assignment with reason', async () => {
-    await svc.assign({ driverId: 'd1', vehicleId: 'v1', ...tenancy });
-    const r = await svc.revoke({ assignmentId: 'asg-1', reason: 'driver_left' });
-    expect(r.revokedAt).not.toBeNull();
-    expect(r.revocationReason).toBe('driver_left');
-  });
+  it('revoke() throws when the assignment is already revoked', async () => {
+    const { driverId, vehicleId } = await seedDriverVehicle();
+    const created = await svc().assign({ ...TENANCY, driverId, vehicleId });
+    await svc().revoke({ assignmentId: created.assignmentId, reason: 'first' });
+    await expect(svc().revoke({ assignmentId: created.assignmentId, reason: 'second' }))
+      .rejects.toThrow(/not found or already revoked/i);
+  }, 30_000);
 });

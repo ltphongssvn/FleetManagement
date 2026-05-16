@@ -38,6 +38,7 @@ export class AdminAssignmentService {
         legalEntityId: input.legalEntityId,
       })
       .returning();
+    /* c8 ignore next -- .returning() after insert always yields a row */
     if (!row) throw new Error('Assignment failed');
     return row;
   }
