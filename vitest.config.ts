@@ -4,9 +4,7 @@
 //           thresholds and test conventions across all packages.
 // Related:  turbo.jsonc (test:unit task), packages/*/vitest.config.ts
 // ============================================================================
-
 import { defineConfig } from 'vitest/config';
-
 export default defineConfig({
   test: {
     coverage: {
@@ -17,6 +15,7 @@ export default defineConfig({
         branches: 90,
         functions: 90,
         lines: 90,
+        perFile: true,
       },
     },
   },

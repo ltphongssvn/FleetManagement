@@ -90,9 +90,9 @@
     },
 
     "test:unit": {
-      "description": "Unit tests only — fastest cacheable feedback loop. Owns coverage/unit/** + test-results/unit/**. Hashes package-local + root test configs + root tsconfig (transforms/path aliases depend on it).",
+      "description": "Unit tests only — fastest cacheable feedback loop. Produces no cacheable artifacts (plain 'vitest run', no --coverage, no file reporter); coverage/** is owned by test:coverage. Declaring outputs here triggered Turbo's 'no output files found' warning on cache write. Hashes package-local + root test configs + root tsconfig (transforms/path aliases depend on it).",
       "dependsOn": ["__transit__"],
-      "outputs": ["coverage/unit/**", "test-results/unit/**"],
+      "outputs": [],
       "inputs": [
         "$TURBO_DEFAULT$",
         "vitest.config.*",
