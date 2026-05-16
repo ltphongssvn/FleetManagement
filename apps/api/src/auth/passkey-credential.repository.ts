@@ -60,6 +60,7 @@ export class PasskeyCredentialRepository {
     const rows = await this.db.select({ c: sql<number>`count(*)::int` })
       .from(passkeyCredential)
       .where(eq(passkeyCredential.driverId, driverId));
+    /* c8 ignore next -- count(*) always returns 1 row; ?. and ?? are defensive */
     return rows[0]?.c ?? 0;
   }
 

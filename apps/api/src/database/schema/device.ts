@@ -1,10 +1,13 @@
 // apps/api/src/database/schema/device.ts
 // Device registry + session tables per Frozen Stack PDF "Session/revocation".
 // device_session.revoked_at is authoritative for session lifecycle.
+// Attestation columns (added Phase 4): per-device record of last accepted Play
+// Integrity / App Attest verification. Nullable until first attest; staleness is
+// enforced at policy layer (attestation-verification-policy.ts) against
+// attestation_verified_at + maxAgeMs.
 import { sql } from 'drizzle-orm';
 import { pgTable, uuid, varchar, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { tenancyColumns } from './tenancy.js';
-
 export const deviceRegistry = pgTable(
   'device_registry',
   {
@@ -17,6 +20,9 @@ export const deviceRegistry = pgTable(
     udid: varchar('udid', { length: 128 }),
     enrolledAt: timestamp('enrolled_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' }),
+    attestationPlatform: varchar('attestation_platform', { length: 16 }),
+    attestationVerifiedAt: timestamp('attestation_verified_at', { withTimezone: true, mode: 'date' }),
+    attestationTokenHash: varchar('attestation_token_hash', { length: 64 }),
   },
   (t) => [
     index('device_registry_operator_idx').on(t.operatorId),
@@ -24,7 +30,6 @@ export const deviceRegistry = pgTable(
     uniqueIndex('device_registry_operator_platform_uq').on(t.operatorId, t.platform),
   ],
 );
-
 export const deviceSession = pgTable(
   'device_session',
   {
@@ -52,7 +57,6 @@ export const deviceSession = pgTable(
       .where(sql`session_mode = 'mutating' AND revoked_at IS NULL`),
   ],
 );
-
 export type DeviceRegistry = typeof deviceRegistry.$inferSelect;
 export type NewDeviceRegistry = typeof deviceRegistry.$inferInsert;
 export type DeviceSession = typeof deviceSession.$inferSelect;
