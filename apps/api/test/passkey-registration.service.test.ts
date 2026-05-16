@@ -146,5 +146,46 @@ describe('PasskeyRegistrationService', () => {
       await expect(s.finishRegistration(DRIVER.driverId, {} as never))
         .rejects.toBeInstanceOf(UnauthorizedException);
     });
+
+    it('persists aaguid=null and transports=null when both are absent (lines 125-126 else arms)', async () => {
+      verifyResp = vi.fn().mockResolvedValue({
+        verified: true,
+        registrationInfo: {
+          credential: {
+            id: 'cred-id-b64url',
+            publicKey: new Uint8Array([1, 2, 3]),
+            counter: 0,
+            // transports omitted -> undefined
+          },
+          // aaguid omitted -> undefined
+        },
+      });
+      const s = svc();
+      await s.beginRegistration(DRIVER.driverId);
+      await s.finishRegistration(DRIVER.driverId, { id: 'cred-id-b64url' } as never);
+      expect(repo.insert).toHaveBeenCalledWith(expect.objectContaining({
+        aaguid: null,
+        transports: null,
+      }));
+    });
+
+    it('persists transports=null when transports is an empty array (line 126 length>0 false)', async () => {
+      verifyResp = vi.fn().mockResolvedValue({
+        verified: true,
+        registrationInfo: {
+          credential: {
+            id: 'cred-id-b64url',
+            publicKey: new Uint8Array([1, 2, 3]),
+            counter: 0,
+            transports: [],
+          },
+          aaguid: 'adce0002-35bc-c60a-648b-0b25f1f05503',
+        },
+      });
+      const s = svc();
+      await s.beginRegistration(DRIVER.driverId);
+      await s.finishRegistration(DRIVER.driverId, { id: 'cred-id-b64url' } as never);
+      expect(repo.insert).toHaveBeenCalledWith(expect.objectContaining({ transports: null }));
+    });
   });
 });

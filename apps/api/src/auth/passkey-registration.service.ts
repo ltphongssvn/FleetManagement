@@ -110,6 +110,8 @@ export class PasskeyRegistrationService {
     const outcome = decidePasskeyRegistrationOutcome(candidate, collides, this.config.maxCredentialsPerDriver);
     if (outcome.kind === 'credential-collision') throw new ConflictException('credential_collision');
     this.assertCandidateOk(outcome.kind);
+    /* c8 ignore next 2 -- defensive: assertCandidateOk throws for every non-ok,
+       non-collision kind, so by here outcome.kind is necessarily 'ok' */
     if (outcome.kind !== 'ok') throw new UnauthorizedException('unexpected_outcome');
     const transports = verification.registrationInfo.credential.transports;
     await this.repo.insert({
