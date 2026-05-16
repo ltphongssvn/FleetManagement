@@ -18,6 +18,7 @@
     "start:prod": "node dist/main.js",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:mutation": "stryker run",
     "test:unit": "vitest run",
     "test:watch": "vitest --watch",
     "typecheck": "tsc -p tsconfig.json"

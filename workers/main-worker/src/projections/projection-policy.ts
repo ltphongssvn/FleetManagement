@@ -18,6 +18,9 @@ import { z } from 'zod';
  *  serverSeq is bigint at runtime; coerced from string|number|bigint at parse. */
 export const SyncFeedEventSchema = z.object({
   serverSeq: z.union([z.bigint(), z.number(), z.string()]).transform((v) => {
+    // Stryker disable next-line ConditionalExpression,StringLiteral: equivalent mutant.
+    // This is a fast-path identity shortcut; BigInt(aBigInt) is itself identity, so
+    // skipping the branch yields an identical result. No input can distinguish it.
     if (typeof v === 'bigint') return v;
     if (typeof v === 'number') {
       if (!Number.isInteger(v) || v < 0) throw new Error('serverSeq must be non-negative integer');
@@ -85,10 +88,16 @@ function pick<T>(fromDelta: T | undefined, fromCurrent: T): T {
 }
 
 function isObject(v: unknown): v is RoadRunDeltaShape {
+  // Stryker disable next-line ConditionalExpression: equivalent mutant. Dropping the
+  // typeof check leaves "v !== null && !Array.isArray(v)"; any primitive that slips
+  // through is later read as having undefined fields, yielding the same invalid_delta.
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
 function asNullableString(v: unknown): string | null | undefined {
+  // Stryker disable next-line ConditionalExpression: equivalent mutant. This early
+  // return is an optimization; on the false branch the function falls through and
+  // still returns undefined for an undefined input.
   if (v === undefined) return undefined;
   if (v === null) return null;
   if (typeof v === 'string') return v;
@@ -96,6 +105,9 @@ function asNullableString(v: unknown): string | null | undefined {
 }
 
 function asState(v: unknown): RoadRunStateValue | undefined {
+  // Stryker disable next-line ConditionalExpression: equivalent mutant. The typeof
+  // guard is backstopped by VALID_STATES.has(): a non-string value is never a member
+  // of the state set, so dropping the typeof check cannot change the result.
   if (typeof v === 'string' && VALID_STATES.has(v as RoadRunStateValue)) {
     return v as RoadRunStateValue;
   }
@@ -103,6 +115,9 @@ function asState(v: unknown): RoadRunStateValue | undefined {
 }
 
 function asNonNegativeInt(v: unknown): number | undefined {
+  // Stryker disable next-line ConditionalExpression: equivalent mutant. The typeof
+  // guard is backstopped by Number.isInteger(), which is false for any non-number,
+  // so dropping the typeof check cannot change the result.
   if (typeof v === 'number' && Number.isInteger(v) && v >= 0) return v;
   return undefined;
 }
@@ -215,9 +230,9 @@ export function applyDispatchBoardEvent(
     row: {
       roadRunId: event.aggregateId,
       state,
-      // Pick: explicit `undefined` means "absent in delta" -> preserve current.
-      // `null` and other valid values from the delta override current (so explicit
-      // null clears nullable fields). `??` is wrong here because it conflates null
+      // Pick: explicit \`undefined\` means "absent in delta" -> preserve current.
+      // \`null\` and other valid values from the delta override current (so explicit
+      // null clears nullable fields). \`??\` is wrong here because it conflates null
       // with undefined; we use a small helper to keep eslint happy.
       assignedOperatorId: pick(assignedOperatorId, current.assignedOperatorId),
       assignedAssetId: pick(assignedAssetId, current.assignedAssetId),

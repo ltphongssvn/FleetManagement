@@ -41,8 +41,11 @@ function fakeExpo(opts: {
 const VALID_TOKEN = 'ExponentPushToken[abc123]';
 describe('@fleet/api - ExpoPushProvider (integration)', () => {
   beforeAll(async () => {
+    // No hardcoded timeout: inherit hookTimeout:60_000 from vitest.config.ts.
+    // A hardcoded 30_000 here shadowed the config and timed out under full
+    // monorepo parallel load while PGLite WASM init was still running.
     testDb = await startPgliteTestDb();
-  }, 30_000);
+  });
   afterAll(async () => {
     await stopPgliteTestDb(testDb);
   });
