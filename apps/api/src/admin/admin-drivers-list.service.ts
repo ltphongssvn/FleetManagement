@@ -36,6 +36,8 @@ export class AdminDriversListService {
       let assignedVehicle: Vehicle | null = null;
       if (a) {
         const [v] = await this.db.select().from(vehicle).where(eq(vehicle.vehicleId, a.vehicleId)).limit(1);
+        /* c8 ignore next -- v is FK-guaranteed: assignment.vehicle_id
+           references vehicle.vehicle_id so a matching row always exists */
         assignedVehicle = v ?? null;
       }
       const devices: DeviceRegistry[] = d.operatorId !== null
