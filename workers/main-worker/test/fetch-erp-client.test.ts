@@ -46,7 +46,7 @@ describe('@fleet/main-worker - FetchErpClient', () => {
     const client = new FetchErpClient({ baseUrl: 'http://erp', apiKey: 'k', fetchFn: fetchFn as never });
     await expect(client.sendInvoice(payload)).rejects.toThrow(/externalInvoiceId/);
   });
-  it('uses empty-string detail when error body is unreadable (no injected text, no \"undefined\")', async () => {
+  it('uses empty-string detail when error body is unreadable (no injected text, no "undefined")', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: false, status: 502, statusText: 'bad', text: () => Promise.reject(new Error('stream err')),
     });
