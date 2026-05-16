@@ -158,5 +158,28 @@ describe('PasskeyAuthenticationService', () => {
       await expect(s.finishAuthentication({ id: CRED_ID_B64URL } as never, 'auth-chal-b64url'))
         .rejects.toBeInstanceOf(UnauthorizedException);
     });
+
+    it('throws 401 when repo.findByCredentialId returns null (line 79 credential_not_found)', async () => {
+      repo = makeRepo({ findByCredentialId: vi.fn().mockResolvedValue(null) } as Partial<PasskeyCredentialRepository>);
+      const s = svc();
+      await s.beginAuthentication();
+      await expect(s.finishAuthentication({ id: CRED_ID_B64URL } as never, 'auth-chal-b64url'))
+        .rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    it('handles a stored credential with null transports (lines 81-83 else arm)', async () => {
+      repo = makeRepo({
+        findByCredentialId: vi.fn().mockResolvedValue({
+          driverId: DRIVER.driverId,
+          publicKey: Buffer.from([1, 2, 3]),
+          signCount: 5,
+          transports: null,
+        }),
+      } as Partial<PasskeyCredentialRepository>);
+      const s = svc();
+      await s.beginAuthentication();
+      const result = await s.finishAuthentication({ id: CRED_ID_B64URL, response: { clientDataJSON: 'auth-chal-b64url' } } as never, 'auth-chal-b64url');
+      expect(result.claims.sub).toBe(DRIVER.operatorId);
+    });
   });
 });
