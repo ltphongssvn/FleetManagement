@@ -85,4 +85,27 @@ describe('@fleet/api - appendTriWrite', () => {
     `);
     expect(counts.rows[0]).toEqual({ feed: '1', audit: '1', outbox: '1' });
   }, 30_000);
+  it('writes audit row with null operator_id when operatorId is omitted (line 72 branch)', async () => {
+    const aggregateId = randomUUID();
+    await testDb.db.transaction(async (tx) => {
+      const serverSeq = await allocateServerSeq(tx);
+      return appendTriWrite(tx, {
+        serverSeq,
+        actionId: randomUUID(),
+        aggregateType: 'manifest',
+        aggregateId,
+        delta: { state: 'committed' },
+        eventType: 'manifest.committed',
+        auditPayload: { uploadSessionId: 'u-2' },
+        // operatorId intentionally omitted -> exercises the : {} arm
+        queueName: 'erp',
+        outboxPayload: { aggregateType: 'manifest' },
+        op: OP,
+      });
+    });
+    const row = await testDb.db.execute<{ operator_id: string | null }>(sql`
+      SELECT operator_id FROM fleet_audit_log WHERE aggregate_id = ${aggregateId}::uuid
+    `);
+    expect(row.rows[0]?.operator_id).toBeNull();
+  }, 30_000);
 });
