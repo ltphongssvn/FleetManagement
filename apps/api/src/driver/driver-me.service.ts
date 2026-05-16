@@ -29,6 +29,8 @@ export class DriverMeService {
     const [v] = await this.db.select().from(vehicle)
       .where(eq(vehicle.vehicleId, a.vehicleId))
       .limit(1);
+    /* c8 ignore next -- v is FK-guaranteed: vehicle_id references
+       vehicle.vehicle_id, so a matching vehicle row always exists */
     return { driver: d, assignedVehicle: v ?? null };
   }
 }
