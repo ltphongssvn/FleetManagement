@@ -75,10 +75,32 @@ describe('capture-screen-state', () => {
     expect(s.phase).toBe('idle');
   });
 
-  it('ignores UPLOAD_OK when not uploading (guards illegal transition)', () => {
+  it('ignores UPLOAD_OK when not uploading (guards illegal transition from idle)', () => {
     let s: CaptureState = initialCaptureState();
     const before = s.phase;
     s = reduceCapture(s, { type: 'UPLOAD_OK', manifestId: 'x' });
     expect(s.phase).toBe(before);
+  });
+
+  it('ignores UPLOAD_OK when in spooled (not uploading) - covers guard return', () => {
+    let s: CaptureState = initialCaptureState();
+    s = reduceCapture(s, { type: 'PICKED', file: okFile, localUri: 'file:///m.jpg' });
+    expect(s.phase).toBe('spooled');
+    s = reduceCapture(s, { type: 'UPLOAD_OK', manifestId: 'nope' });
+    expect(s.phase).toBe('spooled');
+  });
+
+  it('ignores UPLOAD_FAIL when not uploading - covers guard return', () => {
+    let s: CaptureState = initialCaptureState();
+    s = reduceCapture(s, { type: 'PICKED', file: okFile, localUri: 'file:///m.jpg' });
+    expect(s.phase).toBe('spooled');
+    s = reduceCapture(s, { type: 'UPLOAD_FAIL', message: 'irrelevant' });
+    expect(s.phase).toBe('spooled');
+  });
+
+  it('ignores UPLOAD_FAIL from idle - covers guard return', () => {
+    let s: CaptureState = initialCaptureState();
+    s = reduceCapture(s, { type: 'UPLOAD_FAIL', message: 'irrelevant' });
+    expect(s.phase).toBe('idle');
   });
 });
