@@ -24,7 +24,7 @@ describe('@fleet/main-worker - FetchIntakeCallback', () => {
     expect(captured.method).toBe('POST');
     expect(captured.headers?.['Content-Type']).toBe('application/json');
     expect(captured.headers?.['Authorization']).toBe('Bearer tok-1');
-    expect(captured.body).toContain('\"accepted\":true');
+    expect(captured.body).toContain('"accepted":true');
   });
   it('forwards rejectionReasonCode in body when provided', async () => {
     let body: string | undefined;
