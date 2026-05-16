@@ -24,11 +24,15 @@ export default defineConfig({
       ],
       provider: 'v8',
       include: [resolve(__dirname, 'src/**/*.ts')],
+      // 90/90/90/90 per-file: the mandated industry-standard minimum.
+      // Previously 80 -- which let fetch-erp-client.ts pass at 83.33% branch
+      // while violating the project-wide 90% bar. Raised to match root
+      // vitest.config.ts and the other packages.
       thresholds: {
-        statements: 80,
-        branches: 80,
-        functions: 80,
-        lines: 80,
+        statements: 90,
+        branches: 90,
+        functions: 90,
+        lines: 90,
         perFile: true,
       },
       reportsDirectory: 'coverage/unit',
