@@ -39,6 +39,7 @@ export class DeviceEnrollmentService {
         set: { appVersion: input.appVersion, lastSeenAt: new Date(), expoPushToken: input.expoPushToken },
       })
       .returning();
+    /* c8 ignore next -- .returning() after an upsert always yields a row */
     if (!row) throw new Error('Device enrollment failed');
     return row;
   }

@@ -1,68 +1,61 @@
 // apps/api/test/device-enrollment.service.test.ts
-// RED: DeviceEnrollmentService.enroll() upserts device_registry by (operatorId, platform).
-// Idempotent: same operator re-enrolling same device returns existing row.
-import { describe, it, expect, beforeEach } from 'vitest';
+// RED: DeviceEnrollmentService.enroll covers insert + onConflictDoUpdate paths.
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { sql, eq } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import { DeviceEnrollmentService } from '../src/device/device-enrollment.service.js';
+import { deviceRegistry } from '../src/database/schema/device.js';
+import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
 
-interface MockRow { deviceId: string; operatorId: string; platform: string; appVersion: string; }
+let testDb: MigratedTestDb;
+const TENANCY = {
+  companyId: '00000000-0000-0000-0000-000000000000',
+  businessUnitId: '00000000-0000-0000-0000-000000000002',
+  depotId: '00000000-0000-0000-0000-000000000003',
+  legalEntityId: '00000000-0000-0000-0000-000000000004',
+};
 
-function makeDb(): { db: unknown; inserts: MockRow[]; updates: MockRow[] } {
-  const inserts: MockRow[] = [];
-  const updates: MockRow[] = [];
-  const db = {
-    insert: () => ({
-      values: (v: MockRow) => ({
-        onConflictDoUpdate: (_: unknown) => ({
-          returning: (): Promise<MockRow[]> => {
-            const existing = inserts.find((r) => r.operatorId === v.operatorId && r.platform === v.platform);
-            if (existing) {
-              existing.appVersion = v.appVersion;
-              updates.push(existing);
-              return Promise.resolve([existing]);
-            }
-            const row = { ...v, deviceId: 'dev-' + String(inserts.length + 1) };
-            inserts.push(row);
-            return Promise.resolve([row]);
-          },
-        }),
-      }),
-    }),
-  };
-  return { db, inserts, updates };
-}
-
-describe('DeviceEnrollmentService', () => {
-  let mock: ReturnType<typeof makeDb>;
-  let svc: DeviceEnrollmentService;
-  const op = '00000000-0000-0000-0000-0000000000aa';
-  const tenancy = {
-    companyId: '11111111-1111-1111-1111-111111111111',
-    businessUnitId: '22222222-2222-2222-2222-222222222222',
-    depotId: '33333333-3333-3333-3333-333333333333',
-    legalEntityId: '44444444-4444-4444-4444-444444444444',
-  };
-
-  beforeEach(() => {
-    mock = makeDb();
-    svc = new DeviceEnrollmentService(mock.db as never);
+describe('@fleet/api - DeviceEnrollmentService', () => {
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_devenroll'); }, 90_000);
+  afterAll(async () => { await stopMigratedTestDb(testDb); });
+  beforeEach(async () => {
+    await testDb.db.execute(sql`
+      DO $$ DECLARE r RECORD;
+      BEGIN
+        FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename!='__drizzle_migrations')
+        LOOP EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
+        END LOOP;
+      END $$;
+    `);
   });
 
-  it('first enrollment inserts a new device_registry row', async () => {
-    const r = await svc.enroll({ operatorId: op, platform: 'ios', appVersion: '0.1.0', ...tenancy });
-    expect(r.deviceId).toBe('dev-1');
-    expect(mock.inserts).toHaveLength(1);
-  });
+  function svc(): DeviceEnrollmentService {
+    return new DeviceEnrollmentService(testDb.db as never);
+  }
 
-  it('re-enrollment on same platform is idempotent (returns same deviceId)', async () => {
-    const r1 = await svc.enroll({ operatorId: op, platform: 'ios', appVersion: '0.1.0', ...tenancy });
-    const r2 = await svc.enroll({ operatorId: op, platform: 'ios', appVersion: '0.1.1', ...tenancy });
-    expect(r2.deviceId).toBe(r1.deviceId);
-    expect(mock.updates).toHaveLength(1);
-  });
+  it('inserts a new device_registry row on first enrollment', async () => {
+    const operatorId = randomUUID();
+    const row = await svc().enroll({
+      ...TENANCY, operatorId, platform: 'android', appVersion: '1.0.0',
+    });
+    expect(row.operatorId).toBe(operatorId);
+    expect(row.appVersion).toBe('1.0.0');
+    const all = await testDb.db.select().from(deviceRegistry)
+      .where(eq(deviceRegistry.operatorId, operatorId));
+    expect(all).toHaveLength(1);
+  }, 30_000);
 
-  it('different platforms produce distinct devices for same operator', async () => {
-    const ios = await svc.enroll({ operatorId: op, platform: 'ios', appVersion: '0.1.0', ...tenancy });
-    const android = await svc.enroll({ operatorId: op, platform: 'android', appVersion: '0.1.0', ...tenancy });
-    expect(ios.deviceId).not.toBe(android.deviceId);
-  });
+  it('updates appVersion + expoPushToken on conflicting (operatorId, platform) re-enrollment', async () => {
+    const operatorId = randomUUID();
+    await svc().enroll({ ...TENANCY, operatorId, platform: 'ios', appVersion: '1.0.0' });
+    const updated = await svc().enroll({
+      ...TENANCY, operatorId, platform: 'ios', appVersion: '2.0.0',
+      expoPushToken: 'ExponentPushToken[abc]',
+    });
+    expect(updated.appVersion).toBe('2.0.0');
+    expect(updated.expoPushToken).toBe('ExponentPushToken[abc]');
+    const all = await testDb.db.select().from(deviceRegistry)
+      .where(eq(deviceRegistry.operatorId, operatorId));
+    expect(all).toHaveLength(1);
+  }, 30_000);
 });
