@@ -1,11 +1,11 @@
 // apps/api/test/device-enrollment.service.test.ts
 // RED: DeviceEnrollmentService.enroll covers insert + onConflictDoUpdate paths.
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { sql, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { DeviceEnrollmentService } from '../src/device/device-enrollment.service.js';
 import { deviceRegistry } from '../src/database/schema/device.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
+import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
 
 let testDb: MigratedTestDb;
 const TENANCY = {
@@ -19,14 +19,7 @@ describe('@fleet/api - DeviceEnrollmentService', () => {
   beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_devenroll'); }, 90_000);
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
-    await testDb.db.execute(sql`
-      DO $$ DECLARE r RECORD;
-      BEGIN
-        FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename!='__drizzle_migrations')
-        LOOP EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
-        END LOOP;
-      END $$;
-    `);
+    await truncateAllTables(testDb.db);
   });
 
   function svc(): DeviceEnrollmentService {

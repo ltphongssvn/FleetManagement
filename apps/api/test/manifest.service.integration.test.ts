@@ -9,7 +9,7 @@ import { TransportOrderNotOwnedError, UploadSessionInvalidStateError, UploadSess
 import type { IBlobStore, PresignedUpload } from '../src/storage/storage-provider.interface.js';
 import type { ConfigService } from '@nestjs/config';
 import type { Env } from '../src/config/env.config.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
+import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 
 let testDb: MigratedTestDb;
@@ -54,14 +54,7 @@ describe('@fleet/api - ManifestService (integration)', () => {
   });
 
   beforeEach(async () => {
-    await testDb.db.execute(sql`
-      DO $$ DECLARE r RECORD;
-      BEGIN
-        FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename != '__drizzle_migrations')
-        LOOP EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
-        END LOOP;
-      END $$;
-    `);
+    await truncateAllTables(testDb.db);
     await seedTransportOrder();
   });
 

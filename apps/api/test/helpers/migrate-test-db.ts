@@ -8,6 +8,7 @@ import { Pool } from 'pg';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as schema from '../../src/database/schema/index.js';
+import { sql } from 'drizzle-orm';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsFolder = resolve(here, '../../src/database/migrations');
@@ -39,4 +40,27 @@ export async function stopMigratedTestDb(testDb: MigratedTestDb): Promise<void> 
   // fails the whole vitest run. Testcontainers' reuse mechanism owns the shared
   // container lifecycle -- per-file teardown must not stop it.
   await testDb.pool.end();
+}
+
+
+// Truncate every table in the public schema in a SINGLE atomic TRUNCATE
+// statement. Postgres acquires the AccessExclusiveLock on all named relations
+// within one statement, so concurrent integration-test files can never lock
+// tables in conflicting orders -- this eliminates the intermittent 40P01
+// deadlocks seen when each file ran a per-table TRUNCATE loop against the
+// shared, reused container. __drizzle_migrations is unaffected: it lives in
+// the dedicated `drizzle` schema, not `public`, so the migration bookkeeping
+// survives. RESTART IDENTITY resets sequences for deterministic test runs.
+export async function truncateAllTables(
+  db: NodePgDatabase<typeof schema>,
+): Promise<void> {
+  const result = await db.execute<{ tablename: string }>(sql.raw(
+    "SELECT tablename FROM pg_tables WHERE schemaname = 'public'",
+  ));
+  const tables = result.rows
+    .map((r) => r.tablename)
+    .filter((t) => t !== '__drizzle_migrations');
+  if (tables.length === 0) return;
+  const list = tables.map((t) => '"' + t + '"').join(', ');
+  await db.execute(sql.raw('TRUNCATE TABLE ' + list + ' RESTART IDENTITY CASCADE'));
 }

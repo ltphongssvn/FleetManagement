@@ -10,7 +10,7 @@ import type { OperatorContext } from '../src/auth/operator-context.js';
 import type { IBlobStore, PresignedUpload } from '../src/storage/storage-provider.interface.js';
 import type { ConfigService } from '@nestjs/config';
 import type { Env } from '../src/config/env.config.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
+import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 
 let testDb: MigratedTestDb;
@@ -37,14 +37,7 @@ describe('@fleet/api - findOrCreateManifest concurrent first-write', () => {
   afterAll(async () => { await stopMigratedTestDb(testDb); });
 
   beforeEach(async () => {
-    await testDb.db.execute(sql`
-      DO $$ DECLARE r RECORD;
-      BEGIN
-        FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename!='__drizzle_migrations')
-        LOOP EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
-        END LOOP;
-      END $$;
-    `);
+    await truncateAllTables(testDb.db);
   });
 
   it('two concurrent negotiateUpload with same correlation_id both succeed (no false ManifestInsertFailedError)', async () => {

@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { appendTriWrite } from '../src/database/append-tri-write.js';
 import { allocateServerSeq } from '../src/database/server-seq.repository.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
+import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 
 let testDb: MigratedTestDb;
@@ -15,14 +15,7 @@ describe('@fleet/api - appendTriWrite', () => {
   beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_atw'); }, 90_000);
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
-    await testDb.db.execute(sql`
-      DO $$ DECLARE r RECORD;
-      BEGIN
-        FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename!='__drizzle_migrations')
-        LOOP EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
-        END LOOP;
-      END $$;
-    `);
+    await truncateAllTables(testDb.db);
   });
 
   it('writes to all 3 append paths in one call (non-idempotent)', async () => {

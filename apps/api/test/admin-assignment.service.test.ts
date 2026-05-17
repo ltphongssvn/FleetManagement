@@ -1,11 +1,10 @@
 // apps/api/test/admin-assignment.service.test.ts
 // RED: AdminAssignmentService.assign + revoke. PGlite-backed.
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { AdminAssignmentService } from '../src/admin/admin-assignment.service.js';
 import { driver, vehicle } from '../src/database/schema/reference.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
+import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
 
 let testDb: MigratedTestDb;
 const TENANCY = {
@@ -30,14 +29,7 @@ describe('@fleet/api - AdminAssignmentService', () => {
   beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_adminassign'); }, 90_000);
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
-    await testDb.db.execute(sql`
-      DO $$ DECLARE r RECORD;
-      BEGIN
-        FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename!='__drizzle_migrations')
-        LOOP EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
-        END LOOP;
-      END $$;
-    `);
+    await truncateAllTables(testDb.db);
   });
 
   function svc(): AdminAssignmentService {

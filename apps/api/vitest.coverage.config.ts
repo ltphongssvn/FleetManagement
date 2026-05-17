@@ -41,7 +41,6 @@ export default defineConfig({
         'src/reference/reference.dto.ts',
         '**/dist/**',
         '**/test/**',
-        'src/database/seeds/**',
       ],
       reportsDirectory: 'coverage/merged',
       // All per-file overrides removed: the TDD audit brought every file to

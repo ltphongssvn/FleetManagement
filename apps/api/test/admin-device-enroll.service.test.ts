@@ -2,12 +2,12 @@
 // RED: AdminDeviceEnrollService.enroll. PGlite-backed. Covers driver-not-found,
 // operatorId-null, first-enrollment insert, conflicting re-enrollment update.
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { sql, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { AdminDeviceEnrollService } from '../src/admin/admin-device-enroll.service.js';
 import { driver } from '../src/database/schema/reference.js';
 import { deviceRegistry } from '../src/database/schema/device.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
+import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
 
 let testDb: MigratedTestDb;
 const COMPANY = '00000000-0000-0000-0000-000000000000';
@@ -22,14 +22,7 @@ describe('@fleet/api - AdminDeviceEnrollService', () => {
   beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_admindevenroll'); }, 90_000);
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
-    await testDb.db.execute(sql`
-      DO $$ DECLARE r RECORD;
-      BEGIN
-        FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename!='__drizzle_migrations')
-        LOOP EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
-        END LOOP;
-      END $$;
-    `);
+    await truncateAllTables(testDb.db);
   });
 
   function svc(): AdminDeviceEnrollService {

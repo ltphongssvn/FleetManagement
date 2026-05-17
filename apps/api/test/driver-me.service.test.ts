@@ -2,12 +2,11 @@
 // RED: DriverMeService.fetchMe covers 4 branches: driver-not-found throw,
 // no active assignment, assignment with missing vehicle, full happy path.
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { DriverMeService } from '../src/driver/driver-me.service.js';
 import { driver, vehicle } from '../src/database/schema/reference.js';
 import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
+import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
 
 let testDb: MigratedTestDb;
 const COMPANY = '00000000-0000-0000-0000-000000000000';
@@ -22,14 +21,7 @@ describe('@fleet/api - DriverMeService', () => {
   beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_driverme'); }, 90_000);
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
-    await testDb.db.execute(sql`
-      DO $$ DECLARE r RECORD;
-      BEGIN
-        FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename!='__drizzle_migrations')
-        LOOP EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
-        END LOOP;
-      END $$;
-    `);
+    await truncateAllTables(testDb.db);
   });
 
   function svc(): DriverMeService {
