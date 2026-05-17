@@ -59,6 +59,11 @@ on:
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+env:
+  # Opt JavaScript actions (actions/cache, download-artifact, etc.) onto
+  # Node 24 ahead of the 2026-06-02 forced cutover, clearing the Node 20
+  # deprecation warnings.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 jobs:
   setup:
     name: Install / Build / Lint / Typecheck
