@@ -22,6 +22,9 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       clean: true,
+      // 'json' emits coverage-final.json so sharded CI jobs can merge their
+      // partial coverage; 'text' keeps the human-readable console table.
+      reporter: ['text', 'json'],
       include: ['src/**/*.ts'],
       exclude: [
         '**/index.ts',
@@ -43,15 +46,24 @@ export default defineConfig({
         '**/test/**',
       ],
       reportsDirectory: 'coverage/merged',
-      // All per-file overrides removed: the TDD audit brought every file to
-      // >=90% on all four metrics, so a single global 90/90/90/90 bar applies.
-      thresholds: {
-        statements: 90,
-        branches: 90,
-        functions: 90,
-        lines: 90,
-        perFile: true,
-      },
+      // The 90/90/90/90 per-file gate is enforced only when
+      // VITEST_ENFORCE_THRESHOLDS is set. CI shards each run a subset of test
+      // files, so a perFile threshold applied per shard would fail on every
+      // file that shard did not execute. Shards therefore run threshold-free;
+      // the dedicated merge job sets the env var and enforces the gate once
+      // on the merged coverage report. The local test:coverage script sets it
+      // too, so developers running the full suite still get the gate.
+      ...(process.env.VITEST_ENFORCE_THRESHOLDS
+        ? {
+            thresholds: {
+              statements: 90,
+              branches: 90,
+              functions: 90,
+              lines: 90,
+              perFile: true,
+            },
+          }
+        : {}),
     },
   },
 });
