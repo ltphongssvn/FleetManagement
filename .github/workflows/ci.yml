@@ -105,7 +105,7 @@ jobs:
         if: hashFiles('pnpm-lock.yaml') != ''
         run: |
           find packages -name "*.tsbuildinfo" -delete
-          pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures
+          pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures --filter=@fleet/main-worker
       - name: Lint
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm -r --if-present lint
@@ -141,7 +141,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build workspace package deps
-        run: pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures
+        run: pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures --filter=@fleet/main-worker
       - name: Pre-pull Postgres image (testcontainers warm cache)
         run: docker pull postgres:16.4-alpine3.20
       - name: Test shard (coverage, threshold-free)
@@ -224,7 +224,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build workspace package deps
-        run: pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures
+        run: pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures --filter=@fleet/main-worker
       - name: Test non-api packages (with coverage)
         # apps/api is covered by the sharded api-tests + coverage-gate jobs;
         # exclude it here so its slow suite does not run twice.
