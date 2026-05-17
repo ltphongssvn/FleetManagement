@@ -40,7 +40,6 @@ export default defineConfig({
         '**/test/**',
         'src/reference/**',
         'src/database/seeds/**',
-        'src/transport-orders/transport-orders.service.ts',
       ],
       reportsDirectory: 'coverage/merged',
       // All per-file overrides removed: the TDD audit brought every file to
