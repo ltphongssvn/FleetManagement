@@ -38,6 +38,7 @@ export class AdminDeviceEnrollService {
       target: [deviceRegistry.operatorId, deviceRegistry.platform],
       set: { udid: input.udid, lastSeenAt: new Date() },
     }).returning();
+    /* c8 ignore next -- .returning() after an upsert always yields a row */
     if (!row) throw new Error('Device enrollment failed');
     return row;
   }
