@@ -1,36 +1,33 @@
-// apps/driver-app/app/assignments.tsx
+// apps/driver-app/app/(app)/assignments.tsx
 import type { JSX } from 'react';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Text, View, StyleSheet } from 'react-native';
 import { AssignmentsClient } from '../../src/assignments/assignments-client.js';
 import { fetchAssignmentsState, type AssignmentsState } from '../../src/assignments/assignments-state.js';
 import { useAuth } from '../../src/auth/use-auth.js';
-
+import { formatVnDateTime } from '../../src/config/vn-locale.js';
 function getApiUrl(): string {
   return (process.env['EXPO_PUBLIC_API_URL'] as string | undefined) ?? 'http://localhost:3000';
 }
-
 export default function Assignments(): JSX.Element {
   const [state, setState] = useState<AssignmentsState>({ kind: 'loading' });
   const { getAccessToken, status } = useAuth();
-
   useEffect(() => {
     if (status !== 'authenticated') return;
     const client = new AssignmentsClient({ apiUrl: getApiUrl(), bearerToken: getAccessToken });
     void fetchAssignmentsState(client).then(setState);
   }, [getAccessToken, status]);
-
   if (state.kind === 'loading') {
     return (
-      <View style={styles.center} testID="loading">
-        <ActivityIndicator size="large" />
+      <View style={styles.center} testID={'loading'}>
+        <ActivityIndicator size={'large'} />
         <Text style={styles.muted}>Đang tải lệnh điều xe…</Text>
       </View>
     );
   }
   if (state.kind === 'error') {
     return (
-      <View style={styles.center} testID="error">
+      <View style={styles.center} testID={'error'}>
         <Text style={styles.errorTitle}>Lỗi tải dữ liệu</Text>
         <Text style={styles.muted}>{state.message}</Text>
       </View>
@@ -38,7 +35,7 @@ export default function Assignments(): JSX.Element {
   }
   if (state.kind === 'empty') {
     return (
-      <View style={styles.center} testID="empty">
+      <View style={styles.center} testID={'empty'}>
         <Text style={styles.title}>Không có lệnh điều xe</Text>
         <Text style={styles.muted}>Hiện chưa có lệnh nào được phân công.</Text>
       </View>
@@ -58,14 +55,13 @@ export default function Assignments(): JSX.Element {
             {item.plate ? <Text style={styles.muted}>Số xe: {item.plate}</Text> : null}
             {item.pickupName ? <Text style={styles.muted}>Kho nhận: {item.pickupName}</Text> : null}
             {item.deliveryName ? <Text style={styles.muted}>Kho giao: {item.deliveryName}</Text> : null}
-            {item.plannedStartAt ? <Text style={styles.muted}>Khởi hành: {new Date(item.plannedStartAt).toLocaleString('vi-VN')}</Text> : null}
+            {item.plannedStartAt ? <Text style={styles.muted}>Khởi hành: {formatVnDateTime(item.plannedStartAt)}</Text> : null}
           </View>
         )}
       />
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
