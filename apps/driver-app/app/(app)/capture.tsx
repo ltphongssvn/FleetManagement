@@ -40,8 +40,9 @@ export default function Capture(): JSX.Element {
       return;
     }
     const res = await ImagePicker.launchCameraAsync({ quality: 0.7, base64: false });
-    if (res.canceled || res.assets.length === 0) return;
+    if (res.canceled) return;
     const asset = res.assets[0];
+    if (asset === undefined) return;
     const resp = await fetch(asset.uri);
     const buf = new Uint8Array(await resp.arrayBuffer());
     const mime = mimeFromUri(asset.uri);
