@@ -53,7 +53,7 @@ export default defineConfig({
       // the dedicated merge job sets the env var and enforces the gate once
       // on the merged coverage report. The local test:coverage script sets it
       // too, so developers running the full suite still get the gate.
-      ...(process.env.VITEST_ENFORCE_THRESHOLDS
+      ...(process.env['VITEST_ENFORCE_THRESHOLDS']
         ? {
             thresholds: {
               statements: 90,
