@@ -116,7 +116,6 @@ jobs:
   api-tests:
     name: API tests (shard ${{ matrix.shard }}/4)
     needs: setup
-    if: ${{ hashFiles('pnpm-lock.yaml') != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -166,7 +165,6 @@ jobs:
   coverage-gate:
     name: Coverage gate (merge + 90/90/90/90)
     needs: api-tests
-    if: ${{ hashFiles('pnpm-lock.yaml') != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -206,7 +204,6 @@ jobs:
   other-tests:
     name: Workspace package tests (non-api)
     needs: setup
-    if: ${{ hashFiles('pnpm-lock.yaml') != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
