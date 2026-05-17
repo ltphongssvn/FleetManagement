@@ -58,7 +58,10 @@ jobs:
   verify:
     name: Lint / Typecheck / Test / Build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 30m: the apps/api coverage step runs the full real-Postgres
+    # integration suite (152 files) under testcontainers; 20m was too
+    # tight once the suite grew and left no headroom for CI cold starts.
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash
@@ -114,6 +117,14 @@ jobs:
       - name: Typecheck
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm -r --if-present typecheck
+
+      - name: Pre-pull Postgres image (testcontainers warm cache)
+        if: hashFiles('pnpm-lock.yaml') != ''
+        # The apps/api integration suite spins up postgres:16.4-alpine3.20
+        # via testcontainers. On a fresh CI VM the cold image pull happens
+        # mid-test and counts against the job timeout; pulling it here as a
+        # discrete step makes that cost explicit and keeps the test step fast.
+        run: docker pull postgres:16.4-alpine3.20
 
       - name: Test (with coverage)
         if: hashFiles('pnpm-lock.yaml') != ''
