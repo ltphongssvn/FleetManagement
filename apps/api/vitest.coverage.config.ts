@@ -36,9 +36,11 @@ export default defineConfig({
         'src/auth/identity-provider.interface.ts',
         'src/push/push-provider.interface.ts',
         'src/storage/blob-store-provider.interface.ts',
+        // Pure type-only file (two interfaces, zero runtime code) — v8
+        // reports it as 0% because there is nothing to instrument.
+        'src/reference/reference.dto.ts',
         '**/dist/**',
         '**/test/**',
-        'src/reference/**',
         'src/database/seeds/**',
       ],
       reportsDirectory: 'coverage/merged',

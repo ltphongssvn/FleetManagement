@@ -47,6 +47,7 @@ export class ReferenceService {
           depotId: op.depotId, legalEntityId: op.legalEntityId,
           prefix, nextValue: 2, padWidth: 3,
         }).returning();
+        /* v8 ignore next -- defensive: a successful .returning() always yields a row */
         if (!created) throw new Error('order_sequence insert failed');
         return { ref: `${prefix}.${String(1).padStart(created.padWidth, '0')}` };
       }
