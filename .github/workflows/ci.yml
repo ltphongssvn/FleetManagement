@@ -10,7 +10,7 @@
 #   This workflow is the remote enforcement point that makes branch
 #   protection rules meaningful.
 #
-# Job topology (sharded — see "Why sharded" below):
+# Job topology:
 #   setup         -> install + build + lint + typecheck once.
 #   api-tests     -> 4-way matrix; each shard runs ~1/4 of apps/api's test
 #                    files and uploads its partial v8 coverage JSON.
@@ -21,37 +21,34 @@
 # Why sharded:
 #   apps/api has 152 test files, most real-Postgres testcontainers
 #   integration tests that must run serially (fileParallelism:false avoids
-#   40P01 truncate deadlocks). Run as one job that took >30m on a 2-core
-#   runner and was cancelled at the timeout. Splitting the file list across
-#   4 matrix jobs runs them in parallel (~4x throughput) so each shard
-#   finishes well inside its timeout. This is the standard 2026 approach to
-#   a large serial integration suite.
+#   40P01 truncate deadlocks). As one job it took >30m on a 2-core runner
+#   and was cancelled at the timeout. Splitting the file list across 4
+#   matrix jobs runs them in parallel (~4x throughput) so each shard
+#   finishes well inside its timeout.
 #
 # Why coverage is gated in a separate job:
-#   Each shard only executes a SUBSET of test files, so the per-file 90%
-#   threshold cannot be enforced per shard (every file a shard did not run
-#   would show 0%). Shards therefore run threshold-free
+#   Each shard executes only a SUBSET of test files, so the per-file 90%
+#   threshold cannot be enforced per shard. Shards run threshold-free
 #   (vitest.coverage.config.ts applies thresholds only when
-#   VITEST_ENFORCE_THRESHOLDS is set); the coverage-gate job merges all four
-#   partial coverage-final.json files via scripts/merge-coverage.mjs and
-#   enforces 90/90/90/90 once on the merged report.
+#   VITEST_ENFORCE_THRESHOLDS is set); the coverage-gate job merges all
+#   four partial coverage-final.json files via scripts/merge-coverage.mjs
+#   and enforces 90/90/90/90 once on the merged report.
 #
-# Key decisions / invariants:
-#   - Triggers: push on ALL branches + PRs into main and develop.
-#   - concurrency + cancel-in-progress: supersedes stale runs on
-#     force-push / rapid commits to save CI minutes.
-#   - pnpm/action-setup@v5 uses NO explicit version: the root
-#     package.json "packageManager" field is the single source of truth.
+# CI environment notes:
+#   - setup-node@v5 auto-enables package-manager caching when package.json
+#     has a packageManager field; this fails when pnpm is not yet on PATH.
+#     Every setup-node step sets package-manager-cache: false and the pnpm
+#     store is cached explicitly via actions/cache.
+#   - pnpm/action-setup@v5 uses NO explicit version: the root package.json
+#     packageManager field is the single source of truth.
 #   - fetch-depth: 0 required for Turborepo --affected filtering and tagging.
-#   - All steps guarded by hashFiles('pnpm-lock.yaml') so pre-scaffold
-#     commits get a meaningful green run.
 #
 # Related files:
-#   - turbo.jsonc              — task definitions this workflow invokes
-#   - package.json             — packageManager field (sole pnpm version)
-#   - scripts/merge-coverage.mjs — partial-coverage merge + threshold gate
-#   - apps/api/vitest.coverage.config.ts — VITEST_ENFORCE_THRESHOLDS gate
-#   - .pre-commit-config.yaml  — local mirror of these gates
+#   - turbo.jsonc                        — task definitions
+#   - package.json                       — packageManager field
+#   - scripts/merge-coverage.mjs          — partial-coverage merge + gate
+#   - apps/api/vitest.coverage.config.ts  — VITEST_ENFORCE_THRESHOLDS gate
+#   - .pre-commit-config.yaml             — local mirror of these gates
 # ============================================================================
 name: CI
 on:
@@ -77,19 +74,22 @@ jobs:
           fetch-depth: 0
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
-      - name: Setup Node (no cache, pre-scaffold)
-        if: hashFiles('pnpm-lock.yaml') == ''
+      - name: Setup Node
         uses: actions/setup-node@v5
         with:
           node-version: 22
           package-manager-cache: false
-      - name: Setup Node (with pnpm cache)
+      - name: Get pnpm store path
+        id: pnpm-store
         if: hashFiles('pnpm-lock.yaml') != ''
-        uses: actions/setup-node@v5
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Cache pnpm store
+        if: hashFiles('pnpm-lock.yaml') != ''
+        uses: actions/cache@v4
         with:
-          node-version: 22
-          package-manager-cache: false
-          cache: pnpm
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
       - name: Verify repo layout
         run: |
           test -f .gitignore
@@ -142,7 +142,7 @@ jobs:
           package-manager-cache: false
       - name: Get pnpm store path
         id: pnpm-store
-        run: echo 'path='$(pnpm store path --silent)'' >> '$GITHUB_OUTPUT'
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
       - name: Cache pnpm store
         uses: actions/cache@v4
         with:
@@ -162,10 +162,7 @@ jobs:
         # execute. The coverage-gate job enforces the threshold on the merge.
         run: |
           rm -rf coverage
-          pnpm exec vitest run \
-            --config vitest.coverage.config.ts \
-            --coverage \
-            --shard=${{ matrix.shard }}/4
+          pnpm exec vitest run --config vitest.coverage.config.ts --coverage --shard=${{ matrix.shard }}/4
       - name: Upload partial coverage
         uses: actions/upload-artifact@v6
         with:
@@ -200,11 +197,7 @@ jobs:
         # and exits non-zero if any non-excluded file is below 90% on
         # statements, branches, functions, or lines.
         run: |
-          node ../../scripts/merge-coverage.mjs \
-            ../../coverage-shards/coverage-shard-1 \
-            ../../coverage-shards/coverage-shard-2 \
-            ../../coverage-shards/coverage-shard-3 \
-            ../../coverage-shards/coverage-shard-4
+          node ../../scripts/merge-coverage.mjs ../../coverage-shards/coverage-shard-1 ../../coverage-shards/coverage-shard-2 ../../coverage-shards/coverage-shard-3 ../../coverage-shards/coverage-shard-4
       - name: Upload merged coverage
         if: always()
         uses: actions/upload-artifact@v6
@@ -235,7 +228,7 @@ jobs:
           package-manager-cache: false
       - name: Get pnpm store path
         id: pnpm-store
-        run: echo 'path='$(pnpm store path --silent)'' >> '$GITHUB_OUTPUT'
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
       - name: Cache pnpm store
         uses: actions/cache@v4
         with:
