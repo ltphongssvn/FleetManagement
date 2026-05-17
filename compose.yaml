@@ -39,6 +39,22 @@ services:
       JSON_CONFIG: '{"tokenProvider":{"keyProvider":{"algorithm":"ES256"}},"interactiveLogin":false,"tokenCallbacks":[{"issuerId":"fleet","tokenExpiry":86400,"requestMappings":[{"requestParam":"username","match":"dispatcher","claims":{"sub":"00000000-0000-0000-0000-0000000000aa","operator_id":"00000000-0000-0000-0000-0000000000aa","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"dispatcher"}},{"requestParam":"username","match":"dieuxe","claims":{"sub":"00000000-0000-0000-0000-0000000000bb","operator_id":"00000000-0000-0000-0000-0000000000bb","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"dieuxe"}},{"requestParam":"username","match":"driver1","claims":{"sub":"00000000-0000-0000-0000-000000000001","operator_id":"00000000-0000-0000-0000-000000000001","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver1"}},{"requestParam":"username","match":"driver2","claims":{"sub":"00000000-0000-0000-0000-000000000002","operator_id":"00000000-0000-0000-0000-000000000002","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver2"}},{"requestParam":"username","match":"driver3","claims":{"sub":"00000000-0000-0000-0000-000000000003","operator_id":"00000000-0000-0000-0000-000000000003","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver3"}},{"requestParam":"username","match":"driver4","claims":{"sub":"00000000-0000-0000-0000-000000000004","operator_id":"00000000-0000-0000-0000-000000000004","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver4"}},{"requestParam":"username","match":"driver5","claims":{"sub":"00000000-0000-0000-0000-000000000005","operator_id":"00000000-0000-0000-0000-000000000005","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver5"}}]},{"issuerId":"wrong-aud","tokenExpiry":86400,"requestMappings":[{"requestParam":"scope","match":"*","claims":{"sub":"00000000-0000-0000-0000-0000000000aa","operator_id":"00000000-0000-0000-0000-0000000000aa","company_id":"00000000-0000-0000-0000-000000000000","aud":"some-other-app"}}]}]}'
     ports:
       - "8080:8080"
+  localstack:
+    image: localstack/localstack:3.8
+    environment:
+      SERVICES: s3
+      DEBUG: "0"
+    ports:
+      - "4566:4566"
+    healthcheck:
+      test: ["CMD-SHELL", "awslocal s3 ls || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    volumes:
+      - ./infra/localstack-init:/etc/localstack/init/ready.d:ro
+
   api:
     build:
       context: .
@@ -51,6 +67,8 @@ services:
         condition: service_healthy
       mock-oauth2:
         condition: service_started
+      localstack:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: "3000"
@@ -66,6 +84,9 @@ services:
       JWT_AUDIENCE: fleet-driver
       AWS_REGION: us-west-2
       S3_ARTIFACTS_BUCKET: fleet-pilot-artifacts
+      S3_ENDPOINT_URL: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test  # pragma: allowlist secret
+      AWS_SECRET_ACCESS_KEY: test  # pragma: allowlist secret
       OTEL_ENABLED: "false"
       FLEET_PILOT_SCOPE: "00000000-0000-0000-0000-000000000000"
     ports:

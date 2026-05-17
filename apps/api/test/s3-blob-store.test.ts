@@ -4,11 +4,9 @@
 // BooleanLiteral mutants. Killing them requires asserting the exact arguments passed
 // into S3Client, PutObjectCommand, and getSignedUrl -- not just the returned shape.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-
 // Capture constructor args for the AWS SDK classes.
 const s3ClientCtorArgs: unknown[] = [];
 const putObjectCommandCtorArgs: unknown[] = [];
-
 vi.mock('@aws-sdk/client-s3', () => ({
   S3Client: class {
     constructor(cfg?: unknown) {
@@ -27,52 +25,42 @@ vi.mock('@aws-sdk/client-s3', () => ({
     }
   },
 }));
-
 const mockGetSignedUrl = vi.fn();
 vi.mock('@aws-sdk/s3-request-presigner', () => ({ getSignedUrl: mockGetSignedUrl }));
-
 const { S3BlobStore, defaultS3Client, S3_CLIENT } = await import(
   '../src/storage/s3-blob-store.js'
 );
-
+// SDK v3 injects x-amz-checksum-crc32 into presigned PUT URLs by default;
+// the client sets requestChecksumCalculation:'WHEN_REQUIRED' so presigned
+// PUTs stay clean (see s3-blob-store-checksum.test.ts).
+const CHK = { requestChecksumCalculation: 'WHEN_REQUIRED' } as const;
 describe('@fleet/api - S3BlobStore', () => {
   beforeEach(() => {
     s3ClientCtorArgs.length = 0;
     putObjectCommandCtorArgs.length = 0;
     mockGetSignedUrl.mockReset();
   });
-
   // --- defaultS3Client ---
-
   it('defaultS3Client passes { region } into the S3Client constructor (kills S3Client({}) ObjectLiteral mutant)', () => {
     defaultS3Client('us-west-2');
     expect(s3ClientCtorArgs).toHaveLength(1);
-    expect(s3ClientCtorArgs[0]).toEqual({ region: 'us-west-2' });
+    expect(s3ClientCtorArgs[0]).toEqual({ region: 'us-west-2', ...CHK });
   });
-
   it('defaultS3Client forwards the region verbatim, not a constant (kills region StringLiteral mutants)', () => {
     defaultS3Client('eu-central-1');
-    expect(s3ClientCtorArgs[0]).toEqual({ region: 'eu-central-1' });
+    expect(s3ClientCtorArgs[0]).toEqual({ region: 'eu-central-1', ...CHK });
   });
-
   // --- constructor: bucket resolution ---
-
   it('constructor reads S3_ARTIFACTS_BUCKET from config with infer:true (kills key StringLiteral + {infer:true} ObjectLiteral + infer BooleanLiteral)', () => {
     const getOrThrow = vi.fn().mockReturnValue('fleet-bucket');
     const fakeConfig = { getOrThrow } as never;
     new S3BlobStore(fakeConfig, {} as never);
-    // key StringLiteral mutant -> getOrThrow('') ; assert the exact key.
-    // {infer:true} -> {} ObjectLiteral mutant ; assert the exact options object.
-    // infer:true -> infer:false BooleanLiteral mutant ; assert the boolean.
     expect(getOrThrow).toHaveBeenCalledWith('S3_ARTIFACTS_BUCKET', { infer: true });
   });
-
   it('S3_CLIENT injection token is the exact string "S3_CLIENT" (kills token StringLiteral mutant)', () => {
     expect(S3_CLIENT).toBe('S3_CLIENT');
   });
-
   // --- presignUpload ---
-
   it('presignUpload builds PutObjectCommand with Bucket, Key, ContentType (kills PutObjectCommand({}) ObjectLiteral mutant)', async () => {
     mockGetSignedUrl.mockResolvedValueOnce('https://s3.example/signed?token=abc');
     const fakeConfig = { getOrThrow: vi.fn().mockReturnValue('fleet-bucket') } as never;
@@ -85,7 +73,6 @@ describe('@fleet/api - S3BlobStore', () => {
       ContentType: 'image/jpeg',
     });
   });
-
   it('presignUpload calls getSignedUrl with the client, the command, and { expiresIn: ttlSeconds } (kills getSignedUrl({}) ObjectLiteral mutant)', async () => {
     mockGetSignedUrl.mockResolvedValueOnce('https://s3.example/signed');
     const fakeClient = { marker: 'the-client' } as never;
@@ -99,16 +86,13 @@ describe('@fleet/api - S3BlobStore', () => {
       unknown,
     ];
     expect(clientArg).toBe(fakeClient);
-    // command carries the PutObjectCommand input we asserted above
     expect(commandArg.input).toEqual({
       Bucket: 'fleet-bucket',
       Key: 'k2.pdf',
       ContentType: 'application/pdf',
     });
-    // {expiresIn: ttlSeconds} -> {} ObjectLiteral mutant is killed here.
     expect(optionsArg).toEqual({ expiresIn: 300 });
   });
-
   it('presignUpload returns url + key + bucket + expiresAt (kills return-shape ObjectLiteral mutant)', async () => {
     mockGetSignedUrl.mockResolvedValueOnce('https://s3.example/signed?token=abc');
     const fakeConfig = { getOrThrow: vi.fn().mockReturnValue('fleet-bucket') } as never;
@@ -123,7 +107,6 @@ describe('@fleet/api - S3BlobStore', () => {
     expect(result.bucket).toBe('fleet-bucket');
     expect(result.expiresAt).toBeInstanceOf(Date);
   });
-
   it('expiresAt = now + ttlSeconds*1000 (kills ttlSeconds*1000 ArithmeticOperator + Date.now()+ ArithmeticOperator)', async () => {
     mockGetSignedUrl.mockResolvedValueOnce('https://s3.example/signed');
     const fakeConfig = { getOrThrow: vi.fn().mockReturnValue('fleet-bucket') } as never;
@@ -136,7 +119,6 @@ describe('@fleet/api - S3BlobStore', () => {
     });
     const after = Date.now();
     const ttlMs = result.expiresAt.getTime() - before;
-    // * -> / mutant: 300/1000 = 0.3ms ; - mutant: negative. Both fall outside this window.
     expect(ttlMs).toBeGreaterThanOrEqual(300_000);
     expect(ttlMs).toBeLessThanOrEqual(300_000 + (after - before) + 50);
   });
