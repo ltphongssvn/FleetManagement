@@ -1,13 +1,13 @@
 // apps/driver-app/src/config/config-client.ts
-// Fetches /config/client from API. Validates wire shape at boundary.
+// Fetches /config/client from API. Validates wire shape at boundary, then
+// applies VN cross-region retry tuning (drivers in VN -> Railway US/SG).
 import { z } from 'zod';
-
+import { adjustRetryMap } from './vn-retry-policy.js';
 const RetryEntrySchema = z.object({
   maxAttempts: z.number().int().positive(),
   baseSeconds: z.number().positive(),
   jitterRatio: z.number().min(0).max(1),
 });
-
 const CapabilityFlagsSchema = z.object({
   enableChunkChecksums: z.boolean(),
   enableDynamicBackpressure: z.boolean(),
@@ -15,7 +15,6 @@ const CapabilityFlagsSchema = z.object({
   enableAtomicConfigLockCoordination: z.boolean(),
   enableArtifactContendedShadowCircuitBreaker: z.boolean(),
 });
-
 export const ClientConfigSchema = z.object({
   configVersion: z.number().int().nonnegative(),
   polygonVersion: z.number().int().nonnegative(),
@@ -36,15 +35,12 @@ export const ClientConfigSchema = z.object({
   retryPolicy: z.record(z.string(), RetryEntrySchema),
   capabilityFlags: CapabilityFlagsSchema,
 });
-
 export type ClientConfig = z.infer<typeof ClientConfigSchema>;
-
 export interface FetchConfigOptions {
   readonly apiUrl: string;
   readonly bearerToken: () => string | Promise<string>;
   readonly fetchFn?: typeof globalThis.fetch;
 }
-
 export async function fetchClientConfig(opts: FetchConfigOptions): Promise<ClientConfig> {
   const fetchFn = opts.fetchFn ?? globalThis.fetch;
   const token = await opts.bearerToken();
@@ -59,5 +55,7 @@ export async function fetchClientConfig(opts: FetchConfigOptions): Promise<Clien
   if (!parsed.success) {
     throw new Error(`/config/client invalid shape: ${parsed.error.message}`);
   }
-  return parsed.data;
+  // VN cross-region retry tuning: relax server backoff/jitter/attempts so
+  // mobile clients in Vietnam tolerate higher RTT to Railway (US/SG).
+  return { ...parsed.data, retryPolicy: adjustRetryMap(parsed.data.retryPolicy) };
 }
