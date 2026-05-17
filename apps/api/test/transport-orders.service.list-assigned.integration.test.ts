@@ -14,7 +14,7 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
   beforeAll(async () => {
     testDb = await startPgliteTestDb();
     svc = new TransportOrdersService(testDb.db as never);
-  }, 30_000);
+  }, 60_000); // CI fork+PGLite-WASM cold start can exceed 30s under load
 
   afterAll(async () => {
     await stopPgliteTestDb(testDb);

@@ -26,7 +26,7 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
   beforeAll(async () => {
     testDb = await startPgliteTestDb();
     ctrl = new DispatchController(testDb.db as never);
-  }, 30_000);
+  }, 60_000); // CI fork+PGLite-WASM cold start can exceed 30s under load
   afterAll(async () => stopPgliteTestDb(testDb));
   beforeEach(async () => {
     await testDb.db.execute(sql`TRUNCATE TABLE dispatch_board_projection CASCADE`);
