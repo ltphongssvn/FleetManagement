@@ -1,6 +1,13 @@
 // apps/ops-web/src/features/dispatch/load-references.ts
 // Server-side fetch for form dropdown reference data (drivers, vehicles,
 // customers, cargo types, pickup/delivery warehouses).
+//
+// Auth: forwards the user's fleet_session cookie token. That token is
+// issued by the OIDC provider (mock-oauth2 locally) and the API's
+// JwtGuard now trusts that issuer via its JWKS (dual-issuer
+// JoseIdentityProvider). Forwarding the user token preserves per-user
+// identity, tenant scoping, and audit attribution end to end — the
+// service token would collapse every dispatcher into one account.
 import { cookies } from 'next/headers';
 export interface RefItem { readonly id: string; readonly label: string }
 export interface FormReferences {
