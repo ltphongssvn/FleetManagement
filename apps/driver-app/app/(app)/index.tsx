@@ -1,8 +1,12 @@
 // apps/driver-app/app/(app)/index.tsx
+// Driver home — sync status + primary actions. Logout lives in the global
+// header (see (app)/_layout.tsx), so it is reachable from every screen and
+// is intentionally not duplicated here.
 import type { JSX } from 'react';
-import { Text, View, Pressable } from 'react-native';
-import { Link } from 'expo-router';
+import { Text, View, Pressable, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { APP_VERSION, presentSyncStatus, type SyncSchedulerState } from '../../src/index.js';
+import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
 const PLACEHOLDER_STATE: SyncSchedulerState = {
   online: true,
   appActive: true,
@@ -10,28 +14,79 @@ const PLACEHOLDER_STATE: SyncSchedulerState = {
   lastOutcome: null,
   consecutiveTransportFailures: 0,
 };
+interface ActionDef {
+  readonly label: string;
+  readonly href: string;
+}
+const ACTIONS: readonly ActionDef[] = [
+  { label: 'Xem lệnh điều xe', href: '/assignments' },
+  { label: 'Lệnh điều phối (trực tiếp)', href: '/commands' },
+  { label: 'Chụp ảnh phiếu giao hàng', href: '/capture' },
+];
 export default function Home(): JSX.Element {
   const view = presentSyncStatus(PLACEHOLDER_STATE, Date.now());
+  const router = useRouter();
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <Text style={{ fontSize: 24, fontWeight: '600', marginBottom: 8 }}>{view.label}</Text>
-      <Text style={{ fontSize: 14, color: '#666', marginBottom: 24 }}>{view.secondary}</Text>
-      <Link href={'/assignments'} asChild>
-        <Pressable style={{ marginBottom: 12, paddingVertical: 12, paddingHorizontal: 24, backgroundColor: '#0066cc', borderRadius: 8 }}>
-          <Text style={{ color: 'white', fontSize: 16, fontWeight: '500' }}>Xem lệnh điều xe</Text>
-        </Pressable>
-      </Link>
-      <Link href={'/commands'} asChild>
-        <Pressable style={{ marginBottom: 12, paddingVertical: 12, paddingHorizontal: 24, backgroundColor: '#10b981', borderRadius: 8 }}>
-          <Text style={{ color: 'white', fontSize: 16, fontWeight: '500' }}>Lệnh điều phối (trực tiếp)</Text>
-        </Pressable>
-      </Link>
-      <Link href={'/capture'} asChild>
-        <Pressable style={{ marginBottom: 16, paddingVertical: 12, paddingHorizontal: 24, backgroundColor: '#f59e0b', borderRadius: 8 }}>
-          <Text style={{ color: 'white', fontSize: 16, fontWeight: '500' }}>Chụp ảnh phiếu giao hàng</Text>
-        </Pressable>
-      </Link>
-      <Text style={{ fontSize: 12, color: '#999' }}>Fleet Driver v{APP_VERSION}</Text>
+    <View style={styles.screen}>
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.headerTitle}>Trạng thái đồng bộ</Text>
+          <Text style={styles.headerSub}>{view.label} · {view.secondary}</Text>
+        </View>
+        <View style={styles.cardBody}>
+          {ACTIONS.map((a) => (
+            <Pressable
+              key={a.href}
+              onPress={() => { router.push(a.href); }}
+              accessibilityRole="button"
+              accessibilityLabel={a.label}
+              style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}
+            >
+              <Text style={styles.actionText}>{a.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+      <Text style={styles.version}>Fleet Driver v{APP_VERSION}</Text>
     </View>
   );
 }
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+    backgroundColor: colors.backdrop,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: colors.white,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.slate200,
+    overflow: 'hidden',
+    ...shadow.card,
+  },
+  cardHeader: {
+    backgroundColor: colors.indigo50,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.slate200,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+  },
+  headerTitle: { ...typography.title, color: colors.slate900 },
+  headerSub: { ...typography.caption, color: colors.slate500, marginTop: spacing.xs },
+  cardBody: { paddingHorizontal: spacing.xl, paddingVertical: spacing.xl },
+  actionBtn: {
+    backgroundColor: colors.indigo600,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  actionBtnPressed: { backgroundColor: colors.indigo700 },
+  actionText: { color: colors.white, fontSize: 16, fontWeight: '600' },
+  version: { ...typography.caption, color: colors.slate500, marginTop: spacing.lg },
+});

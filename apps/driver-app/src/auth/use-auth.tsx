@@ -1,14 +1,24 @@
-// apps/driver-app/src/auth/use-auth.ts
-// Phone + password auth hook. Calls POST /auth/login, persists JWT via
-// the platform-aware token-storage module (SecureStore on native,
-// localStorage on web).
-import { useCallback, useEffect, useState } from 'react';
+// apps/driver-app/src/auth/use-auth.tsx
+// Phone + password auth — now a React Context so a single auth state is
+// shared by every screen. Previously useAuth() was a plain hook: each
+// caller (home screen, (app) layout, login screen) got its own isolated
+// useState, so logout() in one component never updated the auth gate in
+// another and the redirect-to-login never fired. AuthProvider holds the
+// one source of truth; useAuth() consumes it.
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+  type JSX,
+} from 'react';
 import { loadToken, saveToken, clearToken, type StoredToken } from './token-storage.js';
-
 const API_URL =
   (process.env['EXPO_PUBLIC_API_URL'] as string | undefined) ??
   'https://api-production-fd42.up.railway.app';
-
 export interface AuthState {
   readonly status: 'loading' | 'authenticated' | 'unauthenticated';
   readonly error: string | null;
@@ -18,8 +28,9 @@ export interface UseAuthResult extends AuthState {
   readonly logout: () => Promise<void>;
   readonly getAccessToken: () => Promise<string>;
 }
-
-export function useAuth(): UseAuthResult {
+const AuthContext = createContext<UseAuthResult | null>(null);
+// Internal: the single auth-state engine. Used once, inside AuthProvider.
+function useAuthEngine(): UseAuthResult {
   const [state, setState] = useState<AuthState>({
     status: 'loading',
     error: null,
@@ -64,5 +75,21 @@ export function useAuth(): UseAuthResult {
     if (t === null) throw new Error('Not authenticated');
     return t.accessToken;
   }, []);
-  return { ...state, login, logout, getAccessToken };
+  return useMemo(
+    () => ({ ...state, login, logout, getAccessToken }),
+    [state, login, logout, getAccessToken],
+  );
+}
+// Provider — mount once at the app root so all screens share one auth state.
+export function AuthProvider({ children }: { children: ReactNode }): JSX.Element {
+  const value = useAuthEngine();
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+// Consumer hook — every screen calls this; all read the same shared state.
+export function useAuth(): UseAuthResult {
+  const ctx = useContext(AuthContext);
+  if (ctx === null) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return ctx;
 }
