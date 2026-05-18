@@ -12,7 +12,8 @@
 'use client';
 import { useActionState, useState } from 'react';
 import type { JSX } from 'react';
-import { createOrder, type CreateOrderState, MAX_DESTINATIONS } from './create-order.action';
+import { createOrder, type CreateOrderState } from './create-order.action';
+import { MAX_DESTINATIONS } from './constants';
 import { ComboboxField } from './ui/ComboboxField';
 import { t, type Locale } from '@/lib/i18n';
 export interface DriverOption { readonly id: string; readonly label: string }

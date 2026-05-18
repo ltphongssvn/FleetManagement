@@ -1,4 +1,4 @@
-// apps/ops-web/test/middleware.test.ts
+// apps/ops-web/test/proxy.test.ts
 // RED: middleware redirects unauthenticated requests to /login,
 // allows /login itself, and lets authenticated requests through.
 import { describe, it, expect, vi } from 'vitest';
@@ -18,18 +18,18 @@ function makeReq(pathname: string, cookieValue?: string): NextRequest {
 }
 describe('auth middleware', () => {
   it('redirects to /login when no session cookie on protected route', async () => {
-    const { middleware } = await import('@/middleware');
-    const r = middleware(makeReq('/'));
+    const { proxy } = await import('@/proxy');
+    const r = proxy(makeReq('/'));
     expect(r).toEqual({ type: 'redirect', url: 'http://localhost:3001/login' });
   });
   it('allows /login through unauthenticated', async () => {
-    const { middleware } = await import('@/middleware');
-    const r = middleware(makeReq('/login'));
+    const { proxy } = await import('@/proxy');
+    const r = proxy(makeReq('/login'));
     expect(r).toEqual({ type: 'next' });
   });
   it('allows authenticated request through', async () => {
-    const { middleware } = await import('@/middleware');
-    const r = middleware(makeReq('/', 'jwt-token'));
+    const { proxy } = await import('@/proxy');
+    const r = proxy(makeReq('/', 'jwt-token'));
     expect(r).toEqual({ type: 'next' });
   });
 });

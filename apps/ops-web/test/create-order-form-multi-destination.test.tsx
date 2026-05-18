@@ -3,7 +3,7 @@
 // control to grow to 4, a Remove control, and caps at MAX_DESTINATIONS rows.
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-vi.mock('@/features/dispatch/create-order.action', () => ({ createOrder: vi.fn(), MAX_DESTINATIONS: 4 }));
+vi.mock('@/features/dispatch/create-order.action', () => ({ createOrder: vi.fn() }));
 afterEach(() => { cleanup(); });
 describe('CreateOrderForm multi-destination', () => {
   const drivers = [{ id: '00000000-0000-0000-0000-000000000001', label: 'driver1' }];

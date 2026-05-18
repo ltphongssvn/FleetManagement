@@ -15,7 +15,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-export const MAX_DESTINATIONS = 4;
+import { MAX_DESTINATIONS } from './constants';
 const DestinationSchema = z.object({
   deliveryAt: z.string().min(1, 'Required'),
   deliveryWarehouse: z.string().max(500).optional().default(''),

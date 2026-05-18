@@ -1,9 +1,9 @@
-// apps/ops-web/src/middleware.ts
+// apps/ops-web/src/proxy.ts
 // Auth middleware: redirects unauthenticated users to /login.
 // Reads fleet_session httpOnly cookie set by login server action.
 import { NextResponse, type NextRequest } from 'next/server';
 const PUBLIC_PATHS = new Set(['/login']);
-export function middleware(req: NextRequest): NextResponse {
+export function proxy(req: NextRequest): NextResponse {
   const { pathname } = req.nextUrl;
   if (PUBLIC_PATHS.has(pathname)) return NextResponse.next();
   const session = req.cookies.get('fleet_session')?.value;

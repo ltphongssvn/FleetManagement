@@ -2,7 +2,7 @@
 // RED: CreateOrderForm renders all VN fields with bilingual labels.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-vi.mock('@/features/dispatch/create-order.action', () => ({ createOrder: vi.fn(), MAX_DESTINATIONS: 4 }));
+vi.mock('@/features/dispatch/create-order.action', () => ({ createOrder: vi.fn() }));
 describe('CreateOrderForm VN/EN', () => {
   const drivers = [{ id: '00000000-0000-0000-0000-000000000001', label: 'driver1' }];
   it('renders VN labels when locale=vi', async () => {
