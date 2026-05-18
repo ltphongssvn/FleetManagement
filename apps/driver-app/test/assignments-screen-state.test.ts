@@ -11,7 +11,7 @@ function mkClient(rows: AssignmentRow[], err?: Error): { list: ReturnType<typeof
 describe('fetchAssignmentsState', () => {
   it('returns loaded state with rows when fetch succeeds', async () => {
     const rows: AssignmentRow[] = [
-      { roadRunId: 'r1', state: 'dispatched', plate: null, orderRef: null, customerName: null, pickupName: null, deliveryName: null, plannedStartAt: null, startedAt: null, completedAt: null },
+      { transportOrderId: 'to1', roadRunId: 'r1', state: 'dispatched', plate: null, orderRef: null, customerName: null, pickupName: null, deliveryName: null, plannedStartAt: null, startedAt: null, completedAt: null },
     ];
     const state: AssignmentsState = await fetchAssignmentsState(mkClient(rows) as never);
     expect(state.kind).toBe('loaded');

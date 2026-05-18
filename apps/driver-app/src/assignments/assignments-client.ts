@@ -1,8 +1,8 @@
 // apps/driver-app/src/assignments/assignments-client.ts
 // HTTP client for GET /transport-orders/assigned. Validates wire-shape at boundary.
 export type FetchFn = typeof globalThis.fetch;
-
 export interface AssignmentRow {
+  readonly transportOrderId: string;
   readonly roadRunId: string;
   readonly state: string;
   readonly plannedStartAt: string | null;
@@ -14,16 +14,15 @@ export interface AssignmentRow {
   readonly pickupName: string | null;
   readonly deliveryName: string | null;
 }
-
 export interface AssignmentsClientConfig {
   readonly apiUrl: string;
   readonly bearerToken: () => string | Promise<string>;
   readonly fetchFn?: FetchFn;
 }
-
 function parseRow(raw: unknown): AssignmentRow {
   if (typeof raw !== 'object' || raw === null) throw new Error('AssignmentRow: not an object');
   const r = raw as Record<string, unknown>;
+  if (typeof r['transportOrderId'] !== 'string') throw new Error('AssignmentRow: transportOrderId must be string');
   if (typeof r['roadRunId'] !== 'string') throw new Error('AssignmentRow: roadRunId must be string');
   if (typeof r['state'] !== 'string') throw new Error('AssignmentRow: state must be string');
   const nullableStr = (v: unknown, name: string): string | null => {
@@ -32,6 +31,7 @@ function parseRow(raw: unknown): AssignmentRow {
     throw new Error(`AssignmentRow: ${name} must be string|null`);
   };
   return {
+    transportOrderId: r['transportOrderId'],
     roadRunId: r['roadRunId'],
     state: r['state'],
     plannedStartAt: nullableStr(r['plannedStartAt'], 'plannedStartAt'),
@@ -44,10 +44,8 @@ function parseRow(raw: unknown): AssignmentRow {
     deliveryName: nullableStr(r['deliveryName'], 'deliveryName'),
   };
 }
-
 export class AssignmentsClient {
   constructor(private readonly config: AssignmentsClientConfig) {}
-
   async list(): Promise<readonly AssignmentRow[]> {
     const token = await this.config.bearerToken();
     const fetchFn: FetchFn = this.config.fetchFn ?? globalThis.fetch;

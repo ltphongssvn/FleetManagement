@@ -7,7 +7,7 @@ describe('AssignmentsClient', () => {
   it('GETs /transport-orders/assigned with bearer token', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ rows: [{ roadRunId: 'r1', state: 'dispatched', plate: '62H-12345', orderRef: 'XT.001', customerName: 'ABC', pickupName: 'Kho A', deliveryName: 'Kho B', plannedStartAt: '2026-05-10T08:00:00Z', startedAt: null, completedAt: null }] }),
+      json: () => Promise.resolve({ rows: [{ transportOrderId: 'to-1', roadRunId: 'r1', state: 'dispatched', plate: '62H-12345', orderRef: 'XT.001', customerName: 'ABC', pickupName: 'Kho A', deliveryName: 'Kho B', plannedStartAt: '2026-05-10T08:00:00Z', startedAt: null, completedAt: null }] }),
     });
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't0k', fetchFn: fetchFn as never });
     const result = await client.list();
@@ -16,6 +16,7 @@ describe('AssignmentsClient', () => {
       headers: expect.objectContaining({ Authorization: 'Bearer t0k' }),
     }));
     expect(result).toHaveLength(1);
+    expect(result[0]?.transportOrderId).toBe('to-1');
     expect(result[0]?.roadRunId).toBe('r1');
     expect(result[0]?.plate).toBe('62H-12345');
     expect(result[0]?.orderRef).toBe('XT.001');
@@ -74,21 +75,21 @@ describe('AssignmentsClient', () => {
   });
 
   it('rejects when roadRunId is not a string', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ rows: [{ roadRunId: 1 }] }) });
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ rows: [{ transportOrderId: 'to', roadRunId: 1 }] }) });
     const { AssignmentsClient } = await import('../src/assignments/assignments-client.js');
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow(/roadRunId/);
   });
 
   it('rejects when state is not a string', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ rows: [{ roadRunId: 'r', state: 1 }] }) });
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ rows: [{ transportOrderId: 'to', roadRunId: 'r', state: 1 }] }) });
     const { AssignmentsClient } = await import('../src/assignments/assignments-client.js');
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow(/state/);
   });
 
   it('rejects when nullable field is wrong type', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ rows: [{ roadRunId: 'r', state: 's', plate: 123, plannedStartAt: null, startedAt: null, completedAt: null }] }) });
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ rows: [{ transportOrderId: 'to', roadRunId: 'r', state: 's', plate: 123, plannedStartAt: null, startedAt: null, completedAt: null }] }) });
     const { AssignmentsClient } = await import('../src/assignments/assignments-client.js');
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow(/plate/);
@@ -120,7 +121,7 @@ describe('AssignmentsClient mutation-hardening', () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ rows: [{
-        roadRunId: 'r1', state: 'dispatched',
+        transportOrderId: 'to1', roadRunId: 'r1', state: 'dispatched',
         plannedStartAt: null, startedAt: null, completedAt: null,
         plate: null, orderRef: null, customerName: null, pickupName: null, deliveryName: null,
       }] }),
@@ -133,7 +134,7 @@ describe('AssignmentsClient mutation-hardening', () => {
   it('nullableStr error message names the field "plannedStartAt"', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ rows: [{ roadRunId: 'r', state: 's', plannedStartAt: 99 }] }),
+      json: () => Promise.resolve({ rows: [{ transportOrderId: 'to', roadRunId: 'r', state: 's', plannedStartAt: 99 }] }),
     });
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow(/plannedStartAt must be string\|null/);
@@ -142,7 +143,7 @@ describe('AssignmentsClient mutation-hardening', () => {
   it('nullableStr error message names the field "startedAt"', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ rows: [{ roadRunId: 'r', state: 's', plannedStartAt: null, startedAt: 99 }] }),
+      json: () => Promise.resolve({ rows: [{ transportOrderId: 'to', roadRunId: 'r', state: 's', plannedStartAt: null, startedAt: 99 }] }),
     });
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow(/startedAt must be string\|null/);
@@ -151,7 +152,7 @@ describe('AssignmentsClient mutation-hardening', () => {
   it('nullableStr error message names the field "completedAt"', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ rows: [{ roadRunId: 'r', state: 's', plannedStartAt: null, startedAt: null, completedAt: 99 }] }),
+      json: () => Promise.resolve({ rows: [{ transportOrderId: 'to', roadRunId: 'r', state: 's', plannedStartAt: null, startedAt: null, completedAt: 99 }] }),
     });
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow(/completedAt must be string\|null/);
@@ -160,7 +161,7 @@ describe('AssignmentsClient mutation-hardening', () => {
   it('nullableStr error message names the field "orderRef"', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ rows: [{ roadRunId: 'r', state: 's', plannedStartAt: null, startedAt: null, completedAt: null, plate: null, orderRef: 99 }] }),
+      json: () => Promise.resolve({ rows: [{ transportOrderId: 'to', roadRunId: 'r', state: 's', plannedStartAt: null, startedAt: null, completedAt: null, plate: null, orderRef: 99 }] }),
     });
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow(/orderRef must be string\|null/);
@@ -169,7 +170,7 @@ describe('AssignmentsClient mutation-hardening', () => {
   it('nullableStr error message names the field "customerName"', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ rows: [{ roadRunId: 'r', state: 's', plannedStartAt: null, startedAt: null, completedAt: null, plate: null, orderRef: null, customerName: 99 }] }),
+      json: () => Promise.resolve({ rows: [{ transportOrderId: 'to', roadRunId: 'r', state: 's', plannedStartAt: null, startedAt: null, completedAt: null, plate: null, orderRef: null, customerName: 99 }] }),
     });
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow(/customerName must be string\|null/);
@@ -178,7 +179,7 @@ describe('AssignmentsClient mutation-hardening', () => {
   it('nullableStr error message names the field "pickupName"', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ rows: [{ roadRunId: 'r', state: 's', plannedStartAt: null, startedAt: null, completedAt: null, plate: null, orderRef: null, customerName: null, pickupName: 99 }] }),
+      json: () => Promise.resolve({ rows: [{ transportOrderId: 'to', roadRunId: 'r', state: 's', plannedStartAt: null, startedAt: null, completedAt: null, plate: null, orderRef: null, customerName: null, pickupName: 99 }] }),
     });
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow(/pickupName must be string\|null/);
@@ -187,7 +188,7 @@ describe('AssignmentsClient mutation-hardening', () => {
   it('nullableStr error message names the field "deliveryName"', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ rows: [{ roadRunId: 'r', state: 's', plannedStartAt: null, startedAt: null, completedAt: null, plate: null, orderRef: null, customerName: null, pickupName: null, deliveryName: 99 }] }),
+      json: () => Promise.resolve({ rows: [{ transportOrderId: 'to', roadRunId: 'r', state: 's', plannedStartAt: null, startedAt: null, completedAt: null, plate: null, orderRef: null, customerName: null, pickupName: null, deliveryName: 99 }] }),
     });
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow(/deliveryName must be string\|null/);
