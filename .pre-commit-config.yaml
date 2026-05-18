@@ -144,3 +144,11 @@ repos:
       # stryker.config.json owns its break threshold (90% for the small
       # packages, 60% for apps/api + apps/ops-web during the baseline
       # phase).
+  - repo: local
+    hooks:
+      - id: commitlint
+        name: Conventional Commits (commitlint)
+        entry: bash -c 'command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ] && pnpm exec commitlint --edit "$1" || echo "Skipped (pre-scaffold or pnpm missing)"' --
+        language: system
+        stages: [commit-msg]
+        pass_filenames: false

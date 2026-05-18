@@ -37,3 +37,5 @@ packages:
   - "apps/*"
   - "workers/*"
   - "packages/*"
+
+injectWorkspacePackages: true
