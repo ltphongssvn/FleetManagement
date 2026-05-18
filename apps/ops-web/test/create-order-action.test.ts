@@ -1,5 +1,7 @@
 // apps/ops-web/test/create-order-action.test.ts
-// RED: createOrder server action POSTs to /transport-orders with bearer cookie token.
+// createOrder server action POSTs to /transport-orders with bearer cookie token.
+// Updated for the multi-destination contract: deliveries arrive as indexed
+// fields deliveryAt_N / deliveryWarehouse_N (1..4) instead of a single deliveryAt.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 const cookieGet = vi.fn();
 vi.mock('next/headers', () => ({ cookies: () => Promise.resolve({ get: cookieGet }) }));
@@ -36,7 +38,7 @@ describe('createOrder server action', () => {
     fd.set('plannedStartAt', '2026-05-08T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('pickupAt', '2026-05-08T09:00');
-    fd.set('deliveryAt', '2026-05-08T11:00');
+    fd.set('deliveryAt_1', '2026-05-08T11:00');
     await expect(createOrder(undefined, fd)).rejects.toThrow('NEXT_REDIRECT');
     expect(fetchMock).toHaveBeenCalledWith('http://api:3000/transport-orders', expect.objectContaining({
       method: 'POST',
@@ -55,12 +57,11 @@ describe('createOrder server action', () => {
     fd.set('plannedStartAt', '2026-05-08T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('pickupAt', '2026-05-08T09:00');
-    fd.set('deliveryAt', '2026-05-08T11:00');
+    fd.set('deliveryAt_1', '2026-05-08T11:00');
     const r = await createOrder(undefined, fd);
     expect(r).toEqual({ status: 'api_error', message: expect.stringContaining('400') });
   });
-
-  it('passes plannedAt through unchanged when it already has seconds (line 33 else branch)', async () => {
+  it('passes plannedAt through unchanged when it already has seconds (else branch)', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'tok' });
     const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ transportOrderId: 't1', roadRunId: 'r1' }), { status: 201 })));
@@ -71,7 +72,7 @@ describe('createOrder server action', () => {
     fd.set('plannedStartAt', '2026-05-08T08:00:00'); // 19 chars, already has seconds
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('pickupAt', '2026-05-08T09:00:00');
-    fd.set('deliveryAt', '2026-05-08T11:00:00');
+    fd.set('deliveryAt_1', '2026-05-08T11:00:00');
     await expect(createOrder(undefined, fd)).rejects.toThrow('NEXT_REDIRECT');
     const calls = fetchMock.mock.calls as unknown as [string, { body: string }][];
     const firstCall = calls[0];
@@ -79,8 +80,7 @@ describe('createOrder server action', () => {
     const body = JSON.parse(firstCall[1].body);
     expect(body.roadRun.plannedStartAt).toBe('2026-05-08T08:00:00.000Z');
   });
-
-  it('returns server_error when FLEET_API_URL is not set (line 60)', async () => {
+  it('returns server_error when FLEET_API_URL is not set', async () => {
     vi.stubEnv('FLEET_API_URL', '');
     cookieGet.mockReturnValue({ value: 'tok' });
     const { createOrder } = await import('@/features/dispatch/create-order.action');
@@ -89,12 +89,11 @@ describe('createOrder server action', () => {
     fd.set('plannedStartAt', '2026-05-08T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('pickupAt', '2026-05-08T09:00');
-    fd.set('deliveryAt', '2026-05-08T11:00');
+    fd.set('deliveryAt_1', '2026-05-08T11:00');
     const r = await createOrder(undefined, fd);
     expect(r).toEqual({ status: 'server_error', message: expect.stringContaining('FLEET_API_URL') });
   });
-
-  it('returns server_error when fleet_session cookie missing (line 63)', async () => {
+  it('returns server_error when fleet_session cookie missing', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue(undefined);
     const { createOrder } = await import('@/features/dispatch/create-order.action');
@@ -103,7 +102,7 @@ describe('createOrder server action', () => {
     fd.set('plannedStartAt', '2026-05-08T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('pickupAt', '2026-05-08T09:00');
-    fd.set('deliveryAt', '2026-05-08T11:00');
+    fd.set('deliveryAt_1', '2026-05-08T11:00');
     const r = await createOrder(undefined, fd);
     expect(r).toEqual({ status: 'server_error', message: 'Not authenticated' });
   });

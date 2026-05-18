@@ -1,5 +1,7 @@
 // apps/ops-web/test/create-order-action-vn.test.ts
-// RED: createOrder accepts VN fields and sends them as transport_order metadata.
+// createOrder accepts VN fields and sends them as transport_order metadata.
+// Updated for the multi-destination contract: delivery destination 1 supplies
+// deliveryAt_1 / deliveryWarehouse_1; metadata.deliveryWarehouse mirrors dest 1.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 const cookieGet = vi.fn();
 vi.mock('next/headers', () => ({ cookies: () => Promise.resolve({ get: cookieGet }) }));
@@ -19,14 +21,14 @@ describe('createOrder VN fields', () => {
     fd.set('plannedStartAt', '2026-04-10T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('pickupAt', '2026-04-10T09:00');
-    fd.set('deliveryAt', '2026-04-10T11:00');
+    fd.set('deliveryAt_1', '2026-04-10T11:00');
     fd.set('customer', 'ĐẠI THÀNH');
     fd.set('cargo', 'GẠO');
     fd.set('vehiclePlate', '62H 05817');
     fd.set('driverName', 'LÊ VĂN CHÂU');
     fd.set('pickupWarehouse', 'Chơn Chính / Hậu Thạnh Đông');
     fd.set('backupWarehouse', 'Cường Thắng (Kiến Tường)');
-    fd.set('deliveryWarehouse', '8 ĐẤT');
+    fd.set('deliveryWarehouse_1', '8 ĐẤT');
     await expect(createOrder(undefined, fd)).rejects.toThrow('NEXT_REDIRECT');
     const calls = fetchMock.mock.calls as unknown as [string, { body: string }][];
     const firstCall = calls[0];

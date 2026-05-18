@@ -7,7 +7,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import type * as ReactModule from 'react';
 
-vi.mock('@/features/dispatch/create-order.action', () => ({ createOrder: vi.fn() }));
+vi.mock('@/features/dispatch/create-order.action', () => ({ createOrder: vi.fn(), MAX_DESTINATIONS: 4 }));
 
 // Mock useActionState to inject a controlled (state, action, pending) tuple.
 // The component imports it from 'react'; replace the export.
