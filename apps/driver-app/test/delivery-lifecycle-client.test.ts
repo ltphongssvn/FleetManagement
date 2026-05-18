@@ -54,6 +54,16 @@ describe('DeliveryLifecycleClient', () => {
     await expect(client.accept('rr')).rejects.toThrow(/400/);
   });
 
+  it('throws when the response body is not an object', async () => {
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve('nope') });
+    const client = new DeliveryLifecycleClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    await expect(client.accept('rr')).rejects.toThrow(/not an object/);
+  });
+  it('throws when roadRunId is missing from the response', async () => {
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ state: 'dispatched' }) });
+    const client = new DeliveryLifecycleClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    await expect(client.accept('rr')).rejects.toThrow(/roadRunId/);
+  });
   it('throws when the response shape is invalid', async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ roadRunId: 'rr' }) });
     const client = new DeliveryLifecycleClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
