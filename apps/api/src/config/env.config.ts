@@ -20,6 +20,10 @@ export const EnvSchema = z.object({
   // Optional S3 endpoint override for local S3 (LocalStack/MinIO) in Docker
   // Compose. Unset in production -> AWS default endpoint + IAM credential chain.
   S3_ENDPOINT_URL: z.string().url().optional(),
+  // Optional browser-reachable S3 origin. Presigned URLs are signed against
+  // S3_ENDPOINT_URL (an internal Docker hostname the browser cannot resolve);
+  // when set, the presigned URL origin is rewritten to this. Unset in prod.
+  S3_PUBLIC_URL: z.string().url().optional(),
   AWS_ACCESS_KEY_ID: z.string().min(1).optional(),
   AWS_SECRET_ACCESS_KEY: z.string().min(1).optional(),
   OTEL_ENABLED: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),

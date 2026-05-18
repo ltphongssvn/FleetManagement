@@ -40,11 +40,18 @@ export function defaultS3Client(region: string, overrides?: S3ClientOverrides): 
 @Injectable()
 export class S3BlobStore implements IBlobStore {
   private readonly bucket: string;
+  // Optional browser-reachable S3 origin. Presigned URLs are signed against
+  // the internal endpoint (e.g. http://localstack:4566) which a browser on
+  // the host cannot resolve; when set, presignUpload swaps the URL origin to
+  // this value. Path-style addressing means only the origin changes, so the
+  // signature (a query param) stays valid. Unset in production.
+  private readonly publicUrl: string | undefined;
   constructor(
     @Inject(ConfigService) config: ConfigService<Env, true>,
     @Inject(S3_CLIENT) private readonly client: S3Client,
   ) {
     this.bucket = config.getOrThrow('S3_ARTIFACTS_BUCKET', { infer: true });
+    this.publicUrl = config.get('S3_PUBLIC_URL', { infer: true });
   }
   async presignUpload(input: { key: string; contentType: string; ttlSeconds: number }): Promise<PresignedUpload> {
     const command = new PutObjectCommand({
@@ -52,12 +59,25 @@ export class S3BlobStore implements IBlobStore {
       Key: input.key,
       ContentType: input.contentType,
     });
-    const url = await getSignedUrl(this.client, command, { expiresIn: input.ttlSeconds });
+    const signed = await getSignedUrl(this.client, command, { expiresIn: input.ttlSeconds });
+    const url = this.rewriteOrigin(signed);
     return {
       url,
       key: input.key,
       bucket: this.bucket,
       expiresAt: new Date(Date.now() + input.ttlSeconds * 1000),
     };
+  }
+  // Swap the signed URL origin to the browser-reachable public origin.
+  // Preserves path + query (the signature), so the URL stays valid.
+  private rewriteOrigin(signedUrl: string): string {
+    if (this.publicUrl === undefined || this.publicUrl.length === 0) {
+      return signedUrl;
+    }
+    const signed = new URL(signedUrl);
+    const pub = new URL(this.publicUrl);
+    signed.protocol = pub.protocol;
+    signed.host = pub.host;
+    return signed.toString();
   }
 }

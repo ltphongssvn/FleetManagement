@@ -3,7 +3,6 @@
 # Services: postgres (PostGIS), redis, api (NestJS), worker (BullMQ), ops-web (Next.js).
 # Day-one pilot scope per Frozen Stack PDF Day-One #10.
 name: fleet-pilot
-
 services:
   postgres:
     image: postgis/postgis:15-3.4-alpine
@@ -20,7 +19,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
-
   redis:
     image: redis:7-alpine
     ports:
@@ -30,7 +28,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-
   mock-oauth2:
     image: ghcr.io/navikt/mock-oauth2-server:2.1.10
     hostname: mock-oauth2
@@ -54,7 +51,6 @@ services:
       start_period: 10s
     volumes:
       - ./infra/localstack-init:/etc/localstack/init/ready.d:ro
-
   api:
     build:
       context: .
@@ -69,6 +65,12 @@ services:
         condition: service_started
       localstack:
         condition: service_healthy
+    # JWT_*_PEM are multi-line secrets. Interpolating them via \${...} into the
+    # environment block makes compose re-escape the leading dash of the PEM
+    # header (\-----BEGIN...), which breaks importPKCS8. env_file passes the
+    # .env values to the container verbatim, with no YAML re-escaping.
+    env_file:
+      - .env
     environment:
       NODE_ENV: production
       PORT: "3000"
@@ -78,13 +80,15 @@ services:
       OIDC_ISSUER: http://mock-oauth2:8080/fleet
       OIDC_AUDIENCE: fleet-pilot
       OIDC_JWKS_URI: http://mock-oauth2:8080/fleet/jwks
-      JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
-      JWT_PUBLIC_KEY_PEM: ${JWT_PUBLIC_KEY_PEM}
       JWT_ISSUER: fleet-pilot-api
       JWT_AUDIENCE: fleet-driver
       AWS_REGION: us-west-2
       S3_ARTIFACTS_BUCKET: fleet-pilot-artifacts
       S3_ENDPOINT_URL: http://localstack:4566
+      # Browser-reachable S3 origin for presigned PUT URLs. The driver-app web
+      # bundle runs in the host browser and cannot resolve the internal
+      # "localstack" hostname, so presigned URLs are rewritten to this origin.
+      S3_PUBLIC_URL: http://localhost:4566
       AWS_ACCESS_KEY_ID: test  # pragma: allowlist secret
       AWS_SECRET_ACCESS_KEY: test  # pragma: allowlist secret
       OTEL_ENABLED: "false"
@@ -97,7 +101,6 @@ services:
       timeout: 5s
       retries: 30
       start_period: 30s
-
   worker:
     build:
       context: .
@@ -112,7 +115,6 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgres://fleet:fleet@postgres:5432/fleet  # pragma: allowlist secret
       REDIS_URL: redis://redis:6379
-
   driver-app:
     build:
       context: .
@@ -124,17 +126,16 @@ services:
       # HOST_LAN_IP is the dev host's LAN IP (set in repo-root .env).
       # The phone running Expo Go fetches the JS bundle and hits this API,
       # so both URLs must resolve from the phone's perspective on the LAN.
-      EXPO_PUBLIC_API_URL: http://${HOST_LAN_IP}:3000
+      EXPO_PUBLIC_API_URL: http://\${HOST_LAN_IP}:3000
       # Tells Metro which hostname to advertise in the QR code / bundle URL.
       # Without this, Metro picks the container's internal Docker IP, which
       # the phone cannot reach, so the JS bundle never downloads and the
       # app (including the login screen) never mounts.
-      REACT_NATIVE_PACKAGER_HOSTNAME: ${HOST_LAN_IP}
+      REACT_NATIVE_PACKAGER_HOSTNAME: \${HOST_LAN_IP}
     ports:
       - "8081:8081"
       - "19000:19000"
       - "19001:19001"
-
   ops-web:
     build:
       context: .
@@ -152,6 +153,5 @@ services:
       FLEET_API_TOKEN: eyJraWQiOiJmbGVldCIsInR5cCI6IkpXVCIsImFsZyI6IkVTMjU2In0.eyJzdWIiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwYWEiLCJhdWQiOiJmbGVldC1waWxvdCIsIm5iZiI6MTc3ODE0MTE1OCwiY29tcGFueV9pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMCIsIm9wZXJhdG9yX2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMGFhIiwiaXNzIjoiaHR0cDovL21vY2stb2F1dGgyOjgwODAvZmxlZXQiLCJleHAiOjE3NzgyMjc1NTgsImlhdCI6MTc3ODE0MTE1OCwianRpIjoiZGVlZjhmNTAtNWY2Mi00MjVkLThlNGEtNmVlOGEzODIzYjA5In0.fZuhKFxSxMQQPrNOGbH6H0D-t--Q-ltBDFM7dtq3ov-lKELT6quMMzddYrpVkJmVZHfRje8kj0Z9oF1xf8h5hw  # pragma: allowlist secret
     ports:
       - "3001:3001"
-
 volumes:
   pgdata:
