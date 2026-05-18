@@ -1,10 +1,12 @@
 // apps/api/test/transport-orders.service.list-assigned.integration.test.ts
 // PGLite integration: exercises the real listAssigned() body — assigned-row
-// query, empty-result branch, stop grouping, and tenancy isolation.
+// query, empty-result branch, stop grouping, row enrichment (plate, orderRef,
+// customer + pickup/delivery warehouse names), and tenancy isolation.
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { TransportOrdersService } from '../src/transport-orders/transport-orders.service.js';
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import { vehicle, customer, warehouse } from '../src/database/schema/reference.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 
 let testDb: PgliteTestDb;
@@ -23,7 +25,8 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
   beforeEach(async () => {
     await testDb.db.execute(sql.raw(
       'TRUNCATE TABLE outbox, fleet_audit_log, sync_change_feed, ' +
-      'road_run_transport_order, road_run, stop, transport_order CASCADE',
+      'road_run_transport_order, road_run, stop, transport_order, ' +
+      'vehicle, customer, warehouse CASCADE',
     ));
   });
 
@@ -53,6 +56,11 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
     expect(row?.externalRef).toBe('TO-LA-1');
     expect(row?.state).toBe('planned');
     expect(row?.plannedStartAt).toBe('2026-05-01T07:00:00.000Z');
+    // A planned road run has not started/completed: these must be present
+    // as null (not undefined) so the driver-app AssignmentRow schema, which
+    // requires string|null, can parse the response.
+    expect(row?.startedAt).toBeNull();
+    expect(row?.completedAt).toBeNull();
     expect(row?.stops).toHaveLength(2);
     expect(row?.stops[0]).toEqual({
       sequence: 1,
@@ -64,6 +72,61 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
       stopType: 'dropoff',
       plannedAt: null,
     });
+  });
+
+  it('enriches rows with plate, orderRef, customerName, pickup/delivery names', async () => {
+    const op = createOperatorContext();
+    const vehicleId = '00000000-0000-0000-0000-0000000000a1';
+    const customerId = '00000000-0000-0000-0000-0000000000b2';
+    const pickupWhId = '00000000-0000-0000-0000-0000000000c3';
+    const deliveryWhId = '00000000-0000-0000-0000-0000000000d4';
+    const tn = {
+      companyId: op.companyId,
+      businessUnitId: op.businessUnitId,
+      depotId: op.depotId,
+      legalEntityId: op.legalEntityId,
+    };
+    await testDb.db.insert(vehicle).values({ ...tn, vehicleId, plate: '62H-99999' });
+    await testDb.db.insert(customer).values({ ...tn, customerId, name: 'ACME Logistics' });
+    await testDb.db.insert(warehouse).values([
+      { ...tn, warehouseId: pickupWhId, name: 'North Pickup Dock', role: 'pickup' },
+      { ...tn, warehouseId: deliveryWhId, name: 'South Delivery Bay', role: 'delivery' },
+    ]);
+    await svc.create({
+      externalRef: 'TO-ENRICH-1',
+      customerId,
+      stops: [
+        { sequence: 1, stopType: 'pickup', yardId: pickupWhId },
+        { sequence: 2, stopType: 'delivery', yardId: deliveryWhId },
+      ],
+      roadRun: { assignedOperatorId: op.operatorId, assignedAssetId: vehicleId },
+    }, op);
+
+    const result = await svc.listAssigned(op);
+    expect(result.rows).toHaveLength(1);
+    const row = result.rows[0];
+    expect(row?.orderRef).toBe('TO-ENRICH-1');
+    expect(row?.plate).toBe('62H-99999');
+    expect(row?.customerName).toBe('ACME Logistics');
+    expect(row?.pickupName).toBe('North Pickup Dock');
+    expect(row?.deliveryName).toBe('South Delivery Bay');
+  });
+
+  it('enrichment fields are null when no vehicle/customer/warehouse is linked', async () => {
+    const op = createOperatorContext();
+    await svc.create({
+      externalRef: 'TO-BARE-1',
+      stops: [{ sequence: 1, stopType: 'pickup' }],
+      roadRun: { assignedOperatorId: op.operatorId },
+    }, op);
+
+    const result = await svc.listAssigned(op);
+    const row = result.rows[0];
+    expect(row?.orderRef).toBe('TO-BARE-1');
+    expect(row?.plate).toBeNull();
+    expect(row?.customerName).toBeNull();
+    expect(row?.pickupName).toBeNull();
+    expect(row?.deliveryName).toBeNull();
   });
 
   it('excludes road runs assigned to a different operator', async () => {

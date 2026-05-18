@@ -10,6 +10,7 @@ import { eq, and, asc } from 'drizzle-orm';
 import type { FleetDb } from '../database/database.module.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { transportOrder, stop, roadRun, roadRunTransportOrder } from '../database/schema/transport.js';
+import { vehicle, customer, warehouse } from '../database/schema/reference.js';
 import { appendTriWrite } from '../database/append-tri-write.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import type { CreateTransportOrderInput, CreateTransportOrderResponse, ListAssignedResponse } from './transport-orders.dto.js';
@@ -97,6 +98,10 @@ export class TransportOrdersService {
   }
 
   async listAssigned(op: OperatorContext): Promise<ListAssignedResponse> {
+    // Main query: assigned road runs joined to their transport order, plus
+    // LEFT joins to the assigned vehicle and the order customer. LEFT joins
+    // because assignedAssetId and customerId are both nullable — a road run
+    // may have no vehicle and an order may have no customer.
     const rows = await this.db
       .select({
         transportOrderId: transportOrder.transportOrderId,
@@ -104,16 +109,24 @@ export class TransportOrdersService {
         roadRunId: roadRun.roadRunId,
         state: roadRun.state,
         plannedStartAt: roadRun.plannedStartAt,
+        startedAt: roadRun.startedAt,
+        completedAt: roadRun.completedAt,
+        plate: vehicle.plate,
+        customerName: customer.name,
       })
       .from(roadRun)
       .innerJoin(roadRunTransportOrder, eq(roadRunTransportOrder.roadRunId, roadRun.roadRunId))
       .innerJoin(transportOrder, eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId))
+      .leftJoin(vehicle, eq(vehicle.vehicleId, roadRun.assignedAssetId))
+      .leftJoin(customer, eq(customer.customerId, transportOrder.customerId))
       .where(and(
         eq(roadRun.companyId, op.companyId),
         eq(roadRun.assignedOperatorId, op.operatorId),
       ))
       .orderBy(asc(roadRun.plannedStartAt));
     const transportOrderIds = rows.map((r) => r.transportOrderId);
+    // Stop query: LEFT join warehouse on the stop yard so each stop carries
+    // its warehouse name. yardId is nullable, hence LEFT join.
     const stopRows = transportOrderIds.length === 0
       ? []
       : await this.db
@@ -122,32 +135,73 @@ export class TransportOrdersService {
             sequence: stop.sequence,
             stopType: stop.stopType,
             plannedAt: stop.plannedAt,
+            warehouseName: warehouse.name,
           })
           .from(stop)
+          .leftJoin(warehouse, eq(warehouse.warehouseId, stop.yardId))
           .where(and(
             eq(stop.companyId, op.companyId),
           ))
           .orderBy(asc(stop.sequence));
-    const stopsByOrder = new Map<string, { sequence: number; stopType: string; plannedAt: Date | null }[]>();
+    interface StopRow {
+      sequence: number;
+      stopType: string;
+      plannedAt: Date | null;
+      warehouseName: string | null;
+    }
+    const stopsByOrder = new Map<string, StopRow[]>();
     for (const sr of stopRows) {
       if (!transportOrderIds.includes(sr.transportOrderId)) continue;
       const list = stopsByOrder.get(sr.transportOrderId) ?? [];
-      list.push({ sequence: sr.sequence, stopType: sr.stopType, plannedAt: sr.plannedAt });
+      list.push({
+        sequence: sr.sequence,
+        stopType: sr.stopType,
+        plannedAt: sr.plannedAt,
+        warehouseName: sr.warehouseName,
+      });
       stopsByOrder.set(sr.transportOrderId, list);
     }
+    // Pickup/delivery name derivation. The stop_type column is a free-form
+    // varchar with no DB enum, so match defensively (case-insensitive):
+    //   pickup   -> stop_type === \'pickup\'
+    //   delivery -> stop_type === \'delivery\' or \'dropoff\' (both denote the drop)
+    // Stops are already ordered by sequence; the first pickup and the last
+    // delivery stop are used. Any unmatched stop yields null.
+    const pickupNameOf = (stops: readonly StopRow[]): string | null => {
+      const s = stops.find((x) => x.stopType.toLowerCase() === 'pickup');
+      return s?.warehouseName ?? null;
+    };
+    const deliveryNameOf = (stops: readonly StopRow[]): string | null => {
+      const drops = stops.filter((x) => {
+        const t = x.stopType.toLowerCase();
+        return t === 'delivery' || t === 'dropoff';
+      });
+      const last = drops[drops.length - 1];
+      return last?.warehouseName ?? null;
+    };
     return {
-      rows: rows.map((r) => ({
-        transportOrderId: r.transportOrderId,
-        externalRef: r.externalRef ?? null,
-        roadRunId: r.roadRunId,
-        state: r.state,
-        plannedStartAt: r.plannedStartAt ? r.plannedStartAt.toISOString() : null,
-        stops: (stopsByOrder.get(r.transportOrderId) ?? []).map((s) => ({
-          sequence: s.sequence,
-          stopType: s.stopType,
-          plannedAt: s.plannedAt ? s.plannedAt.toISOString() : null,
-        })),
-      })),
+      rows: rows.map((r) => {
+        const stops = stopsByOrder.get(r.transportOrderId) ?? [];
+        return {
+          transportOrderId: r.transportOrderId,
+          externalRef: r.externalRef ?? null,
+          orderRef: r.externalRef ?? null,
+          roadRunId: r.roadRunId,
+          state: r.state,
+          plannedStartAt: r.plannedStartAt ? r.plannedStartAt.toISOString() : null,
+          startedAt: r.startedAt ? r.startedAt.toISOString() : null,
+          completedAt: r.completedAt ? r.completedAt.toISOString() : null,
+          plate: r.plate ?? null,
+          customerName: r.customerName ?? null,
+          pickupName: pickupNameOf(stops),
+          deliveryName: deliveryNameOf(stops),
+          stops: stops.map((s) => ({
+            sequence: s.sequence,
+            stopType: s.stopType,
+            plannedAt: s.plannedAt ? s.plannedAt.toISOString() : null,
+          })),
+        };
+      }),
     };
   }
 }
