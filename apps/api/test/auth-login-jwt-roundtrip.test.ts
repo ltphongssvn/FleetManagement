@@ -16,12 +16,17 @@ describe('JWT round-trip: login signer → JoseIdentityProvider verifier', () =>
     const kp = await generateKeyPair('ES256');
     privateKey = kp.privateKey;
     PUBLIC_PEM = await exportSPKI(kp.publicKey);
+    const envMap: Record<string, string> = {
+      JWT_ISSUER: 'fleet-pilot-api',
+      JWT_AUDIENCE: 'fleet-driver',
+      JWT_PUBLIC_KEY_PEM: PUBLIC_PEM,
+      OIDC_ISSUER: 'http://mock-oauth2:8080/fleet',
+      OIDC_AUDIENCE: 'fleet-driver',
+      OIDC_JWKS_URI: 'http://mock-oauth2:8080/fleet/jwks',
+    };
     const config = {
-      getOrThrow: (k: string): string => ({
-        JWT_ISSUER: 'fleet-pilot-api',
-        JWT_AUDIENCE: 'fleet-driver',
-        JWT_PUBLIC_KEY_PEM: PUBLIC_PEM,
-      }[k] ?? ''),
+      getOrThrow: (k: string): string => envMap[k] ?? '',
+      get: (k: string): string | undefined => envMap[k],
     } as unknown as ConfigService;
     provider = new JoseIdentityProvider(config as never);
     await provider.onModuleInit();
