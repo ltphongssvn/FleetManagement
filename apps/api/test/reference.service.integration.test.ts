@@ -48,12 +48,30 @@ describe('@fleet/api - ReferenceService (integration)', () => {
   it('drivers() returns active drivers for the company, excludes inactive', async () => {
     const op = createOperatorContext();
     await testDb.db.insert(driver).values([
-      { ...tenancy(op), fullName: 'Bravo', active: true },
-      { ...tenancy(op), fullName: 'Alpha', active: true },
-      { ...tenancy(op), fullName: 'Inactive One', active: false },
+      { ...tenancy(op), fullName: 'Bravo', active: true, operatorId: '00000000-0000-0000-0000-0000000000b1' },
+      { ...tenancy(op), fullName: 'Alpha', active: true, operatorId: '00000000-0000-0000-0000-0000000000a1' },
+      { ...tenancy(op), fullName: 'Inactive One', active: false, operatorId: '00000000-0000-0000-0000-0000000000c1' },
     ]);
     const res = await svc.drivers(op);
     expect(res.items.map((i) => i.label)).toEqual(['Alpha', 'Bravo']);
+  });
+
+  it('drivers() exposes operatorId as the option id (used as assignedOperatorId)', async () => {
+    // The dispatch form submits this id as roadRun.assignedOperatorId, which
+    // road_run and the driver-app /transport-orders/assigned filter both key
+    // on operator_id. The list must therefore return operator_id, not the
+    // driver primary key, or form-created orders are invisible to drivers.
+    const op = createOperatorContext();
+    const opAlpha = '00000000-0000-0000-0000-0000000000a1';
+    const opBravo = '00000000-0000-0000-0000-0000000000b2';
+    await testDb.db.insert(driver).values([
+      { ...tenancy(op), fullName: 'Alpha', active: true, operatorId: opAlpha },
+      { ...tenancy(op), fullName: 'Bravo', active: true, operatorId: opBravo },
+    ]);
+    const res = await svc.drivers(op);
+    const byLabel = Object.fromEntries(res.items.map((i) => [i.label, i.id]));
+    expect(byLabel['Alpha']).toBe(opAlpha);
+    expect(byLabel['Bravo']).toBe(opBravo);
   });
 
   it('vehicles() returns active vehicles ordered by plate', async () => {
@@ -106,8 +124,8 @@ describe('@fleet/api - ReferenceService (integration)', () => {
     const op1 = createOperatorContext();
     const op2 = createOperatorContext();
     await testDb.db.insert(driver).values([
-      { ...tenancy(op1), fullName: 'Owned', active: true },
-      { ...tenancy(op2), fullName: 'Other Co', active: true },
+      { ...tenancy(op1), fullName: 'Owned', active: true, operatorId: '00000000-0000-0000-0000-0000000000d1' },
+      { ...tenancy(op2), fullName: 'Other Co', active: true, operatorId: '00000000-0000-0000-0000-0000000000e2' },
     ]);
     const res = await svc.drivers(op1);
     expect(res.items.map((i) => i.label)).toEqual(['Owned']);

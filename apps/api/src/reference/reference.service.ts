@@ -1,6 +1,6 @@
 // apps/api/src/reference/reference.service.ts
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNotNull } from 'drizzle-orm';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { driver, vehicle, customer, cargoType, warehouse, orderSequence } from '../database/schema/reference.js';
@@ -10,9 +10,19 @@ import type { ReferenceListResponse } from './reference.dto.js';
 export class ReferenceService {
   constructor(@Inject(DRIZZLE_DB) private readonly db: FleetDb) {}
   async drivers(op: OperatorContext): Promise<ReferenceListResponse> {
-    const rows = await this.db.select({ id: driver.driverId, label: driver.fullName }).from(driver)
-      .where(and(eq(driver.companyId, op.companyId), eq(driver.active, true))).orderBy(asc(driver.fullName));
-    return { items: rows };
+    // operator_id is nullable in the schema; a driver without one cannot be a
+    // valid roadRun.assignedOperatorId, so exclude those rows. The isNotNull
+    // filter guarantees every returned operatorId is a string.
+    const rows = await this.db.select({ id: driver.operatorId, label: driver.fullName }).from(driver)
+      .where(and(
+        eq(driver.companyId, op.companyId),
+        eq(driver.active, true),
+        isNotNull(driver.operatorId),
+      )).orderBy(asc(driver.fullName));
+    const items = rows
+      .filter((r): r is { id: string; label: string } => r.id !== null)
+      .map((r) => ({ id: r.id, label: r.label }));
+    return { items };
   }
   async vehicles(op: OperatorContext): Promise<ReferenceListResponse> {
     const rows = await this.db.select({ id: vehicle.vehicleId, label: vehicle.plate }).from(vehicle)
