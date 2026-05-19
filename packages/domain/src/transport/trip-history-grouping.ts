@@ -72,10 +72,14 @@ export function groupCompletedTripsByMonth<T>(
       trips: sorted.map((e) => e.row),
     });
   }
-  // Newest month first.
+  // Newest month first. monthKey values come from Map keys, so they are
+  // unique by construction — the equal branch below is unreachable in
+  // practice and excluded from coverage rather than tested with an
+  // impossible input.
   months.sort((a, b) => {
     if (a.monthKey < b.monthKey) return 1;
     if (a.monthKey > b.monthKey) return -1;
+    /* v8 ignore next -- unreachable: Map guarantees unique monthKey values */
     return 0;
   });
   return months;

@@ -66,6 +66,18 @@ describe('groupCompletedTripsByMonth', () => {
     expect(months[0]?.label).toContain('2026');
     expect(months[0]?.label.toLowerCase()).toContain('thg');
   });
+  it('keeps both trips when two completions share the exact same timestamp', () => {
+    // Exercises the equal branch of the within-month completedAt comparator.
+    const ts = '2026-03-10T03:00:00.000Z';
+    const rows = [
+      mk({ id: 'tie-a', completedAt: ts }),
+      mk({ id: 'tie-b', completedAt: ts }),
+    ];
+    const months = group(rows);
+    expect(months).toHaveLength(1);
+    expect(months[0]?.count).toBe(2);
+    expect(months[0]?.trips.map((t) => t.id).sort()).toEqual(['tie-a', 'tie-b']);
+  });
   it('is case-insensitive on the state value', () => {
     expect(group([mk({ id: 'a', state: 'COMPLETED', completedAt: '2026-03-10T03:00:00.000Z' })])).toHaveLength(1);
   });
