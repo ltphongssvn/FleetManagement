@@ -28,19 +28,19 @@ export async function DispatchBoard(): Promise<React.ReactElement> {
   return (
     <section className="p-6">
       <header className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Dispatch board</h1>
+        <h1 className="text-2xl font-semibold">Lệnh điều xe</h1>
         <LogoutButton />
       </header>
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b text-left">
-            <th className="px-3 py-2">Road run</th>
-            <th className="px-3 py-2">State</th>
-            <th className="px-3 py-2">Operator</th>
-            <th className="px-3 py-2">Asset</th>
-            <th className="px-3 py-2">Planned</th>
-            <th className="px-3 py-2">Stops</th>
-            <th className="px-3 py-2">Orders</th>
+            <th className="px-3 py-2">Mã lệnh</th>
+            <th className="px-3 py-2">Trạng thái</th>
+            <th className="px-3 py-2">Tài xế</th>
+            <th className="px-3 py-2">Xe</th>
+            <th className="px-3 py-2">Ngày dự kiến</th>
+            <th className="px-3 py-2">Số điểm</th>
+            <th className="px-3 py-2">Mã đơn</th>
           </tr>
         </thead>
         <tbody>
@@ -56,7 +56,7 @@ export async function DispatchBoard(): Promise<React.ReactElement> {
             </tr>
           ))}
           {runs.length === 0 && (
-            <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-500">No road runs.</td></tr>
+            <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-500">Chưa có lệnh điều xe nào.</td></tr>
           )}
         </tbody>
       </table>

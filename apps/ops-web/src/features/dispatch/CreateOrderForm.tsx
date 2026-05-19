@@ -3,17 +3,15 @@
 // Uses Headless UI Combobox via ComboboxField — portal-rendered, searchable,
 // immune to overflow clipping.
 //
-// Multi-destination: section 5 is a dynamic list of 1..MAX_DESTINATIONS
-// delivery rows. Each row N emits deliveryAt_N (date) and deliveryWarehouse_N
-// (warehouse). The dispatcher adds rows with 'Add destination' (hidden at the
-// cap) and removes any non-first row. createOrder collapses these indexed
-// fields into one ordered stops[] so a single order routes the driver through
-// up to four destinations in a day.
+// Multi-pickup: section 4 always renders 4 fixed pickup-warehouse slots
+// (pickupWarehouse_1..4) sharing one pickupAt date. The dispatcher assigns
+// 1..4 of them; unassigned slots show a 'None' placeholder and submit empty.
+// Section 5 is a single delivery field (deliveryAt / deliveryWarehouse): all
+// goods unload at exactly one destination warehouse.
 'use client';
 import { useActionState, useState } from 'react';
 import type { JSX } from 'react';
 import { createOrder, type CreateOrderState } from './create-order.action';
-import { MAX_DESTINATIONS } from './constants';
 import { ComboboxField } from './ui/ComboboxField';
 import { t, type Locale } from '@/lib/i18n';
 export interface DriverOption { readonly id: string; readonly label: string }
@@ -44,18 +42,21 @@ export function CreateOrderForm({
   pickupWarehouses = [], deliveryWarehouses = [], defaultOrderRef = '', locale = 'vi',
 }: CreateOrderFormProps): JSX.Element {
   const [state, formAction, pending] = useActionState<CreateOrderState, FormData>(createOrder, undefined);
-  // destinationCount drives how many delivery rows render (1..MAX_DESTINATIONS).
-  // It is local UI state only; the server reads indexed deliveryAt_N fields.
-  const [destinationCount, setDestinationCount] = useState(1);
+  // Dynamic warehouse rows. Section 4 starts at 4 pickup slots, section 5 at 1
+  // delivery slot; either side grows without a hard cap for rare business
+  // cases. Local UI state only; the server reads indexed *Warehouse_N fields.
+  const [pickupCount, setPickupCount] = useState(4);
+  const [deliveryCount, setDeliveryCount] = useState(1);
+  const addPickup = (): void => { setPickupCount((n) => n + 1); };
+  const addDelivery = (): void => { setDeliveryCount((n) => n + 1); };
+  const pickupRows = Array.from({ length: pickupCount }, (_, i) => i + 1);
+  const deliveryRows = Array.from({ length: deliveryCount }, (_, i) => i + 1);
   const errs = state?.status === 'invalid' ? state.errors : {};
   const topError = state?.status === 'api_error' || state?.status === 'server_error' ? state.message : undefined;
   const tx = (k: string): string => t(locale, k);
   const ph = (k: string): string =>
     locale === 'vi' ? '— Chọn ' + k.toLowerCase() + ' —' : '— Select ' + k.toLowerCase() + ' —';
   const inputMt = inputCls + ' mt-1';
-  const addDestination = (): void => { setDestinationCount((n) => Math.min(n + 1, MAX_DESTINATIONS)); };
-  const removeDestination = (): void => { setDestinationCount((n) => Math.max(n - 1, 1)); };
-  const destinationRows = Array.from({ length: destinationCount }, (_, i) => i + 1);
   return (
     <form action={formAction} className='rounded-2xl border border-white/60 bg-white/95 shadow-xl shadow-indigo-900/5 ring-1 ring-slate-900/5'>
       <div className='rounded-t-2xl border-b border-slate-200/70 bg-gradient-to-r from-indigo-50/60 via-white/40 to-sky-50/60 px-6 py-4'>
@@ -100,86 +101,73 @@ export function CreateOrderForm({
             <ComboboxField id='vehiclePlate' name='vehiclePlate' options={vehicles} placeholder={ph(tx('orderForm.vehiclePlate'))} />
           </div>
           <div>
-            <label htmlFor='driverName' className={labelCls}>{tx('orderForm.driverName')}</label>
-            <ComboboxField id='driverName' name='driverName' options={drivers} placeholder={ph(tx('orderForm.driverName'))} />
-          </div>
-          <div className='sm:col-span-2'>
-            <label htmlFor='assignedOperatorId' className={labelCls}>{tx('orderForm.driver')} ID</label>
+            <label htmlFor='assignedOperatorId' className={labelCls}>{tx('orderForm.driverName')}</label>
             <ComboboxField id='assignedOperatorId' name='assignedOperatorId' options={drivers} placeholder={tx('orderForm.selectDriver')} required submitValue='id' />
             <FieldError msg={errs.assignedOperatorId} />
           </div>
         </div>
       </div>
       <div className={sectionCls}>
-        <div className={sectionTitleCls}><span className={stepBadgeCls}>4</span>{tx('orderForm.pickupDate')} & {tx('orderForm.pickupWarehouse')}</div>
-        <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-          <div>
-            <label htmlFor='pickupAt' className={labelCls}>{tx('orderForm.pickupDate')}</label>
-            <input id='pickupAt' name='pickupAt' type='datetime-local' required className={inputMt} />
-            <FieldError msg={errs.pickupAt} />
-          </div>
-          <div>
-            <label htmlFor='pickupWarehouse' className={labelCls}>{tx('orderForm.pickupWarehouse')}</label>
-            <ComboboxField id='pickupWarehouse' name='pickupWarehouse' options={pickupWarehouses} placeholder={ph(tx('orderForm.pickupWarehouse'))} />
-          </div>
-          <div className='sm:col-span-2'>
-            <label htmlFor='backupWarehouse' className={labelCls}>{tx('orderForm.backupWarehouse')}</label>
-            <ComboboxField id='backupWarehouse' name='backupWarehouse' options={pickupWarehouses} placeholder={ph(tx('orderForm.backupWarehouse'))} />
-          </div>
+        <div className={sectionTitleCls}>
+          <span className={stepBadgeCls}>4</span>
+          {tx('orderForm.pickupDate')} & {tx('orderForm.pickupWarehouse')}
         </div>
+        <p className='mb-3 text-xs text-slate-500'>{tx('orderForm.maxPickupsHint')}</p>
+        <div className='mb-4'>
+          <label htmlFor='pickupAt' className={labelCls}>{tx('orderForm.pickupDate')}</label>
+          <input id='pickupAt' name='pickupAt' type='datetime-local' required className={inputMt} />
+          <FieldError msg={errs.pickupAt} />
+        </div>
+        <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+          {pickupRows.map((n) => {
+            const whId = 'pickupWarehouse_' + String(n);
+            return (
+              <div key={n} className='rounded-lg border border-slate-200 bg-slate-50/60 p-3'>
+                <label htmlFor={whId} className={labelCls}>{tx('orderForm.pickup')} {n}</label>
+                <ComboboxField id={whId} name={whId} options={pickupWarehouses} placeholder={tx('orderForm.none')} />
+              </div>
+            );
+          })}
+        </div>
+        <button
+          type='button'
+          onClick={addPickup}
+          className='mt-4 inline-flex items-center gap-1 rounded-md border border-dashed border-indigo-300 bg-indigo-50/50 px-3 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-50'
+        >
+          <span aria-hidden='true'>+</span> {tx('orderForm.addPickupWarehouse')}
+        </button>
+        <FieldError msg={errs.pickupWarehouses} />
       </div>
       <div className={sectionCls}>
         <div className={sectionTitleCls}>
           <span className={stepBadgeCls}>5</span>
           {tx('orderForm.deliveryDate')} & {tx('orderForm.deliveryWarehouse')}
         </div>
-        <p className='mb-3 text-xs text-slate-500'>{tx('orderForm.maxDestinationsHint')}</p>
-        <div className='space-y-4'>
-          {destinationRows.map((n) => {
-            const atId = 'deliveryAt_' + String(n);
+        <p className='mb-3 text-xs text-slate-500'>{tx('orderForm.deliveryHint')}</p>
+        <div className='mb-4'>
+          <label htmlFor='deliveryAt' className={labelCls}>{tx('orderForm.deliveryDate')}</label>
+          <input id='deliveryAt' name='deliveryAt' type='datetime-local' required className={inputMt} />
+          <FieldError msg={errs.deliveryAt} />
+        </div>
+        <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+          {deliveryRows.map((n) => {
             const whId = 'deliveryWarehouse_' + String(n);
             return (
-              <div key={n} className='rounded-lg border border-slate-200 bg-slate-50/60 p-4'>
-                <div className='mb-3 flex items-center justify-between'>
-                  <span className='text-xs font-semibold uppercase tracking-wide text-slate-700'>
-                    {tx('orderForm.destination')} {n}
-                  </span>
-                  {n > 1 ? (
-                    <button
-                      type='button'
-                      onClick={removeDestination}
-                      aria-label={tx('orderForm.removeDestination') + ' ' + String(n)}
-                      className='rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600'
-                    >
-                      {tx('orderForm.removeDestination')}
-                    </button>
-                  ) : null}
-                </div>
-                <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-                  <div>
-                    <label htmlFor={atId} className={labelCls}>{tx('orderForm.deliveryDate')}</label>
-                    <input id={atId} name={atId} type='datetime-local' required className={inputMt} />
-                    {n === 1 ? <FieldError msg={errs.deliveryAt} /> : null}
-                  </div>
-                  <div>
-                    <label htmlFor={whId} className={labelCls}>{tx('orderForm.deliveryWarehouse')}</label>
-                    <ComboboxField id={whId} name={whId} options={deliveryWarehouses} placeholder={ph(tx('orderForm.deliveryWarehouse'))} />
-                  </div>
-                </div>
+              <div key={n} className='rounded-lg border border-slate-200 bg-slate-50/60 p-3'>
+                <label htmlFor={whId} className={labelCls}>{tx('orderForm.deliveryWarehouse')} {n}</label>
+                <ComboboxField id={whId} name={whId} options={deliveryWarehouses} placeholder={tx('orderForm.none')} />
               </div>
             );
           })}
         </div>
-        {destinationCount < MAX_DESTINATIONS ? (
-          <button
-            type='button'
-            onClick={addDestination}
-            className='mt-4 inline-flex items-center gap-1 rounded-md border border-dashed border-indigo-300 bg-indigo-50/50 px-3 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-50'
-          >
-            <span aria-hidden='true'>+</span> {tx('orderForm.addDestination')}
-          </button>
-        ) : null}
-        <FieldError msg={errs.destinations} />
+        <button
+          type='button'
+          onClick={addDelivery}
+          className='mt-4 inline-flex items-center gap-1 rounded-md border border-dashed border-indigo-300 bg-indigo-50/50 px-3 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-50'
+        >
+          <span aria-hidden='true'>+</span> {tx('orderForm.addDeliveryWarehouse')}
+        </button>
+        <FieldError msg={errs.deliveryWarehouses} />
       </div>
       <div className='flex items-center justify-between gap-3 rounded-b-2xl border-t border-slate-200/70 bg-gradient-to-r from-slate-50/80 to-white/60 px-6 py-4'>
         <p className='text-xs text-slate-500'>{locale === 'vi' ? 'Kiểm tra kỹ thông tin trước khi tạo lệnh.' : 'Review the information before submitting.'}</p>

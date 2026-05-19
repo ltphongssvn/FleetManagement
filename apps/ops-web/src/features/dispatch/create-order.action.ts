@@ -1,46 +1,42 @@
 // apps/ops-web/src/features/dispatch/create-order.action.ts
-// Server Action: dispatcher creates a transport order with one pickup and
-// 1..4 delivery destinations, then assigns a driver. Calls api
+// Server Action: dispatcher creates a transport order where the driver loads
+// goods at one or more PICKUP warehouses on a shared pickup date, then unloads
+// at one or more DELIVERY warehouses on a shared delivery date. Calls api
 // POST /transport-orders with bearer JWT from the fleet_session httpOnly
 // cookie. Industry pattern: server action keeps the token server-side,
 // validates with zod, revalidates the board on success.
 //
-// Multi-destination: the revised LENH DIEU XE UI lets a dispatcher route one
-// delivery order through up to four destinations in a day. Destinations arrive
-// as indexed form fields deliveryAt_1..4 / deliveryWarehouse_1..4; the action
-// collapses them into a single ordered stops[] (sequence 1 = pickup, 2..N+1 =
-// deliveries) so the existing API contract is unchanged.
+// Dynamic warehouses: the form starts with 4 pickup slots + 1 delivery slot
+// but the dispatcher may add more on either side (no hard cap) for rare
+// business cases. Warehouses arrive as indexed fields pickupWarehouse_1..N /
+// deliveryWarehouse_1..N; empty slots are dropped. The action collapses the
+// filled slots into ordered stops[] (1..P = pickups, P+1.. = deliveries).
 'use server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { MAX_DESTINATIONS } from './constants';
-const DestinationSchema = z.object({
-  deliveryAt: z.string().min(1, 'Required'),
-  deliveryWarehouse: z.string().max(500).optional().default(''),
-});
 const FormSchema = z.object({
   externalRef: z.string().min(1, 'Required').max(64),
   plannedStartAt: z.string().min(1, 'Required'),
   assignedOperatorId: z.string().uuid('Invalid driver id'),
-  pickupAt: z.string().min(1, 'Required'),
   customer: z.string().max(200).optional().default(''),
   cargo: z.string().max(200).optional().default(''),
   vehiclePlate: z.string().max(50).optional().default(''),
   driverName: z.string().max(200).optional().default(''),
-  pickupWarehouse: z.string().max(500).optional().default(''),
-  backupWarehouse: z.string().max(500).optional().default(''),
-  destinations: z
-    .array(DestinationSchema)
-    .min(1, 'At least one destination is required')
-    .max(MAX_DESTINATIONS, 'A delivery order may have at most ' + String(MAX_DESTINATIONS) + ' destinations'),
+  pickupAt: z.string().min(1, 'Required'),
+  deliveryAt: z.string().min(1, 'Required'),
+  pickupWarehouses: z
+    .array(z.string().min(1).max(500))
+    .min(1, 'At least one pickup warehouse is required'),
+  deliveryWarehouses: z
+    .array(z.string().min(1).max(500))
+    .min(1, 'At least one delivery warehouse is required'),
 });
 type ErrorKey =
-  | 'externalRef' | 'plannedStartAt' | 'assignedOperatorId' | 'pickupAt'
+  | 'externalRef' | 'plannedStartAt' | 'assignedOperatorId'
   | 'customer' | 'cargo' | 'vehiclePlate' | 'driverName'
-  | 'pickupWarehouse' | 'backupWarehouse' | 'destinations'
-  | 'deliveryAt' | 'deliveryWarehouse';
+  | 'pickupAt' | 'deliveryAt' | 'pickupWarehouses' | 'deliveryWarehouses';
 export type CreateOrderState =
   | undefined
   | { status: 'invalid'; errors: Partial<Record<ErrorKey, string>> }
@@ -52,48 +48,37 @@ function toIso(local: string): string {
   const withSec = local.length === 16 ? local + ':00' : local;
   return new Date(withSec + 'Z').toISOString();
 }
-// Collect deliveryAt_1..N / deliveryWarehouse_1..N into an ordered array.
-// A row counts as present if its deliveryAt field exists at all; this lets
-// zod report a 'Required' error on a blank middle row instead of silently
-// dropping it. We probe one index past MAX so an over-limit submission is
-// caught by FormSchema.max rather than truncated.
-function collectDestinations(formData: FormData): { deliveryAt: unknown; deliveryWarehouse: unknown }[] {
-  const rows: { deliveryAt: unknown; deliveryWarehouse: unknown }[] = [];
-  for (let i = 1; i <= MAX_DESTINATIONS + 1; i++) {
-    const at = formData.get('deliveryAt_' + String(i));
-    const wh = formData.get('deliveryWarehouse_' + String(i));
-    if (at === null && wh === null) continue;
-    rows.push({ deliveryAt: at ?? '', deliveryWarehouse: wh ?? '' });
+// Collect <prefix>_1.._N into an ordered array, dropping empties. There is no
+// hard cap: the form may submit any number of slots, so we scan until the
+// first index that is entirely absent (FormData has no key for it).
+function collectWarehouses(formData: FormData, prefix: string): string[] {
+  const out: string[] = [];
+  for (let i = 1; ; i++) {
+    if (!formData.has(prefix + String(i))) break;
+    const wh = formData.get(prefix + String(i));
+    if (typeof wh === 'string' && wh.trim() !== '') out.push(wh);
   }
-  return rows;
+  return out;
 }
 export async function createOrder(_prev: CreateOrderState, formData: FormData): Promise<CreateOrderState> {
   const parsed = FormSchema.safeParse({
     externalRef: formData.get('externalRef'),
     plannedStartAt: formData.get('plannedStartAt'),
     assignedOperatorId: formData.get('assignedOperatorId'),
-    pickupAt: formData.get('pickupAt'),
     customer: formData.get('customer') ?? '',
     cargo: formData.get('cargo') ?? '',
     vehiclePlate: formData.get('vehiclePlate') ?? '',
     driverName: formData.get('driverName') ?? '',
-    pickupWarehouse: formData.get('pickupWarehouse') ?? '',
-    backupWarehouse: formData.get('backupWarehouse') ?? '',
-    destinations: collectDestinations(formData),
+    pickupAt: formData.get('pickupAt'),
+    deliveryAt: formData.get('deliveryAt'),
+    pickupWarehouses: collectWarehouses(formData, 'pickupWarehouse_'),
+    deliveryWarehouses: collectWarehouses(formData, 'deliveryWarehouse_'),
   });
   if (!parsed.success) {
     const errors: Partial<Record<ErrorKey, string>> = {};
     for (const issue of parsed.error.issues) {
       const k = issue.path[0];
-      // Destination issues have path ['destinations', idx, field]; surface
-      // the leaf field name so the form can render it on the right row.
-      if (k === 'destinations') {
-        const leaf = issue.path[issue.path.length - 1];
-        const key: ErrorKey = leaf === 'deliveryAt' || leaf === 'deliveryWarehouse' ? leaf : 'destinations';
-        errors[key] = issue.message;
-      } else if (typeof k === 'string') {
-        errors[k as ErrorKey] = issue.message;
-      }
+      if (typeof k === 'string') errors[k as ErrorKey] = issue.message;
     }
     return { status: 'invalid', errors };
   }
@@ -102,11 +87,19 @@ export async function createOrder(_prev: CreateOrderState, formData: FormData): 
   const cookieStore = await cookies();
   const token = cookieStore.get('fleet_session')?.value;
   if (!token) return { status: 'server_error', message: 'Not authenticated' };
-  const deliveryStops = parsed.data.destinations.map((d, idx) => ({
-    sequence: idx + 2,
+  const pickupPlannedAt = toIso(parsed.data.pickupAt);
+  const deliveryPlannedAt = toIso(parsed.data.deliveryAt);
+  const pickupStops = parsed.data.pickupWarehouses.map((warehouse, idx) => ({
+    sequence: idx + 1,
+    stopType: 'pickup' as const,
+    plannedAt: pickupPlannedAt,
+    warehouse,
+  }));
+  const deliveryStops = parsed.data.deliveryWarehouses.map((warehouse, idx) => ({
+    sequence: pickupStops.length + idx + 1,
     stopType: 'delivery' as const,
-    plannedAt: toIso(d.deliveryAt),
-    warehouse: d.deliveryWarehouse,
+    plannedAt: deliveryPlannedAt,
+    warehouse,
   }));
   const body = {
     externalRef: parsed.data.externalRef,
@@ -115,14 +108,10 @@ export async function createOrder(_prev: CreateOrderState, formData: FormData): 
       cargo: parsed.data.cargo,
       vehiclePlate: parsed.data.vehiclePlate,
       driverName: parsed.data.driverName,
-      pickupWarehouse: parsed.data.pickupWarehouse,
-      backupWarehouse: parsed.data.backupWarehouse,
-      deliveryWarehouse: parsed.data.destinations[0]?.deliveryWarehouse ?? '',
+      pickupWarehouse: parsed.data.pickupWarehouses[0] ?? '',
+      deliveryWarehouse: parsed.data.deliveryWarehouses[0] ?? '',
     },
-    stops: [
-      { sequence: 1, stopType: 'pickup', plannedAt: toIso(parsed.data.pickupAt), warehouse: parsed.data.pickupWarehouse },
-      ...deliveryStops,
-    ],
+    stops: [...pickupStops, ...deliveryStops],
     roadRun: {
       plannedStartAt: toIso(parsed.data.plannedStartAt),
       assignedOperatorId: parsed.data.assignedOperatorId,

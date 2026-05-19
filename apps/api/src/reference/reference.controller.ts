@@ -1,10 +1,18 @@
 // apps/api/src/reference/reference.controller.ts
-import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import { ReferenceService } from './reference.service.js';
 import type { ReferenceListResponse } from './reference.dto.js';
+// Body shape for create/update of dispatch-form master data. A single
+// optional 'role' lets warehouse reuse the same DTO; non-warehouse entities
+// ignore it. 'name' carries the customer name / cargo name / vehicle plate /
+// warehouse name depending on the endpoint.
+interface ReferenceWriteDto {
+  name: string;
+  role?: string;
+}
 @Controller('reference')
 @UseGuards(JwtGuard)
 export class ReferenceController {
@@ -24,5 +32,58 @@ export class ReferenceController {
   @Get('warehouses') warehouses(@CurrentOperator() op: OperatorContext, @Query('role') role?: string): Promise<ReferenceListResponse> {
     const r = role === 'delivery' ? 'delivery' : 'pickup';
     return this.svc.warehouses(op, r);
+  }
+  // --- CRUD: customers ---------------------------------------------------
+  @Post('customers')
+  createCustomer(@CurrentOperator() op: OperatorContext, @Body() body: ReferenceWriteDto): Promise<{ id: string; label: string }> {
+    return this.svc.createCustomer(op, body.name);
+  }
+  @Patch('customers/:id')
+  updateCustomer(@CurrentOperator() op: OperatorContext, @Param('id') id: string, @Body() body: ReferenceWriteDto): Promise<void> {
+    return this.svc.updateCustomer(op, id, body.name);
+  }
+  @Delete('customers/:id')
+  deleteCustomer(@CurrentOperator() op: OperatorContext, @Param('id') id: string): Promise<void> {
+    return this.svc.deleteCustomer(op, id);
+  }
+  // --- CRUD: cargo types -------------------------------------------------
+  @Post('cargo-types')
+  createCargoType(@CurrentOperator() op: OperatorContext, @Body() body: ReferenceWriteDto): Promise<{ id: string; label: string }> {
+    return this.svc.createCargoType(op, body.name);
+  }
+  @Patch('cargo-types/:id')
+  updateCargoType(@CurrentOperator() op: OperatorContext, @Param('id') id: string, @Body() body: ReferenceWriteDto): Promise<void> {
+    return this.svc.updateCargoType(op, id, body.name);
+  }
+  @Delete('cargo-types/:id')
+  deleteCargoType(@CurrentOperator() op: OperatorContext, @Param('id') id: string): Promise<void> {
+    return this.svc.deleteCargoType(op, id);
+  }
+  // --- CRUD: vehicles ----------------------------------------------------
+  @Post('vehicles')
+  createVehicle(@CurrentOperator() op: OperatorContext, @Body() body: ReferenceWriteDto): Promise<{ id: string; label: string }> {
+    return this.svc.createVehicle(op, body.name);
+  }
+  @Patch('vehicles/:id')
+  updateVehicle(@CurrentOperator() op: OperatorContext, @Param('id') id: string, @Body() body: ReferenceWriteDto): Promise<void> {
+    return this.svc.updateVehicle(op, id, body.name);
+  }
+  @Delete('vehicles/:id')
+  deleteVehicle(@CurrentOperator() op: OperatorContext, @Param('id') id: string): Promise<void> {
+    return this.svc.deleteVehicle(op, id);
+  }
+  // --- CRUD: warehouses --------------------------------------------------
+  @Post('warehouses')
+  createWarehouse(@CurrentOperator() op: OperatorContext, @Body() body: ReferenceWriteDto): Promise<{ id: string; label: string }> {
+    const role = body.role === 'delivery' ? 'delivery' : 'pickup';
+    return this.svc.createWarehouse(op, body.name, role);
+  }
+  @Patch('warehouses/:id')
+  updateWarehouse(@CurrentOperator() op: OperatorContext, @Param('id') id: string, @Body() body: ReferenceWriteDto): Promise<void> {
+    return this.svc.updateWarehouse(op, id, body.name);
+  }
+  @Delete('warehouses/:id')
+  deleteWarehouse(@CurrentOperator() op: OperatorContext, @Param('id') id: string): Promise<void> {
+    return this.svc.deleteWarehouse(op, id);
   }
 }

@@ -13,8 +13,7 @@ describe('CreateOrderForm VN/EN', () => {
     expect(screen.getByLabelText(/Tên hàng/i)).toBeDefined();
     expect(screen.getByLabelText(/Số xe/i)).toBeDefined();
     expect(screen.getByLabelText(/^Tài xế$/i)).toBeDefined();
-    expect(screen.getByLabelText(/Kho nhận hàng/i)).toBeDefined();
-    expect(screen.getByLabelText(/Kho dự phòng/i)).toBeDefined();
+    expect(screen.getByLabelText(/Điểm nhận hàng 1/i)).toBeDefined();
     expect(screen.getByLabelText(/Kho giao hàng/i)).toBeDefined();
     expect(screen.getByRole('button', { name: /Tạo lệnh/i })).toBeDefined();
   });
@@ -25,8 +24,7 @@ describe('CreateOrderForm VN/EN', () => {
     expect(screen.getByLabelText(/Customer/i)).toBeDefined();
     expect(screen.getByLabelText(/Cargo/i)).toBeDefined();
     expect(screen.getByLabelText(/Vehicle plate/i)).toBeDefined();
-    expect(screen.getByLabelText(/Pickup warehouse/i)).toBeDefined();
-    expect(screen.getByLabelText(/Backup warehouse/i)).toBeDefined();
+    expect(screen.getByLabelText(/Pickup 1/i)).toBeDefined();
     expect(screen.getByLabelText(/Delivery warehouse/i)).toBeDefined();
     expect(screen.getByRole('button', { name: /Create order/i })).toBeDefined();
   });

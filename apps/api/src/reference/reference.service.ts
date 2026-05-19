@@ -9,6 +9,14 @@ import type { ReferenceListResponse } from './reference.dto.js';
 @Injectable()
 export class ReferenceService {
   constructor(@Inject(DRIZZLE_DB) private readonly db: FleetDb) {}
+  private tenancy(op: OperatorContext): {
+    companyId: string; businessUnitId: string; depotId: string; legalEntityId: string;
+  } {
+    return {
+      companyId: op.companyId, businessUnitId: op.businessUnitId,
+      depotId: op.depotId, legalEntityId: op.legalEntityId,
+    };
+  }
   async drivers(op: OperatorContext): Promise<ReferenceListResponse> {
     // operator_id is nullable in the schema; a driver without one cannot be a
     // valid roadRun.assignedOperatorId, so exclude those rows. The isNotNull
@@ -39,12 +47,79 @@ export class ReferenceService {
       .where(and(eq(cargoType.companyId, op.companyId), eq(cargoType.active, true))).orderBy(asc(cargoType.name));
     return { items: rows };
   }
+  async warehouses(op: OperatorContext, role: 'pickup' | 'delivery'): Promise<ReferenceListResponse> {
+    const rows = await this.db.select({ id: warehouse.warehouseId, label: warehouse.name }).from(warehouse)
+      .where(and(eq(warehouse.companyId, op.companyId), eq(warehouse.active, true), eq(warehouse.role, role)))
+      .orderBy(asc(warehouse.name));
+    return { items: rows };
+  }
+  // --- CRUD for dispatch-form master data ---------------------------------
+  // create returns the new row as a { id, label } option so the caller can
+  // append it to a dropdown without a refetch. update renames in place.
+  // delete is a soft delete (active=false) so transport orders that already
+  // reference the row keep their label; list methods exclude inactive rows.
+  async createCustomer(op: OperatorContext, name: string): Promise<{ id: string; label: string }> {
+    const [row] = await this.db.insert(customer)
+      .values({ ...this.tenancy(op), name }).returning({ id: customer.customerId, label: customer.name });
+    if (!row) throw new Error('customer insert failed');
+    return row;
+  }
+  async updateCustomer(op: OperatorContext, id: string, name: string): Promise<void> {
+    await this.db.update(customer).set({ name })
+      .where(and(eq(customer.companyId, op.companyId), eq(customer.customerId, id)));
+  }
+  async deleteCustomer(op: OperatorContext, id: string): Promise<void> {
+    await this.db.update(customer).set({ active: false })
+      .where(and(eq(customer.companyId, op.companyId), eq(customer.customerId, id)));
+  }
+  async createCargoType(op: OperatorContext, name: string): Promise<{ id: string; label: string }> {
+    const [row] = await this.db.insert(cargoType)
+      .values({ ...this.tenancy(op), name }).returning({ id: cargoType.cargoTypeId, label: cargoType.name });
+    if (!row) throw new Error('cargo_type insert failed');
+    return row;
+  }
+  async updateCargoType(op: OperatorContext, id: string, name: string): Promise<void> {
+    await this.db.update(cargoType).set({ name })
+      .where(and(eq(cargoType.companyId, op.companyId), eq(cargoType.cargoTypeId, id)));
+  }
+  async deleteCargoType(op: OperatorContext, id: string): Promise<void> {
+    await this.db.update(cargoType).set({ active: false })
+      .where(and(eq(cargoType.companyId, op.companyId), eq(cargoType.cargoTypeId, id)));
+  }
+  async createVehicle(op: OperatorContext, plate: string): Promise<{ id: string; label: string }> {
+    const [row] = await this.db.insert(vehicle)
+      .values({ ...this.tenancy(op), plate }).returning({ id: vehicle.vehicleId, label: vehicle.plate });
+    if (!row) throw new Error('vehicle insert failed');
+    return row;
+  }
+  async updateVehicle(op: OperatorContext, id: string, plate: string): Promise<void> {
+    await this.db.update(vehicle).set({ plate })
+      .where(and(eq(vehicle.companyId, op.companyId), eq(vehicle.vehicleId, id)));
+  }
+  async deleteVehicle(op: OperatorContext, id: string): Promise<void> {
+    await this.db.update(vehicle).set({ active: false })
+      .where(and(eq(vehicle.companyId, op.companyId), eq(vehicle.vehicleId, id)));
+  }
+  async createWarehouse(op: OperatorContext, name: string, role: 'pickup' | 'delivery'): Promise<{ id: string; label: string }> {
+    const [row] = await this.db.insert(warehouse)
+      .values({ ...this.tenancy(op), name, role }).returning({ id: warehouse.warehouseId, label: warehouse.name });
+    if (!row) throw new Error('warehouse insert failed');
+    return row;
+  }
+  async updateWarehouse(op: OperatorContext, id: string, name: string): Promise<void> {
+    await this.db.update(warehouse).set({ name })
+      .where(and(eq(warehouse.companyId, op.companyId), eq(warehouse.warehouseId, id)));
+  }
+  async deleteWarehouse(op: OperatorContext, id: string): Promise<void> {
+    await this.db.update(warehouse).set({ active: false })
+      .where(and(eq(warehouse.companyId, op.companyId), eq(warehouse.warehouseId, id)));
+  }
   async peekOrderRef(op: OperatorContext, prefix: string): Promise<{ ref: string }> {
     const [row] = await this.db.select().from(orderSequence)
       .where(and(eq(orderSequence.companyId, op.companyId), eq(orderSequence.prefix, prefix)));
     const value = row?.nextValue ?? 1;
     const pad = row?.padWidth ?? 3;
-    return { ref: `${prefix}.${String(value).padStart(pad, '0')}` };
+    return { ref: prefix + '.' + String(value).padStart(pad, '0') };
   }
   async allocateOrderRef(op: OperatorContext, prefix: string): Promise<{ ref: string }> {
     return this.db.transaction(async (tx) => {
@@ -59,19 +134,13 @@ export class ReferenceService {
         }).returning();
         /* v8 ignore next -- defensive: a successful .returning() always yields a row */
         if (!created) throw new Error('order_sequence insert failed');
-        return { ref: `${prefix}.${String(1).padStart(created.padWidth, '0')}` };
+        return { ref: prefix + '.' + String(1).padStart(created.padWidth, '0') };
       }
       const value = row.nextValue;
       await tx.update(orderSequence)
         .set({ nextValue: value + 1, updatedAt: new Date() })
         .where(eq(orderSequence.orderSequenceId, row.orderSequenceId));
-      return { ref: `${prefix}.${String(value).padStart(row.padWidth, '0')}` };
+      return { ref: prefix + '.' + String(value).padStart(row.padWidth, '0') };
     });
-  }
-  async warehouses(op: OperatorContext, role: 'pickup' | 'delivery'): Promise<ReferenceListResponse> {
-    const rows = await this.db.select({ id: warehouse.warehouseId, label: warehouse.name }).from(warehouse)
-      .where(and(eq(warehouse.companyId, op.companyId), eq(warehouse.active, true), eq(warehouse.role, role)))
-      .orderBy(asc(warehouse.name));
-    return { items: rows };
   }
 }

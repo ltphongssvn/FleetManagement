@@ -38,7 +38,9 @@ describe('createOrder server action', () => {
     fd.set('plannedStartAt', '2026-05-08T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('pickupAt', '2026-05-08T09:00');
-    fd.set('deliveryAt_1', '2026-05-08T11:00');
+    fd.set('pickupWarehouse_1', 'WH-1');
+    fd.set('deliveryAt', '2026-05-08T11:00');
+    fd.set('deliveryWarehouse_1', 'DEST-1');
     await expect(createOrder(undefined, fd)).rejects.toThrow('NEXT_REDIRECT');
     expect(fetchMock).toHaveBeenCalledWith('http://api:3000/transport-orders', expect.objectContaining({
       method: 'POST',
@@ -57,7 +59,9 @@ describe('createOrder server action', () => {
     fd.set('plannedStartAt', '2026-05-08T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('pickupAt', '2026-05-08T09:00');
-    fd.set('deliveryAt_1', '2026-05-08T11:00');
+    fd.set('pickupWarehouse_1', 'WH-1');
+    fd.set('deliveryAt', '2026-05-08T11:00');
+    fd.set('deliveryWarehouse_1', 'DEST-1');
     const r = await createOrder(undefined, fd);
     expect(r).toEqual({ status: 'api_error', message: expect.stringContaining('400') });
   });
@@ -72,7 +76,9 @@ describe('createOrder server action', () => {
     fd.set('plannedStartAt', '2026-05-08T08:00:00'); // 19 chars, already has seconds
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('pickupAt', '2026-05-08T09:00:00');
-    fd.set('deliveryAt_1', '2026-05-08T11:00:00');
+    fd.set('pickupWarehouse_1', 'WH-1');
+    fd.set('deliveryAt', '2026-05-08T11:00:00');
+    fd.set('deliveryWarehouse_1', 'DEST-1');
     await expect(createOrder(undefined, fd)).rejects.toThrow('NEXT_REDIRECT');
     const calls = fetchMock.mock.calls as unknown as [string, { body: string }][];
     const firstCall = calls[0];
@@ -89,7 +95,9 @@ describe('createOrder server action', () => {
     fd.set('plannedStartAt', '2026-05-08T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('pickupAt', '2026-05-08T09:00');
-    fd.set('deliveryAt_1', '2026-05-08T11:00');
+    fd.set('pickupWarehouse_1', 'WH-1');
+    fd.set('deliveryAt', '2026-05-08T11:00');
+    fd.set('deliveryWarehouse_1', 'DEST-1');
     const r = await createOrder(undefined, fd);
     expect(r).toEqual({ status: 'server_error', message: expect.stringContaining('FLEET_API_URL') });
   });
@@ -102,7 +110,9 @@ describe('createOrder server action', () => {
     fd.set('plannedStartAt', '2026-05-08T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('pickupAt', '2026-05-08T09:00');
-    fd.set('deliveryAt_1', '2026-05-08T11:00');
+    fd.set('pickupWarehouse_1', 'WH-1');
+    fd.set('deliveryAt', '2026-05-08T11:00');
+    fd.set('deliveryWarehouse_1', 'DEST-1');
     const r = await createOrder(undefined, fd);
     expect(r).toEqual({ status: 'server_error', message: 'Not authenticated' });
   });

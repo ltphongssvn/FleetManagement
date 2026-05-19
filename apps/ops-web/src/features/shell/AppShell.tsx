@@ -30,6 +30,7 @@ export function AppShell({ children, username }: { children: ReactNode; username
               <a href="/" className="rounded-md bg-white/10 px-3 py-1.5 text-sm font-medium text-white ring-1 ring-inset ring-white/15">Điều phối</a>
               <a href="#" className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white">Đơn hàng</a>
               <a href="/admin/drivers" className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white">Đội xe</a>
+              <a href="/admin/reference" className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white">Dữ liệu</a>
               <a href="#" className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white">Báo cáo</a>
             </nav>
           </div>

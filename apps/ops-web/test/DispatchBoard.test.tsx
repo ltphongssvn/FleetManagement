@@ -33,7 +33,7 @@ const { DispatchBoard } = await import('../src/features/dispatch/DispatchBoard.j
 describe('@fleet/ops-web - DispatchBoard (RSC)', () => {
   it('renders heading', async () => {
     render(await DispatchBoard());
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Dispatch board');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Lệnh điều xe');
   });
 
   it('renders one row per road run', async () => {
@@ -70,6 +70,6 @@ describe('@fleet/ops-web - DispatchBoard empty state', () => {
     }));
     const mod = await import('../src/features/dispatch/DispatchBoard.js');
     render(await mod.DispatchBoard());
-    expect(screen.getByText(/No road runs/)).toBeInTheDocument();
+    expect(screen.getByText(/Chưa có lệnh điều xe/)).toBeInTheDocument();
   });
 });

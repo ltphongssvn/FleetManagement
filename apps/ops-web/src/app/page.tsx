@@ -6,6 +6,7 @@ import { cookies } from 'next/headers';
 import { CreateOrderForm } from '@/features/dispatch/CreateOrderForm';
 import { AppShell } from '@/features/shell/AppShell';
 import { loadReferences } from '@/features/dispatch/load-references';
+import { DispatchBoard } from '@/features/dispatch/DispatchBoard';
 
 function decodeUsername(token: string | undefined): string | undefined {
   if (!token) return undefined;
@@ -40,6 +41,9 @@ export default async function HomePage(): Promise<JSX.Element> {
           deliveryWarehouses={refs.deliveryWarehouses}
           defaultOrderRef={refs.nextOrderRef}
         />
+        <div className="mt-8 rounded-2xl bg-white/95 shadow-sm">
+          <DispatchBoard />
+        </div>
       </div>
     </AppShell>
   );
