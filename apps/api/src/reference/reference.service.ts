@@ -61,6 +61,7 @@ export class ReferenceService {
   async createCustomer(op: OperatorContext, name: string): Promise<{ id: string; label: string }> {
     const [row] = await this.db.insert(customer)
       .values({ ...this.tenancy(op), name }).returning({ id: customer.customerId, label: customer.name });
+    /* v8 ignore next -- defensive: a successful .returning() always yields a row */
     if (!row) throw new Error('customer insert failed');
     return row;
   }
@@ -75,6 +76,7 @@ export class ReferenceService {
   async createCargoType(op: OperatorContext, name: string): Promise<{ id: string; label: string }> {
     const [row] = await this.db.insert(cargoType)
       .values({ ...this.tenancy(op), name }).returning({ id: cargoType.cargoTypeId, label: cargoType.name });
+    /* v8 ignore next -- defensive: a successful .returning() always yields a row */
     if (!row) throw new Error('cargo_type insert failed');
     return row;
   }
@@ -89,6 +91,7 @@ export class ReferenceService {
   async createVehicle(op: OperatorContext, plate: string): Promise<{ id: string; label: string }> {
     const [row] = await this.db.insert(vehicle)
       .values({ ...this.tenancy(op), plate }).returning({ id: vehicle.vehicleId, label: vehicle.plate });
+    /* v8 ignore next -- defensive: a successful .returning() always yields a row */
     if (!row) throw new Error('vehicle insert failed');
     return row;
   }
@@ -103,6 +106,7 @@ export class ReferenceService {
   async createWarehouse(op: OperatorContext, name: string, role: 'pickup' | 'delivery'): Promise<{ id: string; label: string }> {
     const [row] = await this.db.insert(warehouse)
       .values({ ...this.tenancy(op), name, role }).returning({ id: warehouse.warehouseId, label: warehouse.name });
+    /* v8 ignore next -- defensive: a successful .returning() always yields a row */
     if (!row) throw new Error('warehouse insert failed');
     return row;
   }
