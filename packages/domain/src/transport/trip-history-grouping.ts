@@ -59,12 +59,12 @@ export function groupCompletedTripsByMonth<T>(
   }
   const months: TripMonthGroup<T>[] = [];
   for (const [monthKey, bucket] of buckets) {
-    // Newest completion first within the month.
-    const sorted = [...bucket.entries].sort((a, b) => {
-      if (a.completedAt < b.completedAt) return 1;
-      if (a.completedAt > b.completedAt) return -1;
-      return 0;
-    });
+    // Newest completion first within the month. localeCompare on the ISO
+    // timestamp string is branchless, so coverage does not depend on the
+    // test data exercising every <, >, == ordering.
+    const sorted = [...bucket.entries].sort(
+      (a, b) => b.completedAt.localeCompare(a.completedAt),
+    );
     months.push({
       monthKey,
       label: bucket.label,
@@ -72,15 +72,8 @@ export function groupCompletedTripsByMonth<T>(
       trips: sorted.map((e) => e.row),
     });
   }
-  // Newest month first. monthKey values come from Map keys, so they are
-  // unique by construction — the equal branch below is unreachable in
-  // practice and excluded from coverage rather than tested with an
-  // impossible input.
-  months.sort((a, b) => {
-    if (a.monthKey < b.monthKey) return 1;
-    if (a.monthKey > b.monthKey) return -1;
-    /* v8 ignore next -- unreachable: Map guarantees unique monthKey values */
-    return 0;
-  });
+  // Newest month first. localeCompare is branchless, so coverage does not
+  // depend on hitting an equal-key case (Map keys are unique anyway).
+  months.sort((a, b) => b.monthKey.localeCompare(a.monthKey));
   return months;
 }
