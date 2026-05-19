@@ -39,6 +39,8 @@ export {
   canTransitionRoadRun,
   transitionRoadRun,
   ROAD_RUN_STATE_TONE,
+  groupCompletedTripsByMonth,
+  type TripMonthGroup,
 } from './transport/index.js';
 export {
   UPLOAD_SESSION_STATES,

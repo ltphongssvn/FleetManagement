@@ -18,3 +18,4 @@ export {
   transitionRoadRun,
 } from './road-run-state.js';
 export { ROAD_RUN_STATE_TONE } from './road-run-presentation.js';
+export { groupCompletedTripsByMonth, type TripMonthGroup } from './trip-history-grouping.js';

@@ -47,3 +47,16 @@ export interface ListAssignedRow {
 export interface ListAssignedResponse {
   readonly rows: readonly ListAssignedRow[];
 }
+
+// Trip-history endpoint: completed runs grouped by VN-timezone month. The
+// grouping itself is delegated to @fleet/domain groupCompletedTripsByMonth so
+// the API and the driver app agree on month boundaries.
+export interface TripHistoryMonth {
+  readonly monthKey: string;
+  readonly label: string;
+  readonly count: number;
+  readonly trips: readonly ListAssignedRow[];
+}
+export interface TripHistoryResponse {
+  readonly months: readonly TripHistoryMonth[];
+}

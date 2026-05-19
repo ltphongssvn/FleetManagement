@@ -11,9 +11,7 @@ import { createCommandsSocket, type CommandsSocketHandle } from '../../src/comma
 import { presentCommands, type CommandsViewModel } from '../../src/commands/commands-screen-state.js';
 import type { CommandPayload } from '../../src/commands/command-receiver-policy.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
-function getApiUrl(): string {
-  return (process.env['EXPO_PUBLIC_API_URL'] as string | undefined) ?? 'http://localhost:3000';
-}
+import { getApiUrl } from '../../src/config/api-url.js';
 export default function CommandsScreen(): JSX.Element {
   const { getAccessToken, status } = useAuth();
   const [inbox, setInbox] = useState<readonly CommandPayload[]>([]);

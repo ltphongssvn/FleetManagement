@@ -16,9 +16,7 @@ import { nextDriverAction } from '../../src/assignments/assignment-action-policy
 import { useAuth } from '../../src/auth/use-auth.js';
 import { formatVnDateTime } from '../../src/config/vn-locale.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
-function getApiUrl(): string {
-  return (process.env['EXPO_PUBLIC_API_URL'] as string | undefined) ?? 'http://localhost:3000';
-}
+import { getApiUrl } from '../../src/config/api-url.js';
 // Road-run state -> badge colour. Unknown states fall back to slate.
 const STATE_COLOR: Record<string, string> = {
   planned: colors.slate500,

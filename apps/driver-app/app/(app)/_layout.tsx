@@ -78,6 +78,7 @@ export default function AppLayout(): JSX.Element {
     >
       <Stack.Screen name="index" options={{ title: 'Fleet Driver' }} />
       <Stack.Screen name="assignments" options={{ title: 'Lệnh điều xe' }} />
+      <Stack.Screen name="history" options={{ title: 'Lịch sử chuyến' }} />
       <Stack.Screen name="commands" options={{ title: 'Lệnh điều phối' }} />
       <Stack.Screen name="capture" options={{ title: 'Chụp ảnh phiếu giao hàng' }} />
     </Stack>

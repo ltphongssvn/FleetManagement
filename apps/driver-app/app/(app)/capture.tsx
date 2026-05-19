@@ -18,9 +18,7 @@ import {
 import { presentCapture } from '../../src/manifest/capture-screen-presenter.js';
 import { negotiateAndUploadManifest } from '../../src/manifest/manifest-capture-flow.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
-function getApiUrl(): string {
-  return (process.env['EXPO_PUBLIC_API_URL'] as string | undefined) ?? 'http://localhost:3000';
-}
+import { getApiUrl } from '../../src/config/api-url.js';
 function mimeFromUri(uri: string): 'image/jpeg' | 'image/png' {
   return uri.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
 }

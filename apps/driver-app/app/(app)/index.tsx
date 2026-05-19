@@ -20,6 +20,7 @@ interface ActionDef {
 }
 const ACTIONS: readonly ActionDef[] = [
   { label: 'Xem lệnh điều xe', href: '/assignments' },
+  { label: 'Lịch sử chuyến (theo tháng)', href: '/history' },
   { label: 'Lệnh điều phối (trực tiếp)', href: '/commands' },
   { label: 'Chụp ảnh phiếu giao hàng', href: '/capture' },
 ];

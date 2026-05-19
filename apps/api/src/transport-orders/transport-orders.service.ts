@@ -13,7 +13,8 @@ import { transportOrder, stop, roadRun, roadRunTransportOrder } from '../databas
 import { vehicle, customer, warehouse } from '../database/schema/reference.js';
 import { appendTriWrite } from '../database/append-tri-write.js';
 import type { OperatorContext } from '../auth/operator-context.js';
-import type { CreateTransportOrderInput, CreateTransportOrderResponse, ListAssignedResponse } from './transport-orders.dto.js';
+import type { CreateTransportOrderInput, CreateTransportOrderResponse, ListAssignedResponse, TripHistoryResponse } from './transport-orders.dto.js';
+import { groupCompletedTripsByMonth } from '@fleet/domain';
 
 @Injectable()
 export class TransportOrdersService {
@@ -202,6 +203,27 @@ export class TransportOrdersService {
           })),
         };
       }),
+    };
+  }
+
+  // Trip history: the operator's completed road runs grouped by VN-timezone
+  // month. Reuses the listAssigned query (same tenancy + enrichment), then
+  // delegates month bucketing to the shared @fleet/domain helper so the API
+  // and the driver app agree on month boundaries.
+  async tripHistory(op: OperatorContext): Promise<TripHistoryResponse> {
+    const assigned = await this.listAssigned(op);
+    const groups = groupCompletedTripsByMonth(
+      assigned.rows,
+      (r) => r.state,
+      (r) => r.completedAt,
+    );
+    return {
+      months: groups.map((g) => ({
+        monthKey: g.monthKey,
+        label: g.label,
+        count: g.count,
+        trips: g.trips,
+      })),
     };
   }
 }
