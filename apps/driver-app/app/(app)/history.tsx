@@ -1,20 +1,18 @@
 // apps/driver-app/app/(app)/history.tsx
-// Driver trip-history screen. Calls GET /transport-orders/trip-history, which
-// returns the driver's completed runs already grouped by VN-timezone month
-// (the API groups via the shared @fleet/domain helper, so web and mobile
-// agree on month boundaries). Read-only: no lifecycle actions here.
+// Driver trip-history screen. Server data comes from the useTripHistory
+// TanStack Query hook — the screen no longer runs its own useEffect/useState
+// fetch. useQuery owns loading/error/success, caching, staleness, retry,
+// dedup, and cancellation of outdated fetches; this file only maps the cached
+// month list onto a SectionList and renders.
 //
-// Separation of concerns: this file only fetches and renders. Grouping is
-// owned by the backend; the screen maps the month list straight onto a
-// SectionList, which virtualizes every trip row so a driver with hundreds of
-// completed trips in one month does not force every row into memory at once.
+// The API returns months already grouped by VN-timezone (shared @fleet/domain
+// helper), so web and mobile agree on month boundaries. Read-only screen: no
+// lifecycle actions. SectionList virtualizes every trip row so a driver with
+// hundreds of completed trips in one month does not hold them all in memory.
 import type { JSX } from 'react';
-import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, SectionList, Text, View, StyleSheet } from 'react-native';
-import * as Sentry from '@sentry/react-native';
-import { AssignmentsClient, type AssignmentRow, type TripHistoryMonth } from '../../src/assignments/assignments-client.js';
-import { getApiUrl } from '../../src/config/api-url.js';
-import { useAuth } from '../../src/auth/use-auth.js';
+import type { AssignmentRow, TripHistoryMonth } from '../../src/assignments/assignments-client.js';
+import { useTripHistory } from '../../src/assignments/use-trip-history.js';
 import { formatVnDate } from '../../src/config/vn-locale.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
 interface MonthSection {
@@ -23,41 +21,12 @@ interface MonthSection {
   readonly count: number;
   readonly data: readonly AssignmentRow[];
 }
-type ScreenState =
-  | { kind: 'loading' }
-  | { kind: 'error'; message: string }
-  | { kind: 'loaded'; sections: readonly MonthSection[] };
 function toSections(months: readonly TripHistoryMonth[]): readonly MonthSection[] {
   return months.map((m) => ({ key: m.monthKey, title: m.label, count: m.count, data: m.trips }));
 }
 export default function History(): JSX.Element {
-  const [state, setState] = useState<ScreenState>({ kind: 'loading' });
-  const { getAccessToken, status } = useAuth();
-  const load = useCallback((): (() => void) => {
-    // Unmount guard: if the screen unmounts before the fetch resolves, skip
-    // the setState so React does not warn about updating an unmounted tree.
-    let cancelled = false;
-    const client = new AssignmentsClient({ apiUrl: getApiUrl(), bearerToken: getAccessToken });
-    void client.tripHistory()
-      .then((months) => {
-        if (cancelled) return;
-        setState({ kind: 'loaded', sections: toSections(months) });
-      })
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        // Production telemetry: surface fetch failures to Sentry (token
-        // scrubbing is handled by the shared sentry-bootstrap beforeSend),
-        // matching the commands screen rather than silently swallowing.
-        Sentry.captureException(e);
-        setState({ kind: 'error', message: e instanceof Error ? e.message : 'Lỗi tải dữ liệu' });
-      });
-    return (): void => { cancelled = true; };
-  }, [getAccessToken]);
-  useEffect(() => {
-    if (status !== 'authenticated') return undefined;
-    return load();
-  }, [status, load]);
-  if (state.kind === 'loading') {
+  const { data, isPending, isError, error } = useTripHistory();
+  if (isPending) {
     return (
       <View style={styles.center} testID='loading'>
         <ActivityIndicator size='large' color={colors.indigo500} />
@@ -65,15 +34,16 @@ export default function History(): JSX.Element {
       </View>
     );
   }
-  if (state.kind === 'error') {
+  if (isError) {
     return (
       <View style={styles.center} testID='error'>
         <Text style={styles.errorTitle}>Lỗi tải dữ liệu</Text>
-        <Text style={styles.muted}>{state.message}</Text>
+        <Text style={styles.muted}>{error instanceof Error ? error.message : 'Lỗi tải dữ liệu'}</Text>
       </View>
     );
   }
-  if (state.sections.length === 0) {
+  const sections = toSections(data);
+  if (sections.length === 0) {
     return (
       <View style={styles.center} testID='empty'>
         <Text style={styles.emptyTitle}>Chưa có chuyến hoàn thành</Text>
@@ -84,7 +54,7 @@ export default function History(): JSX.Element {
   return (
     <View style={styles.screen}>
       <SectionList
-        sections={state.sections as MonthSection[]}
+        sections={sections as MonthSection[]}
         keyExtractor={(item) => item.roadRunId}
         contentContainerStyle={styles.listContent}
         stickySectionHeadersEnabled={false}
