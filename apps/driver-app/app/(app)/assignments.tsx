@@ -5,18 +5,18 @@
 // success the list refetches so the card reflects the new state. The state
 // change is also what the dispatcher's board reads, so accepting an order
 // is the driver's acknowledgement back to dispatch.
+//
+// Server state — the list and the lifecycle transitions — is owned by the
+// useAssignments TanStack Query hook: useQuery for the list, useMutation for
+// accept/start/complete with automatic list invalidation on success. This
+// screen no longer runs its own useEffect/useState fetch or manual refetch.
 import type { JSX } from 'react';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, Text, View, StyleSheet } from 'react-native';
-import { AssignmentsClient } from '../../src/assignments/assignments-client.js';
-import { fetchAssignmentsState, type AssignmentsState } from '../../src/assignments/assignments-state.js';
-import { DeliveryLifecycleClient } from '../../src/assignments/delivery-lifecycle-client.js';
 import { nextDriverAction } from '../../src/assignments/assignment-action-policy.js';
-import { useAuth } from '../../src/auth/use-auth.js';
+import { useAssignments } from '../../src/assignments/use-assignments.js';
 import { formatVnDateTime } from '../../src/config/vn-locale.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
-import { getApiUrl } from '../../src/config/api-url.js';
 // Road-run state -> badge colour. Unknown states fall back to slate.
 const STATE_COLOR: Record<string, string> = {
   planned: colors.slate500,
@@ -25,40 +25,9 @@ const STATE_COLOR: Record<string, string> = {
   completed: colors.green600,
 };
 export default function Assignments(): JSX.Element {
-  const [state, setState] = useState<AssignmentsState>({ kind: 'loading' });
-  // roadRunId currently being transitioned (button shows a spinner, is locked).
-  const [pendingId, setPendingId] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const { getAccessToken, status } = useAuth();
+  const { query, lifecycle } = useAssignments();
   const router = useRouter();
-  const load = useCallback((): void => {
-    const client = new AssignmentsClient({ apiUrl: getApiUrl(), bearerToken: getAccessToken });
-    void fetchAssignmentsState(client).then(setState);
-  }, [getAccessToken]);
-  useEffect(() => {
-    if (status !== 'authenticated') return;
-    load();
-  }, [status, load]);
-  const runAction = useCallback(
-    async (roadRunId: string, kind: 'accept' | 'start' | 'complete'): Promise<void> => {
-      setActionError(null);
-      setPendingId(roadRunId);
-      try {
-        const client = new DeliveryLifecycleClient({ apiUrl: getApiUrl(), bearerToken: getAccessToken });
-        if (kind === 'accept') await client.accept(roadRunId);
-        else if (kind === 'start') await client.start(roadRunId);
-        else await client.complete(roadRunId);
-        // Refetch so the card reflects the new state (and its next action).
-        load();
-      } catch (e) {
-        setActionError(e instanceof Error ? e.message : 'Lỗi cập nhật trạng thái');
-      } finally {
-        setPendingId(null);
-      }
-    },
-    [getAccessToken, load],
-  );
-  if (state.kind === 'loading') {
+  if (query.isPending) {
     return (
       <View style={styles.center} testID={'loading'}>
         <ActivityIndicator size={'large'} color={colors.indigo500} />
@@ -66,15 +35,17 @@ export default function Assignments(): JSX.Element {
       </View>
     );
   }
-  if (state.kind === 'error') {
+  if (query.isError) {
     return (
       <View style={styles.center} testID={'error'}>
         <Text style={styles.errorTitle}>Lỗi tải dữ liệu</Text>
-        <Text style={styles.muted}>{state.message}</Text>
+        <Text style={styles.muted}>
+          {query.error instanceof Error ? query.error.message : 'Lỗi tải dữ liệu'}
+        </Text>
       </View>
     );
   }
-  if (state.kind === 'empty') {
+  if (query.data.length === 0) {
     return (
       <View style={styles.center} testID={'empty'}>
         <Text style={styles.emptyTitle}>Không có lệnh điều xe</Text>
@@ -82,6 +53,13 @@ export default function Assignments(): JSX.Element {
       </View>
     );
   }
+  // A lifecycle transition that failed surfaces as a banner above the list.
+  const actionError: string | null =
+    lifecycle.isError && lifecycle.error instanceof Error
+      ? lifecycle.error.message
+      : lifecycle.isError
+        ? 'Lỗi cập nhật trạng thái'
+        : null;
   return (
     <View style={styles.screen}>
       {actionError !== null ? (
@@ -90,7 +68,7 @@ export default function Assignments(): JSX.Element {
         </View>
       ) : null}
       <FlatList
-        data={state.rows}
+        data={query.data}
         keyExtractor={(item) => item.roadRunId}
         contentContainerStyle={styles.listContent}
         renderItem={({ item }) => {
@@ -99,7 +77,9 @@ export default function Assignments(): JSX.Element {
           // Narrow once: actionKind is the non-terminal kind or null.
           const actionKind: 'accept' | 'start' | 'complete' | null =
             action.kind === 'none' ? null : action.kind;
-          const isPending = pendingId === item.roadRunId;
+          // This card is transitioning when the in-flight mutation targets it.
+          const isPending =
+            lifecycle.isPending && lifecycle.variables.roadRunId === item.roadRunId;
           return (
             <View style={styles.card}>
               <View style={styles.cardTopRow}>
@@ -118,19 +98,19 @@ export default function Assignments(): JSX.Element {
               {actionKind === null ? (
                 <Pressable
                   onPress={() => {
-                    router.push(`/capture?transportOrderId=${item.transportOrderId}`);
+                    router.push('/capture?transportOrderId=' + item.transportOrderId);
                   }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Chụp ảnh giao hàng"
+                  accessibilityRole={'button'}
+                  accessibilityLabel={'Chụp ảnh giao hàng'}
                   style={({ pressed }) => [styles.captureBtn, pressed && styles.actionBtnPressed]}
                 >
                   <Text style={styles.actionText}>Chụp ảnh giao hàng</Text>
                 </Pressable>
               ) : (
                 <Pressable
-                  onPress={() => { void runAction(item.roadRunId, actionKind); }}
+                  onPress={() => { lifecycle.mutate({ roadRunId: item.roadRunId, kind: actionKind }); }}
                   disabled={isPending}
-                  accessibilityRole="button"
+                  accessibilityRole={'button'}
                   accessibilityLabel={action.label}
                   style={({ pressed }) => [
                     styles.actionBtn,
@@ -139,7 +119,7 @@ export default function Assignments(): JSX.Element {
                   ]}
                 >
                   {isPending ? (
-                    <ActivityIndicator size="small" color={colors.white} />
+                    <ActivityIndicator size={'small'} color={colors.white} />
                   ) : (
                     <Text style={styles.actionText}>{action.label}</Text>
                   )}
