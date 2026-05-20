@@ -2,24 +2,31 @@ import { OUTBOX_QUEUES } from '@fleet/sync-protocol';
 // apps/api/src/transport-orders/transport-orders.service.ts
 // Pilot seed: creates transport_order + stops + optional road_run, plus 3
 // append paths so the dispatch_board projection picks it up.
+//
+// Driver-vehicle pair guard: when a road_run is supplied with both
+// assignedOperatorId AND assignedAssetId, the service requires an active
+// (non-revoked) driver_vehicle_assignment row in the calling company that
+// binds the driver (by operator_id → driver_id) to the vehicle. The deepest
+// defense layer behind dropdown filtering, client validation, and the Zod
+// gate in the server action — even a bypassed front-end cannot persist a
+// road_run whose driver-vehicle pair is not officially assigned.
 import { Inject, Injectable } from '@nestjs/common';
-
 import { randomUUID } from 'node:crypto';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, isNull } from 'drizzle-orm';
 import type { FleetDb } from '../database/database.module.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { transportOrder, stop, roadRun, roadRunTransportOrder } from '../database/schema/transport.js';
-import { vehicle, customer, warehouse } from '../database/schema/reference.js';
+import { vehicle, customer, warehouse, driver } from '../database/schema/reference.js';
+import { driverVehicleAssignment } from '../database/schema/driver-vehicle-assignment.js';
 import { appendTriWrite } from '../database/append-tri-write.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import type { CreateTransportOrderInput, CreateTransportOrderResponse, ListAssignedResponse, TripHistoryResponse } from './transport-orders.dto.js';
+import { DriverVehicleAssignmentRequiredError } from './transport-orders.errors.js';
 import { groupCompletedTripsByMonth } from '@fleet/domain';
-
 @Injectable()
 export class TransportOrdersService {
   constructor(@Inject(DRIZZLE_DB) private readonly db: FleetDb) {}
-
   async create(input: CreateTransportOrderInput, op: OperatorContext): Promise<CreateTransportOrderResponse> {
     return this.db.transaction(async (tx) => {
       const tenancy = {
@@ -28,7 +35,24 @@ export class TransportOrdersService {
         depotId: op.depotId,
         legalEntityId: op.legalEntityId,
       };
-
+      // Driver-vehicle pair guard. Only enforced when the road_run carries
+      // both an operator and an asset — partial road_runs (one side only)
+      // are blocked at the form/action layer; here we focus on integrity of
+      // the assignment binding for fully-specified road_runs.
+      if (input.roadRun?.assignedOperatorId !== undefined && input.roadRun?.assignedAssetId !== undefined) {
+        const [pair] = await tx.select({ assignmentId: driverVehicleAssignment.assignmentId })
+          .from(driverVehicleAssignment)
+          .innerJoin(driver, eq(driverVehicleAssignment.driverId, driver.driverId))
+          .where(and(
+            eq(driverVehicleAssignment.companyId, op.companyId),
+            eq(driver.companyId, op.companyId),
+            eq(driver.operatorId, input.roadRun.assignedOperatorId),
+            eq(driverVehicleAssignment.vehicleId, input.roadRun.assignedAssetId),
+            isNull(driverVehicleAssignment.revokedAt),
+          ))
+          .limit(1);
+        if (!pair) throw new DriverVehicleAssignmentRequiredError();
+      }
       const [created] = await tx.insert(transportOrder).values({
         ...tenancy,
         ...(input.externalRef !== undefined ? { externalRef: input.externalRef } : {}),
@@ -37,7 +61,6 @@ export class TransportOrdersService {
       }).returning();
       if (!created) throw new Error('transport_order insert failed');
       const transportOrderId = created.transportOrderId;
-
       for (const s of input.stops) {
         await tx.insert(stop).values({
           ...tenancy,
@@ -48,7 +71,6 @@ export class TransportOrdersService {
           ...(s.plannedAt !== undefined ? { plannedAt: new Date(s.plannedAt) } : {}),
         });
       }
-
       let roadRunId: string | null = null;
       if (input.roadRun) {
         const [rr] = await tx.insert(roadRun).values({
@@ -66,10 +88,7 @@ export class TransportOrdersService {
           sequence: 1,
         });
       }
-
-      // 3 append paths so projection runner picks up the road_run
       if (roadRunId) {
-        // Tri-write event via shared appendTriWrite helper.
         const serverSeq = await allocateServerSeq(tx);
         const refs = input.externalRef ? [input.externalRef] : [];
         await appendTriWrite(tx, {
@@ -93,10 +112,10 @@ export class TransportOrdersService {
           op,
         });
       }
-
       return { transportOrderId, roadRunId };
     });
   }
+
 
   async listAssigned(op: OperatorContext): Promise<ListAssignedResponse> {
     // Main query: assigned road runs joined to their transport order, plus
