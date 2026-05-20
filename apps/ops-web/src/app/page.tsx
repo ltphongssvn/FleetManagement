@@ -7,7 +7,6 @@ import { CreateOrderForm } from '@/features/dispatch/CreateOrderForm';
 import { AppShell } from '@/features/shell/AppShell';
 import { loadReferences } from '@/features/dispatch/load-references';
 import { DispatchBoard } from '@/features/dispatch/DispatchBoard';
-
 function decodeUsername(token: string | undefined): string | undefined {
   if (!token) return undefined;
   try {
@@ -20,17 +19,16 @@ function decodeUsername(token: string | undefined): string | undefined {
     return undefined;
   }
 }
-
 export default async function HomePage(): Promise<JSX.Element> {
   const cookieStore = await cookies();
   const username = decodeUsername(cookieStore.get('fleet_session')?.value);
   const refs = await loadReferences();
   return (
     <AppShell {...(username ? { username } : {})}>
-      <div className="mx-auto w-full max-w-5xl">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold tracking-tight text-white drop-shadow-sm">Bảng điều phối</h1>
-          <p className="mt-2 text-sm text-slate-300">Tạo và phân công lệnh điều xe cho đội xe.</p>
+      <div className='mx-auto w-full max-w-5xl'>
+        <div className='mb-6'>
+          <h1 className='text-3xl font-bold tracking-tight text-white drop-shadow-sm'>Bảng điều phối</h1>
+          <p className='mt-2 text-sm text-slate-300'>Tạo và phân công lệnh điều xe cho đội xe.</p>
         </div>
         <CreateOrderForm
           drivers={refs.drivers}
@@ -39,9 +37,10 @@ export default async function HomePage(): Promise<JSX.Element> {
           cargoTypes={refs.cargoTypes}
           pickupWarehouses={refs.pickupWarehouses}
           deliveryWarehouses={refs.deliveryWarehouses}
+          driverVehicleAssignments={refs.driverVehicleAssignments}
           defaultOrderRef={refs.nextOrderRef}
         />
-        <div className="mt-8 rounded-2xl bg-white/95 shadow-sm">
+        <div className='mt-8 rounded-2xl bg-white/95 shadow-sm'>
           <DispatchBoard />
         </div>
       </div>

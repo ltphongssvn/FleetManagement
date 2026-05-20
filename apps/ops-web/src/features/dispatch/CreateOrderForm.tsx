@@ -8,6 +8,14 @@
 // 1..4 of them; unassigned slots show a 'None' placeholder and submit empty.
 // Section 5 is a single delivery field (deliveryAt / deliveryWarehouse): all
 // goods unload at exactly one destination warehouse.
+//
+// Bidirectional driver vehicle auto-fill (Section 3): the dispatcher binds
+// each driver to one truck on the Đội xe page (driver_vehicle_assignment).
+// driverVehicleAssignments carries the [{ operatorId, vehicleId }] pairs.
+// When Số xe is selected, the matching Tài xế auto-fills via the lookup,
+// and vice versa. Selecting an unpaired vehicle/driver leaves the other
+// field unchanged so the dispatcher can still proceed with a manual pair
+// (used when a backup driver covers another truck temporarily).
 'use client';
 import { useActionState, useState } from 'react';
 import type { JSX } from 'react';
@@ -16,6 +24,10 @@ import { ComboboxField } from './ui/ComboboxField';
 import { t, type Locale } from '@/lib/i18n';
 export interface DriverOption { readonly id: string; readonly label: string }
 export interface RefOption { readonly id: string; readonly label: string }
+export interface DriverVehicleAssignmentOption {
+  readonly operatorId: string;
+  readonly vehicleId: string;
+}
 export interface CreateOrderFormProps {
   readonly drivers: readonly DriverOption[];
   readonly vehicles?: readonly RefOption[];
@@ -23,6 +35,7 @@ export interface CreateOrderFormProps {
   readonly cargoTypes?: readonly RefOption[];
   readonly pickupWarehouses?: readonly RefOption[];
   readonly deliveryWarehouses?: readonly RefOption[];
+  readonly driverVehicleAssignments?: readonly DriverVehicleAssignmentOption[];
   readonly defaultOrderRef?: string;
   readonly locale?: Locale;
 }
@@ -39,7 +52,9 @@ export function FieldError({ msg }: { msg?: string | undefined }): JSX.Element |
 }
 export function CreateOrderForm({
   drivers, vehicles = [], customers = [], cargoTypes = [],
-  pickupWarehouses = [], deliveryWarehouses = [], defaultOrderRef = '', locale = 'vi',
+  pickupWarehouses = [], deliveryWarehouses = [],
+  driverVehicleAssignments = [],
+  defaultOrderRef = '', locale = 'vi',
 }: CreateOrderFormProps): JSX.Element {
   const [state, formAction, pending] = useActionState<CreateOrderState, FormData>(createOrder, undefined);
   // Dynamic warehouse rows. Section 4 starts at 4 pickup slots, section 5 at 1
@@ -51,6 +66,27 @@ export function CreateOrderForm({
   const addDelivery = (): void => { setDeliveryCount((n) => n + 1); };
   const pickupRows = Array.from({ length: pickupCount }, (_, i) => i + 1);
   const deliveryRows = Array.from({ length: deliveryCount }, (_, i) => i + 1);
+  // Controlled state for the bidirectional vehicle and driver fields. The
+  // vehicle field submits its label (plate); the driver field submits its id
+  // (operatorId). Lookups go through the assignment map in both directions.
+  const [vehicleValue, setVehicleValue] = useState('');
+  const [driverValue, setDriverValue] = useState('');
+  const onVehicleChange = (nextPlate: string): void => {
+    setVehicleValue(nextPlate);
+    if (nextPlate === '') return;
+    const veh = vehicles.find((v) => v.label === nextPlate);
+    if (!veh) return;
+    const pair = driverVehicleAssignments.find((a) => a.vehicleId === veh.id);
+    if (pair) setDriverValue(pair.operatorId);
+  };
+  const onDriverChange = (nextOperatorId: string): void => {
+    setDriverValue(nextOperatorId);
+    if (nextOperatorId === '') return;
+    const pair = driverVehicleAssignments.find((a) => a.operatorId === nextOperatorId);
+    if (!pair) return;
+    const veh = vehicles.find((v) => v.id === pair.vehicleId);
+    if (veh) setVehicleValue(veh.label);
+  };
   const errs = state?.status === 'invalid' ? state.errors : {};
   const topError = state?.status === 'api_error' || state?.status === 'server_error' ? state.message : undefined;
   const tx = (k: string): string => t(locale, k);
@@ -98,11 +134,27 @@ export function CreateOrderForm({
         <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
           <div>
             <label htmlFor='vehiclePlate' className={labelCls}>{tx('orderForm.vehiclePlate')}</label>
-            <ComboboxField id='vehiclePlate' name='vehiclePlate' options={vehicles} placeholder={ph(tx('orderForm.vehiclePlate'))} />
+            <ComboboxField
+              id='vehiclePlate'
+              name='vehiclePlate'
+              options={vehicles}
+              placeholder={ph(tx('orderForm.vehiclePlate'))}
+              value={vehicleValue}
+              onChange={onVehicleChange}
+            />
           </div>
           <div>
             <label htmlFor='assignedOperatorId' className={labelCls}>{tx('orderForm.driverName')}</label>
-            <ComboboxField id='assignedOperatorId' name='assignedOperatorId' options={drivers} placeholder={tx('orderForm.selectDriver')} required submitValue='id' />
+            <ComboboxField
+              id='assignedOperatorId'
+              name='assignedOperatorId'
+              options={drivers}
+              placeholder={tx('orderForm.selectDriver')}
+              required
+              submitValue='id'
+              value={driverValue}
+              onChange={onDriverChange}
+            />
             <FieldError msg={errs.assignedOperatorId} />
           </div>
         </div>

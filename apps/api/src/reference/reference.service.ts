@@ -1,11 +1,19 @@
 // apps/api/src/reference/reference.service.ts
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, isNotNull } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { driver, vehicle, customer, cargoType, warehouse, orderSequence } from '../database/schema/reference.js';
+import { driverVehicleAssignment } from '../database/schema/driver-vehicle-assignment.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import type { ReferenceListResponse } from './reference.dto.js';
+export interface DriverVehicleAssignmentItem {
+  readonly operatorId: string;
+  readonly vehicleId: string;
+}
+export interface DriverVehicleAssignmentsResponse {
+  readonly items: readonly DriverVehicleAssignmentItem[];
+}
 @Injectable()
 export class ReferenceService {
   constructor(@Inject(DRIZZLE_DB) private readonly db: FleetDb) {}
@@ -52,6 +60,41 @@ export class ReferenceService {
       .where(and(eq(warehouse.companyId, op.companyId), eq(warehouse.active, true), eq(warehouse.role, role)))
       .orderBy(asc(warehouse.name));
     return { items: rows };
+  }
+  // --- Driver↔Vehicle active assignments ---------------------------------
+  // Returns the active 1:1 pairings as { operatorId, vehicleId } for the
+  // company. The dispatch form keys the driver dropdown on operator_id (not
+  // driver_id) because road_run.assigned_operator_id is the canonical link
+  // to the driver app. Joining via operator_id here lets the form auto-fill
+  // Tài xế when Số xe is picked (and vice versa) without a second round trip.
+  // Exclusions: revoked assignments, inactive driver, inactive vehicle,
+  // drivers with null operator_id (cannot be used as a form value).
+  // Tenancy: filters on dva.companyId AND constrains the joined driver/vehicle
+  // to the same companyId (defense-in-depth — FKs do not enforce tenancy
+  // consistency across joined tables; an upstream bad insert could otherwise
+  // leak a foreign-company driver/vehicle into the response).
+  // Order: by operator_id asc — matches the deterministic ordering convention
+  // of every other reference list method (drivers/vehicles/customers/...).
+  async driverVehicleAssignments(op: OperatorContext): Promise<DriverVehicleAssignmentsResponse> {
+    const rows = await this.db
+      .select({ operatorId: driver.operatorId, vehicleId: vehicle.vehicleId })
+      .from(driverVehicleAssignment)
+      .innerJoin(driver, eq(driverVehicleAssignment.driverId, driver.driverId))
+      .innerJoin(vehicle, eq(driverVehicleAssignment.vehicleId, vehicle.vehicleId))
+      .where(and(
+        eq(driverVehicleAssignment.companyId, op.companyId),
+        eq(driver.companyId, op.companyId),
+        eq(vehicle.companyId, op.companyId),
+        isNull(driverVehicleAssignment.revokedAt),
+        eq(driver.active, true),
+        eq(vehicle.active, true),
+        isNotNull(driver.operatorId),
+      ))
+      .orderBy(asc(driver.operatorId));
+    const items = rows
+      .filter((r): r is { operatorId: string; vehicleId: string } => r.operatorId !== null)
+      .map((r) => ({ operatorId: r.operatorId, vehicleId: r.vehicleId }));
+    return { items };
   }
   // --- CRUD for dispatch-form master data ---------------------------------
   // create returns the new row as a { id, label } option so the caller can

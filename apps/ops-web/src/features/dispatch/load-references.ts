@@ -1,6 +1,8 @@
 // apps/ops-web/src/features/dispatch/load-references.ts
 // Server-side fetch for form dropdown reference data (drivers, vehicles,
-// customers, cargo types, pickup/delivery warehouses).
+// customers, cargo types, pickup/delivery warehouses) AND the active
+// driver↔vehicle assignment mapping that powers the dispatch form's
+// bidirectional auto-fill between Số xe and Tài xế.
 //
 // Auth: forwards the user's fleet_session cookie token. That token is
 // issued by the OIDC provider (mock-oauth2 locally) and the API's
@@ -10,6 +12,10 @@
 // service token would collapse every dispatcher into one account.
 import { cookies } from 'next/headers';
 export interface RefItem { readonly id: string; readonly label: string }
+export interface DriverVehicleAssignmentItem {
+  readonly operatorId: string;
+  readonly vehicleId: string;
+}
 export interface FormReferences {
   readonly nextOrderRef: string;
   readonly drivers: readonly RefItem[];
@@ -18,11 +24,13 @@ export interface FormReferences {
   readonly cargoTypes: readonly RefItem[];
   readonly pickupWarehouses: readonly RefItem[];
   readonly deliveryWarehouses: readonly RefItem[];
+  readonly driverVehicleAssignments: readonly DriverVehicleAssignmentItem[];
 }
 const EMPTY: FormReferences = {
   nextOrderRef: '',
   drivers: [], vehicles: [], customers: [], cargoTypes: [],
   pickupWarehouses: [], deliveryWarehouses: [],
+  driverVehicleAssignments: [],
 };
 async function getList(apiUrl: string, token: string, path: string): Promise<readonly RefItem[]> {
   try {
@@ -42,6 +50,25 @@ async function getList(apiUrl: string, token: string, path: string): Promise<rea
     return [];
   }
 }
+async function getAssignments(apiUrl: string, token: string): Promise<readonly DriverVehicleAssignmentItem[]> {
+  const path = '/reference/driver-vehicle-assignments';
+  try {
+    const res = await fetch(`${apiUrl}${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      console.error(`[loadReferences] ${path} -> ${String(res.status)} ${res.statusText}`);
+      return [];
+    }
+    const json = (await res.json()) as { items?: readonly DriverVehicleAssignmentItem[] };
+    console.log(`[loadReferences] ${path} -> ${String(json.items?.length ?? 0)} items`);
+    return json.items ?? [];
+  } catch (err) {
+    console.error(`[loadReferences] ${path} threw:`, err);
+    return [];
+  }
+}
 export async function loadReferences(): Promise<FormReferences> {
   const apiUrl = process.env['FLEET_API_URL'];
   if (!apiUrl) { console.error('[loadReferences] FLEET_API_URL not set'); return EMPTY; }
@@ -53,13 +80,14 @@ export async function loadReferences(): Promise<FormReferences> {
   }).catch((e: unknown) => { console.error('[loadReferences] peek threw:', e); return null; });
   const peekJson = peekRes?.ok ? (await peekRes.json()) as { ref?: string } : { ref: '' };
   const nextOrderRef = peekJson.ref ?? '';
-  const [drivers, vehicles, customers, cargoTypes, pickupWarehouses, deliveryWarehouses] = await Promise.all([
+  const [drivers, vehicles, customers, cargoTypes, pickupWarehouses, deliveryWarehouses, driverVehicleAssignments] = await Promise.all([
     getList(apiUrl, token, '/reference/drivers'),
     getList(apiUrl, token, '/reference/vehicles'),
     getList(apiUrl, token, '/reference/customers'),
     getList(apiUrl, token, '/reference/cargo-types'),
     getList(apiUrl, token, '/reference/warehouses?role=pickup'),
     getList(apiUrl, token, '/reference/warehouses?role=delivery'),
+    getAssignments(apiUrl, token),
   ]);
-  return { nextOrderRef, drivers, vehicles, customers, cargoTypes, pickupWarehouses, deliveryWarehouses };
+  return { nextOrderRef, drivers, vehicles, customers, cargoTypes, pickupWarehouses, deliveryWarehouses, driverVehicleAssignments };
 }

@@ -1,14 +1,21 @@
 // apps/ops-web/src/features/dispatch/ui/ComboboxField.tsx
 // Headless UI Combobox: portal-rendered, searchable dropdown.
 // Renders options outside the form's stacking context, immune to overflow/backdrop clipping.
+//
+// Controlled mode: when 'value' and 'onChange' are provided, the parent
+// owns selection state. This is what powers the bidirectional driver↔vehicle
+// auto-fill on the dispatch form — picking Số xe writes the paired
+// operatorId into the driver field's controlled value, and vice versa.
+// Uncontrolled mode (no value/onChange) keeps the original behavior.
 'use client';
 import { useState } from 'react';
 import type { JSX } from 'react';
 import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions } from '@headlessui/react';
-
 export interface ComboOption { readonly id: string; readonly label: string }
-
-export function ComboboxField({ id, name, options, placeholder, required, defaultValue, submitValue = 'label', className }: {
+export function ComboboxField({
+  id, name, options, placeholder, required, defaultValue,
+  submitValue = 'label', className, value, onChange,
+}: {
   id?: string;
   name: string;
   options: readonly ComboOption[];
@@ -17,20 +24,34 @@ export function ComboboxField({ id, name, options, placeholder, required, defaul
   defaultValue?: string;
   submitValue?: 'id' | 'label';
   className?: string;
+  value?: string;
+  onChange?: (next: string) => void;
 }): JSX.Element {
+  const controlled = value !== undefined && onChange !== undefined;
   const initial = defaultValue
     ? options.find((o) => (submitValue === 'id' ? o.id : o.label) === defaultValue) ?? null
     : null;
-  const [selected, setSelected] = useState<ComboOption | null>(initial);
+  const [internalSelected, setInternalSelected] = useState<ComboOption | null>(initial);
   const [query, setQuery] = useState('');
+  const externalSelected = controlled && value !== ''
+    ? options.find((o) => (submitValue === 'id' ? o.id : o.label) === value) ?? null
+    : null;
+  const selected = controlled ? externalSelected : internalSelected;
+  const handleChange = (next: ComboOption | null): void => {
+    if (controlled) {
+      onChange(next ? (submitValue === 'id' ? next.id : next.label) : '');
+    } else {
+      setInternalSelected(next);
+    }
+  };
   const filtered = query === ''
     ? options
     : options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()));
-  const value = selected ? (submitValue === 'id' ? selected.id : selected.label) : '';
+  const submittedValue = selected ? (submitValue === 'id' ? selected.id : selected.label) : '';
   return (
-    <Combobox value={selected} onChange={setSelected} immediate>
+    <Combobox value={selected} onChange={handleChange} immediate>
       <div className="relative mt-1">
-        <input type="hidden" name={name} value={value} data-required={required ?? false} />
+        <input type="hidden" name={name} value={submittedValue} data-required={required ?? false} />
         <ComboboxInput
           id={id}
           displayValue={(o: ComboOption | null) => o?.label ?? ''}

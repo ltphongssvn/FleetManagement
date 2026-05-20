@@ -3,7 +3,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } f
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
-import { ReferenceService } from './reference.service.js';
+import { ReferenceService, type DriverVehicleAssignmentsResponse } from './reference.service.js';
 import type { ReferenceListResponse } from './reference.dto.js';
 // Body shape for create/update of dispatch-form master data. A single
 // optional 'role' lets warehouse reuse the same DTO; non-warehouse entities
@@ -21,6 +21,12 @@ export class ReferenceController {
   @Get('vehicles')  vehicles(@CurrentOperator() op: OperatorContext): Promise<ReferenceListResponse> { return this.svc.vehicles(op); }
   @Get('customers') customers(@CurrentOperator() op: OperatorContext): Promise<ReferenceListResponse> { return this.svc.customers(op); }
   @Get('cargo-types') cargoTypes(@CurrentOperator() op: OperatorContext): Promise<ReferenceListResponse> { return this.svc.cargoTypes(op); }
+  // Driver↔Vehicle active pairings (operatorId↔vehicleId) for the dispatch
+  // form's bidirectional auto-fill between Số xe and Tài xế.
+  @Get('driver-vehicle-assignments')
+  driverVehicleAssignments(@CurrentOperator() op: OperatorContext): Promise<DriverVehicleAssignmentsResponse> {
+    return this.svc.driverVehicleAssignments(op);
+  }
   @Get('peek-order-ref')
   peekOrderRef(@CurrentOperator() op: OperatorContext, @Query('prefix') prefix?: string): Promise<{ ref: string }> {
     return this.svc.peekOrderRef(op, prefix && /^[A-Z]{1,8}$/.test(prefix) ? prefix : 'XT');
