@@ -199,15 +199,20 @@ export class TransportOrdersService {
         const stops = stopsByOrder.get(r.transportOrderId) ?? [];
         return {
           transportOrderId: r.transportOrderId,
-          externalRef: r.externalRef ?? null,
-          orderRef: r.externalRef ?? null,
+          // r.externalRef / r.plate / r.customerName are typed by Drizzle as
+          // string | null already (externalRef is a nullable varchar; plate
+          // and customerName come from LEFT-joined tables, which Drizzle
+          // models as nullable). A trailing ?? null would be a no-op branch
+          // that never executes, so it's omitted here.
+          externalRef: r.externalRef,
+          orderRef: r.externalRef,
           roadRunId: r.roadRunId,
           state: r.state,
           plannedStartAt: r.plannedStartAt ? r.plannedStartAt.toISOString() : null,
           startedAt: r.startedAt ? r.startedAt.toISOString() : null,
           completedAt: r.completedAt ? r.completedAt.toISOString() : null,
-          plate: r.plate ?? null,
-          customerName: r.customerName ?? null,
+          plate: r.plate,
+          customerName: r.customerName,
           pickupName: pickupNameOf(stops),
           deliveryName: deliveryNameOf(stops),
           stops: stops.map((s) => ({
