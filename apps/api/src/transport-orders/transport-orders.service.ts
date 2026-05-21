@@ -21,8 +21,8 @@ import { vehicle, customer, warehouse, driver } from '../database/schema/referen
 import { driverVehicleAssignment } from '../database/schema/driver-vehicle-assignment.js';
 import { appendTriWrite } from '../database/append-tri-write.js';
 import type { OperatorContext } from '../auth/operator-context.js';
-import type { CreateTransportOrderInput, CreateTransportOrderResponse, ListAssignedResponse, TripHistoryResponse } from './transport-orders.dto.js';
-import { DriverVehicleAssignmentRequiredError } from './transport-orders.errors.js';
+import type { CreateTransportOrderInput, CreateTransportOrderResponse, ListAssignedResponse, ListAssignedRow, TripHistoryResponse } from './transport-orders.dto.js';
+import { DriverVehicleAssignmentRequiredError, TransportOrderNotFoundError } from './transport-orders.errors.js';
 import { groupCompletedTripsByMonth } from '@fleet/domain';
 @Injectable()
 export class TransportOrdersService {
@@ -112,6 +112,21 @@ export class TransportOrdersService {
   }
 
 
+  async findById(id: string, op: OperatorContext): Promise<ListAssignedRow> {
+    const [orderRow] = await this.db
+      .select({ transportOrderId: transportOrder.transportOrderId })
+      .from(transportOrder)
+      .where(and(
+        eq(transportOrder.transportOrderId, id),
+        eq(transportOrder.companyId, op.companyId),
+      ))
+      .limit(1);
+    if (orderRow === undefined) throw new TransportOrderNotFoundError();
+    const assigned = await this.listAssigned(op);
+    const found = assigned.rows.find((r) => r.transportOrderId === id);
+    if (found === undefined) throw new TransportOrderNotFoundError();
+    return found;
+  }
   async listAssigned(op: OperatorContext): Promise<ListAssignedResponse> {
     // Main query: assigned road runs joined to their transport order, plus
     // LEFT joins to the assigned vehicle and the order customer. LEFT joins

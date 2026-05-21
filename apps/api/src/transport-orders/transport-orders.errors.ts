@@ -20,3 +20,13 @@ export class DriverVehicleAssignmentRequiredError extends TransportOrderError {
     this.name = 'DriverVehicleAssignmentRequiredError';
   }
 }
+// Thrown by TransportOrdersService.findById when the requested order does not
+// exist in the calling operator's tenancy. The review controller translates
+// this domain error into a NestJS NotFoundException at the HTTP boundary so
+// callers see a plain 404 without leaking internal class names.
+export class TransportOrderNotFoundError extends TransportOrderError {
+  constructor(message = 'Transport order not found') {
+    super(message);
+    this.name = 'TransportOrderNotFoundError';
+  }
+}
