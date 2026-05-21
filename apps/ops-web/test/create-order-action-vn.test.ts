@@ -20,6 +20,7 @@ describe('createOrder VN fields', () => {
     fd.set('externalRef', 'XT.001');
     fd.set('plannedStartAt', '2026-04-10T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
+    fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
     fd.set('deliveryAt', '2026-04-10T11:00');
     fd.set('customer', 'ĐẠI THÀNH');
     fd.set('cargo', 'GẠO');

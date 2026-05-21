@@ -61,8 +61,8 @@ describe('@fleet/api - CommandsController tenant policy', () => {
     `);
     // Seed road_run RR_B in COMP_B
     await testDb.db.execute(sql`
-      INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state)
-      VALUES (${RR_B}, ${COMP_B}, ${BU}, ${DEPOT}, ${LE}, 'planned')
+      INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, assigned_operator_id, assigned_asset_id)
+      VALUES (${RR_B}, ${COMP_B}, ${BU}, ${DEPOT}, ${LE}, 'planned', '00000000-0000-0000-0000-0000aaaaaa01'::uuid, '00000000-0000-0000-0000-0000bbbbbb02'::uuid)
     `);
   });
 
@@ -82,8 +82,8 @@ describe('@fleet/api - CommandsController tenant policy', () => {
     // Seed road_run in COMP_A
     const RR_A = '00000000-0000-0000-0000-0000000000a9';
     await testDb.db.execute(sql`
-      INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state)
-      VALUES (${RR_A}, ${COMP_A}, ${BU}, ${DEPOT}, ${LE}, 'planned')
+      INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, assigned_operator_id, assigned_asset_id)
+      VALUES (${RR_A}, ${COMP_A}, ${BU}, ${DEPOT}, ${LE}, 'planned', '00000000-0000-0000-0000-0000aaaaaa01'::uuid, '00000000-0000-0000-0000-0000bbbbbb02'::uuid)
     `);
     const ctrl = makeCtrl();
     const result = await ctrl.issue(validCmd({ targetOperatorId: OP_A, aggregateId: RR_A }), ctxA);

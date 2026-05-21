@@ -20,6 +20,7 @@ const FormSchema = z.object({
   externalRef: z.string().min(1, 'Required').max(64),
   plannedStartAt: z.string().min(1, 'Required'),
   assignedOperatorId: z.string().uuid('Invalid driver id'),
+  assignedAssetId: z.string().uuid('Invalid vehicle id'),
   customer: z.string().max(200).optional().default(''),
   cargo: z.string().max(200).optional().default(''),
   vehiclePlate: z.string().max(50).optional().default(''),
@@ -34,7 +35,7 @@ const FormSchema = z.object({
     .min(1, 'At least one delivery warehouse is required'),
 });
 type ErrorKey =
-  | 'externalRef' | 'plannedStartAt' | 'assignedOperatorId'
+  | 'externalRef' | 'plannedStartAt' | 'assignedOperatorId' | 'assignedAssetId'
   | 'customer' | 'cargo' | 'vehiclePlate' | 'driverName'
   | 'pickupAt' | 'deliveryAt' | 'pickupWarehouses' | 'deliveryWarehouses';
 export type CreateOrderState =
@@ -65,6 +66,7 @@ export async function createOrder(_prev: CreateOrderState, formData: FormData): 
     externalRef: formData.get('externalRef'),
     plannedStartAt: formData.get('plannedStartAt'),
     assignedOperatorId: formData.get('assignedOperatorId'),
+    assignedAssetId: formData.get('assignedAssetId'),
     customer: formData.get('customer') ?? '',
     cargo: formData.get('cargo') ?? '',
     vehiclePlate: formData.get('vehiclePlate') ?? '',
@@ -115,6 +117,7 @@ export async function createOrder(_prev: CreateOrderState, formData: FormData): 
     roadRun: {
       plannedStartAt: toIso(parsed.data.plannedStartAt),
       assignedOperatorId: parsed.data.assignedOperatorId,
+      assignedAssetId: parsed.data.assignedAssetId,
     },
   };
   const res = await fetch(apiUrl + '/transport-orders', {

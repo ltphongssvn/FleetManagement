@@ -5,12 +5,12 @@
 // therefore needs the mapping to be available so picking either dropdown
 // reflects the bound pair without a second click.
 //
-// Branches covered:
-//   - selecting a vehicle whose operatorId is in the mapping auto-fills the driver
-//   - selecting a driver whose operatorId is in the mapping auto-fills the vehicle
-//   - a vehicle/driver not present in the mapping does not auto-fill the other
-//   - selecting an unpaired vehicle after a paired driver was set does NOT
-//     clobber the existing driver value (and the symmetric reverse)
+// 2026 invariant: only paired drivers and vehicles are dispatchable. The
+// form filters its option lists to operators / vehicles that appear in
+// driverVehicleAssignments. The previous "manual override" branch
+// (selecting an unpaired entity) is gone — those options no longer render.
+// The hidden assignedAssetId input must stay in lock-step with the visible
+// vehicle plate, because the API contract requires the vehicle uuid.
 //
 // Assertions target the ComboboxField hidden inputs, not the visible
 // combobox labels. The driver field's ComboboxField uses submitValue='id',
@@ -33,6 +33,8 @@ const OP_GAMMA = '00000000-0000-0000-0000-0000000000c3';
 const VEH_AA = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const VEH_BB = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const VEH_CC = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+// drivers / vehicles lists include both paired and unpaired entities. The
+// form filters by driverVehicleAssignments so only the paired ones render.
 const drivers = [
   { id: OP_ALPHA, label: 'Driver Alpha' },
   { id: OP_BETA,  label: 'Driver Beta'  },
@@ -50,6 +52,9 @@ const driverVehicleAssignments = [
 function vehicleHidden(): HTMLInputElement | null {
   return document.querySelector('input[type=hidden][name=vehiclePlate]');
 }
+function assetIdHidden(): HTMLInputElement | null {
+  return document.querySelector('input[type=hidden][name=assignedAssetId]');
+}
 function driverHidden(): HTMLInputElement | null {
   return document.querySelector('input[type=hidden][name=assignedOperatorId]');
 }
@@ -65,17 +70,29 @@ async function pickDriver(label: string): Promise<void> {
   await screen.findByRole('option', { name: label });
   fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
 }
+function typeVehicle(label: string): void {
+  // Used when the option is expected NOT to be in the list. Just types
+  // (synchronous), does not press Enter (no selection commit). Kept sync
+  // because there is no listbox option to wait for.
+  const input = document.getElementById('vehiclePlate') as HTMLInputElement;
+  fireEvent.change(input, { target: { value: label } });
+}
+function typeDriver(label: string): void {
+  const input = document.getElementById('assignedOperatorId') as HTMLInputElement;
+  fireEvent.change(input, { target: { value: label } });
+}
 describe('CreateOrderForm - bidirectional driver vehicle auto-fill', () => {
-  it('auto-fills the driver when a paired vehicle is selected', async () => {
+  it('auto-fills the driver and assignedAssetId when a paired vehicle is selected', async () => {
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
     render(<CreateOrderForm
       drivers={drivers} vehicles={vehicles}
       driverVehicleAssignments={driverVehicleAssignments} locale='en' />);
     await pickVehicle('AA-01');
     expect(vehicleHidden()?.value).toBe('AA-01');
+    expect(assetIdHidden()?.value).toBe(VEH_AA);
     expect(driverHidden()?.value).toBe(OP_ALPHA);
   });
-  it('auto-fills the vehicle when a paired driver is selected', async () => {
+  it('auto-fills the vehicle and assignedAssetId when a paired driver is selected', async () => {
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
     render(<CreateOrderForm
       drivers={drivers} vehicles={vehicles}
@@ -83,53 +100,46 @@ describe('CreateOrderForm - bidirectional driver vehicle auto-fill', () => {
     await pickDriver('Driver Beta');
     expect(driverHidden()?.value).toBe(OP_BETA);
     expect(vehicleHidden()?.value).toBe('BB-02');
+    expect(assetIdHidden()?.value).toBe(VEH_BB);
   });
-  it('does NOT auto-fill the driver for an unpaired vehicle', async () => {
+  it('does not surface unpaired vehicles in the dropdown options', async () => {
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
     render(<CreateOrderForm
       drivers={drivers} vehicles={vehicles}
       driverVehicleAssignments={driverVehicleAssignments} locale='en' />);
-    await pickVehicle('CC-03 (unpaired)');
-    expect(vehicleHidden()?.value).toBe('CC-03 (unpaired)');
+    // Typing the unpaired plate filters the listbox; no matching option
+    // should appear because the form filtered it out of pairedVehicles.
+    typeVehicle('CC-03 (unpaired)');
+    expect(screen.queryByRole('option', { name: 'CC-03 (unpaired)' })).toBeNull();
+    expect(assetIdHidden()?.value).toBe('');
     expect(driverHidden()?.value).toBe('');
   });
-  it('does NOT auto-fill the vehicle for an unpaired driver', async () => {
+  it('does not surface unpaired drivers in the dropdown options', async () => {
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
     render(<CreateOrderForm
       drivers={drivers} vehicles={vehicles}
       driverVehicleAssignments={driverVehicleAssignments} locale='en' />);
-    await pickDriver('Driver Gamma (unpaired)');
-    expect(driverHidden()?.value).toBe(OP_GAMMA);
-    expect(vehicleHidden()?.value).toBe('');
+    typeDriver('Driver Gamma (unpaired)');
+    expect(screen.queryByRole('option', { name: 'Driver Gamma (unpaired)' })).toBeNull();
+    expect(driverHidden()?.value).toBe('');
+    expect(assetIdHidden()?.value).toBe('');
   });
-  it('selecting an unpaired vehicle after a paired driver was set does not clobber the driver', async () => {
-    // Regression guard: the auto-fill must only WRITE to the other field
-    // when a pair is found. An unpaired selection must early-exit without
-    // touching the other field's already-set value.
+  it('switching from one paired pair to another updates all three hidden fields together', async () => {
+    // Regression guard: when the dispatcher swaps the driver from Alpha
+    // to Beta after both fields are already populated, the auto-fill
+    // must rewrite the vehicle plate AND the assignedAssetId, not leave
+    // a stale vehicle uuid attached to a new driver.
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
     render(<CreateOrderForm
       drivers={drivers} vehicles={vehicles}
       driverVehicleAssignments={driverVehicleAssignments} locale='en' />);
-    // Step 1: pick a paired driver — both fields populate.
     await pickDriver('Driver Alpha');
     expect(driverHidden()?.value).toBe(OP_ALPHA);
     expect(vehicleHidden()?.value).toBe('AA-01');
-    // Step 2: switch to an unpaired vehicle. Vehicle field updates;
-    // driver field must stay as Driver Alpha.
-    await pickVehicle('CC-03 (unpaired)');
-    expect(vehicleHidden()?.value).toBe('CC-03 (unpaired)');
-    expect(driverHidden()?.value).toBe(OP_ALPHA);
-  });
-  it('selecting an unpaired driver after a paired vehicle was set does not clobber the vehicle', async () => {
-    const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
-    render(<CreateOrderForm
-      drivers={drivers} vehicles={vehicles}
-      driverVehicleAssignments={driverVehicleAssignments} locale='en' />);
-    await pickVehicle('BB-02');
-    expect(vehicleHidden()?.value).toBe('BB-02');
+    expect(assetIdHidden()?.value).toBe(VEH_AA);
+    await pickDriver('Driver Beta');
     expect(driverHidden()?.value).toBe(OP_BETA);
-    await pickDriver('Driver Gamma (unpaired)');
-    expect(driverHidden()?.value).toBe(OP_GAMMA);
     expect(vehicleHidden()?.value).toBe('BB-02');
+    expect(assetIdHidden()?.value).toBe(VEH_BB);
   });
 });

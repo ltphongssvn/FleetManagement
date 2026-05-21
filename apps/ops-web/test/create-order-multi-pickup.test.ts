@@ -20,6 +20,7 @@ function baseForm(): FormData {
   fd.set('externalRef', 'XTT.05-001');
   fd.set('plannedStartAt', '2026-05-09T08:00');
   fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
+  fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
   fd.set('pickupAt', '2026-05-10T09:00');
   fd.set('deliveryAt', '2026-05-15T11:00');
   return fd;

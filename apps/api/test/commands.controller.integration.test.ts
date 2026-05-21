@@ -44,8 +44,8 @@ describe('@fleet/api - CommandsController.issue (integration)', () => {
   it('writes to all three append paths and emits audit row', async () => {
     const cmd = createCommandPayload({ targetOperatorId: OP.operatorId });
     await testDb.db.execute(sql`
-      INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state)
-      VALUES (${cmd.aggregateId}::uuid, ${OP.companyId}, ${OP.businessUnitId}, ${OP.depotId}, ${OP.legalEntityId}, 'planned')
+      INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, assigned_operator_id, assigned_asset_id)
+      VALUES (${cmd.aggregateId}::uuid, ${OP.companyId}, ${OP.businessUnitId}, ${OP.depotId}, ${OP.legalEntityId}, 'planned', ${OP.operatorId}::uuid, '00000000-0000-0000-0000-0000bbbbbb02'::uuid)
     `);
     const result = await ctrl.issue(cmd, OP);
     expect(result.commandId).toBe(cmd.commandId);
@@ -69,8 +69,8 @@ describe('@fleet/api - CommandsController.issue (integration)', () => {
   it('records targetOperatorId in audit payload for traceability', async () => {
     const cmd = createCommandPayload({ targetOperatorId: OP.operatorId });
     await testDb.db.execute(sql`
-      INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state)
-      VALUES (${cmd.aggregateId}::uuid, ${OP.companyId}, ${OP.businessUnitId}, ${OP.depotId}, ${OP.legalEntityId}, 'planned')
+      INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, assigned_operator_id, assigned_asset_id)
+      VALUES (${cmd.aggregateId}::uuid, ${OP.companyId}, ${OP.businessUnitId}, ${OP.depotId}, ${OP.legalEntityId}, 'planned', ${OP.operatorId}::uuid, '00000000-0000-0000-0000-0000bbbbbb02'::uuid)
     `);
     await ctrl.issue(cmd, OP);
     const r = await testDb.db.execute<{ payload: { targetOperatorId: string } }>(sql`

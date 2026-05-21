@@ -68,8 +68,8 @@ describe('@fleet/api - CommandsController concurrency (integration, RED)', () =>
     `);
     // Seed the single aggregate used by all tests' cmd() helper.
     await testDb.db.execute(sql`
-      INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state)
-      VALUES ('00000000-0000-0000-0000-0000000000b1'::uuid, ${COMPANY}, ${BU}, ${DEPOT}, ${LE}, 'planned')
+      INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, assigned_operator_id, assigned_asset_id)
+      VALUES ('00000000-0000-0000-0000-0000000000b1'::uuid, ${COMPANY}, ${BU}, ${DEPOT}, ${LE}, 'planned', '00000000-0000-0000-0000-0000aaaaaa01'::uuid, '00000000-0000-0000-0000-0000bbbbbb02'::uuid)
     `);
   });
 

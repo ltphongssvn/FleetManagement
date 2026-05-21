@@ -74,8 +74,13 @@ export const roadRun = pgTable(
     roadRunId: uuid('road_run_id').primaryKey().defaultRandom(),
     ...tenancyColumns,
     state: roadRunStateEnum('state').notNull().default('planned'),
-    assignedOperatorId: uuid('assigned_operator_id'),
-    assignedAssetId: uuid('assigned_asset_id'),
+    // 2026 invariant: every road_run is created with a bound driver + truck.
+    // The DTO and service-layer pair guard already require these two uuids
+    // and verify they reference an active driver_vehicle_assignment row.
+    // The DB-level NOT NULL is the last line of defense: even if a future
+    // bypass tried to insert a partial road_run, Postgres will reject it.
+    assignedOperatorId: uuid('assigned_operator_id').notNull(),
+    assignedAssetId: uuid('assigned_asset_id').notNull(),
     plannedStartAt: timestamp('planned_start_at', { withTimezone: true, mode: 'date' }),
     startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
     completedAt: timestamp('completed_at', { withTimezone: true, mode: 'date' }),

@@ -66,16 +66,40 @@ export function CreateOrderForm({
   const addDelivery = (): void => { setDeliveryCount((n) => n + 1); };
   const pickupRows = Array.from({ length: pickupCount }, (_, i) => i + 1);
   const deliveryRows = Array.from({ length: deliveryCount }, (_, i) => i + 1);
-  // Controlled state for the bidirectional vehicle and driver fields. The
-  // vehicle field submits its label (plate); the driver field submits its id
-  // (operatorId). Lookups go through the assignment map in both directions.
+  // 2026 invariant: only drivers and vehicles that are currently bound by an
+  // active driver_vehicle_assignment may be dispatched. Filter the option
+  // lists so the dispatcher cannot choose an unpaired entity at all — the
+  // server-side pair guard would reject it anyway, and the form would just
+  // fail with no recovery. The bind is managed on the 'Quản lý tài xế & xe'
+  // (driver-vehicle admin) page; this form only consumes existing pairs.
+  const pairedOperatorIds = new Set(driverVehicleAssignments.map((a) => a.operatorId));
+  const pairedVehicleIds = new Set(driverVehicleAssignments.map((a) => a.vehicleId));
+  const pairedDrivers = drivers.filter((d) => pairedOperatorIds.has(d.id));
+  const pairedVehicles = vehicles.filter((v) => pairedVehicleIds.has(v.id));
+  // Controlled state for the bidirectional vehicle and driver fields.
+  // - vehicleValue holds the selected plate (label) for display in the
+  //   ComboboxField and submission as the metadata 'vehiclePlate' string.
+  // - assetIdValue holds the selected vehicle's UUID for submission as the
+  //   roadRun.assignedAssetId field — the API requires the uuid, not the plate.
+  // - driverValue holds the selected operatorId for submission as
+  //   roadRun.assignedOperatorId.
+  // Lookups go through the assignment map in both directions: picking a
+  // vehicle pre-fills the driver and vice versa.
   const [vehicleValue, setVehicleValue] = useState('');
+  const [assetIdValue, setAssetIdValue] = useState('');
   const [driverValue, setDriverValue] = useState('');
   const onVehicleChange = (nextPlate: string): void => {
     setVehicleValue(nextPlate);
-    if (nextPlate === '') return;
-    const veh = vehicles.find((v) => v.label === nextPlate);
-    if (!veh) return;
+    if (nextPlate === '') {
+      setAssetIdValue('');
+      return;
+    }
+    const veh = pairedVehicles.find((v) => v.label === nextPlate);
+    if (!veh) {
+      setAssetIdValue('');
+      return;
+    }
+    setAssetIdValue(veh.id);
     const pair = driverVehicleAssignments.find((a) => a.vehicleId === veh.id);
     if (pair) setDriverValue(pair.operatorId);
   };
@@ -84,8 +108,11 @@ export function CreateOrderForm({
     if (nextOperatorId === '') return;
     const pair = driverVehicleAssignments.find((a) => a.operatorId === nextOperatorId);
     if (!pair) return;
-    const veh = vehicles.find((v) => v.id === pair.vehicleId);
-    if (veh) setVehicleValue(veh.label);
+    const veh = pairedVehicles.find((v) => v.id === pair.vehicleId);
+    if (veh) {
+      setVehicleValue(veh.label);
+      setAssetIdValue(veh.id);
+    }
   };
   const errs = state?.status === 'invalid' ? state.errors : {};
   const topError = state?.status === 'api_error' || state?.status === 'server_error' ? state.message : undefined;
@@ -137,18 +164,24 @@ export function CreateOrderForm({
             <ComboboxField
               id='vehiclePlate'
               name='vehiclePlate'
-              options={vehicles}
+              options={pairedVehicles}
               placeholder={ph(tx('orderForm.vehiclePlate'))}
               value={vehicleValue}
               onChange={onVehicleChange}
             />
+            {/* Hidden field submits the selected vehicle's UUID (assignedAssetId)
+                — the API contract demands a uuid; vehiclePlate above carries the
+                human-readable plate for metadata. Kept in sync with vehicleValue
+                via onVehicleChange / onDriverChange auto-fill. */}
+            <input type='hidden' name='assignedAssetId' value={assetIdValue} readOnly />
+            <FieldError msg={errs.assignedAssetId} />
           </div>
           <div>
             <label htmlFor='assignedOperatorId' className={labelCls}>{tx('orderForm.driverName')}</label>
             <ComboboxField
               id='assignedOperatorId'
               name='assignedOperatorId'
-              options={drivers}
+              options={pairedDrivers}
               placeholder={tx('orderForm.selectDriver')}
               required
               submitValue='id'

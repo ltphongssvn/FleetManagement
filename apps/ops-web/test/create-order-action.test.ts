@@ -24,6 +24,7 @@ describe('createOrder server action', () => {
     fd.set('externalRef', '');
     fd.set('plannedStartAt', '2026-05-08T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
+    fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
     const r = await createOrder(undefined, fd);
     expect(r).toMatchObject({ status: 'invalid', errors: { externalRef: 'Required' } });
   });
@@ -37,6 +38,7 @@ describe('createOrder server action', () => {
     fd.set('externalRef', 'TO-9001');
     fd.set('plannedStartAt', '2026-05-08T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
+    fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
     fd.set('pickupAt', '2026-05-08T09:00');
     fd.set('pickupWarehouse_1', 'WH-1');
     fd.set('deliveryAt', '2026-05-08T11:00');
@@ -58,6 +60,7 @@ describe('createOrder server action', () => {
     fd.set('externalRef', 'TO-X');
     fd.set('plannedStartAt', '2026-05-08T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
+    fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
     fd.set('pickupAt', '2026-05-08T09:00');
     fd.set('pickupWarehouse_1', 'WH-1');
     fd.set('deliveryAt', '2026-05-08T11:00');
@@ -75,6 +78,7 @@ describe('createOrder server action', () => {
     fd.set('externalRef', 'TO-1');
     fd.set('plannedStartAt', '2026-05-08T08:00:00'); // 19 chars, already has seconds
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
+    fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
     fd.set('pickupAt', '2026-05-08T09:00:00');
     fd.set('pickupWarehouse_1', 'WH-1');
     fd.set('deliveryAt', '2026-05-08T11:00:00');
@@ -94,6 +98,7 @@ describe('createOrder server action', () => {
     fd.set('externalRef', 'TO-1');
     fd.set('plannedStartAt', '2026-05-08T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
+    fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
     fd.set('pickupAt', '2026-05-08T09:00');
     fd.set('pickupWarehouse_1', 'WH-1');
     fd.set('deliveryAt', '2026-05-08T11:00');
@@ -109,6 +114,7 @@ describe('createOrder server action', () => {
     fd.set('externalRef', 'TO-1');
     fd.set('plannedStartAt', '2026-05-08T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
+    fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
     fd.set('pickupAt', '2026-05-08T09:00');
     fd.set('pickupWarehouse_1', 'WH-1');
     fd.set('deliveryAt', '2026-05-08T11:00');
