@@ -39,7 +39,7 @@ export class TransportOrdersService {
       // both an operator and an asset — partial road_runs (one side only)
       // are blocked at the form/action layer; here we focus on integrity of
       // the assignment binding for fully-specified road_runs.
-      if (input.roadRun?.assignedOperatorId !== undefined && input.roadRun?.assignedAssetId !== undefined) {
+      if (input.roadRun?.assignedOperatorId !== undefined && input.roadRun.assignedAssetId !== undefined) {
         const [pair] = await tx.select({ assignmentId: driverVehicleAssignment.assignmentId })
           .from(driverVehicleAssignment)
           .innerJoin(driver, eq(driverVehicleAssignment.driverId, driver.driverId))
