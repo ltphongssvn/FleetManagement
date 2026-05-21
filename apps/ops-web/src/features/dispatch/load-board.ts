@@ -6,6 +6,7 @@
 // rendering stale fake data.
 import 'server-only';
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { ROAD_RUN_STATES, type RoadRunState } from '@fleet/domain';
 import type { DispatchBoardRoadRun } from './types.js';
@@ -55,8 +56,12 @@ export async function loadDispatchBoard(): Promise<readonly DispatchBoardRoadRun
   const cookieStore = await cookies();
   const authToken = cookieStore.get('fleet_session')?.value;
   if (!authToken) {
+    // No session: redirect to /login. In production this is the expected
+    // path for unauthenticated visits; throwing would kill the SSR render
+    // and surface a generic 'Something went wrong' page that the user can't
+    // recover from.
     if (isProduction()) {
-      throw new Error('No active session: fleet_session cookie missing');
+      redirect('/login');
     }
     return PILOT_DATA;
   }
@@ -65,6 +70,15 @@ export async function loadDispatchBoard(): Promise<readonly DispatchBoardRoadRun
     headers: { Authorization: `Bearer ${authToken}` },
   });
   if (!res.ok) {
+    // 401 from the API means the cookie's JWT is expired or invalid.
+    // Treat the same as missing session: redirect to /login so the user
+    // can re-authenticate, instead of crashing the SSR render.
+    if (res.status === 401) {
+      if (isProduction()) {
+        redirect('/login');
+      }
+      return PILOT_DATA;
+    }
     if (isProduction()) {
       throw new Error(`Dispatch board fetch failed: ${String(res.status)} ${res.statusText}`);
     }

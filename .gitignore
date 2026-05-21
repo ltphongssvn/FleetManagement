@@ -107,3 +107,6 @@ packages/*/.stryker-tmp/
 
 # Stryker mutation testing artifacts
 reports/
+
+# curl debugging artifacts
+cookies.txt

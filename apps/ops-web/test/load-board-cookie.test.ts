@@ -21,12 +21,19 @@ describe('loadDispatchBoard with cookie session', () => {
       headers: expect.objectContaining({ Authorization: 'Bearer cookie-jwt-xyz' }),
     }));
   });
-  it('throws in production when no cookie present', async () => {
+  it('redirects to /login in production when no cookie present', async () => {
+    // Behavior change: previously threw on missing session, which surfaced
+    // a generic SSR error page. Now redirects to /login so the user can
+    // re-authenticate. next/navigation.redirect() works by throwing a
+    // NEXT_REDIRECT sentinel that Next intercepts.
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     vi.stubEnv('NODE_ENV', 'production');
     cookieGet.mockReturnValue(undefined);
+    const redirectMock = vi.fn((url: string) => { throw new Error('NEXT_REDIRECT:' + url); });
+    vi.doMock('next/navigation', () => ({ redirect: redirectMock }));
     const { loadDispatchBoard } = await import('@/features/dispatch/load-board');
-    await expect(loadDispatchBoard()).rejects.toThrow(/session/i);
+    await expect(loadDispatchBoard()).rejects.toThrow('NEXT_REDIRECT:/login');
+    expect(redirectMock).toHaveBeenCalledWith('/login');
   });
 
   it('returns PILOT_DATA in dev when no cookie present (line 61)', async () => {
