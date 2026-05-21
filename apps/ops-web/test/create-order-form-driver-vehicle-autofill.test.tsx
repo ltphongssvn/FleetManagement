@@ -124,6 +124,41 @@ describe('CreateOrderForm - bidirectional driver vehicle auto-fill', () => {
     expect(driverHidden()?.value).toBe('');
     expect(assetIdHidden()?.value).toBe('');
   });
+  it('clearing the vehicle field resets assignedAssetId to empty', async () => {
+    // The dispatcher may clear the vehicle picker after selecting one (typing
+    // backspace to empty the input). The onVehicleChange handler is then
+    // called with '' and must blank the hidden assignedAssetId so the form
+    // doesn't submit a stale uuid bound to a now-empty vehicle plate.
+    const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
+    render(<CreateOrderForm
+      drivers={drivers} vehicles={vehicles}
+      driverVehicleAssignments={driverVehicleAssignments} locale='en' />);
+    await pickVehicle('AA-01');
+    expect(assetIdHidden()?.value).toBe(VEH_AA);
+    // Clear by typing empty into the input directly. ComboboxField forwards
+    // empty-string onChange events to the parent so we can hit that branch.
+    const input = document.getElementById('vehiclePlate') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '' } });
+    expect(assetIdHidden()?.value).toBe('');
+    expect(vehicleHidden()?.value).toBe('');
+  });
+  it('clearing the driver field hits the onDriverChange empty-input branch', async () => {
+    // Symmetric to the vehicle-clearing test: clearing the driver picker
+    // (typing backspace to empty the input) triggers onDriverChange with
+    // '' and must take the empty-input early-exit branch. The vehicle and
+    // assetId fields are intentionally left as-is on driver clear — the
+    // dispatcher may want to keep the vehicle pre-selected and pick a
+    // different driver — but the driver hidden input must reflect ''.
+    const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
+    render(<CreateOrderForm
+      drivers={drivers} vehicles={vehicles}
+      driverVehicleAssignments={driverVehicleAssignments} locale='en' />);
+    await pickDriver('Driver Alpha');
+    expect(driverHidden()?.value).toBe(OP_ALPHA);
+    const input = document.getElementById('assignedOperatorId') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '' } });
+    expect(driverHidden()?.value).toBe('');
+  });
   it('switching from one paired pair to another updates all three hidden fields together', async () => {
     // Regression guard: when the dispatcher swaps the driver from Alpha
     // to Beta after both fields are already populated, the auto-fill

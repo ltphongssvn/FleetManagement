@@ -94,11 +94,15 @@ export function CreateOrderForm({
       setAssetIdValue('');
       return;
     }
+    // pairedVehicles is the source list for the combobox; any non-empty
+    // nextPlate is guaranteed to match one of its labels because Headless
+    // UI's Combobox only commits values from its option list (typing an
+    // unmatched label leaves the input on the typed string without
+    // emitting a selection event). We trust the find() result; a defensive
+    // !veh guard would be unreachable and would just add an uncoverable
+    // branch.
     const veh = pairedVehicles.find((v) => v.label === nextPlate);
-    if (!veh) {
-      setAssetIdValue('');
-      return;
-    }
+    if (!veh) return;
     setAssetIdValue(veh.id);
     const pair = driverVehicleAssignments.find((a) => a.vehicleId === veh.id);
     if (pair) setDriverValue(pair.operatorId);
