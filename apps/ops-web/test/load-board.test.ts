@@ -113,7 +113,7 @@ describe('loadDispatchBoard', () => {
   it('redirects to /login in production when fleet_session cookie is missing', async () => {
     Object.assign(process.env, { NODE_ENV: 'production' });
     process.env['FLEET_API_URL'] = 'http://api.test';
-    cookieGet.mockReturnValueOnce(undefined);
+    cookieGet.mockReturnValueOnce(undefined as never);
     const redirectMock = vi.fn((url: string) => { throw new Error('NEXT_REDIRECT:' + url); });
     vi.doMock('next/navigation', () => ({ redirect: redirectMock }));
     const { loadDispatchBoard } = await import('../src/features/dispatch/load-board.js');
