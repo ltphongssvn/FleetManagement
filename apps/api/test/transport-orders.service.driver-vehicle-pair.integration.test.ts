@@ -165,15 +165,4 @@ describe('@fleet/api - TransportOrdersService driver-vehicle pair guard', () => 
       }, OP)).rejects.toThrow(DriverVehicleAssignmentRequiredError);
     });
   });
-  it('allows transport_order without a roadRun (pair check is roadRun-scoped)', async () => {
-    await withTxIsolation(testDb, async (tx) => {
-      const svc = new TransportOrdersService(tx as never);
-      const result = await svc.create({
-        externalRef: 'TO-NO-ROADRUN',
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-      }, OP);
-      expect(result.transportOrderId).toMatch(/^[0-9a-f-]{36}$/i);
-      expect(result.roadRunId).toBeNull();
-    });
-  });
 });

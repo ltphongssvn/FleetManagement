@@ -35,24 +35,24 @@ export class TransportOrdersService {
         depotId: op.depotId,
         legalEntityId: op.legalEntityId,
       };
-      // Driver-vehicle pair guard. Only enforced when the road_run carries
-      // both an operator and an asset — partial road_runs (one side only)
-      // are blocked at the form/action layer; here we focus on integrity of
-      // the assignment binding for fully-specified road_runs.
-      if (input.roadRun?.assignedOperatorId !== undefined && input.roadRun.assignedAssetId !== undefined) {
-        const [pair] = await tx.select({ assignmentId: driverVehicleAssignment.assignmentId })
-          .from(driverVehicleAssignment)
-          .innerJoin(driver, eq(driverVehicleAssignment.driverId, driver.driverId))
-          .where(and(
-            eq(driverVehicleAssignment.companyId, op.companyId),
-            eq(driver.companyId, op.companyId),
-            eq(driver.operatorId, input.roadRun.assignedOperatorId),
-            eq(driverVehicleAssignment.vehicleId, input.roadRun.assignedAssetId),
-            isNull(driverVehicleAssignment.revokedAt),
-          ))
-          .limit(1);
-        if (!pair) throw new DriverVehicleAssignmentRequiredError();
-      }
+      // 2026 business rule: every transport_order is created with a road_run
+      // that already pairs a driver (assignedOperatorId) to a truck
+      // (assignedAssetId). The pair MUST be backed by an active
+      // driver_vehicle_assignment row in this tenancy. The DTO guarantees the
+      // two fields are present; the service enforces the assignment-existence
+      // invariant. There is no longer an "order without runner" code path.
+      const [pair] = await tx.select({ assignmentId: driverVehicleAssignment.assignmentId })
+        .from(driverVehicleAssignment)
+        .innerJoin(driver, eq(driverVehicleAssignment.driverId, driver.driverId))
+        .where(and(
+          eq(driverVehicleAssignment.companyId, op.companyId),
+          eq(driver.companyId, op.companyId),
+          eq(driver.operatorId, input.roadRun.assignedOperatorId),
+          eq(driverVehicleAssignment.vehicleId, input.roadRun.assignedAssetId),
+          isNull(driverVehicleAssignment.revokedAt),
+        ))
+        .limit(1);
+      if (!pair) throw new DriverVehicleAssignmentRequiredError();
       const [created] = await tx.insert(transportOrder).values({
         ...tenancy,
         ...(input.externalRef !== undefined ? { externalRef: input.externalRef } : {}),
@@ -71,47 +71,42 @@ export class TransportOrdersService {
           ...(s.plannedAt !== undefined ? { plannedAt: new Date(s.plannedAt) } : {}),
         });
       }
-      let roadRunId: string | null = null;
-      if (input.roadRun) {
-        const [rr] = await tx.insert(roadRun).values({
-          ...tenancy,
-          ...(input.roadRun.plannedStartAt !== undefined ? { plannedStartAt: new Date(input.roadRun.plannedStartAt) } : {}),
-          ...(input.roadRun.assignedOperatorId !== undefined ? { assignedOperatorId: input.roadRun.assignedOperatorId } : {}),
-          ...(input.roadRun.assignedAssetId !== undefined ? { assignedAssetId: input.roadRun.assignedAssetId } : {}),
-        }).returning();
-        if (!rr) throw new Error('road_run insert failed');
-        roadRunId = rr.roadRunId;
-        await tx.insert(roadRunTransportOrder).values({
-          ...tenancy,
-          roadRunId,
-          transportOrderId,
-          sequence: 1,
-        });
-      }
-      if (roadRunId) {
-        const serverSeq = await allocateServerSeq(tx);
-        const refs = input.externalRef ? [input.externalRef] : [];
-        await appendTriWrite(tx, {
-          serverSeq,
-          actionId: randomUUID(),
-          aggregateType: 'road_run',
-          aggregateId: roadRunId,
-          delta: {
-            state: 'planned',
-            assignedOperatorId: input.roadRun?.assignedOperatorId ?? null,
-            assignedAssetId: input.roadRun?.assignedAssetId ?? null,
-            plannedStartAt: input.roadRun?.plannedStartAt ?? null,
-            stopCount: input.stops.length,
-            transportOrderRefs: refs,
-          },
-          eventType: 'road_run.created',
-          auditPayload: { transportOrderId },
-          operatorId: op.operatorId,
-          queueName: OUTBOX_QUEUES.PROJECTIONS,
-          outboxPayload: { aggregateType: 'road_run', eventType: 'road_run.created', roadRunId },
-          op,
-        });
-      }
+      const [rr] = await tx.insert(roadRun).values({
+        ...tenancy,
+        assignedOperatorId: input.roadRun.assignedOperatorId,
+        assignedAssetId: input.roadRun.assignedAssetId,
+        ...(input.roadRun.plannedStartAt !== undefined ? { plannedStartAt: new Date(input.roadRun.plannedStartAt) } : {}),
+      }).returning();
+      if (!rr) throw new Error('road_run insert failed');
+      const roadRunId = rr.roadRunId;
+      await tx.insert(roadRunTransportOrder).values({
+        ...tenancy,
+        roadRunId,
+        transportOrderId,
+        sequence: 1,
+      });
+      const serverSeq = await allocateServerSeq(tx);
+      const refs = input.externalRef ? [input.externalRef] : [];
+      await appendTriWrite(tx, {
+        serverSeq,
+        actionId: randomUUID(),
+        aggregateType: 'road_run',
+        aggregateId: roadRunId,
+        delta: {
+          state: 'planned',
+          assignedOperatorId: input.roadRun.assignedOperatorId,
+          assignedAssetId: input.roadRun.assignedAssetId,
+          plannedStartAt: input.roadRun.plannedStartAt ?? null,
+          stopCount: input.stops.length,
+          transportOrderRefs: refs,
+        },
+        eventType: 'road_run.created',
+        auditPayload: { transportOrderId },
+        operatorId: op.operatorId,
+        queueName: OUTBOX_QUEUES.PROJECTIONS,
+        outboxPayload: { aggregateType: 'road_run', eventType: 'road_run.created', roadRunId },
+        op,
+      });
       return { transportOrderId, roadRunId };
     });
   }

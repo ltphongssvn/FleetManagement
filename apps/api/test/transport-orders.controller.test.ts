@@ -25,6 +25,10 @@ describe('@fleet/api - TransportOrdersController', () => {
     const result = await ctl.create({
       externalRef: 'TO-1001',
       stops: [{ sequence: 1, stopType: 'pickup' }, { sequence: 2, stopType: 'dropoff' }],
+      roadRun: {
+        assignedOperatorId: '00000000-0000-0000-0000-0000000000a1',
+        assignedAssetId: '00000000-0000-0000-0000-0000000000b2',
+      },
     }, op);
     expect(result).toEqual({ transportOrderId: 'to-1', roadRunId: 'rr-1' });
     expect(create).toHaveBeenCalledOnce();

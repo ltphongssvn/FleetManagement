@@ -1,20 +1,42 @@
 // apps/api/test/transport-orders.service.list-assigned.integration.test.ts
-// PGlite integration: exercises the real listAssigned() body — assigned-row
-// query, empty-result branch, stop grouping, row enrichment (plate, orderRef,
-// customer + pickup/delivery warehouse names), and tenancy isolation.
+// PGlite integration: exercises listAssigned() — assigned-row query,
+// empty-result branch, stop grouping, row enrichment (plate, orderRef,
+// customer + pickup/delivery warehouse names), tenancy isolation.
+//
+// 2026 invariant change: every order now carries a roadRun + active
+// driver-vehicle pair. So 'plate' is always populated from the assigned
+// vehicle. Only customer + pickup/delivery warehouse names remain nullable
+// (when the order omits customerId or stops omit yardId). The nullable-
+// enrichment test now asserts only customerName + pickup/deliveryName.
 //
 // Isolation: tx-injection per test (see helpers/with-tx-isolation.ts).
-// All seeds AND the SUT calls go through the test tx so the inner
-// this.db.transaction(...) in svc.create lands as a SAVEPOINT and listAssigned
-// can see the rows it just inserted. The outer tx rolls back at the end.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import { TransportOrdersService } from '../src/transport-orders/transport-orders.service.js';
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
-import { withTxIsolation } from './helpers/with-tx-isolation.js';
+import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
 import { driver, vehicle, customer, warehouse } from '../src/database/schema/reference.js';
 import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
+async function seedActivePair(tx: TestTx, op: ReturnType<typeof createOperatorContext>): Promise<{
+  operatorId: string; vehicleId: string;
+}> {
+  const operatorId = op.operatorId;
+  const tn = {
+    companyId: op.companyId, businessUnitId: op.businessUnitId,
+    depotId: op.depotId, legalEntityId: op.legalEntityId,
+  };
+  const [d] = await tx.insert(driver).values({ ...tn, fullName: 'LA', operatorId })
+    .returning({ driverId: driver.driverId });
+  const [v] = await tx.insert(vehicle).values({ ...tn, plate: 'LA-' + randomUUID().slice(0,4) })
+    .returning({ vehicleId: vehicle.vehicleId });
+  if (!d || !v) throw new Error('seed failed');
+  await tx.insert(driverVehicleAssignment).values({
+    ...tn, driverId: d.driverId, vehicleId: v.vehicleId,
+  });
+  return { operatorId, vehicleId: v.vehicleId };
+}
 describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () => {
   beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
   afterAll(async () => { await stopPgliteTestDb(testDb); });
@@ -30,6 +52,7 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
     await withTxIsolation(testDb, async (tx) => {
       const svc = new TransportOrdersService(tx as never);
       const op = createOperatorContext();
+      const { operatorId, vehicleId } = await seedActivePair(tx, op);
       await svc.create({
         externalRef: 'TO-LA-1',
         stops: [
@@ -38,7 +61,8 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
         ],
         roadRun: {
           plannedStartAt: '2026-05-01T07:00:00.000Z',
-          assignedOperatorId: op.operatorId,
+          assignedOperatorId: operatorId,
+          assignedAssetId: vehicleId,
         },
       }, op);
       const result = await svc.listAssigned(op);
@@ -107,19 +131,23 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
       expect(row?.deliveryName).toBe('South Delivery Bay');
     });
   });
-  it('enrichment fields are null when no vehicle/customer/warehouse is linked', async () => {
+  it('enrichment fields are null when no customer or yardId is supplied', async () => {
+    // After the 2026 invariant change, plate is always populated (vehicle is
+    // mandatory). The remaining nullable enrichment branches are customer
+    // (no customerId on the order) and pickup/delivery warehouse (no yardId
+    // on the stops).
     await withTxIsolation(testDb, async (tx) => {
       const svc = new TransportOrdersService(tx as never);
       const op = createOperatorContext();
+      const { operatorId, vehicleId } = await seedActivePair(tx, op);
       await svc.create({
         externalRef: 'TO-NULLS-1',
         stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: { assignedOperatorId: op.operatorId },
+        roadRun: { assignedOperatorId: operatorId, assignedAssetId: vehicleId },
       }, op);
       const result = await svc.listAssigned(op);
       expect(result.rows).toHaveLength(1);
       const row = result.rows[0];
-      expect(row?.plate).toBeNull();
       expect(row?.customerName).toBeNull();
       expect(row?.pickupName).toBeNull();
       expect(row?.deliveryName).toBeNull();
@@ -130,10 +158,11 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
       const svc = new TransportOrdersService(tx as never);
       const op1 = createOperatorContext({ companyId: '00000000-0000-0000-0000-000000000001' });
       const op2 = createOperatorContext({ companyId: '00000000-0000-0000-0000-000000000001' });
+      const { operatorId, vehicleId } = await seedActivePair(tx, op1);
       await svc.create({
         externalRef: 'TO-OTHER-1',
         stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: { assignedOperatorId: op1.operatorId },
+        roadRun: { assignedOperatorId: operatorId, assignedAssetId: vehicleId },
       }, op1);
       const result = await svc.listAssigned(op2);
       expect(result.rows).toEqual([]);
