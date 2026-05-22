@@ -14,6 +14,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { TransportOrdersService } from '../src/transport-orders/transport-orders.service.js';
+import { OrderNumberingService } from '../src/transport-orders/order-numbering.service.js';
 import { driver, vehicle } from '../src/database/schema/reference.js';
 import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
 import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
@@ -25,7 +26,7 @@ const PARALLELISM = 5;
 describe('@fleet/api - TransportOrdersService concurrent create (RED)', () => {
   beforeAll(async () => {
     testDb = await startMigratedTestDb('fleet_test_to_seq');
-    svc = new TransportOrdersService(testDb.db as never);
+    svc = new TransportOrdersService(testDb.db as never, new OrderNumberingService());
   }, 90_000);
   afterAll(async () => {
     await stopMigratedTestDb(testDb);

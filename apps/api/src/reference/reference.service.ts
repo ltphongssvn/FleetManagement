@@ -165,7 +165,7 @@ export class ReferenceService {
     const [row] = await this.db.select().from(orderSequence)
       .where(and(eq(orderSequence.companyId, op.companyId), eq(orderSequence.prefix, prefix)));
     const value = row?.nextValue ?? 1;
-    const pad = row?.padWidth ?? 3;
+    const pad = row?.padWidth ?? 4;
     return { ref: prefix + '.' + String(value).padStart(pad, '0') };
   }
   async allocateOrderRef(op: OperatorContext, prefix: string): Promise<{ ref: string }> {
@@ -177,7 +177,7 @@ export class ReferenceService {
         const [created] = await tx.insert(orderSequence).values({
           companyId: op.companyId, businessUnitId: op.businessUnitId,
           depotId: op.depotId, legalEntityId: op.legalEntityId,
-          prefix, nextValue: 2, padWidth: 3,
+          prefix, nextValue: 2, padWidth: 4,
         }).returning();
         /* v8 ignore next -- defensive: a successful .returning() always yields a row */
         if (!created) throw new Error('order_sequence insert failed');

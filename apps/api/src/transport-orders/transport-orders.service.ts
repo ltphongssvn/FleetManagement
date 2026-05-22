@@ -1,15 +1,18 @@
 import { OUTBOX_QUEUES } from '@fleet/sync-protocol';
 // apps/api/src/transport-orders/transport-orders.service.ts
-// Pilot seed: creates transport_order + stops + optional road_run, plus 3
-// append paths so the dispatch_board projection picks it up.
+// Pilot seed: creates transport_order + stops + road_run, plus 3 append
+// paths so the dispatch_board projection picks it up.
 //
 // Driver-vehicle pair guard: when a road_run is supplied with both
 // assignedOperatorId AND assignedAssetId, the service requires an active
 // (non-revoked) driver_vehicle_assignment row in the calling company that
-// binds the driver (by operator_id → driver_id) to the vehicle. The deepest
-// defense layer behind dropdown filtering, client validation, and the Zod
-// gate in the server action — even a bypassed front-end cannot persist a
-// road_run whose driver-vehicle pair is not officially assigned.
+// binds the driver (by operator_id → driver_id) to the vehicle.
+//
+// Auto-numbering (T3, 2026): the dispatcher never inputs Số Lệnh. The
+// service allocates external_ref atomically via OrderNumberingService
+// (SELECT ... FOR UPDATE on order_sequence) so two parallel creates within
+// the same company cannot collide. Any input.externalRef is ignored — the
+// server is authoritative.
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
@@ -23,10 +26,21 @@ import { appendTriWrite } from '../database/append-tri-write.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import type { CreateTransportOrderInput, CreateTransportOrderResponse, ListAssignedResponse, ListAssignedRow, TripHistoryResponse } from './transport-orders.dto.js';
 import { DriverVehicleAssignmentRequiredError, TransportOrderNotFoundError } from './transport-orders.errors.js';
+import { OrderNumberingService } from './order-numbering.service.js';
 import { groupCompletedTripsByMonth } from '@fleet/domain';
 @Injectable()
 export class TransportOrdersService {
-  constructor(@Inject(DRIZZLE_DB) private readonly db: FleetDb) {}
+  // numbering is optional at the constructor level for source-compatibility
+  // with tests that instantiated TransportOrdersService(db) before T3.
+  // Nest DI always provides it in production; defaults to a fresh instance
+  // when omitted so the create() path can always allocate XT.NNNN.
+  private readonly numbering: OrderNumberingService;
+  constructor(
+    @Inject(DRIZZLE_DB) private readonly db: FleetDb,
+    numbering?: OrderNumberingService,
+  ) {
+    this.numbering = numbering ?? new OrderNumberingService();
+  }
   async create(input: CreateTransportOrderInput, op: OperatorContext): Promise<CreateTransportOrderResponse> {
     return this.db.transaction(async (tx) => {
       const tenancy = {
@@ -35,12 +49,6 @@ export class TransportOrdersService {
         depotId: op.depotId,
         legalEntityId: op.legalEntityId,
       };
-      // 2026 business rule: every transport_order is created with a road_run
-      // that already pairs a driver (assignedOperatorId) to a truck
-      // (assignedAssetId). The pair MUST be backed by an active
-      // driver_vehicle_assignment row in this tenancy. The DTO guarantees the
-      // two fields are present; the service enforces the assignment-existence
-      // invariant. There is no longer an "order without runner" code path.
       const [pair] = await tx.select({ assignmentId: driverVehicleAssignment.assignmentId })
         .from(driverVehicleAssignment)
         .innerJoin(driver, eq(driverVehicleAssignment.driverId, driver.driverId))
@@ -53,9 +61,11 @@ export class TransportOrdersService {
         ))
         .limit(1);
       if (!pair) throw new DriverVehicleAssignmentRequiredError();
+      // Server-assigned external_ref (Số Lệnh). Client input is ignored.
+      const externalRef = await this.numbering.allocate(tx, op);
       const [created] = await tx.insert(transportOrder).values({
         ...tenancy,
-        ...(input.externalRef !== undefined ? { externalRef: input.externalRef } : {}),
+        externalRef,
         ...(input.customerId !== undefined ? { customerId: input.customerId } : {}),
         ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
       }).returning();
@@ -86,7 +96,6 @@ export class TransportOrdersService {
         sequence: 1,
       });
       const serverSeq = await allocateServerSeq(tx);
-      const refs = input.externalRef ? [input.externalRef] : [];
       await appendTriWrite(tx, {
         serverSeq,
         actionId: randomUUID(),
@@ -98,16 +107,16 @@ export class TransportOrdersService {
           assignedAssetId: input.roadRun.assignedAssetId,
           plannedStartAt: input.roadRun.plannedStartAt ?? null,
           stopCount: input.stops.length,
-          transportOrderRefs: refs,
+          transportOrderRefs: [externalRef],
         },
         eventType: 'road_run.created',
-        auditPayload: { transportOrderId },
+        auditPayload: { transportOrderId, externalRef },
         operatorId: op.operatorId,
         queueName: OUTBOX_QUEUES.PROJECTIONS,
-        outboxPayload: { aggregateType: 'road_run', eventType: 'road_run.created', roadRunId },
+        outboxPayload: { aggregateType: 'road_run', eventType: 'road_run.created', roadRunId, externalRef },
         op,
       });
-      return { transportOrderId, roadRunId };
+      return { transportOrderId, roadRunId, externalRef };
     });
   }
 
@@ -128,10 +137,6 @@ export class TransportOrdersService {
     return found;
   }
   async listAssigned(op: OperatorContext): Promise<ListAssignedResponse> {
-    // Main query: assigned road runs joined to their transport order, plus
-    // LEFT joins to the assigned vehicle and the order customer. LEFT joins
-    // because assignedAssetId and customerId are both nullable — a road run
-    // may have no vehicle and an order may have no customer.
     const rows = await this.db
       .select({
         transportOrderId: transportOrder.transportOrderId,
@@ -155,8 +160,6 @@ export class TransportOrdersService {
       ))
       .orderBy(asc(roadRun.plannedStartAt));
     const transportOrderIds = rows.map((r) => r.transportOrderId);
-    // Stop query: LEFT join warehouse on the stop yard so each stop carries
-    // its warehouse name. yardId is nullable, hence LEFT join.
     const stopRows = transportOrderIds.length === 0
       ? []
       : await this.db
@@ -191,12 +194,6 @@ export class TransportOrdersService {
       });
       stopsByOrder.set(sr.transportOrderId, list);
     }
-    // Pickup/delivery name derivation. The stop_type column is a free-form
-    // varchar with no DB enum, so match defensively (case-insensitive):
-    //   pickup   -> stop_type === \'pickup\'
-    //   delivery -> stop_type === \'delivery\' or \'dropoff\' (both denote the drop)
-    // Stops are already ordered by sequence; the first pickup and the last
-    // delivery stop are used. Any unmatched stop yields null.
     const pickupNameOf = (stops: readonly StopRow[]): string | null => {
       const s = stops.find((x) => x.stopType.toLowerCase() === 'pickup');
       return s?.warehouseName ?? null;
@@ -214,11 +211,6 @@ export class TransportOrdersService {
         const stops = stopsByOrder.get(r.transportOrderId) ?? [];
         return {
           transportOrderId: r.transportOrderId,
-          // r.externalRef / r.plate / r.customerName are typed by Drizzle as
-          // string | null already (externalRef is a nullable varchar; plate
-          // and customerName come from LEFT-joined tables, which Drizzle
-          // models as nullable). A trailing ?? null would be a no-op branch
-          // that never executes, so it's omitted here.
           externalRef: r.externalRef,
           orderRef: r.externalRef,
           roadRunId: r.roadRunId,
@@ -240,10 +232,6 @@ export class TransportOrdersService {
     };
   }
 
-  // Trip history: the operator's completed road runs grouped by VN-timezone
-  // month. Reuses the listAssigned query (same tenancy + enrichment), then
-  // delegates month bucketing to the shared @fleet/domain helper so the API
-  // and the driver app agree on month boundaries.
   async tripHistory(op: OperatorContext): Promise<TripHistoryResponse> {
     const assigned = await this.listAssigned(op);
     const groups = groupCompletedTripsByMonth(

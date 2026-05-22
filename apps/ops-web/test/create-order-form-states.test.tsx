@@ -4,7 +4,9 @@
 //   - state.status === 'api_error' / 'server_error' -> topError banner shown
 //   - pending === true -> submit button shows "submitting" label
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
+import { afterEach } from 'vitest';
+afterEach(() => { cleanup(); });
 import type * as ReactModule from 'react';
 
 vi.mock('@/features/dispatch/create-order.action', () => ({ createOrder: vi.fn() }));
@@ -22,13 +24,13 @@ describe('CreateOrderForm — useActionState-driven branches', () => {
 
   it('renders FieldError messages when state.status=invalid (line 42)', async () => {
     mockUseActionState.mockReturnValue([
-      { status: 'invalid', errors: { externalRef: 'Required field', pickupAt: 'Bad date' } },
+      { status: 'invalid', errors: { pickupAt: 'Bad date' } },
       vi.fn(),
       false,
     ]);
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
     render(<CreateOrderForm drivers={drivers} locale="en" />);
-    expect(screen.getByText('Required field')).toBeDefined();
+
     expect(screen.getByText('Bad date')).toBeDefined();
   });
 
@@ -54,6 +56,25 @@ describe('CreateOrderForm — useActionState-driven branches', () => {
     expect(screen.getByText('cookie missing')).toBeDefined();
   });
 
+  it('renders the assigned XT.NNNN in the success banner when state.status=created (T3)', async () => {
+    mockUseActionState.mockReturnValue([
+      { status: 'created', externalRef: 'XT.0042', transportOrderId: 't-xyz' },
+      vi.fn(),
+      false,
+    ]);
+    const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
+    render(<CreateOrderForm drivers={drivers} locale="en" />);
+    // Banner shows the assigned ref
+    expect(screen.getByRole('status').textContent).toContain('XT.0042');
+    // Read-only placeholder reflects the same ref (covers the createdRef ?? fallback branch)
+    expect(screen.getByTestId('order-no-readonly').textContent).toContain('XT.0042');
+  });
+  it('renders the auto-assigned placeholder when state is undefined (createdRef ?? fallback)', async () => {
+    mockUseActionState.mockReturnValue([undefined, vi.fn(), false]);
+    const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
+    render(<CreateOrderForm drivers={drivers} locale="en" />);
+    expect(screen.getByTestId('order-no-readonly').textContent).toContain('Auto-assigned');
+  });
   it('renders submitting label on the submit button when pending=true (line 147)', async () => {
     mockUseActionState.mockReturnValue([undefined, vi.fn(), true]);
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');

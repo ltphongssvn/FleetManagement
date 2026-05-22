@@ -107,5 +107,5 @@ export async function seedReference(db: FleetDb): Promise<void> {
   for (const c of CUSTOMERS) {
     await db.insert(customer).values({ ...TENANCY, name: c }).onConflictDoNothing();
   }
-  await db.insert(orderSequence).values({ ...TENANCY, prefix: 'XT', nextValue: 1, padWidth: 3 }).onConflictDoNothing();
+  await db.insert(orderSequence).values({ ...TENANCY, prefix: 'XT', nextValue: 1, padWidth: 4 }).onConflictDoNothing();
 }

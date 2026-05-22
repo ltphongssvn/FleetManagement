@@ -3,21 +3,18 @@
 // goods at one or more PICKUP warehouses on a shared pickup date, then unloads
 // at one or more DELIVERY warehouses on a shared delivery date. Calls api
 // POST /transport-orders with bearer JWT from the fleet_session httpOnly
-// cookie. Industry pattern: server action keeps the token server-side,
-// validates with zod, revalidates the board on success.
+// cookie.
 //
-// Dynamic warehouses: the form starts with 4 pickup slots + 1 delivery slot
-// but the dispatcher may add more on either side (no hard cap) for rare
-// business cases. Warehouses arrive as indexed fields pickupWarehouse_1..N /
-// deliveryWarehouse_1..N; empty slots are dropped. The action collapses the
-// filled slots into ordered stops[] (1..P = pickups, P+1.. = deliveries).
+// T3 (2026): the dispatcher does NOT input Số Lệnh. The API allocates the
+// external_ref atomically via OrderNumberingService and returns it on the
+// response. The action surfaces it back to the form caller via status='created'
+// so the UI can confirm the assigned XT.NNN to the dispatcher. Any stale
+// externalRef field arriving from the form is dropped from the API body.
 'use server';
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 const FormSchema = z.object({
-  externalRef: z.string().min(1, 'Required').max(64),
   plannedStartAt: z.string().min(1, 'Required'),
   assignedOperatorId: z.string().uuid('Invalid driver id'),
   assignedAssetId: z.string().uuid('Invalid vehicle id'),
@@ -35,23 +32,19 @@ const FormSchema = z.object({
     .min(1, 'At least one delivery warehouse is required'),
 });
 type ErrorKey =
-  | 'externalRef' | 'plannedStartAt' | 'assignedOperatorId' | 'assignedAssetId'
+  | 'plannedStartAt' | 'assignedOperatorId' | 'assignedAssetId'
   | 'customer' | 'cargo' | 'vehiclePlate' | 'driverName'
   | 'pickupAt' | 'deliveryAt' | 'pickupWarehouses' | 'deliveryWarehouses';
 export type CreateOrderState =
   | undefined
   | { status: 'invalid'; errors: Partial<Record<ErrorKey, string>> }
   | { status: 'api_error'; message: string }
-  | { status: 'server_error'; message: string };
+  | { status: 'server_error'; message: string }
+  | { status: 'created'; externalRef: string; transportOrderId: string };
 function toIso(local: string): string {
-  // Datetime-local input arrives as 'YYYY-MM-DDTHH:mm' (no seconds, no tz).
-  // Treat as UTC for pilot determinism; production should use depot tz.
   const withSec = local.length === 16 ? local + ':00' : local;
   return new Date(withSec + 'Z').toISOString();
 }
-// Collect <prefix>_1.._N into an ordered array, dropping empties. There is no
-// hard cap: the form may submit any number of slots, so we scan until the
-// first index that is entirely absent (FormData has no key for it).
 function collectWarehouses(formData: FormData, prefix: string): string[] {
   const out: string[] = [];
   for (let i = 1; ; i++) {
@@ -63,7 +56,6 @@ function collectWarehouses(formData: FormData, prefix: string): string[] {
 }
 export async function createOrder(_prev: CreateOrderState, formData: FormData): Promise<CreateOrderState> {
   const parsed = FormSchema.safeParse({
-    externalRef: formData.get('externalRef'),
     plannedStartAt: formData.get('plannedStartAt'),
     assignedOperatorId: formData.get('assignedOperatorId'),
     assignedAssetId: formData.get('assignedAssetId'),
@@ -103,8 +95,9 @@ export async function createOrder(_prev: CreateOrderState, formData: FormData): 
     plannedAt: deliveryPlannedAt,
     warehouse,
   }));
+  // externalRef is intentionally omitted: the API allocates it server-side
+  // and any stale value from the form must NOT be forwarded.
   const body = {
-    externalRef: parsed.data.externalRef,
     metadata: {
       customer: parsed.data.customer,
       cargo: parsed.data.cargo,
@@ -129,6 +122,7 @@ export async function createOrder(_prev: CreateOrderState, formData: FormData): 
   if (!res.ok) {
     return { status: 'api_error', message: 'API request failed: ' + String(res.status) + ' ' + res.statusText };
   }
+  const json = (await res.json()) as { transportOrderId: string; roadRunId: string; externalRef: string };
   revalidatePath('/');
-  redirect('/');
+  return { status: 'created', externalRef: json.externalRef, transportOrderId: json.transportOrderId };
 }

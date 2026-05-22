@@ -3,6 +3,12 @@
 // Uses Headless UI Combobox via ComboboxField — portal-rendered, searchable,
 // immune to overflow clipping.
 //
+// T3 (2026): the Số Lệnh (external_ref) is server-assigned. The dispatcher
+// does NOT type it; on a successful submission the form surfaces the
+// allocated XT.NNN in a success banner. The defaultOrderRef prop is kept on
+// the interface for backwards source compatibility with callers (page.tsx)
+// but is no longer rendered as an editable input.
+//
 // Multi-pickup: section 4 always renders 4 fixed pickup-warehouse slots
 // (pickupWarehouse_1..4) sharing one pickupAt date. The dispatcher assigns
 // 1..4 of them; unassigned slots show a 'None' placeholder and submit empty.
@@ -12,10 +18,6 @@
 // Bidirectional driver vehicle auto-fill (Section 3): the dispatcher binds
 // each driver to one truck on the Đội xe page (driver_vehicle_assignment).
 // driverVehicleAssignments carries the [{ operatorId, vehicleId }] pairs.
-// When Số xe is selected, the matching Tài xế auto-fills via the lookup,
-// and vice versa. Selecting an unpaired vehicle/driver leaves the other
-// field unchanged so the dispatcher can still proceed with a manual pair
-// (used when a backup driver covers another truck temporarily).
 'use client';
 import { useActionState, useState } from 'react';
 import type { JSX } from 'react';
@@ -36,6 +38,7 @@ export interface CreateOrderFormProps {
   readonly pickupWarehouses?: readonly RefOption[];
   readonly deliveryWarehouses?: readonly RefOption[];
   readonly driverVehicleAssignments?: readonly DriverVehicleAssignmentOption[];
+  // Kept for source compatibility with page.tsx; no longer rendered (T3).
   readonly defaultOrderRef?: string;
   readonly locale?: Locale;
 }
@@ -54,37 +57,19 @@ export function CreateOrderForm({
   drivers, vehicles = [], customers = [], cargoTypes = [],
   pickupWarehouses = [], deliveryWarehouses = [],
   driverVehicleAssignments = [],
-  defaultOrderRef = '', locale = 'vi',
+  locale = 'vi',
 }: CreateOrderFormProps): JSX.Element {
   const [state, formAction, pending] = useActionState<CreateOrderState, FormData>(createOrder, undefined);
-  // Dynamic warehouse rows. Section 4 starts at 4 pickup slots, section 5 at 1
-  // delivery slot; either side grows without a hard cap for rare business
-  // cases. Local UI state only; the server reads indexed *Warehouse_N fields.
   const [pickupCount, setPickupCount] = useState(4);
   const [deliveryCount, setDeliveryCount] = useState(1);
   const addPickup = (): void => { setPickupCount((n) => n + 1); };
   const addDelivery = (): void => { setDeliveryCount((n) => n + 1); };
   const pickupRows = Array.from({ length: pickupCount }, (_, i) => i + 1);
   const deliveryRows = Array.from({ length: deliveryCount }, (_, i) => i + 1);
-  // 2026 invariant: only drivers and vehicles that are currently bound by an
-  // active driver_vehicle_assignment may be dispatched. Filter the option
-  // lists so the dispatcher cannot choose an unpaired entity at all — the
-  // server-side pair guard would reject it anyway, and the form would just
-  // fail with no recovery. The bind is managed on the 'Quản lý tài xế & xe'
-  // (driver-vehicle admin) page; this form only consumes existing pairs.
   const pairedOperatorIds = new Set(driverVehicleAssignments.map((a) => a.operatorId));
   const pairedVehicleIds = new Set(driverVehicleAssignments.map((a) => a.vehicleId));
   const pairedDrivers = drivers.filter((d) => pairedOperatorIds.has(d.id));
   const pairedVehicles = vehicles.filter((v) => pairedVehicleIds.has(v.id));
-  // Controlled state for the bidirectional vehicle and driver fields.
-  // - vehicleValue holds the selected plate (label) for display in the
-  //   ComboboxField and submission as the metadata 'vehiclePlate' string.
-  // - assetIdValue holds the selected vehicle's UUID for submission as the
-  //   roadRun.assignedAssetId field — the API requires the uuid, not the plate.
-  // - driverValue holds the selected operatorId for submission as
-  //   roadRun.assignedOperatorId.
-  // Lookups go through the assignment map in both directions: picking a
-  // vehicle pre-fills the driver and vice versa.
   const [vehicleValue, setVehicleValue] = useState('');
   const [assetIdValue, setAssetIdValue] = useState('');
   const [driverValue, setDriverValue] = useState('');
@@ -94,13 +79,6 @@ export function CreateOrderForm({
       setAssetIdValue('');
       return;
     }
-    // pairedVehicles is the source list for the combobox; any non-empty
-    // nextPlate is guaranteed to match one of its labels because Headless
-    // UI's Combobox only commits values from its option list (typing an
-    // unmatched label leaves the input on the typed string without
-    // emitting a selection event). We trust the find() result; a defensive
-    // !veh guard would be unreachable and would just add an uncoverable
-    // branch.
     const veh = pairedVehicles.find((v) => v.label === nextPlate);
     if (!veh) return;
     setAssetIdValue(veh.id);
@@ -120,6 +98,7 @@ export function CreateOrderForm({
   };
   const errs = state?.status === 'invalid' ? state.errors : {};
   const topError = state?.status === 'api_error' || state?.status === 'server_error' ? state.message : undefined;
+  const createdRef = state?.status === 'created' ? state.externalRef : undefined;
   const tx = (k: string): string => t(locale, k);
   const ph = (k: string): string =>
     locale === 'vi' ? '— Chọn ' + k.toLowerCase() + ' —' : '— Select ' + k.toLowerCase() + ' —';
@@ -133,13 +112,19 @@ export function CreateOrderForm({
       {topError ? (
         <div role='alert' className='mx-6 mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700'>{topError}</div>
       ) : null}
+      {createdRef ? (
+        <div role='status' className='mx-6 mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800'>
+          <span className='font-semibold'>{tx('orderForm.orderNo')}:</span> <span className='font-mono'>{createdRef}</span>
+        </div>
+      ) : null}
       <div className={sectionCls}>
         <div className={sectionTitleCls}><span className={stepBadgeCls}>1</span>{tx('orderForm.orderNo')} & {tx('orderForm.orderDate')}</div>
         <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
           <div>
-            <label htmlFor='externalRef' className={labelCls}>{tx('orderForm.orderNo')}</label>
-            <input id='externalRef' name='externalRef' required placeholder='XT.001' defaultValue={defaultOrderRef} className={inputCls + ' mt-1 font-mono uppercase'} />
-            <FieldError msg={errs.externalRef} />
+            <label className={labelCls}>{tx('orderForm.orderNo')}</label>
+            <div data-testid='order-no-readonly' className={inputCls + ' mt-1 font-mono uppercase bg-slate-50 text-slate-500'}>
+              {createdRef ?? (locale === 'vi' ? 'Hệ thống tự cấp' : 'Auto-assigned')}
+            </div>
           </div>
           <div>
             <label htmlFor='plannedStartAt' className={labelCls}>{tx('orderForm.orderDate')}</label>
@@ -173,10 +158,6 @@ export function CreateOrderForm({
               value={vehicleValue}
               onChange={onVehicleChange}
             />
-            {/* Hidden field submits the selected vehicle's UUID (assignedAssetId)
-                — the API contract demands a uuid; vehiclePlate above carries the
-                human-readable plate for metadata. Kept in sync with vehicleValue
-                via onVehicleChange / onDriverChange auto-fill. */}
             <input type='hidden' name='assignedAssetId' value={assetIdValue} readOnly />
             <FieldError msg={errs.assignedAssetId} />
           </div>

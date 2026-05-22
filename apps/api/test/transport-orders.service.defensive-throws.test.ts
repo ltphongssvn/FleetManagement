@@ -12,7 +12,9 @@
 // the DB returns no row").
 import { describe, it, expect } from 'vitest';
 import { TransportOrdersService } from '../src/transport-orders/transport-orders.service.js';
+import type { OrderNumberingService } from '../src/transport-orders/order-numbering.service.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
+const stubNumbering = { allocate: (): Promise<string> => Promise.resolve('XT.0001') } as unknown as OrderNumberingService;
 type ReturningFn = () => Promise<unknown[]>;
 type ValuesFn = (v: unknown) => { returning: ReturningFn } | Promise<unknown>;
 function makeTx(opts: { transportOrderRows: unknown[]; roadRunRows: unknown[] }): unknown {
@@ -75,7 +77,7 @@ describe('@fleet/api - TransportOrdersService defensive throws', () => {
     const svc = new TransportOrdersService(makeDb({
       transportOrderRows: [],
       roadRunRows: [{ roadRunId: 'rr-x' }],
-    }) as never);
+    }) as never, stubNumbering);
     await expect(svc.create(validInput, op))
       .rejects.toThrow(/transport_order insert failed/);
   });
@@ -83,7 +85,7 @@ describe('@fleet/api - TransportOrdersService defensive throws', () => {
     const svc = new TransportOrdersService(makeDb({
       transportOrderRows: [{ transportOrderId: 'to-x' }],
       roadRunRows: [],
-    }) as never);
+    }) as never, stubNumbering);
     await expect(svc.create(validInput, op))
       .rejects.toThrow(/road_run insert failed/);
   });

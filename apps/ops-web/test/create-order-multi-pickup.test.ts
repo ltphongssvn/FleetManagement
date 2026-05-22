@@ -6,8 +6,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 const cookieGet = vi.fn();
 vi.mock('next/headers', () => ({ cookies: () => Promise.resolve({ get: cookieGet }) }));
-const redirect = vi.fn(() => { throw new Error('NEXT_REDIRECT'); });
-vi.mock('next/navigation', () => ({ redirect }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 function lastBody(fetchMock: ReturnType<typeof vi.fn>): Record<string, unknown> {
   const calls = fetchMock.mock.calls as unknown as [string, { body: string }][];
@@ -17,7 +15,7 @@ function lastBody(fetchMock: ReturnType<typeof vi.fn>): Record<string, unknown> 
 }
 function baseForm(): FormData {
   const fd = new FormData();
-  fd.set('externalRef', 'XTT.05-001');
+
   fd.set('plannedStartAt', '2026-05-09T08:00');
   fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
   fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
@@ -28,7 +26,7 @@ function baseForm(): FormData {
 describe('createOrder dynamic pickup + delivery warehouses (no hard cap)', () => {
   beforeEach(() => {
     cookieGet.mockReset();
-    redirect.mockClear();
+
     vi.unstubAllGlobals();
     vi.resetModules();
   });
@@ -41,7 +39,7 @@ describe('createOrder dynamic pickup + delivery warehouses (no hard cap)', () =>
     const fd = baseForm();
     for (let i = 1; i <= 6; i++) fd.set('pickupWarehouse_' + String(i), 'Kho ' + String(i));
     fd.set('deliveryWarehouse_1', 'DA NANG');
-    await expect(createOrder(undefined, fd)).rejects.toThrow('NEXT_REDIRECT');
+    await createOrder(undefined, fd);
     const stops = lastBody(fetchMock)['stops'] as { stopType: string }[];
     expect(stops.filter((s) => s.stopType === 'pickup')).toHaveLength(6);
     expect(stops.filter((s) => s.stopType === 'delivery')).toHaveLength(1);
@@ -55,7 +53,7 @@ describe('createOrder dynamic pickup + delivery warehouses (no hard cap)', () =>
     const fd = baseForm();
     fd.set('pickupWarehouse_1', 'Kho 1');
     for (let i = 1; i <= 3; i++) fd.set('deliveryWarehouse_' + String(i), 'Dest ' + String(i));
-    await expect(createOrder(undefined, fd)).rejects.toThrow('NEXT_REDIRECT');
+    await createOrder(undefined, fd);
     const stops = lastBody(fetchMock)['stops'] as { sequence: number; stopType: string }[];
     expect(stops.filter((s) => s.stopType === 'pickup')).toHaveLength(1);
     expect(stops.filter((s) => s.stopType === 'delivery')).toHaveLength(3);
@@ -72,7 +70,7 @@ describe('createOrder dynamic pickup + delivery warehouses (no hard cap)', () =>
     fd.set('pickupWarehouse_2', 'Kho 2');
     fd.set('deliveryWarehouse_1', 'Dest 1');
     fd.set('deliveryWarehouse_2', 'Dest 2');
-    await expect(createOrder(undefined, fd)).rejects.toThrow('NEXT_REDIRECT');
+    await createOrder(undefined, fd);
     const stops = lastBody(fetchMock)['stops'] as { stopType: string; plannedAt: string }[];
     const pAt = new Set(stops.filter((s) => s.stopType === 'pickup').map((s) => s.plannedAt));
     const dAt = new Set(stops.filter((s) => s.stopType === 'delivery').map((s) => s.plannedAt));
@@ -92,7 +90,7 @@ describe('createOrder dynamic pickup + delivery warehouses (no hard cap)', () =>
     fd.set('pickupWarehouse_3', 'Kho 3');
     fd.set('deliveryWarehouse_1', '');
     fd.set('deliveryWarehouse_2', 'Dest 2');
-    await expect(createOrder(undefined, fd)).rejects.toThrow('NEXT_REDIRECT');
+    await createOrder(undefined, fd);
     const stops = lastBody(fetchMock)['stops'] as { stopType: string }[];
     expect(stops.filter((s) => s.stopType === 'pickup')).toHaveLength(2);
     expect(stops.filter((s) => s.stopType === 'delivery')).toHaveLength(1);
