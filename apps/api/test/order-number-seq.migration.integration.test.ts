@@ -23,7 +23,7 @@ describe('@fleet/api - order_number_seq migration (T3)', () => {
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('ships a timestamp-named order_number_seq migration', () => {
     const files = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql'));
-    const match = files.filter((f) => /order_number_seq\.sql$/.test(f));
+    const match = files.filter((f) => f.endsWith('order_number_seq.sql'));
     expect(match.length).toBeGreaterThanOrEqual(1);
     expect(match[0]).toMatch(/^\d{8,}.*order_number_seq\.sql$/);
   });

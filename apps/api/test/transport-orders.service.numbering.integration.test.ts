@@ -100,12 +100,12 @@ describe('@fleet/api - TransportOrdersService auto-numbering (T3)', () => {
         roadRun: { assignedOperatorId: b.operatorId, assignedAssetId: b.vehicleId },
       }, OP);
       const parse = (ref: string): number => {
-        const m = ref.match(/^XT\.(\d+)$/);
-        if (!m || !m[1]) throw new Error('not XT.NNN: ' + ref);
+        const m = /^XT\.(\d+)$/.exec(ref);
+        if (!m?.[1]) throw new Error('not XT.NNN: ' + ref);
         return parseInt(m[1], 10);
       };
-      const n1 = parse(r1.externalRef!);
-      const n2 = parse(r2.externalRef!);
+      const n1 = parse(r1.externalRef);
+      const n2 = parse(r2.externalRef);
       expect(n2).toBe(n1 + 1);
     });
   });
@@ -136,7 +136,7 @@ describe('@fleet/api - TransportOrdersService auto-numbering (T3)', () => {
         roadRun: { assignedOperatorId: pair.operatorId, assignedAssetId: pair.vehicleId },
       }, OP);
       expect(result.externalRef).toMatch(ORDER_NUMBER_REGEX);
-      const ref = result.externalRef as string;
+      const ref = result.externalRef;
       const feedRows = await tx.execute<{ delta: unknown }>(sql.raw(
         'SELECT delta FROM sync_change_feed WHERE aggregate_type = ' + String.fromCharCode(39) + 'road_run' + String.fromCharCode(39),
       ));

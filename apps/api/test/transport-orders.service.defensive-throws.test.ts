@@ -14,7 +14,7 @@ import { describe, it, expect } from 'vitest';
 import { TransportOrdersService } from '../src/transport-orders/transport-orders.service.js';
 import type { OrderNumberingService } from '../src/transport-orders/order-numbering.service.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
-const stubNumbering = { allocate: async (): Promise<string> => 'XT.001' } as unknown as OrderNumberingService;
+const stubNumbering = { allocate: (): Promise<string> => Promise.resolve('XT.0001') } as unknown as OrderNumberingService;
 type ReturningFn = () => Promise<unknown[]>;
 type ValuesFn = (v: unknown) => { returning: ReturningFn } | Promise<unknown>;
 function makeTx(opts: { transportOrderRows: unknown[]; roadRunRows: unknown[] }): unknown {
