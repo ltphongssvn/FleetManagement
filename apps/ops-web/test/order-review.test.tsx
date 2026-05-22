@@ -47,4 +47,14 @@ describe('OrderReview', () => {
     expect(screen.getByTestId('order-review-plate').textContent).toContain('—');
     expect(screen.getByTestId('order-review-customer').textContent).toContain('—');
   });
+  it('renders a dash for plannedStartAt when null (formatDateTime null-branch)', () => {
+    const noStart: ListAssignedRow = { ...row, plannedStartAt: null };
+    render(<OrderReview order={noStart} />);
+    expect(screen.getByTestId('order-review-planned-start').textContent).toBe('—');
+  });
+  it('renders a dash for plannedStartAt when the ISO is invalid (formatDateTime NaN-branch)', () => {
+    const badStart: ListAssignedRow = { ...row, plannedStartAt: 'not-a-real-date' };
+    render(<OrderReview order={badStart} />);
+    expect(screen.getByTestId('order-review-planned-start').textContent).toBe('—');
+  });
 });
