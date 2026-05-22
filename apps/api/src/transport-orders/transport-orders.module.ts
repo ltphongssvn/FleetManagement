@@ -5,11 +5,12 @@ import { DatabaseModule } from '../database/database.module.js';
 import { TransportOrdersController } from './transport-orders.controller.js';
 import { TransportOrdersReviewController } from './transport-orders.review.controller.js';
 import { TransportOrdersService } from './transport-orders.service.js';
+import { OrderNumberingService } from './order-numbering.service.js';
 @Module({
   imports: [AuthModule, DatabaseModule],
   controllers: [TransportOrdersController, TransportOrdersReviewController],
-  providers: [TransportOrdersService],
-  exports: [TransportOrdersService],
+  providers: [TransportOrdersService, OrderNumberingService],
+  exports: [TransportOrdersService, OrderNumberingService],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class TransportOrdersModule {}

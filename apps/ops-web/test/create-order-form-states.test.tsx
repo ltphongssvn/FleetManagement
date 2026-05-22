@@ -22,13 +22,13 @@ describe('CreateOrderForm — useActionState-driven branches', () => {
 
   it('renders FieldError messages when state.status=invalid (line 42)', async () => {
     mockUseActionState.mockReturnValue([
-      { status: 'invalid', errors: { externalRef: 'Required field', pickupAt: 'Bad date' } },
+      { status: 'invalid', errors: { pickupAt: 'Bad date' } },
       vi.fn(),
       false,
     ]);
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
     render(<CreateOrderForm drivers={drivers} locale="en" />);
-    expect(screen.getByText('Required field')).toBeDefined();
+
     expect(screen.getByText('Bad date')).toBeDefined();
   });
 

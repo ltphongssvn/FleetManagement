@@ -82,7 +82,7 @@ async function setupPair(api: APIRequestContext, suffix: string): Promise<Seeded
   const vehicleLabel = 'E2E-' + suffix + '-' + String(ts);
   const drv = await adminPost<{ driverId: string; operatorId: string }>(
     api, token, '/admin/drivers',
-    { fullName: driverLabel, phone, password: 'e2e-pass-1234' // pragma: allowlist secret },
+    { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
   );
   const veh = await adminPost<{ id: string; label: string }>(
     api, token, '/reference/vehicles', { name: vehicleLabel },
@@ -153,34 +153,41 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
 
   test('Layer 1+2 happy path: form to action to API to service to DB row', async ({ page, request }) => {
     const pair = await setupPair(request, 'L2');
+    const sq = String.fromCharCode(39);
+    const beforeMaxSql =
+      'SELECT COALESCE(MAX((substring(external_ref FROM ' + sq + '^XT\\.(\\d+)$' + sq + '))::int), 0) ' +
+      'FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq +
+      ' AND external_ref ~ ' + sq + '^XT\\.\\d+$' + sq + ';';
+    const beforeMax = parseInt(dockerPsql(beforeMaxSql).stdout.trim(), 10);
     await loginAsDispatcher(page);
     await page.goto('/');
-
-    const externalRef = 'E2E-L2-' + String(Date.now());
-    await page.locator('#externalRef').fill(externalRef);
     await page.locator('#plannedStartAt').fill('2026-06-01T08:00');
-
     const vehicleInput = page.locator('input#vehiclePlate');
     await vehicleInput.click();
     await vehicleInput.fill(pair.vehicleLabel);
     await page.getByRole('option', { name: pair.vehicleLabel }).click();
-
     await page.locator('#pickupAt').fill('2026-06-01T09:00');
     await page.locator('#deliveryAt').fill('2026-06-01T18:00');
-
     await page.locator('input#pickupWarehouse_1').click();
     await page.getByRole('option').first().click();
-
     await page.locator('input#deliveryWarehouse_1').click();
     await page.getByRole('option').first().click();
-
     await page.getByRole('button', { name: 'Tạo lệnh' }).click();
-    await page.waitForLoadState('networkidle');
-
-    const sql = "SELECT external_ref FROM transport_order WHERE external_ref='" + externalRef + "';";
-    const result = dockerPsql(sql);
-    expect(result.failed).toBe(false);
-    expect(result.stdout.trim()).toBe(externalRef);
+    // T3: external_ref is server-assigned (XT.NNN). Poll DB for a new row
+    // whose XT sequence exceeds the pre-submit max.
+    const findSql =
+      'SELECT external_ref FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq + ' ' +
+      'AND external_ref ~ ' + sq + '^XT\\.\\d+$' + sq + ' ' +
+      'AND (substring(external_ref FROM ' + sq + '^XT\\.(\\d+)$' + sq + '))::int > ' + String(beforeMax) +
+      ' ORDER BY created_at DESC LIMIT 1;';
+    let createdRef = '';
+    for (let i = 0; i < 30; i++) {
+      const r = dockerPsql(findSql);
+      const v = r.stdout.trim();
+      if (v.length > 0) { createdRef = v; break; }
+      await page.waitForTimeout(500);
+    }
+    expect(createdRef).toMatch(/^XT\.\d{4,}$/);
   });
 
   test('Layer 3: API DTO rejects body missing roadRun.assignedAssetId', async ({ request }) => {

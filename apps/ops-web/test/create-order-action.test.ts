@@ -1,41 +1,33 @@
 // apps/ops-web/test/create-order-action.test.ts
-// createOrder server action POSTs to /transport-orders with bearer cookie token.
-// Updated for the multi-destination contract: deliveries arrive as indexed
-// fields deliveryAt_N / deliveryWarehouse_N (1..4) instead of a single deliveryAt.
+// L2 RED → GREEN for T3: createOrder server action must
+//  - NOT require dispatcher-supplied externalRef (server assigns it),
+//  - NOT send any client externalRef on the API body,
+//  - surface the server-assigned externalRef back to the form caller as
+//    state.status='created' on the success path so the UI can render it
+//    (instead of a blind redirect that loses the assigned XT.NNN).
+// All other failure paths (zod, env, cookie, api error) keep their shape.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 const cookieGet = vi.fn();
 vi.mock('next/headers', () => ({ cookies: () => Promise.resolve({ get: cookieGet }) }));
-const redirect = vi.fn(() => { throw new Error('NEXT_REDIRECT'); });
-vi.mock('next/navigation', () => ({ redirect }));
 const revalidatePath = vi.fn();
 vi.mock('next/cache', () => ({ revalidatePath }));
-describe('createOrder server action', () => {
+describe('createOrder server action (T3 auto-numbering)', () => {
   beforeEach(() => {
     cookieGet.mockReset();
-    redirect.mockClear();
     revalidatePath.mockClear();
     vi.unstubAllGlobals();
     vi.resetModules();
   });
-  it('rejects when externalRef missing', async () => {
-    cookieGet.mockReturnValue({ value: 'tok' });
-    const { createOrder } = await import('@/features/dispatch/create-order.action');
-    const fd = new FormData();
-    fd.set('externalRef', '');
-    fd.set('plannedStartAt', '2026-05-08T08:00');
-    fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
-    fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
-    const r = await createOrder(undefined, fd);
-    expect(r).toMatchObject({ status: 'invalid', errors: { externalRef: 'Required' } });
-  });
-  it('posts to api with bearer token and redirects on success', async () => {
+  it('accepts a submission without externalRef (server assigns Số Lệnh)', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'jwt-abc' });
-    const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ transportOrderId: 't1', roadRunId: 'r1' }), { status: 201, headers: { 'content-type': 'application/json' } })));
+    const fetchMock = vi.fn(() => Promise.resolve(new Response(
+      JSON.stringify({ transportOrderId: 't1', roadRunId: 'r1', externalRef: 'XT.001' }),
+      { status: 201, headers: { 'content-type': 'application/json' } },
+    )));
     vi.stubGlobal('fetch', fetchMock);
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = new FormData();
-    fd.set('externalRef', 'TO-9001');
     fd.set('plannedStartAt', '2026-05-08T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
@@ -43,13 +35,34 @@ describe('createOrder server action', () => {
     fd.set('pickupWarehouse_1', 'WH-1');
     fd.set('deliveryAt', '2026-05-08T11:00');
     fd.set('deliveryWarehouse_1', 'DEST-1');
-    await expect(createOrder(undefined, fd)).rejects.toThrow('NEXT_REDIRECT');
-    expect(fetchMock).toHaveBeenCalledWith('http://api:3000/transport-orders', expect.objectContaining({
-      method: 'POST',
-      headers: expect.objectContaining({ Authorization: 'Bearer jwt-abc', 'Content-Type': 'application/json' }),
-    }));
+    const r = await createOrder(undefined, fd);
+    expect(r).toEqual({ status: 'created', externalRef: 'XT.001', transportOrderId: 't1' });
     expect(revalidatePath).toHaveBeenCalledWith('/');
-    expect(redirect).toHaveBeenCalledWith('/');
+  });
+  it('does not send externalRef in the API body even if a stale form value is present', async () => {
+    vi.stubEnv('FLEET_API_URL', 'http://api:3000');
+    cookieGet.mockReturnValue({ value: 'jwt-abc' });
+    const fetchMock = vi.fn(() => Promise.resolve(new Response(
+      JSON.stringify({ transportOrderId: 't1', roadRunId: 'r1', externalRef: 'XT.002' }),
+      { status: 201, headers: { 'content-type': 'application/json' } },
+    )));
+    vi.stubGlobal('fetch', fetchMock);
+    const { createOrder } = await import('@/features/dispatch/create-order.action');
+    const fd = new FormData();
+    fd.set('externalRef', 'STALE-VALUE'); // a stale UI value, must be dropped
+    fd.set('plannedStartAt', '2026-05-08T08:00');
+    fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
+    fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
+    fd.set('pickupAt', '2026-05-08T09:00');
+    fd.set('pickupWarehouse_1', 'WH-1');
+    fd.set('deliveryAt', '2026-05-08T11:00');
+    fd.set('deliveryWarehouse_1', 'DEST-1');
+    await createOrder(undefined, fd);
+    const calls = fetchMock.mock.calls as unknown as [string, { body: string }][];
+    const firstCall = calls[0];
+    if (!firstCall) throw new Error('no fetch call');
+    const body = JSON.parse(firstCall[1].body);
+    expect(body.externalRef).toBeUndefined();
   });
   it('returns api_error when api fails', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
@@ -57,7 +70,6 @@ describe('createOrder server action', () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify({ message: 'bad' }), { status: 400 }))));
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = new FormData();
-    fd.set('externalRef', 'TO-X');
     fd.set('plannedStartAt', '2026-05-08T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
@@ -71,11 +83,13 @@ describe('createOrder server action', () => {
   it('passes plannedAt through unchanged when it already has seconds (else branch)', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'tok' });
-    const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ transportOrderId: 't1', roadRunId: 'r1' }), { status: 201 })));
+    const fetchMock = vi.fn(() => Promise.resolve(new Response(
+      JSON.stringify({ transportOrderId: 't1', roadRunId: 'r1', externalRef: 'XT.003' }),
+      { status: 201, headers: { 'content-type': 'application/json' } },
+    )));
     vi.stubGlobal('fetch', fetchMock);
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = new FormData();
-    fd.set('externalRef', 'TO-1');
     fd.set('plannedStartAt', '2026-05-08T08:00:00'); // 19 chars, already has seconds
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
@@ -83,7 +97,7 @@ describe('createOrder server action', () => {
     fd.set('pickupWarehouse_1', 'WH-1');
     fd.set('deliveryAt', '2026-05-08T11:00:00');
     fd.set('deliveryWarehouse_1', 'DEST-1');
-    await expect(createOrder(undefined, fd)).rejects.toThrow('NEXT_REDIRECT');
+    await createOrder(undefined, fd);
     const calls = fetchMock.mock.calls as unknown as [string, { body: string }][];
     const firstCall = calls[0];
     if (!firstCall) throw new Error('no fetch call');
@@ -95,7 +109,6 @@ describe('createOrder server action', () => {
     cookieGet.mockReturnValue({ value: 'tok' });
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = new FormData();
-    fd.set('externalRef', 'TO-1');
     fd.set('plannedStartAt', '2026-05-08T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
@@ -108,10 +121,9 @@ describe('createOrder server action', () => {
   });
   it('returns server_error when fleet_session cookie missing', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
-    cookieGet.mockReturnValue(undefined);
+    cookieGet.mockReturnValueOnce(undefined as unknown as { value: string });
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = new FormData();
-    fd.set('externalRef', 'TO-1');
     fd.set('plannedStartAt', '2026-05-08T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');

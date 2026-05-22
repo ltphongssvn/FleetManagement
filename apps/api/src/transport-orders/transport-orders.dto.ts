@@ -8,10 +8,10 @@
 // schema-level guard so malformed inputs are rejected before they reach the
 // service.
 //
-// Migration note: prior versions allowed roadRun, assignedOperatorId, and
-// assignedAssetId to be omitted at create time. That code path has been
-// removed because the dispatch board UI does not surface unassigned orders
-// and ERP-inbound flows do not create transport_order rows directly.
+// T3 (auto-numbering, 2026): the dispatcher does NOT submit Số Lệnh. The
+// server allocates external_ref via OrderNumberingService and returns it on
+// the create response. The DTO still accepts an optional externalRef field
+// for backward compatibility with older clients, but the service ignores it.
 import { z } from 'zod';
 export const CreateTransportOrderSchema = z.object({
   externalRef: z.string().min(1).max(64).optional(),
@@ -33,6 +33,7 @@ export type CreateTransportOrderInput = z.infer<typeof CreateTransportOrderSchem
 export interface CreateTransportOrderResponse {
   readonly transportOrderId: string;
   readonly roadRunId: string;
+  readonly externalRef: string;
 }
 export interface ListAssignedRow {
   readonly transportOrderId: string;
@@ -56,9 +57,6 @@ export interface ListAssignedRow {
 export interface ListAssignedResponse {
   readonly rows: readonly ListAssignedRow[];
 }
-// Trip-history endpoint: completed runs grouped by VN-timezone month. The
-// grouping itself is delegated to @fleet/domain groupCompletedTripsByMonth so
-// the API and the driver app agree on month boundaries.
 export interface TripHistoryMonth {
   readonly monthKey: string;
   readonly label: string;

@@ -5,11 +5,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 const cookieGet = vi.fn();
 vi.mock('next/headers', () => ({ cookies: () => Promise.resolve({ get: cookieGet }) }));
-const redirect = vi.fn(() => { throw new Error('NEXT_REDIRECT'); });
-vi.mock('next/navigation', () => ({ redirect }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 describe('createOrder VN fields', () => {
-  beforeEach(() => { cookieGet.mockReset(); redirect.mockClear(); vi.unstubAllGlobals(); vi.resetModules(); });
+  beforeEach(() => { cookieGet.mockReset(); vi.unstubAllGlobals(); vi.resetModules(); });
   it('sends VN metadata in body', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'tok' });
@@ -17,7 +15,7 @@ describe('createOrder VN fields', () => {
     vi.stubGlobal('fetch', fetchMock);
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = new FormData();
-    fd.set('externalRef', 'XT.001');
+
     fd.set('plannedStartAt', '2026-04-10T08:00');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
@@ -29,7 +27,7 @@ describe('createOrder VN fields', () => {
     fd.set('pickupAt', '2026-04-10T09:00');
     fd.set('pickupWarehouse_1', 'Chơn Chính / Hậu Thạnh Đông');
     fd.set('deliveryWarehouse_1', '8 ĐẤT');
-    await expect(createOrder(undefined, fd)).rejects.toThrow('NEXT_REDIRECT');
+    await createOrder(undefined, fd);
     const calls = fetchMock.mock.calls as unknown as [string, { body: string }][];
     const firstCall = calls[0];
     if (!firstCall) throw new Error('no fetch call');
