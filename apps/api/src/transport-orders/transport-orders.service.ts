@@ -30,10 +30,17 @@ import { OrderNumberingService } from './order-numbering.service.js';
 import { groupCompletedTripsByMonth } from '@fleet/domain';
 @Injectable()
 export class TransportOrdersService {
+  // numbering is optional at the constructor level for source-compatibility
+  // with tests that instantiated TransportOrdersService(db) before T3.
+  // Nest DI always provides it in production; defaults to a fresh instance
+  // when omitted so the create() path can always allocate XT.NNNN.
+  private readonly numbering: OrderNumberingService;
   constructor(
     @Inject(DRIZZLE_DB) private readonly db: FleetDb,
-    private readonly numbering: OrderNumberingService,
-  ) {}
+    numbering?: OrderNumberingService,
+  ) {
+    this.numbering = numbering ?? new OrderNumberingService();
+  }
   async create(input: CreateTransportOrderInput, op: OperatorContext): Promise<CreateTransportOrderResponse> {
     return this.db.transaction(async (tx) => {
       const tenancy = {
