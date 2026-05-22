@@ -50,7 +50,8 @@ describe('@fleet/api - TransportOrdersService.findById (integration)', () => {
     if (row === undefined) throw new Error('row undefined');
     if (createdId === undefined) throw new Error('createdId undefined');
     expect(row.transportOrderId).toBe(createdId);
-    expect(row.externalRef).toBe('TO-FB-1');
+    // T3: external_ref is server-assigned (XT.NNNN), not the client-supplied value.
+    expect(row.externalRef).toMatch(/^XT\.\d{4,}$/);
     expect(row.state).toBe('planned');
     expect(row.plannedStartAt).toBe('2026-05-01T07:00:00.000Z');
     expect(row.stops).toHaveLength(2);
