@@ -30,3 +30,19 @@ export class TransportOrderNotFoundError extends TransportOrderError {
     this.name = 'TransportOrderNotFoundError';
   }
 }
+// T5 (2026): thrown by TransportOrdersCancelService when the requested
+// state -> 'cancelled' transition is not legal per transportOrderFsm
+// (e.g. attempting to cancel an already-completed or already-cancelled
+// order with a different reason). The cancel controller translates this
+// domain error into a 409 Conflict at the HTTP boundary so callers see a
+// stable status code without leaking internal class names. The currentState
+// field is preserved as a typed property so log/audit pipelines can pivot on
+// it without parsing the message string.
+export class TransportOrderCannotBeCancelledError extends TransportOrderError {
+  readonly currentState: string;
+  constructor(currentState: string, message?: string) {
+    super(message ?? 'Transport order cannot be cancelled from state: ' + currentState);
+    this.name = 'TransportOrderCannotBeCancelledError';
+    this.currentState = currentState;
+  }
+}

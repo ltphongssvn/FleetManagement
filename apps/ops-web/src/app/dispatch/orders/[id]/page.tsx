@@ -3,10 +3,16 @@
 // (which forwards to the API with the fleet_session bearer token) and hands
 // it to the OrderReview presentational component. notFound() is called on
 // any non-2xx so unknown ids render the framework 404, matching the API.
+//
+// T5 (2026): composes the CancelOrderForm client component below the
+// review pane. The form decides for itself whether to render the open
+// button based on the order's current state; non-cancellable states make
+// the form invisible.
 import type { JSX } from 'react';
 import { cookies, headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { OrderReview } from '@/features/dispatch/OrderReview';
+import { CancelOrderForm } from '@/features/dispatch/CancelOrderForm';
 import { AppShell } from '@/features/shell/AppShell';
 import type { ListAssignedRow } from '@/features/dispatch/types';
 export const dynamic = 'force-dynamic';
@@ -46,6 +52,7 @@ export default async function OrderReviewPage({ params }: PageProps): Promise<JS
     <AppShell {...(username !== undefined ? { username } : {})}>
       <div className='mx-auto w-full max-w-5xl p-6'>
         <OrderReview order={order} />
+        <CancelOrderForm transportOrderId={order.transportOrderId} state={order.state} />
       </div>
     </AppShell>
   );
