@@ -3,10 +3,16 @@
 // T1 (2026): exports the Lệnh điều xe (dispatch board) rows as an .xlsx
 // Buffer using ExcelJS and records the export in transport_order_export_log.
 //
-// Tenant scope: rows are read from dispatch_board_projection filtered by
-// operator.companyId — identical to DispatchController.getBoard. The
-// export log row records (operator_id, company_id, trigger, day_key,
-// row_count, sha256, filename) so the daily-backup invariant is auditable.
+// Label resolution (2026-05 fix): rows are produced by JOINing
+// dispatch_board_projection LEFT JOIN driver (operator_id) and LEFT JOIN
+// vehicle (vehicle_id) so the worksheet cells contain driver.full_name
+// and vehicle.plate — never raw UUIDs. Missing reference rows fall back
+// to em-dash (—), matching the DispatchBoard labels.ts invariant: an
+// opaque hash slice must never leak into the user-visible output.
+//
+// Tenant scope: every join is gated by op.companyId. The export log row
+// records (operator_id, company_id, trigger, day_key, row_count, sha256,
+// filename) so the daily-backup invariant is auditable.
 //
 // Idempotency: for trigger='login'|'logout' a partial unique index on
 // (company_id, operator_id, day_key, trigger) prevents duplicate ledger
@@ -23,6 +29,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { dispatchBoardProjection } from '../database/schema/projections.js';
+import { driver, vehicle } from '../database/schema/reference.js';
 import { transportOrderExportLog } from '../database/schema/transport-order-export-log.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 export type ExportTrigger = 'manual' | 'login' | 'logout';
@@ -35,7 +42,16 @@ export interface ExportResult {
   readonly trigger: ExportTrigger;
   readonly dayKey: string;
 }
+interface ExportRow {
+  readonly state: string;
+  readonly stopCount: number;
+  readonly transportOrderRefs: readonly string[];
+  readonly plannedStartAt: Date | null;
+  readonly driverName: string | null;
+  readonly vehiclePlate: string | null;
+}
 const HEADERS = ['Số lệnh', 'Trạng thái', 'Tài xế', 'Xe', 'Ngày dự kiến', 'Số điểm'] as const;
+const DASH = '—';
 const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'Asia/Ho_Chi_Minh',
   dateStyle: 'medium',
@@ -83,12 +99,8 @@ export class TransportOrdersExportService {
         };
       }
     }
-    const rows = await this.db
-      .select()
-      .from(dispatchBoardProjection)
-      .where(eq(dispatchBoardProjection.companyId, op.companyId))
-      .orderBy(asc(dispatchBoardProjection.plannedStartAt));
-    const buffer = await this.buildXlsxBuffer(rows);
+    const rows = await this.fetchRows(op);
+    const buffer = await this.buildXlsxBufferFromRows(rows);
     const sha256 = createHash('sha256').update(buffer).digest('hex');
     const filename =
       'lenh-dieu-xe_' + tenantSlug(op.companyId) + '_' + dayKey + '_' + trigger + '_' + sha256.slice(0, 8) + '.xlsx';
@@ -118,17 +130,48 @@ export class TransportOrdersExportService {
       dayKey,
     };
   }
-  private async buildXlsxBufferForOp(op: OperatorContext): Promise<Buffer> {
-    const rows = await this.db
-      .select()
+  // LEFT JOIN driver on (operator_id, companyId) and vehicle on
+  // (vehicle_id, companyId) so the resolved labels are returned directly.
+  // The companyId guard on each join prevents cross-tenant leakage even
+  // if a stale UUID happens to exist in another tenancy.
+  private async fetchRows(op: OperatorContext): Promise<readonly ExportRow[]> {
+    const result = await this.db
+      .select({
+        state: dispatchBoardProjection.state,
+        stopCount: dispatchBoardProjection.stopCount,
+        transportOrderRefs: dispatchBoardProjection.transportOrderRefs,
+        plannedStartAt: dispatchBoardProjection.plannedStartAt,
+        driverName: driver.fullName,
+        vehiclePlate: vehicle.plate,
+      })
       .from(dispatchBoardProjection)
+      .leftJoin(driver, and(
+        eq(driver.operatorId, dispatchBoardProjection.assignedOperatorId),
+        eq(driver.companyId, op.companyId),
+      ))
+      .leftJoin(vehicle, and(
+        eq(vehicle.vehicleId, dispatchBoardProjection.assignedAssetId),
+        eq(vehicle.companyId, op.companyId),
+      ))
       .where(eq(dispatchBoardProjection.companyId, op.companyId))
       .orderBy(asc(dispatchBoardProjection.plannedStartAt));
-    return this.buildXlsxBuffer(rows);
+    return result.map((r) => ({
+      state: r.state,
+      stopCount: r.stopCount,
+      transportOrderRefs: r.transportOrderRefs,
+      plannedStartAt: r.plannedStartAt,
+      driverName: r.driverName,
+      vehiclePlate: r.vehiclePlate,
+    }));
   }
-  private async buildXlsxBuffer(
-    rows: readonly (typeof dispatchBoardProjection.$inferSelect)[],
-  ): Promise<Buffer> {
+  private async buildXlsxBufferForOp(op: OperatorContext): Promise<Buffer> {
+    const rows = await this.fetchRows(op);
+    return this.buildXlsxBufferFromRows(rows);
+  }
+  private buildXlsxBufferFromRows(rows: readonly ExportRow[]): Promise<Buffer> {
+    return this.buildWorkbook(rows);
+  }
+  private async buildWorkbook(rows: readonly ExportRow[]): Promise<Buffer> {
     const wb = new ExcelJS.Workbook();
     wb.creator = 'FleetManagement';
     wb.created = new Date(0); // deterministic for sha256 stability per export
@@ -136,18 +179,18 @@ export class TransportOrdersExportService {
     ws.addRow([...HEADERS]);
     ws.getRow(1).font = { bold: true };
     for (const r of rows) {
-      const primaryRef = r.transportOrderRefs[0] ?? '—';
-      const planned = r.plannedStartAt ? PLANNED_FORMATTER.format(r.plannedStartAt) : '—';
+      const primaryRef = r.transportOrderRefs[0] ?? DASH;
+      const planned = r.plannedStartAt ? PLANNED_FORMATTER.format(r.plannedStartAt) : DASH;
       ws.addRow([
         primaryRef,
         r.state,
-        r.assignedOperatorId ?? '—',
-        r.assignedAssetId ?? '—',
+        r.driverName ?? DASH,
+        r.vehiclePlate ?? DASH,
         planned,
         r.stopCount,
       ]);
     }
-    ws.columns.forEach((c) => { c.width = 18; });
+    ws.columns.forEach((c) => { c.width = 22; });
     const ab = await wb.xlsx.writeBuffer();
     return Buffer.from(ab as ArrayBuffer);
   }
