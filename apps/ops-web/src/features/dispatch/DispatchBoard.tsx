@@ -17,6 +17,7 @@ import { loadDispatchBoard } from './load-board';
 import { loadReferences } from './load-references';
 import { buildLookup, formatOperator, formatOrderRef, formatVehicle } from './labels';
 import { LogoutButton } from '../auth/LogoutButton';
+import { ExportOrdersExcelButton } from './ExportOrdersExcelButton';
 import type { DispatchBoardRoadRun } from './types';
 const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
@@ -57,7 +58,7 @@ export async function DispatchBoard(): Promise<React.ReactElement> {
     <section className='p-6'>
       <header className='mb-4 flex items-center justify-between'>
         <h1 className='text-2xl font-semibold'>Lệnh điều xe</h1>
-        <LogoutButton />
+        <div className='flex items-center gap-2'><ExportOrdersExcelButton /><LogoutButton /></div>
       </header>
       <table className='w-full border-collapse text-sm'>
         <thead>
