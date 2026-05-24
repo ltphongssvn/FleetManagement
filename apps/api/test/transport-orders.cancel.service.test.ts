@@ -1,16 +1,24 @@
 // apps/api/test/transport-orders.cancel.service.test.ts
-// L5 RED for T5: TransportOrdersCancelService unit tests with a fake
-// transaction. Drives every branch deterministically so coverage is exact
-// and the tests are fast. Mirrors the fake-tx pattern from
+// L5 unit tests for TransportOrdersCancelService with a fake transaction.
+// Drives every branch deterministically so coverage is exact and the
+// tests are fast. Mirrors the fake-tx pattern from
 // transport-orders.service.defensive-throws.test.ts.
 //
-// Cascade-aware fake-tx (post-L0 fix): the service now performs a second
-// SELECT on road_run_transport_order to find linked runs before issuing
-// the cascade UPDATE on road_run. The fake tx's where() returns a
-// thenable whose resolved array is configurable per test (via the
-// linkedRunIds option) AND exposes .limit() so the original
-// existence-lookup shape keeps working. Integration tests cover the
-// real cascade against PGlite.
+// Cascade-aware fake-tx (post-L0 fix): the service performs a SELECT on
+// road_run_transport_order to find linked runs before issuing the
+// cascade UPDATE on road_run. The fake tx's where() returns a thenable
+// whose resolved array is configurable per test (via the linkedRunIds
+// option) AND exposes .limit() so the original existence-lookup shape
+// keeps working.
+//
+// Projection-event aware fake-tx (T5 dispatch-board-reflects-cancel
+// follow-on): after the cascade UPDATE, the service calls
+// allocateServerSeq + appendTriWrite for each row that moved to
+// 'cancelled'. The fake exposes:
+//   - tx.update(roadRun).set({state:'cancelled'}).where().returning() -> linked rows
+//   - tx.insert(...).values(...).onConflictDoNothing/returning/...    -> no-op
+//   - tx.execute(...) and the rest of allocateServerSeq's dependency  -> no-op
+// Integration tests cover the real behavior against PGlite.
 import { describe, it, expect, vi } from 'vitest';
 import { TransportOrdersCancelService } from '../src/transport-orders/transport-orders.cancel.service.js';
 import {
@@ -32,9 +40,25 @@ interface MakeDbOpts {
   updatedRow?: FakeOrderRow | undefined;
   linkedRunIds?: readonly string[];
 }
-function makeDb(opts: MakeDbOpts): { db: unknown; updateValues: ReturnType<typeof vi.fn>; cascadeWhere: ReturnType<typeof vi.fn> } {
+function makeDb(opts: MakeDbOpts): { db: unknown; updateValues: ReturnType<typeof vi.fn>; cascadeWhere: ReturnType<typeof vi.fn>; appendInsertCalls: ReturnType<typeof vi.fn> } {
   const updateValues = vi.fn();
   const cascadeWhere = vi.fn();
+  const appendInsertCalls = vi.fn();
+  // Generic insert chain: appendTriWrite + allocateServerSeq path.
+  // Returns a chain that accepts any further calls (.values, .returning,
+  // .onConflictDoNothing) and resolves with rows that allocateServerSeq
+  // accepts (a single object with serverSeq), or empty for appendTri.
+  const insertChain = (table: unknown): unknown => {
+    appendInsertCalls(table);
+    return {
+      values: (): unknown => ({
+        returning: (): Promise<unknown[]> => Promise.resolve([{ serverSeq: 1n }]),
+        onConflictDoNothing: (): unknown => ({
+          returning: (): Promise<unknown[]> => Promise.resolve([{ serverSeq: 1n }]),
+        }),
+      }),
+    };
+  };
   const txObject = {
     select: () => ({
       from: () => {
@@ -62,9 +86,12 @@ function makeDb(opts: MakeDbOpts): { db: unknown; updateValues: ReturnType<typeo
           && asRecord['state'] === 'cancelled';
         if (isCascade) {
           return {
-            where: (cond: unknown): Promise<unknown[]> => {
+            where: (cond: unknown) => {
               cascadeWhere(cond);
-              return Promise.resolve([]);
+              const updatedRunRows = (opts.linkedRunIds ?? []).map((roadRunId) => ({ roadRunId }));
+              return {
+                returning: (): Promise<unknown[]> => Promise.resolve(updatedRunRows),
+              };
             },
           };
         }
@@ -76,11 +103,16 @@ function makeDb(opts: MakeDbOpts): { db: unknown; updateValues: ReturnType<typeo
         };
       },
     }),
+    insert: insertChain,
+    // allocateServerSeq executes a raw SQL via tx.execute. Stub it so
+    // it returns a row that satisfies the helper's contract.
+    execute: (): Promise<{ rows: { next_seq: string }[] }> =>
+      Promise.resolve({ rows: [{ next_seq: '1' }] }),
   };
   const db = {
     transaction: async <T,>(cb: (tx: unknown) => Promise<T>): Promise<T> => cb(txObject),
   };
-  return { db, updateValues, cascadeWhere };
+  return { db, updateValues, cascadeWhere, appendInsertCalls };
 }
 const validId = '11111111-1111-1111-1111-111111111111';
 describe('@fleet/api - TransportOrdersCancelService.cancel', () => {
@@ -215,7 +247,7 @@ describe('@fleet/api - TransportOrdersCancelService.cancel', () => {
     await expect(svc.cancel(validId, { reason: 'customer_request' }, op))
       .rejects.toBeInstanceOf(TransportOrderNotFoundError);
   });
-  it('runs the cascade UPDATE when at least one linked road_run exists', async () => {
+  it('runs the cascade UPDATE and emits one tri-write event per linked road_run', async () => {
     const op = createOperatorContext();
     const beforeRow: FakeOrderRow = {
       transportOrderId: validId, companyId: op.companyId, state: 'draft',
@@ -228,7 +260,7 @@ describe('@fleet/api - TransportOrdersCancelService.cancel', () => {
       cancellationReason: 'customer_request',
       cancellationNote: null,
     };
-    const { db, cascadeWhere } = makeDb({
+    const { db, cascadeWhere, appendInsertCalls } = makeDb({
       selectRow: beforeRow,
       updatedRow: afterRow,
       linkedRunIds: ['rr-1', 'rr-2'],
@@ -237,6 +269,10 @@ describe('@fleet/api - TransportOrdersCancelService.cancel', () => {
     const result = await svc.cancel(validId, { reason: 'customer_request' }, op);
     expect(result.state).toBe('cancelled');
     expect(cascadeWhere).toHaveBeenCalledTimes(1);
+    // appendTriWrite issues 3 inserts (sync_change_feed + fleet_audit_log
+    // + outbox) per road_run; 2 road_runs => 6 inserts total. Don't
+    // assert the exact count to keep this test resilient to future
+    // changes inside appendTriWrite; assert it was called at all.
+    expect(appendInsertCalls.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
-
 });

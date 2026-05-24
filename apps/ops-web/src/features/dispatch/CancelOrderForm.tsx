@@ -11,10 +11,16 @@
 // 409 path is still handled gracefully via the action's discriminated
 // union return.
 //
+// Post-cancel navigation: the action itself issues redirect('/') on
+// success. Next.js's Server-Action redirect protocol drives the
+// browser to '/' before the form unmounts, so the dispatcher lands on
+// the refreshed Bảng điều phối board. The form never sees a
+// status='cancelled' result here.
+//
 // data-testid hooks are the contract consumed by the Playwright L0
 // acceptance spec: order-cancel-open, order-cancel-reason,
 // order-cancel-note, order-cancel-submit. Do not rename without
-// updating e2e/dispatch-order-cancel.spec.ts.
+// updating the e2e specs.
 'use client';
 import { useActionState, useState } from 'react';
 import type { JSX } from 'react';

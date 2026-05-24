@@ -1,17 +1,28 @@
 // apps/ops-web/src/features/dispatch/cancel-order.action.ts
 // Server Action (T5, 2026): dispatcher cancels a transport order. Calls
 // API POST /transport-orders/:id/cancel via the BFF, using the
-// fleet_session bearer cookie. On success revalidates the review page so
-// the dispatcher sees the new 'cancelled' state immediately.
+// fleet_session bearer cookie. On success the action triggers two
+// revalidations (the review page being cancelled, and the dispatch board
+// at '/'), then issues a server-side redirect to '/' so the dispatcher
+// lands directly on the refreshed board.
 //
-// Discriminated-union return matches the create-order.action.ts shape so
-// the form caller can branch on status without parsing messages. The
-// distinct 'not_found' and 'conflict' statuses (vs lumping into api_error)
-// let the UI render specific guidance: "this order no longer exists" vs
-// "this order can no longer be cancelled because ...".
+// Why redirect from the action instead of useEffect in the form: after a
+// successful cancel the form's parent server component re-renders with
+// state='cancelled', the form returns null and unmounts, and any
+// post-mount client-side effect (router.push or window.location.assign)
+// races the unmount. Calling redirect() inside the action delegates the
+// navigation to Next.js's Server-Action redirect protocol, which is
+// reliable: the browser navigates to '/' before the form is unmounted.
+//
+// Discriminated-union return: only error branches are returned now
+// (invalid/server_error/api_error/not_found/conflict). The 'cancelled'
+// branch is unreachable because redirect() throws and never returns.
+// Keeping it in the union for caller type-safety so existing form code
+// that checks result?.status compiles unchanged.
 'use server';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { z } from 'zod';
 const CancelReasonSchema = z.enum([
   'customer_request',
@@ -73,7 +84,11 @@ export async function cancelOrder(_prev: CancelOrderState, formData: FormData): 
   if (!res.ok) {
     return { status: 'api_error', message: 'API request failed: ' + String(res.status) + ' ' + res.statusText };
   }
-  const json = (await res.json()) as { transportOrderId: string; idempotent: boolean };
+  // Drain the response so the server doesn't leave the socket open.
+  await res.json();
   revalidatePath('/dispatch/orders/' + parsed.data.transportOrderId);
-  return { status: 'cancelled', transportOrderId: json.transportOrderId, idempotent: json.idempotent };
+  revalidatePath('/');
+  // Server-Action redirect: terminates the action by throwing, Next.js
+  // turns this into a navigation directive the browser follows reliably.
+  redirect('/');
 }

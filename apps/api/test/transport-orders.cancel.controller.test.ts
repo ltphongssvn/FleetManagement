@@ -25,12 +25,16 @@ const validId = '11111111-1111-1111-1111-111111111111';
 const validBody = { reason: 'customer_request', note: 'unit test' };
 describe('@fleet/api - TransportOrdersCancelController', () => {
   let cancel: ReturnType<typeof vi.fn>;
+  let drainOnce: ReturnType<typeof vi.fn>;
   let svc: TransportOrdersCancelService;
+  let runner: { drainOnce: ReturnType<typeof vi.fn> };
   let ctl: TransportOrdersCancelController;
   beforeEach(() => {
     cancel = vi.fn();
+    drainOnce = vi.fn().mockResolvedValue({ scope: op.companyId, polled: 1, applied: 1, noops: 0, deletes: 0, newWatermark: '1' });
     svc = { cancel } as unknown as TransportOrdersCancelService;
-    ctl = new TransportOrdersCancelController(svc);
+    runner = { drainOnce };
+    ctl = new TransportOrdersCancelController(svc, runner as never);
   });
   it('delegates to svc.cancel with parsed path id, parsed body, and the operator context', async () => {
     const out = {
@@ -71,5 +75,24 @@ describe('@fleet/api - TransportOrdersCancelController', () => {
     const boom = new Error('boom');
     cancel.mockRejectedValue(boom);
     await expect(ctl.cancel(validId, validBody, op)).rejects.toBe(boom);
+  });
+  it('drains the projection runner for the caller company after a successful cancel so the dispatch board reflects the new state before the response returns', async () => {
+    const out = {
+      transportOrderId: validId,
+      state: 'cancelled' as const,
+      cancelledAt: '2026-05-23T12:00:00.000Z',
+      cancelledBy: op.operatorId,
+      cancellationReason: 'customer_request',
+      cancellationNote: null,
+      idempotent: false,
+    };
+    cancel.mockResolvedValue(out);
+    await ctl.cancel(validId, validBody, op);
+    expect(drainOnce).toHaveBeenCalledWith(op.companyId);
+  });
+  it('does NOT drain the projection runner when the cancel throws (no state change to publish)', async () => {
+    cancel.mockRejectedValue(new TransportOrderNotFoundError());
+    await expect(ctl.cancel(validId, validBody, op)).rejects.toBeInstanceOf(NotFoundException);
+    expect(drainOnce).not.toHaveBeenCalled();
   });
 });

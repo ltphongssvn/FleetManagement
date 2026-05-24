@@ -24,6 +24,14 @@ const cancelOrderMock = vi.hoisted(() => vi.fn());
 vi.mock('@/features/dispatch/cancel-order.action', () => ({
   cancelOrder: cancelOrderMock,
 }));
+// next/navigation must be mocked because the form uses useRouter()
+// after T5 added a post-cancel redirect to '/'. Tests in this file do
+// not exercise the navigation path itself (see
+// cancel-order-form-redirect.test.tsx for that); the mock just
+// satisfies the hook contract so the form can render under jsdom.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}));
 function defaultMock(): void {
   cancelOrderMock.mockImplementation(() => Promise.resolve({ status: 'cancelled', transportOrderId: 'x', idempotent: false } satisfies CancelOrderState));
 }

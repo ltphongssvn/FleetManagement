@@ -2,6 +2,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module.js';
 import { DatabaseModule } from '../database/database.module.js';
+import { ProjectionsModule } from '../projections/projections.module.js';
 import { TransportOrdersController } from './transport-orders.controller.js';
 import { TransportOrdersReviewController } from './transport-orders.review.controller.js';
 import { TransportOrdersCancelController } from './transport-orders.cancel.controller.js';
@@ -9,7 +10,7 @@ import { TransportOrdersService } from './transport-orders.service.js';
 import { TransportOrdersCancelService } from './transport-orders.cancel.service.js';
 import { OrderNumberingService } from './order-numbering.service.js';
 @Module({
-  imports: [AuthModule, DatabaseModule],
+  imports: [AuthModule, DatabaseModule, ProjectionsModule],
   controllers: [
     TransportOrdersController,
     TransportOrdersReviewController,
