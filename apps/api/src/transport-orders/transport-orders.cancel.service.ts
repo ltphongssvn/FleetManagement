@@ -20,7 +20,12 @@
 // Idempotency contract: a second cancel with the SAME reason returns the
 // existing record (idempotent=true); a second cancel with a DIFFERENT
 // reason is a 409 conflict at the controller boundary, raised here as
-// TransportOrderCannotBeCancelledError.
+// TransportOrderCannotBeCancelledError. The idempotent guard also
+// rejects audit rows missing any of cancelledAt / cancelledBy /
+// cancellationReason: by the DB-level check constraint
+// transport_order_cancelled_audit_consistent that state cannot exist,
+// so treating it as a 409 conflict surfaces the corruption without
+// crashing and without dead non-null assertions in production code.
 //
 // Tenant scope: cross-tenant requests look identical to not-found
 // (TransportOrderNotFoundError) so the API does not leak existence of
@@ -62,86 +67,85 @@ export class TransportOrdersCancelService {
         throw new TransportOrderNotFoundError();
       }
       const currentState = existing.state;
-      const alreadyCancelled = currentState === 'cancelled';
-      // Reject up front if we cannot reach 'cancelled' from here.
-      if (alreadyCancelled) {
-        if (existing.cancellationReason !== input.reason) {
+      if (currentState === 'cancelled') {
+        const auditCancelledAt = existing.cancelledAt;
+        const auditCancelledBy = existing.cancelledBy;
+        const auditReason = existing.cancellationReason;
+        if (
+          auditCancelledAt === null ||
+          auditCancelledBy === null ||
+          auditReason === null ||
+          auditReason !== input.reason
+        ) {
           throw new TransportOrderCannotBeCancelledError(currentState);
         }
-        // Else: idempotent path — fall through to the heal-cascade below.
-      } else if (!canTransition(currentState, 'cancelled')) {
+        await this.cascadeCancelLinkedRoadRuns(tx, id, op);
+        return {
+          transportOrderId: existing.transportOrderId,
+          state: 'cancelled',
+          cancelledAt: auditCancelledAt.toISOString(),
+          cancelledBy: auditCancelledBy,
+          cancellationReason: auditReason,
+          cancellationNote: existing.cancellationNote,
+          idempotent: true,
+        };
+      }
+      if (!canTransition(currentState, 'cancelled')) {
         throw new TransportOrderCannotBeCancelledError(currentState);
       }
-      // Prepare the result envelope. On the fresh path we overwrite
-      // these with the new audit values; on the idempotent path we
-      // keep the persisted ones.
       const now = new Date();
-      let resultCancelledAt: string;
-      let resultCancelledBy: string;
-      let resultReason: string;
-      let resultNote: string | null;
-      if (alreadyCancelled) {
-        resultCancelledAt = existing.cancelledAt !== null
-          ? existing.cancelledAt.toISOString()
-          : now.toISOString();
-        resultCancelledBy = existing.cancelledBy ?? op.operatorId;
-        resultReason = existing.cancellationReason ?? input.reason;
-        resultNote = existing.cancellationNote;
-      } else {
-        const note = input.note ?? null;
-        const [updated] = await tx
-          .update(transportOrder)
-          .set({
-            state: 'cancelled',
-            cancelledAt: now,
-            cancelledBy: op.operatorId,
-            cancellationReason: input.reason,
-            cancellationNote: note,
-            updatedAt: now,
-          })
-          .where(and(
-            eq(transportOrder.transportOrderId, id),
-            eq(transportOrder.companyId, op.companyId),
-          ))
-          .returning();
-        if (updated === undefined) {
-          throw new TransportOrderNotFoundError();
-        }
-        resultCancelledAt = now.toISOString();
-        resultCancelledBy = op.operatorId;
-        resultReason = input.reason;
-        resultNote = note;
-      }
-      // Cascade / heal: ensure every linked road_run that is not yet
-      // 'cancelled' transitions now. The ne() filter protects against
-      // overwriting already-cancelled rows.
-      const linkedRuns = await tx
-        .select({ roadRunId: roadRunTransportOrder.roadRunId })
-        .from(roadRunTransportOrder)
+      const note = input.note ?? null;
+      const [updated] = await tx
+        .update(transportOrder)
+        .set({
+          state: 'cancelled',
+          cancelledAt: now,
+          cancelledBy: op.operatorId,
+          cancellationReason: input.reason,
+          cancellationNote: note,
+          updatedAt: now,
+        })
         .where(and(
-          eq(roadRunTransportOrder.transportOrderId, id),
-          eq(roadRunTransportOrder.companyId, op.companyId),
-        ));
-      const roadRunIds = linkedRuns.map((r) => r.roadRunId);
-      if (roadRunIds.length > 0) {
-        await tx
-          .update(roadRun)
-          .set({ state: 'cancelled' })
-          .where(and(
-            inArray(roadRun.roadRunId, roadRunIds),
-            eq(roadRun.companyId, op.companyId),
-            ne(roadRun.state, 'cancelled'),
-          ));
+          eq(transportOrder.transportOrderId, id),
+          eq(transportOrder.companyId, op.companyId),
+        ))
+        .returning();
+      if (updated === undefined) {
+        throw new TransportOrderNotFoundError();
       }
+      await this.cascadeCancelLinkedRoadRuns(tx, id, op);
       return {
-        transportOrderId: existing.transportOrderId,
+        transportOrderId: updated.transportOrderId,
         state: 'cancelled',
-        cancelledAt: resultCancelledAt,
-        cancelledBy: resultCancelledBy,
-        cancellationReason: resultReason,
-        cancellationNote: resultNote,
-        idempotent: alreadyCancelled,
+        cancelledAt: now.toISOString(),
+        cancelledBy: op.operatorId,
+        cancellationReason: input.reason,
+        cancellationNote: note,
+        idempotent: false,
       };
     });
+  }
+  private async cascadeCancelLinkedRoadRuns(
+    tx: Parameters<Parameters<FleetDb['transaction']>[0]>[0],
+    transportOrderId: string,
+    op: OperatorContext,
+  ): Promise<void> {
+    const linkedRuns = await tx
+      .select({ roadRunId: roadRunTransportOrder.roadRunId })
+      .from(roadRunTransportOrder)
+      .where(and(
+        eq(roadRunTransportOrder.transportOrderId, transportOrderId),
+        eq(roadRunTransportOrder.companyId, op.companyId),
+      ));
+    const roadRunIds = linkedRuns.map((r) => r.roadRunId);
+    if (roadRunIds.length === 0) return;
+    await tx
+      .update(roadRun)
+      .set({ state: 'cancelled' })
+      .where(and(
+        inArray(roadRun.roadRunId, roadRunIds),
+        eq(roadRun.companyId, op.companyId),
+        ne(roadRun.state, 'cancelled'),
+      ));
   }
 }

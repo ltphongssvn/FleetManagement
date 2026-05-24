@@ -4,10 +4,16 @@
 // it to the OrderReview presentational component. notFound() is called on
 // any non-2xx so unknown ids render the framework 404, matching the API.
 //
-// T5 (2026): composes the CancelOrderForm client component below the
-// review pane. The form decides for itself whether to render the open
-// button based on the order's current state; non-cancellable states make
-// the form invisible.
+// T5 (2026):
+//   * Composes the CancelOrderForm client component below the review pane.
+//     The form decides for itself whether to render the open button based
+//     on the order's current state; non-cancellable states make the form
+//     invisible.
+//   * The :id URL param can be either a transport_order UUID or the human-
+//     readable XT.NNN external_ref. The API review endpoint now accepts
+//     either form (company-scoped findByCompanyIdOrRef under the hood) so
+//     the page hands the param through unchanged. The dispatch board links
+//     rows by external_ref; direct UUID links continue to work.
 import type { JSX } from 'react';
 import { cookies, headers } from 'next/headers';
 import { notFound } from 'next/navigation';
@@ -36,13 +42,16 @@ async function bffBaseUrl(): Promise<string> {
   return proto + '://' + host;
 }
 export default async function OrderReviewPage({ params }: PageProps): Promise<JSX.Element> {
-  const { id } = await params;
+  const { id: idOrRef } = await params;
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get('fleet_session');
   const username = decodeUsername(sessionCookie?.value);
   const base = await bffBaseUrl();
-  const res = await fetch(base + '/api/transport-orders/' + id, {
-    headers: sessionCookie ? { cookie: 'fleet_session=' + sessionCookie.value } : {},
+  const fetchHeaders = sessionCookie?.value !== undefined
+    ? { cookie: 'fleet_session=' + sessionCookie.value }
+    : {};
+  const res = await fetch(base + '/api/transport-orders/' + encodeURIComponent(idOrRef), {
+    headers: fetchHeaders,
     cache: 'no-store',
   });
   if (res.status === 404) notFound();

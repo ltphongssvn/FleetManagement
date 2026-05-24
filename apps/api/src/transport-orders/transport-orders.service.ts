@@ -136,6 +136,82 @@ export class TransportOrdersService {
     if (found === undefined) throw new TransportOrderNotFoundError();
     return found;
   }
+  // T5 (2026): company-scoped lookup that accepts either a transport_order
+  // UUID or the human-readable XT.NNN external_ref. Unlike findById +
+  // listAssigned (which filter by assignedOperatorId), this method is
+  // scoped only by companyId, so a dispatcher can resolve any order in
+  // the company regardless of which driver the road_run was assigned to.
+  // Single-company deployment assumption per Frozen Stack: companyId is
+  // the only tenancy boundary.
+  async findByCompanyIdOrRef(idOrRef: string, op: OperatorContext): Promise<ListAssignedRow> {
+    const looksLikeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrRef);
+    const matchCondition = looksLikeUuid
+      ? eq(transportOrder.transportOrderId, idOrRef)
+      : eq(transportOrder.externalRef, idOrRef);
+    const rows = await this.db
+      .select({
+        transportOrderId: transportOrder.transportOrderId,
+        externalRef: transportOrder.externalRef,
+        roadRunId: roadRun.roadRunId,
+        state: roadRun.state,
+        plannedStartAt: roadRun.plannedStartAt,
+        startedAt: roadRun.startedAt,
+        completedAt: roadRun.completedAt,
+        plate: vehicle.plate,
+        customerName: customer.name,
+      })
+      .from(transportOrder)
+      .innerJoin(roadRunTransportOrder, eq(roadRunTransportOrder.transportOrderId, transportOrder.transportOrderId))
+      .innerJoin(roadRun, eq(roadRun.roadRunId, roadRunTransportOrder.roadRunId))
+      .leftJoin(vehicle, eq(vehicle.vehicleId, roadRun.assignedAssetId))
+      .leftJoin(customer, eq(customer.customerId, transportOrder.customerId))
+      .where(and(
+        eq(transportOrder.companyId, op.companyId),
+        matchCondition,
+      ))
+      .limit(1);
+    const head = rows[0];
+    if (head === undefined) throw new TransportOrderNotFoundError();
+    const stopRows = await this.db
+      .select({
+        sequence: stop.sequence,
+        stopType: stop.stopType,
+        plannedAt: stop.plannedAt,
+        warehouseName: warehouse.name,
+      })
+      .from(stop)
+      .leftJoin(warehouse, eq(warehouse.warehouseId, stop.yardId))
+      .where(and(
+        eq(stop.companyId, op.companyId),
+        eq(stop.transportOrderId, head.transportOrderId),
+      ))
+      .orderBy(asc(stop.sequence));
+    const pickup = stopRows.find((x) => x.stopType.toLowerCase() === 'pickup');
+    const drops = stopRows.filter((x) => {
+      const t = x.stopType.toLowerCase();
+      return t === 'delivery' || t === 'dropoff';
+    });
+    const lastDrop = drops[drops.length - 1];
+    return {
+      transportOrderId: head.transportOrderId,
+      externalRef: head.externalRef,
+      orderRef: head.externalRef,
+      roadRunId: head.roadRunId,
+      state: head.state,
+      plannedStartAt: head.plannedStartAt ? head.plannedStartAt.toISOString() : null,
+      startedAt: head.startedAt ? head.startedAt.toISOString() : null,
+      completedAt: head.completedAt ? head.completedAt.toISOString() : null,
+      plate: head.plate,
+      customerName: head.customerName,
+      pickupName: pickup?.warehouseName ?? null,
+      deliveryName: lastDrop?.warehouseName ?? null,
+      stops: stopRows.map((s) => ({
+        sequence: s.sequence,
+        stopType: s.stopType,
+        plannedAt: s.plannedAt ? s.plannedAt.toISOString() : null,
+      })),
+    };
+  }
   async listAssigned(op: OperatorContext): Promise<ListAssignedResponse> {
     const rows = await this.db
       .select({
