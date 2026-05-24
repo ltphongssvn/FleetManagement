@@ -127,4 +127,3 @@ describe('PII_HEADERS literal type guarantees', () => {
     expect(lits.length).toBe(4);
   });
 });
-
