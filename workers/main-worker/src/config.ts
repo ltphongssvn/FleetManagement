@@ -6,6 +6,10 @@ import { z } from 'zod';
 const ConfigSchema = z.object({
   REDIS_URL: z.string().url().default('redis://localhost:6379'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  FLEET_API_URL: z.string().url().optional(),
+  FLEET_API_TOKEN: z.string().min(1).optional(),
+  ERP_API_URL: z.string().url().optional(),
+  ERP_API_KEY: z.string().min(1).optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

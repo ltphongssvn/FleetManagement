@@ -97,3 +97,16 @@ apps/driver-app/android/
 # Misc
 *.tgz
 .cache/
+packages/*/reports/
+packages/*/.stryker-tmp/
+/playwright/.cache/
+
+# Stryker mutation-testing temporary artifacts (large; never commit)
+.stryker-tmp/
+**/.stryker-tmp/
+
+# Stryker mutation testing artifacts
+reports/
+
+# curl debugging artifacts
+cookies.txt

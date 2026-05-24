@@ -228,3 +228,35 @@ describe('@fleet/driver-app - dispatchableActions (property-based)', () => {
     );
   });
 });
+
+describe('@fleet/driver-app - action-queue-policy mutation-hardening', () => {
+  it('dispatchableActions picks LOWEST sequence as head-of-line even when actions arrive out of order (kills L43 a.sequence < current.sequence -> false mutant)', () => {
+    // Original L43: if (!current || a.sequence < current.sequence) → keeps lowest seq.
+    // Mutated `!current || false`: only sets head on FIRST encounter (when current is undefined).
+    //   So if seq:5 is first and seq:1 is second for the same aggregate, mutated picks seq:5.
+    //   Original picks seq:1.
+    // Construct input out-of-order: [seq:5, seq:1] same aggregateId, both pending.
+    const aggregateId = '11111111-1111-4111-8111-111111111111';
+    const result = dispatchableActions([
+      { actionId: '22222222-2222-4222-8222-222222222222', aggregateType: 'transport_order', aggregateId, payload: {}, status: 'pending', sequence: 5, blockedByActionId: null },
+      { actionId: '33333333-3333-4333-8333-333333333333', aggregateType: 'transport_order', aggregateId, payload: {}, status: 'pending', sequence: 1, blockedByActionId: null },
+    ] as never);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.sequence).toBe(1);
+  });
+
+  it('dispatchableActions does NOT swap heads when sequences are equal (kills L43 < -> <= mutant)', () => {
+    // Original: `a.sequence < current.sequence` is false when equal → keeps first seen.
+    // Mutated `<=`: true when equal → swaps to later. Different actionId picked.
+    // Sequences should be unique per aggregate in production, but the policy must
+    // behave deterministically for testing purposes.
+    const aggregateId = '11111111-1111-4111-8111-111111111111';
+    const result = dispatchableActions([
+      { actionId: '22222222-2222-4222-8222-222222222222', aggregateType: 'transport_order', aggregateId, payload: {}, status: 'pending', sequence: 1, blockedByActionId: null },
+      { actionId: '33333333-3333-4333-8333-333333333333', aggregateType: 'transport_order', aggregateId, payload: {}, status: 'pending', sequence: 1, blockedByActionId: null },
+    ] as never);
+    expect(result).toHaveLength(1);
+    // Original keeps the FIRST seen action with the lowest seq (here, seq=1 first one).
+    expect(result[0]?.actionId).toBe('22222222-2222-4222-8222-222222222222');
+  });
+});

@@ -1,0 +1,8 @@
+{
+  "_comment": "apps/ops-web/vercel.json - Pilot deploy config per PDF Day-One #10.",
+  "buildCommand": "cd ../.. && pnpm exec turbo run build --filter=@fleet/ops-web",
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "framework": "nextjs",
+  "outputDirectory": ".next",
+  "regions": ["sfo1"]
+}

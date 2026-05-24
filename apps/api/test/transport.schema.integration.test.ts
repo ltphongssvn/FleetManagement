@@ -5,7 +5,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type * as schema from '../src/database/schema/index.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
+import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
 
 let testDb: MigratedTestDb;
 
@@ -37,14 +37,7 @@ describe('@fleet/api - transport schema (integration)', () => {
   });
 
   beforeEach(async () => {
-    await testDb.db.execute(sql`
-      DO $$ DECLARE r RECORD;
-      BEGIN
-        FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename != '__drizzle_migrations')
-        LOOP EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
-        END LOOP;
-      END $$;
-    `);
+    await truncateAllTables(testDb.db);
   });
 
   describe('transport_order', () => {
@@ -132,9 +125,16 @@ describe('@fleet/api - transport schema (integration)', () => {
   describe('road_run_transport_order', () => {
     it('cascades from both road_run and transport_order', async () => {
       const toId = await seedTransportOrder(testDb.db);
+      // road_run.assigned_operator_id and assigned_asset_id are NOT NULL
+      // (2026 invariant: a road run never exists without a bound pair).
+      // The cascade test only cares about the join-table CASCADE, so we
+      // supply throwaway uuids here — the FK to driver/vehicle is not
+      // declared at the DB level on these columns.
+      const dummyOperatorId = '00000000-0000-0000-0000-0000aaaaaa01';
+      const dummyAssetId = '00000000-0000-0000-0000-0000bbbbbb02';
       const rrResult = await testDb.db.execute<{ road_run_id: string }>(sql`
-        INSERT INTO road_run (company_id, business_unit_id, depot_id, legal_entity_id)
-        VALUES (${TENANT.company_id}::uuid, ${TENANT.business_unit_id}::uuid, ${TENANT.depot_id}::uuid, ${TENANT.legal_entity_id}::uuid)
+        INSERT INTO road_run (company_id, business_unit_id, depot_id, legal_entity_id, assigned_operator_id, assigned_asset_id)
+        VALUES (${TENANT.company_id}::uuid, ${TENANT.business_unit_id}::uuid, ${TENANT.depot_id}::uuid, ${TENANT.legal_entity_id}::uuid, ${dummyOperatorId}::uuid, ${dummyAssetId}::uuid)
         RETURNING road_run_id
       `);
       const rrRow = rrResult.rows[0];

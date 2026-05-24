@@ -6,7 +6,7 @@ import {
   UploadSessionInsertFailedError,
   TransportOrderNotOwnedError,
   UploadSessionNotFoundError,
-  UploadAlreadyCommittedError,
+  UploadSessionInvalidStateError,
   UploadSessionMissingManifestError,
 } from '../src/manifest/manifest.errors.js';
 
@@ -33,8 +33,8 @@ describe('@fleet/api - manifest.errors', () => {
     expect(err.uploadSessionId).toBe('us-1');
   });
 
-  it('UploadAlreadyCommittedError captures uploadSessionId', () => {
-    const err = new UploadAlreadyCommittedError('us-2');
+  it('UploadSessionInvalidStateError captures sessionId + currentState + expectedStates', () => {
+    const err = new UploadSessionInvalidStateError('us-2', 'rejected', ['initiated', 'uploading']);
     expect(err.uploadSessionId).toBe('us-2');
   });
 

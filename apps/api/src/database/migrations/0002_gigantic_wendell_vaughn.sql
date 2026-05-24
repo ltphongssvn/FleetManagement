@@ -1,0 +1,1 @@
+ALTER TABLE "projection_status" ADD COLUMN "last_applied_at" timestamp with time zone;

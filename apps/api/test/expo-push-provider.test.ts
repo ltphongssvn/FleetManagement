@@ -1,19 +1,39 @@
 // apps/api/test/expo-push-provider.test.ts
-import { describe, it, expect, vi } from 'vitest';
-import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
+// PGlite integration: real device_registry table, real SELECT. Removes
+// mockDeep<FleetDb> chain mock.
+//
+// Isolation: tx-injection per test (see helpers/with-tx-isolation.ts).
+// ExpoPushProvider performs only a single SELECT (no this.db.transaction),
+// so wrapping each test in an outer drizzle tx + constructing the provider
+// with tx works without any inner-savepoint concerns.
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { sql } from 'drizzle-orm';
 import { ExpoPushProvider, defaultExpoClient, type ExpoLike } from '../src/push/expo-push-provider.js';
-import type { FleetDb } from '../src/database/database.module.js';
-
-function dbWithTokens(tokens: (string | null)[]): DeepMockProxy<FleetDb> {
-  const db = mockDeep<FleetDb>();
-  db.select.mockImplementation(() => ({
-    from: () => ({
-      where: () => Promise.resolve(tokens.map((token) => ({ token }))),
-    }),
-  }) as never);
-  return db;
+import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
+let testDb: PgliteTestDb;
+const qt = String.fromCharCode(39);
+const TENANCY_VALS =
+  qt + '00000000-0000-0000-0000-000000000001' + qt + '::uuid, ' +
+  qt + '00000000-0000-0000-0000-000000000002' + qt + '::uuid, ' +
+  qt + '00000000-0000-0000-0000-000000000003' + qt + '::uuid, ' +
+  qt + '00000000-0000-0000-0000-000000000004' + qt + '::uuid';
+const OPERATOR_ID = '00000000-0000-0000-0000-0000000000aa';
+async function seedTokens(tx: TestTx, tokens: (string | null)[]): Promise<void> {
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    const tokenLit = (token === null || token === undefined)
+      ? 'NULL'
+      : qt + token + qt;
+    const stmt = 'INSERT INTO device_registry (company_id, business_unit_id, depot_id, legal_entity_id, operator_id, platform, app_version, expo_push_token) VALUES ('
+      + TENANCY_VALS + ', '
+      + qt + OPERATOR_ID + qt + '::uuid, '
+      + qt + 'platform-' + String(i) + qt + ', '
+      + qt + '1.0.0' + qt + ', '
+      + tokenLit + ')';
+    await tx.execute(sql.raw(stmt));
+  }
 }
-
 function fakeExpo(opts: {
   isValid?: (t: unknown) => boolean;
   ticketStatuses?: string[];
@@ -28,55 +48,101 @@ function fakeExpo(opts: {
     }),
   };
 }
-
 const VALID_TOKEN = 'ExponentPushToken[abc123]';
-
-describe('@fleet/api - ExpoPushProvider', () => {
+describe('@fleet/api - ExpoPushProvider (integration)', () => {
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
+  afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('returns rejected=1 when operator has no tokens', async () => {
-    const p = new ExpoPushProvider(dbWithTokens([]), fakeExpo({}));
-    expect(await p.sendToOperator('op1', { title: 't', body: 'b' })).toEqual({ accepted: 0, rejected: 1 });
+    await withTxIsolation(testDb, async (tx) => {
+      const p = new ExpoPushProvider(tx as never, fakeExpo({}));
+      expect(await p.sendToOperator(OPERATOR_ID, { title: 't', body: 'b' })).toEqual({ accepted: 0, rejected: 1 });
+    });
   });
-
   it('returns rejected when operator has only invalid tokens', async () => {
-    const p = new ExpoPushProvider(dbWithTokens(['not-a-token', null]), fakeExpo({}));
-    const r = await p.sendToOperator('op1', { title: 't', body: 'b' });
-    expect(r.accepted).toBe(0);
-    expect(r.rejected).toBeGreaterThan(0);
+    await withTxIsolation(testDb, async (tx) => {
+      await seedTokens(tx, ['not-a-token', null]);
+      const p = new ExpoPushProvider(tx as never, fakeExpo({}));
+      const r = await p.sendToOperator(OPERATOR_ID, { title: 't', body: 'b' });
+      expect(r.accepted).toBe(0);
+      expect(r.rejected).toBeGreaterThan(0);
+    });
   });
-
   it('counts ok tickets as accepted', async () => {
-    const p = new ExpoPushProvider(dbWithTokens([VALID_TOKEN]), fakeExpo({ ticketStatuses: ['ok'] }));
-    expect(await p.sendToOperator('op1', { title: 't', body: 'b' })).toEqual({ accepted: 1, rejected: 0 });
+    await withTxIsolation(testDb, async (tx) => {
+      await seedTokens(tx, [VALID_TOKEN]);
+      const p = new ExpoPushProvider(tx as never, fakeExpo({ ticketStatuses: ['ok'] }));
+      expect(await p.sendToOperator(OPERATOR_ID, { title: 't', body: 'b' })).toEqual({ accepted: 1, rejected: 0 });
+    });
   });
-
   it('counts error tickets as rejected', async () => {
-    const p = new ExpoPushProvider(dbWithTokens([VALID_TOKEN]), fakeExpo({ ticketStatuses: ['error'] }));
-    expect(await p.sendToOperator('op1', { title: 't', body: 'b' })).toEqual({ accepted: 0, rejected: 1 });
+    await withTxIsolation(testDb, async (tx) => {
+      await seedTokens(tx, [VALID_TOKEN]);
+      const p = new ExpoPushProvider(tx as never, fakeExpo({ ticketStatuses: ['error'] }));
+      expect(await p.sendToOperator(OPERATOR_ID, { title: 't', body: 'b' })).toEqual({ accepted: 0, rejected: 1 });
+    });
   });
-
   it('counts entire chunk as rejected when send throws', async () => {
-    const p = new ExpoPushProvider(dbWithTokens([VALID_TOKEN, VALID_TOKEN]), fakeExpo({ throws: true }));
-    const r = await p.sendToOperator('op1', { title: 't', body: 'b' });
-    expect(r.accepted).toBe(0);
-    expect(r.rejected).toBe(2);
+    await withTxIsolation(testDb, async (tx) => {
+      await seedTokens(tx, [VALID_TOKEN, VALID_TOKEN]);
+      const p = new ExpoPushProvider(tx as never, fakeExpo({ throws: true }));
+      const r = await p.sendToOperator(OPERATOR_ID, { title: 't', body: 'b' });
+      expect(r.accepted).toBe(0);
+      expect(r.rejected).toBe(2);
+    });
   });
-
   it('handles mixed valid/invalid tokens', async () => {
-    const p = new ExpoPushProvider(dbWithTokens([VALID_TOKEN, 'bad', null]), fakeExpo({ ticketStatuses: ['ok'] }));
-    const r = await p.sendToOperator('op1', { title: 't', body: 'b' });
-    expect(r.accepted).toBe(1);
+    await withTxIsolation(testDb, async (tx) => {
+      await seedTokens(tx, [VALID_TOKEN, 'bad', null]);
+      const p = new ExpoPushProvider(tx as never, fakeExpo({ ticketStatuses: ['ok'] }));
+      const r = await p.sendToOperator(OPERATOR_ID, { title: 't', body: 'b' });
+      expect(r.accepted).toBe(1);
+    });
   });
-
-  it('defaultExpoClient returns ExpoLike with all methods', () => {
+  it('attaches body.data to the Expo message when provided (covers line 55 branch)', async () => {
+    await withTxIsolation(testDb, async (tx) => {
+      await seedTokens(tx, [VALID_TOKEN]);
+      const expo = fakeExpo({ ticketStatuses: ['ok'] });
+      const calls = (expo.sendPushNotificationsAsync as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+      const p = new ExpoPushProvider(tx as never, expo);
+      const r = await p.sendToOperator(OPERATOR_ID, { title: 't', body: 'b', data: { kind: 'cmd', id: '7' } });
+      expect(r).toEqual({ accepted: 1, rejected: 0 });
+      const sent = calls[0]?.[0];
+      expect(Array.isArray(sent)).toBe(true);
+      expect((sent as { data?: unknown }[])[0]?.data).toEqual({ kind: 'cmd', id: '7' });
+    });
+  });
+});
+describe('@fleet/api - defaultExpoClient', () => {
+  it('returns ExpoLike with all methods', () => {
     const client = defaultExpoClient();
     expect(typeof client.isExpoPushToken).toBe('function');
     expect(typeof client.chunkPushNotifications).toBe('function');
     expect(typeof client.sendPushNotificationsAsync).toBe('function');
   });
-
-  it('defaultExpoClient.isExpoPushToken validates tokens', () => {
+  it('isExpoPushToken validates real tokens via Expo SDK', () => {
     const client = defaultExpoClient();
     expect(client.isExpoPushToken('ExponentPushToken[abc]')).toBe(true);
-    expect(client.isExpoPushToken('not-a-token')).toBe(false);
+    expect(client.isExpoPushToken('not-a-real-token')).toBe(false);
+  });
+  it('chunkPushNotifications delegates to the real Expo client and returns batched arrays', () => {
+    const client = defaultExpoClient();
+    const messages = [
+      { to: 'ExponentPushToken[a]', title: 't', body: 'b' },
+      { to: 'ExponentPushToken[b]', title: 't', body: 'b' },
+    ];
+    const chunks = client.chunkPushNotifications(messages);
+    expect(Array.isArray(chunks)).toBe(true);
+    expect(chunks.flat()).toHaveLength(messages.length);
+    expect(chunks.every((c) => Array.isArray(c))).toBe(true);
+  });
+  it('sendPushNotificationsAsync delegates to the real Expo client and maps tickets to {status}', async () => {
+    const client = defaultExpoClient();
+    const tickets = await client.sendPushNotificationsAsync([
+      { to: 'ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]', title: 't', body: 'b' },
+    ]);
+    expect(Array.isArray(tickets)).toBe(true);
+    expect(tickets).toHaveLength(1);
+    expect(typeof tickets[0]?.status).toBe('string');
+    expect(Object.keys(tickets[0] ?? {})).toEqual(['status']);
   });
 });

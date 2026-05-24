@@ -44,7 +44,7 @@ describe('@fleet/api - integration tests use migrations as schema source', () =>
     expect(files.length).toBeGreaterThan(0);
     for (const f of files) {
       const content = await readFile(resolve(testDir, f), 'utf-8');
-      expect(content).toMatch(/from '\.\/helpers\/migrate-test-db/);
+      expect(content).toMatch(/from '\.\/helpers\/(migrate-test-db|pglite-test-db)/);
     }
   });
 

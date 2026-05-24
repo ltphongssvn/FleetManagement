@@ -21,3 +21,26 @@ export {
   ALLOWED_MANIFEST_MIME_TYPES,
   type ManifestMimeType,
 } from './manifest-types.js';
+export {
+  PILOT_CURRENCIES,
+  PILOT_CURRENCY_SET,
+  ERP_AMOUNT_CENTS_MAX,
+  type PilotCurrency,
+  type ErpInvoicePayloadWire,
+  type ErpMappingContextWire,
+  type ErpJobDataWire,
+  ErpInvoicePayloadWireSchema,
+  ErpMappingContextWireSchema,
+  ErpJobDataWireSchema,
+} from './erp-types.js';
+export {
+  OUTBOX_ROUTING_POLICY_VERSION,
+  routeOutboxRow,
+  type OutboxRoutingInput,
+  type OutboxRoutingDecision,
+  type OutboxRoutingRejectionCode,
+  type OutboxTargetQueue,
+  OUTBOX_QUEUES,
+  type OutboxQueueName,
+} from './outbox-routing.js';
+export { COMMAND_EVENTS, type CommandEventName } from './command-events.js';

@@ -1,0 +1,51 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.config.ts"
+  },
+  "mutate": [
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
+    "!src/main.ts",
+    "!src/app.module.ts",
+    "!src/**/*.module.ts",
+    "!src/**/*.controller.ts",
+    "!src/**/*.config.ts",
+    "!src/database/schema/**",
+    "!src/database/seeds/**",
+    "!src/observability/otel-bootstrap.ts",
+    "!src/observability/sentry-bootstrap.ts",
+    "!src/auth/operator-context.ts",
+    "!src/auth/identity-provider.interface.ts",
+    "!src/push/push-provider.interface.ts",
+    "!src/storage/storage-provider.interface.ts",
+    "!src/reference/**",
+    "!src/transport-orders/transport-orders.service.ts",
+    "!src/driver/driver-me.service.ts",
+    "!src/device/device-enrollment.service.ts",
+    "!src/admin/admin-drivers-list.service.ts",
+    "!src/admin/admin-assignment.service.ts",
+    "!src/admin/admin-device-enroll.service.ts",
+    "!**/dist/**",
+    "!**/test/**"
+  ],
+  "thresholds": {
+    "high": 95,
+    "low": 60,
+    "break": 60
+  },
+  "incremental": true,
+  "incrementalFile": ".stryker-tmp/incremental.json",
+  "reporters": [
+    "progress",
+    "clear-text",
+    "html"
+  ],
+  "concurrency": 4,
+  "timeoutMS": 30000,
+  "coverageAnalysis": "perTest",
+  "plugins": [
+    "@stryker-mutator/vitest-runner"
+  ]
+}

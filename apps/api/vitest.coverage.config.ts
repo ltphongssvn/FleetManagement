@@ -7,11 +7,24 @@ export default defineConfig({
     include: ['test/**/*.test.ts'],
     testTimeout: 60_000,
     hookTimeout: 60_000,
-    pool: 'forks',
+    // fileParallelism:false is LOAD-BEARING: the *.integration.test.ts files
+    // share one Postgres database and each does TRUNCATE ... CASCADE in
+    // beforeEach. Running them in parallel causes mutual-lock deadlocks
+    // (Postgres 40P01). They must serialize.
     fileParallelism: false,
-    sequence: { concurrent: false },
+    // pool:forks isolates v8 coverage instrumentation per file, preventing
+    // the cross-file coverage drop we hit when many test files run sequentially
+    // in one worker (some files would lose recorded coverage).
+    pool: 'forks',
+    // clean:true wipes any stale coverage/.tmp before the run. This — not
+    // changing parallelism — is what fixes the prior ENOENT on
+    // coverage-N.json at provider read time (stale dir from an aborted run).
     coverage: {
       provider: 'v8',
+      clean: true,
+      // 'json' emits coverage-final.json so sharded CI jobs can merge their
+      // partial coverage; 'text' keeps the human-readable console table.
+      reporter: ['text', 'json'],
       include: ['src/**/*.ts'],
       exclude: [
         '**/index.ts',
@@ -21,28 +34,36 @@ export default defineConfig({
         '**/*.config.ts',
         '**/database/schema/**',
         '**/otel-bootstrap.ts',
+        '**/sentry-bootstrap.ts',
+        'src/auth/operator-context.ts',
+        'src/auth/identity-provider.interface.ts',
+        'src/push/push-provider.interface.ts',
+        'src/storage/blob-store-provider.interface.ts',
+        // Pure type-only file (two interfaces, zero runtime code) — v8
+        // reports it as 0% because there is nothing to instrument.
+        'src/reference/reference.dto.ts',
         '**/dist/**',
         '**/test/**',
       ],
       reportsDirectory: 'coverage/merged',
-      thresholds: {
-        // Lowest acceptable per-file thresholds (global floor).
-        statements: 80,
-        branches: 50,
-        functions: 70,
-        lines: 80,
-        perFile: true,
-        // Stricter thresholds for pure logic / non-glue source code:
-        'src/auth/**/*.ts': { statements: 80, branches: 80, functions: 80, lines: 80 },
-        'src/commands/command-policy.ts': { statements: 80, branches: 80, functions: 80, lines: 80 },
-        'src/commands/command.dto.ts': { statements: 80, branches: 80, functions: 80, lines: 80 },
-        'src/common/**/*.ts': { statements: 80, branches: 80, functions: 80, lines: 80 },
-        'src/database/**/*.ts': { statements: 80, branches: 80, functions: 80, lines: 80 },
-        'src/device/**/*.ts': { statements: 80, branches: 80, functions: 80, lines: 80 },
-        'src/manifest/**/*.ts': { statements: 80, branches: 80, functions: 80, lines: 80 },
-        'src/storage/**/*.ts': { statements: 80, branches: 80, functions: 80, lines: 80 },
-        'src/sync/sync.dto.ts': { statements: 80, branches: 80, functions: 80, lines: 80 },
-      },
+      // The 90/90/90/90 per-file gate is enforced only when
+      // VITEST_ENFORCE_THRESHOLDS is set. CI shards each run a subset of test
+      // files, so a perFile threshold applied per shard would fail on every
+      // file that shard did not execute. Shards therefore run threshold-free;
+      // the dedicated merge job sets the env var and enforces the gate once
+      // on the merged coverage report. The local test:coverage script sets it
+      // too, so developers running the full suite still get the gate.
+      ...(process.env['VITEST_ENFORCE_THRESHOLDS']
+        ? {
+            thresholds: {
+              statements: 90,
+              branches: 90,
+              functions: 90,
+              lines: 90,
+              perFile: true,
+            },
+          }
+        : {}),
     },
   },
 });

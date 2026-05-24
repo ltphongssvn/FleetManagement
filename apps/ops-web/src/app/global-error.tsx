@@ -1,9 +1,11 @@
 // apps/ops-web/src/app/global-error.tsx
-// Top-level error boundary catching errors in root layout.
+// Top-level error boundary catching errors in root layout. Reports to Sentry.
 'use client';
-import type { JSX } from 'react';
+import { useEffect, type JSX } from 'react';
+import * as Sentry from '@sentry/nextjs';
 
 export default function GlobalError({ error, reset }: { error: Error; reset: () => void }): JSX.Element {
+  useEffect(() => { Sentry.captureException(error); }, [error]);
   return (
     <html lang="en">
       <body>

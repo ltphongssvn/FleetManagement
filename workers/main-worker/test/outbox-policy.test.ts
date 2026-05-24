@@ -9,7 +9,6 @@ import {
   type AttemptDeps,
   type RetryPolicy,
 } from '../src/outbox/outbox-policy.js';
-
 function row(overrides: Partial<OutboxRow> = {}): OutboxRow {
   return {
     outboxId: 'o1',
@@ -21,10 +20,8 @@ function row(overrides: Partial<OutboxRow> = {}): OutboxRow {
     ...overrides,
   };
 }
-
 const FROZEN_TIME = new Date('2026-04-27T18:00:00Z').getTime();
 const deterministicDeps: AttemptDeps = { now: () => FROZEN_TIME, random: () => 0.5 };
-
 describe('@fleet/main-worker - nextStatusAfterAttempt', () => {
   it('marks succeeded on success', () => {
     const r = nextStatusAfterAttempt(row(), 'success', DEFAULT_RETRY_POLICY, deterministicDeps);
@@ -33,16 +30,12 @@ describe('@fleet/main-worker - nextStatusAfterAttempt', () => {
     expect(r.nextAttemptAt).toBeNull();
     expect(r.policyVersion).toBe('outbox-retry-v1');
   });
-
   it('marks failed with deterministic nextAttemptAt (random=0.5 = midpoint = no jitter)', () => {
     const r = nextStatusAfterAttempt(row(), 'failure', DEFAULT_RETRY_POLICY, deterministicDeps);
-    // attempts=1: base=2s, jitter ratio 0.25, random=0.5 -> jitter = 2 * (1.0 - 0.25) = +0.5s
-    // nextMs = FROZEN_TIME + (2 + 0.5)*1000 = FROZEN_TIME + 2000
     expect(r.nextAttempts).toBe(1);
-    if (!r.nextAttemptAt) throw new Error('expected nextAttemptAt');
+    if (r.nextAttemptAt === null) throw new Error('expected nextAttemptAt');
     expect(r.nextAttemptAt.getTime()).toBe(FROZEN_TIME + 2000);
   });
-
   it('escalates to dead_letter at policy.maxAttempts', () => {
     const r = nextStatusAfterAttempt(
       row({ attempts: DEFAULT_RETRY_POLICY.maxAttempts - 1 }),
@@ -53,7 +46,6 @@ describe('@fleet/main-worker - nextStatusAfterAttempt', () => {
     expect(r.status).toBe('dead_letter');
     expect(r.nextAttemptAt).toBeNull();
   });
-
   it('respects per-queue policy override (maxAttempts=2)', () => {
     const fastFail: RetryPolicy = { maxAttempts: 2, baseSeconds: 1, jitterRatio: 0 };
     const r1 = nextStatusAfterAttempt(row({ attempts: 0 }), 'failure', fastFail, deterministicDeps);
@@ -61,67 +53,84 @@ describe('@fleet/main-worker - nextStatusAfterAttempt', () => {
     const r2 = nextStatusAfterAttempt(row({ attempts: 1 }), 'failure', fastFail, deterministicDeps);
     expect(r2.status).toBe('dead_letter');
   });
-
   it('exact backoff with jitterRatio=0 (random ignored)', () => {
     const noJitter: RetryPolicy = { maxAttempts: 5, baseSeconds: 1, jitterRatio: 0 };
     const r = nextStatusAfterAttempt(row({ attempts: 2 }), 'failure', noJitter, deterministicDeps);
-    // attempts becomes 3 -> base 8s, no jitter
-    if (!r.nextAttemptAt) throw new Error('expected nextAttemptAt');
+    if (r.nextAttemptAt === null) throw new Error('expected nextAttemptAt');
     expect(r.nextAttemptAt.getTime()).toBe(FROZEN_TIME + 8000);
   });
-
   it('jitter at random=0 produces minimum delay (-jitterRatio)', () => {
     const minRandom: AttemptDeps = { now: () => FROZEN_TIME, random: () => 0 };
     const r = nextStatusAfterAttempt(row(), 'failure', DEFAULT_RETRY_POLICY, minRandom);
-    // attempts=1: base=2s, jitter = 2 * (0 - 0.25) = -0.5s -> 1500ms
-    if (!r.nextAttemptAt) throw new Error('expected nextAttemptAt');
+    if (r.nextAttemptAt === null) throw new Error('expected nextAttemptAt');
     expect(r.nextAttemptAt.getTime()).toBe(FROZEN_TIME + 1500);
   });
+  it('jitter at random=1 produces maximum delay (+jitterRatio)', () => {
+    const maxRandom: AttemptDeps = { now: () => FROZEN_TIME, random: () => 1 };
+    const r = nextStatusAfterAttempt(row(), 'failure', DEFAULT_RETRY_POLICY, maxRandom);
+    if (r.nextAttemptAt === null) throw new Error('expected nextAttemptAt');
+    expect(r.nextAttemptAt.getTime()).toBe(FROZEN_TIME + 2500);
+  });
+  it('uses real injected deps (Date.now/Math.random) when deps arg is omitted', () => {
+    const before = Date.now();
+    const r = nextStatusAfterAttempt(row({ attempts: 0 }), 'failure', DEFAULT_RETRY_POLICY);
+    const after = Date.now();
+    expect(r.status).toBe('failed');
+    if (r.nextAttemptAt === null) throw new Error('expected nextAttemptAt');
+    expect(r.nextAttemptAt.getTime()).toBeGreaterThanOrEqual(before + 1500);
+    expect(r.nextAttemptAt.getTime()).toBeLessThanOrEqual(after + 2500);
+  });
 });
-
 describe('@fleet/main-worker - isEligibleForPickup', () => {
   const now = new Date('2026-04-27T18:00:00Z');
-
   it('picks up pending immediately', () => {
     expect(isEligibleForPickup(row({ status: 'pending' }), now)).toBe(true);
   });
-
   it('picks up failed when nextAttemptAt has passed', () => {
     expect(
       isEligibleForPickup(row({ status: 'failed', nextAttemptAt: new Date(now.getTime() - 1000) }), now),
     ).toBe(true);
   });
-
   it('skips failed when nextAttemptAt is in future', () => {
     expect(
       isEligibleForPickup(row({ status: 'failed', nextAttemptAt: new Date(now.getTime() + 60_000) }), now),
     ).toBe(false);
   });
-
   it('skips processing/succeeded/dead_letter', () => {
     expect(isEligibleForPickup(row({ status: 'processing' }), now)).toBe(false);
     expect(isEligibleForPickup(row({ status: 'succeeded' }), now)).toBe(false);
     expect(isEligibleForPickup(row({ status: 'dead_letter' }), now)).toBe(false);
   });
-
+  it('skips processing row even when nextAttemptAt is in the past (status guard, not just time)', () => {
+    expect(
+      isEligibleForPickup(
+        row({ status: 'processing', nextAttemptAt: new Date(now.getTime() - 1000) }),
+        now,
+      ),
+    ).toBe(false);
+  });
+  it('skips succeeded row even when nextAttemptAt is in the past (status guard, not just time)', () => {
+    expect(
+      isEligibleForPickup(
+        row({ status: 'succeeded', nextAttemptAt: new Date(now.getTime() - 1000) }),
+        now,
+      ),
+    ).toBe(false);
+  });
   it('picks up failed when nextAttemptAt equals now (boundary)', () => {
     expect(isEligibleForPickup(row({ status: 'failed', nextAttemptAt: now }), now)).toBe(true);
   });
-
   it('skips failed with null nextAttemptAt (defensive)', () => {
     expect(isEligibleForPickup(row({ status: 'failed', nextAttemptAt: null }), now)).toBe(false);
   });
 });
-
 describe('@fleet/main-worker - RetryPolicy', () => {
   it('DEFAULT_RETRY_POLICY is frozen', () => {
     expect(Object.isFrozen(DEFAULT_RETRY_POLICY)).toBe(true);
   });
 });
-
 describe('@fleet/main-worker - nextStatusAfterAttempt (property-based)', () => {
   const policy: RetryPolicy = { maxAttempts: 5, baseSeconds: 1, jitterRatio: 0.25 };
-
   it('escalates to dead_letter only when attempts >= maxAttempts', () => {
     fc.assert(
       fc.property(
@@ -138,7 +147,6 @@ describe('@fleet/main-worker - nextStatusAfterAttempt (property-based)', () => {
       ),
     );
   });
-
   it('success always succeeded regardless of attempts', () => {
     fc.assert(
       fc.property(fc.integer({ min: 0, max: 100 }), (attempts) => {
@@ -147,7 +155,6 @@ describe('@fleet/main-worker - nextStatusAfterAttempt (property-based)', () => {
       }),
     );
   });
-
   it('jitter delay always within +/- jitterRatio of base', () => {
     fc.assert(
       fc.property(
@@ -156,7 +163,7 @@ describe('@fleet/main-worker - nextStatusAfterAttempt (property-based)', () => {
         (attempts, rand) => {
           const deps: AttemptDeps = { now: () => 0, random: () => rand };
           const r = nextStatusAfterAttempt(row({ attempts }), 'failure', policy, deps);
-          if (r.status !== 'failed' || !r.nextAttemptAt) return true;
+          if (r.status !== 'failed' || r.nextAttemptAt === null) return true;
           const baseMs = policy.baseSeconds * 2 ** (attempts + 1) * 1000;
           const minMs = baseMs * (1 - policy.jitterRatio);
           const maxMs = baseMs * (1 + policy.jitterRatio);

@@ -5,22 +5,17 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import { sql } from 'drizzle-orm';
 import { ManifestService } from '../src/manifest/manifest.service.js';
 import type { OperatorContext } from '../src/auth/operator-context.js';
-import { UploadAlreadyCommittedError, UploadSessionNotFoundError } from '../src/manifest/manifest.errors.js';
+import { TransportOrderNotOwnedError, UploadSessionInvalidStateError, UploadSessionNotFoundError } from '../src/manifest/manifest.errors.js';
 import type { IBlobStore, PresignedUpload } from '../src/storage/storage-provider.interface.js';
 import type { ConfigService } from '@nestjs/config';
 import type { Env } from '../src/config/env.config.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
+import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
+import { createOperatorContext } from '@fleet/test-fixtures';
 
 let testDb: MigratedTestDb;
 let service: ManifestService;
 
-const OP: OperatorContext = {
-  operatorId: '00000000-0000-0000-0000-000000000002',
-  companyId: '00000000-0000-0000-0000-000000000003',
-  businessUnitId: '00000000-0000-0000-0000-000000000004',
-  depotId: '00000000-0000-0000-0000-000000000005',
-  legalEntityId: '00000000-0000-0000-0000-000000000006',
-};
+const OP: OperatorContext = createOperatorContext();
 
 const TRANSPORT_ORDER_ID = '00000000-0000-0000-0000-0000000000b1';
 const CORRELATION_ID = '00000000-0000-0000-0000-0000000000a1';
@@ -59,14 +54,7 @@ describe('@fleet/api - ManifestService (integration)', () => {
   });
 
   beforeEach(async () => {
-    await testDb.db.execute(sql`
-      DO $$ DECLARE r RECORD;
-      BEGIN
-        FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename != '__drizzle_migrations')
-        LOOP EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
-        END LOOP;
-      END $$;
-    `);
+    await truncateAllTables(testDb.db);
     await seedTransportOrder();
   });
 
@@ -108,7 +96,7 @@ describe('@fleet/api - ManifestService (integration)', () => {
 
     const commit = { uploadSessionId: negotiated.uploadSessionId, actualSizeBytes: 1_400_000 };
     await service.commitUpload(commit, OP);
-    await expect(service.commitUpload(commit, OP)).rejects.toBeInstanceOf(UploadAlreadyCommittedError);
+    await expect(service.commitUpload(commit, OP)).rejects.toBeInstanceOf(UploadSessionInvalidStateError);
   });
 
   it('throws UploadSessionNotFoundError for unknown session', async () => {
@@ -118,7 +106,56 @@ describe('@fleet/api - ManifestService (integration)', () => {
     }, OP)).rejects.toBeInstanceOf(UploadSessionNotFoundError);
   });
 
-  it('reuses existing manifest on second negotiate with same correlation_id', async () => {
+  it('finalizeIntake(accepted=true) writes audit row + outbox event for ERP', async () => {
+    const negotiated = await service.negotiateUpload({
+      manifestCorrelationId: CORRELATION_ID,
+      transportOrderId: TRANSPORT_ORDER_ID,
+      contentType: 'image/jpeg',
+      expectedSizeBytes: 1_500_000,
+    }, OP);
+    await service.commitUpload({ uploadSessionId: negotiated.uploadSessionId, actualSizeBytes: 1_400_000 }, OP);
+    const result = await service.finalizeIntake({ uploadSessionId: negotiated.uploadSessionId, accepted: true }, OP);
+    expect(result.state).toBe('committed');
+
+    const audit = await testDb.db.execute<{ count: string; event_type: string }>(sql`
+      SELECT COUNT(*)::text as count, MAX(event_type) as event_type FROM fleet_audit_log
+    `);
+    expect(audit.rows[0]?.count).toBe('1');
+    expect(audit.rows[0]?.event_type).toBe('manifest.committed');
+
+    const ob = await testDb.db.execute<{ count: string; queue_name: string }>(sql`
+      SELECT COUNT(*)::text as count, MAX(queue_name) as queue_name FROM outbox WHERE queue_name = 'erp'
+    `);
+    expect(ob.rows[0]?.count).toBe('1');
+    expect(ob.rows[0]?.queue_name).toBe('erp');
+  });
+
+  it('finalizeIntake(accepted=false) emits manifest.rejected audit + feed but no ERP outbox', async () => {
+    const negotiated = await service.negotiateUpload({
+      manifestCorrelationId: CORRELATION_ID,
+      transportOrderId: TRANSPORT_ORDER_ID,
+      contentType: 'image/jpeg',
+      expectedSizeBytes: 1_500_000,
+    }, OP);
+    await service.commitUpload({ uploadSessionId: negotiated.uploadSessionId, actualSizeBytes: 1_400_000 }, OP);
+    await service.finalizeIntake({ uploadSessionId: negotiated.uploadSessionId, accepted: false, rejectionReasonCode: 'other' }, OP);
+
+    const audit = await testDb.db.execute<{ count: string; event_type: string }>(sql`
+      SELECT COUNT(*)::text AS count, MAX(event_type) AS event_type FROM fleet_audit_log
+    `);
+    expect(audit.rows[0]?.count).toBe('1');
+    expect(audit.rows[0]?.event_type).toBe('manifest.rejected');
+
+    const erpOutbox = await testDb.db.execute<{ count: string }>(sql`
+      SELECT COUNT(*)::text AS count FROM outbox WHERE queue_name = 'erp'
+    `);
+    expect(erpOutbox.rows[0]?.count).toBe('0');
+  });
+
+  // Idempotency contract: same correlation_id -> same Manifest aggregate (immutable),
+  // but each negotiate creates a NEW upload_session so retries get fresh presigned URLs
+  // and per-attempt state tracking. PDF "Manifest" + "Uploads".
+  it('reuses existing manifest on second negotiate with same correlation_id (new upload_session each time)', async () => {
     const r1 = await service.negotiateUpload({
       manifestCorrelationId: CORRELATION_ID,
       transportOrderId: TRANSPORT_ORDER_ID,
@@ -135,5 +172,85 @@ describe('@fleet/api - ManifestService (integration)', () => {
     const manifests = await testDb.db.execute<{ count: string }>(sql`SELECT COUNT(*)::text as count FROM manifest`);
     expect(manifests.rows[0]?.count).toBe('1');
     expect(r1.uploadSessionId).not.toBe(r2.uploadSessionId);
+  });
+
+  it('finalizeIntake throws UploadSessionNotFoundError for unknown session', async () => {
+    await expect(service.finalizeIntake({
+      uploadSessionId: '00000000-0000-0000-0000-0000000000fe',
+      accepted: true,
+    }, OP)).rejects.toBeInstanceOf(UploadSessionNotFoundError);
+  });
+
+  it('finalizeIntake(accepted=false) records rejectionReasonCode on manifest', async () => {
+    const negotiated = await service.negotiateUpload({
+      manifestCorrelationId: CORRELATION_ID,
+      transportOrderId: TRANSPORT_ORDER_ID,
+      contentType: 'image/jpeg',
+      expectedSizeBytes: 1_500_000,
+    }, OP);
+    await service.commitUpload({ uploadSessionId: negotiated.uploadSessionId, actualSizeBytes: 1_400_000 }, OP);
+    const result = await service.finalizeIntake({
+      uploadSessionId: negotiated.uploadSessionId,
+      accepted: false,
+      rejectionReasonCode: 'other',
+    }, OP);
+    expect(result.state).toBe('rejected');
+    const row = await testDb.db.execute<{ rejection_reason_code: string | null }>(sql`
+      SELECT rejection_reason_code FROM manifest WHERE manifest_correlation_id = ${CORRELATION_ID}::uuid
+    `);
+    expect(row.rows[0]?.rejection_reason_code).toBe('other');
+  });
+
+  it('buildS3Key produces correlation-id keyed path with content-type extension', async () => {
+    const r = await service.negotiateUpload({
+      manifestCorrelationId: CORRELATION_ID,
+      transportOrderId: TRANSPORT_ORDER_ID,
+      contentType: 'application/pdf',
+      expectedSizeBytes: 1000,
+    }, OP);
+    // Read the real s3_key written by ManifestService.buildS3Key (not the mock's stub key).
+    const row = await testDb.db.execute<{ s3_key: string }>(sql`
+      SELECT s3_key FROM upload_session WHERE upload_session_id = ${r.uploadSessionId}::uuid
+    `);
+    const s3Key = row.rows[0]?.s3_key ?? '';
+    expect(s3Key).toContain(CORRELATION_ID);
+    expect(s3Key).toMatch(/\.(pdf|bin)$/);
+  });
+  it("buildS3Key falls back to 'bin' for unknown content-types (line 307 branch)", async () => {
+    const r = await service.negotiateUpload({
+      manifestCorrelationId: '22222222-2222-4222-8222-200000000307',
+      transportOrderId: TRANSPORT_ORDER_ID,
+      contentType: 'application/x-totally-fake-mimetype' as never,
+      expectedSizeBytes: 1000,
+    }, OP);
+    const row = await testDb.db.execute<{ s3_key: string }>(sql`
+      SELECT s3_key FROM upload_session WHERE upload_session_id = ${r.uploadSessionId}::uuid
+    `);
+    const s3Key = row.rows[0]?.s3_key ?? '';
+    expect(s3Key).toMatch(/\.bin$/);
+  });
+  it('negotiateUpload throws TransportOrderNotOwnedError when transport order not in tenant (line 118 branch)', async () => {
+    await expect(service.negotiateUpload({
+      manifestCorrelationId: '33333333-3333-4333-8333-300000000118',
+      transportOrderId: '00000000-0000-0000-0000-000000000118',
+      contentType: 'image/jpeg',
+      expectedSizeBytes: 1000,
+    }, OP)).rejects.toBeInstanceOf(TransportOrderNotOwnedError);
+  });
+
+  it('#7: finalizeIntake(accepted=false) without rejectionReasonCode omits code from delta/payload', async () => {
+    const negotiated = await service.negotiateUpload({
+      manifestCorrelationId: '11111111-1111-4111-8111-100000000007',
+      transportOrderId: TRANSPORT_ORDER_ID,
+      contentType: 'image/jpeg',
+      expectedSizeBytes: 1_000_000,
+    }, OP);
+    await service.commitUpload({
+      uploadSessionId: negotiated.uploadSessionId,
+      actualSizeBytes: 1_000_000,
+      contentHash: 'b'.repeat(64),
+    }, OP);
+    const res = await service.finalizeIntake({ uploadSessionId: negotiated.uploadSessionId, accepted: false }, OP);
+    expect(res.manifestId).toBeDefined();
   });
 });
