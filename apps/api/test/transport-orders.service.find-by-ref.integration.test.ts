@@ -97,4 +97,99 @@ describe('@fleet/api - TransportOrdersService.findByCompanyIdOrRef (integration)
     });
     expect(thrown).toBeInstanceOf(TransportOrderNotFoundError);
   });
+  it('enriches pickup/delivery warehouse names and timestamp fields when the order has stops with warehouses and a populated road_run', async () => {
+    let pickupName: string | null | undefined;
+    let deliveryName: string | null | undefined;
+    let plannedStartAt: string | null | undefined;
+    let startedAt: string | null | undefined;
+    let completedAt: string | null | undefined;
+    let stopsLen: number | undefined;
+    await withTxIsolation(testDb, async (tx) => {
+      const svc = new TransportOrdersService(tx as never);
+      const op = createOperatorContext();
+      const { operatorId, vehicleId } = await seedActivePair(tx, op);
+      // Seed two warehouses (pickup and delivery) and bind them to the
+      // stops so the warehouseName join populates.
+      const { warehouse } = await import('../src/database/schema/reference.js');
+      const tn = { companyId: op.companyId, businessUnitId: op.businessUnitId, depotId: op.depotId, legalEntityId: op.legalEntityId };
+      const [wp] = await tx.insert(warehouse).values({ ...tn, name: 'PickupWH', role: 'pickup' }).returning({ warehouseId: warehouse.warehouseId });
+      const [wd] = await tx.insert(warehouse).values({ ...tn, name: 'DeliveryWH', role: 'delivery' }).returning({ warehouseId: warehouse.warehouseId });
+      if (wp === undefined || wd === undefined) throw new Error('warehouse seed failed');
+      const created = await svc.create({
+        stops: [
+          { sequence: 1, stopType: 'pickup', yardId: wp.warehouseId, plannedAt: '2026-06-01T08:00:00.000Z' },
+          { sequence: 2, stopType: 'delivery', yardId: wd.warehouseId, plannedAt: '2026-06-01T12:00:00.000Z' },
+        ],
+        roadRun: {
+          plannedStartAt: '2026-06-01T07:00:00.000Z',
+          assignedOperatorId: operatorId,
+          assignedAssetId: vehicleId,
+        },
+      }, op);
+      // create() does not expose startedAt/completedAt on roadRun (set
+      // by the driver-side endpoints later). Set them directly so the
+      // enrichment branches in findByCompanyIdOrRef are exercised.
+      const { roadRun } = await import('../src/database/schema/transport.js');
+      const { eq } = await import('drizzle-orm');
+      await tx.update(roadRun)
+        .set({
+          startedAt: new Date('2026-06-01T07:15:00.000Z'),
+          completedAt: new Date('2026-06-01T13:00:00.000Z'),
+        })
+        .where(eq(roadRun.companyId, op.companyId));
+      const found = await svc.findByCompanyIdOrRef(created.transportOrderId, op);
+      pickupName = found.pickupName;
+      deliveryName = found.deliveryName;
+      plannedStartAt = found.plannedStartAt;
+      startedAt = found.startedAt;
+      completedAt = found.completedAt;
+      stopsLen = found.stops.length;
+    });
+    expect(pickupName).toBe('PickupWH');
+    expect(deliveryName).toBe('DeliveryWH');
+    expect(plannedStartAt).toBe('2026-06-01T07:00:00.000Z');
+    expect(startedAt).toBe('2026-06-01T07:15:00.000Z');
+    expect(completedAt).toBe('2026-06-01T13:00:00.000Z');
+    expect(stopsLen).toBe(2);
+  });
+  it('falls back to null pickup/delivery names and null timestamps when stops have no warehouse and the road_run has no timestamps', async () => {
+    let pickupName: string | null | undefined;
+    let deliveryName: string | null | undefined;
+    let plannedStartAt: string | null | undefined;
+    let startedAt: string | null | undefined;
+    let completedAt: string | null | undefined;
+    await withTxIsolation(testDb, async (tx) => {
+      const svc = new TransportOrdersService(tx as never);
+      const op = createOperatorContext();
+      const { operatorId, vehicleId } = await seedActivePair(tx, op);
+      // No warehouses on stops; only one pickup, no delivery.
+      const created = await svc.create({
+        stops: [{ sequence: 1, stopType: 'pickup' }],
+        roadRun: {
+          plannedStartAt: '2026-06-02T07:00:00.000Z',
+          assignedOperatorId: operatorId,
+          assignedAssetId: vehicleId,
+        },
+      }, op);
+      // Force startedAt and completedAt back to NULL so the null
+      // branches of the ternary in findByCompanyIdOrRef are exercised.
+      const { roadRun } = await import('../src/database/schema/transport.js');
+      const { eq } = await import('drizzle-orm');
+      await tx.update(roadRun)
+        .set({ startedAt: null, completedAt: null })
+        .where(eq(roadRun.companyId, op.companyId));
+      const found = await svc.findByCompanyIdOrRef(created.transportOrderId, op);
+      pickupName = found.pickupName;
+      deliveryName = found.deliveryName;
+      plannedStartAt = found.plannedStartAt;
+      startedAt = found.startedAt;
+      completedAt = found.completedAt;
+    });
+    expect(pickupName).toBeNull();
+    expect(deliveryName).toBeNull();
+    // plannedStartAt is non-null here; assertion intentionally omitted.
+    expect(plannedStartAt).not.toBeNull();
+    expect(startedAt).toBeNull();
+    expect(completedAt).toBeNull();
+  });
 });
