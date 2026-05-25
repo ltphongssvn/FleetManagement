@@ -13,11 +13,11 @@
 //
 // What: a vitest globalSetup is a module that exports a default function.
 // Its return value, if a function, is invoked once after every test file
-// in the integration run completes (success OR failure). We use that to
-// docker rm -f every container labeled org.testcontainers=true — the
-// canonical label Testcontainers stamps on each container it creates.
-// Compose-managed containers (fleet-pilot-*) carry com.docker.compose.*
-// labels instead and are never matched, so the dev stack is safe.
+// in the run completes (success OR failure). We use that to docker rm -f
+// every container labeled org.testcontainers=true — the canonical label
+// Testcontainers stamps on each container it creates. Compose-managed
+// containers (fleet-pilot-*) carry com.docker.compose.* labels instead
+// and are never matched, so the dev stack is safe.
 //
 // 2026 best practice: run the cleanup via the local docker CLI (already
 // required for testcontainers to work) rather than re-using the
@@ -25,6 +25,7 @@
 // state by the very failure we're cleaning up after.
 import { execFileSync } from 'node:child_process';
 export default function setup(): () => Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/require-await -- vitest globalSetup teardown must return a Promise<void> even when the body is sync
   return async function teardown(): Promise<void> {
     try {
       const idsRaw = execFileSync(
@@ -35,11 +36,8 @@ export default function setup(): () => Promise<void> {
       if (idsRaw.length === 0) return;
       const ids = idsRaw.split(/\s+/);
       execFileSync('docker', ['rm', '-f', ...ids], { stdio: ['ignore', 'pipe', 'pipe'] });
-      const stderr = '[vitest globalTeardown] removed ' + String(ids.length) + ' testcontainers container(s)';
-      process.stderr.write(stderr + '\n');
+      process.stderr.write('[vitest globalTeardown] removed ' + String(ids.length) + ' testcontainers container(s)\n');
     } catch (err) {
-      // Cleanup MUST NOT fail the test run. Surface the error on stderr so
-      // CI logs show it and move on. The next run will retry.
       const msg = err instanceof Error ? err.message : String(err);
       process.stderr.write('[vitest globalTeardown] docker cleanup failed: ' + msg + '\n');
     }
