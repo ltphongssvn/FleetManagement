@@ -25,24 +25,51 @@ export class ReferenceService {
       depotId: op.depotId, legalEntityId: op.legalEntityId,
     };
   }
+  // Business invariant (2026-Q2): driver and vehicle MUST be actively
+  // assigned together for either to be selectable on the dispatch form.
+  // Therefore drivers() and vehicles() return only entities that participate
+  // in an active (not revoked) driver_vehicle_assignment whose counterpart
+  // is also active and within the same tenancy. Source-of-truth filtering
+  // here means the UI cannot accidentally (or maliciously) expose an
+  // unpaired entity. The driverVehicleAssignments() mapping endpoint reuses
+  // the same join shape so the three lists are guaranteed consistent.
   async drivers(op: OperatorContext): Promise<ReferenceListResponse> {
-    // operator_id is nullable in the schema; a driver without one cannot be a
-    // valid roadRun.assignedOperatorId, so exclude those rows. The isNotNull
-    // filter guarantees every returned operatorId is a string.
-    const rows = await this.db.select({ id: driver.operatorId, label: driver.fullName }).from(driver)
+    const rows = await this.db
+      .selectDistinct({ id: driver.operatorId, label: driver.fullName })
+      .from(driver)
+      .innerJoin(driverVehicleAssignment, eq(driverVehicleAssignment.driverId, driver.driverId))
+      .innerJoin(vehicle, eq(driverVehicleAssignment.vehicleId, vehicle.vehicleId))
       .where(and(
         eq(driver.companyId, op.companyId),
+        eq(driverVehicleAssignment.companyId, op.companyId),
+        eq(vehicle.companyId, op.companyId),
         eq(driver.active, true),
+        eq(vehicle.active, true),
+        isNull(driverVehicleAssignment.revokedAt),
         isNotNull(driver.operatorId),
-      )).orderBy(asc(driver.fullName));
+      ))
+      .orderBy(asc(driver.fullName));
     const items = rows
       .filter((r): r is { id: string; label: string } => r.id !== null)
       .map((r) => ({ id: r.id, label: r.label }));
     return { items };
   }
   async vehicles(op: OperatorContext): Promise<ReferenceListResponse> {
-    const rows = await this.db.select({ id: vehicle.vehicleId, label: vehicle.plate }).from(vehicle)
-      .where(and(eq(vehicle.companyId, op.companyId), eq(vehicle.active, true))).orderBy(asc(vehicle.plate));
+    const rows = await this.db
+      .selectDistinct({ id: vehicle.vehicleId, label: vehicle.plate })
+      .from(vehicle)
+      .innerJoin(driverVehicleAssignment, eq(driverVehicleAssignment.vehicleId, vehicle.vehicleId))
+      .innerJoin(driver, eq(driverVehicleAssignment.driverId, driver.driverId))
+      .where(and(
+        eq(vehicle.companyId, op.companyId),
+        eq(driverVehicleAssignment.companyId, op.companyId),
+        eq(driver.companyId, op.companyId),
+        eq(vehicle.active, true),
+        eq(driver.active, true),
+        isNull(driverVehicleAssignment.revokedAt),
+        isNotNull(driver.operatorId),
+      ))
+      .orderBy(asc(vehicle.plate));
     return { items: rows };
   }
   async customers(op: OperatorContext): Promise<ReferenceListResponse> {
@@ -61,20 +88,6 @@ export class ReferenceService {
       .orderBy(asc(warehouse.name));
     return { items: rows };
   }
-  // --- Driver↔Vehicle active assignments ---------------------------------
-  // Returns the active 1:1 pairings as { operatorId, vehicleId } for the
-  // company. The dispatch form keys the driver dropdown on operator_id (not
-  // driver_id) because road_run.assigned_operator_id is the canonical link
-  // to the driver app. Joining via operator_id here lets the form auto-fill
-  // Tài xế when Số xe is picked (and vice versa) without a second round trip.
-  // Exclusions: revoked assignments, inactive driver, inactive vehicle,
-  // drivers with null operator_id (cannot be used as a form value).
-  // Tenancy: filters on dva.companyId AND constrains the joined driver/vehicle
-  // to the same companyId (defense-in-depth — FKs do not enforce tenancy
-  // consistency across joined tables; an upstream bad insert could otherwise
-  // leak a foreign-company driver/vehicle into the response).
-  // Order: by operator_id asc — matches the deterministic ordering convention
-  // of every other reference list method (drivers/vehicles/customers/...).
   async driverVehicleAssignments(op: OperatorContext): Promise<DriverVehicleAssignmentsResponse> {
     const rows = await this.db
       .select({ operatorId: driver.operatorId, vehicleId: vehicle.vehicleId })
@@ -96,11 +109,6 @@ export class ReferenceService {
       .map((r) => ({ operatorId: r.operatorId, vehicleId: r.vehicleId }));
     return { items };
   }
-  // --- CRUD for dispatch-form master data ---------------------------------
-  // create returns the new row as a { id, label } option so the caller can
-  // append it to a dropdown without a refetch. update renames in place.
-  // delete is a soft delete (active=false) so transport orders that already
-  // reference the row keep their label; list methods exclude inactive rows.
   async createCustomer(op: OperatorContext, name: string): Promise<{ id: string; label: string }> {
     const [row] = await this.db.insert(customer)
       .values({ ...this.tenancy(op), name }).returning({ id: customer.customerId, label: customer.name });
