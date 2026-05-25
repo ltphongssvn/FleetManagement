@@ -26,7 +26,7 @@ function mockRes(): MockRes {
     body: undefined,
     status: vi.fn().mockReturnThis(),
     setHeader: vi.fn().mockImplementation(function (this: unknown, k: string, v: string): unknown {
-      (res.headers as Record<string, string>)[k.toLowerCase()] = v;
+      res.headers[k.toLowerCase()] = v;
       return this;
     }),
     send: vi.fn().mockImplementation(function (this: unknown, b: Buffer): unknown {

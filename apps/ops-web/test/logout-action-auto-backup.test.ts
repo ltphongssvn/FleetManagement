@@ -1,6 +1,6 @@
 // apps/ops-web/test/logout-action-auto-backup.test.ts
 //
-// L2 RED: logout.action must fire the auto-backup with trigger='logout'
+// L2: logout.action must fire the auto-backup with trigger='logout'
 // BEFORE deleting the session cookie (the API call needs the JWT). Backup
 // failures must NOT block the redirect to /login.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -26,8 +26,10 @@ describe('@fleet/ops-web - logout.action auto-backup wiring', () => {
     expect(fetchSpy).toHaveBeenCalledOnce();
     const call = fetchSpy.mock.calls[0];
     if (!call) throw new Error('no fetch call');
-    expect(String(call[0])).toContain('/transport-orders-export/auto');
-    const init = call[1] as RequestInit;
+    const url = typeof call[0] === 'string' ? call[0] : (call[0] as Request).url;
+    expect(url).toContain('/transport-orders-export/auto');
+    const init: RequestInit | undefined = call[1];
+    if (!init) throw new Error('no init');
     expect(JSON.parse(init.body as string)).toEqual({ trigger: 'logout' });
     expect((init.headers as Record<string, string>)['Authorization']).toBe('Bearer jwt-xyz');
     expect(deleteMock).toHaveBeenCalledWith('fleet_session');

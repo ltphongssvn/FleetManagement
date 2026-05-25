@@ -34,7 +34,7 @@ async function main(): Promise<void> {
   console.log('wipe-business-data: OK');
   await pool.end();
 }
-main().catch((err) => {
+main().catch((err: unknown) => {
   console.error('wipe-business-data: FAILED', err);
   process.exit(1);
 });

@@ -27,7 +27,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { PgliteDatabase } from 'drizzle-orm/pglite';
 // Accept either node-postgres or pglite drizzle instances. The runtime
 // requirement is just .execute(sql).
-type AnyDb = NodePgDatabase<Record<string, never>> | PgliteDatabase<Record<string, never>>;
+type AnyDb = NodePgDatabase | PgliteDatabase;
 export async function wipeBusinessData(db: AnyDb): Promise<void> {
   // Enumerate all public-schema tables EXCEPT migration bookkeeping. Drizzle
   // stores its history in the 'drizzle' schema so it is implicitly excluded

@@ -63,7 +63,7 @@ function vnDayKey(now: Date = new Date()): string {
   const y = shifted.getUTCFullYear();
   const m = String(shifted.getUTCMonth() + 1).padStart(2, '0');
   const d = String(shifted.getUTCDate()).padStart(2, '0');
-  return y + '-' + m + '-' + d;
+  return String(y) + '-' + m + '-' + d;
 }
 function tenantSlug(companyId: string): string {
   return companyId.replace(/-/g, '').slice(0, 8);

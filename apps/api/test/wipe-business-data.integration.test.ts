@@ -61,7 +61,8 @@ describe('@fleet/api - wipeBusinessData (integration)', () => {
     await wipeBusinessData(testDb.db as never);
     const after = await countAll();
     for (const [tbl, n] of Object.entries(after)) {
-      expect(n, 'table ' + tbl + ' should be empty').toBe(0);
+      if (n !== 0) throw new Error('table ' + tbl + ' should be empty but has ' + String(n) + ' rows');
+      expect(n).toBe(0);
     }
   });
   it('after wipe: drizzle migration bookkeeping is preserved', async () => {

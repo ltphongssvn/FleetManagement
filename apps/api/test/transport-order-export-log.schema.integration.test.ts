@@ -30,6 +30,10 @@ describe('@fleet/api - transport_order_export_log schema (integration)', () => {
       "VALUES ('" + CO + "','" + CO + "','" + CO + "','" + CO + "', " +
       "'" + OP + "','manual','2026-05-24',5,'abc123','f.xlsx')";
     await testDb.db.execute(sql.raw(q));
+    const r = await testDb.db.execute<{ c: number }>(sql.raw(
+      "SELECT COUNT(*)::int AS c FROM transport_order_export_log WHERE trigger = 'manual'"
+    ));
+    expect((r.rows[0] as { c: number }).c).toBeGreaterThanOrEqual(1);
   });
   it('UNIQUE (company_id, operator_id, day_key, trigger) for auto triggers rejects duplicates same day', async () => {
     const ins = (trig: string): Promise<unknown> => {

@@ -34,7 +34,7 @@ async function seed(): Promise<void> {
   );
   await exec(
     "INSERT INTO dispatch_board_projection (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, stop_count, transport_order_refs, server_seq, planned_start_at, assigned_operator_id, assigned_asset_id) " +
-    "VALUES ('" + ROAD_RUN_ID + "','" + co + "','" + co + "','" + co + "','" + co + "','planned',2,'[\"XT.0001\"]'::jsonb,1,'2026-05-24T08:00:00Z','" + DRIVER_OP_ID + "','" + VEHICLE_ID + "')"
+    "VALUES ('" + ROAD_RUN_ID + "','" + co + "','" + co + "','" + co + "','" + co + "','planned',2,'[" + String.fromCharCode(34) + "XT.0001" + String.fromCharCode(34) + "]'::jsonb,1,'2026-05-24T08:00:00Z','" + DRIVER_OP_ID + "','" + VEHICLE_ID + "')"
   );
 }
 describe('@fleet/api - export worksheet shows labels, not UUIDs', () => {
@@ -57,7 +57,7 @@ describe('@fleet/api - export worksheet shows labels, not UUIDs', () => {
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
     const driverCell = ws.getRow(2).getCell(3).value;
     expect(driverCell).toBe('NGUYỄN VĂN A');
-    expect(String(driverCell)).not.toContain(DRIVER_OP_ID);
+    expect(driverCell as string).not.toContain(DRIVER_OP_ID);
   });
   it('renders vehicle plate (not vehicle_id UUID) in column D', async () => {
     await seed();
@@ -67,7 +67,7 @@ describe('@fleet/api - export worksheet shows labels, not UUIDs', () => {
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
     const vehicleCell = ws.getRow(2).getCell(4).value;
     expect(vehicleCell).toBe('51C 12345');
-    expect(String(vehicleCell)).not.toContain(VEHICLE_ID);
+    expect(vehicleCell as string).not.toContain(VEHICLE_ID);
   });
   it('falls back to em-dash when driver row is missing (defensive)', async () => {
     const co = OP.companyId;
@@ -77,7 +77,7 @@ describe('@fleet/api - export worksheet shows labels, not UUIDs', () => {
     );
     await exec(
       "INSERT INTO dispatch_board_projection (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, stop_count, transport_order_refs, server_seq, planned_start_at, assigned_operator_id, assigned_asset_id) " +
-      "VALUES ('" + ROAD_RUN_ID + "','" + co + "','" + co + "','" + co + "','" + co + "','planned',1,'[\"XT.0002\"]'::jsonb,1,'2026-05-24T08:00:00Z','" + DRIVER_OP_ID + "','" + VEHICLE_ID + "')"
+      "VALUES ('" + ROAD_RUN_ID + "','" + co + "','" + co + "','" + co + "','" + co + "','planned',1,'[" + String.fromCharCode(34) + "XT.0002" + String.fromCharCode(34) + "]'::jsonb,1,'2026-05-24T08:00:00Z','" + DRIVER_OP_ID + "','" + VEHICLE_ID + "')"
     );
     const r = await svc.exportAndLog(OP, 'manual');
     const wb = new ExcelJS.Workbook();
@@ -90,7 +90,7 @@ describe('@fleet/api - export worksheet shows labels, not UUIDs', () => {
     const co = OP.companyId;
     await exec(
       "INSERT INTO dispatch_board_projection (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, stop_count, transport_order_refs, server_seq, planned_start_at, assigned_operator_id, assigned_asset_id) " +
-      "VALUES ('" + ROAD_RUN_ID + "','" + co + "','" + co + "','" + co + "','" + co + "','planned',1,'[\"XT.0003\"]'::jsonb,1,'2026-05-24T08:00:00Z',NULL,NULL)"
+      "VALUES ('" + ROAD_RUN_ID + "','" + co + "','" + co + "','" + co + "','" + co + "','planned',1,'[" + String.fromCharCode(34) + "XT.0003" + String.fromCharCode(34) + "]'::jsonb,1,'2026-05-24T08:00:00Z',NULL,NULL)"
     );
     const r = await svc.exportAndLog(OP, 'manual');
     const wb = new ExcelJS.Workbook();

@@ -48,7 +48,7 @@ export class TransportOrdersExportController {
   ): Promise<void> {
     const result: ExportResult = await this.svc.exportAndLog(op, 'manual');
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename=\"' + result.filename + '\"');
+    res.setHeader('Content-Disposition', 'attachment; filename=' + String.fromCharCode(34) + result.filename + String.fromCharCode(34));
     res.setHeader('Content-Length', String(result.buffer.byteLength));
     res.send(result.buffer);
   }

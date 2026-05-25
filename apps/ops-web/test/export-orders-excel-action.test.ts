@@ -26,7 +26,7 @@ describe('@fleet/ops-web - exportOrdersExcel action', () => {
       status: 200,
       headers: {
         'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'content-disposition': 'attachment; filename=\"lenh-dieu-xe_t_2026-05-24_manual_deadbeef.xlsx\"',
+        'content-disposition': 'attachment; filename=' + String.fromCharCode(34) + 'lenh-dieu-xe_t_2026-05-24_manual_deadbeef.xlsx' + String.fromCharCode(34) + ',',
       },
     }) as never);
     const result = await exportOrdersExcel();
