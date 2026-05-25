@@ -25,7 +25,7 @@ describe('@fleet/ops-web - exportOrdersExcel parseFilename fallbacks', () => {
     if (result.status !== 'ok') throw new Error('unreachable');
     expect(result.filename).toBe('lenh-dieu-xe.xlsx');
   });
-  it('falls back when content-disposition has no filename=\"...\" match', async () => {
+  it('falls back when content-disposition has no filename match', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(new Uint8Array([0x50, 0x4b]), {
         status: 200,
