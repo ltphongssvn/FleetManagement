@@ -32,16 +32,19 @@ describe('@fleet/api - vitest configs wire globalSetup to prune testcontainers',
       const cfg = readFileSync(cfgPath, 'utf8');
       const m = GLOBAL_SETUP_RE.exec(cfg);
       expect(m).not.toBeNull();
-      if (!m) return;
-      const setupPath = resolve(apiRoot, m[1]);
+      const captured = m?.[1];
+      expect(captured).toBeDefined();
+      if (captured === undefined) return;
+      const setupPath = resolve(apiRoot, captured);
       expect(existsSync(setupPath)).toBe(true);
     });
   }
   it('the globalSetup module references the org.testcontainers label and removes containers', () => {
     const cfg = readFileSync(resolve(apiRoot, 'vitest.config.ts'), 'utf8');
     const m = GLOBAL_SETUP_RE.exec(cfg);
-    if (!m) throw new Error('globalSetup not configured');
-    const src = readFileSync(resolve(apiRoot, m[1]), 'utf8');
+    const captured = m?.[1];
+    if (captured === undefined) throw new Error('globalSetup not configured');
+    const src = readFileSync(resolve(apiRoot, captured), 'utf8');
     expect(src).toMatch(/org\.testcontainers/);
     expect(src).toMatch(/(rm|remove|stop)/i);
   });
