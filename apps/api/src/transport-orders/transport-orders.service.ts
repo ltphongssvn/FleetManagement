@@ -137,7 +137,7 @@ export class TransportOrdersService {
     return found;
   }
   // T5 (2026): company-scoped lookup that accepts either a transport_order
-  // UUID or the human-readable XT.NNN external_ref. Unlike findById +
+  // UUID or the human-readable XT.NNNN external_ref. Unlike findById +
   // listAssigned (which filter by assignedOperatorId), this method is
   // scoped only by companyId, so a dispatcher can resolve any order in
   // the company regardless of which driver the road_run was assigned to.

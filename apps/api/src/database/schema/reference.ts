@@ -103,7 +103,7 @@ export const orderSequence = pgTable(
     ...tenancyColumns,
     prefix: varchar('prefix', { length: 16 }).notNull(),
     nextValue: integer('next_value').notNull().default(1),
-    padWidth: integer('pad_width').notNull().default(3),
+    padWidth: integer('pad_width').notNull().default(4),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
   (t) => [

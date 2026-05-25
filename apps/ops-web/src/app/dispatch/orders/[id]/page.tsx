@@ -10,7 +10,7 @@
 //     on the order's current state; non-cancellable states make the form
 //     invisible.
 //   * The :id URL param can be either a transport_order UUID or the human-
-//     readable XT.NNN external_ref. The API review endpoint now accepts
+//     readable XT.NNNN external_ref. The API review endpoint now accepts
 //     either form (company-scoped findByCompanyIdOrRef under the hood) so
 //     the page hands the param through unchanged. The dispatch board links
 //     rows by external_ref; direct UUID links continue to work.

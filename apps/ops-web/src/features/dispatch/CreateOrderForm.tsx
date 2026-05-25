@@ -5,7 +5,7 @@
 //
 // T3 (2026): the Số Lệnh (external_ref) is server-assigned. The dispatcher
 // does NOT type it; on a successful submission the form surfaces the
-// allocated XT.NNN in a success banner. The defaultOrderRef prop is kept on
+// allocated XT.NNNN in a success banner. The defaultOrderRef prop is kept on
 // the interface for backwards source compatibility with callers (page.tsx)
 // but is no longer rendered as an editable input.
 //

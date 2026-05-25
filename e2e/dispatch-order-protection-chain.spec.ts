@@ -17,32 +17,34 @@
 //   Layer 5 (DB): road_run.assigned_operator_id NOT NULL constraint
 //     rejects direct INSERT with NULL operator (last line of defense).
 //
+// No-leak contract (2026-Q2): protection-chain helpers must not leak
+// active driver_vehicle_assignment rows or visible test vehicles/drivers
+// into the dispatcher live /reference data. The dispatch form is a real
+// admin surface; leaked E2E pairs would appear as selectable options on
+// every dispatcher screen, polluting the production-like UX. Captured
+// baselines in beforeAll; asserted in afterAll; per-test teardown lives
+// in afterEach via a shared seededPairs stack populated by setupPair.
+//
 // Test isolation: each test mints its own dispatcher token via /fleet/token
 // and provisions a fresh driver+vehicle+assignment with timestamp-suffixed
 // unique names, so parallel workers do not collide.
-
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { execSync } from 'node:child_process';
-
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
 const OIDC_TOKEN_URL = process.env.E2E_OIDC_TOKEN_URL ?? 'http://localhost:8080/fleet/token';
 const POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
-
 async function mintDispatcherToken(): Promise<string> {
-  // The API validates OIDC tokens against issuer 'http://mock-oauth2:8080/fleet'
-  // (the docker-internal hostname). Tokens minted from the host's localhost:8080
-  // get iss='http://localhost:8080/fleet' and are rejected. Exec the token
-  // request inside the api container so the issuer in the response matches.
   const script =
-    "fetch('http://mock-oauth2:8080/fleet/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:'grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret'})" +
-    ".then(r=>r.json()).then(j=>process.stdout.write(j.access_token))";
-  const out = execSync("docker exec fleet-pilot-api-1 node -e \"" + script + "\"", { stdio: ['pipe', 'pipe', 'pipe'] }).toString();
+    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
+    ',{method:' + JSON.stringify('POST') +
+    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
+    ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
+    '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
+  const out = execSync('docker exec fleet-pilot-api-1 node -e ' + JSON.stringify(script), { stdio: ['pipe', 'pipe', 'pipe'] }).toString();
   if (!out || !out.includes('.')) throw new Error('Token mint failed: ' + out);
   return out.trim();
 }
-
-
 interface SeededPair {
   driverId: string;
   operatorId: string;
@@ -52,7 +54,6 @@ interface SeededPair {
   assignmentId: string;
   token: string;
 }
-
 async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
@@ -63,7 +64,6 @@ async function adminPost<T>(api: APIRequestContext, token: string, path: string,
   }
   return (await res.json()) as T;
 }
-
 async function adminDelete(api: APIRequestContext, token: string, path: string, body: unknown): Promise<void> {
   const res = await api.delete(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
@@ -73,7 +73,12 @@ async function adminDelete(api: APIRequestContext, token: string, path: string, 
     throw new Error('DELETE ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   }
 }
-
+async function listLabels(api: APIRequestContext, token: string, path: string): Promise<readonly string[]> {
+  const res = await api.get(API_URL + path, { headers: { Authorization: 'Bearer ' + token } });
+  if (!res.ok()) throw new Error('GET ' + path + ' failed ' + String(res.status()));
+  const json = (await res.json()) as { items: readonly { label: string }[] };
+  return json.items.map((i) => i.label).sort();
+}
 async function setupPair(api: APIRequestContext, suffix: string): Promise<SeededPair> {
   const token = await mintDispatcherToken();
   const ts = Date.now();
@@ -101,7 +106,6 @@ async function setupPair(api: APIRequestContext, suffix: string): Promise<Seeded
     token,
   };
 }
-
 async function loginAsDispatcher(page: Page): Promise<void> {
   await page.goto('/login');
   await page.getByLabel(/tên đăng nhập|username/i).fill('dispatcher');
@@ -109,13 +113,8 @@ async function loginAsDispatcher(page: Page): Promise<void> {
   await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
 }
-
 interface PsqlResult { stdout: string; stderr: string; failed: boolean }
-
 function dockerPsql(sql: string): PsqlResult {
-  // Run psql inside the running postgres container. Pass SQL via stdin so
-  // we don't have to shell-quote single quotes; psql reads from stdin by
-  // default when no -c is provided.
   const cmd = 'docker exec -i ' + POSTGRES_CONTAINER + ' psql -U fleet -d fleet -tA -v ON_ERROR_STOP=1';
   try {
     const stdout = execSync(cmd, { input: sql, stdio: ['pipe', 'pipe', 'pipe'] }).toString();
@@ -129,30 +128,75 @@ function dockerPsql(sql: string): PsqlResult {
     };
   }
 }
-
 test.describe.configure({ mode: 'serial' });
 test.describe('dispatch order protection chain (Layers 1-5)', () => {
+  // 2026-Q2 no-leak contract. Captured baselines drive the afterAll
+  // assertion; afterEach pops every SeededPair pushed by setupPair callers
+  // and revokes/soft-deletes the dependent rows so they vanish from the
+  // dispatcher reference lists.
+  let vehiclesBaseline: readonly string[] = [];
+  let driversBaseline: readonly string[] = [];
+  const seededPairs: SeededPair[] = [];
+  test.beforeAll(async ({ request }) => {
+    const token = await mintDispatcherToken();
+    vehiclesBaseline = await listLabels(request, token, '/reference/vehicles');
+    driversBaseline = await listLabels(request, token, '/reference/drivers');
+  });
+  test.afterEach(async ({ request }) => {
+    while (seededPairs.length > 0) {
+      const pair = seededPairs.pop();
+      if (!pair) continue;
+      try {
+        await adminDelete(request, pair.token, '/admin/driver-vehicle-assignments/' + pair.assignmentId, { reason: 'e2e-afterEach' });
+      } catch { /* already revoked by the test body (e.g. Layer 4) */ }
+      try {
+        const r = await request.delete(API_URL + '/reference/vehicles/' + pair.vehicleId, {
+          headers: { Authorization: 'Bearer ' + pair.token },
+        });
+        if (!r.ok()) { /* tolerate idempotent failures */ }
+      } catch { /* tolerate idempotent failures */ }
+      try {
+        const r = await request.delete(API_URL + '/admin/drivers/' + pair.driverId, {
+          headers: { Authorization: 'Bearer ' + pair.token },
+        });
+        if (!r.ok()) { /* tolerate idempotent failures */ }
+      } catch { /* tolerate idempotent failures */ }
+    }
+  });
+  test.afterAll(async ({ request }) => {
+    const token = await mintDispatcherToken();
+    const vehiclesAfter = await listLabels(request, token, '/reference/vehicles');
+    const driversAfter = await listLabels(request, token, '/reference/drivers');
+    expect(vehiclesAfter).toEqual(vehiclesBaseline);
+    expect(driversAfter).toEqual(driversBaseline);
+  });
   test('Layer 1: paired-only dropdown filtering + hidden assignedAssetId auto-fill', async ({ page, request }) => {
     const pair = await setupPair(request, 'L1');
+    seededPairs.push(pair);
     const unpairedVehicleLabel = 'E2E-UNPAIRED-' + String(Date.now());
-    await adminPost(request, pair.token, '/reference/vehicles', { name: unpairedVehicleLabel });
-
+    const unpairedVeh = await adminPost<{ id: string; label: string }>(
+      request, pair.token, '/reference/vehicles', { name: unpairedVehicleLabel },
+    );
     await loginAsDispatcher(page);
     await page.goto('/');
-
     const vehicleInput = page.locator('input#vehiclePlate');
     await vehicleInput.click();
     await vehicleInput.fill('E2E-');
-
     await expect(page.getByRole('option', { name: pair.vehicleLabel })).toBeVisible();
     await expect(page.getByRole('option', { name: unpairedVehicleLabel })).toHaveCount(0);
-
     await page.getByRole('option', { name: pair.vehicleLabel }).click();
-    await expect(page.locator('input[name="assignedAssetId"]')).toHaveValue(pair.vehicleId);
+    await expect(page.locator('input[name=' + JSON.stringify('assignedAssetId') + ']')).toHaveValue(pair.vehicleId);
+    // The unpaired bare vehicle created here is not part of a SeededPair,
+    // so afterEach would not clean it. Soft-delete it directly.
+    try {
+      await request.delete(API_URL + '/reference/vehicles/' + unpairedVeh.id, {
+        headers: { Authorization: 'Bearer ' + pair.token },
+      });
+    } catch { /* tolerate */ }
   });
-
   test('Layer 1+2 happy path: form to action to API to service to DB row', async ({ page, request }) => {
     const pair = await setupPair(request, 'L2');
+    seededPairs.push(pair);
     const sq = String.fromCharCode(39);
     const beforeMaxSql =
       'SELECT COALESCE(MAX((substring(external_ref FROM ' + sq + '^XT\\.(\\d+)$' + sq + '))::int), 0) ' +
@@ -173,8 +217,6 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
     await page.locator('input#deliveryWarehouse_1').click();
     await page.getByRole('option').first().click();
     await page.getByRole('button', { name: 'Tạo lệnh' }).click();
-    // T3: external_ref is server-assigned (XT.NNN). Poll DB for a new row
-    // whose XT sequence exceeds the pre-submit max.
     const findSql =
       'SELECT external_ref FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq + ' ' +
       'AND external_ref ~ ' + sq + '^XT\\.\\d+$' + sq + ' ' +
@@ -189,9 +231,9 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
     }
     expect(createdRef).toMatch(/^XT\.\d{4,}$/);
   });
-
   test('Layer 3: API DTO rejects body missing roadRun.assignedAssetId', async ({ request }) => {
     const pair = await setupPair(request, 'L3');
+    seededPairs.push(pair);
     const res = await request.post(API_URL + '/transport-orders', {
       headers: { Authorization: 'Bearer ' + pair.token, 'Content-Type': 'application/json' },
       data: {
@@ -204,11 +246,10 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
     expect(res.status()).toBeGreaterThanOrEqual(400);
     expect(res.status()).toBeLessThan(600);
   });
-
   test('Layer 4: service rejects revoked driver_vehicle_assignment', async ({ request }) => {
     const pair = await setupPair(request, 'L4');
+    seededPairs.push(pair);
     await adminDelete(request, pair.token, '/admin/driver-vehicle-assignments/' + pair.assignmentId, { reason: 'e2e-revoke' });
-
     const res = await request.post(API_URL + '/transport-orders', {
       headers: { Authorization: 'Bearer ' + pair.token, 'Content-Type': 'application/json' },
       data: {
@@ -223,17 +264,17 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
     expect(res.ok()).toBe(false);
     expect(res.status()).toBeGreaterThanOrEqual(400);
   });
-
   test('Layer 5: DB NOT NULL constraint rejects road_run with NULL assigned_operator_id', async () => {
     const fakeVehicleUuid = '00000000-0000-0000-0000-0000000000ff';
     const sql =
       'INSERT INTO road_run ' +
       '(company_id, business_unit_id, depot_id, legal_entity_id, ' +
       'assigned_operator_id, assigned_asset_id) VALUES (' +
-      "'" + COMPANY_ID + "','" + COMPANY_ID + "','" + COMPANY_ID + "','" + COMPANY_ID + "'," +
-      " NULL, '" + fakeVehicleUuid + "');";
+      sq39() + COMPANY_ID + sq39() + ',' + sq39() + COMPANY_ID + sq39() + ',' + sq39() + COMPANY_ID + sq39() + ',' + sq39() + COMPANY_ID + sq39() + ',' +
+      ' NULL, ' + sq39() + fakeVehicleUuid + sq39() + ');';
     const result = dockerPsql(sql);
     expect(result.failed).toBe(true);
     expect(result.stderr + result.stdout).toMatch(/null value in column .assigned_operator_id.|not-null constraint|23502/);
   });
 });
+function sq39(): string { return String.fromCharCode(39); }

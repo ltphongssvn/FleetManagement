@@ -1,6 +1,6 @@
 // apps/api/test/transport-orders.service.numbering.integration.test.ts
 // RED → GREEN: TransportOrdersService.create must allocate a server-assigned
-// external_ref of the form XT.NNN via the OrderNumberingService dependency,
+// external_ref of the form XT.NNNN via the OrderNumberingService dependency,
 // regardless of any client-supplied externalRef. The number must be
 // strictly monotonic per company (driven by order_sequence FOR UPDATE).
 //
@@ -53,7 +53,7 @@ async function seedActivePair(tx: TestTx, op = OP, suffix = 'A'): Promise<{
 describe('@fleet/api - TransportOrdersService auto-numbering (T3)', () => {
   beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
   afterAll(async () => { await stopPgliteTestDb(testDb); });
-  it('returns externalRef matching XT.NNN on the response', async () => {
+  it('returns externalRef matching XT.NNNN on the response', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const numbering = new OrderNumberingService();
       const svc = new TransportOrdersService(tx as never, numbering);
@@ -65,7 +65,7 @@ describe('@fleet/api - TransportOrdersService auto-numbering (T3)', () => {
       expect(result.externalRef).toMatch(ORDER_NUMBER_REGEX);
     });
   });
-  it('ignores client-supplied externalRef and uses server-assigned XT.NNN', async () => {
+  it('ignores client-supplied externalRef and uses server-assigned XT.NNNN', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const numbering = new OrderNumberingService();
       const svc = new TransportOrdersService(tx as never, numbering);
@@ -85,7 +85,7 @@ describe('@fleet/api - TransportOrdersService auto-numbering (T3)', () => {
       expect(row?.externalRef).not.toBe(clientGarbage);
     });
   });
-  it('produces strictly increasing XT.NNN across two sequential creates', async () => {
+  it('produces strictly increasing XT.NNNN across two sequential creates', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const numbering = new OrderNumberingService();
       const svc = new TransportOrdersService(tx as never, numbering);
@@ -101,7 +101,7 @@ describe('@fleet/api - TransportOrdersService auto-numbering (T3)', () => {
       }, OP);
       const parse = (ref: string): number => {
         const m = /^XT\.(\d+)$/.exec(ref);
-        if (!m?.[1]) throw new Error('not XT.NNN: ' + ref);
+        if (!m?.[1]) throw new Error('not XT.NNNN: ' + ref);
         return parseInt(m[1], 10);
       };
       const n1 = parse(r1.externalRef);
