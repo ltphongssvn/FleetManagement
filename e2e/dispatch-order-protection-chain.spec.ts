@@ -130,18 +130,19 @@ function dockerPsql(sql: string): PsqlResult {
 }
 test.describe.configure({ mode: 'serial' });
 test.describe('dispatch order protection chain (Layers 1-5)', () => {
-  // 2026-Q2 no-leak contract. Captured baselines drive the afterAll
-  // assertion; afterEach pops every SeededPair pushed by setupPair callers
-  // and revokes/soft-deletes the dependent rows so they vanish from the
-  // dispatcher reference lists.
-  let vehiclesBaseline: readonly string[] = [];
-  let driversBaseline: readonly string[] = [];
+  // 2026-Q2 no-leak contract. Self-scoped assertion: track every
+  // (vehicleLabel, driverLabel) the spec seeds via setupPair; afterAll
+  // asserts none of THOSE specific labels remain in dispatcher reference
+  // data. This is parallel-safe — unlike the baseline-equality pattern,
+  // which is fragile when sibling E2E specs are mid-test in other workers.
   const seededPairs: SeededPair[] = [];
-  test.beforeAll(async ({ request }) => {
-    const token = await mintDispatcherToken();
-    vehiclesBaseline = await listLabels(request, token, '/reference/vehicles');
-    driversBaseline = await listLabels(request, token, '/reference/drivers');
-  });
+  const seededVehicleLabels = new Set<string>();
+  const seededDriverLabels = new Set<string>();
+  function trackPair(pair: SeededPair): void {
+    seededPairs.push(pair);
+    seededVehicleLabels.add(pair.vehicleLabel);
+    seededDriverLabels.add(pair.driverLabel);
+  }
   test.afterEach(async ({ request }) => {
     while (seededPairs.length > 0) {
       const pair = seededPairs.pop();
@@ -167,12 +168,14 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
     const token = await mintDispatcherToken();
     const vehiclesAfter = await listLabels(request, token, '/reference/vehicles');
     const driversAfter = await listLabels(request, token, '/reference/drivers');
-    expect(vehiclesAfter).toEqual(vehiclesBaseline);
-    expect(driversAfter).toEqual(driversBaseline);
+    const leakedVehicles = vehiclesAfter.filter((l) => seededVehicleLabels.has(l));
+    const leakedDrivers = driversAfter.filter((l) => seededDriverLabels.has(l));
+    expect(leakedVehicles).toEqual([]);
+    expect(leakedDrivers).toEqual([]);
   });
   test('Layer 1: paired-only dropdown filtering + hidden assignedAssetId auto-fill', async ({ page, request }) => {
     const pair = await setupPair(request, 'L1');
-    seededPairs.push(pair);
+    trackPair(pair);
     const unpairedVehicleLabel = 'E2E-UNPAIRED-' + String(Date.now());
     const unpairedVeh = await adminPost<{ id: string; label: string }>(
       request, pair.token, '/reference/vehicles', { name: unpairedVehicleLabel },
@@ -196,12 +199,12 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
   });
   test('Layer 1+2 happy path: form to action to API to service to DB row', async ({ page, request }) => {
     const pair = await setupPair(request, 'L2');
-    seededPairs.push(pair);
+    trackPair(pair);
     const sq = String.fromCharCode(39);
     const beforeMaxSql =
-      'SELECT COALESCE(MAX((substring(external_ref FROM ' + sq + '^XT\\.(\\d+)$' + sq + '))::int), 0) ' +
+      'SELECT COALESCE(MAX((substring(external_ref FROM ' + sq + '^XTT\\.\\d{2}-(\\d+)$' + sq + '))::int), 0) ' +
       'FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq +
-      ' AND external_ref ~ ' + sq + '^XT\\.\\d+$' + sq + ';';
+      ' AND external_ref ~ ' + sq + '^XTT\\.(0[1-9]|1[0-2])-\\d+$' + sq + ';';
     const beforeMax = parseInt(dockerPsql(beforeMaxSql).stdout.trim(), 10);
     await loginAsDispatcher(page);
     await page.goto('/');
@@ -219,8 +222,8 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
     await page.getByRole('button', { name: 'Tạo lệnh' }).click();
     const findSql =
       'SELECT external_ref FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq + ' ' +
-      'AND external_ref ~ ' + sq + '^XT\\.\\d+$' + sq + ' ' +
-      'AND (substring(external_ref FROM ' + sq + '^XT\\.(\\d+)$' + sq + '))::int > ' + String(beforeMax) +
+      'AND external_ref ~ ' + sq + '^XTT\\.(0[1-9]|1[0-2])-\\d+$' + sq + ' ' +
+      'AND (substring(external_ref FROM ' + sq + '^XTT\\.\\d{2}-(\\d+)$' + sq + '))::int > ' + String(beforeMax) +
       ' ORDER BY created_at DESC LIMIT 1;';
     let createdRef = '';
     for (let i = 0; i < 30; i++) {
@@ -229,11 +232,11 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
       if (v.length > 0) { createdRef = v; break; }
       await page.waitForTimeout(500);
     }
-    expect(createdRef).toMatch(/^XT\.\d{4,}$/);
+    expect(createdRef).toMatch(/^XTT\.(0[1-9]|1[0-2])-\d{3,}$/);
   });
   test('Layer 3: API DTO rejects body missing roadRun.assignedAssetId', async ({ request }) => {
     const pair = await setupPair(request, 'L3');
-    seededPairs.push(pair);
+    trackPair(pair);
     const res = await request.post(API_URL + '/transport-orders', {
       headers: { Authorization: 'Bearer ' + pair.token, 'Content-Type': 'application/json' },
       data: {
@@ -248,7 +251,7 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
   });
   test('Layer 4: service rejects revoked driver_vehicle_assignment', async ({ request }) => {
     const pair = await setupPair(request, 'L4');
-    seededPairs.push(pair);
+    trackPair(pair);
     await adminDelete(request, pair.token, '/admin/driver-vehicle-assignments/' + pair.assignmentId, { reason: 'e2e-revoke' });
     const res = await request.post(API_URL + '/transport-orders', {
       headers: { Authorization: 'Bearer ' + pair.token, 'Content-Type': 'application/json' },

@@ -8,7 +8,7 @@
 // T3 (2026): the dispatcher does NOT input Số Lệnh. The API allocates the
 // external_ref atomically via OrderNumberingService and returns it on the
 // response. The action surfaces it back to the form caller via status='created'
-// so the UI can confirm the assigned XT.NNNN to the dispatcher. Any stale
+// so the UI can confirm the assigned XTT.MM-NNN to the dispatcher. Any stale
 // externalRef field arriving from the form is dropped from the API body.
 'use server';
 import { cookies } from 'next/headers';

@@ -1,8 +1,8 @@
 // apps/api/test/order-sequence-default-padwidth.integration.test.ts
 // L5 invariant (2026-Q2): the order_sequence column-level DEFAULT for
-// pad_width must be 4 to match the XT.NNNN external_ref contract enforced
+// pad_width must be 3 to match the XTT.MM-NNN external_ref contract enforced
 // by the timestamped order-number-seq migration. A schema default of 3
-// would let a future tenant get an XT.NNNN allocator inconsistent with the
+// would let a future tenant get an XTT.MM-NNN allocator inconsistent with the
 // pilot company. The default is the failsafe when neither the seed nor
 // the timestamped migration is responsible (e.g. dynamic INSERT paths).
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -27,6 +27,6 @@ describe('@fleet/api - order_sequence schema-level pad_width default', () => {
       .select({ padWidth: orderSequence.padWidth })
       .from(orderSequence)
       .where(and(eq(orderSequence.companyId, COMPANY_ID), eq(orderSequence.prefix, 'PROBE')));
-    expect(row?.padWidth).toBe(4);
+    expect(row?.padWidth).toBe(3);
   });
 });

@@ -1,7 +1,7 @@
 // apps/api/test/transport-orders.review.controller.test.ts
 // L4 unit tests for the dispatcher review controller. T5 (2026): the
 // service method changed from findById (operator-scoped) to
-// findByCompanyIdOrRef (company-scoped + accepts UUID or XT.NNNN ref);
+// findByCompanyIdOrRef (company-scoped + accepts UUID or XTT.MM-NNN ref);
 // these tests cover the controller-shape behavior: delegation, Zod
 // validation, and NotFoundException translation. Ref-or-id parsing
 // branches are covered by transport-orders.review.controller.find-by-ref.test.ts.
@@ -30,7 +30,7 @@ describe('@fleet/api - TransportOrdersReviewController', () => {
     expect(result).toEqual(row);
     expect(findByCompanyIdOrRef).toHaveBeenCalledWith(id, op);
   });
-  it('rejects a :id path param that is neither a UUID nor an XT.NNNN ref via Zod', async () => {
+  it('rejects a :id path param that is neither a UUID nor an XTT.MM-NNN ref via Zod', async () => {
     await expect(ctl.findOne('not-an-id-and-not-a-ref', op)).rejects.toThrow();
   });
   it('translates TransportOrderNotFoundError into NotFoundException', async () => {

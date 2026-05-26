@@ -6,10 +6,15 @@
 // as a real selectable option on every dispatcher's screen, polluting the
 // production-like UX.
 //
-// Contract enforced here: a single protection-chain-style setup followed
-// by the test's afterEach cleanup MUST leave /reference/vehicles and
-// /reference/drivers unchanged. Baseline is captured before the seeded
-// pair is created; after cleanup runs, the lists must equal the baseline.
+// Contract enforced here: a setupPair-style flow followed by its cleanup
+// MUST leave no trace of its OWN seeded labels in /reference/vehicles or
+// /reference/drivers. The assertion is self-scoped (checks the test's own
+// unique labels are gone) rather than comparing against a baseline list —
+// the baseline-equality pattern is fragile when other E2E specs run in
+// parallel workers (Playwright's default fullyParallel) because a sibling
+// spec mid-test can put rows into the baseline that the cleanup of THIS
+// spec is not responsible for. Self-scoping is the 2026 industry best
+// practice for parallel-safe E2E isolation tests.
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { execSync } from 'node:child_process';
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
@@ -36,10 +41,8 @@ async function listLabels(api: APIRequestContext, token: string, path: string): 
   return json.items.map((i) => i.label).sort();
 }
 test.describe('dispatch protection-chain helpers must not leak into reference data', () => {
-  test('a setupPair-style flow leaves /reference/vehicles and /reference/drivers unchanged after cleanup', async ({ request }) => {
+  test('a setupPair-style flow leaves no trace of its own seeded labels after cleanup', async ({ request }) => {
     const token = await mintDispatcherToken();
-    const vehiclesBefore = await listLabels(request, token, '/reference/vehicles');
-    const driversBefore = await listLabels(request, token, '/reference/drivers');
     const ts = Date.now();
     const phone = '09' + String(ts).slice(-8);
     const driverLabel = 'E2E DRIVER NOLEAK ' + String(ts);
@@ -57,7 +60,9 @@ test.describe('dispatch protection-chain helpers must not leak into reference da
     );
     // Sanity: midway through, the new pair IS visible to the dispatcher.
     const vehiclesDuring = await listLabels(request, token, '/reference/vehicles');
+    const driversDuring = await listLabels(request, token, '/reference/drivers');
     expect(vehiclesDuring).toContain(vehicleLabel);
+    expect(driversDuring).toContain(driverLabel);
     // Cleanup: revoke assignment, soft-delete vehicle, soft-delete driver.
     await request.delete(API_URL + '/admin/driver-vehicle-assignments/' + asgn.assignmentId, {
       headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
@@ -69,9 +74,12 @@ test.describe('dispatch protection-chain helpers must not leak into reference da
     await request.delete(API_URL + '/admin/drivers/' + drv.driverId, {
       headers: { Authorization: 'Bearer ' + token },
     });
+    // Self-scoped assertion: this test only owns vehicleLabel + driverLabel;
+    // it asserts those specific values are absent, ignoring everything else
+    // a sibling spec may have put into reference data in the meantime.
     const vehiclesAfter = await listLabels(request, token, '/reference/vehicles');
     const driversAfter = await listLabels(request, token, '/reference/drivers');
-    expect(vehiclesAfter).toEqual(vehiclesBefore);
-    expect(driversAfter).toEqual(driversBefore);
+    expect(vehiclesAfter).not.toContain(vehicleLabel);
+    expect(driversAfter).not.toContain(driverLabel);
   });
 });

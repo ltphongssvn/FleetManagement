@@ -1,6 +1,6 @@
 // apps/api/test/transport-orders.service.find-by-ref.integration.test.ts
 // L5 RED for T5: TransportOrdersService.findByCompanyIdOrRef accepts
-// either a UUID or the human-readable XT.NNNN external_ref and returns
+// either a UUID or the human-readable XTT.MM-NNN external_ref and returns
 // the matching row scoped to the dispatcher's company (single-company
 // deployment per Frozen Stack — no multi-tenant). Used by the review
 // page resolver so the dispatcher can navigate to any order in the
@@ -44,7 +44,7 @@ describe('@fleet/api - TransportOrdersService.findByCompanyIdOrRef (integration)
     });
     expect(foundId).toBe(createdId);
   });
-  it('resolves an XT.NNNN external_ref input to the matching row in the same company', async () => {
+  it('resolves an XTT.MM-NNN external_ref input to the matching row in the same company', async () => {
     let createdId: string | undefined;
     let assignedRef: string | undefined;
     let foundId: string | undefined;

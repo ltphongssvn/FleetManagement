@@ -1,7 +1,7 @@
 // apps/api/test/reference.controller.test.ts
 // Unit: ReferenceController delegates to ReferenceService and resolves the
 // prefix/role query-param ternaries. Service is mocked; JwtGuard bypassed.
-// Covers both sides of: prefix valid-regex vs fallback 'XT' (peek + allocate),
+// Covers both sides of: prefix valid-regex vs fallback 'XTT' (peek + allocate),
 // and role 'delivery' vs fallback 'pickup' (warehouses).
 //
 // Mocking style: plain object literal of vi.fn() rather than mockDeep<T>().
@@ -77,12 +77,12 @@ describe('ReferenceController', () => {
   it('peekOrderRef() falls back to XT when prefix is undefined', async () => {
     svc.peekOrderRef.mockResolvedValueOnce({ ref: 'XT.001' });
     await controller.peekOrderRef(OP);
-    expect(svc.peekOrderRef).toHaveBeenCalledWith(OP, 'XT');
+    expect(svc.peekOrderRef).toHaveBeenCalledWith(OP, 'XTT');
   });
   it('peekOrderRef() falls back to XT when prefix fails the regex', async () => {
     svc.peekOrderRef.mockResolvedValueOnce({ ref: 'XT.001' });
     await controller.peekOrderRef(OP, 'to-123');
-    expect(svc.peekOrderRef).toHaveBeenCalledWith(OP, 'XT');
+    expect(svc.peekOrderRef).toHaveBeenCalledWith(OP, 'XTT');
   });
   it('allocateOrderRef() passes a valid prefix through unchanged', async () => {
     svc.allocateOrderRef.mockResolvedValueOnce({ ref: 'TO.001' });
@@ -92,12 +92,12 @@ describe('ReferenceController', () => {
   it('allocateOrderRef() falls back to XT when prefix is undefined', async () => {
     svc.allocateOrderRef.mockResolvedValueOnce({ ref: 'XT.001' });
     await controller.allocateOrderRef(OP);
-    expect(svc.allocateOrderRef).toHaveBeenCalledWith(OP, 'XT');
+    expect(svc.allocateOrderRef).toHaveBeenCalledWith(OP, 'XTT');
   });
   it('allocateOrderRef() falls back to XT when prefix fails the regex', async () => {
     svc.allocateOrderRef.mockResolvedValueOnce({ ref: 'XT.001' });
     await controller.allocateOrderRef(OP, '');
-    expect(svc.allocateOrderRef).toHaveBeenCalledWith(OP, 'XT');
+    expect(svc.allocateOrderRef).toHaveBeenCalledWith(OP, 'XTT');
   });
   it('warehouses() maps role=delivery to delivery', async () => {
     svc.warehouses.mockResolvedValueOnce({ items: [] });

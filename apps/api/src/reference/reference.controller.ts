@@ -29,11 +29,11 @@ export class ReferenceController {
   }
   @Get('peek-order-ref')
   peekOrderRef(@CurrentOperator() op: OperatorContext, @Query('prefix') prefix?: string): Promise<{ ref: string }> {
-    return this.svc.peekOrderRef(op, prefix && /^[A-Z]{1,8}$/.test(prefix) ? prefix : 'XT');
+    return this.svc.peekOrderRef(op, prefix && /^[A-Z]{1,8}$/.test(prefix) ? prefix : 'XTT');
   }
   @Post('allocate-order-ref')
   allocateOrderRef(@CurrentOperator() op: OperatorContext, @Query('prefix') prefix?: string): Promise<{ ref: string }> {
-    return this.svc.allocateOrderRef(op, prefix && /^[A-Z]{1,8}$/.test(prefix) ? prefix : 'XT');
+    return this.svc.allocateOrderRef(op, prefix && /^[A-Z]{1,8}$/.test(prefix) ? prefix : 'XTT');
   }
   @Get('warehouses') warehouses(@CurrentOperator() op: OperatorContext, @Query('role') role?: string): Promise<ReferenceListResponse> {
     const r = role === 'delivery' ? 'delivery' : 'pickup';
