@@ -45,16 +45,14 @@ async function seedOrderWithRef(tx: TestTx, externalRef: string): Promise<void> 
     .values({ ...tn, plate: 'SEED-' + externalRef })
     .returning({ vehicleId: vehicle.vehicleId });
   if (!d || !v) throw new Error('seed driver/vehicle failed');
-  const [rr] = await tx.insert(roadRun).values({
+  await tx.insert(roadRun).values({
     ...tn,
     assignedOperatorId: operatorId,
     assignedAssetId: v.vehicleId,
-  }).returning({ roadRunId: roadRun.roadRunId });
-  if (!rr) throw new Error('seed road_run failed');
+  });
   await tx.insert(transportOrder).values({
     ...tn,
     externalRef,
-    roadRunId: rr.roadRunId,
   });
 }
 describe('@fleet/api - OrderNumberingService monthly format XTT.MM-NNN', () => {

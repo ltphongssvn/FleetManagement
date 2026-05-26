@@ -1,10 +1,11 @@
 // apps/api/src/reference/reference.service.ts
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { driver, vehicle, customer, cargoType, warehouse, orderSequence } from '../database/schema/reference.js';
 import { driverVehicleAssignment } from '../database/schema/driver-vehicle-assignment.js';
+import { transportOrder, roadRun, roadRunTransportOrder } from '../database/schema/transport.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import type { ReferenceListResponse } from './reference.dto.js';
 export interface DriverVehicleAssignmentItem {
@@ -151,8 +152,43 @@ export class ReferenceService {
       .where(and(eq(vehicle.companyId, op.companyId), eq(vehicle.vehicleId, id)));
   }
   async deleteVehicle(op: OperatorContext, id: string): Promise<void> {
-    await this.db.update(vehicle).set({ active: false })
-      .where(and(eq(vehicle.companyId, op.companyId), eq(vehicle.vehicleId, id)));
+    // Defense-in-depth (2026-Q2): soft-deleting a vehicle is a cascade.
+    // Three operations in one transaction:
+    //   1. flip vehicle.active = false
+    //   2. revoke any active driver_vehicle_assignment for this vehicle
+    //   3. cancel any non-terminal transport_order linked through
+    //      road_run.assigned_asset_id (state NOT IN completed|cancelled)
+    // Without (3), an E2E test (or any caller) that soft-deletes a vehicle
+    // leaves orphan transport_order rows in the dispatch board forever.
+    // The cancellation_reason carries provenance for audit.
+    const now = new Date();
+    await this.db.transaction(async (tx) => {
+      await tx.update(vehicle).set({ active: false })
+        .where(and(eq(vehicle.companyId, op.companyId), eq(vehicle.vehicleId, id)));
+      await tx.update(driverVehicleAssignment)
+        .set({ revokedAt: now, revocationReason: 'vehicle_soft_deleted' })
+        .where(and(
+          eq(driverVehicleAssignment.companyId, op.companyId),
+          eq(driverVehicleAssignment.vehicleId, id),
+          isNull(driverVehicleAssignment.revokedAt),
+        ));
+      const openOrderIds = await tx
+        .select({ id: transportOrder.transportOrderId })
+        .from(transportOrder)
+        .innerJoin(roadRunTransportOrder, eq(roadRunTransportOrder.transportOrderId, transportOrder.transportOrderId))
+        .innerJoin(roadRun, eq(roadRun.roadRunId, roadRunTransportOrder.roadRunId))
+        .where(and(
+          eq(transportOrder.companyId, op.companyId),
+          eq(roadRun.assignedAssetId, id),
+          inArray(transportOrder.state, ['draft', 'assigned', 'in_transit']),
+        ));
+      if (openOrderIds.length > 0) {
+        const ids = openOrderIds.map((r) => r.id);
+        await tx.update(transportOrder)
+          .set({ state: 'cancelled', cancelledAt: now, cancellationReason: 'vehicle_soft_deleted', updatedAt: now })
+          .where(and(eq(transportOrder.companyId, op.companyId), inArray(transportOrder.transportOrderId, ids)));
+      }
+    });
   }
   async createWarehouse(op: OperatorContext, name: string, role: 'pickup' | 'delivery'): Promise<{ id: string; label: string }> {
     const [row] = await this.db.insert(warehouse)

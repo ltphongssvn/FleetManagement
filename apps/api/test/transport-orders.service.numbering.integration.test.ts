@@ -113,8 +113,9 @@ describe('@fleet/api - TransportOrdersService auto-numbering (T3, XTT.MM-NNN)', 
     });
     expect(captured?.r1).toMatch(MONTHLY_REGEX);
     expect(captured?.r2).toMatch(MONTHLY_REGEX);
-    const n1 = parseMonthlyNumber(captured!.r1);
-    const n2 = parseMonthlyNumber(captured!.r2);
+    if (captured === undefined) throw new Error('no captured');
+    const n1 = parseMonthlyNumber(captured.r1);
+    const n2 = parseMonthlyNumber(captured.r2);
     expect(n2).toBe(n1 + 1);
   });
   it('advances order_sequence.next_value after each allocation', async () => {
