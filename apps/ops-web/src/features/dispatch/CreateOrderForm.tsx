@@ -19,8 +19,9 @@
 // each driver to one truck on the Đội xe page (driver_vehicle_assignment).
 // driverVehicleAssignments carries the [{ operatorId, vehicleId }] pairs.
 'use client';
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import type { JSX } from 'react';
+import { useRouter } from 'next/navigation';
 import { createOrder, type CreateOrderState } from './create-order.action';
 import { ComboboxField } from './ui/ComboboxField';
 import { t, type Locale } from '@/lib/i18n';
@@ -60,6 +61,17 @@ export function CreateOrderForm({
   locale = 'vi',
 }: CreateOrderFormProps): JSX.Element {
   const [state, formAction, pending] = useActionState<CreateOrderState, FormData>(createOrder, undefined);
+  // T3 follow-up (button state recovery): the server action intentionally
+  // no longer calls revalidatePath('/'), so trigger a targeted client-side
+  // refresh here once the action settles to 'created'. router.refresh()
+  // refetches server data WITHOUT blocking the useActionState transition,
+  // so the submit button returns to 'Tạo lệnh' immediately.
+  const router = useRouter();
+  useEffect(() => {
+    if (state?.status === 'created') {
+      router.refresh();
+    }
+  }, [state, router]);
   const [pickupCount, setPickupCount] = useState(4);
   const [deliveryCount, setDeliveryCount] = useState(1);
   const addPickup = (): void => { setPickupCount((n) => n + 1); };

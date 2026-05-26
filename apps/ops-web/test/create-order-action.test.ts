@@ -37,7 +37,13 @@ describe('createOrder server action (T3 auto-numbering)', () => {
     fd.set('deliveryWarehouse_1', 'DEST-1');
     const r = await createOrder(undefined, fd);
     expect(r).toEqual({ status: 'created', externalRef: 'XT.001', transportOrderId: 't1' });
-    expect(revalidatePath).toHaveBeenCalledWith('/');
+    // T3 follow-up (button state recovery): the action must NOT call
+    // revalidatePath('/'), because '/' hosts the form itself plus heavy
+    // server data fetching. Per Next.js v15 regression (vercel/next.js#82289)
+    // that revalidation keeps the useActionState pending flag true until
+    // the entire home page re-renders, stranding the dispatcher on
+    // 'Đang tạo…'. The client refreshes targeted state after success.
+    expect(revalidatePath).not.toHaveBeenCalledWith('/');
   });
   it('does not send externalRef in the API body even if a stale form value is present', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');

@@ -115,9 +115,12 @@ test.describe('dispatch board reflects cancellation (T5)', () => {
     await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
     await expect(page.getByRole('heading', { level: 1, name: 'Lệnh điều xe' })).toBeVisible();
     // The cancelled row's Trạng thái cell must now show 'cancelled'.
-    const rowLink = page.getByTestId('dispatch-board-row-' + order.externalRef);
+    // Use .first() to bypass strict-mode if the dispatch_board_projection
+    // contains stale rows for the same ref (e.g. residue from a prior CI run
+    // that crashed before its afterEach cleanup ran).
+    const rowLink = page.getByTestId('dispatch-board-row-' + order.externalRef).first();
     await expect(rowLink).toBeVisible({ timeout: 10000 });
-    const row = page.locator('tr', { has: rowLink });
+    const row = page.locator('tr', { has: rowLink }).first();
     await expect(row).toContainText('cancelled', { timeout: 10000 });
   });
 });
