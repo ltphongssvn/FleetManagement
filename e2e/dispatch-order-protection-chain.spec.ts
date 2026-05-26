@@ -29,7 +29,7 @@
 // and provisions a fresh driver+vehicle+assignment with timestamp-suffixed
 // unique names, so parallel workers do not collide.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { execSync } from 'node:child_process';
+import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
 const OIDC_TOKEN_URL = process.env.E2E_OIDC_TOKEN_URL ?? 'http://localhost:8080/fleet/token';
 const POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
@@ -41,7 +41,7 @@ async function mintDispatcherToken(): Promise<string> {
     ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
     ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = execSync('docker exec fleet-pilot-api-1 node -e ' + JSON.stringify(script), { stdio: ['pipe', 'pipe', 'pipe'] }).toString();
+  const out = dockerExecNode('fleet-pilot-api-1', script);
   if (!out || !out.includes('.')) throw new Error('Token mint failed: ' + out);
   return out.trim();
 }
@@ -112,21 +112,6 @@ async function loginAsDispatcher(page: Page): Promise<void> {
   await page.getByLabel(/mật khẩu|password/i).fill('any-password');
   await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
-}
-interface PsqlResult { stdout: string; stderr: string; failed: boolean }
-function dockerPsql(sql: string): PsqlResult {
-  const cmd = 'docker exec -i ' + POSTGRES_CONTAINER + ' psql -U fleet -d fleet -tA -v ON_ERROR_STOP=1';
-  try {
-    const stdout = execSync(cmd, { input: sql, stdio: ['pipe', 'pipe', 'pipe'] }).toString();
-    return { stdout, stderr: '', failed: false };
-  } catch (e) {
-    const err = e as { stderr?: Buffer; stdout?: Buffer; message?: string };
-    return {
-      stdout: err.stdout ? err.stdout.toString() : '',
-      stderr: (err.stderr ? err.stderr.toString() : '') + (err.message ?? ''),
-      failed: true,
-    };
-  }
 }
 test.describe.configure({ mode: 'serial' });
 test.describe('dispatch order protection chain (Layers 1-5)', () => {

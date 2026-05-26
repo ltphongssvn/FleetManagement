@@ -83,4 +83,17 @@ describe('CreateOrderForm — useActionState-driven branches', () => {
     const button = screen.getByRole('button', { name: /creating|submitting|tạo|đang/i });
     expect(button.hasAttribute('disabled')).toBe(true);
   });
+
+  it('invokes onCreated with empty operatorId/assetId when state is created (parent guards optimistic render)', async () => {
+    mockUseActionState.mockReturnValue([
+      { status: 'created', externalRef: 'XTT.05-111', transportOrderId: 't-1' },
+      vi.fn(),
+      false,
+    ]);
+    const onCreated = vi.fn();
+    const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
+    render(<CreateOrderForm drivers={drivers} locale="en" onCreated={onCreated} />);
+    // Bridge always notifies; parent decides whether to render optimistic row.
+    expect(onCreated).toHaveBeenCalledWith('XTT.05-111', { operatorId: '', assetId: '' });
+  });
 });

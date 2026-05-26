@@ -19,7 +19,7 @@
 // workers cleaning up their orders cannot empty the board for this
 // spec. afterAll cleans up the seeded order + projection rows.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { execSync } from 'node:child_process';
+import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
 
 const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
 const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'pw';
@@ -27,21 +27,6 @@ const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
 const POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 
-interface PsqlResult { stdout: string; stderr: string; failed: boolean }
-function dockerPsql(sql: string): PsqlResult {
-  const cmd = 'docker exec -i ' + POSTGRES_CONTAINER + ' psql -U fleet -d fleet -tA -v ON_ERROR_STOP=1';
-  try {
-    const stdout = execSync(cmd, { input: sql, stdio: ['pipe', 'pipe', 'pipe'] }).toString();
-    return { stdout, stderr: '', failed: false };
-  } catch (e) {
-    const err = e as { stderr?: Buffer; stdout?: Buffer; message?: string };
-    return {
-      stdout: err.stdout ? err.stdout.toString() : '',
-      stderr: (err.stderr ? err.stderr.toString() : '') + (err.message ?? ''),
-      failed: true,
-    };
-  }
-}
 
 async function mintDispatcherToken(): Promise<string> {
   const script =
@@ -50,7 +35,7 @@ async function mintDispatcherToken(): Promise<string> {
     ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
     ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = execSync('docker exec fleet-pilot-api-1 node -e ' + JSON.stringify(script), { stdio: ['pipe', 'pipe', 'pipe'] }).toString();
+  const out = dockerExecNode('fleet-pilot-api-1', script);
   if (!out || !out.includes('.')) throw new Error('Token mint failed: ' + out);
   return out.trim();
 }

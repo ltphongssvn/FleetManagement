@@ -26,7 +26,7 @@
 // outside-in strict TDD: L0 RED first. Inner action-layer change driven
 // by its own smaller RED test (test/create-order-action.test.ts).
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { execSync } from 'node:child_process';
+import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
 
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
 const POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
@@ -38,21 +38,6 @@ const ORDER_NUMBER_REGEX = /^XTT\.(0[1-9]|1[0-2])-\d{3,}$/;
 // 'Số Lệnh: XTT.05-052' where the anchored regex would not match.
 const ORDER_NUMBER_EXTRACT_RE = /XTT\.(0[1-9]|1[0-2])-\d{3,}/;
 
-interface PsqlResult { stdout: string; stderr: string; failed: boolean }
-function dockerPsql(sql: string): PsqlResult {
-  const cmd = 'docker exec -i ' + POSTGRES_CONTAINER + ' psql -U fleet -d fleet -tA -v ON_ERROR_STOP=1';
-  try {
-    const stdout = execSync(cmd, { input: sql, stdio: ['pipe', 'pipe', 'pipe'] }).toString();
-    return { stdout, stderr: '', failed: false };
-  } catch (e) {
-    const err = e as { stderr?: Buffer; stdout?: Buffer; message?: string };
-    return {
-      stdout: err.stdout ? err.stdout.toString() : '',
-      stderr: (err.stderr ? err.stderr.toString() : '') + (err.message ?? ''),
-      failed: true,
-    };
-  }
-}
 
 async function mintToken(username: string): Promise<string> {
   const script =
@@ -61,7 +46,7 @@ async function mintToken(username: string): Promise<string> {
     ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
     ',body:' + JSON.stringify('grant_type=password&username=' + username + '&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = execSync('docker exec fleet-pilot-api-1 node -e ' + JSON.stringify(script), { stdio: ['pipe', 'pipe', 'pipe'] }).toString();
+  const out = dockerExecNode('fleet-pilot-api-1', script);
   if (!out || !out.includes('.')) throw new Error('Token mint failed for ' + username + ': ' + out);
   return out.trim();
 }

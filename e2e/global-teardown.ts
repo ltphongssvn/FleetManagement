@@ -15,26 +15,10 @@
 // Per Playwright 2026 best practices (Microsoft, TestDino, qaskills):
 // guarantee cleanup via a global teardown that runs once after every
 // suite, regardless of per-test outcomes, and ASSERT no-leak at the end.
-import { execSync } from 'node:child_process';
+import { dockerPsql } from './helpers/docker-exec';
 
-const POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 
-interface PsqlResult { stdout: string; stderr: string; failed: boolean }
-function dockerPsql(sql: string): PsqlResult {
-  const cmd = 'docker exec -i ' + POSTGRES_CONTAINER + ' psql -U fleet -d fleet -tA -v ON_ERROR_STOP=1';
-  try {
-    const stdout = execSync(cmd, { input: sql, stdio: ['pipe', 'pipe', 'pipe'] }).toString();
-    return { stdout, stderr: '', failed: false };
-  } catch (e) {
-    const err = e as { stderr?: Buffer; stdout?: Buffer; message?: string };
-    return {
-      stdout: err.stdout ? err.stdout.toString() : '',
-      stderr: (err.stderr ? err.stderr.toString() : '') + (err.message ?? ''),
-      failed: true,
-    };
-  }
-}
 
 export default async function globalTeardown(): Promise<void> {
   const sq = String.fromCharCode(39);

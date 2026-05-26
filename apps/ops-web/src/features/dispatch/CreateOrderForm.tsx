@@ -42,6 +42,11 @@ export interface CreateOrderFormProps {
   // Kept for source compatibility with page.tsx; no longer rendered (T3).
   readonly defaultOrderRef?: string;
   readonly locale?: Locale;
+  // T3 (2026-Q2) optimistic-UI bridge: when the action settles to
+  // 'created', the parent gets the externalRef + assignment context so
+  // it can render an optimistic row on the dispatch board immediately,
+  // ahead of the eventually-consistent projection.
+  readonly onCreated?: (externalRef: string, op: { operatorId: string; assetId: string }) => void;
 }
 const inputCls =
   'block w-full rounded-md border border-slate-300 bg-white px-3 py-2 pr-10 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20';
@@ -59,6 +64,7 @@ export function CreateOrderForm({
   pickupWarehouses = [], deliveryWarehouses = [],
   driverVehicleAssignments = [],
   locale = 'vi',
+  onCreated,
 }: CreateOrderFormProps): JSX.Element {
   const [state, formAction, pending] = useActionState<CreateOrderState, FormData>(createOrder, undefined);
   // T3 follow-up (button state recovery): the server action intentionally
@@ -67,11 +73,6 @@ export function CreateOrderForm({
   // refetches server data WITHOUT blocking the useActionState transition,
   // so the submit button returns to 'Tạo lệnh' immediately.
   const router = useRouter();
-  useEffect(() => {
-    if (state?.status === 'created') {
-      router.refresh();
-    }
-  }, [state, router]);
   const [pickupCount, setPickupCount] = useState(4);
   const [deliveryCount, setDeliveryCount] = useState(1);
   const addPickup = (): void => { setPickupCount((n) => n + 1); };
@@ -85,6 +86,17 @@ export function CreateOrderForm({
   const [vehicleValue, setVehicleValue] = useState('');
   const [assetIdValue, setAssetIdValue] = useState('');
   const [driverValue, setDriverValue] = useState('');
+  useEffect(() => {
+    if (state?.status === 'created') {
+      // Optimistic-UI bridge: tell the parent before triggering router.refresh
+      // so the new row appears in the board immediately (sub-perceptual),
+      // and the eventually-consistent projection reconciles in the background.
+      // Optimistic bridge: always notify parent; the parent decides whether
+      // to render an optimistic row based on whether assignment values are set.
+      if (onCreated) onCreated(state.externalRef, { operatorId: driverValue, assetId: assetIdValue });
+      router.refresh();
+    }
+  }, [state, router, onCreated, assetIdValue, driverValue]);
   const onVehicleChange = (nextPlate: string): void => {
     setVehicleValue(nextPlate);
     if (nextPlate === '') {
