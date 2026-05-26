@@ -7,7 +7,7 @@
 // the smallest UI surface that closes the gap.
 //
 // Visibility rule: a row is only navigable if it has at least one
-// transportOrderRef (the human-readable XT.NNN). Rows whose
+// transportOrderRef (the human-readable XTT.MM-NNN). Rows whose
 // transportOrderRefs is empty render the em-dash and are NOT linked.
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';

@@ -75,7 +75,7 @@ export async function loadReferences(): Promise<FormReferences> {
   const token = (await cookies()).get('fleet_session')?.value;
   if (!token) { console.error('[loadReferences] no fleet_session cookie'); return EMPTY; }
   console.log(`[loadReferences] apiUrl=${apiUrl} tokenLen=${String(token.length)}`);
-  const peekRes = await fetch(`${apiUrl}/reference/peek-order-ref?prefix=XT`, {
+  const peekRes = await fetch(`${apiUrl}/reference/peek-order-ref?prefix=XTT`, {
     headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
   }).catch((e: unknown) => { console.error('[loadReferences] peek threw:', e); return null; });
   const peekJson = peekRes?.ok ? (await peekRes.json()) as { ref?: string } : { ref: '' };

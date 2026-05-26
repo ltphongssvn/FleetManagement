@@ -56,7 +56,7 @@ describe('CreateOrderForm — useActionState-driven branches', () => {
     expect(screen.getByText('cookie missing')).toBeDefined();
   });
 
-  it('renders the assigned XT.NNNN in the success banner when state.status=created (T3)', async () => {
+  it('renders the assigned XTT.MM-NNN in the success banner when state.status=created (T3)', async () => {
     mockUseActionState.mockReturnValue([
       { status: 'created', externalRef: 'XT.0042', transportOrderId: 't-xyz' },
       vi.fn(),

@@ -4,7 +4,7 @@
 //  - NOT send any client externalRef on the API body,
 //  - surface the server-assigned externalRef back to the form caller as
 //    state.status='created' on the success path so the UI can render it
-//    (instead of a blind redirect that loses the assigned XT.NNN).
+//    (instead of a blind redirect that loses the assigned XTT.MM-NNN).
 // All other failure paths (zod, env, cookie, api error) keep their shape.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 const cookieGet = vi.fn();

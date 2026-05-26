@@ -36,7 +36,7 @@ test.describe.serial('dispatcher recognizes orders by human-readable labels', ()
       expect(rowText, 'row ' + String(i) + ' should not contain a raw UUID: ' + rowText).not.toMatch(uuidPattern);
     }
   });
-  test('Số lệnh column shows the dispatcher-entered ref like XT.NNNN, not a hash slice', async ({ page }) => {
+  test('Số lệnh column shows the dispatcher-entered ref like XTT.MM-NNN, not a hash slice', async ({ page }) => {
     await login(page);
     const board = page.getByRole('table').filter({ hasText: /Lệnh điều xe|Mã lệnh|Số lệnh/i });
     await expect(board).toBeVisible({ timeout: 15_000 });

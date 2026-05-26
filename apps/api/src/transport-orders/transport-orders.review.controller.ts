@@ -5,7 +5,7 @@
 // pilot-seed POST endpoint and the assigned/trip-history GET endpoints.
 //
 // T5 (2026): the :id param accepts EITHER a transport_order UUID or the
-// human-readable XT.NNN external_ref. The dispatch board links rows by
+// human-readable XTT.MM-NNN external_ref. The dispatch board links rows by
 // external_ref so dispatchers reach the review page from there directly;
 // when an L0 test or external integration passes a UUID we still honour
 // that form. The service-side method findByCompanyIdOrRef is company-
@@ -20,7 +20,7 @@ import type { OperatorContext } from '../auth/operator-context.js';
 import type { ListAssignedRow } from './transport-orders.dto.js';
 import { TransportOrdersService } from './transport-orders.service.js';
 import { TransportOrderNotFoundError } from './transport-orders.errors.js';
-// Accept either a UUID or an XT.NNN-style external_ref. The external_ref
+// Accept either a UUID or an XTT.MM-NNN-style external_ref. The external_ref
 // pattern is intentionally narrow (uppercase letters + '.' + digits/letters)
 // to refuse arbitrary strings as the URL :id param.
 const UuidSchema = z.string().uuid();

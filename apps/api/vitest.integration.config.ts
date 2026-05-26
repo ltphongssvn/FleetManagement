@@ -9,6 +9,7 @@ export default defineConfig({
   test: {
     clearMocks: true,
     include: ['test/**/*.integration.test.ts'],
+    globalSetup: ['./test/helpers/global-teardown.ts'],
     testTimeout: 60_000,
     hookTimeout: 60_000,
     pool: 'forks',

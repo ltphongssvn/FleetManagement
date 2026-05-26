@@ -16,35 +16,37 @@
 #   possible. Hooks are wired to both pre-commit and pre-push stages; the
 #   TDD + build gates run on pre-push (too slow for every commit).
 #
-# Key decisions / invariants:
-#   - detect-secrets with .secrets.baseline: prevents new secrets while
-#     allowlisting any pre-existing, reviewed findings. lockfiles and the
-#     baseline itself are excluded (high-entropy hash noise).
-#   - Local hooks (block-large-binaries, check-env-files,
-#     block-terraform-state) re-enforce .gitignore rules at commit time.
-#     .gitignore is passive; these hooks are active.
-#   - block-large-binaries covers ML/data formats (h5/pkl/pth/onnx/
-#     parquet/sqlite3) AND mobile build/signing artifacts (ipa/apk/aab/
-#     keystore/jks/p8/p12/mobileprovision) for the Expo driver-app.
-#   - check-env-files allows .env.example explicitly; monorepo path-aware
-#     regex catches apps/<name>/.env, not just root .env.
-#   - block-terraform-state allows *.tfvars.example for templating.
-#   - pre-commit-hooks bundle adds detect-private-key (belt-and-suspenders
-#     with detect-secrets for PEM/SSH), check-merge-conflict, and
-#     check-case-conflict (cross-platform filename safety).
-#   - pnpm-lint, pnpm-typecheck (pre-commit stage) and pnpm-test-push,
-#     pnpm-build-push (pre-push stage) all guard with
-#     `[ -f pnpm-lock.yaml ]` — pre-scaffold commits pass cleanly until
-#     the lockfile exists, mirroring the CI workflow's pattern.
-#   - TDD gate (pnpm-test-push) runs on pre-push, not pre-commit:
-#     Testcontainers-backed tests are too slow to run on every commit.
+# Critical bash-safety contract (2026-Q2 hardening):
+#   Hook entries used to be written as:
+#       bash -c 'cmd1 && cmd2 && cmd3 || echo "Skipped"'
+#   Bash parses this as (cmd1 && cmd2 && cmd3) || echo, so when cmd3
+#   (e.g. pnpm test:coverage) exits non-zero on a real failure, the echo
+#   branch runs and the hook exits 0 — the failure is silently swallowed
+#   and a broken commit gets pushed to CI. The fix is to gate the
+#   skip-vs-run decision FIRST with an explicit if/then/else block, so a
+#   real failure cleanly propagates its non-zero exit code:
+#       bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; \
+#         then pnpm -r --if-present <task>; \
+#         else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
+#   This pattern is mandatory for every entry below that runs a pnpm task.
+#
+# Coverage gate parity with remote CI:
+#   The remote CI workflow (.github/workflows/ci.yml#coverage-gate) merges
+#   sharded coverage JSON via scripts/merge-coverage.mjs and enforces a
+#   90/90/90/90 per-file threshold. Locally we run apps/api's coverage in
+#   one pass (no shards), then invoke the same script on the single
+#   coverage-final.json so the local gate exercises exactly the same
+#   merge + threshold logic as CI. The pnpm-test-coverage-push hook does
+#   both steps in a single bash entry: vitest --coverage, then merge.
 #
 # Related files:
-#   - .secrets.baseline          — detect-secrets allowlist (paired file)
-#   - SECURITY.md                — policy rationale and incident response
-#   - .gitignore                 — passive ignore rules these hooks enforce
-#   - .github/workflows/ci.yml   — remote CI mirror of these gates
-#   - turbo.jsonc                — source of truth for lint/typecheck/test/build
+#   - .secrets.baseline                  — detect-secrets allowlist
+#   - SECURITY.md                        — policy rationale, IR
+#   - .gitignore                         — passive ignore rules
+#   - .github/workflows/ci.yml           — remote CI mirror
+#   - scripts/merge-coverage.mjs         — coverage merge + 90/90/90/90 gate
+#   - apps/api/vitest.coverage.config.ts — coverage config
+#   - turbo.jsonc                        — task definitions
 # ============================================================================
 repos:
   - repo: https://github.com/Yelp/detect-secrets
@@ -104,33 +106,34 @@ repos:
     hooks:
       - id: pnpm-lint
         name: pnpm Lint (CI Mirror)
-        entry: bash -c 'command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ] && pnpm -r --if-present lint || echo "Skipped (pre-scaffold or pnpm missing)"'
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm -r --if-present lint; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
         types_or: [ts, tsx, javascript, jsx]
       - id: pnpm-typecheck
         name: pnpm Typecheck (CI Mirror)
-        entry: bash -c 'command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ] && pnpm -r --if-present typecheck || echo "Skipped (pre-scaffold or pnpm missing)"'
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm -r --if-present typecheck; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
         types_or: [ts, tsx]
   - repo: local
     hooks:
-      - id: pnpm-test-push
-        name: pnpm Test — TDD Gate (Pre-push)
-        entry: bash -c 'command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ] && pnpm -r --if-present test || echo "Skipped (pre-scaffold or pnpm missing)"'
-        language: system
-        pass_filenames: false
-        stages: [pre-push]
       - id: pnpm-build-push
         name: pnpm Build Verification (Pre-push)
-        entry: bash -c 'command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ] && pnpm -r --if-present build || echo "Skipped (pre-scaffold or pnpm missing)"'
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm -r --if-present build; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
         stages: [pre-push]
       - id: pnpm-test-coverage-push
-        name: pnpm Test Coverage — Per-File Threshold Gate (Pre-push)
-        entry: bash -c 'command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ] && pnpm -r --if-present test:coverage || echo "Skipped (pre-scaffold or pnpm missing)"'
+        name: pnpm Test Coverage + 90/90/90/90 Merge Gate (Pre-push, CI Mirror)
+        # Mirrors remote CI .github/workflows/ci.yml#coverage-gate exactly:
+        # apps/api test:coverage emits coverage/merged/coverage-final.json,
+        # then scripts/merge-coverage.mjs is invoked on that single file to
+        # enforce the 90/90/90/90 per-file gate via the same merge logic
+        # CI uses across its 4 shards. Non-api packages run their own
+        # test:coverage in the same -r pass so their per-package thresholds
+        # are still enforced. A real failure at any step exits non-zero.
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm -r --if-present test:coverage && node scripts/merge-coverage.mjs apps/api/coverage/merged; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
         stages: [pre-push]
@@ -140,7 +143,7 @@ repos:
       # packages, a pre-push run would block developers for >45 minutes.
       # Mutation testing should run in CI on a scheduled basis (nightly)
       # or be invoked manually with `pnpm -r --if-present test:mutation`
-      # when working on hardening a specific package. Each package\'s
+      # when working on hardening a specific package. Each package's
       # stryker.config.json owns its break threshold (90% for the small
       # packages, 60% for apps/api + apps/ops-web during the baseline
       # phase).
@@ -148,7 +151,7 @@ repos:
     hooks:
       - id: commitlint
         name: Conventional Commits (commitlint)
-        entry: bash -c 'command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ] && pnpm exec commitlint --edit "$1" || echo "Skipped (pre-scaffold or pnpm missing)"' --
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm exec commitlint --edit "$1"; else echo "Skipped (pre-scaffold or pnpm missing)"; fi' --
         language: system
         stages: [commit-msg]
         pass_filenames: false

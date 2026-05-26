@@ -1,6 +1,6 @@
 // apps/ops-web/src/features/dispatch/DispatchBoard.tsx
 // Renders the dispatcher's daily worklist. T4 invariant: every cell shows a
-// human-readable identifier — the dispatcher-entered Số lệnh (XT.NNNN), the
+// human-readable identifier — the dispatcher-entered Số lệnh (XTT.MM-NNN), the
 // driver display name, and the vehicle plate — never a raw UUID. Unknown ids
 // fall back to em-dash (em-dash beats leaking a hash slice).
 //

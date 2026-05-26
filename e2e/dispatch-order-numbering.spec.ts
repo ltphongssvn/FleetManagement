@@ -1,40 +1,46 @@
 // e2e/dispatch-order-numbering.spec.ts
 //
 // End-to-end verification of the T3 invariant: every transport_order is
-// created with a server-assigned external_ref of the form "XT.NNN" where
-// NNN is a monotonically increasing, zero-padded integer per company.
+// created with a server-assigned external_ref of the form XTT.MM-NNN where
+// NNNN is a monotonically increasing, zero-padded integer per company.
 // The dispatcher never inputs the order number; it is allocated atomically
 // by the order-numbering service at API write time. Any client-supplied
 // externalRef is overwritten.
 //
 // Layer coverage (matches the codebase TDD layer map):
-//   L1 UI          : success view shows server-assigned XT.NNN; any value
+//   L1 UI          : success view shows server-assigned XTT.MM-NNN; any value
 //                    typed in Số Lệnh is overridden.
 //   L2 Server Action: ops-web BFF route /api/transport-orders forwards the
 //                     form payload; server-assigned ref reaches the browser.
-//   L3 API DTO/Ctrl: response body carries externalRef matching /^XT\.\d{4,}$/;
+//   L3 API DTO/Ctrl: response body carries externalRef matching /^XTT\.(0[1-9]|1[0-2])-\d{3,}$/;
 //                    client-supplied externalRef is ignored.
 //   L4 Service     : two sequential creates strictly increase; two parallel
 //                    creates produce two distinct refs (atomicity).
-//   L5 Database    : order_sequence row exists per (company, prefix='XT');
+//   L5 Database    : order_sequence row exists per (company, prefix='XTT');
 //                    external_ref column is unique per company; padding>=3.
 //   L6 Outbox/Workr: outbox row for the road_run carries externalRef in delta
-//                    so the dispatch_board projection sees the XT.NNN.
+//                    so the dispatch_board projection sees the XTT.MM-NNN.
 //   L7 Auth/Tenant : a token with no fleet-dispatcher role cannot create
-//                    orders (so cannot consume the company's sequence).
+//                    orders (so cannot consume the company sequence).
+//
+// No-leak contract (2026-Q2): see dispatch-order-protection-chain.spec.ts
+// for the rationale. Every setupPair() call pushes onto seededPairs; the
+// afterEach pops and revokes/soft-deletes each entry; afterAll asserts the
+// dispatcher /reference/vehicles + /reference/drivers match the baseline.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { execSync } from 'node:child_process';
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
 const POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
-const ORDER_NUMBER_REGEX = /^XT\.\d{4,}$/;
+const ORDER_NUMBER_REGEX = /^XTT\.(0[1-9]|1[0-2])-\d{3,}$/;
 async function mintToken(username: string): Promise<string> {
   const script =
-    "fetch('http://mock-oauth2:8080/fleet/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:'grant_type=password&username=" +
-    username +
-    "&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret'})" +
-    ".then(r=>r.json()).then(j=>process.stdout.write(j.access_token))";
-  const out = execSync("docker exec fleet-pilot-api-1 node -e \"" + script + "\"", { stdio: ['pipe', 'pipe', 'pipe'] }).toString();
+    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
+    ',{method:' + JSON.stringify('POST') +
+    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
+    ',body:' + JSON.stringify('grant_type=password&username=' + username + '&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
+    '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
+  const out = execSync('docker exec fleet-pilot-api-1 node -e ' + JSON.stringify(script), { stdio: ['pipe', 'pipe', 'pipe'] }).toString();
   if (!out || !out.includes('.')) throw new Error('Token mint failed for ' + username + ': ' + out);
   return out.trim();
 }
@@ -44,6 +50,7 @@ interface SeededPair {
   operatorId: string;
   vehicleId: string;
   vehicleLabel: string;
+  driverLabel: string;
   assignmentId: string;
   token: string;
 }
@@ -56,6 +63,21 @@ async function adminPost<T>(api: APIRequestContext, token: string, path: string,
     throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   }
   return (await res.json()) as T;
+}
+async function adminDelete(api: APIRequestContext, token: string, path: string, body: unknown): Promise<void> {
+  const res = await api.delete(API_URL + path, {
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    data: JSON.stringify(body),
+  });
+  if (!res.ok()) {
+    throw new Error('DELETE ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
+  }
+}
+async function listLabels(api: APIRequestContext, token: string, path: string): Promise<readonly string[]> {
+  const res = await api.get(API_URL + path, { headers: { Authorization: 'Bearer ' + token } });
+  if (!res.ok()) throw new Error('GET ' + path + ' failed ' + String(res.status()));
+  const json = (await res.json()) as { items: readonly { label: string }[] };
+  return json.items.map((i) => i.label).sort();
 }
 async function setupPair(api: APIRequestContext, suffix: string): Promise<SeededPair> {
   const token = await mintDispatcherToken();
@@ -79,6 +101,7 @@ async function setupPair(api: APIRequestContext, suffix: string): Promise<Seeded
     operatorId: drv.operatorId,
     vehicleId: veh.id,
     vehicleLabel,
+    driverLabel,
     assignmentId: asgn.assignmentId,
     token,
   };
@@ -121,14 +144,15 @@ function dockerPsql(sql: string): PsqlResult {
   }
 }
 function externalRefOf(transportOrderId: string): string {
-  const sql = "SELECT external_ref FROM transport_order WHERE transport_order_id='" + transportOrderId + "';";
+  const sq = String.fromCharCode(39);
+  const sql = 'SELECT external_ref FROM transport_order WHERE transport_order_id=' + sq + transportOrderId + sq + ';';
   const r = dockerPsql(sql);
   if (r.failed) throw new Error('psql failed: ' + r.stderr);
   return r.stdout.trim();
 }
 function parseSeq(ref: string): number {
-  const m = ref.match(/^XT\.(\d+)$/);
-  if (!m) throw new Error('externalRef does not match XT.NNN: ' + ref);
+  const m = ref.match(/^XTT\.\d{2}-(\d+)$/);
+  if (!m) throw new Error('externalRef does not match XTT.MM-NNN: ' + ref);
   return parseInt(m[1], 10);
 }
 async function loginAsDispatcher(page: Page): Promise<void> {
@@ -140,9 +164,51 @@ async function loginAsDispatcher(page: Page): Promise<void> {
 }
 test.describe.configure({ mode: 'serial' });
 test.describe('transport order auto-numbering (T3 invariant) — full layer chain', () => {
-  // L3 + L5: API ignores client-supplied externalRef and returns XT.NNN
-  test('L3+L5: API response and DB row both carry server XT.NNN; client value ignored', async ({ request }) => {
+  // 2026-Q2 no-leak contract. Self-scoped tracker: every setupPair adds
+  // its labels to seededVehicleLabels/seededDriverLabels; afterAll asserts
+  // none of THOSE labels remain. Parallel-safe (sibling spec activity in
+  // other workers cannot perturb the assertion).
+  const seededPairs: SeededPair[] = [];
+  const seededVehicleLabels = new Set<string>();
+  const seededDriverLabels = new Set<string>();
+  function trackPair(pair: SeededPair): void {
+    seededPairs.push(pair);
+    seededVehicleLabels.add(pair.vehicleLabel);
+    seededDriverLabels.add(pair.driverLabel);
+  }
+  test.afterEach(async ({ request }) => {
+    while (seededPairs.length > 0) {
+      const pair = seededPairs.pop();
+      if (!pair) continue;
+      try {
+        await adminDelete(request, pair.token, '/admin/driver-vehicle-assignments/' + pair.assignmentId, { reason: 'e2e-afterEach' });
+      } catch { /* already revoked by the test body */ }
+      try {
+        const r = await request.delete(API_URL + '/reference/vehicles/' + pair.vehicleId, {
+          headers: { Authorization: 'Bearer ' + pair.token },
+        });
+        if (!r.ok()) { /* tolerate */ }
+      } catch { /* tolerate */ }
+      try {
+        const r = await request.delete(API_URL + '/admin/drivers/' + pair.driverId, {
+          headers: { Authorization: 'Bearer ' + pair.token },
+        });
+        if (!r.ok()) { /* tolerate */ }
+      } catch { /* tolerate */ }
+    }
+  });
+  test.afterAll(async ({ request }) => {
+    const token = await mintDispatcherToken();
+    const vehiclesAfter = await listLabels(request, token, '/reference/vehicles');
+    const driversAfter = await listLabels(request, token, '/reference/drivers');
+    const leakedVehicles = vehiclesAfter.filter((l) => seededVehicleLabels.has(l));
+    const leakedDrivers = driversAfter.filter((l) => seededDriverLabels.has(l));
+    expect(leakedVehicles).toEqual([]);
+    expect(leakedDrivers).toEqual([]);
+  });
+  test('L3+L5: API response and DB row both carry server XTT.MM-NNN; client value ignored', async ({ request }) => {
     const pair = await setupPair(request, 'T3-L3');
+    trackPair(pair);
     const clientGarbage = 'CLIENT-IGNORED-' + String(Date.now());
     const result = await createOrderViaApi(request, pair, clientGarbage);
     expect(result.externalRef).toBeDefined();
@@ -151,9 +217,9 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
     const dbRef = externalRefOf(result.transportOrderId);
     expect(dbRef).toBe(result.externalRef);
   });
-  // L4 monotonicity
   test('L4: two sequential creates produce strictly increasing XT sequence', async ({ request }) => {
     const pair = await setupPair(request, 'T3-L4S');
+    trackPair(pair);
     const a = await createOrderViaApi(request, pair, null);
     const b = await createOrderViaApi(request, pair, null);
     const refA = externalRefOf(a.transportOrderId);
@@ -162,9 +228,9 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
     expect(refB).toMatch(ORDER_NUMBER_REGEX);
     expect(parseSeq(refB)).toBeGreaterThan(parseSeq(refA));
   });
-  // L4 atomicity under concurrency
   test('L4: parallel creates produce two distinct XT numbers (FOR UPDATE atomicity)', async ({ request }) => {
     const pair = await setupPair(request, 'T3-L4P');
+    trackPair(pair);
     const [a, b] = await Promise.all([
       createOrderViaApi(request, pair, null),
       createOrderViaApi(request, pair, null),
@@ -175,53 +241,46 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
     expect(refB).toMatch(ORDER_NUMBER_REGEX);
     expect(refA).not.toBe(refB);
   });
-  // L5 seed + zero-padding + uniqueness
-  test('L5: order_sequence row seeded (XT, pad>=3); external_ref unique per company', async ({ request }) => {
+  test('L5: order_sequence row seeded (XTT, pad>=3); external_ref unique per company', async ({ request }) => {
     const pair = await setupPair(request, 'T3-L5');
+    trackPair(pair);
     await createOrderViaApi(request, pair, null);
+    const sq = String.fromCharCode(39);
     const seqSql =
-      "SELECT prefix, pad_width, next_value FROM order_sequence WHERE company_id='" +
-      COMPANY_ID + "' AND prefix='XT';";
+      'SELECT prefix, pad_width, next_value FROM order_sequence WHERE company_id=' +
+      sq + COMPANY_ID + sq + ' AND prefix=' + sq + 'XTT' + sq + ';';
     const seqR = dockerPsql(seqSql);
     expect(seqR.failed).toBe(false);
     expect(seqR.stdout.trim().length).toBeGreaterThan(0);
     const [prefix, padStr, nextStr] = seqR.stdout.trim().split('|');
-    expect(prefix).toBe('XT');
-    expect(parseInt(padStr, 10)).toBeGreaterThanOrEqual(4);
+    expect(prefix).toBe('XTT');
+    expect(parseInt(padStr, 10)).toBeGreaterThanOrEqual(3);
     expect(parseInt(nextStr, 10)).toBeGreaterThanOrEqual(2);
     const uqSql =
-      "SELECT COUNT(*) FROM (SELECT external_ref, COUNT(*) c FROM transport_order " +
-      "WHERE company_id='" + COMPANY_ID + "' AND external_ref ~ '^XT\\.\\d+$' " +
-      "GROUP BY external_ref HAVING COUNT(*) > 1) dup;";
+      'SELECT COUNT(*) FROM (SELECT external_ref, COUNT(*) c FROM transport_order ' +
+      'WHERE company_id=' + sq + COMPANY_ID + sq + ' AND external_ref ~ ' + sq + '^XTT\\.(0[1-9]|1[0-2])-\\d+$' + sq + ' ' +
+      'GROUP BY external_ref HAVING COUNT(*) > 1) dup;';
     const uqR = dockerPsql(uqSql);
     expect(uqR.failed).toBe(false);
     expect(parseInt(uqR.stdout.trim(), 10)).toBe(0);
   });
-  // L6: outbox carries the externalRef in the road_run.created delta
-  test('L6: outbox row for the road_run delta carries the server-assigned XT.NNN', async ({ request }) => {
+  test('L6: outbox row for the road_run delta carries the server-assigned XTT.MM-NNN', async ({ request }) => {
     const pair = await setupPair(request, 'T3-L6');
+    trackPair(pair);
     const { transportOrderId, roadRunId } = await createOrderViaApi(request, pair, null);
     const ref = externalRefOf(transportOrderId);
     expect(ref).toMatch(ORDER_NUMBER_REGEX);
-    // The TransportOrdersService appendTriWrite path includes transportOrderRefs:
-    // [externalRef] in the road_run.created delta. The outbox row is the
-    // workflow boundary the BullMQ projection worker consumes.
+    const sq = String.fromCharCode(39);
     const sql =
-      "SELECT payload::text FROM outbox WHERE payload->>'aggregateType'='road_run' " +
-      "AND payload->>'roadRunId'='" + roadRunId + "' ORDER BY created_at DESC LIMIT 1;";
+      'SELECT payload::text FROM outbox WHERE payload->>' + sq + 'aggregateType' + sq + '=' + sq + 'road_run' + sq + ' ' +
+      'AND payload->>' + sq + 'roadRunId' + sq + '=' + sq + roadRunId + sq + ' ORDER BY created_at DESC LIMIT 1;';
     const r = dockerPsql(sql);
     expect(r.failed).toBe(false);
     expect(r.stdout).toContain(ref);
   });
-  // L7: non-dispatcher token must not create orders (cannot consume the sequence)
   test('L7: a non-dispatcher token cannot create a transport order', async ({ request }) => {
     const pair = await setupPair(request, 'T3-L7');
-    // Mint a driver token (no fleet-dispatcher role). The setup pair gives us
-    // a known driver phone we can authenticate as. Authentication happens via
-    // a different endpoint, so the simplest portable RED here is to drop the
-    // Authorization header entirely and assert 401/403 — proving an unauth'd
-    // call cannot consume the sequence. A revoked-role variant lives in the
-    // service-layer integration test where role mocking is cheaper.
+    trackPair(pair);
     const res = await request.post(API_URL + '/transport-orders', {
       headers: { 'Content-Type': 'application/json' },
       data: {
@@ -235,18 +294,14 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
     expect(res.ok()).toBe(false);
     expect([401, 403]).toContain(res.status());
   });
-  // L1 + L2: browser form -> Next.js server action -> BFF -> API; UI surfaces
-  // the server-assigned XT.NNN. The form has no Số Lệnh input by design — the
-  // dispatcher cannot supply one. Assertions: (a) submission produces a new
-  // XT.NNN row in the DB strictly greater than the pre-submit max, and (b)
-  // the UI success banner shows that assigned ref.
-  test('L1+L2: UI submission produces server XT.NNN and surfaces it on the form', async ({ page, request }) => {
+  test('L1+L2: UI submission produces server XTT.MM-NNN and surfaces it on the form', async ({ page, request }) => {
     const pair = await setupPair(request, 'T3-UI');
+    trackPair(pair);
     const sq = String.fromCharCode(39);
     const beforeMaxSql =
-      'SELECT COALESCE(MAX((substring(external_ref FROM ' + sq + '^XT\\.(\\d+)$' + sq + '))::int), 0) ' +
+      'SELECT COALESCE(MAX((substring(external_ref FROM ' + sq + '^XTT\\.\\d{2}-(\\d+)$' + sq + '))::int), 0) ' +
       'FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq +
-      ' AND external_ref ~ ' + sq + '^XT\\.\\d+$' + sq + ';';
+      ' AND external_ref ~ ' + sq + '^XTT\\.(0[1-9]|1[0-2])-\\d+$' + sq + ';';
     const beforeMax = parseInt(dockerPsql(beforeMaxSql).stdout.trim(), 10);
     await loginAsDispatcher(page);
     await page.goto('/');
@@ -262,12 +317,10 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
     await page.locator('input#deliveryWarehouse_1').click();
     await page.getByRole('option').first().click();
     await page.getByRole('button', { name: 'Tạo lệnh' }).click();
-    // Poll the DB for the new row (Server Actions complete via RSC stream,
-    // not a plain XHR, so page.waitForResponse on /transport-orders is flaky).
     const findSql =
       'SELECT external_ref FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq + ' ' +
-      'AND external_ref ~ ' + sq + '^XT\\.\\d+$' + sq + ' ' +
-      'AND (substring(external_ref FROM ' + sq + '^XT\\.(\\d+)$' + sq + '))::int > ' + String(beforeMax) +
+      'AND external_ref ~ ' + sq + '^XTT\\.(0[1-9]|1[0-2])-\\d+$' + sq + ' ' +
+      'AND (substring(external_ref FROM ' + sq + '^XTT\\.\\d{2}-(\\d+)$' + sq + '))::int > ' + String(beforeMax) +
       ' ORDER BY created_at DESC LIMIT 1;';
     let createdRef = '';
     for (let i = 0; i < 30; i++) {
@@ -277,12 +330,5 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
       await page.waitForTimeout(500);
     }
     expect(createdRef).toMatch(ORDER_NUMBER_REGEX);
-    // L1+L2 evidence: the dispatcher's browser submission ran the server
-    // action -> BFF -> API -> DB chain end-to-end, and the API allocated
-    // a fresh XT.NNN strictly greater than the pre-submit max. We rely on
-    // DB persistence as the stable assertion (same pattern as the existing
-    // dispatch-order-protection-chain happy-path). The form's transient
-    // success banner is not asserted here — it would require freezing
-    // useActionState across revalidatePath, which is an unrelated concern.
   });
 });
