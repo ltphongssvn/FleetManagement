@@ -26,7 +26,7 @@ function listTestcontainerIds(maxAttempts: number): readonly string[] {
       return raw.length === 0 ? [] : raw.split(/\s+/);
     } catch (err) {
       lastErr = err;
-      if (attempt < maxAttempts) sleepSyncMs(500 * attempt);
+      if (attempt < maxAttempts) sleepSyncMs(Math.min(3200, 500 * Math.pow(2, attempt - 1)));
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error('docker ps failed');
@@ -35,7 +35,7 @@ export default function setup(): () => Promise<void> {
   // eslint-disable-next-line @typescript-eslint/require-await -- vitest globalSetup teardown must return a Promise<void> even when the body is sync
   return async function teardown(): Promise<void> {
     try {
-      const ids = listTestcontainerIds(3);
+      const ids = listTestcontainerIds(6);
       if (ids.length === 0) return;
       execFileSync('docker', ['rm', '-f', ...ids], { stdio: ['ignore', 'pipe', 'pipe'] });
       process.stderr.write('[vitest globalTeardown] removed ' + String(ids.length) + ' testcontainers container(s)\n');
