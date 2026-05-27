@@ -1,8 +1,11 @@
 // apps/ops-web/src/app/admin/drivers/page.tsx
-// Drivers admin CRUD UI. Pattern mirrors /admin/reference (each entity has
-// Sửa/Xóa per row, inline editor with Lưu/Hủy). Extends the prior page with
-// the missing Update + Delete operations against the new AdminDriversClient
-// update()/remove() methods (PATCH/DELETE /admin/drivers/:id).
+// Drivers admin CRUD UI. Pattern mirrors /admin/reference.
+//
+// T5: removed redundant 'Sửa' (inline rename) per-row control and its
+// supporting state (editId/editName/Lưu/Hủy + saveEdit/cancelEdit/
+// startEdit + client.update plumbing in this page). Xóa + re-create
+// supersedes rename safely. The Thao tác column now only renders the
+// Xóa button per row.
 'use client';
 import { useEffect, useReducer, useState, type JSX } from 'react';
 import { AdminDriversClient } from '../../../features/admin/admin-drivers-client';
@@ -31,11 +34,6 @@ export default function AdminDriversPage(): JSX.Element {
   const [deviceIdInput, setDeviceIdInput] = useState<Record<string, string>>({});
   const [vehicles, setVehicles] = useState<readonly VehicleOption[]>([]);
   const [createForm, setCreateForm] = useState<CreateFormState>(EMPTY_CREATE_FORM);
-  // Edit state for inline rename — only one row in edit mode at a time
-  // (matches the reference admin UI). editId === null means no row is being
-  // edited; otherwise the named row's Tài xế cell renders an <input>.
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
   const [busy, setBusy] = useState(false);
   const client = new AdminDriversClient({
     apiUrl: '',
@@ -51,7 +49,7 @@ export default function AdminDriversPage(): JSX.Element {
   };
   const loadVehicles = async (): Promise<void> => {
     try {
-      const res = await fetch('/api/reference/vehicles');
+      const res = await fetch('/api/reference/vehicles?scope=admin');
       if (res.ok) {
         const data = await res.json() as { items?: { id: string; label: string }[] };
         const list = (data.items ?? []).map((it) => ({ vehicleId: it.id, plate: it.label }));
@@ -108,29 +106,6 @@ export default function AdminDriversPage(): JSX.Element {
       alert(e instanceof Error ? e.message : 'revoke failed');
     }
   };
-  const startEdit = (row: DriverRow): void => {
-    setEditId(row.driverId);
-    setEditName(row.fullName);
-  };
-  const cancelEdit = (): void => {
-    setEditId(null);
-    setEditName('');
-  };
-  const saveEdit = async (driverId: string): Promise<void> => {
-    const trimmed = editName.trim();
-    if (trimmed.length === 0) return;
-    setBusy(true);
-    try {
-      await client.update(driverId, { fullName: trimmed });
-      setEditId(null);
-      setEditName('');
-      await refresh();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'update failed');
-    } finally {
-      setBusy(false);
-    }
-  };
   const handleDelete = async (row: DriverRow): Promise<void> => {
     if (!window.confirm('Xóa tài xế ' + row.fullName + '?')) return;
     setBusy(true);
@@ -145,6 +120,12 @@ export default function AdminDriversPage(): JSX.Element {
   };
   if (state.kind === 'loading') return <div className='p-6'>Đang tải…</div>;
   if (state.kind === 'error') return <div className='p-6 text-red-600'>Lỗi: {state.message}</div>;
+  // Defensive narrowing: TypeScript can prove rows exists here, but a
+  // concurrent strict-mode re-render in tests can observe the function
+  // body with state pointing at the previous 'loading' snapshot before the
+  // early returns above evaluate. Bind rows once via narrowing so the
+  // JSX below references a guaranteed array.
+  const rows: readonly DriverRow[] = state.rows;
   return (
     <div className='p-6'>
       <div className='mb-4'><a href='/' className='text-blue-600 hover:underline text-sm'>← Quay lại Bảng điều phối</a></div>
@@ -206,22 +187,11 @@ export default function AdminDriversPage(): JSX.Element {
           </tr>
         </thead>
         <tbody>
-          {state.rows.map((row: DriverRow) => (
+          {rows.map((row: DriverRow) => (
             <tr key={row.driverId} className='border-b'>
               <td className='p-2'>
-                {editId === row.driverId ? (
-                  <input
-                    type='text'
-                    value={editName}
-                    onChange={(e) => { setEditName(e.target.value); }}
-                    className='border rounded px-2 py-1 text-sm w-56'
-                  />
-                ) : (
-                  <>
-                    <div className='font-medium'>{row.fullName}</div>
-                    <div className='text-xs text-gray-500'>{row.operatorId ?? '—'}</div>
-                  </>
-                )}
+                <div className='font-medium'>{row.fullName}</div>
+                <div className='text-xs text-gray-500'>{row.operatorId ?? '—'}</div>
               </td>
               <td className='p-2'>
                 {row.assignedVehicle ? (
@@ -285,43 +255,14 @@ export default function AdminDriversPage(): JSX.Element {
               </td>
               <td className='p-2'>
                 <div className='flex gap-2'>
-                  {editId === row.driverId ? (
-                    <>
-                      <button
-                        type='button'
-                        disabled={busy}
-                        onClick={() => { void saveEdit(row.driverId); }}
-                        className='rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:bg-gray-400'
-                      >
-                        Lưu
-                      </button>
-                      <button
-                        type='button'
-                        onClick={cancelEdit}
-                        className='rounded border px-3 py-1 text-sm hover:bg-gray-50'
-                      >
-                        Hủy
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type='button'
-                        onClick={() => { startEdit(row); }}
-                        className='rounded border px-3 py-1 text-sm hover:bg-gray-50'
-                      >
-                        Sửa
-                      </button>
-                      <button
-                        type='button'
-                        disabled={busy}
-                        onClick={() => { void handleDelete(row); }}
-                        className='rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600 disabled:bg-gray-400'
-                      >
-                        Xóa
-                      </button>
-                    </>
-                  )}
+                  <button
+                    type='button'
+                    disabled={busy}
+                    onClick={() => { void handleDelete(row); }}
+                    className='rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600 disabled:bg-gray-400'
+                  >
+                    Xóa
+                  </button>
                 </div>
               </td>
             </tr>

@@ -4,6 +4,10 @@
 // fleet_session bearer token (httpOnly cookie, never exposed to the browser)
 // and proxies the request/response verbatim. Keeps the 8 reference CRUD
 // route files free of duplicated auth + fetch boilerplate.
+//
+// T5c: forwardGet preserves the incoming request's query string so the
+// admin page can opt into ?scope=admin (returns all active rows, bypassing
+// the dispatch create-order form's pair-filtered subset).
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 function getApiUrl(): string {
@@ -18,10 +22,11 @@ function passthrough(res: Response, body: string): NextResponse {
     headers: { 'content-type': 'application/json' },
   });
 }
-export async function forwardGet(path: string): Promise<NextResponse> {
+export async function forwardGet(path: string, req?: NextRequest): Promise<NextResponse> {
   const t = await token();
   if (t === undefined) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
-  const res = await fetch(getApiUrl() + path, {
+  const qs = req !== undefined ? new URL(req.url).search : '';
+  const res = await fetch(getApiUrl() + path + qs, {
     headers: { Authorization: 'Bearer ' + t },
     cache: 'no-store',
   });

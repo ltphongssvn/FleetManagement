@@ -18,7 +18,7 @@ interface ReferenceWriteDto {
 export class ReferenceController {
   constructor(private readonly svc: ReferenceService) {}
   @Get('drivers')   drivers(@CurrentOperator() op: OperatorContext): Promise<ReferenceListResponse> { return this.svc.drivers(op); }
-  @Get('vehicles')  vehicles(@CurrentOperator() op: OperatorContext): Promise<ReferenceListResponse> { return this.svc.vehicles(op); }
+  @Get('vehicles')  vehicles(@CurrentOperator() op: OperatorContext, @Query('scope') scope?: string): Promise<ReferenceListResponse> { return scope === 'admin' ? this.svc.vehiclesAdmin(op) : this.svc.vehicles(op); }
   @Get('customers') customers(@CurrentOperator() op: OperatorContext): Promise<ReferenceListResponse> { return this.svc.customers(op); }
   @Get('cargo-types') cargoTypes(@CurrentOperator() op: OperatorContext): Promise<ReferenceListResponse> { return this.svc.cargoTypes(op); }
   // Driver↔Vehicle active pairings (operatorId↔vehicleId) for the dispatch

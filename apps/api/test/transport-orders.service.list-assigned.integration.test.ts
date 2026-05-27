@@ -68,7 +68,7 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
       const result = await svc.listAssigned(op);
       expect(result.rows).toHaveLength(1);
       const row = result.rows[0];
-      expect(row?.externalRef).toBe('TO-LA-1');
+      expect(row?.externalRef).toMatch(/^XTT\.[0-9]{2}-[0-9]{3,}$/);
       expect(row?.state).toBe('planned');
       expect(row?.plannedStartAt).toBe('2026-05-01T07:00:00.000Z');
       expect(row?.startedAt).toBeNull();
@@ -124,7 +124,7 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
       const result = await svc.listAssigned(op);
       expect(result.rows).toHaveLength(1);
       const row = result.rows[0];
-      expect(row?.orderRef).toBe('TO-ENRICH-1');
+      expect(row?.orderRef).toMatch(/^XTT\.[0-9]{2}-[0-9]{3,}$/);
       expect(row?.plate).toBe('62H-99999');
       expect(row?.customerName).toBe('ACME Logistics');
       expect(row?.pickupName).toBe('North Pickup Dock');

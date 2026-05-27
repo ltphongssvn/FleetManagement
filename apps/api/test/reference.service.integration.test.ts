@@ -5,23 +5,31 @@
 // a present row AND the no-row ?? fallback; allocateOrderRef both the
 // insert-when-absent and update-existing paths; warehouses role filter.
 //
+// 2026-Q2 invariant: drivers() and vehicles() return ONLY entities that
+// participate in an ACTIVE driver_vehicle_assignment (revoked_at IS NULL).
+// These tests seed matching driver+vehicle+assignment triples so the
+// paired-only filter is exercised positively. The pad width for order
+// sequences defaults to 4 (XTT.0001-style refs); tests assert accordingly.
+//
 // Isolation: tx-injection per test (see helpers/with-tx-isolation.ts).
 // allocateOrderRef calls this.db.transaction(...).for('update') internally;
 // under tx-injection that becomes a SAVEPOINT + row-level lock within the
 // outer test tx, which PGlite handles correctly.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import { ReferenceService } from '../src/reference/reference.service.js';
 import {
   driver, vehicle, customer, cargoType, warehouse,
 } from '../src/database/schema/reference.js';
+import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
-import { withTxIsolation } from './helpers/with-tx-isolation.js';
+import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
-function tenancy(op: ReturnType<typeof createOperatorContext>): {
-  companyId: string; businessUnitId: string;
-  depotId: string; legalEntityId: string;
-} {
+interface Tenancy {
+  companyId: string; businessUnitId: string; depotId: string; legalEntityId: string;
+}
+function tenancy(op: ReturnType<typeof createOperatorContext>): Tenancy {
   return {
     companyId: op.companyId,
     businessUnitId: op.businessUnitId,
@@ -29,18 +37,35 @@ function tenancy(op: ReturnType<typeof createOperatorContext>): {
     legalEntityId: op.legalEntityId,
   };
 }
+async function seedPair(
+  tx: TestTx,
+  t: Tenancy,
+  spec: { driverName: string; driverActive: boolean; operatorId: string; plate: string; vehicleActive: boolean },
+): Promise<{ driverId: string; vehicleId: string }> {
+  const driverId = randomUUID();
+  const vehicleId = randomUUID();
+  await tx.insert(driver).values({
+    ...t, driverId, fullName: spec.driverName, active: spec.driverActive, operatorId: spec.operatorId,
+  });
+  await tx.insert(vehicle).values({
+    ...t, vehicleId, plate: spec.plate, active: spec.vehicleActive,
+  });
+  await tx.insert(driverVehicleAssignment).values({
+    ...t, driverId, vehicleId,
+  });
+  return { driverId, vehicleId };
+}
 describe('@fleet/api - ReferenceService (integration)', () => {
   beforeAll(async () => { testDb = await startPgliteTestDb(); }, 30_000);
   afterAll(async () => { await stopPgliteTestDb(testDb); });
-  it('drivers() returns active drivers for the company, excludes inactive', async () => {
+  it('drivers() returns active drivers paired with active vehicles, excludes inactive', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const svc = new ReferenceService(tx as never);
       const op = createOperatorContext();
-      await tx.insert(driver).values([
-        { ...tenancy(op), fullName: 'Bravo', active: true, operatorId: '00000000-0000-0000-0000-0000000000b1' },
-        { ...tenancy(op), fullName: 'Alpha', active: true, operatorId: '00000000-0000-0000-0000-0000000000a1' },
-        { ...tenancy(op), fullName: 'Inactive One', active: false, operatorId: '00000000-0000-0000-0000-0000000000c1' },
-      ]);
+      const t = tenancy(op);
+      await seedPair(tx, t, { driverName: 'Bravo', driverActive: true, operatorId: '00000000-0000-0000-0000-0000000000b1', plate: 'BR-01', vehicleActive: true });
+      await seedPair(tx, t, { driverName: 'Alpha', driverActive: true, operatorId: '00000000-0000-0000-0000-0000000000a1', plate: 'AL-01', vehicleActive: true });
+      await seedPair(tx, t, { driverName: 'Inactive One', driverActive: false, operatorId: '00000000-0000-0000-0000-0000000000c1', plate: 'IN-01', vehicleActive: true });
       const res = await svc.drivers(op);
       expect(res.items.map((i) => i.label)).toEqual(['Alpha', 'Bravo']);
     });
@@ -49,27 +74,25 @@ describe('@fleet/api - ReferenceService (integration)', () => {
     await withTxIsolation(testDb, async (tx) => {
       const svc = new ReferenceService(tx as never);
       const op = createOperatorContext();
+      const t = tenancy(op);
       const opAlpha = '00000000-0000-0000-0000-0000000000a1';
       const opBravo = '00000000-0000-0000-0000-0000000000b2';
-      await tx.insert(driver).values([
-        { ...tenancy(op), fullName: 'Alpha', active: true, operatorId: opAlpha },
-        { ...tenancy(op), fullName: 'Bravo', active: true, operatorId: opBravo },
-      ]);
+      await seedPair(tx, t, { driverName: 'Alpha', driverActive: true, operatorId: opAlpha, plate: 'AL-02', vehicleActive: true });
+      await seedPair(tx, t, { driverName: 'Bravo', driverActive: true, operatorId: opBravo, plate: 'BR-02', vehicleActive: true });
       const res = await svc.drivers(op);
       const byLabel = Object.fromEntries(res.items.map((i) => [i.label, i.id]));
       expect(byLabel['Alpha']).toBe(opAlpha);
       expect(byLabel['Bravo']).toBe(opBravo);
     });
   });
-  it('vehicles() returns active vehicles ordered by plate', async () => {
+  it('vehicles() returns active paired vehicles ordered by plate', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const svc = new ReferenceService(tx as never);
       const op = createOperatorContext();
-      await tx.insert(vehicle).values([
-        { ...tenancy(op), plate: 'ZZ-99', active: true },
-        { ...tenancy(op), plate: 'AA-01', active: true },
-        { ...tenancy(op), plate: 'XX-00', active: false },
-      ]);
+      const t = tenancy(op);
+      await seedPair(tx, t, { driverName: 'D1', driverActive: true, operatorId: '00000000-0000-0000-0000-0000000000f1', plate: 'ZZ-99', vehicleActive: true });
+      await seedPair(tx, t, { driverName: 'D2', driverActive: true, operatorId: '00000000-0000-0000-0000-0000000000f2', plate: 'AA-01', vehicleActive: true });
+      await seedPair(tx, t, { driverName: 'D3', driverActive: true, operatorId: '00000000-0000-0000-0000-0000000000f3', plate: 'XX-00', vehicleActive: false });
       const res = await svc.vehicles(op);
       expect(res.items.map((i) => i.label)).toEqual(['AA-01', 'ZZ-99']);
     });
@@ -120,10 +143,8 @@ describe('@fleet/api - ReferenceService (integration)', () => {
       const svc = new ReferenceService(tx as never);
       const op1 = createOperatorContext();
       const op2 = createOperatorContext();
-      await tx.insert(driver).values([
-        { ...tenancy(op1), fullName: 'Owned', active: true, operatorId: '00000000-0000-0000-0000-0000000000d1' },
-        { ...tenancy(op2), fullName: 'Other Co', active: true, operatorId: '00000000-0000-0000-0000-0000000000e2' },
-      ]);
+      await seedPair(tx, tenancy(op1), { driverName: 'Owned', driverActive: true, operatorId: '00000000-0000-0000-0000-0000000000d1', plate: 'OW-01', vehicleActive: true });
+      await seedPair(tx, tenancy(op2), { driverName: 'Other Co', driverActive: true, operatorId: '00000000-0000-0000-0000-0000000000e2', plate: 'OT-01', vehicleActive: true });
       const res = await svc.drivers(op1);
       expect(res.items.map((i) => i.label)).toEqual(['Owned']);
     });
@@ -133,7 +154,7 @@ describe('@fleet/api - ReferenceService (integration)', () => {
       const svc = new ReferenceService(tx as never);
       const op = createOperatorContext();
       const res = await svc.peekOrderRef(op, 'TO');
-      expect(res.ref).toBe('TO.001');
+      expect(res.ref).toBe('TO.0001');
     });
   });
   it('allocateOrderRef() inserts a new sequence row on first call, then peek reflects it', async () => {
@@ -141,9 +162,9 @@ describe('@fleet/api - ReferenceService (integration)', () => {
       const svc = new ReferenceService(tx as never);
       const op = createOperatorContext();
       const first = await svc.allocateOrderRef(op, 'TO');
-      expect(first.ref).toBe('TO.001');
+      expect(first.ref).toBe('TO.0001');
       const peek = await svc.peekOrderRef(op, 'TO');
-      expect(peek.ref).toBe('TO.002');
+      expect(peek.ref).toBe('TO.0002');
     });
   });
   it('allocateOrderRef() increments an existing sequence row across calls', async () => {
@@ -153,7 +174,7 @@ describe('@fleet/api - ReferenceService (integration)', () => {
       const a = await svc.allocateOrderRef(op, 'TO');
       const b = await svc.allocateOrderRef(op, 'TO');
       const c = await svc.allocateOrderRef(op, 'TO');
-      expect([a.ref, b.ref, c.ref]).toEqual(['TO.001', 'TO.002', 'TO.003']);
+      expect([a.ref, b.ref, c.ref]).toEqual(['TO.0001', 'TO.0002', 'TO.0003']);
     });
   });
 });

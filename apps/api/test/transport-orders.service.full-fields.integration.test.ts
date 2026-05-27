@@ -42,7 +42,7 @@ describe('@fleet/api - TransportOrdersService (all optional fields populated)', 
       await tx.insert(driverVehicleAssignment)
         .values({ ...tn, driverId: dRow.driverId, vehicleId: assetId });
       const result = await svc.create({
-        externalRef: 'TO-FULL-1',
+        // externalRef intentionally omitted — server assigns XTT.MM-NNN authoritatively (T3, 2026)
         customerId,
         metadata: { priority: 'high', note: 'full-fields path' },
         stops: [
@@ -60,7 +60,7 @@ describe('@fleet/api - TransportOrdersService (all optional fields populated)', 
       const list = await svc.listAssigned(op);
       expect(list.rows).toHaveLength(1);
       const row = list.rows[0];
-      expect(row?.externalRef).toBe('TO-FULL-1');
+      expect(row?.externalRef).toMatch(/^XTT\.[0-9]{2}-[0-9]{3,}$/);
       expect(row?.plannedStartAt).toBe('2026-06-01T08:00:00.000Z');
       expect(row?.stops).toHaveLength(2);
       expect(row?.stops[0]?.plannedAt).toBe('2026-06-01T09:00:00.000Z');
