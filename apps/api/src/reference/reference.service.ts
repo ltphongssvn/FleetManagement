@@ -1,5 +1,5 @@
 // apps/api/src/reference/reference.service.ts
-import { Inject, Injectable } from '@nestjs/common';
+import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
@@ -8,12 +8,19 @@ import { driverVehicleAssignment } from '../database/schema/driver-vehicle-assig
 import { transportOrder, roadRun, roadRunTransportOrder } from '../database/schema/transport.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import type { ReferenceListResponse } from './reference.dto.js';
+import { isPgUniqueViolation } from '../common/pg-errors.js';
 export interface DriverVehicleAssignmentItem {
   readonly operatorId: string;
   readonly vehicleId: string;
 }
 export interface DriverVehicleAssignmentsResponse {
   readonly items: readonly DriverVehicleAssignmentItem[];
+}
+// Localized 'already exists' message for the dispatcher UI. The literal
+// 'đã tồn tại' is the user-visible substring the ops-web admin page
+// matches on; do not change without updating the e2e and L2 tests.
+function conflictMessage(label: string, value: string): string {
+  return label + ' "' + value + '" đã tồn tại';
 }
 @Injectable()
 export class ReferenceService {
@@ -26,14 +33,6 @@ export class ReferenceService {
       depotId: op.depotId, legalEntityId: op.legalEntityId,
     };
   }
-  // Business invariant (2026-Q2): driver and vehicle MUST be actively
-  // assigned together for either to be selectable on the dispatch form.
-  // Therefore drivers() and vehicles() return only entities that participate
-  // in an active (not revoked) driver_vehicle_assignment whose counterpart
-  // is also active and within the same tenancy. Source-of-truth filtering
-  // here means the UI cannot accidentally (or maliciously) expose an
-  // unpaired entity. The driverVehicleAssignments() mapping endpoint reuses
-  // the same join shape so the three lists are guaranteed consistent.
   async drivers(op: OperatorContext): Promise<ReferenceListResponse> {
     const rows = await this.db
       .selectDistinct({ id: driver.operatorId, label: driver.fullName })
@@ -110,57 +109,82 @@ export class ReferenceService {
       .map((r) => ({ operatorId: r.operatorId, vehicleId: r.vehicleId }));
     return { items };
   }
+  // T5b: every create* path translates Postgres 23505 unique_violation
+  // into a NestJS ConflictException with a localized message. The Nest
+  // exception filter then surfaces HTTP 409 instead of HTTP 500 to the
+  // ops-web BFF, which forwards it to the dispatcher UI.
   async createCustomer(op: OperatorContext, name: string): Promise<{ id: string; label: string }> {
-    const [row] = await this.db.insert(customer)
-      .values({ ...this.tenancy(op), name }).returning({ id: customer.customerId, label: customer.name });
-    /* v8 ignore next -- defensive: a successful .returning() always yields a row */
-    if (!row) throw new Error('customer insert failed');
-    return row;
+    try {
+      const [row] = await this.db.insert(customer)
+        .values({ ...this.tenancy(op), name }).returning({ id: customer.customerId, label: customer.name });
+      /* v8 ignore next -- defensive: a successful .returning() always yields a row */
+      if (!row) throw new Error('customer insert failed');
+      return row;
+    } catch (e) {
+      if (isPgUniqueViolation(e)) throw new ConflictException(conflictMessage('Khách hàng', name));
+      throw e;
+    }
   }
   async updateCustomer(op: OperatorContext, id: string, name: string): Promise<void> {
-    await this.db.update(customer).set({ name })
-      .where(and(eq(customer.companyId, op.companyId), eq(customer.customerId, id)));
+    try {
+      await this.db.update(customer).set({ name })
+        .where(and(eq(customer.companyId, op.companyId), eq(customer.customerId, id)));
+    } catch (e) {
+      if (isPgUniqueViolation(e)) throw new ConflictException(conflictMessage('Khách hàng', name));
+      throw e;
+    }
   }
   async deleteCustomer(op: OperatorContext, id: string): Promise<void> {
     await this.db.update(customer).set({ active: false })
       .where(and(eq(customer.companyId, op.companyId), eq(customer.customerId, id)));
   }
   async createCargoType(op: OperatorContext, name: string): Promise<{ id: string; label: string }> {
-    const [row] = await this.db.insert(cargoType)
-      .values({ ...this.tenancy(op), name }).returning({ id: cargoType.cargoTypeId, label: cargoType.name });
-    /* v8 ignore next -- defensive: a successful .returning() always yields a row */
-    if (!row) throw new Error('cargo_type insert failed');
-    return row;
+    try {
+      const [row] = await this.db.insert(cargoType)
+        .values({ ...this.tenancy(op), name }).returning({ id: cargoType.cargoTypeId, label: cargoType.name });
+      /* v8 ignore next -- defensive: a successful .returning() always yields a row */
+      if (!row) throw new Error('cargo_type insert failed');
+      return row;
+    } catch (e) {
+      if (isPgUniqueViolation(e)) throw new ConflictException(conflictMessage('Tên hàng', name));
+      throw e;
+    }
   }
   async updateCargoType(op: OperatorContext, id: string, name: string): Promise<void> {
-    await this.db.update(cargoType).set({ name })
-      .where(and(eq(cargoType.companyId, op.companyId), eq(cargoType.cargoTypeId, id)));
+    try {
+      await this.db.update(cargoType).set({ name })
+        .where(and(eq(cargoType.companyId, op.companyId), eq(cargoType.cargoTypeId, id)));
+    } catch (e) {
+      if (isPgUniqueViolation(e)) throw new ConflictException(conflictMessage('Tên hàng', name));
+      throw e;
+    }
   }
   async deleteCargoType(op: OperatorContext, id: string): Promise<void> {
     await this.db.update(cargoType).set({ active: false })
       .where(and(eq(cargoType.companyId, op.companyId), eq(cargoType.cargoTypeId, id)));
   }
   async createVehicle(op: OperatorContext, plate: string): Promise<{ id: string; label: string }> {
-    const [row] = await this.db.insert(vehicle)
-      .values({ ...this.tenancy(op), plate }).returning({ id: vehicle.vehicleId, label: vehicle.plate });
-    /* v8 ignore next -- defensive: a successful .returning() always yields a row */
-    if (!row) throw new Error('vehicle insert failed');
-    return row;
+    try {
+      const [row] = await this.db.insert(vehicle)
+        .values({ ...this.tenancy(op), plate }).returning({ id: vehicle.vehicleId, label: vehicle.plate });
+      /* v8 ignore next -- defensive: a successful .returning() always yields a row */
+      if (!row) throw new Error('vehicle insert failed');
+      return row;
+    } catch (e) {
+      if (isPgUniqueViolation(e)) throw new ConflictException(conflictMessage('Số xe', plate));
+      throw e;
+    }
   }
   async updateVehicle(op: OperatorContext, id: string, plate: string): Promise<void> {
-    await this.db.update(vehicle).set({ plate })
-      .where(and(eq(vehicle.companyId, op.companyId), eq(vehicle.vehicleId, id)));
+    try {
+      await this.db.update(vehicle).set({ plate })
+        .where(and(eq(vehicle.companyId, op.companyId), eq(vehicle.vehicleId, id)));
+    } catch (e) {
+      if (isPgUniqueViolation(e)) throw new ConflictException(conflictMessage('Số xe', plate));
+      throw e;
+    }
   }
   async deleteVehicle(op: OperatorContext, id: string): Promise<void> {
-    // Defense-in-depth (2026-Q2): soft-deleting a vehicle is a cascade.
-    // Three operations in one transaction:
-    //   1. flip vehicle.active = false
-    //   2. revoke any active driver_vehicle_assignment for this vehicle
-    //   3. cancel any non-terminal transport_order linked through
-    //      road_run.assigned_asset_id (state NOT IN completed|cancelled)
-    // Without (3), an E2E test (or any caller) that soft-deletes a vehicle
-    // leaves orphan transport_order rows in the dispatch board forever.
-    // The cancellation_reason carries provenance for audit.
     const now = new Date();
     await this.db.transaction(async (tx) => {
       await tx.update(vehicle).set({ active: false })
@@ -191,15 +215,28 @@ export class ReferenceService {
     });
   }
   async createWarehouse(op: OperatorContext, name: string, role: 'pickup' | 'delivery'): Promise<{ id: string; label: string }> {
-    const [row] = await this.db.insert(warehouse)
-      .values({ ...this.tenancy(op), name, role }).returning({ id: warehouse.warehouseId, label: warehouse.name });
-    /* v8 ignore next -- defensive: a successful .returning() always yields a row */
-    if (!row) throw new Error('warehouse insert failed');
-    return row;
+    try {
+      const [row] = await this.db.insert(warehouse)
+        .values({ ...this.tenancy(op), name, role }).returning({ id: warehouse.warehouseId, label: warehouse.name });
+      /* v8 ignore next -- defensive: a successful .returning() always yields a row */
+      if (!row) throw new Error('warehouse insert failed');
+      return row;
+    } catch (e) {
+      if (isPgUniqueViolation(e)) {
+        const label = role === 'pickup' ? 'Kho nhận hàng' : 'Kho giao hàng';
+        throw new ConflictException(conflictMessage(label, name));
+      }
+      throw e;
+    }
   }
   async updateWarehouse(op: OperatorContext, id: string, name: string): Promise<void> {
-    await this.db.update(warehouse).set({ name })
-      .where(and(eq(warehouse.companyId, op.companyId), eq(warehouse.warehouseId, id)));
+    try {
+      await this.db.update(warehouse).set({ name })
+        .where(and(eq(warehouse.companyId, op.companyId), eq(warehouse.warehouseId, id)));
+    } catch (e) {
+      if (isPgUniqueViolation(e)) throw new ConflictException(conflictMessage('Kho', name));
+      throw e;
+    }
   }
   async deleteWarehouse(op: OperatorContext, id: string): Promise<void> {
     await this.db.update(warehouse).set({ active: false })

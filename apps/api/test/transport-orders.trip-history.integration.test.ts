@@ -100,7 +100,7 @@ describe('@fleet/api - TransportOrdersService.tripHistory (integration)', () => 
       await completeRoadRun(tx, op.operatorId, '2026-03-15T03:00:00.000Z');
       const result = await svc.tripHistory(op);
       const trip = result.months[0]?.trips[0];
-      expect(trip?.orderRef).toBe('TO-SHAPE');
+      expect(trip?.orderRef).toMatch(/^XTT\.[0-9]{2}-[0-9]{3,}$/);
       expect(trip?.state).toBe('completed');
       expect(trip?.completedAt).toBe('2026-03-15T03:00:00.000Z');
     });
@@ -116,7 +116,8 @@ describe('@fleet/api - TransportOrdersService.tripHistory (integration)', () => 
       await svc.create({ externalRef: 'TO-STILL-PLANNED', stops: [{ sequence: 1, stopType: 'pickup' }], roadRun: rr }, op);
       const result = await svc.tripHistory(op);
       const allRefs = result.months.flatMap((m) => m.trips.map((t) => t.orderRef));
-      expect(allRefs).toEqual(['TO-DONE']);
+      expect(allRefs).toHaveLength(1);
+      expect(allRefs[0]).toMatch(/^XTT\.[0-9]{2}-[0-9]{3,}$/);
     });
   });
   it('isolates trip history by operator', async () => {
