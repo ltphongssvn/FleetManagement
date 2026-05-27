@@ -25,8 +25,8 @@ test.describe('driver-app manifest capture screen', () => {
     await page.getByPlaceholder(/Nhập mật khẩu/).fill('driver1pass');
     await page.getByRole('button', { name: /Đăng nhập/ }).click();
     await expect(page.getByText(/Xem lệnh điều xe/)).toBeVisible({ timeout: EXPECT_TIMEOUT_MS });
-    await page.goto(DRIVER_APP_URL + '/capture', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: 'Chụp ảnh phiếu giao hàng' })).toBeVisible({ timeout: EXPECT_TIMEOUT_MS });
+    await page.goto(DRIVER_APP_URL + '/capture?stopKind=unloading', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: /Phiếu giao hàng/ })).toBeVisible({ timeout: EXPECT_TIMEOUT_MS });
     await expect(page.getByRole('button', { name: /Chụp ảnh/ })).toBeVisible();
   });
   test('home screen has a link to the capture screen', async ({ page }) => {

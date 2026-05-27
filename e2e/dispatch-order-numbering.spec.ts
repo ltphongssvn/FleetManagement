@@ -28,7 +28,7 @@
 // afterEach pops and revokes/soft-deletes each entry; afterAll asserts the
 // dispatcher /reference/vehicles + /reference/drivers match the baseline.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { execSync } from 'node:child_process';
+import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
 const POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
@@ -40,7 +40,7 @@ async function mintToken(username: string): Promise<string> {
     ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
     ',body:' + JSON.stringify('grant_type=password&username=' + username + '&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = execSync('docker exec fleet-pilot-api-1 node -e ' + JSON.stringify(script), { stdio: ['pipe', 'pipe', 'pipe'] }).toString();
+  const out = dockerExecNode('fleet-pilot-api-1', script);
   if (!out || !out.includes('.')) throw new Error('Token mint failed for ' + username + ': ' + out);
   return out.trim();
 }
@@ -128,21 +128,6 @@ async function createOrderViaApi(
   }
   return (await res.json()) as { transportOrderId: string; roadRunId: string; externalRef?: string };
 }
-interface PsqlResult { stdout: string; stderr: string; failed: boolean }
-function dockerPsql(sql: string): PsqlResult {
-  const cmd = 'docker exec -i ' + POSTGRES_CONTAINER + ' psql -U fleet -d fleet -tA -v ON_ERROR_STOP=1';
-  try {
-    const stdout = execSync(cmd, { input: sql, stdio: ['pipe', 'pipe', 'pipe'] }).toString();
-    return { stdout, stderr: '', failed: false };
-  } catch (e) {
-    const err = e as { stderr?: Buffer; stdout?: Buffer; message?: string };
-    return {
-      stdout: err.stdout ? err.stdout.toString() : '',
-      stderr: (err.stderr ? err.stderr.toString() : '') + (err.message ?? ''),
-      failed: true,
-    };
-  }
-}
 function externalRefOf(transportOrderId: string): string {
   const sq = String.fromCharCode(39);
   const sql = 'SELECT external_ref FROM transport_order WHERE transport_order_id=' + sq + transportOrderId + sq + ';';
@@ -171,12 +156,47 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
   const seededPairs: SeededPair[] = [];
   const seededVehicleLabels = new Set<string>();
   const seededDriverLabels = new Set<string>();
+  // 2026 best practice: tests that create transport_order rows via UI
+  // must also clean up THOSE rows. afterEach DELETEs them; afterAll
+  // asserts no-leak. Prevents Lệnh điều xe table pollution.
+  const seededOrderRefs: string[] = [];
   function trackPair(pair: SeededPair): void {
     seededPairs.push(pair);
     seededVehicleLabels.add(pair.vehicleLabel);
     seededDriverLabels.add(pair.driverLabel);
   }
   test.afterEach(async ({ request }) => {
+    // Delete order rows FIRST so FK dependencies are released before pair cleanup.
+    const sq = String.fromCharCode(39);
+    while (seededOrderRefs.length > 0) {
+      const ref = seededOrderRefs.pop();
+      if (!ref) continue;
+      // Delete transport_order + its road_run + outbox rows so the
+      // dispatch_board projection does not replay stale state on the
+      // next parallel worker's render of /.
+      const txIdSql = 'SELECT transport_order_id FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq +
+        ' AND external_ref=' + sq + ref + sq + ';';
+      const txIdRes = dockerPsql(txIdSql);
+      const txId = txIdRes.stdout.trim();
+      if (txId.length > 0) {
+        const rrIdSql = 'SELECT road_run_id FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';';
+        const rrIds = dockerPsql(rrIdSql).stdout.trim().split(String.fromCharCode(10)).filter((line) => line.length > 0);
+        try { dockerPsql('DELETE FROM stop WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
+        try { dockerPsql('DELETE FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
+        for (const rrId of rrIds) {
+          try { dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + rrId + sq + ';'); } catch { /* tolerate */ }
+        }
+      }
+      try { dockerPsql('DELETE FROM outbox WHERE company_id=' + sq + COMPANY_ID + sq +
+        " AND payload->>'externalRef'=" + sq + ref + sq + ';'); } catch { /* tolerate */ }
+      // Also clear the dispatch_board_projection so the read model on /
+      // does not show duplicate stale rows for this ref on next render.
+      try { dockerPsql('DELETE FROM dispatch_board_projection WHERE company_id=' + sq + COMPANY_ID + sq +
+        " AND external_ref=" + sq + ref + sq + ';'); } catch { /* tolerate */ }
+      const delSql = 'DELETE FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq +
+        ' AND external_ref=' + sq + ref + sq + ';';
+      try { dockerPsql(delSql); } catch { /* tolerate */ }
+    }
     while (seededPairs.length > 0) {
       const pair = seededPairs.pop();
       if (!pair) continue;
@@ -205,12 +225,22 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
     const leakedDrivers = driversAfter.filter((l) => seededDriverLabels.has(l));
     expect(leakedVehicles).toEqual([]);
     expect(leakedDrivers).toEqual([]);
+    if (seededOrderRefs.length > 0) {
+      const sq = String.fromCharCode(39);
+      const inList = seededOrderRefs.map((r) => sq + r + sq).join(',');
+      const sql = 'SELECT external_ref FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq +
+        ' AND external_ref IN (' + inList + ');';
+      const r = dockerPsql(sql);
+      const leakedOrders = r.stdout.trim().split(String.fromCharCode(10)).filter((line) => line.length > 0);
+      expect(leakedOrders).toEqual([]);
+    }
   });
   test('L3+L5: API response and DB row both carry server XTT.MM-NNN; client value ignored', async ({ request }) => {
     const pair = await setupPair(request, 'T3-L3');
     trackPair(pair);
     const clientGarbage = 'CLIENT-IGNORED-' + String(Date.now());
     const result = await createOrderViaApi(request, pair, clientGarbage);
+    if (result.externalRef) seededOrderRefs.push(result.externalRef);
     expect(result.externalRef).toBeDefined();
     expect(result.externalRef).toMatch(ORDER_NUMBER_REGEX);
     expect(result.externalRef).not.toBe(clientGarbage);
@@ -224,6 +254,7 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
     const b = await createOrderViaApi(request, pair, null);
     const refA = externalRefOf(a.transportOrderId);
     const refB = externalRefOf(b.transportOrderId);
+    seededOrderRefs.push(refA, refB);
     expect(refA).toMatch(ORDER_NUMBER_REGEX);
     expect(refB).toMatch(ORDER_NUMBER_REGEX);
     expect(parseSeq(refB)).toBeGreaterThan(parseSeq(refA));
@@ -237,6 +268,7 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
     ]);
     const refA = externalRefOf(a.transportOrderId);
     const refB = externalRefOf(b.transportOrderId);
+    seededOrderRefs.push(refA, refB);
     expect(refA).toMatch(ORDER_NUMBER_REGEX);
     expect(refB).toMatch(ORDER_NUMBER_REGEX);
     expect(refA).not.toBe(refB);
@@ -244,7 +276,9 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
   test('L5: order_sequence row seeded (XTT, pad>=3); external_ref unique per company', async ({ request }) => {
     const pair = await setupPair(request, 'T3-L5');
     trackPair(pair);
-    await createOrderViaApi(request, pair, null);
+    const createdL5 = await createOrderViaApi(request, pair, null);
+    const refL5 = externalRefOf(createdL5.transportOrderId);
+    seededOrderRefs.push(refL5);
     const sq = String.fromCharCode(39);
     const seqSql =
       'SELECT prefix, pad_width, next_value FROM order_sequence WHERE company_id=' +
@@ -269,6 +303,7 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
     trackPair(pair);
     const { transportOrderId, roadRunId } = await createOrderViaApi(request, pair, null);
     const ref = externalRefOf(transportOrderId);
+    seededOrderRefs.push(ref);
     expect(ref).toMatch(ORDER_NUMBER_REGEX);
     const sq = String.fromCharCode(39);
     const sql =
@@ -329,6 +364,9 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
       if (v.length > 0) { createdRef = v; break; }
       await page.waitForTimeout(500);
     }
+    // No-leak: push BEFORE assertion so the order is cleaned up even
+    // when the assertion fails (e.g. flaky polling under parallel workers).
+    if (createdRef.length > 0) seededOrderRefs.push(createdRef);
     expect(createdRef).toMatch(ORDER_NUMBER_REGEX);
   });
 });

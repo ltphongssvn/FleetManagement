@@ -1,8 +1,16 @@
 // apps/driver-app/app/(app)/capture.tsx
-// Manifest-photo capture screen. Thin shell: expo-image-picker -> reduceCapture
-// -> negotiateAndUploadManifest -> presentCapture(state). All logic lives in
-// the tested pure modules (capture-screen-state / -presenter). Vietnamese UI.
-// Styled with the shared design tokens to match ops-web.
+// Manifest-photo capture screen. Thin shell: parseCaptureStop -> stop-aware
+// initial state -> expo-image-picker -> reduceCapture ->
+// negotiateAndUploadManifest -> presentCapture(state). All logic lives in
+// the tested pure modules (manifest-capture-stop / capture-screen-state /
+// capture-screen-presenter). Vietnamese UI. Styled with the shared design
+// tokens to match ops-web.
+//
+// Multi-warehouse business invariant: the route receives stopKind=loading
+// (with stopIndex 0..3 for warehouses 1..4) or stopKind=unloading (no
+// index). Any invalid stop param drops the screen into an error view with
+// no capture button - the screen cannot be used to take a photo that
+// would violate the invariant.
 import { useReducer, useState, type JSX } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -10,33 +18,54 @@ import { useLocalSearchParams } from 'expo-router';
 import { randomUUID } from 'expo-crypto';
 import { useAuth } from '../../src/auth/use-auth.js';
 import {
-  initialCaptureState,
+  initialCaptureStateForStop,
   reduceCapture,
   type CaptureEvent,
   type CaptureState,
 } from '../../src/manifest/capture-screen-state.js';
 import { presentCapture } from '../../src/manifest/capture-screen-presenter.js';
 import { negotiateAndUploadManifest } from '../../src/manifest/manifest-capture-flow.js';
+import { parseCaptureStop } from '../../src/manifest/manifest-capture-stop.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
 import { getApiUrl } from '../../src/config/api-url.js';
+
 function mimeFromUri(uri: string): 'image/jpeg' | 'image/png' {
   return uri.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
 }
+
+function strParam(value: string | string[] | undefined): string | undefined {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+  return undefined;
+}
+
 export default function Capture(): JSX.Element {
+  // The order this delivery photo belongs to, plus the multi-warehouse stop
+  // descriptor (which warehouse + which receipt-kind). Passed as route params
+  // (e.g. /capture?transportOrderId=<uuid>&stopKind=loading&stopIndex=2)
+  // from the assignment card.
+  const params = useLocalSearchParams<{
+    transportOrderId?: string;
+    stopKind?: string;
+    stopIndex?: string;
+  }>();
+  const transportOrderId = strParam(params.transportOrderId) ?? null;
+  const stopParse = parseCaptureStop({
+    stopKind: strParam(params.stopKind),
+    stopIndex: strParam(params.stopIndex),
+  });
+
   const [state, dispatch] = useReducer(
     (s: CaptureState, e: CaptureEvent) => reduceCapture(s, e),
-    undefined,
-    initialCaptureState,
+    stopParse,
+    initialCaptureStateForStop,
   );
   const { getAccessToken } = useAuth();
-  // The order this delivery photo belongs to, passed as a route param
-  // (e.g. /capture?transportOrderId=<uuid>) from the assignment card.
-  const params = useLocalSearchParams<{ transportOrderId?: string }>();
-  const transportOrderId = typeof params.transportOrderId === 'string'
-    ? params.transportOrderId
-    : null;
+
   const [picked, setPicked] = useState<{ uri: string; bytes: Uint8Array; mime: 'image/jpeg' | 'image/png' } | null>(null);
+
   const vm = presentCapture(state);
+
   const takePhoto = async (): Promise<void> => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
@@ -53,6 +82,7 @@ export default function Capture(): JSX.Element {
     setPicked({ uri: asset.uri, bytes: buf, mime });
     dispatch({ type: 'PICKED', file: { mimeType: mime, sizeBytes: buf.byteLength }, localUri: asset.uri });
   };
+
   const upload = async (): Promise<void> => {
     if (picked === null) return;
     if (transportOrderId === null) {
@@ -74,12 +104,29 @@ export default function Capture(): JSX.Element {
       dispatch({ type: 'UPLOAD_FAIL', message: e instanceof Error ? e.message : 'upload error' });
     }
   };
+
   return (
     <View style={styles.screen} testID={vm.testID}>
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <Text style={styles.title}>{vm.title}</Text>
+          <Text
+            accessibilityRole={'header'}
+            // RNW maps accessibilityRole=header to <h1>, which Playwright's
+            // getByRole('heading') matches. Title is anchored to the stop
+            // descriptor by presentCapture().
+            style={styles.title}
+          >
+            {vm.title}
+          </Text>
           <Text style={styles.status}>{vm.statusText}</Text>
+          {vm.stopKind !== null ? (
+            <Text testID={'capture-stop-kind'} style={styles.metaHidden}>{vm.stopKind}</Text>
+          ) : null}
+          {vm.stopDisplayIndex !== null ? (
+            <Text testID={'capture-stop-index'} style={styles.metaHidden}>
+              {String(vm.stopDisplayIndex)}
+            </Text>
+          ) : null}
         </View>
         <View style={styles.cardBody}>
           {vm.previewUri !== null ? (
@@ -137,6 +184,7 @@ export default function Capture(): JSX.Element {
     </View>
   );
 }
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -164,6 +212,14 @@ const styles = StyleSheet.create({
   },
   title: { ...typography.title, color: colors.slate900, textAlign: 'center' },
   status: { ...typography.caption, color: colors.slate500, marginTop: spacing.xs, textAlign: 'center' },
+  // Visually hidden but present in the DOM for Playwright getByTestId.
+  metaHidden: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    overflow: 'hidden',
+    opacity: 0,
+  },
   cardBody: { paddingHorizontal: spacing.xl, paddingVertical: spacing.xl, alignItems: 'center' },
   preview: {
     width: 240,

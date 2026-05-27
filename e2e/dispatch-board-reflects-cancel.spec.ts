@@ -13,7 +13,7 @@
 // exercises the UI cancel flow against THAT order only. Fully self-
 // contained, parallel-safe, and immune to cascade timing.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { execSync } from 'node:child_process';
+import { dockerExecNode } from './helpers/docker-exec';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 async function mintDispatcherToken(): Promise<string> {
   const script =
@@ -22,7 +22,7 @@ async function mintDispatcherToken(): Promise<string> {
     ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
     ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = execSync('docker exec fleet-pilot-api-1 node -e ' + JSON.stringify(script), { stdio: ['pipe', 'pipe', 'pipe'] }).toString();
+  const out = dockerExecNode('fleet-pilot-api-1', script);
   if (!out || !out.includes('.')) throw new Error('Token mint failed: ' + out);
   return out.trim();
 }
@@ -115,9 +115,12 @@ test.describe('dispatch board reflects cancellation (T5)', () => {
     await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
     await expect(page.getByRole('heading', { level: 1, name: 'Lệnh điều xe' })).toBeVisible();
     // The cancelled row's Trạng thái cell must now show 'cancelled'.
-    const rowLink = page.getByTestId('dispatch-board-row-' + order.externalRef);
+    // Use .first() to bypass strict-mode if the dispatch_board_projection
+    // contains stale rows for the same ref (e.g. residue from a prior CI run
+    // that crashed before its afterEach cleanup ran).
+    const rowLink = page.getByTestId('dispatch-board-row-' + order.externalRef).first();
     await expect(rowLink).toBeVisible({ timeout: 10000 });
-    const row = page.locator('tr', { has: rowLink });
+    const row = page.locator('tr', { has: rowLink }).first();
     await expect(row).toContainText('cancelled', { timeout: 10000 });
   });
 });

@@ -29,7 +29,7 @@
 // and provisions a fresh driver+vehicle+assignment with timestamp-suffixed
 // unique names, so parallel workers do not collide.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { execSync } from 'node:child_process';
+import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
 const OIDC_TOKEN_URL = process.env.E2E_OIDC_TOKEN_URL ?? 'http://localhost:8080/fleet/token';
 const POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
@@ -41,7 +41,7 @@ async function mintDispatcherToken(): Promise<string> {
     ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
     ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = execSync('docker exec fleet-pilot-api-1 node -e ' + JSON.stringify(script), { stdio: ['pipe', 'pipe', 'pipe'] }).toString();
+  const out = dockerExecNode('fleet-pilot-api-1', script);
   if (!out || !out.includes('.')) throw new Error('Token mint failed: ' + out);
   return out.trim();
 }
@@ -113,21 +113,6 @@ async function loginAsDispatcher(page: Page): Promise<void> {
   await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
 }
-interface PsqlResult { stdout: string; stderr: string; failed: boolean }
-function dockerPsql(sql: string): PsqlResult {
-  const cmd = 'docker exec -i ' + POSTGRES_CONTAINER + ' psql -U fleet -d fleet -tA -v ON_ERROR_STOP=1';
-  try {
-    const stdout = execSync(cmd, { input: sql, stdio: ['pipe', 'pipe', 'pipe'] }).toString();
-    return { stdout, stderr: '', failed: false };
-  } catch (e) {
-    const err = e as { stderr?: Buffer; stdout?: Buffer; message?: string };
-    return {
-      stdout: err.stdout ? err.stdout.toString() : '',
-      stderr: (err.stderr ? err.stderr.toString() : '') + (err.message ?? ''),
-      failed: true,
-    };
-  }
-}
 test.describe.configure({ mode: 'serial' });
 test.describe('dispatch order protection chain (Layers 1-5)', () => {
   // 2026-Q2 no-leak contract. Self-scoped assertion: track every
@@ -138,12 +123,49 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
   const seededPairs: SeededPair[] = [];
   const seededVehicleLabels = new Set<string>();
   const seededDriverLabels = new Set<string>();
+  // 2026 best practice: tests that create transport_order rows via UI
+  // must also clean up THOSE rows. afterEach pops + DELETEs; afterAll
+  // asserts no-leak. Prevents Lệnh điều xe table pollution by orphan
+  // planned rows whose driver/vehicle have been cleaned up.
+  const seededOrderRefs: string[] = [];
   function trackPair(pair: SeededPair): void {
     seededPairs.push(pair);
     seededVehicleLabels.add(pair.vehicleLabel);
     seededDriverLabels.add(pair.driverLabel);
   }
   test.afterEach(async ({ request }) => {
+    // Delete order rows FIRST so foreign-key dependencies on operators/
+    // vehicles are released before the pair cleanup runs.
+    const sq = String.fromCharCode(39);
+    while (seededOrderRefs.length > 0) {
+      const ref = seededOrderRefs.pop();
+      if (!ref) continue;
+      // Delete transport_order + its road_run + outbox rows so the
+      // dispatch_board projection does not replay stale state on the
+      // next parallel worker's render of /.
+      const txIdSql = 'SELECT transport_order_id FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq +
+        ' AND external_ref=' + sq + ref + sq + ';';
+      const txIdRes = dockerPsql(txIdSql);
+      const txId = txIdRes.stdout.trim();
+      if (txId.length > 0) {
+        const rrIdSql = 'SELECT road_run_id FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';';
+        const rrIds = dockerPsql(rrIdSql).stdout.trim().split(String.fromCharCode(10)).filter((line) => line.length > 0);
+        try { dockerPsql('DELETE FROM stop WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
+        try { dockerPsql('DELETE FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
+        for (const rrId of rrIds) {
+          try { dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + rrId + sq + ';'); } catch { /* tolerate */ }
+        }
+      }
+      try { dockerPsql('DELETE FROM outbox WHERE company_id=' + sq + COMPANY_ID + sq +
+        " AND payload->>'externalRef'=" + sq + ref + sq + ';'); } catch { /* tolerate */ }
+      // Also clear the dispatch_board_projection so the read model on /
+      // does not show duplicate stale rows for this ref on next render.
+      try { dockerPsql('DELETE FROM dispatch_board_projection WHERE company_id=' + sq + COMPANY_ID + sq +
+        " AND external_ref=" + sq + ref + sq + ';'); } catch { /* tolerate */ }
+      const delSql = 'DELETE FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq +
+        ' AND external_ref=' + sq + ref + sq + ';';
+      try { dockerPsql(delSql); } catch { /* tolerate */ }
+    }
     while (seededPairs.length > 0) {
       const pair = seededPairs.pop();
       if (!pair) continue;
@@ -172,6 +194,15 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
     const leakedDrivers = driversAfter.filter((l) => seededDriverLabels.has(l));
     expect(leakedVehicles).toEqual([]);
     expect(leakedDrivers).toEqual([]);
+    if (seededOrderRefs.length > 0) {
+      const sq = String.fromCharCode(39);
+      const inList = seededOrderRefs.map((r) => sq + r + sq).join(',');
+      const sql = 'SELECT external_ref FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq +
+        ' AND external_ref IN (' + inList + ');';
+      const r = dockerPsql(sql);
+      const leakedOrders = r.stdout.trim().split(String.fromCharCode(10)).filter((line) => line.length > 0);
+      expect(leakedOrders).toEqual([]);
+    }
   });
   test('Layer 1: paired-only dropdown filtering + hidden assignedAssetId auto-fill', async ({ page, request }) => {
     const pair = await setupPair(request, 'L1');
@@ -232,6 +263,9 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
       if (v.length > 0) { createdRef = v; break; }
       await page.waitForTimeout(500);
     }
+    // No-leak: push BEFORE assertion so the order is cleaned up even
+    // when the assertion fails (e.g. flaky polling under parallel workers).
+    if (createdRef.length > 0) seededOrderRefs.push(createdRef);
     expect(createdRef).toMatch(/^XTT\.(0[1-9]|1[0-2])-\d{3,}$/);
   });
   test('Layer 3: API DTO rejects body missing roadRun.assignedAssetId', async ({ request }) => {

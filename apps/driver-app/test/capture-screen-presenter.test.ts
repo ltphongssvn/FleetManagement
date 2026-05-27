@@ -15,7 +15,7 @@ describe('capture-screen-presenter', () => {
   it('idle: prompts to take photo, capture enabled, upload hidden', () => {
     const v = presentCapture(initialCaptureState());
     expect(v.testID).toBe('capture-idle');
-    expect(v.title).toMatch(/Chụp ảnh phiếu/i);
+    expect(v.title).toMatch(/Phiếu giao hàng/i);
     expect(v.captureButton.visible).toBe(true);
     expect(v.captureButton.disabled).toBe(false);
     expect(v.uploadButton.visible).toBe(false);

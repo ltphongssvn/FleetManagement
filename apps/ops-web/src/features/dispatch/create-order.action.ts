@@ -12,7 +12,6 @@
 // externalRef field arriving from the form is dropped from the API body.
 'use server';
 import { cookies } from 'next/headers';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 const FormSchema = z.object({
   plannedStartAt: z.string().min(1, 'Required'),
@@ -123,6 +122,13 @@ export async function createOrder(_prev: CreateOrderState, formData: FormData): 
     return { status: 'api_error', message: 'API request failed: ' + String(res.status) + ' ' + res.statusText };
   }
   const json = (await res.json()) as { transportOrderId: string; roadRunId: string; externalRef: string };
-  revalidatePath('/');
+  // T3 follow-up (button state recovery): intentionally NOT calling
+  // revalidatePath('/'). Per Next.js v15 regression (vercel/next.js#82289),
+  // revalidating the page that hosts the form keeps useActionState's
+  // pending flag true until the entire server-rendered page re-renders,
+  // which on '/' includes heavy data fetching (drivers, vehicles,
+  // customers, warehouses, orders table). That strands the dispatcher
+  // on 'Đang tạo…'. The client (CreateOrderForm) triggers a targeted
+  // router.refresh() after the action settles to refresh server data.
   return { status: 'created', externalRef: json.externalRef, transportOrderId: json.transportOrderId };
 }

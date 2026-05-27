@@ -1,12 +1,20 @@
 // apps/ops-web/src/app/page.tsx
 // Routing entry — dispatcher home: app shell + create order form + live board.
+//
+// T3 (2026-Q2): form + board are now owned by a single client component
+// DispatchView so they can share React useOptimistic state. When the
+// create action returns 'created', DispatchView overlays an optimistic
+// row on the table before the eventually-consistent dispatch_board
+// projection has caught up. Industry-standard 2026 pattern for CQRS
+// read-model lag in Next.js 16 + React 19.
 export const dynamic = 'force-dynamic';
 import type { JSX } from 'react';
 import { cookies } from 'next/headers';
-import { CreateOrderForm } from '@/features/dispatch/CreateOrderForm';
 import { AppShell } from '@/features/shell/AppShell';
 import { loadReferences } from '@/features/dispatch/load-references';
-import { DispatchBoard } from '@/features/dispatch/DispatchBoard';
+import { loadDispatchBoard } from '@/features/dispatch/load-board';
+import { DispatchView } from '@/features/dispatch/DispatchView';
+
 function decodeUsername(token: string | undefined): string | undefined {
   if (!token) return undefined;
   try {
@@ -19,10 +27,11 @@ function decodeUsername(token: string | undefined): string | undefined {
     return undefined;
   }
 }
+
 export default async function HomePage(): Promise<JSX.Element> {
   const cookieStore = await cookies();
   const username = decodeUsername(cookieStore.get('fleet_session')?.value);
-  const refs = await loadReferences();
+  const [refs, runs] = await Promise.all([loadReferences(), loadDispatchBoard()]);
   return (
     <AppShell {...(username ? { username } : {})}>
       <div className='mx-auto w-full max-w-5xl'>
@@ -30,19 +39,19 @@ export default async function HomePage(): Promise<JSX.Element> {
           <h1 className='text-3xl font-bold tracking-tight text-white drop-shadow-sm'>Bảng điều phối</h1>
           <p className='mt-2 text-sm text-slate-300'>Tạo và phân công lệnh điều xe cho đội xe.</p>
         </div>
-        <CreateOrderForm
-          drivers={refs.drivers}
-          vehicles={refs.vehicles}
-          customers={refs.customers}
-          cargoTypes={refs.cargoTypes}
-          pickupWarehouses={refs.pickupWarehouses}
-          deliveryWarehouses={refs.deliveryWarehouses}
-          driverVehicleAssignments={refs.driverVehicleAssignments}
-          defaultOrderRef={refs.nextOrderRef}
+        <DispatchView
+          initialRuns={runs}
+          refs={{
+            drivers: refs.drivers,
+            vehicles: refs.vehicles,
+            customers: refs.customers,
+            cargoTypes: refs.cargoTypes,
+            pickupWarehouses: refs.pickupWarehouses,
+            deliveryWarehouses: refs.deliveryWarehouses,
+            driverVehicleAssignments: refs.driverVehicleAssignments,
+            nextOrderRef: refs.nextOrderRef,
+          }}
         />
-        <div className='mt-8 rounded-2xl bg-white/95 shadow-sm'>
-          <DispatchBoard />
-        </div>
       </div>
     </AppShell>
   );
