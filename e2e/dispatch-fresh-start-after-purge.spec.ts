@@ -43,16 +43,60 @@ async function adminPost<T>(api: APIRequestContext, token: string, path: string,
 
 test.describe('dispatch fresh start after wipe (T4)', () => {
   test('after wipeBusinessData runs, dispatch board is empty and next order is XTT.MM-001', async ({ request }) => {
-    // Run the wipe directly via SQL. The exact same TRUNCATE ... RESTART
-    // IDENTITY CASCADE that wipeBusinessData() executes, so the L0
-    // invariant is decoupled from build/deploy concerns.
-    const tablesRes = dockerPsql("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> '__drizzle_migrations' ORDER BY tablename;");
-    if (tablesRes.failed) throw new Error('list tables failed: ' + tablesRes.stderr);
-    const tables = tablesRes.stdout.split(String.fromCharCode(10)).map((t) => t.trim()).filter((t) => t.length > 0);
-    expect(tables.length).toBeGreaterThan(0);
-    const list = tables.map((t) => '"' + t + '"').join(', ');
-    const truncRes = dockerPsql('TRUNCATE TABLE ' + list + ' RESTART IDENTITY CASCADE;');
-    if (truncRes.failed) throw new Error('truncate failed: ' + truncRes.stderr);
+    test.setTimeout(90_000);
+    // Pre-seed at least one driver+vehicle+pair+customer+warehouse+cargo_type
+    // BEFORE the wipe so we can assert they survive.
+    const preToken = await mintDispatcherToken();
+    const preTs = Date.now();
+    const preRand = Math.floor(Math.random() * 1e9).toString(36);
+    const preDrv = await adminPost<{ operatorId: string; driverId: string }>(
+      request, preToken, '/admin/drivers',
+      { fullName: 'PRESERVE DRIVER T4 ' + String(preTs) + '-' + preRand, phone: '08' + String(preTs).slice(-8), password: 'e2e-pass-1234' }, // pragma: allowlist secret
+    );
+    const preVeh = await adminPost<{ id: string }>(request, preToken, '/reference/vehicles', { name: 'PRESERVE-VEH-' + preRand });
+    await adminPost(request, preToken, '/admin/driver-vehicle-assignments', { driverId: preDrv.driverId, vehicleId: preVeh.id });
+    await adminPost(request, preToken, '/reference/customers', { name: 'PRESERVE-CUST-' + preRand });
+    await adminPost(request, preToken, '/reference/warehouses', { name: 'PRESERVE-WH-' + preRand });
+    await adminPost(request, preToken, '/reference/cargo-types', { name: 'PRESERVE-CARGO-' + preRand });
+
+    const driversBefore = dockerPsql('SELECT COUNT(*) FROM driver WHERE active=true;').stdout.trim();
+    const vehiclesBefore = dockerPsql('SELECT COUNT(*) FROM vehicle WHERE active=true;').stdout.trim();
+    const customersBefore = dockerPsql('SELECT COUNT(*) FROM customer;').stdout.trim();
+    const warehousesBefore = dockerPsql('SELECT COUNT(*) FROM warehouse;').stdout.trim();
+    const cargoBefore = dockerPsql('SELECT COUNT(*) FROM cargo_type;').stdout.trim();
+    const pairsBefore = dockerPsql('SELECT COUNT(*) FROM driver_vehicle_assignment WHERE revoked_at IS NULL;').stdout.trim();
+    expect(Number(driversBefore)).toBeGreaterThan(0);
+    expect(Number(vehiclesBefore)).toBeGreaterThan(0);
+    expect(Number(customersBefore)).toBeGreaterThan(0);
+    expect(Number(warehousesBefore)).toBeGreaterThan(0);
+    expect(Number(cargoBefore)).toBeGreaterThan(0);
+    expect(Number(pairsBefore)).toBeGreaterThan(0);
+
+    // Run the wipe via the wipeBusinessData() module imported from the built
+    // api code inside the container. Production-equivalent path: this is the
+    // exact same code an operator would run via the CLI script.
+    const wipeOut = dockerExecNode(
+      'fleet-pilot-api-1',
+      'import(' + JSON.stringify('./dist/maintenance/wipe-business-data.js') + ').then(m=>m.wipeBusinessData(require(' + JSON.stringify('drizzle-orm/node-postgres') + ').drizzle(new (require(' + JSON.stringify('pg') + ').Pool)({connectionString:process.env.DATABASE_URL})))).then(()=>process.stdout.write(' + JSON.stringify('WIPE-OK') + ')).catch(e=>{console.error(e);process.exit(1)})',
+    );
+    expect(wipeOut).toContain('WIPE-OK');
+
+    // INVARIANT 1 (preservation): reference/master data MUST survive the wipe.
+    // This is the production-critical invariant the user flagged: dispatchers
+    // must not lose their driver list, vehicle plates, customer names,
+    // warehouse names, cargo types, or driver-vehicle pairings.
+    const driversAfter = dockerPsql('SELECT COUNT(*) FROM driver WHERE active=true;').stdout.trim();
+    const vehiclesAfter = dockerPsql('SELECT COUNT(*) FROM vehicle WHERE active=true;').stdout.trim();
+    const customersAfter = dockerPsql('SELECT COUNT(*) FROM customer;').stdout.trim();
+    const warehousesAfter = dockerPsql('SELECT COUNT(*) FROM warehouse;').stdout.trim();
+    const cargoAfter = dockerPsql('SELECT COUNT(*) FROM cargo_type;').stdout.trim();
+    const pairsAfter = dockerPsql('SELECT COUNT(*) FROM driver_vehicle_assignment WHERE revoked_at IS NULL;').stdout.trim();
+    expect(driversAfter, 'driver rows must be preserved across wipe').toBe(driversBefore);
+    expect(vehiclesAfter, 'vehicle rows must be preserved across wipe').toBe(vehiclesBefore);
+    expect(customersAfter, 'customer rows must be preserved across wipe').toBe(customersBefore);
+    expect(warehousesAfter, 'warehouse rows must be preserved across wipe').toBe(warehousesBefore);
+    expect(cargoAfter, 'cargo_type rows must be preserved across wipe').toBe(cargoBefore);
+    expect(pairsAfter, 'driver_vehicle_assignment rows must be preserved across wipe').toBe(pairsBefore);
 
     // DB-level invariants after wipe.
     const sq = String.fromCharCode(39);
