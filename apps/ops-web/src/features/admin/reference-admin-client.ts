@@ -9,6 +9,10 @@
 // JSON body (Nest ConflictException renders { statusCode, message, error }).
 // Falls back to a generic 'METHOD path HTTP <status>' string when the
 // body is empty or not JSON.
+//
+// T5c: list(role, scope) accepts an optional 'admin' scope so the
+// reference admin page can fetch ALL active rows (including unpaired
+// vehicles) instead of the dispatch-form's pair-filtered subset.
 export type FetchFn = typeof globalThis.fetch;
 export interface ReferenceOption {
   readonly id: string;
@@ -31,16 +35,16 @@ async function failWithBestMessage(res: Response, fallback: string): Promise<nev
 export class ReferenceAdminClient {
   private readonly fetchFn: FetchFn;
   constructor(private readonly segment: ReferenceSegment, fetchFn?: FetchFn) {
-    // A bare reference to globalThis.fetch loses its Window binding when
-    // later invoked as this.fetchFn(...), throwing 'Illegal invocation'.
-    // Bind it (or keep the injected mock, which needs no binding).
     this.fetchFn = fetchFn ?? globalThis.fetch.bind(globalThis);
   }
   private base(): string {
     return '/api/reference/' + this.segment;
   }
-  async list(role?: string): Promise<readonly ReferenceOption[]> {
-    const url = role === undefined ? this.base() : this.base() + '?role=' + role;
+  async list(role?: string, scope?: 'admin'): Promise<readonly ReferenceOption[]> {
+    const params: string[] = [];
+    if (role !== undefined) params.push('role=' + role);
+    if (scope !== undefined) params.push('scope=' + scope);
+    const url = params.length === 0 ? this.base() : this.base() + '?' + params.join('&');
     const res = await this.fetchFn(url, { method: 'GET' });
     if (!res.ok) await failWithBestMessage(res, 'GET ' + this.base() + ' HTTP ' + String(res.status));
     const data = (await res.json()) as { items?: ReferenceOption[] };

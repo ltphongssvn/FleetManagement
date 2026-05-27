@@ -1,14 +1,27 @@
 // apps/api/test/reference-crud.service.rethrow.test.ts
-// T5b coverage: ReferenceService.create*/update* MUST rethrow non-23505
-// errors verbatim (only Postgres unique_violation translates to
-// ConflictException). Unit-level — mocks the db so no Postgres needed.
+// T5b/T5c coverage: ReferenceService.create*/update* MUST translate
+// Postgres 23505 unique_violation to ConflictException, and rethrow
+// any non-23505 error verbatim. The create* methods wrap their INSERT
+// in a nested db.transaction(...) (SAVEPOINT) so a unique-violation
+// aborts only that subtransaction; the mocked db exposes both
+// .transaction(cb) and the direct .insert/.update chains so both code
+// paths can be exercised without a real Postgres.
 import { describe, it, expect } from 'vitest';
 import { ConflictException } from '@nestjs/common';
 import { ReferenceService } from '../src/reference/reference.service.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 function mkServiceWithError(err: Error): ReferenceService {
-  // Minimal Drizzle-shaped mock: insert(...).values(...).returning() and
-  // update(...).set(...).where() both reject with the given error.
+  // .where() must behave two ways:
+  //   * for update* calls: it is awaited directly -> reject with err.
+  //   * for create* reactivate path: caller chains .returning() -> [].
+  // We achieve that with a thenable that ALSO exposes .returning().
+  const makeWhere = (): unknown => {
+    const obj: { returning: () => Promise<unknown[]>; then: (resolve: (v: unknown) => void, reject: (e: unknown) => void) => void } = {
+      returning: () => Promise.resolve([]),
+      then: (_resolve, reject) => { reject(err); },
+    };
+    return obj;
+  };
   const insertChain = {
     values: () => ({
       returning: () => Promise.reject(err),
@@ -16,12 +29,17 @@ function mkServiceWithError(err: Error): ReferenceService {
   };
   const updateChain = {
     set: () => ({
-      where: () => Promise.reject(err),
+      where: () => makeWhere(),
     }),
+  };
+  const tx = {
+    insert: () => insertChain,
+    update: () => updateChain,
   };
   const db = {
     insert: () => insertChain,
     update: () => updateChain,
+    transaction: <T>(cb: (t: typeof tx) => Promise<T>): Promise<T> => cb(tx),
   };
   return new ReferenceService(db as never);
 }

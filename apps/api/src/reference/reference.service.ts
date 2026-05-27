@@ -16,9 +16,6 @@ export interface DriverVehicleAssignmentItem {
 export interface DriverVehicleAssignmentsResponse {
   readonly items: readonly DriverVehicleAssignmentItem[];
 }
-// Localized 'already exists' message for the dispatcher UI. The literal
-// 'đã tồn tại' is the user-visible substring the ops-web admin page
-// matches on; do not change without updating the e2e and L2 tests.
 function conflictMessage(label: string, value: string): string {
   return label + ' "' + value + '" đã tồn tại';
 }
@@ -53,6 +50,14 @@ export class ReferenceService {
       .filter((r): r is { id: string; label: string } => r.id !== null)
       .map((r) => ({ id: r.id, label: r.label }));
     return { items };
+  }
+  async vehiclesAdmin(op: OperatorContext): Promise<ReferenceListResponse> {
+    const rows = await this.db
+      .select({ id: vehicle.vehicleId, label: vehicle.plate })
+      .from(vehicle)
+      .where(and(eq(vehicle.companyId, op.companyId), eq(vehicle.active, true)))
+      .orderBy(asc(vehicle.plate));
+    return { items: rows };
   }
   async vehicles(op: OperatorContext): Promise<ReferenceListResponse> {
     const rows = await this.db
@@ -109,19 +114,33 @@ export class ReferenceService {
       .map((r) => ({ operatorId: r.operatorId, vehicleId: r.vehicleId }));
     return { items };
   }
-  // T5b: every create* path translates Postgres 23505 unique_violation
-  // into a NestJS ConflictException with a localized message. The Nest
-  // exception filter then surfaces HTTP 409 instead of HTTP 500 to the
-  // ops-web BFF, which forwards it to the dispatcher UI.
+  // T5b/T5c: each create wraps its INSERT in a nested transaction
+  // (SAVEPOINT) so a unique-violation aborts only that savepoint, leaving
+  // the outer transaction usable for the reactivate UPDATE. When the
+  // existing row is soft-deleted (active=false) we flip it active=true
+  // and return it (UPSERT semantics matching the dispatcher mental
+  // model 're-add this item'). Only when the existing row is already
+  // active does the friendly localized ConflictException surface.
   async createCustomer(op: OperatorContext, name: string): Promise<{ id: string; label: string }> {
     try {
-      const [row] = await this.db.insert(customer)
-        .values({ ...this.tenancy(op), name }).returning({ id: customer.customerId, label: customer.name });
-      /* v8 ignore next -- defensive: a successful .returning() always yields a row */
-      if (!row) throw new Error('customer insert failed');
-      return row;
+      return await this.db.transaction(async (tx) => {
+        const inserted = await tx.insert(customer)
+          .values({ ...this.tenancy(op), name })
+          .returning({ id: customer.customerId, label: customer.name });
+        const row = inserted[0];
+        /* v8 ignore next -- defensive: a successful .returning() always yields a row */
+        if (!row) throw new Error('customer insert failed');
+        return row;
+      });
     } catch (e) {
-      if (isPgUniqueViolation(e)) throw new ConflictException(conflictMessage('Khách hàng', name));
+      if (isPgUniqueViolation(e)) {
+        const reactivated = await this.db.update(customer)
+          .set({ active: true })
+          .where(and(eq(customer.companyId, op.companyId), eq(customer.name, name), eq(customer.active, false)))
+          .returning({ id: customer.customerId, label: customer.name });
+        if (reactivated[0]) return reactivated[0];
+        throw new ConflictException(conflictMessage('Khách hàng', name));
+      }
       throw e;
     }
   }
@@ -140,13 +159,24 @@ export class ReferenceService {
   }
   async createCargoType(op: OperatorContext, name: string): Promise<{ id: string; label: string }> {
     try {
-      const [row] = await this.db.insert(cargoType)
-        .values({ ...this.tenancy(op), name }).returning({ id: cargoType.cargoTypeId, label: cargoType.name });
-      /* v8 ignore next -- defensive: a successful .returning() always yields a row */
-      if (!row) throw new Error('cargo_type insert failed');
-      return row;
+      return await this.db.transaction(async (tx) => {
+        const inserted = await tx.insert(cargoType)
+          .values({ ...this.tenancy(op), name })
+          .returning({ id: cargoType.cargoTypeId, label: cargoType.name });
+        const row = inserted[0];
+        /* v8 ignore next -- defensive: a successful .returning() always yields a row */
+        if (!row) throw new Error('cargo_type insert failed');
+        return row;
+      });
     } catch (e) {
-      if (isPgUniqueViolation(e)) throw new ConflictException(conflictMessage('Tên hàng', name));
+      if (isPgUniqueViolation(e)) {
+        const reactivated = await this.db.update(cargoType)
+          .set({ active: true })
+          .where(and(eq(cargoType.companyId, op.companyId), eq(cargoType.name, name), eq(cargoType.active, false)))
+          .returning({ id: cargoType.cargoTypeId, label: cargoType.name });
+        if (reactivated[0]) return reactivated[0];
+        throw new ConflictException(conflictMessage('Tên hàng', name));
+      }
       throw e;
     }
   }
@@ -165,13 +195,24 @@ export class ReferenceService {
   }
   async createVehicle(op: OperatorContext, plate: string): Promise<{ id: string; label: string }> {
     try {
-      const [row] = await this.db.insert(vehicle)
-        .values({ ...this.tenancy(op), plate }).returning({ id: vehicle.vehicleId, label: vehicle.plate });
-      /* v8 ignore next -- defensive: a successful .returning() always yields a row */
-      if (!row) throw new Error('vehicle insert failed');
-      return row;
+      return await this.db.transaction(async (tx) => {
+        const inserted = await tx.insert(vehicle)
+          .values({ ...this.tenancy(op), plate })
+          .returning({ id: vehicle.vehicleId, label: vehicle.plate });
+        const row = inserted[0];
+        /* v8 ignore next -- defensive: a successful .returning() always yields a row */
+        if (!row) throw new Error('vehicle insert failed');
+        return row;
+      });
     } catch (e) {
-      if (isPgUniqueViolation(e)) throw new ConflictException(conflictMessage('Số xe', plate));
+      if (isPgUniqueViolation(e)) {
+        const reactivated = await this.db.update(vehicle)
+          .set({ active: true })
+          .where(and(eq(vehicle.companyId, op.companyId), eq(vehicle.plate, plate), eq(vehicle.active, false)))
+          .returning({ id: vehicle.vehicleId, label: vehicle.plate });
+        if (reactivated[0]) return reactivated[0];
+        throw new ConflictException(conflictMessage('Số xe', plate));
+      }
       throw e;
     }
   }
@@ -216,13 +257,27 @@ export class ReferenceService {
   }
   async createWarehouse(op: OperatorContext, name: string, role: 'pickup' | 'delivery'): Promise<{ id: string; label: string }> {
     try {
-      const [row] = await this.db.insert(warehouse)
-        .values({ ...this.tenancy(op), name, role }).returning({ id: warehouse.warehouseId, label: warehouse.name });
-      /* v8 ignore next -- defensive: a successful .returning() always yields a row */
-      if (!row) throw new Error('warehouse insert failed');
-      return row;
+      return await this.db.transaction(async (tx) => {
+        const inserted = await tx.insert(warehouse)
+          .values({ ...this.tenancy(op), name, role })
+          .returning({ id: warehouse.warehouseId, label: warehouse.name });
+        const row = inserted[0];
+        /* v8 ignore next -- defensive: a successful .returning() always yields a row */
+        if (!row) throw new Error('warehouse insert failed');
+        return row;
+      });
     } catch (e) {
       if (isPgUniqueViolation(e)) {
+        const reactivated = await this.db.update(warehouse)
+          .set({ active: true })
+          .where(and(
+            eq(warehouse.companyId, op.companyId),
+            eq(warehouse.name, name),
+            eq(warehouse.role, role),
+            eq(warehouse.active, false),
+          ))
+          .returning({ id: warehouse.warehouseId, label: warehouse.name });
+        if (reactivated[0]) return reactivated[0];
         const label = role === 'pickup' ? 'Kho nhận hàng' : 'Kho giao hàng';
         throw new ConflictException(conflictMessage(label, name));
       }

@@ -23,6 +23,7 @@ import Link from 'next/link';
 import { ROAD_RUN_STATE_TONE } from '@fleet/domain';
 import { CreateOrderForm, type CreateOrderFormProps } from './CreateOrderForm';
 import { LogoutButton } from '../auth/LogoutButton';
+import { ExportOrdersExcelButton } from './ExportOrdersExcelButton';
 import { buildLookup, formatOperator, formatOrderRef, formatVehicle } from './labels';
 import type { DispatchBoardRoadRun } from './types';
 
@@ -178,7 +179,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
         <section className='p-6'>
           <header className='mb-4 flex items-center justify-between'>
             <h1 className='text-2xl font-semibold'>Lệnh điều xe</h1>
-            <LogoutButton />
+            <div className='flex items-center gap-2'><ExportOrdersExcelButton /><LogoutButton /></div>
           </header>
           <table className='w-full border-collapse text-sm'>
             <thead>
