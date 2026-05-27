@@ -23,6 +23,8 @@ export default defineConfig({
         command: 'pnpm --filter @fleet/ops-web dev',
         url: 'http://localhost:3001',
         reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
+        // CI cold-start of next dev on GitHub-hosted runners can exceed 120s
+        // under contention; 240s gives headroom without masking real boot bugs.
+        timeout: 240_000,
       },
 });
