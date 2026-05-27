@@ -49,7 +49,7 @@ export default function AdminDriversPage(): JSX.Element {
   };
   const loadVehicles = async (): Promise<void> => {
     try {
-      const res = await fetch('/api/reference/vehicles');
+      const res = await fetch('/api/reference/vehicles?scope=admin');
       if (res.ok) {
         const data = await res.json() as { items?: { id: string; label: string }[] };
         const list = (data.items ?? []).map((it) => ({ vehicleId: it.id, plate: it.label }));
@@ -120,6 +120,12 @@ export default function AdminDriversPage(): JSX.Element {
   };
   if (state.kind === 'loading') return <div className='p-6'>Đang tải…</div>;
   if (state.kind === 'error') return <div className='p-6 text-red-600'>Lỗi: {state.message}</div>;
+  // Defensive narrowing: TypeScript can prove rows exists here, but a
+  // concurrent strict-mode re-render in tests can observe the function
+  // body with state pointing at the previous 'loading' snapshot before the
+  // early returns above evaluate. Bind rows once via narrowing so the
+  // JSX below references a guaranteed array.
+  const rows: readonly DriverRow[] = state.rows;
   return (
     <div className='p-6'>
       <div className='mb-4'><a href='/' className='text-blue-600 hover:underline text-sm'>← Quay lại Bảng điều phối</a></div>
@@ -181,7 +187,7 @@ export default function AdminDriversPage(): JSX.Element {
           </tr>
         </thead>
         <tbody>
-          {state.rows.map((row: DriverRow) => (
+          {rows.map((row: DriverRow) => (
             <tr key={row.driverId} className='border-b'>
               <td className='p-2'>
                 <div className='font-medium'>{row.fullName}</div>
