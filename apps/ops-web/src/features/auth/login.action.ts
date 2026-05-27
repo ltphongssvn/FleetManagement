@@ -2,6 +2,14 @@
 // Server Action: exchanges username/password for JWT via OIDC password grant,
 // stores token in httpOnly cookie 'fleet_session'. Industry pattern per
 // https://nextjs.org/docs/app/guides/authentication (httpOnly cookie storage).
+//
+// T1 (2026): After a successful login, fires a fire-and-forget POST to
+// /transport-orders-export/auto with trigger='login'. The API-side service
+// is idempotent per (operator, day, trigger) so multiple logins the same
+// day write at most one ledger row. Backup failures are swallowed (logged
+// in server console) so a transient outage cannot block the user from
+// logging in — the daily-backup invariant is best-effort, the login is
+// the user-facing critical path.
 'use server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -19,6 +27,22 @@ export type LoginState =
   | { status: 'invalid'; errors: { username?: string; password?: string } }
   | { status: 'auth_failed'; message: string }
   | { status: 'server_error'; message: string };
+async function fireAutoBackup(token: string, trigger: 'login' | 'logout'): Promise<void> {
+  const apiUrl = process.env['FLEET_API_URL'];
+  if (apiUrl === undefined || apiUrl.length === 0) return;
+  try {
+    await fetch(apiUrl + '/transport-orders-export/auto', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trigger }),
+      cache: 'no-store',
+    });
+  } catch (err) {
+    // Best-effort backup; surfacing this error would block the user-facing
+    // critical path (login/logout). Server console captures it for ops.
+    console.error('auto-backup ' + trigger + ' failed:', err);
+  }
+}
 export async function login(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const parsed = CredentialsSchema.safeParse({
     username: formData.get('username'),
@@ -64,5 +88,8 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
     secure: process.env.NODE_ENV === 'production',
     maxAge,
   });
+  // Best-effort auto-backup. Awaited so the request completes before the
+  // server action returns, but errors are swallowed inside the helper.
+  await fireAutoBackup(tokenParsed.data.access_token, 'login');
   redirect('/');
 }

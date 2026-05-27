@@ -1,6 +1,5 @@
 // playwright.config.ts
 import { defineConfig, devices } from '@playwright/test';
-
 export default defineConfig({
   testDir: './e2e',
   globalTeardown: './e2e/global-teardown.ts',
@@ -20,11 +19,15 @@ export default defineConfig({
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: 'pnpm --filter @fleet/ops-web dev',
+        // In CI: use a pre-built production server. 'next dev' cold-start on
+        // GitHub-hosted runners can exceed 4 minutes under contention; 'next
+        // start' against a prebuilt .next is sub-30s and matches what
+        // dispatchers run in staging/prod. Locally we keep 'next dev' for HMR.
+        command: process.env.CI
+          ? 'pnpm --filter @fleet/ops-web exec next build && pnpm --filter @fleet/ops-web exec next start -p 3001'
+          : 'pnpm --filter @fleet/ops-web dev',
         url: 'http://localhost:3001',
         reuseExistingServer: !process.env.CI,
-        // CI cold-start of next dev on GitHub-hosted runners can exceed 120s
-        // under contention; 240s gives headroom without masking real boot bugs.
         timeout: 240_000,
       },
 });

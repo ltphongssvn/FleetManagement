@@ -95,3 +95,8 @@ export {
   type PasskeyCredential,
   type NewPasskeyCredential,
 } from './passkey-credential.js';
+export {
+  transportOrderExportLog,
+  type TransportOrderExportLog,
+  type NewTransportOrderExportLog,
+} from './transport-order-export-log.js';
