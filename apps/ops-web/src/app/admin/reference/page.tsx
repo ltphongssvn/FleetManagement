@@ -2,8 +2,12 @@
 // CRUD admin for dispatch-form master data: customers (Khách hàng), cargo
 // types (Tên hàng), vehicles (Số xe) and warehouses (kho nhan/giao hang).
 // Drivers (Tai xe) have their own richer admin page (vehicle assignment +
-// device enrollment) linked at the top. Each section lists active rows with
-// inline rename + soft-delete and an add-row form, all via ReferenceAdminClient.
+// device enrollment) linked at the top. Each section lists active rows
+// with add-row form and Xóa per row, all via ReferenceAdminClient.
+//
+// T5: removed redundant 'Sửa' (inline rename) per-row control and the
+// supporting editId/editName state + Lưu/Hủy/saveEdit flow. Xóa +
+// re-create supersedes rename safely.
 'use client';
 import { useEffect, useState, type JSX } from 'react';
 import {
@@ -31,8 +35,6 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [busy, setBusy] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
   const refresh = async (): Promise<void> => {
     setLoading(true);
     try {
@@ -55,20 +57,6 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'create failed');
-    } finally {
-      setBusy(false);
-    }
-  };
-  const saveEdit = async (id: string): Promise<void> => {
-    if (editName.trim().length === 0) return;
-    setBusy(true);
-    try {
-      await client.update(id, editName.trim());
-      setEditId(null);
-      setEditName('');
-      await refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'update failed');
     } finally {
       setBusy(false);
     }
@@ -115,54 +103,16 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
           ) : null}
           {rows.map((row) => (
             <li key={row.id} className='flex items-center justify-between py-2'>
-              {editId === row.id ? (
-                <input
-                  type='text'
-                  value={editName}
-                  onChange={(e) => { setEditName(e.target.value); }}
-                  className='w-72 rounded border px-2 py-1 text-sm'
-                />
-              ) : (
-                <span className='text-sm'>{row.label}</span>
-              )}
+              <span className='text-sm'>{row.label}</span>
               <span className='flex gap-2'>
-                {editId === row.id ? (
-                  <>
-                    <button
-                      type='button'
-                      disabled={busy}
-                      onClick={() => { void saveEdit(row.id); }}
-                      className='rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700'
-                    >
-                      Lưu
-                    </button>
-                    <button
-                      type='button'
-                      onClick={() => { setEditId(null); setEditName(''); }}
-                      className='rounded border px-3 py-1 text-sm hover:bg-gray-50'
-                    >
-                      Hủy
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type='button'
-                      onClick={() => { setEditId(row.id); setEditName(row.label); }}
-                      className='rounded border px-3 py-1 text-sm hover:bg-gray-50'
-                    >
-                      Sửa
-                    </button>
-                    <button
-                      type='button'
-                      disabled={busy}
-                      onClick={() => { void del(row.id, row.label); }}
-                      className='rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600'
-                    >
-                      Xóa
-                    </button>
-                  </>
-                )}
+                <button
+                  type='button'
+                  disabled={busy}
+                  onClick={() => { void del(row.id, row.label); }}
+                  className='rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600'
+                >
+                  Xóa
+                </button>
               </span>
             </li>
           ))}
@@ -183,7 +133,7 @@ export default function ReferenceAdminPage(): JSX.Element {
       </div>
       <h1 className='mb-2 text-2xl font-semibold'>Quản lý dữ liệu điều phối</h1>
       <p className='mb-6 text-sm text-gray-600'>
-        Thêm, sửa, xóa các lựa chọn trong biểu mẫu tạo lệnh.
+        Thêm, xóa các lựa chọn trong biểu mẫu tạo lệnh.
         {' '}
         <a href='/admin/drivers' className='text-blue-600 hover:underline'>Quản lý tài xế &amp; xe &rarr;</a>
       </p>

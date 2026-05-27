@@ -18,6 +18,10 @@
 // Bidirectional driver vehicle auto-fill (Section 3): the dispatcher binds
 // each driver to one truck on the Đội xe page (driver_vehicle_assignment).
 // driverVehicleAssignments carries the [{ operatorId, vehicleId }] pairs.
+//
+// T5: removed redundant 'Đặt lại' / 'Reset' footer button. Mid-creation
+// reset silently nukes dispatcher work; a page reload or a new order
+// supersedes it. The submit button is now the sole footer action.
 'use client';
 import { useActionState, useEffect, useState } from 'react';
 import type { JSX } from 'react';
@@ -266,9 +270,6 @@ export function CreateOrderForm({
       <div className='flex items-center justify-between gap-3 rounded-b-2xl border-t border-slate-200/70 bg-gradient-to-r from-slate-50/80 to-white/60 px-6 py-4'>
         <p className='text-xs text-slate-500'>{locale === 'vi' ? 'Kiểm tra kỹ thông tin trước khi tạo lệnh.' : 'Review the information before submitting.'}</p>
         <div className='flex items-center gap-2'>
-          <button type='reset' className='rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50'>
-            {locale === 'vi' ? 'Đặt lại' : 'Reset'}
-          </button>
           <button type='submit' disabled={pending} className='inline-flex items-center gap-2 rounded-md bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-60'>
             {pending ? tx('orderForm.submitting') : tx('orderForm.submit')}
           </button>
