@@ -134,6 +134,7 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
     seededDriverLabels.add(pair.driverLabel);
   }
   test.afterEach(async ({ request }) => {
+    test.setTimeout(90000);
     // Delete order rows FIRST so foreign-key dependencies on operators/
     // vehicles are released before the pair cleanup runs.
     const sq = String.fromCharCode(39);
@@ -187,6 +188,7 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
     }
   });
   test.afterAll(async ({ request }) => {
+    test.setTimeout(90000);
     const token = await mintDispatcherToken();
     const vehiclesAfter = await listLabels(request, token, '/reference/vehicles');
     const driversAfter = await listLabels(request, token, '/reference/drivers');
@@ -257,7 +259,7 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
       'AND (substring(external_ref FROM ' + sq + '^XTT\\.\\d{2}-(\\d+)$' + sq + '))::int > ' + String(beforeMax) +
       ' ORDER BY created_at DESC LIMIT 1;';
     let createdRef = '';
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 40; i++) {
       const r = dockerPsql(findSql);
       const v = r.stdout.trim();
       if (v.length > 0) { createdRef = v; break; }

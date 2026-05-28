@@ -20,10 +20,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 const PUBLIC_PATHS = new Set(['/login']);
 const RSC_ACCEPT = 'text/x-component';
 function isRscRequest(req: NextRequest): boolean {
-  const h = req.headers;
-  if (h === undefined || typeof h.get !== 'function') return false;
-  const accept = h.get('accept');
-  return accept !== null && accept.includes(RSC_ACCEPT);
+  return req.headers.get('accept')?.includes(RSC_ACCEPT) ?? false;
 }
 export function proxy(req: NextRequest): NextResponse {
   const { pathname } = req.nextUrl;
