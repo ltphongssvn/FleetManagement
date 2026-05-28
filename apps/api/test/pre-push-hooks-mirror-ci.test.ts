@@ -44,3 +44,27 @@ describe('@fleet/api - local pre-push hooks mirror remote CI coverage gate', () 
     expect(yaml).not.toMatch(/id:\s*pnpm-test-push\b/);
   });
 });
+
+// T6-PERF (2026): the coverage config must split deadlock-prone specs
+// (testcontainers port-bind + manifest/concurrency TRUNCATE races) into a
+// SERIAL project while the 40 isolated per-file PGlite specs run PARALLEL.
+// Single-worker serial over all files cost ~21min; the split restores the
+// ~5-6min CI budget without re-exposing the races invariant 3 guards.
+import { readFileSync as _readCfg } from 'node:fs';
+describe('@fleet/api - coverage config parallelizes safe specs, serializes racy ones', () => {
+  const cfgPath = resolve(here, '../vitest.coverage.config.ts');
+  const cfg = _readCfg(cfgPath, 'utf8');
+  it('defines vitest projects to separate parallel vs serial suites', () => {
+    expect(cfg).toMatch(/projects\s*:/);
+  });
+  it('keeps a serial (maxWorkers:1) project for the racy specs', () => {
+    expect(cfg).toMatch(/maxWorkers\s*:\s*1/);
+  });
+  it('runs a PARALLEL project (does not force single-fork over the whole suite)', () => {
+    // fileParallelism:false is allowed INSIDE the serial project, but the
+    // suite as a whole must include a parallel project and must not pin
+    // maxWorkers:1 at the top level.
+    expect(cfg).toMatch(/name:\s*['"]parallel['"]/);
+    expect(cfg).not.toMatch(/singleFork\s*:\s*true/);
+  });
+});
