@@ -67,6 +67,11 @@ export default defineConfig({
           name: 'parallel',
           include: ['test/**/*.test.ts'],
           exclude: SERIAL_SPECS,
+          // Bounded to 4 workers (CI shard model). Unbounded oversubscribes
+          // CPU when the pre-push hook runs all workspace packages'
+          // test:coverage concurrently (pnpm -r), starving workers and
+          // timing out the testcontainers specs.
+          maxWorkers: 4,
         },
       },
       {
