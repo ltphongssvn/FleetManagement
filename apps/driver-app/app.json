@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Fleet Driver",
+    "slug": "fleet-driver",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "fleetdriver",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.fleetmanagement.driver",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.fleetmanagement.driver",
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "fleet-driver",
+          "organization": "fleetmanagement"
+        }
+      ],
+      "@sentry/react-native",
+      "expo-secure-store",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "updates": {
+      "url": "https://u.expo.dev/0d98c859-b2bc-4412-be8d-f9bc83bbb239",
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "0d98c859-b2bc-4412-be8d-f9bc83bbb239"
+      },
+      "router": {}
+    },
+    "owner": "ltphongssvn"
+  }
+}

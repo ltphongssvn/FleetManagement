@@ -1,0 +1,17 @@
+// apps/api/src/auth/identity-provider.interface.ts
+// IIdentityProvider portability seam per Frozen Stack PDF "Auth" section.
+// Corporate OIDC primary; Keycloak fallback. Concrete impls injected per env.
+export interface VerifiedIdentity {
+  readonly subject: string;
+  readonly operatorId: string;
+  readonly companyId: string;
+  readonly issuedAt: number;
+  readonly expiresAt: number;
+}
+
+export interface IIdentityProvider {
+  /** Verify a bearer token and return identity claims, or throw. */
+  verifyToken(token: string): Promise<VerifiedIdentity>;
+}
+
+export const IDENTITY_PROVIDER = 'IDENTITY_PROVIDER' as const;

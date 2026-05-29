@@ -1,0 +1,310 @@
+import { OUTBOX_QUEUES } from '@fleet/sync-protocol';
+// apps/api/src/manifest/manifest.service.ts
+// Manifest service per Frozen Stack PDF "Manifest" + "Uploads".
+import { Inject, Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { ConfigService } from '@nestjs/config';
+import { and, eq, inArray } from 'drizzle-orm';
+import mime from 'mime-types';
+import { DRIZZLE_DB } from '../database/database.tokens.js';
+import type { FleetDb } from '../database/database.module.js';
+type Tx = Parameters<Parameters<FleetDb['transaction']>[0]>[0];
+import { manifest, uploadSession } from '../database/schema/manifest.js';
+import { allocateServerSeq } from '../database/server-seq.repository.js';
+import { appendTriWrite } from '../database/append-tri-write.js';
+import { transportOrder } from '../database/schema/transport.js';
+import { BLOB_STORE, type IBlobStore } from '../storage/storage-provider.interface.js';
+import type { Env } from '../config/env.config.js';
+import type { NegotiateUploadInput, NegotiateUploadResponse, CommitUploadInput, CommitUploadResponse } from './manifest.dto.js';
+import { ManifestInsertFailedError, TransportOrderNotOwnedError, UploadSessionInsertFailedError, UploadSessionMissingManifestError, UploadSessionNotFoundError, UploadSessionInvalidStateError, ManifestStateInvalidTransitionError } from './manifest.errors.js';
+
+import {
+  UPLOAD_SESSION_COMMITTABLE_STATES,
+  UPLOAD_SESSION_FINALIZABLE_STATES,
+  MANIFEST_VERIFIABLE_STATES,
+  MANIFEST_FINALIZABLE_STATES,
+  type ManifestRejectionReason,
+} from '@fleet/domain';
+import type { OperatorContext } from '../auth/operator-context.js';
+export type { OperatorContext };
+
+@Injectable()
+export class ManifestService {
+  private readonly presignTtlSeconds: number;
+
+  constructor(
+    @Inject(DRIZZLE_DB) private readonly db: FleetDb,
+    @Inject(BLOB_STORE) private readonly blobs: IBlobStore,
+    @Inject(ConfigService) config: ConfigService<Env, true>,
+  ) {
+    this.presignTtlSeconds = config.getOrThrow('S3_PRESIGN_TTL_SECONDS', { infer: true });
+  }
+
+  async negotiateUpload(input: NegotiateUploadInput, op: OperatorContext): Promise<NegotiateUploadResponse> {
+    return this.db.transaction(async (tx) => {
+      await this.assertTransportOrderOwnership(tx, input.transportOrderId, op);
+      const manifestRow = await this.findOrCreateManifest(tx, input, op);
+      const key = this.buildS3Key(op, manifestRow.manifestId, input.manifestCorrelationId, input.contentType);
+      const presigned = await this.blobs.presignUpload({ key, contentType: input.contentType, ttlSeconds: this.presignTtlSeconds });
+
+      const [session] = await tx
+        .insert(uploadSession)
+        .values({
+          manifestId: manifestRow.manifestId,
+          operatorId: op.operatorId,
+          s3Key: key,
+          s3Bucket: presigned.bucket,
+          contentType: input.contentType,
+          expectedSizeBytes: input.expectedSizeBytes,
+          companyId: op.companyId,
+          businessUnitId: op.businessUnitId,
+          depotId: op.depotId,
+          legalEntityId: op.legalEntityId,
+        })
+        .returning();
+      if (!session) throw new UploadSessionInsertFailedError(manifestRow.manifestId);
+
+      return {
+        uploadSessionId: session.uploadSessionId,
+        url: presigned.url,
+        key: presigned.key,
+        bucket: presigned.bucket,
+        expiresAt: presigned.expiresAt.toISOString(),
+      };
+    });
+  }
+
+  private async findOrCreateManifest(tx: Tx, input: NegotiateUploadInput, op: OperatorContext): Promise<{ manifestId: string }> {
+    const [created] = await tx
+      .insert(manifest)
+      .values({
+        transportOrderId: input.transportOrderId,
+        manifestCorrelationId: input.manifestCorrelationId,
+        capturedByOperatorId: op.operatorId,
+        companyId: op.companyId,
+        businessUnitId: op.businessUnitId,
+        depotId: op.depotId,
+        legalEntityId: op.legalEntityId,
+      })
+      .onConflictDoNothing({ target: manifest.manifestCorrelationId })
+      .returning();
+    if (created) return created;
+
+    const [winner] = await tx
+      .select()
+      .from(manifest)
+      .where(and(
+        eq(manifest.manifestCorrelationId, input.manifestCorrelationId),
+        eq(manifest.companyId, op.companyId),
+      ))
+      .limit(1);
+    if (!winner) throw new ManifestInsertFailedError(input.manifestCorrelationId);
+    return winner;
+  }
+
+  private async assertTransportOrderOwnership(
+    tx: Tx,
+    transportOrderId: string,
+    op: OperatorContext,
+  ): Promise<void> {
+    const [row] = await tx
+      .select({ id: transportOrder.transportOrderId })
+      .from(transportOrder)
+      .where(and(
+        eq(transportOrder.transportOrderId, transportOrderId),
+        eq(transportOrder.companyId, op.companyId),
+      ))
+      .limit(1);
+    if (!row) throw new TransportOrderNotOwnedError(transportOrderId, op.companyId);
+  }
+
+  /**
+   * Mark a previously negotiated upload as ready for verification.
+   * Transitions upload_session: initiated/uploading -> verifying (atomic).
+   * Final 'committed' transition is performed by the intake worker after S3 HEAD,
+   * size/hash verification, and virus scan succeed.
+   * Returns 409 (UploadAlreadyCommittedError) if session already past initial state.
+   */
+  async commitUpload(input: CommitUploadInput, op: OperatorContext): Promise<CommitUploadResponse> {
+    return this.db.transaction(async (tx) => {
+      // Atomic: only transition if currently 'initiated' or 'uploading'.
+      // This collapses the SELECT-then-UPDATE race window.
+      const updated = await tx
+        .update(uploadSession)
+        .set({
+          state: 'verifying',
+          actualSizeBytes: input.actualSizeBytes,
+          contentHash: input.contentHash ?? null,
+        })
+        .where(and(
+          eq(uploadSession.uploadSessionId, input.uploadSessionId),
+          eq(uploadSession.companyId, op.companyId),
+          inArray(uploadSession.state, [...UPLOAD_SESSION_COMMITTABLE_STATES]),
+        ))
+        .returning();
+
+      const updatedSession = updated[0];
+      if (!updatedSession) {
+        // Either not found, wrong tenant, or already past initial state.
+        // Disambiguate to give the client a useful error.
+        const [existing] = await tx
+          .select({ state: uploadSession.state })
+          .from(uploadSession)
+          .where(and(
+            eq(uploadSession.uploadSessionId, input.uploadSessionId),
+            eq(uploadSession.companyId, op.companyId),
+          ))
+          .limit(1);
+        if (!existing) throw new UploadSessionNotFoundError(input.uploadSessionId);
+        throw new UploadSessionInvalidStateError(
+          input.uploadSessionId,
+          existing.state,
+          [...UPLOAD_SESSION_COMMITTABLE_STATES],
+        );
+      }
+      if (!updatedSession.manifestId) throw new UploadSessionMissingManifestError(input.uploadSessionId);
+
+      // Manifest enters 'verifying' state — intake worker will move it to 'captured'
+      // (or 'rejected') after running the validateIntake policy.
+      // Guard against backsliding from terminal states (committed/rejected).
+      await tx
+        .update(manifest)
+        .set({ state: 'verifying' })
+        .where(and(
+          eq(manifest.manifestId, updatedSession.manifestId),
+          inArray(manifest.state, [...MANIFEST_VERIFIABLE_STATES]),
+        ));
+
+      return {
+        uploadSessionId: updatedSession.uploadSessionId,
+        manifestId: updatedSession.manifestId,
+        state: 'verifying',
+      };
+    });
+  }
+
+
+  /**
+   * Worker callback after intake validation. Transitions manifest+upload_session
+   * to committed/rejected and emits manifest.committed event to outbox so the
+   * ERP queue picks it up. PDF Day-One #5 + #8.
+   */
+  async finalizeIntake(input: {
+    readonly uploadSessionId: string;
+    readonly accepted: boolean;
+    readonly rejectionReasonCode?: ManifestRejectionReason;
+  }, op: OperatorContext): Promise<{ manifestId: string; state: 'committed' | 'rejected' }> {
+    return this.db.transaction(async (tx) => {
+      const session = await this.transitionUploadSession(tx, input, op);
+      await this.transitionManifest(tx, session.manifestId, input);
+      if (input.accepted) {
+        await this.emitManifestCommittedEvent(tx, session.manifestId, input.uploadSessionId, op);
+      } else {
+        await this.emitManifestRejectedEvent(tx, session.manifestId, input.uploadSessionId, input.rejectionReasonCode, op);
+      }
+      return { manifestId: session.manifestId, state: input.accepted ? 'committed' : 'rejected' };
+    });
+  }
+
+  private async transitionUploadSession(
+    tx: Tx,
+    input: { readonly uploadSessionId: string; readonly accepted: boolean },
+    op: OperatorContext,
+  ): Promise<{ manifestId: string }> {
+    const targetUploadState = input.accepted ? 'committed' : 'rejected';
+    const updated = await tx
+      .update(uploadSession)
+      .set({
+        state: targetUploadState,
+        ...(input.accepted ? { committedAt: new Date() } : { abortedAt: new Date() }),
+      })
+      .where(and(
+        eq(uploadSession.uploadSessionId, input.uploadSessionId),
+        eq(uploadSession.companyId, op.companyId),
+        inArray(uploadSession.state, [...UPLOAD_SESSION_FINALIZABLE_STATES]),
+      ))
+      .returning();
+    const session = updated[0];
+    if (!session) throw new UploadSessionNotFoundError(input.uploadSessionId);
+    if (!session.manifestId) throw new UploadSessionMissingManifestError(input.uploadSessionId);
+    return { manifestId: session.manifestId };
+  }
+
+  private async transitionManifest(
+    tx: Tx,
+    manifestId: string,
+    input: { readonly accepted: boolean; readonly rejectionReasonCode?: ManifestRejectionReason },
+  ): Promise<void> {
+    const updated = await tx
+      .update(manifest)
+      .set({
+        state: input.accepted ? 'committed' : 'rejected',
+        ...(input.accepted ? { committedAt: new Date() } : {}),
+        ...(input.accepted ? {} : input.rejectionReasonCode !== undefined ? { rejectionReasonCode: input.rejectionReasonCode } : {}),
+      })
+      .where(and(
+        eq(manifest.manifestId, manifestId),
+        inArray(manifest.state, [...MANIFEST_FINALIZABLE_STATES]),
+      ))
+      .returning({ manifestId: manifest.manifestId });
+    if (updated.length === 0) {
+      throw new ManifestStateInvalidTransitionError(manifestId, [...MANIFEST_FINALIZABLE_STATES]);
+    }
+  }
+
+  // Tri-write event via shared appendTriWrite helper.
+  // TODO(audit): replace randomUUID + new Date() with injected IdGenerator + Clock
+  // when extending Clock pattern (see common/clock.ts) to ManifestService.
+  private async emitManifestCommittedEvent(
+    tx: Tx,
+    manifestId: string,
+    uploadSessionId: string,
+    op: OperatorContext,
+  ): Promise<void> {
+    const serverSeq = await allocateServerSeq(tx);
+    await appendTriWrite(tx, {
+      serverSeq,
+      actionId: randomUUID(),
+      aggregateType: 'manifest',
+      aggregateId: manifestId,
+      delta: { state: 'committed' },
+      eventType: 'manifest.committed',
+      auditPayload: { uploadSessionId },
+      operatorId: op.operatorId,
+      queueName: OUTBOX_QUEUES.ERP,
+      outboxPayload: { aggregateType: 'manifest', eventType: 'manifest.committed', manifestId },
+      op,
+    });
+  }
+
+  // Rejection event: audit + sync_change_feed are mandatory for observability
+  // (clients need to know rejection happened); outbox routes to projections,
+  // NOT erp (only accepted manifests go to ERP per outbox-routing policy).
+  private async emitManifestRejectedEvent(
+    tx: Tx,
+    manifestId: string,
+    uploadSessionId: string,
+    rejectionReasonCode: ManifestRejectionReason | undefined,
+    op: OperatorContext,
+  ): Promise<void> {
+    const serverSeq = await allocateServerSeq(tx);
+    await appendTriWrite(tx, {
+      serverSeq,
+      actionId: randomUUID(),
+      aggregateType: 'manifest',
+      aggregateId: manifestId,
+      delta: { state: 'rejected', rejectionReasonCode: rejectionReasonCode ?? null },
+      eventType: 'manifest.rejected',
+      auditPayload: { uploadSessionId, rejectionReasonCode: rejectionReasonCode ?? null },
+      operatorId: op.operatorId,
+      queueName: OUTBOX_QUEUES.PROJECTIONS,
+      outboxPayload: { aggregateType: 'manifest', eventType: 'manifest.rejected', manifestId, rejectionReasonCode: rejectionReasonCode ?? null },
+      op,
+    });
+  }
+  private buildS3Key(op: OperatorContext, manifestId: string, correlationId: string, contentType: string): string {
+    const ext = mime.extension(contentType);
+    const safeExt = typeof ext === 'string' ? ext : 'bin';
+    return `manifests/${op.companyId}/${manifestId}/${correlationId}.${safeExt}`;
+  }
+}

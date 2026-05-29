@@ -1,0 +1,42 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.config.ts"
+  },
+  "mutate": [
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
+    "!src/index.ts",
+    "!**/test/**",
+    "!**/dist/**",
+    "!**/schema.ts",
+    "!src/storage/sqlite-sync-store.ts",
+    "!src/storage/migrate.ts",
+    "!src/sync/fetch-sync-transport.ts",
+    "!src/storage/native-bootstrap.ts",
+    "!src/storage/native-bootstrap.web.ts",
+    "!src/storage/sqlite-sync-store.web.ts",
+    "!src/storage/migrate.web.ts",
+    "!src/observability/sentry-bootstrap.ts",
+    "!src/auth/use-auth.ts"
+  ],
+  "thresholds": {
+    "high": 95,
+    "low": 85,
+    "break": 90
+  },
+  "incremental": true,
+  "incrementalFile": ".stryker-tmp/incremental.json",
+  "reporters": [
+    "progress",
+    "clear-text",
+    "html"
+  ],
+  "concurrency": 4,
+  "timeoutMS": 15000,
+  "coverageAnalysis": "perTest",
+  "plugins": [
+    "@stryker-mutator/vitest-runner"
+  ]
+}

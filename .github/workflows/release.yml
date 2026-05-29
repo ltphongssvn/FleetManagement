@@ -1,0 +1,74 @@
+# ============================================================================
+# File:     FleetManagement/.github/workflows/release.yml
+# Purpose:  Automated release pipeline. On every push to main, runs
+#           semantic-release: analyzes Conventional Commits since the last
+#           tag, computes the next semver version, generates release notes,
+#           updates CHANGELOG.md, creates the GitHub release + tag, and
+#           commits CHANGELOG.md + package.json back to main.
+#
+# Why a separate workflow from ci.yml:
+#   ci.yml runs on every branch and PR (quality gates). Releasing must
+#   happen exactly once, only after code lands on main. Keeping it separate
+#   avoids accidental releases from feature branches and keeps the gate
+#   matrix and the release step independently observable.
+#
+# Permissions (semantic-release requirement):
+#   contents: write       — push the release commit + git tag
+#   issues: write         — comment on resolved issues
+#   pull-requests: write  — comment on released PRs
+#   id-token: write       — OIDC for npm provenance / trusted publishing
+#
+# Related files:
+#   - .releaserc.json            — plugin pipeline this workflow executes
+#   - .github/workflows/ci.yml   — quality gates (must pass before merge)
+# ============================================================================
+name: Release
+on:
+  push:
+    branches: [main]
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+jobs:
+  release:
+    name: semantic-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          # Full history + tags so semantic-release can find the last
+          # release tag and analyze every commit since.
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Get pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Cache pnpm store
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm run release

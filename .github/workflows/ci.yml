@@ -1,66 +1,250 @@
-# FleetManagement/.github/workflows/ci.yml
+# ============================================================================
+# File:     FleetManagement/.github/workflows/ci.yml
+# Purpose:  GitHub Actions CI workflow that runs the Turborepo quality gates
+#           (lint, typecheck, test, build) on every push and on PRs targeting
+#           the long-lived GitFlow branches (main, develop).
+#
+# Why it exists:
+#   The Frozen Stack (Fleet-Management-Stack.pdf) mandates "TDD +
+#   Testcontainers + CI ephemeral schemas per parallel runner" and GitFlow.
+#   This workflow is the remote enforcement point that makes branch
+#   protection rules meaningful.
+#
+# Job topology:
+#   setup         -> install + build + lint + typecheck once.
+#   api-tests     -> 4-way matrix; each shard runs ~1/4 of apps/api's test
+#                    files and uploads its partial v8 coverage JSON.
+#   coverage-gate -> merges the 4 partial coverage reports and enforces the
+#                    90/90/90/90 per-file threshold on the COMPLETE picture.
+#   other-tests   -> the fast non-api workspace packages, unsharded.
+#
+# Why sharded:
+#   apps/api has 152 test files, most real-Postgres testcontainers
+#   integration tests that must run serially (fileParallelism:false avoids
+#   40P01 truncate deadlocks). As one job it took >30m on a 2-core runner
+#   and was cancelled at the timeout. Splitting the file list across 4
+#   matrix jobs runs them in parallel (~4x throughput) so each shard
+#   finishes well inside its timeout.
+#
+# Why coverage is gated in a separate job:
+#   Each shard executes only a SUBSET of test files, so the per-file 90%
+#   threshold cannot be enforced per shard. Shards run threshold-free
+#   (vitest.coverage.config.ts applies thresholds only when
+#   VITEST_ENFORCE_THRESHOLDS is set); the coverage-gate job merges all
+#   four partial coverage-final.json files via scripts/merge-coverage.mjs
+#   and enforces 90/90/90/90 once on the merged report.
+#
+# CI environment notes:
+#   - setup-node@v5 auto-enables package-manager caching when package.json
+#     has a packageManager field; this fails when pnpm is not yet on PATH.
+#     Every setup-node step sets package-manager-cache: false and the pnpm
+#     store is cached explicitly via actions/cache.
+#   - pnpm/action-setup@v5 uses NO explicit version: the root package.json
+#     packageManager field is the single source of truth.
+#   - fetch-depth: 0 required for Turborepo --affected filtering and tagging.
+#
+# Related files:
+#   - turbo.jsonc                        — task definitions
+#   - package.json                       — packageManager field
+#   - scripts/merge-coverage.mjs          — partial-coverage merge + gate
+#   - apps/api/vitest.coverage.config.ts  — VITEST_ENFORCE_THRESHOLDS gate
+#   - .pre-commit-config.yaml             — local mirror of these gates
+# ============================================================================
 name: CI
-
 on:
   push:
     branches: ["**"]
   pull_request:
-    branches: [main, develop]
-
+    branches: ["**"]
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
-
+env:
+  # Opt JavaScript actions (actions/cache, download-artifact, etc.) onto
+  # Node 24 ahead of the 2026-06-02 forced cutover, clearing the Node 20
+  # deprecation warnings.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 jobs:
-  verify:
-    name: Lint / Typecheck / Test / Build
+  setup:
+    name: Install / Build / Lint / Typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
-
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Setup Node (no cache, pre-scaffold)
-        if: hashFiles('pnpm-lock.yaml') == ''
-        uses: actions/setup-node@v4
+        uses: pnpm/action-setup@v5
+      - name: Setup Node
+        uses: actions/setup-node@v5
         with:
           node-version: 22
-
-      - name: Setup Node (with pnpm cache)
+          package-manager-cache: false
+      - name: Get pnpm store path
+        id: pnpm-store
         if: hashFiles('pnpm-lock.yaml') != ''
-        uses: actions/setup-node@v4
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Cache pnpm store
+        if: hashFiles('pnpm-lock.yaml') != ''
+        uses: actions/cache@v5
         with:
-          node-version: 22
-          cache: pnpm
-
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
       - name: Verify repo layout
         run: |
           test -f .gitignore
           echo "Repo layout OK (scaffold pending)"
-
       - name: Install dependencies
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm install --frozen-lockfile
-
+      - name: Security audit
+        if: hashFiles('pnpm-lock.yaml') != ''
+        run: pnpm audit --audit-level=high
+      - name: Build
+        if: hashFiles('pnpm-lock.yaml') != ''
+        run: pnpm exec turbo run build --force --concurrency=1
+      - name: Build workspace packages (deps for lint/typecheck)
+        if: hashFiles('pnpm-lock.yaml') != ''
+        run: |
+          find packages -name "*.tsbuildinfo" -delete
+          pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures --filter=@fleet/main-worker
       - name: Lint
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm -r --if-present lint
-
       - name: Typecheck
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm -r --if-present typecheck
 
-      - name: Test
-        if: hashFiles('pnpm-lock.yaml') != ''
-        run: pnpm -r --if-present test
+  api-tests:
+    name: API tests (shard ${{ matrix.shard }}/4)
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [1, 2, 3, 4]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Get pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Cache pnpm store
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build workspace package deps
+        run: pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures --filter=@fleet/main-worker
+      - name: Pre-pull Postgres image (testcontainers warm cache)
+        run: docker pull postgres:16.4-alpine3.20
+      - name: Test shard (coverage, threshold-free)
+        working-directory: apps/api
+        # No VITEST_ENFORCE_THRESHOLDS: this shard runs only 1/4 of the test
+        # files, so the per-file gate would fail on every file it did not
+        # execute. The coverage-gate job enforces the threshold on the merge.
+        run: |
+          rm -rf coverage
+          pnpm exec vitest run --config vitest.coverage.config.ts --coverage --shard=${{ matrix.shard }}/4
+      - name: Upload partial coverage
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-shard-${{ matrix.shard }}
+          path: apps/api/coverage/merged/coverage-final.json
+          if-no-files-found: error
 
-      - name: Build
-        if: hashFiles('pnpm-lock.yaml') != ''
-        run: pnpm -r --if-present build
+  coverage-gate:
+    name: Coverage gate (merge + 90/90/90/90)
+    needs: api-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Download all coverage shards
+        uses: actions/download-artifact@v7
+        with:
+          pattern: coverage-shard-*
+          path: coverage-shards
+      - name: Merge coverage and enforce 90/90/90/90 gate
+        working-directory: apps/api
+        # merge-coverage.mjs sums the 4 partial v8 coverage-final.json files
+        # and exits non-zero if any non-excluded file is below 90% on
+        # statements, branches, functions, or lines.
+        run: |
+          node ../../scripts/merge-coverage.mjs ../../coverage-shards/coverage-shard-1 ../../coverage-shards/coverage-shard-2 ../../coverage-shards/coverage-shard-3 ../../coverage-shards/coverage-shard-4
+      - name: Upload merged coverage
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-merged
+          path: apps/api/coverage/merged/coverage-final.json
+          if-no-files-found: ignore
+
+  other-tests:
+    name: Workspace package tests (non-api)
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Get pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Cache pnpm store
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build workspace package deps
+        run: pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures --filter=@fleet/main-worker
+      - name: Test non-api packages (with coverage)
+        # apps/api is covered by the sharded api-tests + coverage-gate jobs;
+        # exclude it here so its slow suite does not run twice.
+        run: pnpm -r --if-present --filter=!@fleet/api test:coverage

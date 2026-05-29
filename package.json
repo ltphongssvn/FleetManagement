@@ -1,0 +1,48 @@
+{
+  "_comment": "FleetManagement/package.json",
+  "name": "fleet-management",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Intermodal Fleet Platform — pnpm/Turborepo monorepo root",
+  "packageManager": "pnpm@11.3.0+sha512.2c403d6594527287672b1f7056343a1f7c3634036a67ffabfcc2b3d7595d843768f8787148d1b57cf7956c90606bbd192857c363af19e96d2d0ec9ec5741d215",
+  "engines": {
+    "node": ">=22.0.0 <25.0.0",
+    "pnpm": ">=11.0.0 <12.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test:unit",
+    "dev": "turbo run dev",
+    "clean": "turbo run clean && rm -rf node_modules .turbo",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "release": "semantic-release",
+    "release:dry": "semantic-release --dry-run --no-ci",
+    "commitlint": "commitlint --edit"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.5.3",
+    "@commitlint/config-conventional": "^20.5.3",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.59.1",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.8",
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/vitest-runner": "^9.6.1",
+    "@types/node": "^22.10.2",
+    "@vitest/coverage-v8": "4.1.4",
+    "@vitest/eslint-plugin": "^1.6.16",
+    "conventional-changelog-conventionalcommits": "^9.3.1",
+    "eslint": "^10.2.1",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.8.3",
+    "semantic-release": "^25.0.3",
+    "turbo": "^2.9.15",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.58.2",
+    "vitest": "^4.1.4"
+  }
+}

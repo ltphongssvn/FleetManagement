@@ -1,0 +1,189 @@
+// ============================================================================
+// File:     FleetManagement/turbo.jsonc
+// Purpose:  Root Turborepo 2.x pipeline configuration.
+// Rationale: See docs/adr/001-turborepo-pipeline.md for full decision record.
+// Related:  package.json, pnpm-workspace.yaml, tsconfig.base.json,
+//           .github/workflows/ci.yml, .pre-commit-config.yaml, .gitignore
+// ============================================================================
+{
+  "$schema": "./node_modules/turbo/schema.json",
+  "envMode": "strict",
+  "globalDependencies": [
+    ".nvmrc",
+    ".node-version",
+    ".github/workflows/**"
+  ],
+  "globalEnv": [
+    "CI",
+    "NODE_ENV",
+    "VERCEL_ENV",
+    "FEATURE_FLAGS_*"
+  ],
+  "futureFlags": {
+    "affectedUsingTaskInputs": true,
+    "watchUsingTaskInputs": true
+  },
+  "remoteCache": {
+    "enabled": false,
+    "signature": true
+  },
+  "tasks": {
+    "__transit__": {
+      "description": "Graph-only node. Double-underscore reduces but does not guarantee collision-freedom; reserved internal name — see ADR-001.",
+      "dependsOn": ["^__transit__"]
+    },
+    "build": {
+      "description": "Compile production artifacts (NestJS dist, Next.js .next, Expo build). Owns dist/** exclusively. BUILD_ID policy: MUST NOT be read during build. Stamping happens at deploy time (commit SHA metadata) or runtime env — never consumed by build scripts. Not declared here (neither env nor passThroughEnv) because it must not be visible.",
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**", "out/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/tsconfig.base.json"
+      ],
+      "env": ["NEXT_PUBLIC_*", "EXPO_PUBLIC_*", "APP_VERSION"],
+      "outputLogs": "new-only"
+    },
+    "lint": {
+      "description": "Static analysis (ESLint). ^lint ensures shared eslint-config package lints itself before consumers. Hashes both package-local and root-level ESLint configs + root tsconfig (type-aware rules depend on it). Produces no cacheable artifacts: package scripts run plain 'eslint .' with no --format json -o or --cache, so no eslint-report.json / .eslintcache is written. Declaring those as outputs triggered Turbo's 'no output files found' warning on cache write; outputs is therefore [].",
+      "dependsOn": ["^lint"],
+      "outputs": [],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".eslintrc*",
+        "eslint.config.*",
+        ".eslintignore",
+        "$TURBO_ROOT$/.eslintrc*",
+        "$TURBO_ROOT$/eslint.config.*",
+        "$TURBO_ROOT$/.eslintignore",
+        "$TURBO_ROOT$/tsconfig.base.json"
+      ],
+      "outputLogs": "new-only"
+    },
+    "lint:fix": {
+      "description": "Auto-fix lint violations — never cached, local/manual invocation only",
+      "dependsOn": [],
+      "cache": false
+    },
+    "typecheck": {
+      "description": "Pure TypeScript verification (tsc --noEmit). Owns **/*.tsbuildinfo (recursive for TS project references). When composite:true + declaration emission needed, split into separate types:build task per ADR-001.",
+      "dependsOn": ["__transit__"],
+      "outputs": ["**/*.tsbuildinfo"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/tsconfig.json",
+        "$TURBO_ROOT$/tsconfig.*.json"
+      ],
+      "outputLogs": "new-only"
+    },
+    "test:unit": {
+      "description": "Unit tests only — fastest cacheable feedback loop. Produces no cacheable artifacts (plain 'vitest run', no --coverage, no file reporter); coverage/** is owned by test:coverage. Declaring outputs here triggered Turbo's 'no output files found' warning on cache write. Hashes package-local + root test configs + root tsconfig (transforms/path aliases depend on it).",
+      "dependsOn": ["__transit__"],
+      "outputs": [],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "vitest.config.*",
+        "vitest.workspace.*",
+        "jest.config.*",
+        "$TURBO_ROOT$/vitest.config.*",
+        "$TURBO_ROOT$/vitest.workspace.*",
+        "$TURBO_ROOT$/jest.config.*",
+        "$TURBO_ROOT$/tsconfig.base.json"
+      ],
+      "env": ["VITEST_*", "JEST_*"],
+      "outputLogs": "new-only"
+    },
+    "test:watch": {
+      "description": "Fast local TDD loop (Red-Green-Refactor). Package scripts invoke 'vitest --watch' or 'jest --watch'.",
+      "cache": false,
+      "persistent": true,
+      "interruptible": true
+    },
+    "test:integration": {
+      "description": "Integration tests — need own + upstream builds + Testcontainers. Owns coverage/integration/** + test-results/integration/**.",
+      "dependsOn": ["build", "^build"],
+      "outputs": ["coverage/integration/**", "test-results/integration/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "vitest.config.*",
+        "vitest.workspace.*",
+        "jest.config.*",
+        "$TURBO_ROOT$/vitest.config.*",
+        "$TURBO_ROOT$/vitest.workspace.*",
+        "$TURBO_ROOT$/jest.config.*",
+        "$TURBO_ROOT$/tsconfig.base.json"
+      ],
+      "env": ["DATABASE_URL", "REDIS_URL", "S3_ENDPOINT", "TESTCONTAINERS_*"],
+      "outputLogs": "new-only"
+    },
+    "test:coverage": {
+      "description": "Coverage-gated tests — runs unit + integration with merged coverage thresholds. Owns coverage/merged/** + coverage/unit/**. Used by CI quality gate.",
+      "dependsOn": ["build", "^build"],
+      "outputs": ["coverage/merged/**", "coverage/unit/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "vitest.config.*",
+        "vitest.coverage.config.*",
+        "vitest.integration.config.*",
+        "$TURBO_ROOT$/tsconfig.base.json"
+      ],
+      "env": ["DATABASE_URL", "REDIS_URL", "S3_ENDPOINT", "TESTCONTAINERS_*", "VITEST_*"],
+      "outputLogs": "new-only"
+    },
+    "test:mutation": {
+      "description": "Stryker mutation testing — slow (minutes per package). Each package config sets its own break threshold. Cache key includes src/** + test/** + stryker.config.json so a clean repo state replays from .stryker-tmp/incremental.json.",
+      "dependsOn": [],
+      "outputs": ["reports/mutation/**", ".stryker-tmp/incremental.json"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "stryker.config.json",
+        "vitest.config.*",
+        "$TURBO_ROOT$/tsconfig.base.json"
+      ],
+      "env": ["STRYKER_*"],
+      "outputLogs": "new-only"
+    },
+    "test:e2e": {
+      "description": "End-to-end tests (Playwright). Owns playwright-report/**. Never cached until migration-hash wired (ADR-001).",
+      "dependsOn": ["build", "^build"],
+      "cache": false,
+      "env": ["DATABASE_URL", "REDIS_URL", "API_BASE_URL", "TESTCONTAINERS_*"]
+    },
+    "__ci_fast__": {
+      "description": "PR gate orchestration node — lint + typecheck + test:unit. Double-underscore prevents package-script collision. Expose via root package.json script 'ci:fast' for friendly CLI. CI workflow should matrix-split (ADR-001).",
+      "dependsOn": ["lint", "typecheck", "test:unit"],
+      "cache": false
+    },
+    "__ci_full__": {
+      "description": "Pre-merge gate orchestration node — cumulative on __ci_fast__ + build + test:integration.",
+      "dependsOn": ["__ci_fast__", "build", "test:integration", "test:coverage"],
+      "cache": false
+    },
+    "__ci_release__": {
+      "description": "Release/nightly gate orchestration node — cumulative on __ci_full__ + test:e2e.",
+      "dependsOn": ["__ci_full__", "test:e2e"],
+      "cache": false
+    },
+    "__ci__": {
+      "description": "Alias orchestration node for __ci_fast__ (GitFlow PR convention).",
+      "dependsOn": ["__ci_fast__"],
+      "cache": false
+    },
+    "//#graph": {
+      "description": "Root-level task: generate pipeline DAG visualization (Mermaid for ADR/docs). Prefix '//#' ensures repo-root-only. For live operational inspection prefer 'turbo devtools' (2.7+) — browser-based package/task graph.",
+      "cache": false
+    },
+    "dev": {
+      "description": "Local dev server (persistent, turbo watch-aware)",
+      "cache": false,
+      "persistent": true,
+      "interruptible": true
+    },
+    "clean": {
+      "description": "Remove build artifacts and caches",
+      "cache": false
+    }
+  }
+}

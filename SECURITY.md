@@ -1,4 +1,50 @@
-<!-- FleetManagement/SECURITY.md -->
+<!--
+================================================================================
+File:     FleetManagement/SECURITY.md
+Purpose:  Authoritative security policy for the FleetManagement monorepo.
+          Documents secret-management practices, security controls by layer,
+          realtime/session security invariants, GitFlow branch protection,
+          dependency auditing, incident response, vulnerability reporting,
+          and the contributor checklist.
+
+Why it exists:
+  The Frozen Stack (Fleet-Management-Stack.pdf) mandates GDPR-compliant
+  PII handling, crypto-shred retention, vault-backed secrets, day-one
+  permanent realtime with Redis Streams adapter, authoritative session
+  revocation (`device_session.revoked_at`), and specific SLOs for
+  revoke-to-disconnect (p95 <800ms) and revoke-to-shadow-lockTransition
+  (p95 <1.2s). This document translates those architectural requirements
+  into concrete policies, tooling choices, and operational runbooks that
+  every contributor must follow. It is the human-readable counterpart to
+  the machine-enforced rules in .pre-commit-config.yaml and .gitignore.
+
+Key decisions / invariants:
+  - Pre-commit framework + detect-secrets + local hooks is the first
+    line of defense; CI re-runs these gates on every push.
+  - Per-app .env.example templates declare keys without values; real
+    values live in .env.local (dev), GitHub Actions secrets (CI), or
+    vault-backed store (prod).
+  - NEXT_PUBLIC_* and EXPO_PUBLIC_* prefixes are reserved for
+    browser/client-bundled values; secrets must never use them.
+  - GitFlow: main (prod) and develop (integration) are protected;
+    feature/*, release/*, hotfix/* are short-lived; CI required before
+    merge.
+  - Incident response uses PDF primitives: device_session.revoked_at,
+    Redis pub/sub invalidation, disconnectSockets(true) on session
+    rooms, filter-repo for history purges only AFTER rotation.
+  - TDD mandate is called out in the contributor checklist.
+  - security@ email is a placeholder flagged for replacement before
+    pilot launch.
+
+Related files:
+  - .pre-commit-config.yaml  — machine-enforced hooks described in §1.1
+  - .secrets.baseline         — detect-secrets allowlist
+  - .gitignore                — passive ignore layer
+  - .github/workflows/ci.yml  — remote gate mirroring local hooks
+  - turbo.jsonc               — envMode:strict, per-task env allowlists
+================================================================================
+-->
+
 # Security Best Practices — Intermodal Fleet Platform
 
 This document defines the security posture for the FleetManagement monorepo

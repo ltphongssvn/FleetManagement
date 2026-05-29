@@ -1,0 +1,39 @@
+# .github/workflows/mutation.yml
+# Nightly mutation testing on @fleet/domain (pure-logic package).
+# Not PR-blocking: full suite cost is high; PR-blocking would kill velocity.
+# Threshold breach (score < 75%) fails the workflow and surfaces in GitHub UI.
+name: Mutation Testing (Nightly)
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # 06:00 UTC daily
+  workflow_dispatch:
+
+concurrency:
+  group: mutation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  stryker:
+    name: Stryker @fleet/domain
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @fleet/domain build
+      - name: Run Stryker
+        run: pnpm --filter @fleet/domain test:mutation
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: packages/domain/reports/mutation/
+          if-no-files-found: warn
