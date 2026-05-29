@@ -133,7 +133,7 @@ repos:
         # CI uses across its 4 shards. Non-api packages run their own
         # test:coverage in the same -r pass so their per-package thresholds
         # are still enforced. A real failure at any step exits non-zero.
-        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm -r --if-present test:coverage && node scripts/merge-coverage.mjs apps/api/coverage/merged; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm -r --workspace-concurrency=1 --if-present test:coverage && node scripts/merge-coverage.mjs apps/api/coverage/merged; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
         stages: [pre-push]

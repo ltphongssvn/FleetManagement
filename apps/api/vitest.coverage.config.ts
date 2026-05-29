@@ -71,7 +71,7 @@ export default defineConfig({
           // CPU when the pre-push hook runs all workspace packages'
           // test:coverage concurrently (pnpm -r), starving workers and
           // timing out the testcontainers specs.
-          maxWorkers: 4,
+          maxWorkers: 2,
         },
       },
       {

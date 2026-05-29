@@ -31,13 +31,13 @@ export default async function globalTeardown(): Promise<void> {
       'JOIN road_run r ON r.road_run_id = rrto.road_run_id ' +
       'WHERE r.company_id=' + sq + COMPANY_ID + sq + ' AND (' +
       ' r.assigned_asset_id IN (SELECT vehicle_id FROM vehicle WHERE plate LIKE ' + sq + 'E2E-%' + sq + ')' +
-      ' OR r.assigned_operator_id IN (SELECT operator_id FROM driver WHERE full_name LIKE ' + sq + 'E2E %' + sq + ')' +
+      ' OR r.assigned_operator_id IN (SELECT operator_id FROM driver WHERE full_name LIKE ' + sq + 'E2E%' + sq + ')' +
       '));',
     // road_run_transport_order links for E2E road_runs.
     'DELETE FROM road_run_transport_order WHERE road_run_id IN (' +
       'SELECT road_run_id FROM road_run WHERE company_id=' + sq + COMPANY_ID + sq + ' AND (' +
       ' assigned_asset_id IN (SELECT vehicle_id FROM vehicle WHERE plate LIKE ' + sq + 'E2E-%' + sq + ')' +
-      ' OR assigned_operator_id IN (SELECT operator_id FROM driver WHERE full_name LIKE ' + sq + 'E2E %' + sq + ')' +
+      ' OR assigned_operator_id IN (SELECT operator_id FROM driver WHERE full_name LIKE ' + sq + 'E2E%' + sq + ')' +
       '));',
     // transport_orders linked to E2E road_runs (capture refs first for projection cleanup).
     'DELETE FROM transport_order WHERE transport_order_id IN (' +
@@ -47,7 +47,7 @@ export default async function globalTeardown(): Promise<void> {
     // E2E road_runs themselves.
     'DELETE FROM road_run WHERE company_id=' + sq + COMPANY_ID + sq + ' AND (' +
       ' assigned_asset_id IN (SELECT vehicle_id FROM vehicle WHERE plate LIKE ' + sq + 'E2E-%' + sq + ')' +
-      ' OR assigned_operator_id IN (SELECT operator_id FROM driver WHERE full_name LIKE ' + sq + 'E2E %' + sq + ')' +
+      ' OR assigned_operator_id IN (SELECT operator_id FROM driver WHERE full_name LIKE ' + sq + 'E2E%' + sq + ')' +
       ');',
     // Orphan transport_orders left behind by an earlier teardown pass
     // that deleted the road_run before the order itself (no road_run_
@@ -58,7 +58,7 @@ export default async function globalTeardown(): Promise<void> {
     // dispatch_board_projection rows linked to E2E vehicles/drivers (by FK).
     'DELETE FROM dispatch_board_projection WHERE company_id=' + sq + COMPANY_ID + sq + ' AND (' +
       ' assigned_asset_id IN (SELECT vehicle_id FROM vehicle WHERE plate LIKE ' + sq + 'E2E-%' + sq + ')' +
-      ' OR assigned_operator_id IN (SELECT operator_id FROM driver WHERE full_name LIKE ' + sq + 'E2E %' + sq + ')' +
+      ' OR assigned_operator_id IN (SELECT operator_id FROM driver WHERE full_name LIKE ' + sq + 'E2E%' + sq + ')' +
       ');',
     // Orphan projection rows whose road_run no longer exists.
     'DELETE FROM dispatch_board_projection WHERE company_id=' + sq + COMPANY_ID + sq + ' AND NOT EXISTS (SELECT 1 FROM road_run r WHERE r.road_run_id = dispatch_board_projection.road_run_id);',
@@ -70,14 +70,14 @@ export default async function globalTeardown(): Promise<void> {
     // driver_vehicle_assignments for E2E vehicles/drivers.
     'DELETE FROM driver_vehicle_assignment WHERE company_id=' + sq + COMPANY_ID + sq + ' AND (' +
       ' vehicle_id IN (SELECT vehicle_id FROM vehicle WHERE plate LIKE ' + sq + 'E2E-%' + sq + ')' +
-      ' OR driver_id IN (SELECT driver_id FROM driver WHERE full_name LIKE ' + sq + 'E2E %' + sq + ')' +
+      ' OR driver_id IN (SELECT driver_id FROM driver WHERE full_name LIKE ' + sq + 'E2E%' + sq + ')' +
       ');',
     // Soft-delete leftover active E2E vehicles (admins use active=false).
     'UPDATE vehicle SET active=false WHERE company_id=' + sq + COMPANY_ID + sq +
       ' AND plate LIKE ' + sq + 'E2E-%' + sq + ' AND active=true;',
     // Soft-delete leftover active E2E drivers.
     'UPDATE driver SET active=false WHERE company_id=' + sq + COMPANY_ID + sq +
-      ' AND full_name LIKE ' + sq + 'E2E %' + sq + ' AND active=true;',
+      ' AND full_name LIKE ' + sq + 'E2E%' + sq + ' AND active=true;',
   ];
   for (const sql of cleanup) {
     const r = dockerPsql(sql);
@@ -92,10 +92,10 @@ export default async function globalTeardown(): Promise<void> {
     'SELECT (SELECT COUNT(*) FROM vehicle WHERE company_id=' + sq + COMPANY_ID + sq +
       ' AND plate LIKE ' + sq + 'E2E-%' + sq + ' AND active=true) AS active_vehicles,' +
     ' (SELECT COUNT(*) FROM driver WHERE company_id=' + sq + COMPANY_ID + sq +
-      ' AND full_name LIKE ' + sq + 'E2E %' + sq + ' AND active=true) AS active_drivers,' +
+      ' AND full_name LIKE ' + sq + 'E2E%' + sq + ' AND active=true) AS active_drivers,' +
     ' (SELECT COUNT(*) FROM dispatch_board_projection WHERE company_id=' + sq + COMPANY_ID + sq +
       ' AND (assigned_asset_id IN (SELECT vehicle_id FROM vehicle WHERE plate LIKE ' + sq + 'E2E-%' + sq + ')' +
-      ' OR assigned_operator_id IN (SELECT operator_id FROM driver WHERE full_name LIKE ' + sq + 'E2E %' + sq + '))) AS proj_rows;';
+      ' OR assigned_operator_id IN (SELECT operator_id FROM driver WHERE full_name LIKE ' + sq + 'E2E%' + sq + '))) AS proj_rows;';
   const r = dockerPsql(leakSql);
   const [av, ad, pr] = r.stdout.trim().split('|').map((s) => parseInt(s, 10));
   if (av > 0 || ad > 0 || pr > 0) {

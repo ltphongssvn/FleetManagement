@@ -3,6 +3,7 @@ FROM node:22-alpine AS base
 RUN corepack enable
 WORKDIR /repo
 FROM base AS builder
+RUN apk add --no-cache build-base python3
 COPY . .
 RUN pnpm install --frozen-lockfile && \
     pnpm exec turbo run build --filter=@fleet/api... && \
