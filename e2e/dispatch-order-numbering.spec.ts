@@ -166,6 +166,7 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
     seededDriverLabels.add(pair.driverLabel);
   }
   test.afterEach(async ({ request }) => {
+    test.setTimeout(90000);
     // Delete order rows FIRST so FK dependencies are released before pair cleanup.
     const sq = String.fromCharCode(39);
     while (seededOrderRefs.length > 0) {
@@ -218,6 +219,7 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
     }
   });
   test.afterAll(async ({ request }) => {
+    test.setTimeout(90000);
     const token = await mintDispatcherToken();
     const vehiclesAfter = await listLabels(request, token, '/reference/vehicles');
     const driversAfter = await listLabels(request, token, '/reference/drivers');

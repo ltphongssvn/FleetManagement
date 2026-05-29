@@ -13,6 +13,7 @@ function makeReq(pathname: string, cookieValue?: string): NextRequest {
   return {
     nextUrl: new URL(`http://localhost:3001${pathname}`),
     url: `http://localhost:3001${pathname}`,
+    headers: { get: (_n: string) => null },
     cookies: { get: (n: string) => (n === 'fleet_session' && cookieValue ? { value: cookieValue } : undefined) },
   } as unknown as NextRequest;
 }

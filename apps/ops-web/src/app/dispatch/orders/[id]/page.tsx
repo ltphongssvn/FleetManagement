@@ -10,11 +10,18 @@
 //     on the order's current state; non-cancellable states make the form
 //     invisible.
 //   * The :id URL param can be either a transport_order UUID or the human-
-//     readable XTT.MM-NNN external_ref. The API review endpoint now accepts
+//     readable XTT.MM-NNN external_ref. The API review endpoint accepts
 //     either form (company-scoped findByCompanyIdOrRef under the hood) so
 //     the page hands the param through unchanged. The dispatch board links
 //     rows by external_ref; direct UUID links continue to work.
+//
+// T6 (2026): renders an explicit in-page Back control (testid
+// order-review-back) linking to the dispatch board (/). Best-UX navigation:
+// the dispatcher returns to the board without relying on the browser back
+// button. Permanent rule: every page provides UI navigation back to the
+// previous menu / between pages.
 import type { JSX } from 'react';
+import Link from 'next/link';
 import { cookies, headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { OrderReview } from '@/features/dispatch/OrderReview';
@@ -60,6 +67,14 @@ export default async function OrderReviewPage({ params }: PageProps): Promise<JS
   return (
     <AppShell {...(username !== undefined ? { username } : {})}>
       <div className='mx-auto w-full max-w-5xl p-6'>
+        <Link
+          href='/'
+          data-testid='order-review-back'
+          className='mb-4 inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline'
+        >
+          <span aria-hidden='true'>&larr;</span>
+          Quay lại bảng điều phối
+        </Link>
         <OrderReview order={order} />
         <CancelOrderForm transportOrderId={order.transportOrderId} state={order.state} />
       </div>
