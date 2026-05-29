@@ -23,7 +23,7 @@ export class AdminDriversListService {
   constructor(@Inject(DRIZZLE_DB) private readonly db: FleetDb) {}
 
   async list(input: ListInput): Promise<readonly DriverListRow[]> {
-    const drivers: Driver[] = await this.db.select().from(driver).where(eq(driver.companyId, input.companyId));
+    const drivers: Driver[] = await this.db.select().from(driver).where(and(eq(driver.companyId, input.companyId), eq(driver.active, true)));
     const result: DriverListRow[] = [];
     for (const d of drivers) {
       const [a] = await this.db.select().from(driverVehicleAssignment)
