@@ -1,32 +1,27 @@
 // apps/ops-web/src/features/dispatch/DispatchView.tsx
 // T3 (2026-Q2) optimistic UI wrapper. Owns BOTH the CreateOrderForm and
-// the DispatchBoard table on the dispatcher home page so they can share
-// React useOptimistic state.
+// the DispatchBoard table on the dispatcher home page.
 //
-// Industry-standard 2026 pattern for CQRS read-model lag (Next.js 16 +
-// React 19 useOptimistic): when the server action returns 'created', we
-// immediately overlay a row on the board derived from the action result
-// + the form's selected operator/asset. The eventually-consistent
-// dispatch_board projection reconciles in the background via
-// router.refresh(); the optimistic row dedupes against the server row
-// by externalRef on the next render.
-//
-// References:
-//   - https://nextjs.org/docs/app/getting-started/updating-data
-//   - https://nerdleveltech.com/nextjs-16-server-actions-react-19-optimistic-ui-tutorial
-//   - 'Eventual Consistency in the UI' (Sinanovic, 2025)
+// T6 (2026): the dispatch board row uses a plain <a> with NO JS handler.
+// Under useOptimistic + the parent re-render cascade, the App Router
+// <Link> (and router.push from an onClick) falls into a stuck-prefetch
+// loop (vercel/next.js#57565, heroui-inc/heroui#2289): clicks emit RSC
+// fetches that return 200 but the router never commits the navigation,
+// instead retrying until ERR_INSUFFICIENT_RESOURCES. The 2026 industry
+// escape hatch is native browser navigation: a plain anchor with href
+// triggers a full-page load that bypasses Next.js's RSC state machine
+// entirely. The cost is a single hard reload on row click; the benefit
+// is reliable first-click navigation to the review view.
 'use client';
 import { useEffect, useOptimistic, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { ROAD_RUN_STATE_TONE } from '@fleet/domain';
 import { CreateOrderForm, type CreateOrderFormProps } from './CreateOrderForm';
 import { LogoutButton } from '../auth/LogoutButton';
 import { ExportOrdersExcelButton } from './ExportOrdersExcelButton';
 import { buildLookup, formatOperator, formatOrderRef, formatVehicle } from './labels';
 import type { DispatchBoardRoadRun } from './types';
-
 const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
   timeStyle: 'short',
@@ -36,43 +31,28 @@ function formatPlannedStart(iso: string | null): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '—' : PLANNED_FORMATTER.format(d);
 }
-
 function StateBadge({ state }: { state: DispatchBoardRoadRun['state'] }): JSX.Element {
   return (
-    <span className={'inline-block rounded px-2 py-0.5 text-xs font-medium ' + ROAD_RUN_STATE_TONE[state]}>
-      {state}
-    </span>
+    <span className={'inline-block rounded px-2 py-0.5 text-xs font-medium ' + ROAD_RUN_STATE_TONE[state]}>{state}</span>
   );
 }
-
 function OrderRefCell({ refs }: { refs: readonly string[] }): JSX.Element {
   const primary = refs[0];
   if (primary === undefined) {
     return <span className='font-mono'>{formatOrderRef(refs)}</span>;
   }
+  const href = '/dispatch/orders/' + primary;
+  const testId = 'dispatch-board-row-' + primary;
   return (
-    <Link
-      href={'/dispatch/orders/' + primary}
-      data-testid={'dispatch-board-row-' + primary}
-      className='font-mono text-blue-700 underline-offset-2 hover:underline'
-    >
-      {formatOrderRef(refs)}
-    </Link>
+    <a href={href} data-testid={testId} className='font-mono text-blue-700 underline-offset-2 hover:underline cursor-pointer'>{formatOrderRef(refs)}</a>
   );
 }
-
 export interface DispatchViewProps {
   readonly initialRuns: readonly DispatchBoardRoadRun[];
   readonly refs: Omit<CreateOrderFormProps, 'locale'> & { readonly nextOrderRef?: string };
-  // Test hook ONLY. Allows the L1 vitest to capture the optimistic-push
-  // callback and exercise it directly without going through the form.
   readonly onMountForTest?: (push: (externalRef: string, op: { operatorId: string; assetId: string }) => void) => void;
 }
-
 function makeOptimisticRow(externalRef: string, opCtx: { operatorId: string; assetId: string }): DispatchBoardRoadRun {
-  // The road_run_id is unknown client-side; use a synthetic stable id so
-  // React can key the row. The server-rendered row will replace it on the
-  // next render (deduped by externalRef in mergeRuns below).
   return {
     roadRunId: 'optimistic-' + externalRef,
     state: 'planned',
@@ -83,11 +63,7 @@ function makeOptimisticRow(externalRef: string, opCtx: { operatorId: string; ass
     transportOrderRefs: [externalRef],
   };
 }
-
-function mergeRuns(
-  serverRuns: readonly DispatchBoardRoadRun[],
-  optimistic: readonly DispatchBoardRoadRun[],
-): readonly DispatchBoardRoadRun[] {
+function mergeRuns(serverRuns: readonly DispatchBoardRoadRun[], optimistic: readonly DispatchBoardRoadRun[]): readonly DispatchBoardRoadRun[] {
   if (optimistic.length === 0) return serverRuns;
   const serverRefs = new Set<string>();
   for (const r of serverRuns) {
@@ -99,21 +75,12 @@ function mergeRuns(
   });
   return additions.length === 0 ? serverRuns : [...additions, ...serverRuns];
 }
-
 export function DispatchView(props: DispatchViewProps): JSX.Element {
   const { initialRuns, refs, onMountForTest } = props;
   const router = useRouter();
   interface OptimisticAction { externalRef: string; op: { operatorId: string; assetId: string } }
   const [optimisticRuns] = useOptimistic([] as readonly DispatchBoardRoadRun[], (current: readonly DispatchBoardRoadRun[], action: OptimisticAction) => [...current, makeOptimisticRow(action.externalRef, action.op)]);
-
-  // Plain state mirror for non-transition optimistic pushes (test hook +
-  // post-action effect). useOptimistic only updates inside a transition;
-  // the action's settle path runs after the transition, so we also keep
-  // a sticky state list for rows we KNOW the server returned 'created'
-  // for but the projection has not yet caught up. Both are merged before
-  // render. The sticky list is auto-pruned when serverRuns contains the ref.
   const [stickyRuns, setStickyRuns] = useState<readonly DispatchBoardRoadRun[]>([]);
-
   const pushOptimisticRow = (externalRef: string, op: { operatorId: string; assetId: string }): void => {
     setStickyRuns((prev) => {
       for (const r of prev) {
@@ -122,16 +89,12 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
       return [...prev, makeOptimisticRow(externalRef, op)];
     });
   };
-
-  // Expose to tests once on mount.
   const mountedRef = useRef(false);
   useEffect(() => {
     if (mountedRef.current) return;
     mountedRef.current = true;
     if (onMountForTest) onMountForTest(pushOptimisticRow);
   }, [onMountForTest]);
-
-  // When serverRuns gains a ref that exists in stickyRuns, drop it.
   useEffect(() => {
     if (stickyRuns.length === 0) return;
     const serverRefs = new Set<string>();
@@ -144,24 +107,15 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
     });
     if (next.length !== stickyRuns.length) setStickyRuns(next);
   }, [initialRuns, stickyRuns]);
-
   const driverLookup = buildLookup(refs.drivers);
   const vehicleLookup = buildLookup(refs.vehicles ?? []);
   const merged = mergeRuns(initialRuns, [...optimisticRuns, ...stickyRuns]);
-
-  // Inline-extracted so coverage tooling sees a single named function and
-  // the L1 vitest can invoke it directly via onMountForTest in a way that
-  // mirrors what CreateOrderForm does when state.status === 'created'.
   const handleCreated = (externalRef: string, op: { operatorId: string; assetId: string }): void => {
-    // Guard: only render optimistic row when we have an assignment (operatorId + assetId).
-    // The form may notify with empty values if the user submits without picking a driver/vehicle
-    // (which the action will reject server-side anyway). Always refresh so the board reconciles.
     if (op.operatorId !== '' && op.assetId !== '') {
       pushOptimisticRow(externalRef, op);
     }
     router.refresh();
   };
-
   return (
     <>
       <CreateOrderForm

@@ -1,21 +1,8 @@
 // apps/ops-web/src/proxy.ts
 // Auth middleware: gates protected routes behind the fleet_session cookie.
-// Reads the httpOnly cookie set by the login server action.
-//
-// RSC prefetch loop guard (2026): a Next.js App Router <Link> prefetches its
-// target as an RSC request. If we answer an unauthenticated RSC request with a
-// 307 redirect to /login, Next.js drops the ?_rsc query param on the redirect,
-// the router cannot consume an HTML redirect as an RSC payload, and it retries
-// the prefetch in a tight loop until the browser runs out of sockets
-// (net::ERR_INSUFFICIENT_RESOURCES). See vercel/next.js#79346 / #65783.
-//
-// Verified at runtime against Next 16: the 'Rsc' and 'Next-Router-Prefetch'
-// request headers are STRIPPED before middleware runs and read back as null.
-// The signal that survives is the Accept header — RSC requests send
-// 'text/x-component', document requests send 'text/html'. So we discriminate
-// on Accept: for RSC requests we REWRITE to /login (the router receives a
-// valid RSC payload and navigates once); document requests keep the 307
-// redirect so the address bar updates correctly.
+// RSC prefetch loop guard: unauthenticated RSC requests get rewrite-to-/login
+// (not 307) since Next.js drops ?_rsc on redirect and the router loops.
+// Discriminator: Accept: text/x-component (RSC) vs text/html (document).
 import { NextResponse, type NextRequest } from 'next/server';
 const PUBLIC_PATHS = new Set(['/login']);
 const RSC_ACCEPT = 'text/x-component';
