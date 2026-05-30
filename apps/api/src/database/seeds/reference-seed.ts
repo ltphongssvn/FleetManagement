@@ -72,8 +72,17 @@ const DELIVERY_WAREHOUSES: readonly string[] = [
 ];
 const CARGO_TYPES: readonly string[] = ['TẤM', 'CHI', 'CÁM', 'GẠO', 'TRẤU', 'XI MĂNG'];
 const CUSTOMERS: readonly string[] = ['ĐA NĂNG', 'ĐẠI THÀNH'];
-export async function seedReference(db: FleetDb): Promise<void> {
-  for (const d of LOGIN_DRIVERS) {
+export interface SeedOptions {
+  // 2026 best practice: seed/test fixtures must be environment-specific and
+  // NEVER seeded into production. The login-capable test driver exists only
+  // for local mobile /auth/login testing. Defaults to non-production so dev,
+  // test, and CI keep the login driver; main.ts passes isProduction=true on
+  // Railway so production never gets it.
+  readonly isProduction?: boolean;
+}
+export async function seedReference(db: FleetDb, opts: SeedOptions = {}): Promise<void> {
+  const loginDrivers = opts.isProduction === true ? [] : LOGIN_DRIVERS;
+  for (const d of loginDrivers) {
     const passwordHash = await bcrypt.hash(d.password, 10);
     // Upsert on the (company_id, phone) unique constraint so a pre-existing
     // row with a stale password hash is corrected on every boot — the seed
