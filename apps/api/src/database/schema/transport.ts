@@ -34,6 +34,7 @@ export const transportOrder = pgTable(
     externalRef: varchar('external_ref', { length: 64 }),
     state: transportOrderStateEnum('state').notNull().default('draft'),
     customerId: uuid('customer_id'),
+    cargoTypeId: uuid('cargo_type_id'),
     metadata: jsonb('metadata'),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true, mode: 'date' }),
     cancelledBy: uuid('cancelled_by'),

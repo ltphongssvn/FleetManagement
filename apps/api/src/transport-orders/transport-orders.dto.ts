@@ -16,6 +16,7 @@ import { z } from 'zod';
 export const CreateTransportOrderSchema = z.object({
   externalRef: z.string().min(1).max(64).optional(),
   customerId: z.string().uuid().optional(),
+  cargoTypeId: z.string().uuid().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
   stops: z.array(z.object({
     sequence: z.number().int().positive(),
@@ -46,6 +47,8 @@ export interface ListAssignedRow {
   readonly orderRef: string | null;
   readonly plate: string | null;
   readonly customerName: string | null;
+  readonly cargoName: string | null;
+  readonly driverName: string | null;
   readonly pickupName: string | null;
   readonly deliveryName: string | null;
   readonly stops: readonly {
