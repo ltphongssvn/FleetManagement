@@ -90,6 +90,13 @@ export function CreateOrderForm({
   const [vehicleValue, setVehicleValue] = useState('');
   const [assetIdValue, setAssetIdValue] = useState('');
   const [driverValue, setDriverValue] = useState('');
+  // Hydration-ready signal (Playwright docs / Microsoft #27759, 2026): the
+  // form is SSR'd before React hydrates. This effect runs only after mount
+  // (hydration complete), flipping data-hydrated to 'true' so a test (or any
+  // automation) can wait for real interactivity instead of racing the static
+  // server HTML and silently dropping the first input value.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => { setHydrated(true); }, []);
   useEffect(() => {
     if (state?.status === 'created') {
       // Optimistic-UI bridge: tell the parent before triggering router.refresh
@@ -132,7 +139,7 @@ export function CreateOrderForm({
     locale === 'vi' ? '— Chọn ' + k.toLowerCase() + ' —' : '— Select ' + k.toLowerCase() + ' —';
   const inputMt = inputCls + ' mt-1';
   return (
-    <form action={formAction} className='rounded-2xl border border-white/60 bg-white/95 shadow-xl shadow-indigo-900/5 ring-1 ring-slate-900/5'>
+    <form action={formAction} data-testid='create-order-form' data-hydrated={hydrated ? 'true' : 'false'} className='rounded-2xl border border-white/60 bg-white/95 shadow-xl shadow-indigo-900/5 ring-1 ring-slate-900/5'>
       <div className='rounded-t-2xl border-b border-slate-200/70 bg-gradient-to-r from-indigo-50/60 via-white/40 to-sky-50/60 px-6 py-4'>
         <h2 className='text-base font-semibold uppercase tracking-wide text-slate-900'>{tx('orderForm.title')}</h2>
         <p className='mt-0.5 text-xs text-slate-500'>{locale === 'vi' ? 'Vui lòng điền đầy đủ thông tin bên dưới.' : 'Fill in the fields below to create a dispatch order.'}</p>
@@ -165,11 +172,11 @@ export function CreateOrderForm({
         <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
           <div>
             <label htmlFor='customer' className={labelCls}>{tx('orderForm.customer')}</label>
-            <ComboboxField id='customer' name='customer' options={customers} placeholder={ph(tx('orderForm.customer'))} />
+            <ComboboxField id='customer' name='customer' options={customers} placeholder={ph(tx('orderForm.customer'))} submitValue='id' />
           </div>
           <div>
             <label htmlFor='cargo' className={labelCls}>{tx('orderForm.cargo')}</label>
-            <ComboboxField id='cargo' name='cargo' options={cargoTypes} placeholder={ph(tx('orderForm.cargo'))} />
+            <ComboboxField id='cargo' name='cargo' options={cargoTypes} placeholder={ph(tx('orderForm.cargo'))} submitValue='id' />
           </div>
         </div>
       </div>
@@ -222,7 +229,7 @@ export function CreateOrderForm({
             return (
               <div key={n} className='rounded-lg border border-slate-200 bg-slate-50/60 p-3'>
                 <label htmlFor={whId} className={labelCls}>{tx('orderForm.pickup')} {n}</label>
-                <ComboboxField id={whId} name={whId} options={pickupWarehouses} placeholder={tx('orderForm.none')} />
+                <ComboboxField id={whId} name={whId} options={pickupWarehouses} placeholder={tx('orderForm.none')} submitValue='id' />
               </div>
             );
           })}
@@ -253,7 +260,7 @@ export function CreateOrderForm({
             return (
               <div key={n} className='rounded-lg border border-slate-200 bg-slate-50/60 p-3'>
                 <label htmlFor={whId} className={labelCls}>{tx('orderForm.deliveryWarehouse')} {n}</label>
-                <ComboboxField id={whId} name={whId} options={deliveryWarehouses} placeholder={tx('orderForm.none')} />
+                <ComboboxField id={whId} name={whId} options={deliveryWarehouses} placeholder={tx('orderForm.none')} submitValue='id' />
               </div>
             );
           })}

@@ -18,6 +18,8 @@ const row: ListAssignedRow = {
   completedAt: null,
   plate: '51A-12345',
   customerName: 'Acme Logistics',
+  cargoName: 'GẠO',
+  driverName: 'Nguyễn Văn A',
   pickupName: 'North Pickup Dock',
   deliveryName: 'South Delivery Bay',
   stops: [
@@ -33,6 +35,8 @@ describe('OrderReview', () => {
     expect(screen.getByTestId('order-review-external-ref').textContent).toContain('TO-9001');
     expect(screen.getByTestId('order-review-plate').textContent).toContain('51A-12345');
     expect(screen.getByTestId('order-review-customer').textContent).toContain('Acme Logistics');
+    expect(screen.getByTestId('order-review-cargo').textContent).toContain('GẠO');
+    expect(screen.getByTestId('order-review-driver').textContent).toContain('Nguyễn Văn A');
   });
   it('renders the stops list with one row per stop', () => {
     render(<OrderReview order={row} />);
@@ -41,11 +45,13 @@ describe('OrderReview', () => {
     expect(stops.querySelectorAll('[data-testid=order-review-stop]').length).toBe(2);
   });
   it('renders dashes when optional fields are null', () => {
-    const minimal: ListAssignedRow = { ...row, externalRef: null, orderRef: null, plate: null, customerName: null, pickupName: null, deliveryName: null };
+    const minimal: ListAssignedRow = { ...row, externalRef: null, orderRef: null, plate: null, customerName: null, cargoName: null, driverName: null, pickupName: null, deliveryName: null };
     render(<OrderReview order={minimal} />);
     expect(screen.getByTestId('order-review-external-ref').textContent).toContain('—');
     expect(screen.getByTestId('order-review-plate').textContent).toContain('—');
     expect(screen.getByTestId('order-review-customer').textContent).toContain('—');
+    expect(screen.getByTestId('order-review-cargo').textContent).toContain('—');
+    expect(screen.getByTestId('order-review-driver').textContent).toContain('—');
   });
   it('renders a dash for plannedStartAt when null (formatDateTime null-branch)', () => {
     const noStart: ListAssignedRow = { ...row, plannedStartAt: null };

@@ -36,8 +36,16 @@ export function OrderReview({ order }: OrderReviewProps): JSX.Element {
           <dd data-testid='order-review-plate' className='mt-1 text-slate-900'>{dash(order.plate)}</dd>
         </div>
         <div>
+          <dt className='font-medium text-slate-500'>Tài xế</dt>
+          <dd data-testid='order-review-driver' className='mt-1 text-slate-900'>{dash(order.driverName)}</dd>
+        </div>
+        <div>
           <dt className='font-medium text-slate-500'>Khách hàng</dt>
           <dd data-testid='order-review-customer' className='mt-1 text-slate-900'>{dash(order.customerName)}</dd>
+        </div>
+        <div>
+          <dt className='font-medium text-slate-500'>Tên hàng</dt>
+          <dd data-testid='order-review-cargo' className='mt-1 text-slate-900'>{dash(order.cargoName)}</dd>
         </div>
         <div>
           <dt className='font-medium text-slate-500'>Điểm lấy hàng</dt>

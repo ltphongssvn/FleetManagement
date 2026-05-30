@@ -37,8 +37,8 @@ describe('createOrder dynamic pickup + delivery warehouses (no hard cap)', () =>
     vi.stubGlobal('fetch', fetchMock);
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = baseForm();
-    for (let i = 1; i <= 6; i++) fd.set('pickupWarehouse_' + String(i), 'Kho ' + String(i));
-    fd.set('deliveryWarehouse_1', 'DA NANG');
+    for (let i = 1; i <= 6; i++) fd.set('pickupWarehouse_' + String(i), '99999999-0001-4000-8000-' + String(i).padStart(12, '0'));
+    fd.set('deliveryWarehouse_1', '99999999-0002-4000-8000-000000000001');
     await createOrder(undefined, fd);
     const stops = lastBody(fetchMock)['stops'] as { stopType: string }[];
     expect(stops.filter((s) => s.stopType === 'pickup')).toHaveLength(6);
@@ -51,8 +51,8 @@ describe('createOrder dynamic pickup + delivery warehouses (no hard cap)', () =>
     vi.stubGlobal('fetch', fetchMock);
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = baseForm();
-    fd.set('pickupWarehouse_1', 'Kho 1');
-    for (let i = 1; i <= 3; i++) fd.set('deliveryWarehouse_' + String(i), 'Dest ' + String(i));
+    fd.set('pickupWarehouse_1', '99999999-0001-4000-8000-000000000001');
+    for (let i = 1; i <= 3; i++) fd.set('deliveryWarehouse_' + String(i), '99999999-0002-4000-8000-' + String(i).padStart(12, '0'));
     await createOrder(undefined, fd);
     const stops = lastBody(fetchMock)['stops'] as { sequence: number; stopType: string }[];
     expect(stops.filter((s) => s.stopType === 'pickup')).toHaveLength(1);
@@ -66,10 +66,10 @@ describe('createOrder dynamic pickup + delivery warehouses (no hard cap)', () =>
     vi.stubGlobal('fetch', fetchMock);
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = baseForm();
-    fd.set('pickupWarehouse_1', 'Kho 1');
-    fd.set('pickupWarehouse_2', 'Kho 2');
-    fd.set('deliveryWarehouse_1', 'Dest 1');
-    fd.set('deliveryWarehouse_2', 'Dest 2');
+    fd.set('pickupWarehouse_1', '99999999-0001-4000-8000-000000000001');
+    fd.set('pickupWarehouse_2', '99999999-0001-4000-8000-000000000002');
+    fd.set('deliveryWarehouse_1', '99999999-0002-4000-8000-000000000001');
+    fd.set('deliveryWarehouse_2', '99999999-0002-4000-8000-000000000002');
     await createOrder(undefined, fd);
     const stops = lastBody(fetchMock)['stops'] as { stopType: string; plannedAt: string }[];
     const pAt = new Set(stops.filter((s) => s.stopType === 'pickup').map((s) => s.plannedAt));
@@ -85,11 +85,11 @@ describe('createOrder dynamic pickup + delivery warehouses (no hard cap)', () =>
     vi.stubGlobal('fetch', fetchMock);
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = baseForm();
-    fd.set('pickupWarehouse_1', 'Kho 1');
+    fd.set('pickupWarehouse_1', '99999999-0001-4000-8000-000000000001');
     fd.set('pickupWarehouse_2', '');
-    fd.set('pickupWarehouse_3', 'Kho 3');
+    fd.set('pickupWarehouse_3', '99999999-0001-4000-8000-000000000003');
     fd.set('deliveryWarehouse_1', '');
-    fd.set('deliveryWarehouse_2', 'Dest 2');
+    fd.set('deliveryWarehouse_2', '99999999-0002-4000-8000-000000000002');
     await createOrder(undefined, fd);
     const stops = lastBody(fetchMock)['stops'] as { stopType: string }[];
     expect(stops.filter((s) => s.stopType === 'pickup')).toHaveLength(2);
@@ -101,7 +101,7 @@ describe('createOrder dynamic pickup + delivery warehouses (no hard cap)', () =>
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('{}', { status: 201 }))));
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = baseForm();
-    fd.set('deliveryWarehouse_1', 'DA NANG');
+    fd.set('deliveryWarehouse_1', '99999999-0002-4000-8000-000000000001');
     expect(await createOrder(undefined, fd)).toMatchObject({ status: 'invalid' });
   });
   it('rejects when no delivery warehouse is assigned', async () => {
@@ -110,7 +110,7 @@ describe('createOrder dynamic pickup + delivery warehouses (no hard cap)', () =>
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('{}', { status: 201 }))));
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = baseForm();
-    fd.set('pickupWarehouse_1', 'Kho 1');
+    fd.set('pickupWarehouse_1', '99999999-0001-4000-8000-000000000001');
     expect(await createOrder(undefined, fd)).toMatchObject({ status: 'invalid' });
   });
 });

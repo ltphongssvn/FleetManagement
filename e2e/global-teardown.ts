@@ -72,6 +72,16 @@ export default async function globalTeardown(): Promise<void> {
       ' vehicle_id IN (SELECT vehicle_id FROM vehicle WHERE plate LIKE ' + sq + 'E2E-%' + sq + ')' +
       ' OR driver_id IN (SELECT driver_id FROM driver WHERE full_name LIKE ' + sq + 'E2E%' + sq + ')' +
       ');',
+    // Soft-delete leftover active E2E reference data feeding the dispatch
+    // form dropdowns (Khach hang, Ten hang, Diem nhan/giao hang). Every
+    // reference table the Lenh dieu xe - Tai thung form reads from must be
+    // swept so no E2E-* row leaks into the live dispatcher form.
+    'UPDATE customer SET active=false WHERE company_id=' + sq + COMPANY_ID + sq +
+      ' AND name LIKE ' + sq + 'E2E-%' + sq + ' AND active=true;',
+    'UPDATE cargo_type SET active=false WHERE company_id=' + sq + COMPANY_ID + sq +
+      ' AND name LIKE ' + sq + 'E2E-%' + sq + ' AND active=true;',
+    'UPDATE warehouse SET active=false WHERE company_id=' + sq + COMPANY_ID + sq +
+      ' AND name LIKE ' + sq + 'E2E-%' + sq + ' AND active=true;',
     // Soft-delete leftover active E2E vehicles (admins use active=false).
     'UPDATE vehicle SET active=false WHERE company_id=' + sq + COMPANY_ID + sq +
       ' AND plate LIKE ' + sq + 'E2E-%' + sq + ' AND active=true;',
@@ -95,13 +105,21 @@ export default async function globalTeardown(): Promise<void> {
       ' AND full_name LIKE ' + sq + 'E2E%' + sq + ' AND active=true) AS active_drivers,' +
     ' (SELECT COUNT(*) FROM dispatch_board_projection WHERE company_id=' + sq + COMPANY_ID + sq +
       ' AND (assigned_asset_id IN (SELECT vehicle_id FROM vehicle WHERE plate LIKE ' + sq + 'E2E-%' + sq + ')' +
-      ' OR assigned_operator_id IN (SELECT operator_id FROM driver WHERE full_name LIKE ' + sq + 'E2E%' + sq + '))) AS proj_rows;';
+      ' OR assigned_operator_id IN (SELECT operator_id FROM driver WHERE full_name LIKE ' + sq + 'E2E%' + sq + '))) AS proj_rows,' +
+    ' (SELECT COUNT(*) FROM customer WHERE company_id=' + sq + COMPANY_ID + sq +
+      ' AND name LIKE ' + sq + 'E2E-%' + sq + ' AND active=true) AS active_customers,' +
+    ' (SELECT COUNT(*) FROM cargo_type WHERE company_id=' + sq + COMPANY_ID + sq +
+      ' AND name LIKE ' + sq + 'E2E-%' + sq + ' AND active=true) AS active_cargo_types,' +
+    ' (SELECT COUNT(*) FROM warehouse WHERE company_id=' + sq + COMPANY_ID + sq +
+      ' AND name LIKE ' + sq + 'E2E-%' + sq + ' AND active=true) AS active_warehouses;';
   const r = dockerPsql(leakSql);
-  const [av, ad, pr] = r.stdout.trim().split('|').map((s) => parseInt(s, 10));
-  if (av > 0 || ad > 0 || pr > 0) {
+  const [av, ad, pr, ac, acg, aw] = r.stdout.trim().split('|').map((s) => parseInt(s, 10));
+  if (av > 0 || ad > 0 || pr > 0 || ac > 0 || acg > 0 || aw > 0) {
     throw new Error(
       '[global-teardown] no-leak invariant violated: active_vehicles=' + String(av) +
-      ' active_drivers=' + String(ad) + ' projection_rows=' + String(pr),
+      ' active_drivers=' + String(ad) + ' projection_rows=' + String(pr) +
+      ' active_customers=' + String(ac) + ' active_cargo_types=' + String(acg) +
+      ' active_warehouses=' + String(aw),
     );
   }
 }
