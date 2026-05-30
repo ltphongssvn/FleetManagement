@@ -141,10 +141,12 @@ async function pickCombobox(page: Page, inputId: string, optionLabel: string): P
 test.describe.configure({ mode: 'serial' });
 test.describe('review view reflects create-order form (T7)', () => {
   const seededOrderRefs: string[] = [];
+  const seededRefNames: string[] = [];
   test('every form field shows on the review view with the same value', async ({ page, request }) => {
     test.setTimeout(120000);
     const pair = await setupPair(request, 'T7');
     const refs = await setupRefs(request, pair.token, 'T7');
+    seededRefNames.push(refs.customerLabel, refs.cargoLabel, refs.pickupLabel, refs.deliveryLabel);
     await loginAsDispatcher(page);
     await page.goto('/');
     // Wait for the form to fully hydrate before touching inputs. Without
@@ -152,6 +154,12 @@ test.describe('review view reflects create-order form (T7)', () => {
     // silently — the dispatcher sees an empty Ngày điều xe and the native
     // HTML5 validation blocks submission with no server-action signal.
     await expect(page.getByRole('heading', { name: 'Lệnh điều xe - Tải thùng' })).toBeVisible({ timeout: 15000 });
+    // Wait for the hydration-ready signal before touching any input. The
+    // heading is server-rendered and visible BEFORE React hydrates; filling
+    // an input in that window silently drops the value (Playwright docs /
+    // Microsoft #27759). data-hydrated flips to 'true' only in the form's
+    // mount effect, i.e. once interactivity is real.
+    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15000 });
     // Section 1: planned start (ngày điều xe)
     const plannedStart = page.locator('#plannedStartAt');
     await plannedStart.fill('2026-06-02T08:00');
@@ -239,6 +247,15 @@ test.describe('review view reflects create-order form (T7)', () => {
         ' AND external_ref=' + sq + ref + sq + ';'); } catch { /* tolerate */ }
       try { dockerPsql('DELETE FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq +
         ' AND external_ref=' + sq + ref + sq + ';'); } catch { /* tolerate */ }
+    }
+    // Soft-delete the reference rows this spec seeded so they never leak
+    // into the live dispatcher form dropdowns (Khach hang, Ten hang, Diem
+    // nhan/giao hang). The global teardown is the defense-in-depth backstop;
+    // per-spec cleanup keeps the DB clean even between specs in a run.
+    for (const name of seededRefNames) {
+      try { dockerPsql('UPDATE customer SET active=false WHERE company_id=' + sq + COMPANY_ID + sq + ' AND name=' + sq + name + sq + ';'); } catch { /* tolerate */ }
+      try { dockerPsql('UPDATE cargo_type SET active=false WHERE company_id=' + sq + COMPANY_ID + sq + ' AND name=' + sq + name + sq + ';'); } catch { /* tolerate */ }
+      try { dockerPsql('UPDATE warehouse SET active=false WHERE company_id=' + sq + COMPANY_ID + sq + ' AND name=' + sq + name + sq + ';'); } catch { /* tolerate */ }
     }
   });
 });
