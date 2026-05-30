@@ -29,6 +29,8 @@ export interface ListAssignedRow {
   readonly orderRef: string | null;
   readonly plate: string | null;
   readonly customerName: string | null;
+  readonly cargoName: string | null;
+  readonly driverName: string | null;
   readonly pickupName: string | null;
   readonly deliveryName: string | null;
   readonly stops: readonly ListAssignedRowStop[];

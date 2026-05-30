@@ -23,6 +23,8 @@ const sampleRow: ListAssignedRow = {
   completedAt: null,
   plate: null,
   customerName: null,
+  cargoName: null,
+  driverName: null,
   pickupName: null,
   deliveryName: null,
   stops: [],

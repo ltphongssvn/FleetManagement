@@ -20,7 +20,7 @@ import { eq, and, asc, isNull } from 'drizzle-orm';
 import type { FleetDb } from '../database/database.module.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { transportOrder, stop, roadRun, roadRunTransportOrder } from '../database/schema/transport.js';
-import { vehicle, customer, warehouse, driver } from '../database/schema/reference.js';
+import { vehicle, customer, cargoType, warehouse, driver } from '../database/schema/reference.js';
 import { driverVehicleAssignment } from '../database/schema/driver-vehicle-assignment.js';
 import { appendTriWrite } from '../database/append-tri-write.js';
 import type { OperatorContext } from '../auth/operator-context.js';
@@ -67,6 +67,7 @@ export class TransportOrdersService {
         ...tenancy,
         externalRef,
         ...(input.customerId !== undefined ? { customerId: input.customerId } : {}),
+        ...(input.cargoTypeId !== undefined ? { cargoTypeId: input.cargoTypeId } : {}),
         ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
       }).returning();
       if (!created) throw new Error('transport_order insert failed');
@@ -159,12 +160,16 @@ export class TransportOrdersService {
         completedAt: roadRun.completedAt,
         plate: vehicle.plate,
         customerName: customer.name,
+        cargoName: cargoType.name,
+        driverName: driver.fullName,
       })
       .from(transportOrder)
       .innerJoin(roadRunTransportOrder, eq(roadRunTransportOrder.transportOrderId, transportOrder.transportOrderId))
       .innerJoin(roadRun, eq(roadRun.roadRunId, roadRunTransportOrder.roadRunId))
       .leftJoin(vehicle, eq(vehicle.vehicleId, roadRun.assignedAssetId))
       .leftJoin(customer, eq(customer.customerId, transportOrder.customerId))
+      .leftJoin(cargoType, eq(cargoType.cargoTypeId, transportOrder.cargoTypeId))
+      .leftJoin(driver, and(eq(driver.companyId, op.companyId), eq(driver.operatorId, roadRun.assignedOperatorId)))
       .where(and(
         eq(transportOrder.companyId, op.companyId),
         matchCondition,
@@ -203,6 +208,8 @@ export class TransportOrdersService {
       completedAt: head.completedAt ? head.completedAt.toISOString() : null,
       plate: head.plate,
       customerName: head.customerName,
+      cargoName: head.cargoName,
+      driverName: head.driverName,
       pickupName: pickup?.warehouseName ?? null,
       deliveryName: lastDrop?.warehouseName ?? null,
       stops: stopRows.map((s) => ({
@@ -296,6 +303,8 @@ export class TransportOrdersService {
           completedAt: r.completedAt ? r.completedAt.toISOString() : null,
           plate: r.plate,
           customerName: r.customerName,
+          cargoName: null,
+          driverName: null,
           pickupName: pickupNameOf(stops),
           deliveryName: deliveryNameOf(stops),
           stops: stops.map((s) => ({

@@ -32,9 +32,9 @@ describe('createOrder server action (T3 auto-numbering)', () => {
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
     fd.set('pickupAt', '2026-05-08T09:00');
-    fd.set('pickupWarehouse_1', 'WH-1');
+    fd.set('pickupWarehouse_1', '99999999-0001-4000-8000-000000000001');
     fd.set('deliveryAt', '2026-05-08T11:00');
-    fd.set('deliveryWarehouse_1', 'DEST-1');
+    fd.set('deliveryWarehouse_1', '99999999-0002-4000-8000-000000000001');
     const r = await createOrder(undefined, fd);
     expect(r).toEqual({ status: 'created', externalRef: 'XT.001', transportOrderId: 't1' });
     // T3 follow-up (button state recovery): the action must NOT call
@@ -60,9 +60,9 @@ describe('createOrder server action (T3 auto-numbering)', () => {
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
     fd.set('pickupAt', '2026-05-08T09:00');
-    fd.set('pickupWarehouse_1', 'WH-1');
+    fd.set('pickupWarehouse_1', '99999999-0001-4000-8000-000000000001');
     fd.set('deliveryAt', '2026-05-08T11:00');
-    fd.set('deliveryWarehouse_1', 'DEST-1');
+    fd.set('deliveryWarehouse_1', '99999999-0002-4000-8000-000000000001');
     await createOrder(undefined, fd);
     const calls = fetchMock.mock.calls as unknown as [string, { body: string }][];
     const firstCall = calls[0];
@@ -80,9 +80,9 @@ describe('createOrder server action (T3 auto-numbering)', () => {
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
     fd.set('pickupAt', '2026-05-08T09:00');
-    fd.set('pickupWarehouse_1', 'WH-1');
+    fd.set('pickupWarehouse_1', '99999999-0001-4000-8000-000000000001');
     fd.set('deliveryAt', '2026-05-08T11:00');
-    fd.set('deliveryWarehouse_1', 'DEST-1');
+    fd.set('deliveryWarehouse_1', '99999999-0002-4000-8000-000000000001');
     const r = await createOrder(undefined, fd);
     expect(r).toEqual({ status: 'api_error', message: expect.stringContaining('400') });
   });
@@ -100,9 +100,9 @@ describe('createOrder server action (T3 auto-numbering)', () => {
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
     fd.set('pickupAt', '2026-05-08T09:00:00');
-    fd.set('pickupWarehouse_1', 'WH-1');
+    fd.set('pickupWarehouse_1', '99999999-0001-4000-8000-000000000001');
     fd.set('deliveryAt', '2026-05-08T11:00:00');
-    fd.set('deliveryWarehouse_1', 'DEST-1');
+    fd.set('deliveryWarehouse_1', '99999999-0002-4000-8000-000000000001');
     await createOrder(undefined, fd);
     const calls = fetchMock.mock.calls as unknown as [string, { body: string }][];
     const firstCall = calls[0];
@@ -119,9 +119,9 @@ describe('createOrder server action (T3 auto-numbering)', () => {
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
     fd.set('pickupAt', '2026-05-08T09:00');
-    fd.set('pickupWarehouse_1', 'WH-1');
+    fd.set('pickupWarehouse_1', '99999999-0001-4000-8000-000000000001');
     fd.set('deliveryAt', '2026-05-08T11:00');
-    fd.set('deliveryWarehouse_1', 'DEST-1');
+    fd.set('deliveryWarehouse_1', '99999999-0002-4000-8000-000000000001');
     const r = await createOrder(undefined, fd);
     expect(r).toEqual({ status: 'server_error', message: expect.stringContaining('FLEET_API_URL') });
   });
@@ -134,9 +134,9 @@ describe('createOrder server action (T3 auto-numbering)', () => {
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
     fd.set('pickupAt', '2026-05-08T09:00');
-    fd.set('pickupWarehouse_1', 'WH-1');
+    fd.set('pickupWarehouse_1', '99999999-0001-4000-8000-000000000001');
     fd.set('deliveryAt', '2026-05-08T11:00');
-    fd.set('deliveryWarehouse_1', 'DEST-1');
+    fd.set('deliveryWarehouse_1', '99999999-0002-4000-8000-000000000001');
     const r = await createOrder(undefined, fd);
     expect(r).toEqual({ status: 'server_error', message: 'Not authenticated' });
   });

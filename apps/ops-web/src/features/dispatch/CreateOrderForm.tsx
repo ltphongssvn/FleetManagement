@@ -165,11 +165,11 @@ export function CreateOrderForm({
         <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
           <div>
             <label htmlFor='customer' className={labelCls}>{tx('orderForm.customer')}</label>
-            <ComboboxField id='customer' name='customer' options={customers} placeholder={ph(tx('orderForm.customer'))} />
+            <ComboboxField id='customer' name='customer' options={customers} placeholder={ph(tx('orderForm.customer'))} submitValue='id' />
           </div>
           <div>
             <label htmlFor='cargo' className={labelCls}>{tx('orderForm.cargo')}</label>
-            <ComboboxField id='cargo' name='cargo' options={cargoTypes} placeholder={ph(tx('orderForm.cargo'))} />
+            <ComboboxField id='cargo' name='cargo' options={cargoTypes} placeholder={ph(tx('orderForm.cargo'))} submitValue='id' />
           </div>
         </div>
       </div>
@@ -222,7 +222,7 @@ export function CreateOrderForm({
             return (
               <div key={n} className='rounded-lg border border-slate-200 bg-slate-50/60 p-3'>
                 <label htmlFor={whId} className={labelCls}>{tx('orderForm.pickup')} {n}</label>
-                <ComboboxField id={whId} name={whId} options={pickupWarehouses} placeholder={tx('orderForm.none')} />
+                <ComboboxField id={whId} name={whId} options={pickupWarehouses} placeholder={tx('orderForm.none')} submitValue='id' />
               </div>
             );
           })}
@@ -253,7 +253,7 @@ export function CreateOrderForm({
             return (
               <div key={n} className='rounded-lg border border-slate-200 bg-slate-50/60 p-3'>
                 <label htmlFor={whId} className={labelCls}>{tx('orderForm.deliveryWarehouse')} {n}</label>
-                <ComboboxField id={whId} name={whId} options={deliveryWarehouses} placeholder={tx('orderForm.none')} />
+                <ComboboxField id={whId} name={whId} options={deliveryWarehouses} placeholder={tx('orderForm.none')} submitValue='id' />
               </div>
             );
           })}
