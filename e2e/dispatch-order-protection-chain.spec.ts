@@ -217,6 +217,11 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
     const beforeMax = parseInt(dockerPsql(beforeMaxSql).stdout.trim(), 10);
     await loginAsDispatcher(page);
     await page.goto('/');
+    // Wait for the hydration-ready signal before filling. The form is SSR'd
+    // and visible before React hydrates; filling #plannedStartAt in that
+    // window silently drops the value, native required-validation then blocks
+    // submit and no Số Lệnh banner appears (Playwright docs / Microsoft #27759).
+    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15000 });
     await page.locator('#plannedStartAt').fill('2026-06-01T08:00');
     const vehicleInput = page.locator('input#vehiclePlate');
     await vehicleInput.click();

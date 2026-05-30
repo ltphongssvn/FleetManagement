@@ -35,7 +35,12 @@ async function maybeSeed(): Promise<void> {
   if (!url) return;
   const pool = new Pool({ connectionString: url, max: 1 });
   try {
-    await seedReference(drizzle(pool, { schema, casing: 'snake_case' }));
+    // 2026 best practice: environment-gate test fixtures. The login-capable
+    // test driver must never seed into production. Railway sets
+    // RAILWAY_ENVIRONMENT_NAME=production; dev/test/CI leave it unset.
+    const isProduction = process.env['RAILWAY_ENVIRONMENT_NAME'] === 'production'
+      || process.env['NODE_ENV'] === 'production';
+    await seedReference(drizzle(pool, { schema, casing: 'snake_case' }), { isProduction });
   } finally {
     await pool.end();
   }

@@ -95,3 +95,37 @@ describe('seedReference - login-capable driver', () => {
     expect(nameOnly?.conflict).toBe('do-nothing');
   });
 });
+
+// --- Environment-gating (2026 best practice: seed/test fixtures must be
+// environment-specific, NEVER seeded into production — Joel Clermont, Nuno
+// Maduro, NestJS/Laravel guides). The login-capable test driver
+// (phone 0900000001) exists for local mobile /auth/login testing and must
+// NOT be seeded when running against production. seedReference now accepts an
+// explicit env so the caller (main.ts maybeSeed) decides; default is
+// non-production for safety in tests/dev. ---
+describe('seedReference - environment-gated login driver', () => {
+  it('seeds the login driver in a non-production environment', async () => {
+    const captured: CapturedInsert[] = [];
+    await seedReference(makeFakeDb(captured), { isProduction: false });
+    const loginDriver = captured
+      .filter((c) => c.table === 'driver')
+      .find((d) => d.values['phone'] === '0900000001');
+    expect(loginDriver).toBeDefined();
+  });
+  it('does NOT seed the login driver in a production environment', async () => {
+    const captured: CapturedInsert[] = [];
+    await seedReference(makeFakeDb(captured), { isProduction: true });
+    const loginDriver = captured
+      .filter((c) => c.table === 'driver')
+      .find((d) => d.values['phone'] === '0900000001');
+    expect(loginDriver).toBeUndefined();
+  });
+  it('still seeds non-login reference drivers in production', async () => {
+    const captured: CapturedInsert[] = [];
+    await seedReference(makeFakeDb(captured), { isProduction: true });
+    const refDriver = captured
+      .filter((c) => c.table === 'driver')
+      .find((d) => d.values['phone'] === undefined);
+    expect(refDriver).toBeDefined();
+  });
+});
