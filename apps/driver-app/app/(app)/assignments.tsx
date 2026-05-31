@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { ActivityIndicator, FlatList, Pressable, Text, View, StyleSheet } from 'react-native';
 import { nextDriverAction } from '../../src/assignments/assignment-action-policy.js';
 import { useAssignments } from '../../src/assignments/use-assignments.js';
+import { presentAssignmentStops } from '../../src/assignments/assignment-stops-presenter.js';
 import { formatVnDateTime } from '../../src/config/vn-locale.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
 // Road-run state -> badge colour. Unknown states fall back to slate.
@@ -90,8 +91,11 @@ export default function Assignments(): JSX.Element {
               </View>
               {item.customerName ? <Text style={styles.detail}>Khách hàng: {item.customerName}</Text> : null}
               {item.plate ? <Text style={styles.detail}>Số xe: {item.plate}</Text> : null}
-              {item.pickupName ? <Text style={styles.detail}>Kho nhận: {item.pickupName}</Text> : null}
-              {item.deliveryName ? <Text style={styles.detail}>Kho giao: {item.deliveryName}</Text> : null}
+              {presentAssignmentStops(item.stops).map((st) => (
+                <Text key={st.key} style={styles.detail}>
+                  {st.label}: {st.warehouseName}{st.done ? ' ✓' : ''}
+                </Text>
+              ))}
               {item.plannedStartAt ? (
                 <Text style={styles.detail}>Khởi hành: {formatVnDateTime(item.plannedStartAt)}</Text>
               ) : null}
