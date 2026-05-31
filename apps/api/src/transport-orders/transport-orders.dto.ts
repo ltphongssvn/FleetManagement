@@ -42,6 +42,7 @@ export interface ListAssignedRow {
   readonly roadRunId: string;
   readonly state: string;
   readonly plannedStartAt: string | null;
+  readonly createdAt: string | null;
   readonly startedAt: string | null;
   readonly completedAt: string | null;
   readonly orderRef: string | null;
@@ -55,6 +56,9 @@ export interface ListAssignedRow {
     readonly sequence: number;
     readonly stopType: string;
     readonly plannedAt: string | null;
+    readonly warehouseName: string | null;
+    readonly arrivedAt: string | null;
+    readonly departedAt: string | null;
   }[];
 }
 export interface ListAssignedResponse {

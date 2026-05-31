@@ -1,22 +1,29 @@
 # .github/workflows/e2e.yml
-# Playwright browser e2e tests. Runs on PRs and pushes to main/develop.
+# Playwright browser e2e tests against the FULL Docker Compose stack.
+#
+# WHY push-only (no pull_request): running this on every PR fired a SECOND CI
+# run per push alongside ci.yml. That run timed out at 20min because the job
+# never started the Compose stack (postgres/api/mock-oauth2) the specs require
+# via docker exec, so every token-mint/psql call retried until the wall clock.
+# Restored to the pre-2655625 single-fast-gate-per-PR behavior: PRs get one
+# ci.yml run; this E2E gate runs post-merge on main/develop and on demand.
+#
+# WHY ephemeral keys: the api needs ES256 JWT PEMs (env_file: .env). Instead of
+# storing production-style secrets, CI generates a throwaway ES256 keypair at
+# runtime and writes a disposable .env. No secret is committed or stored.
 name: E2E (Playwright)
-
 on:
   push:
     branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
-
+  workflow_dispatch:
 concurrency:
-  group: e2e-${{ github.ref }}
+  group: e2e-\${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   playwright:
     name: Playwright Chromium
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -27,9 +34,36 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install chromium --with-deps
-      - run: pnpm exec turbo run build --filter=@fleet/ops-web --force --concurrency=1
-      - name: Run Playwright tests
+      - name: Generate ephemeral ES256 keypair + disposable .env
+        run: |
+          openssl ecparam -name prime256v1 -genkey -noout -out /tmp/ec-priv.pem
+          openssl pkcs8 -topk8 -nocrypt -in /tmp/ec-priv.pem -out /tmp/jwt-priv.pem
+          openssl ec -in /tmp/ec-priv.pem -pubout -out /tmp/jwt-pub.pem
+          python3 .github/scripts/write-e2e-env.py
+
+      - name: Bring up the Compose stack (no cache)
+        run: |
+          docker compose build --no-cache api ops-web
+          docker compose up -d postgres redis mock-oauth2 localstack api worker ops-web
+      - name: Wait for stack health
+        run: |
+          for i in \$(seq 1 60); do
+            up=\$(docker compose ps --format '{{.Service}} {{.Health}}' | grep -E 'postgres|api' | grep -c healthy || true)
+            if docker exec fleet-pilot-postgres-1 pg_isready -U fleet >/dev/null 2>&1 && \\
+               curl -fsS http://localhost:3001 >/dev/null 2>&1; then
+              echo \"stack ready after \${i} polls\"; break
+            fi
+            if [ \"\$i\" -eq 60 ]; then echo \"stack did not become ready\"; docker compose logs --tail 50 api ops-web; exit 1; fi
+            sleep 5
+          done
+      - name: Run Playwright tests against the live stack
+        env:
+          E2E_BASE_URL: http://localhost:3001
+          E2E_API_URL: http://localhost:3000
         run: pnpm test:e2e
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker compose logs --tail 100 api ops-web postgres mock-oauth2
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4

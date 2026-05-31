@@ -12,6 +12,7 @@
 // Isolation: tx-injection per test (see helpers/with-tx-isolation.ts).
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { sql } from 'drizzle-orm';
 import { TransportOrdersService } from '../src/transport-orders/transport-orders.service.js';
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
 import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
@@ -78,12 +79,26 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
         sequence: 1,
         stopType: 'pickup',
         plannedAt: '2026-05-01T08:00:00.000Z',
+        warehouseName: null,
+        arrivedAt: null,
+        departedAt: null,
       });
       expect(row?.stops[1]).toEqual({
         sequence: 2,
         stopType: 'dropoff',
         plannedAt: null,
+        warehouseName: null,
+        arrivedAt: null,
+        departedAt: null,
       });
+      // T9: once a stop has arrived/departed timestamps, the producer serializes them to ISO strings.
+      await tx.execute(sql.raw(
+        "UPDATE stop SET arrived_at = '2026-05-01T09:00:00.000Z', departed_at = '2026-05-01T09:15:00.000Z' WHERE sequence = 1"
+      ));
+      const after = await svc.listAssigned(op);
+      const s0 = after.rows[0]?.stops[0];
+      expect(s0?.arrivedAt).toBe('2026-05-01T09:00:00.000Z');
+      expect(s0?.departedAt).toBe('2026-05-01T09:15:00.000Z');
     });
   });
   it('enriches rows with plate, orderRef, customerName, pickup/delivery names', async () => {

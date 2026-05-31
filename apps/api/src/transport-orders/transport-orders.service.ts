@@ -156,6 +156,7 @@ export class TransportOrdersService {
         roadRunId: roadRun.roadRunId,
         state: roadRun.state,
         plannedStartAt: roadRun.plannedStartAt,
+        createdAt: transportOrder.createdAt,
         startedAt: roadRun.startedAt,
         completedAt: roadRun.completedAt,
         plate: vehicle.plate,
@@ -183,6 +184,8 @@ export class TransportOrdersService {
         stopType: stop.stopType,
         plannedAt: stop.plannedAt,
         warehouseName: warehouse.name,
+        arrivedAt: stop.arrivedAt,
+        departedAt: stop.departedAt,
       })
       .from(stop)
       .leftJoin(warehouse, eq(warehouse.warehouseId, stop.yardId))
@@ -204,6 +207,7 @@ export class TransportOrdersService {
       roadRunId: head.roadRunId,
       state: head.state,
       plannedStartAt: head.plannedStartAt ? head.plannedStartAt.toISOString() : null,
+      createdAt: head.createdAt.toISOString(),
       startedAt: head.startedAt ? head.startedAt.toISOString() : null,
       completedAt: head.completedAt ? head.completedAt.toISOString() : null,
       plate: head.plate,
@@ -216,6 +220,9 @@ export class TransportOrdersService {
         sequence: s.sequence,
         stopType: s.stopType,
         plannedAt: s.plannedAt ? s.plannedAt.toISOString() : null,
+        warehouseName: s.warehouseName,
+        arrivedAt: s.arrivedAt ? s.arrivedAt.toISOString() : null,
+        departedAt: s.departedAt ? s.departedAt.toISOString() : null,
       })),
     };
   }
@@ -227,6 +234,7 @@ export class TransportOrdersService {
         roadRunId: roadRun.roadRunId,
         state: roadRun.state,
         plannedStartAt: roadRun.plannedStartAt,
+        createdAt: transportOrder.createdAt,
         startedAt: roadRun.startedAt,
         completedAt: roadRun.completedAt,
         plate: vehicle.plate,
@@ -252,6 +260,8 @@ export class TransportOrdersService {
             stopType: stop.stopType,
             plannedAt: stop.plannedAt,
             warehouseName: warehouse.name,
+            arrivedAt: stop.arrivedAt,
+            departedAt: stop.departedAt,
           })
           .from(stop)
           .leftJoin(warehouse, eq(warehouse.warehouseId, stop.yardId))
@@ -264,6 +274,8 @@ export class TransportOrdersService {
       stopType: string;
       plannedAt: Date | null;
       warehouseName: string | null;
+      arrivedAt: Date | null;
+      departedAt: Date | null;
     }
     const stopsByOrder = new Map<string, StopRow[]>();
     for (const sr of stopRows) {
@@ -274,6 +286,8 @@ export class TransportOrdersService {
         stopType: sr.stopType,
         plannedAt: sr.plannedAt,
         warehouseName: sr.warehouseName,
+        arrivedAt: sr.arrivedAt,
+        departedAt: sr.departedAt,
       });
       stopsByOrder.set(sr.transportOrderId, list);
     }
@@ -299,6 +313,7 @@ export class TransportOrdersService {
           roadRunId: r.roadRunId,
           state: r.state,
           plannedStartAt: r.plannedStartAt ? r.plannedStartAt.toISOString() : null,
+          createdAt: r.createdAt.toISOString(),
           startedAt: r.startedAt ? r.startedAt.toISOString() : null,
           completedAt: r.completedAt ? r.completedAt.toISOString() : null,
           plate: r.plate,
@@ -311,6 +326,9 @@ export class TransportOrdersService {
             sequence: s.sequence,
             stopType: s.stopType,
             plannedAt: s.plannedAt ? s.plannedAt.toISOString() : null,
+            warehouseName: s.warehouseName,
+            arrivedAt: s.arrivedAt ? s.arrivedAt.toISOString() : null,
+            departedAt: s.departedAt ? s.departedAt.toISOString() : null,
           })),
         };
       }),

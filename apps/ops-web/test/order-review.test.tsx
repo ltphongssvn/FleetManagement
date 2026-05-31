@@ -1,7 +1,9 @@
 // apps/ops-web/test/order-review.test.tsx
-// RED: OrderReview renders the order's key fields (id, externalRef, plate,
-// customer, planned start, stops). Asserts on data-testid hooks the
-// Playwright acceptance spec depends on.
+// OrderReview renders the order's key fields (id, externalRef, plate,
+// customer, created date, stops). Asserts on data-testid hooks the
+// Playwright acceptance spec depends on. T8: planned-start field removed and
+// replaced by Ngày tạo lệnh (createdAt); the formatDateTime null/NaN branches
+// are now covered via createdAt.
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { OrderReview } from '@/features/dispatch/OrderReview';
@@ -14,6 +16,7 @@ const row: ListAssignedRow = {
   roadRunId: 'rr-1',
   state: 'planned',
   plannedStartAt: '2026-05-01T07:00:00.000Z',
+  createdAt: '2026-05-01T07:00:00.000Z',
   startedAt: null,
   completedAt: null,
   plate: '51A-12345',
@@ -23,8 +26,8 @@ const row: ListAssignedRow = {
   pickupName: 'North Pickup Dock',
   deliveryName: 'South Delivery Bay',
   stops: [
-    { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-01T08:00:00.000Z' },
-    { sequence: 2, stopType: 'dropoff', plannedAt: null },
+    { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-01T08:00:00.000Z', warehouseName: 'North Pickup Dock', arrivedAt: null, departedAt: null },
+    { sequence: 2, stopType: 'delivery', plannedAt: null, warehouseName: 'South Delivery Bay', arrivedAt: null, departedAt: null },
   ],
 };
 describe('OrderReview', () => {
@@ -53,14 +56,14 @@ describe('OrderReview', () => {
     expect(screen.getByTestId('order-review-cargo').textContent).toContain('—');
     expect(screen.getByTestId('order-review-driver').textContent).toContain('—');
   });
-  it('renders a dash for plannedStartAt when null (formatDateTime null-branch)', () => {
-    const noStart: ListAssignedRow = { ...row, plannedStartAt: null };
-    render(<OrderReview order={noStart} />);
-    expect(screen.getByTestId('order-review-planned-start').textContent).toBe('—');
+  it('renders a dash for createdAt when null (formatDateTime null-branch)', () => {
+    const noCreated: ListAssignedRow = { ...row, createdAt: null };
+    render(<OrderReview order={noCreated} />);
+    expect(screen.getByTestId('order-review-created-at').textContent).toBe('—');
   });
-  it('renders a dash for plannedStartAt when the ISO is invalid (formatDateTime NaN-branch)', () => {
-    const badStart: ListAssignedRow = { ...row, plannedStartAt: 'not-a-real-date' };
-    render(<OrderReview order={badStart} />);
-    expect(screen.getByTestId('order-review-planned-start').textContent).toBe('—');
+  it('renders a dash for createdAt when the ISO is invalid (formatDateTime NaN-branch)', () => {
+    const badCreated: ListAssignedRow = { ...row, createdAt: 'not-a-real-date' };
+    render(<OrderReview order={badCreated} />);
+    expect(screen.getByTestId('order-review-created-at').textContent).toBe('—');
   });
 });

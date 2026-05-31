@@ -19,6 +19,7 @@ const sampleRow: ListAssignedRow = {
   roadRunId: 'rr-1',
   state: 'planned',
   plannedStartAt: null,
+  createdAt: null,
   startedAt: null,
   completedAt: null,
   plate: null,
