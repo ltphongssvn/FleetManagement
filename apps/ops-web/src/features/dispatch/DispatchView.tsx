@@ -67,14 +67,17 @@ function makeOptimisticRow(externalRef: string, opCtx: { operatorId: string; ass
 }
 function mergeRuns(serverRuns: readonly DispatchBoardRoadRun[], optimistic: readonly DispatchBoardRoadRun[]): readonly DispatchBoardRoadRun[] {
   if (optimistic.length === 0) return serverRuns;
-  const serverRefs = new Set<string>();
-  for (const r of serverRuns) {
-    for (const ref of r.transportOrderRefs) serverRefs.add(ref);
-  }
-  const additions = optimistic.filter((r) => {
-    for (const ref of r.transportOrderRefs) if (serverRefs.has(ref)) return false;
-    return true;
-  });
+  // 2026 best practice (react.dev useOptimistic; sitepoint production patterns):
+  // reconcile optimistic list items by a STABLE unique id, never by a mutable
+  // business value. Deduping by transportOrderRefs (external_ref) is the bug:
+  // a STALE projection row carrying the same ref (e.g. pulled from a cloud DB
+  // mirror of a prior session) makes the fresh optimistic row vanish until F5.
+  // Optimistic rows use synthetic roadRunId 'optimistic-<ref>' which can never
+  // collide with a real UUID, so dedup on roadRunId. The optimistic row is
+  // pruned by the stickyRuns effect once the real projection row arrives.
+  const serverRoadRunIds = new Set<string>();
+  for (const r of serverRuns) serverRoadRunIds.add(r.roadRunId);
+  const additions = optimistic.filter((r) => !serverRoadRunIds.has(r.roadRunId));
   return additions.length === 0 ? serverRuns : [...additions, ...serverRuns];
 }
 export function DispatchView(props: DispatchViewProps): JSX.Element {
@@ -86,7 +89,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
   const pushOptimisticRow = (externalRef: string, op: { operatorId: string; assetId: string }): void => {
     setStickyRuns((prev) => {
       for (const r of prev) {
-        for (const ref of r.transportOrderRefs) if (ref === externalRef) return prev;
+        if (r.roadRunId === 'optimistic-' + externalRef) return prev;
       }
       return [...prev, makeOptimisticRow(externalRef, op)];
     });
@@ -99,6 +102,10 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
   }, [onMountForTest]);
   useEffect(() => {
     if (stickyRuns.length === 0) return;
+    // Prune an optimistic row once the REAL projection row for the same ref
+    // arrives from the server. Keyed on external_ref here (not roadRunId)
+    // because the server row's roadRunId is a real UUID, distinct from the
+    // synthetic 'optimistic-<ref>'; the ref is what links the two.
     const serverRefs = new Set<string>();
     for (const r of initialRuns) {
       for (const ref of r.transportOrderRefs) serverRefs.add(ref);
@@ -151,7 +158,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
             </thead>
             <tbody>
               {merged.map((r) => (
-                <tr key={r.roadRunId} className='border-b'>
+                <tr key={r.roadRunId} data-testid={'dispatch-board-rr-' + r.roadRunId} className='border-b'>
                   <td className='px-3 py-2'><OrderRefCell refs={r.transportOrderRefs} /></td>
                   <td className='px-3 py-2'><StateBadge state={r.state} /></td>
                   <td className='px-3 py-2'>{formatOperator(r.assignedOperatorId, driverLookup)}</td>

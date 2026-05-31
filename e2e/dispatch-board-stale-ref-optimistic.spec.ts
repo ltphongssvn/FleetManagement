@@ -1,0 +1,190 @@
+// e2e/dispatch-board-stale-ref-optimistic.spec.ts
+// REGRESSION L0 (2026): the optimistic row MUST appear even when the
+// dispatch_board_projection already contains a STALE row carrying the same
+// external_ref (e.g. pulled in from a cloud DB mirror of a prior session).
+//
+// Business invariant (critical user journey):
+//   A newly created order is shown immediately in Lệnh điều xe with NO manual
+//   refresh, regardless of any pre-existing projection row that happens to
+//   share its external_ref.
+//
+// Root cause this spec pins down: mergeRuns() in DispatchView dedupes the
+// optimistic row by transportOrderRefs (external_ref). A stale projection row
+// with the same ref makes mergeRuns drop the fresh optimistic row, so the
+// dispatcher sees nothing until F5. 2026 best practice (react.dev useOptimistic;
+// sitepoint production patterns): reconcile optimistic list items by a STABLE
+// unique id, never by a mutable business value. Optimistic rows use synthetic
+// roadRunId 'optimistic-<ref>' which can never collide with a real UUID, so
+// dedup must key on roadRunId.
+import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
+
+const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
+const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
+const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'pw';
+const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
+const ROW_VISIBILITY_BUDGET_MS = 1000;
+
+async function mintDispatcherToken(): Promise<string> {
+  const script =
+    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
+    ',{method:' + JSON.stringify('POST') +
+    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
+    ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
+    '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
+  const out = dockerExecNode('fleet-pilot-api-1', script);
+  if (!out || !out.includes('.')) throw new Error('Token mint failed: ' + out);
+  return out.trim();
+}
+
+async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
+  const res = await api.post(API_URL + path, {
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    data: JSON.stringify(body),
+  });
+  if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
+  return (await res.json()) as T;
+}
+
+interface Pair {
+  driverId: string; operatorId: string; vehicleId: string;
+  vehicleLabel: string; driverLabel: string; assignmentId: string; token: string;
+}
+
+async function seedPair(api: APIRequestContext): Promise<Pair> {
+  const token = await mintDispatcherToken();
+  const ts = Date.now();
+  const rand = Math.floor(Math.random() * 1e9).toString(36);
+  const phone = '09' + String(ts).slice(-6) + Math.floor(Math.random() * 100).toString().padStart(2, '0');
+  const driverLabel = 'E2E DRIVER STALEREF ' + rand;
+  const vehicleLabel = 'E2E-SR-' + rand;
+  const drv = await adminPost<{ driverId: string; operatorId: string }>(
+    api, token, '/admin/drivers',
+    { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
+  );
+  const veh = await adminPost<{ id: string; label: string }>(api, token, '/reference/vehicles', { name: vehicleLabel });
+  const asgn = await adminPost<{ assignmentId: string }>(
+    api, token, '/admin/driver-vehicle-assignments',
+    { driverId: drv.driverId, vehicleId: veh.id },
+  );
+  return {
+    driverId: drv.driverId, operatorId: drv.operatorId, vehicleId: veh.id,
+    vehicleLabel, driverLabel, assignmentId: asgn.assignmentId, token,
+  };
+}
+
+async function cleanupPair(api: APIRequestContext, p: Pair): Promise<void> {
+  try {
+    await api.delete(API_URL + '/admin/driver-vehicle-assignments/' + p.assignmentId, {
+      headers: { Authorization: 'Bearer ' + p.token, 'Content-Type': 'application/json' },
+      data: JSON.stringify({ reason: 'e2e-cleanup' }),
+    });
+  } catch { /* tolerate */ }
+  try { await api.delete(API_URL + '/reference/vehicles/' + p.vehicleId, { headers: { Authorization: 'Bearer ' + p.token } }); } catch { /* tolerate */ }
+  try { await api.delete(API_URL + '/admin/drivers/' + p.driverId, { headers: { Authorization: 'Bearer ' + p.token } }); } catch { /* tolerate */ }
+}
+
+async function login(page: Page): Promise<void> {
+  await page.goto('/login');
+  await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
+  await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
+  await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
+  await expect(page).toHaveURL(/\/dispatch|\/$/, { timeout: 10_000 });
+}
+
+// Compute the next XTT.MM-NNN the server will allocate, then seed a STALE
+// projection row carrying that exact ref with a DIFFERENT (random) road_run_id
+// so it cannot be the real one the create will produce.
+function nextRefAndSeedStale(): string {
+  const sq = String.fromCharCode(39);
+  const month = new Date().toISOString().slice(5, 7);
+  // Pin the sequence so the upcoming create is FORCED to allocate exactly this
+  // ref, guaranteeing the stale projection row collides with it. Reading
+  // next_value without pinning is racy: another process can advance it between
+  // the read and the create, so the collision never happens (false GREEN).
+  const nv = dockerPsql('SELECT next_value FROM order_sequence WHERE company_id=' + sq + COMPANY_ID + sq + ' AND prefix=' + sq + 'XTT' + sq + ';').stdout.trim();
+  const pinned = parseInt(nv, 10);
+  dockerPsql('UPDATE order_sequence SET next_value=' + String(pinned) + ' WHERE company_id=' + sq + COMPANY_ID + sq + ' AND prefix=' + sq + 'XTT' + sq + ';');
+  const seq = String(pinned).padStart(3, '0');
+  const ref = 'XTT.' + month + '-' + seq;
+  const staleRr = dockerExecNode('fleet-pilot-api-1', 'process.stdout.write(require(' + JSON.stringify('crypto') + ').randomUUID())').trim();
+  dockerPsql(
+    'INSERT INTO dispatch_board_projection (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, stop_count, transport_order_refs) VALUES (' +
+    sq + staleRr + sq + ',' + sq + COMPANY_ID + sq + ',' + sq + COMPANY_ID + sq + ',' + sq + COMPANY_ID + sq + ',' + sq + COMPANY_ID + sq + ',' +
+    sq + 'planned' + sq + ', 1, ' + sq + '["' + ref + '"]' + sq + ');',
+  );
+  return ref;
+}
+
+test.describe('stale-ref projection does not hide the optimistic row', () => {
+  let pair: Pair | null = null;
+  const seededOrderRefs: string[] = [];
+
+  test.beforeAll(async ({ request }) => { pair = await seedPair(request); });
+
+  test.afterEach(() => {
+    const sq = String.fromCharCode(39);
+    while (seededOrderRefs.length > 0) {
+      const ref = seededOrderRefs.pop();
+      if (!ref) continue;
+      try { dockerPsql('DELETE FROM dispatch_board_projection WHERE company_id=' + sq + COMPANY_ID + sq + ' AND transport_order_refs->>0=' + sq + ref + sq + ';'); } catch { /* tolerate */ }
+      const txId = dockerPsql('SELECT transport_order_id FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq + ' AND external_ref=' + sq + ref + sq + ';').stdout.trim();
+      if (txId.length > 0) {
+        const rrIds = dockerPsql('SELECT road_run_id FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';').stdout.trim().split(String.fromCharCode(10)).filter((l) => l.length > 0);
+        try { dockerPsql('DELETE FROM stop WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
+        try { dockerPsql('DELETE FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
+        for (const rrId of rrIds) {
+          try { dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + rrId + sq + ';'); } catch { /* tolerate */ }
+        }
+      }
+      try { dockerPsql('DELETE FROM outbox WHERE company_id=' + sq + COMPANY_ID + sq + ' AND payload::text LIKE ' + sq + '%' + ref + '%' + sq + ';'); } catch { /* tolerate */ }
+      try { dockerPsql('DELETE FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq + ' AND external_ref=' + sq + ref + sq + ';'); } catch { /* tolerate */ }
+    }
+  });
+
+  test.afterAll(async ({ request }) => { if (pair) await cleanupPair(request, pair); });
+
+  test('optimistic row appears despite a pre-existing stale projection row with the same ref', async ({ page }) => {
+    if (!pair) throw new Error('pair not seeded');
+    const stRef = nextRefAndSeedStale();
+    seededOrderRefs.push(stRef);
+
+    await login(page);
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 1, name: 'Lệnh điều xe' })).toBeVisible();
+    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
+
+    const now = new Date(Date.now() + 60 * 60 * 1000);
+    const localIso = now.toISOString().slice(0, 16);
+    await page.locator('#plannedStartAt').fill(localIso);
+    const vehicleInput = page.locator('input#vehiclePlate');
+    await vehicleInput.click();
+    await vehicleInput.fill(pair.vehicleLabel);
+    await page.getByRole('option', { name: pair.vehicleLabel }).click();
+    await page.locator('#pickupAt').fill(localIso);
+    await page.locator('#deliveryAt').fill(localIso);
+    await page.locator('input#pickupWarehouse_1').click();
+    await page.getByRole('option').first().click();
+    await page.locator('input#deliveryWarehouse_1').click();
+    await page.getByRole('option').first().click();
+
+    await page.getByRole('button', { name: 'Tạo lệnh' }).click();
+    const banner = page.getByRole('status').filter({ hasText: /XTT\./ });
+    await expect(banner).toBeVisible({ timeout: 15_000 });
+    const bannerText = (await banner.textContent()) ?? '';
+    const m = bannerText.match(/XTT\.[0-9]+-[0-9]+/);
+    if (!m) throw new Error('Banner did not contain an XTT external_ref: ' + bannerText);
+    const externalRef = m[0];
+    if (!seededOrderRefs.includes(externalRef)) seededOrderRefs.push(externalRef);
+
+    // Discriminating assertion: the OPTIMISTIC row (synthetic roadRunId
+    // 'optimistic-<ref>') must render. The stale projection row carries the
+    // same external_ref but a different (UUID) roadRunId, so asserting on the
+    // ref-only testid would falsely match the stale row. Keying on the
+    // optimistic roadRunId proves the fresh row survived mergeRuns dedup.
+    const t0 = Date.now();
+    const optimisticRow = page.getByTestId('dispatch-board-rr-optimistic-' + externalRef);
+    await expect(optimisticRow, 'optimistic row must appear despite stale same-ref projection row').toBeVisible({ timeout: ROW_VISIBILITY_BUDGET_MS });
+    expect(Date.now() - t0).toBeLessThanOrEqual(ROW_VISIBILITY_BUDGET_MS);
+  });
+});
