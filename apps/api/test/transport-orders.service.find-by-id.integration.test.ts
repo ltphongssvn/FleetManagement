@@ -5,6 +5,7 @@
 // returns so negative-path tests actually fail when findById does NOT throw.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { sql } from 'drizzle-orm';
 import { TransportOrdersService } from '../src/transport-orders/transport-orders.service.js';
 import { TransportOrderNotFoundError } from '../src/transport-orders/transport-orders.errors.js';
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
@@ -55,7 +56,25 @@ describe('@fleet/api - TransportOrdersService.findById (integration)', () => {
     expect(row.state).toBe('planned');
     expect(row.plannedStartAt).toBe('2026-05-01T07:00:00.000Z');
     expect(row.stops).toHaveLength(2);
-    expect(row.stops[0]).toEqual({ sequence: 1, stopType: 'pickup', plannedAt: '2026-05-01T08:00:00.000Z' });
+    expect(row.stops[0]).toEqual({ sequence: 1, stopType: 'pickup', plannedAt: '2026-05-01T08:00:00.000Z', warehouseName: null, arrivedAt: null, departedAt: null });
+    // T9: review producer serializes arrived/departed timestamps once set.
+    let row2: Awaited<ReturnType<TransportOrdersService['findById']>> | undefined;
+    await withTxIsolation(testDb, async (tx) => {
+      const svc = new TransportOrdersService(tx as never);
+      const op = createOperatorContext();
+      const { operatorId, vehicleId } = await seedActivePair(tx, op);
+      const c = await svc.create({
+        externalRef: 'TO-AT-1',
+        stops: [{ sequence: 1, stopType: 'pickup', plannedAt: '2026-05-01T08:00:00.000Z' }],
+        roadRun: { plannedStartAt: '2026-05-01T07:00:00.000Z', assignedOperatorId: operatorId, assignedAssetId: vehicleId },
+      }, op);
+      await tx.execute(sql.raw(
+        "UPDATE stop SET arrived_at = '2026-05-01T10:00:00.000Z', departed_at = '2026-05-01T10:30:00.000Z' WHERE transport_order_id = '" + c.transportOrderId + "'"
+      ));
+      row2 = await svc.findById(c.transportOrderId, op);
+    });
+    expect(row2?.stops[0]?.arrivedAt).toBe('2026-05-01T10:00:00.000Z');
+    expect(row2?.stops[0]?.departedAt).toBe('2026-05-01T10:30:00.000Z');
   });
   it('throws TransportOrderNotFoundError for an unknown id', async () => {
     let thrown: unknown;
