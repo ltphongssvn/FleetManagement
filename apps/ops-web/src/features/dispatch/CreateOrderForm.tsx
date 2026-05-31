@@ -23,7 +23,7 @@
 // reset silently nukes dispatcher work; a page reload or a new order
 // supersedes it. The submit button is now the sole footer action.
 'use client';
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import { useRouter } from 'next/navigation';
 import { createOrder, type CreateOrderState } from './create-order.action';
@@ -97,17 +97,27 @@ export function CreateOrderForm({
   // server HTML and silently dropping the first input value.
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => { setHydrated(true); }, []);
+  // Fire the created-handler EXACTLY ONCE per allocated externalRef. The
+  // previous effect depended on [state, router, onCreated, assetIdValue,
+  // driverValue] and called router.refresh() inside; onCreated is a fresh
+  // arrow on every parent render, and refresh() re-renders the parent, so the
+  // effect re-fired endlessly -> continuous RSC re-render storm (?_rsc= ->
+  // ERR_INSUFFICIENT_RESOURCES; blinking board). 2026 fix (react.dev: effects
+  // must converge): guard on a ref holding the last-handled ref so the bridge +
+  // refresh run once per creation, and depend only on [state].
+  const handledRefRef = useRef<string | null>(null);
+  const onCreatedRef = useRef(onCreated);
+  onCreatedRef.current = onCreated;
+  const valuesRef = useRef({ operatorId: driverValue, assetId: assetIdValue });
+  valuesRef.current = { operatorId: driverValue, assetId: assetIdValue };
   useEffect(() => {
-    if (state?.status === 'created') {
-      // Optimistic-UI bridge: tell the parent before triggering router.refresh
-      // so the new row appears in the board immediately (sub-perceptual),
-      // and the eventually-consistent projection reconciles in the background.
-      // Optimistic bridge: always notify parent; the parent decides whether
-      // to render an optimistic row based on whether assignment values are set.
-      if (onCreated) onCreated(state.externalRef, { operatorId: driverValue, assetId: assetIdValue });
-      router.refresh();
-    }
-  }, [state, router, onCreated, assetIdValue, driverValue]);
+    if (state?.status !== 'created') return;
+    if (handledRefRef.current === state.externalRef) return;
+    handledRefRef.current = state.externalRef;
+    const cb = onCreatedRef.current;
+    if (cb) cb(state.externalRef, valuesRef.current);
+    router.refresh();
+  }, [state, router]);
   const onVehicleChange = (nextPlate: string): void => {
     setVehicleValue(nextPlate);
     if (nextPlate === '') {
