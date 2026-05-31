@@ -3,17 +3,26 @@
 // the DispatchBoard table on the dispatcher home page.
 //
 // T6 (2026): the dispatch board row uses a plain <a> with NO JS handler.
-// Under useOptimistic + the parent re-render cascade, the App Router
-// <Link> (and router.push from an onClick) falls into a stuck-prefetch
-// loop (vercel/next.js#57565, heroui-inc/heroui#2289): clicks emit RSC
-// fetches that return 200 but the router never commits the navigation,
-// instead retrying until ERR_INSUFFICIENT_RESOURCES. The 2026 industry
-// escape hatch is native browser navigation: a plain anchor with href
-// triggers a full-page load that bypasses Next.js's RSC state machine
-// entirely. The cost is a single hard reload on row click; the benefit
-// is reliable first-click navigation to the review view.
+// Under the parent re-render cascade, the App Router <Link> (and router.push
+// from an onClick) falls into a stuck-prefetch loop (vercel/next.js#57565):
+// clicks emit RSC fetches that return 200 but the router never commits the
+// navigation, retrying until ERR_INSUFFICIENT_RESOURCES. The 2026 escape hatch
+// is native browser navigation: a plain anchor with href triggers a full-page
+// load that bypasses Next.js's RSC state machine entirely.
+//
+// RE-RENDER LOOP FIX (2026): the board previously ran a useOptimistic hook IN
+// PARALLEL with a stickyRuns useState. After create, router.refresh() produced
+// a fresh initialRuns reference each cycle; the useOptimistic value was
+// re-derived on every render and, combined with the auto-prefetching <a> rows
+// re-mounting, drove an unbounded RSC re-render storm (?_rsc= ->
+// ERR_INSUFFICIENT_RESOURCES; server [loadReferences] repeating endlessly;
+// blinking board). The optimistic row is fully served by stickyRuns (plain
+// useState), which converges: it is appended once on create and pruned once
+// the real projection row arrives. Removing the redundant useOptimistic stops
+// the loop while preserving immediate-visibility. (react.dev: effects must
+// reach a fixed point; nextjs.org prefetching: avoid churn on dynamic lists.)
 'use client';
-import { useEffect, useOptimistic, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import { useRouter } from 'next/navigation';
 import { ROAD_RUN_STATE_TONE } from '@fleet/domain';
@@ -67,14 +76,10 @@ function makeOptimisticRow(externalRef: string, opCtx: { operatorId: string; ass
 }
 function mergeRuns(serverRuns: readonly DispatchBoardRoadRun[], optimistic: readonly DispatchBoardRoadRun[]): readonly DispatchBoardRoadRun[] {
   if (optimistic.length === 0) return serverRuns;
-  // 2026 best practice (react.dev useOptimistic; sitepoint production patterns):
-  // reconcile optimistic list items by a STABLE unique id, never by a mutable
-  // business value. Deduping by transportOrderRefs (external_ref) is the bug:
-  // a STALE projection row carrying the same ref (e.g. pulled from a cloud DB
-  // mirror of a prior session) makes the fresh optimistic row vanish until F5.
-  // Optimistic rows use synthetic roadRunId 'optimistic-<ref>' which can never
-  // collide with a real UUID, so dedup on roadRunId. The optimistic row is
-  // pruned by the stickyRuns effect once the real projection row arrives.
+  // Reconcile optimistic list items by a STABLE unique id (roadRunId), never by
+  // a mutable business value. Optimistic rows use synthetic 'optimistic-<ref>'
+  // ids that never collide with a real UUID, so a stale projection row sharing
+  // the same external_ref cannot hide the fresh optimistic row.
   const serverRoadRunIds = new Set<string>();
   for (const r of serverRuns) serverRoadRunIds.add(r.roadRunId);
   const additions = optimistic.filter((r) => !serverRoadRunIds.has(r.roadRunId));
@@ -83,8 +88,9 @@ function mergeRuns(serverRuns: readonly DispatchBoardRoadRun[], optimistic: read
 export function DispatchView(props: DispatchViewProps): JSX.Element {
   const { initialRuns, refs, onMountForTest } = props;
   const router = useRouter();
-  interface OptimisticAction { externalRef: string; op: { operatorId: string; assetId: string } }
-  const [optimisticRuns] = useOptimistic([] as readonly DispatchBoardRoadRun[], (current: readonly DispatchBoardRoadRun[], action: OptimisticAction) => [...current, makeOptimisticRow(action.externalRef, action.op)]);
+  // Single source of optimistic rows: plain useState. Unlike useOptimistic,
+  // this does NOT re-derive on every render, so it cannot drive a re-render
+  // loop when router.refresh() supplies a fresh initialRuns reference.
   const [stickyRuns, setStickyRuns] = useState<readonly DispatchBoardRoadRun[]>([]);
   const pushOptimisticRow = (externalRef: string, op: { operatorId: string; assetId: string }): void => {
     setStickyRuns((prev) => {
@@ -103,9 +109,10 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
   useEffect(() => {
     if (stickyRuns.length === 0) return;
     // Prune an optimistic row once the REAL projection row for the same ref
-    // arrives from the server. Keyed on external_ref here (not roadRunId)
-    // because the server row's roadRunId is a real UUID, distinct from the
-    // synthetic 'optimistic-<ref>'; the ref is what links the two.
+    // arrives from the server. Keyed on external_ref because the server row's
+    // roadRunId is a real UUID, distinct from the synthetic 'optimistic-<ref>';
+    // the ref is what links the two. The length guard ensures we never re-set
+    // identical state, so the effect reaches a fixed point (no loop).
     const serverRefs = new Set<string>();
     for (const r of initialRuns) {
       for (const ref of r.transportOrderRefs) serverRefs.add(ref);
@@ -118,7 +125,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
   }, [initialRuns, stickyRuns]);
   const driverLookup = buildLookup(refs.drivers);
   const vehicleLookup = buildLookup(refs.vehicles ?? []);
-  const merged = mergeRuns(initialRuns, [...optimisticRuns, ...stickyRuns]);
+  const merged = mergeRuns(initialRuns, stickyRuns);
   const handleCreated = (externalRef: string, op: { operatorId: string; assetId: string }): void => {
     if (op.operatorId !== '' && op.assetId !== '') {
       pushOptimisticRow(externalRef, op);
