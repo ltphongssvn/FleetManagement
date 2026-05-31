@@ -200,28 +200,32 @@ test.describe('review view reflects create-order form (T7)', () => {
     await expect(page.getByTestId('order-review-external-ref')).toHaveText(createdRef);
     await expect(page.getByTestId('order-review-plate')).toHaveText(pair.vehicleLabel);
     await expect(page.getByTestId('order-review-customer')).toHaveText(refs.customerLabel);
-    await expect(page.getByTestId('order-review-pickup')).toHaveText(refs.pickupLabel);
-    await expect(page.getByTestId('order-review-delivery')).toHaveText(refs.deliveryLabel);
-    // Gaps that must be closed (currently missing on OrderReview).
+    // T8: single pickup/delivery fields removed; stops carry the slot labels.
     await expect(page.getByTestId('order-review-cargo')).toHaveText(refs.cargoLabel);
     await expect(page.getByTestId('order-review-driver')).toHaveText(pair.driverLabel);
-    // plannedStartAt round-trips through the API as ISO; the review formats
-    // it for vi-VN. Assert it is non-empty and contains the date components
-    // chosen by the dispatcher (2/6/2026 in vi-VN dd/MM/yyyy ordering).
-    const plannedText = await page.getByTestId('order-review-planned-start').innerText();
-    expect(plannedText).toMatch(/2[/]6[/]2026/);
+    // T8: review shows Ngày tạo lệnh (createdAt), not Bắt đầu dự kiến.
+    await expect(page.getByText('Ngày tạo lệnh')).toBeVisible();
+    const createdText = await page.getByTestId('order-review-created-at').innerText();
+    expect(createdText).not.toBe('—');
+    expect(createdText).toMatch(/2026/);
     // State is planned right after create.
     await expect(page.getByTestId('order-review-state')).toHaveText('planned');
-    // Stops: 1 pickup + 1 delivery, in order.
-    const stopItems = page.getByTestId('order-review-stop');
-    await expect(stopItems).toHaveCount(2);
-    await expect(stopItems.first()).toContainText('pickup');
-    await expect(stopItems.last()).toContainText('delivery');
+    // T8: stops use the form's fixed slot labels, never raw stopType.
+    await expect(page.getByText('Điểm nhận hàng 1')).toBeVisible();
+    await expect(page.getByTestId('order-review-stops')).not.toContainText('pickup');
+    await expect(page.getByTestId('order-review-stops')).not.toContainText('delivery');
+    await expect(page.getByText('Kho giao hàng 1')).toBeVisible();
+    // T9: each stop shows its warehouse name (matching the form selection).
+    await expect(page.getByTestId('order-review-stops')).toContainText(refs.pickupLabel);
+    await expect(page.getByTestId('order-review-stops')).toContainText(refs.deliveryLabel);
+    // T9: a freshly-created order has no arrivals; every stop is not-yet-done.
+    const firstStop = page.getByTestId('order-review-stop').first();
+    await expect(firstStop.getByTestId('order-review-stop-status')).toHaveText('Chưa tới');
     // No-UUID-leak invariant: the review view must surface human-readable
     // labels, never opaque UUIDs. The ONLY allowed UUID is the explicit
     // Mã đơn (ID) field. Every other display field must not match a UUID.
     const uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-    for (const tid of ['order-review-external-ref','order-review-plate','order-review-customer','order-review-cargo','order-review-driver','order-review-pickup','order-review-delivery','order-review-state','order-review-planned-start']) {
+    for (const tid of ['order-review-external-ref','order-review-plate','order-review-customer','order-review-cargo','order-review-driver','order-review-state','order-review-created-at']) {
       const txt = await page.getByTestId(tid).innerText();
       expect(uuidRe.test(txt), tid + ' must not display a UUID: ' + txt).toBe(false);
     }

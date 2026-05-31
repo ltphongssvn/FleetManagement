@@ -22,6 +22,7 @@ import { LogoutButton } from '../auth/LogoutButton';
 import { ExportOrdersExcelButton } from './ExportOrdersExcelButton';
 import { buildLookup, formatOperator, formatOrderRef, formatVehicle } from './labels';
 import type { DispatchBoardRoadRun } from './types';
+import { StopSlotHeaders, StopSlotCells, STOP_SLOT_COL_COUNT } from './board-stops';
 const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
   timeStyle: 'short',
@@ -61,6 +62,7 @@ function makeOptimisticRow(externalRef: string, opCtx: { operatorId: string; ass
     plannedStartAt: null,
     stopCount: 1,
     transportOrderRefs: [externalRef],
+    stops: [],
   };
 }
 function mergeRuns(serverRuns: readonly DispatchBoardRoadRun[], optimistic: readonly DispatchBoardRoadRun[]): readonly DispatchBoardRoadRun[] {
@@ -144,6 +146,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                 <th className='px-3 py-2'>Xe</th>
                 <th className='px-3 py-2'>Ngày dự kiến</th>
                 <th className='px-3 py-2'>Số điểm</th>
+                <StopSlotHeaders />
               </tr>
             </thead>
             <tbody>
@@ -155,10 +158,11 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                   <td className='px-3 py-2'>{formatVehicle(r.assignedAssetId, vehicleLookup)}</td>
                   <td className='px-3 py-2'>{formatPlannedStart(r.plannedStartAt)}</td>
                   <td className='px-3 py-2'>{r.stopCount}</td>
+                  <StopSlotCells primaryRef={r.transportOrderRefs[0] ?? r.roadRunId} stops={r.stops} />
                 </tr>
               ))}
               {merged.length === 0 && (
-                <tr><td colSpan={6} className='px-3 py-6 text-center text-slate-500'>Chưa có lệnh điều xe nào.</td></tr>
+                <tr><td colSpan={6 + STOP_SLOT_COL_COUNT} className='px-3 py-6 text-center text-slate-500'>Chưa có lệnh điều xe nào.</td></tr>
               )}
             </tbody>
           </table>

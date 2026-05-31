@@ -10,6 +10,13 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { ROAD_RUN_STATES, type RoadRunState } from '@fleet/domain';
 import type { DispatchBoardRoadRun } from './types.js';
+const BoardStopSchema = z.object({
+  sequence: z.number().int(),
+  stopType: z.string(),
+  warehouseName: z.union([z.string(), z.null()]),
+  arrivedAt: z.union([z.string(), z.null()]),
+  departedAt: z.union([z.string(), z.null()]),
+});
 const BoardRowSchema = z.object({
   roadRunId: z.string().uuid(),
   state: z.enum(ROAD_RUN_STATES as unknown as [RoadRunState, ...RoadRunState[]]),
@@ -18,6 +25,7 @@ const BoardRowSchema = z.object({
   plannedStartAt: z.union([z.string(), z.null()]),
   stopCount: z.number().int().nonnegative(),
   transportOrderRefs: z.array(z.string()).readonly(),
+  stops: z.array(BoardStopSchema).readonly().default([]),
 });
 const BoardResponseSchema = z.object({
   rows: z.array(BoardRowSchema).readonly(),
@@ -31,6 +39,7 @@ const PILOT_DATA = Object.freeze([
     plannedStartAt: '2026-04-28T08:00:00.000Z',
     stopCount: 3,
     transportOrderRefs: Object.freeze(['TO-1001', 'TO-1002']),
+    stops: Object.freeze([]),
   }),
   Object.freeze({
     roadRunId: '22222222-2222-4222-8222-222222222222',
@@ -40,6 +49,7 @@ const PILOT_DATA = Object.freeze([
     plannedStartAt: '2026-04-28T09:00:00.000Z',
     stopCount: 2,
     transportOrderRefs: Object.freeze(['TO-1003']),
+    stops: Object.freeze([]),
   }),
 ]) satisfies readonly DispatchBoardRoadRun[];
 function isProduction(): boolean {
