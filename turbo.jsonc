@@ -35,7 +35,7 @@
     "build": {
       "description": "Compile production artifacts (NestJS dist, Next.js .next, Expo build). Owns dist/** exclusively. BUILD_ID policy: MUST NOT be read during build. Stamping happens at deploy time (commit SHA metadata) or runtime env — never consumed by build scripts. Not declared here (neither env nor passThroughEnv) because it must not be visible.",
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**", "out/**"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**", "out/**", "**/*.tsbuildinfo"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/tsconfig.base.json"
@@ -44,8 +44,8 @@
       "outputLogs": "new-only"
     },
     "lint": {
-      "description": "Static analysis (ESLint). ^lint ensures shared eslint-config package lints itself before consumers. Hashes both package-local and root-level ESLint configs + root tsconfig (type-aware rules depend on it). Produces no cacheable artifacts: package scripts run plain 'eslint .' with no --format json -o or --cache, so no eslint-report.json / .eslintcache is written. Declaring those as outputs triggered Turbo's 'no output files found' warning on cache write; outputs is therefore [].",
-      "dependsOn": ["^lint"],
+      "description": "Static analysis (ESLint). dependsOn ^build (not just ^lint): the type-aware @typescript-eslint/no-unsafe-* rules need upstream workspace packages' emitted .d.ts to resolve cross-package import types. Without ^build, a clean CI checkout has no dist/ for @fleet/* deps, so those imports resolve to 'any' and the rules fire — passing locally (where dist/ exists) but failing CI. ^build guarantees parity. ^lint retained so the shared eslint-config lints itself before consumers. Hashes package-local + root ESLint configs + root tsconfig. Produces no cacheable artifacts (plain 'eslint .'), so outputs is [].",
+      "dependsOn": ["^build", "^lint"],
       "outputs": [],
       "inputs": [
         "$TURBO_DEFAULT$",
