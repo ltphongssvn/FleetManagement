@@ -34,7 +34,6 @@ import type { DispatchBoardRoadRun } from './types';
 import { StopSlotHeaders, StopSlotCells, STOP_SLOT_COL_COUNT } from './board-stops';
 const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
-  timeStyle: 'short',
 });
 function formatPlannedStart(iso: string | null): string {
   if (iso === null) return '—';

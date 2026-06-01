@@ -19,7 +19,7 @@ function formatDateTime(iso: string | null): string {
   if (iso === null) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' });
 }
 // T8: per-type slot labels mirroring the create form's fixed slots.
 function slotLabelsFor(stops: readonly ListAssignedRowStop[]): readonly string[] {
