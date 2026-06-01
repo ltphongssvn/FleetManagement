@@ -15,6 +15,8 @@ import {
 import { AdminDriversCreateController } from './admin-drivers-create.controller.js';
 import { AdminDriversUpdateService } from './admin-drivers-update.service.js';
 import { AdminDriversUpdateController } from './admin-drivers-update.controller.js';
+import { AdminDriversResetPasswordService } from './admin-drivers-reset-password.service.js';
+import { AdminDriversResetPasswordController } from './admin-drivers-reset-password.controller.js';
 import * as bcrypt from 'bcryptjs';
 const bcryptHashProvider = {
   provide: BCRYPT_HASH,
@@ -29,6 +31,7 @@ const bcryptHashProvider = {
     AdminDeviceEnrollController,
     AdminDriversCreateController,
     AdminDriversUpdateController,
+    AdminDriversResetPasswordController,
   ],
   providers: [
     AdminAssignmentService,
@@ -36,6 +39,7 @@ const bcryptHashProvider = {
     AdminDeviceEnrollService,
     AdminDriversCreateService,
     AdminDriversUpdateService,
+    AdminDriversResetPasswordService,
     bcryptHashProvider,
   ],
   exports: [
@@ -44,6 +48,7 @@ const bcryptHashProvider = {
     AdminDeviceEnrollService,
     AdminDriversCreateService,
     AdminDriversUpdateService,
+    AdminDriversResetPasswordService,
   ],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class

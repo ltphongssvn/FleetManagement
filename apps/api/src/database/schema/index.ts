@@ -100,3 +100,8 @@ export {
   type TransportOrderExportLog,
   type NewTransportOrderExportLog,
 } from './transport-order-export-log.js';
+export {
+  driverPasswordResetLog,
+  type DriverPasswordResetLog,
+  type NewDriverPasswordResetLog,
+} from './driver-password-reset-log.js';
