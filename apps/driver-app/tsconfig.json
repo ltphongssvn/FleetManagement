@@ -25,6 +25,8 @@
     "src/**/*",
     "test/**/*",
     "app/**/*",
-    "vitest.config.ts"
+    "vitest.config.ts",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
   ]
 }
