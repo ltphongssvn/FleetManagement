@@ -5,6 +5,12 @@
 // useState, so logout() in one component never updated the auth gate in
 // another and the redirect-to-login never fired. AuthProvider holds the
 // one source of truth; useAuth() consumes it.
+//
+// The API base URL resolves through the single source of truth getApiUrl()
+// (api-url.ts) so web (RN-Web E2E) and native share one resolution path —
+// including the web rewrite of the emulator-only 10.0.2.2 host to the page
+// origin. Previously this module read EXPO_PUBLIC_API_URL directly, which on
+// web pointed the login POST at 10.0.2.2 (unreachable from a host browser).
 import {
   createContext,
   useCallback,
@@ -16,9 +22,7 @@ import {
   type JSX,
 } from 'react';
 import { loadToken, saveToken, clearToken, type StoredToken } from './token-storage.js';
-const API_URL =
-  process.env['EXPO_PUBLIC_API_URL'] ??
-  'https://api-production-fd42.up.railway.app';
+import { getApiUrl } from '../config/api-url.js';
 export interface AuthState {
   readonly status: 'loading' | 'authenticated' | 'unauthenticated';
   readonly error: string | null;
@@ -48,13 +52,13 @@ function useAuthEngine(): UseAuthResult {
   }, []);
   const login = useCallback(async (phone: string, password: string): Promise<void> => {
     try {
-      const res = await fetch(`${API_URL}/auth/login`, {
+      const res = await fetch(getApiUrl() + '/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, password }),
       });
       if (!res.ok) {
-        const msg = res.status === 401 ? 'Sai số điện thoại hoặc mật khẩu' : `Lỗi đăng nhập (HTTP ${String(res.status)})`;
+        const msg = res.status === 401 ? 'Sai số điện thoại hoặc mật khẩu' : 'Lỗi đăng nhập (HTTP ' + String(res.status) + ')';
         setState({ status: 'unauthenticated', error: msg });
         return;
       }
