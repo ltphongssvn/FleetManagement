@@ -205,7 +205,6 @@ export default function AdminDriversPage(): JSX.Element {
               <td className='p-2'>
                 <div className='font-medium'>{row.fullName}</div>
                 <div className='text-xs text-gray-700'>{row.phone}</div>
-                <div className='text-xs text-gray-500'>{row.operatorId ?? '—'}</div>
               </td>
               <td className='p-2'>
                 {row.assignedVehicle ? (

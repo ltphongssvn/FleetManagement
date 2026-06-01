@@ -172,7 +172,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                   <td className='px-3 py-2'>{formatVehicle(r.assignedAssetId, vehicleLookup)}</td>
                   <td className='px-3 py-2'>{formatPlannedStart(r.plannedStartAt)}</td>
                   <td className='px-3 py-2'>{r.stopCount}</td>
-                  <StopSlotCells primaryRef={r.transportOrderRefs[0] ?? r.roadRunId} stops={r.stops} />
+                  <StopSlotCells primaryRef={formatOrderRef(r.transportOrderRefs)} stops={r.stops} />
                 </tr>
               ))}
               {merged.length === 0 && (

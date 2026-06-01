@@ -52,10 +52,6 @@ export function OrderReview({ order }: OrderReviewProps): JSX.Element {
       <h1 className='text-2xl font-bold tracking-tight text-slate-900'>Chi tiết đơn vận chuyển</h1>
       <dl className='mt-6 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2'>
         <div>
-          <dt className='font-medium text-slate-500'>Mã đơn (ID)</dt>
-          <dd data-testid='order-review-id' className='mt-1 font-mono text-slate-900 break-all'>{order.transportOrderId}</dd>
-        </div>
-        <div>
           <dt className='font-medium text-slate-500'>Mã tham chiếu</dt>
           <dd data-testid='order-review-external-ref' className='mt-1 text-slate-900'>{dash(order.externalRef)}</dd>
         </div>
