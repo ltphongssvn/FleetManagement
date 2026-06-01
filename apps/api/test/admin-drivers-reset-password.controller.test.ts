@@ -26,7 +26,7 @@ describe('AdminDriversResetPasswordController', () => {
   });
   it('delegates with target driverId, actor operatorId, tenancy + newPassword', async () => {
     resetFn.mockResolvedValue(undefined);
-    await controller.reset(op, 'driver-target-1', { newPassword: 'freshpass1' });
+    await controller.reset(op, 'driver-target-1', { newPassword: 'freshpass1' }); // pragma: allowlist secret
     expect(resetFn).toHaveBeenCalledWith({
       driverId: 'driver-target-1',
       companyId: op.companyId,
@@ -34,18 +34,18 @@ describe('AdminDriversResetPasswordController', () => {
       depotId: op.depotId,
       legalEntityId: op.legalEntityId,
       actorOperatorId: op.operatorId,
-      newPassword: 'freshpass1',
+      newPassword: 'freshpass1', // pragma: allowlist secret
     });
   });
   it('rejects a newPassword shorter than 6 chars (zod) before hitting the service', async () => {
     await expect(
-      controller.reset(op, 'driver-target-1', { newPassword: 'x' }),
+      controller.reset(op, 'driver-target-1', { newPassword: 'x' }), // pragma: allowlist secret
     ).rejects.toThrow();
     expect(resetFn).not.toHaveBeenCalled();
   });
   it('does NOT accept a currentPassword field (service-desk reset needs none)', async () => {
     resetFn.mockResolvedValue(undefined);
-    await controller.reset(op, 'driver-target-1', { newPassword: 'freshpass1', currentPassword: 'whatever' } as unknown as { newPassword: string });
+    await controller.reset(op, 'driver-target-1', { newPassword: 'freshpass1', currentPassword: 'whatever' } as unknown as { newPassword: string }); // pragma: allowlist secret
     // zod strips unknown keys: the service call must carry only the reset shape
     expect(resetFn).toHaveBeenCalledWith({
       driverId: 'driver-target-1',
@@ -54,7 +54,7 @@ describe('AdminDriversResetPasswordController', () => {
       depotId: op.depotId,
       legalEntityId: op.legalEntityId,
       actorOperatorId: op.operatorId,
-      newPassword: 'freshpass1',
+      newPassword: 'freshpass1', // pragma: allowlist secret
     });
   });
 });

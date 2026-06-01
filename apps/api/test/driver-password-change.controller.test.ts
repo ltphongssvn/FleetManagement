@@ -26,23 +26,23 @@ describe('DriverPasswordChangeController', () => {
   });
   it('delegates to service with operator identity + both passwords', async () => {
     changeFn.mockResolvedValue(undefined);
-    await controller.change(op, { currentPassword: 'oldpass1', newPassword: 'newpass2' });
+    await controller.change(op, { currentPassword: 'oldpass1', newPassword: 'newpass2' }); // pragma: allowlist secret
     expect(changeFn).toHaveBeenCalledWith({
       operatorId: op.operatorId,
       companyId: op.companyId,
-      currentPassword: 'oldpass1',
-      newPassword: 'newpass2',
+      currentPassword: 'oldpass1', // pragma: allowlist secret
+      newPassword: 'newpass2', // pragma: allowlist secret
     });
   });
   it('rejects a newPassword shorter than 6 chars (zod) before hitting the service', async () => {
     await expect(
-      controller.change(op, { currentPassword: 'oldpass1', newPassword: 'x' }),
+      controller.change(op, { currentPassword: 'oldpass1', newPassword: 'x' }), // pragma: allowlist secret
     ).rejects.toThrow();
     expect(changeFn).not.toHaveBeenCalled();
   });
   it('rejects a missing currentPassword before hitting the service', async () => {
     await expect(
-      controller.change(op, { newPassword: 'newpass2' } as unknown as { currentPassword: string; newPassword: string }),
+      controller.change(op, { newPassword: 'newpass2' } as unknown as { currentPassword: string; newPassword: string }), // pragma: allowlist secret
     ).rejects.toThrow();
     expect(changeFn).not.toHaveBeenCalled();
   });

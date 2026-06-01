@@ -36,4 +36,17 @@ describe('PasswordChangeClient', () => {
     const client = new PasswordChangeClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.changePassword('a', 'bbbbbb')).rejects.toThrow(/500/);
   });
+
+  it('defaults to globalThis.fetch when no fetchFn is injected', async () => {
+    const globalFetch = vi.fn().mockResolvedValue({ ok: true, status: 204 });
+    vi.stubGlobal('fetch', globalFetch);
+    const client = new PasswordChangeClient({ apiUrl: 'http://api', bearerToken: () => 't' });
+    await expect(client.changePassword('a', 'bbbbbb')).resolves.toBeUndefined();
+    expect(globalFetch).toHaveBeenCalledWith(
+      'http://api/driver/me/password',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    vi.unstubAllGlobals();
+  });
+
 });

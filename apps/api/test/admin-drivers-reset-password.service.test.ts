@@ -43,7 +43,7 @@ const BASE = {
   depotId: '33333333-3333-3333-3333-333333333333',
   legalEntityId: '44444444-4444-4444-4444-444444444444',
   actorOperatorId: '00000000-0000-0000-0000-0000000000aa',
-  newPassword: 'freshpass1',
+  newPassword: 'freshpass1', // pragma: allowlist secret
 };
 describe('AdminDriversResetPasswordService', () => {
   let hashFn: ReturnType<typeof vi.fn>;
@@ -53,7 +53,7 @@ describe('AdminDriversResetPasswordService', () => {
     const svc = new AdminDriversResetPasswordService(db, hashFn as never);
     await svc.resetPassword(BASE);
     expect(hashFn).toHaveBeenCalledWith('freshpass1', 10);
-    expect(tx.setFn).toHaveBeenCalledWith({ passwordHash: 'HASH_OF_NEW' });
+    expect(tx.setFn).toHaveBeenCalledWith({ passwordHash: 'HASH_OF_NEW' }); // pragma: allowlist secret
     expect(tx.insertValues).toHaveBeenCalledWith(expect.objectContaining({
       companyId: BASE.companyId,
       businessUnitId: BASE.businessUnitId,

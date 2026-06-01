@@ -29,7 +29,7 @@ function makeDb(row: Row | null): { db: FleetDb; update: ReturnType<typeof vi.fn
 }
 const OP = '00000000-0000-0000-0000-0000000000aa';
 const CO = '11111111-1111-1111-1111-111111111111';
-const ROW: Row = { driverId: 'd1', operatorId: OP, companyId: CO, passwordHash: 'HASH_OF_OLD' };
+const ROW: Row = { driverId: 'd1', operatorId: OP, companyId: CO, passwordHash: 'HASH_OF_OLD' }; // pragma: allowlist secret
 describe('DriverPasswordChangeService', () => {
   let compareFn: ReturnType<typeof vi.fn>;
   let hashFn: ReturnType<typeof vi.fn>;
@@ -42,17 +42,17 @@ describe('DriverPasswordChangeService', () => {
     hashFn.mockResolvedValue('HASH_OF_NEW');
     const { db, setFn } = makeDb(ROW);
     const svc = new DriverPasswordChangeService(db, hashFn as never, compareFn as never);
-    await svc.changePassword({ operatorId: OP, companyId: CO, currentPassword: 'oldpass1', newPassword: 'newpass2' });
+    await svc.changePassword({ operatorId: OP, companyId: CO, currentPassword: 'oldpass1', newPassword: 'newpass2' }); // pragma: allowlist secret
     expect(compareFn).toHaveBeenCalledWith('oldpass1', 'HASH_OF_OLD');
     expect(hashFn).toHaveBeenCalledWith('newpass2', 10);
-    expect(setFn).toHaveBeenCalledWith({ passwordHash: 'HASH_OF_NEW' });
+    expect(setFn).toHaveBeenCalledWith({ passwordHash: 'HASH_OF_NEW' }); // pragma: allowlist secret
   });
   it('throws UnauthorizedException and does NOT write when current password is wrong', async () => {
     compareFn.mockResolvedValue(false);
     const { db, update } = makeDb(ROW);
     const svc = new DriverPasswordChangeService(db, hashFn as never, compareFn as never);
     await expect(
-      svc.changePassword({ operatorId: OP, companyId: CO, currentPassword: 'wrong', newPassword: 'newpass2' }),
+      svc.changePassword({ operatorId: OP, companyId: CO, currentPassword: 'wrong', newPassword: 'newpass2' }), // pragma: allowlist secret
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(hashFn).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
@@ -61,7 +61,7 @@ describe('DriverPasswordChangeService', () => {
     const { db, update } = makeDb({ driverId: 'd1', operatorId: OP, companyId: CO, passwordHash: null as unknown as string });
     const svc = new DriverPasswordChangeService(db, hashFn as never, compareFn as never);
     await expect(
-      svc.changePassword({ operatorId: OP, companyId: CO, currentPassword: 'oldpass1', newPassword: 'newpass2' }),
+      svc.changePassword({ operatorId: OP, companyId: CO, currentPassword: 'oldpass1', newPassword: 'newpass2' }), // pragma: allowlist secret
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(compareFn).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
@@ -70,7 +70,7 @@ describe('DriverPasswordChangeService', () => {
     const { db, update } = makeDb(null);
     const svc = new DriverPasswordChangeService(db, hashFn as never, compareFn as never);
     await expect(
-      svc.changePassword({ operatorId: OP, companyId: CO, currentPassword: 'oldpass1', newPassword: 'newpass2' }),
+      svc.changePassword({ operatorId: OP, companyId: CO, currentPassword: 'oldpass1', newPassword: 'newpass2' }), // pragma: allowlist secret
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(compareFn).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
