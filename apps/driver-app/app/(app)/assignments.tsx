@@ -16,7 +16,7 @@ import { ActivityIndicator, FlatList, Pressable, Text, View, StyleSheet } from '
 import { nextDriverAction } from '../../src/assignments/assignment-action-policy.js';
 import { useAssignments } from '../../src/assignments/use-assignments.js';
 import { presentAssignmentStops } from '../../src/assignments/assignment-stops-presenter.js';
-import { formatVnDateTime } from '../../src/config/vn-locale.js';
+import { formatVnDateUS } from '../../src/config/vn-locale.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
 // Road-run state -> badge colour. Unknown states fall back to slate.
 const STATE_COLOR: Record<string, string> = {
@@ -97,7 +97,7 @@ export default function Assignments(): JSX.Element {
                 </Text>
               ))}
               {item.plannedStartAt ? (
-                <Text style={styles.detail}>Khởi hành: {formatVnDateTime(item.plannedStartAt)}</Text>
+                <Text style={styles.detail}>Khởi hành: {formatVnDateUS(item.plannedStartAt)}</Text>
               ) : null}
               {actionKind === null ? (
                 <Pressable

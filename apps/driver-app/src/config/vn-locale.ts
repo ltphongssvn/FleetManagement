@@ -38,6 +38,16 @@ export function formatVnDate(input: string | Date): string {
   }).format(d);
 }
 
+export function formatVnDateUS(input: string | Date): string {
+  const d = toDate(input);
+  if (d === null) return FALLBACK;
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: VN_TIME_ZONE,
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(d);
+}
 export function formatVnNumber(value: number): string {
   if (!Number.isFinite(value)) return FALLBACK;
   return new Intl.NumberFormat(VN_LOCALE).format(value);
