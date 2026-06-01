@@ -83,6 +83,13 @@ export default defineConfig({
           include: SERIAL_SPECS,
           maxWorkers: 1,
           fileParallelism: false,
+          // Testcontainers start + reuse handshake + drizzle migrate runs in
+          // beforeAll. Under heavy load (pnpm -r runs every package's coverage
+          // concurrently, ~680s wall), the default/60s hook budget is exceeded
+          // and the run flakes on a container-start timeout. 180s gives the
+          // shared reused container headroom without masking real hangs.
+          hookTimeout: 180_000,
+          testTimeout: 120_000,
         },
       },
     ],
