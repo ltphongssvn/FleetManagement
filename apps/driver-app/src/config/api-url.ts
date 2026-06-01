@@ -13,21 +13,33 @@ const DEV_FALLBACK_API_URL = 'http://localhost:3000';
 // on web we rewrite that one host to the page origin's hostname. Native (no
 // window) keeps the inlined emulator alias untouched.
 const EMULATOR_HOST = '10.0.2.2';
+// Type-safe read of the web page origin host. globalThis.window is typed as a
+// structural shape via a type guard (no `as any` cast) so type-aware lint rules
+// resolve the same way in every environment (local + CI) instead of degrading
+// to `any` when the parser's type info differs. Returns undefined on native,
+// where there is no window.
+function getWebHostname(): string | undefined {
+  const g: typeof globalThis & { window?: unknown } = globalThis;
+  const win: unknown = g.window;
+  if (typeof win !== 'object' || win === null) return undefined;
+  const loc: unknown = (win as { location?: unknown }).location;
+  if (typeof loc !== 'object' || loc === null) return undefined;
+  const host: unknown = (loc as { hostname?: unknown }).hostname;
+  return typeof host === 'string' && host.length > 0 ? host : undefined;
+}
 export function getApiUrl(): string {
   const raw = process.env['EXPO_PUBLIC_API_URL'];
   if (raw === undefined || raw.length === 0) return DEV_FALLBACK_API_URL;
-  const win = (globalThis as { window?: { location?: { hostname?: string } } }).window;
-  const hostname = win?.location?.hostname;
-  if (hostname !== undefined && hostname.length > 0) {
-    try {
-      const u = new URL(raw);
-      if (u.hostname === EMULATOR_HOST) {
-        u.hostname = hostname;
-        return u.toString().replace(/\/$/, '');
-      }
-    } catch {
-      return raw;
+  const hostname = getWebHostname();
+  if (hostname === undefined) return raw;
+  try {
+    const u = new URL(raw);
+    if (u.hostname === EMULATOR_HOST) {
+      u.hostname = hostname;
+      return u.toString().replace(/\/$/, '');
     }
+  } catch {
+    return raw;
   }
   return raw;
 }
