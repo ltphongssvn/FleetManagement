@@ -17,7 +17,7 @@ import {
 } from 'react';
 import { loadToken, saveToken, clearToken, type StoredToken } from './token-storage.js';
 const API_URL =
-  (process.env['EXPO_PUBLIC_API_URL'] as string | undefined) ??
+  process.env['EXPO_PUBLIC_API_URL'] ??
   'https://api-production-fd42.up.railway.app';
 export interface AuthState {
   readonly status: 'loading' | 'authenticated' | 'unauthenticated';

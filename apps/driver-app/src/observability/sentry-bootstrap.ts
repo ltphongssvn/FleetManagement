@@ -11,7 +11,7 @@ export function initSentry(dsn: string | undefined): void {
   const result = buildSentryOptions({
     dsn,
     environment: process.env.NODE_ENV,
-    tracesSampleRate: process.env['EXPO_PUBLIC_SENTRY_SAMPLE_RATE'] as string | undefined,
+    tracesSampleRate: process.env['EXPO_PUBLIC_SENTRY_SAMPLE_RATE'],
     release: version,
   });
   if (!result.options) return;

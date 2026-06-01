@@ -11,7 +11,7 @@
 // accept/start/complete with automatic list invalidation on success. This
 // screen no longer runs its own useEffect/useState fetch or manual refetch.
 import type { JSX } from 'react';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { ActivityIndicator, FlatList, Pressable, Text, View, StyleSheet } from 'react-native';
 import { nextDriverAction } from '../../src/assignments/assignment-action-policy.js';
 import { useAssignments } from '../../src/assignments/use-assignments.js';
@@ -102,7 +102,7 @@ export default function Assignments(): JSX.Element {
               {actionKind === null ? (
                 <Pressable
                   onPress={() => {
-                    router.push('/capture?transportOrderId=' + item.transportOrderId);
+                    router.push(('/capture?transportOrderId=' + item.transportOrderId) as Href);
                   }}
                   accessibilityRole={'button'}
                   accessibilityLabel={'Chụp ảnh giao hàng'}

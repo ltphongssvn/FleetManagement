@@ -9,7 +9,7 @@
 // misconfiguration, not a valid URL) so dev still gets a working default.
 const DEV_FALLBACK_API_URL = 'http://localhost:3000';
 export function getApiUrl(): string {
-  const raw = process.env['EXPO_PUBLIC_API_URL'] as string | undefined;
+  const raw = process.env['EXPO_PUBLIC_API_URL'];
   if (raw === undefined || raw.length === 0) return DEV_FALLBACK_API_URL;
   return raw;
 }
