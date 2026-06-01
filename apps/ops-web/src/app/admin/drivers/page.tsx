@@ -32,6 +32,7 @@ export default function AdminDriversPage(): JSX.Element {
   const [state, dispatch] = useReducer(reduceAdminDriversState, { kind: 'loading' });
   const [vehicleSelect, setVehicleSelect] = useState<Record<string, string>>({});
   const [deviceIdInput, setDeviceIdInput] = useState<Record<string, string>>({});
+  const [phoneEdits, setPhoneEdits] = useState<Record<string, string>>({});
   const [vehicles, setVehicles] = useState<readonly VehicleOption[]>([]);
   const [createForm, setCreateForm] = useState<CreateFormState>(EMPTY_CREATE_FORM);
   const [busy, setBusy] = useState(false);
@@ -114,6 +115,18 @@ export default function AdminDriversPage(): JSX.Element {
       await refresh();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'delete failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const handleSavePhone = async (row: DriverRow): Promise<void> => {
+    const next = phoneEdits[row.driverId] ?? row.phone ?? '';
+    setBusy(true);
+    try {
+      await client.update(row.driverId, { fullName: row.fullName, phone: next });
+      await refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'update phone failed');
     } finally {
       setBusy(false);
     }
@@ -256,6 +269,22 @@ export default function AdminDriversPage(): JSX.Element {
               </td>
               <td className='p-2'>
                 <div className='flex gap-2'>
+                  <input
+                    type='text'
+                    aria-label={'Số điện thoại của ' + row.fullName}
+                    value={phoneEdits[row.driverId] ?? row.phone ?? ''}
+                    onChange={(e) => { setPhoneEdits((m) => ({ ...m, [row.driverId]: e.target.value })); }}
+                    className='w-32 rounded border px-2 py-1 text-sm'
+                  />
+                  <button
+                    type='button'
+                    disabled={busy}
+                    aria-label={'Lưu SĐT của ' + row.fullName}
+                    onClick={() => { void handleSavePhone(row); }}
+                    className='rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600 disabled:bg-gray-400'
+                  >
+                    Lưu SĐT
+                  </button>
                   <button
                     type='button'
                     disabled={busy}
