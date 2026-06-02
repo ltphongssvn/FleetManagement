@@ -129,13 +129,6 @@ jobs:
         # bounded on the 2-core runner; turbo's ^build ordering still applies.
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm exec turbo run build --force --concurrency=1
-      - name: Diagnostic - driver-app tsc explainFiles (node types)
-        if: hashFiles('pnpm-lock.yaml') != ''
-        continue-on-error: true
-        working-directory: apps/driver-app
-        run: |
-          rm -rf dist *.tsbuildinfo
-          pnpm exec tsc -p tsconfig.json --noEmit --explainFiles 2>&1 | grep -iE "@types/node|process|Found|not found|Resolving type reference" | head -30 || true
       - name: Lint
         # pnpm -r runs each package's eslint directly (not via turbo), so it
         # relies on the Build step above having emitted all @fleet/* .d.ts.
