@@ -11,13 +11,21 @@
 # WHY ephemeral keys: the api needs ES256 JWT PEMs (env_file: .env). Instead of
 # storing production-style secrets, CI generates a throwaway ES256 keypair at
 # runtime and writes a disposable .env. No secret is committed or stored.
+#
+# SHELL-PARSE INVARIANT (real incident: E2E run 26721934438): the run: blocks
+# below are YAML literal block scalars (run: |). YAML does NOT process backslash
+# escapes inside them, so a backslash before dollar/quote would reach POSIX sh
+# verbatim and break parsing (an escaped dollar-paren becomes a bare open-paren
+# -> exit 2 before any step runs). Therefore every run: block here MUST use RAW
+# dollar-paren command substitution, RAW double quotes and RAW && continuations — never
+# backslash-escaped. apps/api/test/ci-workflow-shell-parse.test.ts enforces this.
 name: E2E (Playwright)
 on:
   push:
     branches: [main, develop]
   workflow_dispatch:
 concurrency:
-  group: e2e-\${{ github.ref }}
+  group: e2e-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   playwright:
@@ -47,13 +55,16 @@ jobs:
           docker compose up -d postgres redis mock-oauth2 localstack api worker ops-web
       - name: Wait for stack health
         run: |
-          for i in \$(seq 1 60); do
-            up=\$(docker compose ps --format '{{.Service}} {{.Health}}' | grep -E 'postgres|api' | grep -c healthy || true)
-            if docker exec fleet-pilot-postgres-1 pg_isready -U fleet >/dev/null 2>&1 && \\
-               curl -fsS http://localhost:3001 >/dev/null 2>&1; then
-              echo \"stack ready after \${i} polls\"; break
+          for i in $(seq 1 60); do
+            if docker exec fleet-pilot-postgres-1 pg_isready -U fleet >/dev/null 2>&1 && curl -fsS http://localhost:3001 >/dev/null 2>&1; then
+              echo "stack ready after $i polls"
+              break
             fi
-            if [ \"\$i\" -eq 60 ]; then echo \"stack did not become ready\"; docker compose logs --tail 50 api ops-web; exit 1; fi
+            if [ "$i" -eq 60 ]; then
+              echo "stack did not become ready"
+              docker compose logs --tail 50 api ops-web
+              exit 1
+            fi
             sleep 5
           done
       - name: Run Playwright tests against the live stack
