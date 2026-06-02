@@ -129,6 +129,17 @@ jobs:
         # bounded on the 2-core runner; turbo's ^build ordering still applies.
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm exec turbo run build --force --concurrency=1
+      - name: Lint diagnostic (project-service resolution for api-url.ts)
+        # TEMPORARY: the driver-app no-unsafe-* errors reproduce only in CI.
+        # Emit typescript-estree project-service resolution so we can read which
+        # tsconfig binds api-url.ts in CI (vs local, where it binds to the
+        # package tsconfig with a real program). continue-on-error so the probe
+        # never blocks; we only want its log output.
+        if: hashFiles('pnpm-lock.yaml') != ''
+        continue-on-error: true
+        working-directory: apps/driver-app
+        run: |
+          DEBUG='typescript-eslint:typescript-estree:useProgramFromProjectService'             pnpm exec eslint src/config/api-url.ts --max-warnings=0 2>&1 | head -40 || true
       - name: Lint
         # pnpm -r runs each package's eslint directly (not via turbo), so it
         # relies on the Build step above having emitted all @fleet/* .d.ts.
