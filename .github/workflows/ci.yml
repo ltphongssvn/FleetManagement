@@ -35,21 +35,21 @@
 #   and enforces 90/90/90/90 once on the merged report.
 #
 # Local/CI lint parity (type-aware ESLint):
-#   The @typescript-eslint/no-unsafe-* rules are type-aware: they need the
-#   emitted .d.ts of every @fleet/* workspace dependency to resolve
-#   cross-package import types. If those dist/*.d.ts are absent, the imports
-#   resolve to \`any\` and the rules fire. Two requirements keep CI in parity
-#   with local:
-#     1. Build all workspace packages BEFORE lint/typecheck (the single
-#        "Build" step below does a full \`turbo run build\`, which compiles
-#        every package's declarations).
-#     2. turbo.jsonc's build task lists **/*.tsbuildinfo in outputs, so a
-#        cache hit restores dist/ AND the matching tsbuildinfo atomically;
-#        otherwise tsc --build (composite+incremental) sees a stale/missing
-#        tsbuildinfo and skips re-emitting .d.ts (elevenlabs/packages#595).
-#   Do NOT delete *.tsbuildinfo between the build and lint steps: that
-#   re-introduces the stale-emit bug by desyncing tsbuildinfo from cached
-#   dist/. The full build already produced correct declarations.
+#   The @typescript-eslint/no-unsafe-* rules are type-aware and need a real TS
+#   program for every linted file. Two requirements keep CI in parity with
+#   local:
+#     1. Each app/package tsconfig MUST declare every ambient @types it relies
+#        on in compilerOptions.types. An explicit types array EXCLUDES all
+#        other @types packages, so omitting "node" makes process.env / URL
+#        resolve to any and trips no-unsafe-* in a clean CI program (passes
+#        locally only because a warm program retains the globals).
+#     2. Build all workspace packages BEFORE lint/typecheck (the single "Build"
+#        step below does a full turbo run build, compiling every package's
+#        declarations) so cross-package @fleet/* import types resolve. turbo's
+#        build task also caches **/*.tsbuildinfo atomically with dist/, and
+#        each library build clears dist + tsbuildinfo before tsc so .d.ts are
+#        always re-emitted (elevenlabs/packages#595). Do NOT delete
+#        *.tsbuildinfo between build and lint.
 #
 # CI environment notes:
 #   - setup-node@v5 auto-enables package-manager caching when package.json
@@ -129,17 +129,6 @@ jobs:
         # bounded on the 2-core runner; turbo's ^build ordering still applies.
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm exec turbo run build --force --concurrency=1
-      - name: Lint diagnostic (project-service resolution for api-url.ts)
-        # TEMPORARY: the driver-app no-unsafe-* errors reproduce only in CI.
-        # Emit typescript-estree project-service resolution so we can read which
-        # tsconfig binds api-url.ts in CI (vs local, where it binds to the
-        # package tsconfig with a real program). continue-on-error so the probe
-        # never blocks; we only want its log output.
-        if: hashFiles('pnpm-lock.yaml') != ''
-        continue-on-error: true
-        working-directory: apps/driver-app
-        run: |
-          DEBUG='typescript-eslint:typescript-estree:useProgramFromProjectService'             pnpm exec eslint src/config/api-url.ts --max-warnings=0 2>&1 | head -40 || true
       - name: Lint
         # pnpm -r runs each package's eslint directly (not via turbo), so it
         # relies on the Build step above having emitted all @fleet/* .d.ts.
