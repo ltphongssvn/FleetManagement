@@ -20,7 +20,7 @@ import { dockerPsql } from './helpers/docker-exec';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 
 
-export default async function globalTeardown(): Promise<void> {
+export default function globalTeardown(): void {
   const sq = String.fromCharCode(39);
   // 1. Find every transport_order whose road_run is bound to an E2E-* vehicle
   //    or driver, and hard-delete the whole row family in dependency order.

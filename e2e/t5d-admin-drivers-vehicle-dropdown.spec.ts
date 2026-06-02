@@ -1,10 +1,12 @@
 // e2e/t5d-admin-drivers-vehicle-dropdown.spec.ts
 // T5d: 'Chọn số xe' dropdown on /admin/drivers must list the same
 // vehicles as the 'Số xe' section of /admin/reference (admin-scope).
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
 const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
 const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'dieuxe';
-async function login(page: import('@playwright/test').Page): Promise<void> {
+
+async function login(page: Page): Promise<void> {
   await page.goto('/login');
   await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
   await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
@@ -13,6 +15,7 @@ async function login(page: import('@playwright/test').Page): Promise<void> {
     page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click(),
   ]);
 }
+
 test('Chọn số xe dropdown on /admin/drivers matches Số xe section on /admin/reference', async ({ page }) => {
   await login(page);
   await page.goto('/admin/reference');
@@ -34,7 +37,7 @@ test('Chọn số xe dropdown on /admin/drivers matches Số xe section on /admi
   const firstDropdown = page.locator('select').filter({ hasText: /Chọn số xe/ }).first();
   await expect(firstDropdown).toBeVisible({ timeout: 15_000 });
   const dropdownOptions = await firstDropdown.locator('option').allTextContents();
-  const dropdownPlates = dropdownOptions.map((t) => t.trim()).filter((t) => !/Chọn số xe/.test(t));
+  const dropdownPlates = dropdownOptions.map((t) => t.trim()).filter((t) => !t.includes('Chọn số xe'));
   for (const plate of referencePlates) {
     expect(dropdownPlates).toContain(plate);
   }

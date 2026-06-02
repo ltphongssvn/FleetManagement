@@ -5,7 +5,7 @@ import { dockerPsql } from './helpers/docker-exec';
 test.describe.serial('admin drivers page excludes soft-deleted rows', () => {
   test('soft-deleted E2E drivers never render in Quan ly tai xe & xe', async ({ page }) => {
     const sq = String.fromCharCode(39);
-    const probe = 'E2E DRIVER SOFTDEL ' + Date.now();
+    const probe = 'E2E DRIVER SOFTDEL ' + String(Date.now());
     const zero = '00000000-0000-0000-0000-000000000000';
     const opId = '00000000-0000-0000-0000-0000000000cc';
     const insert =

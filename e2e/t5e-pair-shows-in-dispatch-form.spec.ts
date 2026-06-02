@@ -11,12 +11,14 @@
 //
 // Business invariant: every active driver_vehicle_assignment is
 // visible in the dispatch create-order Số xe / Tài xế dropdowns.
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { dockerPsql } from './helpers/docker-exec';
+
 const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
 const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'dieuxe';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
-async function login(page: import('@playwright/test').Page): Promise<void> {
+
+async function login(page: Page): Promise<void> {
   await page.goto('/login');
   await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
   await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
@@ -25,6 +27,7 @@ async function login(page: import('@playwright/test').Page): Promise<void> {
     page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click(),
   ]);
 }
+
 test('admin pair surfaces in dispatch Section 3 Số xe and Tài xế dropdowns', async ({ page }) => {
   const sq = String.fromCharCode(39);
   // Clean any pre-existing E2E-T5E rows.

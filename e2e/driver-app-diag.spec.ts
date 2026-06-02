@@ -13,9 +13,9 @@ test('diag: dump after /login (with long wait)', async ({ page }) => {
   await page.goto(DRIVER_APP_URL + '/login', { waitUntil: 'domcontentloaded' });
   for (const wait of [2000, 5000, 10000, 15000]) {
     await page.waitForTimeout(wait);
-    const text = await page.evaluate(() => document.body.innerText.slice(0, 2000));
-    const rootLen = await page.evaluate(() => (document.getElementById('root')?.innerHTML ?? '').length);
-    console.log('--- after +' + wait + 'ms: rootLen=' + rootLen + ' bodyText=' + JSON.stringify(text));
+    const text: string = await page.evaluate<string>(() => document.body.innerText.slice(0, 2000));
+    const rootLen: number = await page.evaluate<number>(() => (document.getElementById('root')?.innerHTML ?? '').length);
+    console.log('--- after +' + String(wait) + 'ms: rootLen=' + String(rootLen) + ' bodyText=' + JSON.stringify(text));
     if (text.includes('Fleet Driver')) break;
   }
   console.log('--- CONSOLE / ERRORS ---\n' + logs.join('\n'));

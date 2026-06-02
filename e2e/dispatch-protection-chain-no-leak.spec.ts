@@ -18,12 +18,12 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { execSync } from 'node:child_process';
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
-async function mintDispatcherToken(): Promise<string> {
+function mintDispatcherToken(): string {
   const script =
     "fetch('http://mock-oauth2:8080/fleet/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:'grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret'})" +
     ".then(r=>r.json()).then(j=>process.stdout.write(j.access_token))";
   const out = execSync("docker exec fleet-pilot-api-1 node -e \"" + script + "\"", { stdio: ['pipe','pipe','pipe'] }).toString();
-  if (!out || !out.includes('.')) throw new Error('Token mint failed: ' + out);
+  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
   return out.trim();
 }
 async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
@@ -42,7 +42,7 @@ async function listLabels(api: APIRequestContext, token: string, path: string): 
 }
 test.describe('dispatch protection-chain helpers must not leak into reference data', () => {
   test('a setupPair-style flow leaves no trace of its own seeded labels after cleanup', async ({ request }) => {
-    const token = await mintDispatcherToken();
+    const token = mintDispatcherToken();
     const ts = Date.now();
     const phone = '09' + String(ts).slice(-8);
     const driverLabel = 'E2E DRIVER NOLEAK ' + String(ts);
