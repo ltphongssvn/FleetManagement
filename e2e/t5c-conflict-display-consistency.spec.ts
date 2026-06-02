@@ -10,10 +10,12 @@
 // Either way, the dispatcher never sees an inconsistent state.
 //
 // Critical user journey: always display items that already exist.
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
 const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
 const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'dieuxe';
-async function login(page: import('@playwright/test').Page): Promise<void> {
+
+async function login(page: Page): Promise<void> {
   await page.goto('/login');
   await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
   await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
@@ -22,12 +24,14 @@ async function login(page: import('@playwright/test').Page): Promise<void> {
     page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click(),
   ]);
 }
+
 interface SectionCase {
   readonly heading: RegExp;
   readonly placeholder: RegExp;
   readonly addButton: RegExp;
   readonly seedName: string;
 }
+
 const CASES: readonly SectionCase[] = [
   { heading: /^Khách hàng$/, placeholder: /Thêm khách hàng/i, addButton: /^Thêm khách hàng$/, seedName: 'ĐA NẴNG' },
   { heading: /^Tên hàng$/,   placeholder: /Thêm tên hàng/i,   addButton: /^Thêm tên hàng$/,   seedName: 'TẤM' },
@@ -35,6 +39,7 @@ const CASES: readonly SectionCase[] = [
   { heading: /^Kho nhận hàng$/, placeholder: /Thêm kho nhận hàng/i, addButton: /^Thêm kho nhận hàng$/, seedName: 'Chơn Chính' },
   { heading: /^Kho giao hàng$/, placeholder: /Thêm kho giao hàng/i, addButton: /^Thêm kho giao hàng$/, seedName: '3 ĐỰC' },
 ];
+
 for (const c of CASES) {
   test('re-adding existing ' + c.seedName + ' makes it visible in the listing (no inconsistent state)', async ({ page }) => {
     await login(page);
@@ -45,7 +50,7 @@ for (const c of CASES) {
     await section.getByPlaceholder(c.placeholder).fill(c.seedName);
     await section.getByRole('button', { name: c.addButton }).click();
     // Wait for the request to complete. The item must now appear in the
-    // listing — either because the server reactivated it (success) or
+    // listing -- either because the server reactivated it (success) or
     // because the server returned 409 and the UI highlighted the
     // already-active row. Either way the consistency invariant holds.
     const rowSpan = section.locator('ul li span', { hasText: c.seedName });

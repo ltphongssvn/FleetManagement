@@ -24,7 +24,7 @@ test.describe('ops-web /login', () => {
     await page.goto('/login');
     // Strip required attrs so the form action receives empty values.
     await page.evaluate(() => {
-      document.querySelectorAll<HTMLInputElement>('input[required]').forEach((el) => el.removeAttribute('required'));
+      document.querySelectorAll<HTMLInputElement>('input[required]').forEach((el) => { el.removeAttribute('required'); });
     });
     await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
     await expect(page.getByText(/required|bắt buộc/i).first()).toBeVisible();

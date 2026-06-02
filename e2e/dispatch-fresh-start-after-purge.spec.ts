@@ -25,7 +25,7 @@ function currentMonth2(): string {
   return m.toString().padStart(2, '0');
 }
 
-async function mintDispatcherToken(): Promise<string> {
+function mintDispatcherToken(): string {
   const script =
     'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
     ',{method:' + JSON.stringify('POST') +
@@ -33,7 +33,7 @@ async function mintDispatcherToken(): Promise<string> {
     ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
   const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out || !out.includes('.')) throw new Error('Token mint failed: ' + out);
+  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
   return out.trim();
 }
 
@@ -87,7 +87,7 @@ function deleteSeededRows(seeded: SeededIds): void {
 // even if the try/finally cleanup is incomplete).
 test.afterAll(() => {
   const sq = String.fromCharCode(39);
-  const probes: ReadonlyArray<readonly [string, string, string]> = [
+  const probes: readonly (readonly [string, string, string])[] = [
     ['driver',     'full_name', 'PRESERVE %'],
     ['driver',     'full_name', 'E2E DRIVER T4-FRESH %'],
     ['vehicle',    'plate',     'PRESERVE-%'],
@@ -124,7 +124,7 @@ test.describe('dispatch fresh start after wipe (T4) @serial', () => {
     };
     try {
       // ---- Pre-seed reference data BEFORE the wipe (to prove preservation) ----
-      const preToken = await mintDispatcherToken();
+      const preToken = mintDispatcherToken();
       const preTs = Date.now();
       const preRand = Math.floor(Math.random() * 1e9).toString(36);
       const preDrv = await adminPost<{ operatorId: string; driverId: string }>(
@@ -192,7 +192,7 @@ test.describe('dispatch fresh start after wipe (T4) @serial', () => {
       expect(sequences).toBe('0');
 
       // ---- Seed a separate driver+vehicle+pair for the post-wipe order create ----
-      const postToken = await mintDispatcherToken();
+      const postToken = mintDispatcherToken();
       const postTs = Date.now();
       const postRand = Math.floor(Math.random() * 1e9).toString(36);
       const postDrv = await adminPost<{ operatorId: string; driverId: string }>(

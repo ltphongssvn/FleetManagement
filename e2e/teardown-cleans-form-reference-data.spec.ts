@@ -16,7 +16,7 @@ function tn(): string {
   return q + ZERO + q + ', ' + q + ZERO + q + ', ' + q + ZERO + q + ', ' + q + ZERO + q;
 }
 test.describe.serial('global teardown removes E2E form reference data (T7)', () => {
-  test('active E2E-* customer / cargo_type / warehouse probes do not survive teardown', async () => {
+  test('active E2E-* customer / cargo_type / warehouse probes do not survive teardown', () => {
     const q = sq();
     const stamp = String(Date.now());
     const custName = 'E2E-CUST-LEAKPROBE-' + stamp;
@@ -33,7 +33,7 @@ test.describe.serial('global teardown removes E2E form reference data (T7)', () 
       const r = dockerPsql(s);
       if (r.failed) throw new Error('seed failed: ' + r.stderr);
     }
-    await globalTeardown();
+    globalTeardown();
     const leakSql =
       'SELECT (SELECT count(*) FROM customer WHERE name LIKE ' + q + 'E2E-%' + q + ' AND active=true)' +
       ' + (SELECT count(*) FROM cargo_type WHERE name LIKE ' + q + 'E2E-%' + q + ' AND active=true)' +

@@ -17,25 +17,32 @@
 //      first commit is rejected (409).
 //   7. BFF returns 404 for an unknown order id (tenant boundary).
 import { test, expect, type Page } from '@playwright/test';
+
 const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
 const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'pw';
+const DOLLAR = String.fromCharCode(36);
+const POST_LOGIN_URL = new RegExp('/dispatch|/' + DOLLAR);
+
+interface AssignedRow { transportOrderId: string; state: string }
+
 async function login(page: Page): Promise<void> {
   await page.goto('/login');
   await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
   await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
   await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await expect(page).toHaveURL(/\/dispatch|\/$/, { timeout: 10000 });
+  await expect(page).toHaveURL(POST_LOGIN_URL, { timeout: 10000 });
 }
+
 test.describe.serial('dispatch order cancel', () => {
   test('dispatcher cancels an order via the review view and the state flips to cancelled', async ({ page }) => {
     await login(page);
     const listRes = await page.request.get('/api/transport-orders/assigned');
     expect(listRes.status(), 'BFF /api/transport-orders/assigned must return 200').toBe(200);
-    const listJson = await listRes.json() as { rows: ReadonlyArray<{ transportOrderId: string; state: string }> };
+    const listJson = await listRes.json() as { rows: readonly AssignedRow[] };
     const cancellable = listJson.rows.find((r) => r.state !== 'cancelled' && r.state !== 'completed');
     test.skip(cancellable === undefined, 'no cancellable order available in this environment');
-    const target = cancellable!;
-    await page.goto('/dispatch/orders/' + target.transportOrderId);
+    if (cancellable === undefined) throw new Error('unreachable: skipped above');
+    await page.goto('/dispatch/orders/' + cancellable.transportOrderId);
     await expect(page.getByRole('heading', { name: /chi tiết|order review|đơn vận chuyển/i })).toBeVisible();
     const cancelButton = page.getByTestId('order-cancel-open');
     await expect(cancelButton, 'cancel control visible for cancellable order').toBeVisible();
@@ -51,10 +58,11 @@ test.describe.serial('dispatch order cancel', () => {
   test('idempotent: second cancel with same reason returns 200 and same record', async ({ page }) => {
     await login(page);
     const listRes = await page.request.get('/api/transport-orders/assigned');
-    const listJson = await listRes.json() as { rows: ReadonlyArray<{ transportOrderId: string; state: string }> };
+    const listJson = await listRes.json() as { rows: readonly AssignedRow[] };
     const alreadyCancelled = listJson.rows.find((r) => r.state === 'cancelled');
     test.skip(alreadyCancelled === undefined, 'no cancelled order available to retest idempotency');
-    const id = alreadyCancelled!.transportOrderId;
+    if (alreadyCancelled === undefined) throw new Error('unreachable: skipped above');
+    const id = alreadyCancelled.transportOrderId;
     const first = await page.request.post('/api/transport-orders/' + id + '/cancel', {
       data: { reason: 'customer_request', note: 'first retry' },
     });
@@ -63,10 +71,11 @@ test.describe.serial('dispatch order cancel', () => {
   test('conflict: cancel with a different reason after first commit returns 409', async ({ page }) => {
     await login(page);
     const listRes = await page.request.get('/api/transport-orders/assigned');
-    const listJson = await listRes.json() as { rows: ReadonlyArray<{ transportOrderId: string; state: string }> };
+    const listJson = await listRes.json() as { rows: readonly AssignedRow[] };
     const alreadyCancelled = listJson.rows.find((r) => r.state === 'cancelled');
     test.skip(alreadyCancelled === undefined, 'no cancelled order available to retest conflict');
-    const id = alreadyCancelled!.transportOrderId;
+    if (alreadyCancelled === undefined) throw new Error('unreachable: skipped above');
+    const id = alreadyCancelled.transportOrderId;
     const conflict = await page.request.post('/api/transport-orders/' + id + '/cancel', {
       data: { reason: 'driver_unavailable', note: 'different reason' },
     });

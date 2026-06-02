@@ -75,6 +75,21 @@ export default tseslint.config(
       "vitest/valid-expect": "error",
     },
   },
+  // e2e specs live under e2e/ and are NOT in any app/package tsconfig include,
+  // so the root projectService (defaultProject: tsconfig.base.json, which does
+  // not include them) cannot bind them -> "was not found by the project
+  // service" parse error. Bind e2e files to e2e/tsconfig.json (include: **/*.ts)
+  // so type-aware rules resolve them.
+  {
+    files: ["e2e/**/*.ts"],
+    languageOptions: {
+      parserOptions: {
+        projectService: false,
+        project: "./e2e/tsconfig.json",
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
   // Forbid test imports in production code
   {
     files: ["apps/*/src/**/*.ts", "workers/*/src/**/*.ts", "packages/*/src/**/*.ts"],

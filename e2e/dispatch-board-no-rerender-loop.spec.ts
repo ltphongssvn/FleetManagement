@@ -24,7 +24,7 @@ function opsWebRenderCount(): number {
   return parseInt(out.trim(), 10) || 0;
 }
 
-async function mintToken(): Promise<string> {
+function mintToken(): string {
   const script =
     'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
     ',{method:' + JSON.stringify('POST') +
@@ -32,7 +32,7 @@ async function mintToken(): Promise<string> {
     ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
   const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (out.includes('.') === false) throw new Error('Token mint failed: ' + out);
+  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
   return out.trim();
 }
 
@@ -41,14 +41,14 @@ async function adminPost<T>(api: APIRequestContext, token: string, path: string,
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
-  if (res.ok() === false) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
+  if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   return (await res.json()) as T;
 }
 
 interface Pair { driverId: string; vehicleId: string; vehicleLabel: string; assignmentId: string; token: string }
 
 async function seedPair(api: APIRequestContext): Promise<Pair> {
-  const token = await mintToken();
+  const token = mintToken();
   const rand = Math.floor(Math.random() * 1e9).toString(36);
   const phone = '09' + String(Date.now()).slice(-6) + Math.floor(Math.random() * 100).toString().padStart(2, '0');
   const drv = await adminPost<{ driverId: string }>(api, token, '/admin/drivers', { fullName: 'E2E DRIVER NOLOOP ' + rand, phone, password: 'e2e-pass-1234' }); // pragma: allowlist secret
