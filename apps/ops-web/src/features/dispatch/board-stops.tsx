@@ -7,10 +7,11 @@ import type { JSX } from 'react';
 import type { DispatchBoardStop } from './types';
 export const PICKUP_SLOTS = [1, 2, 3, 4] as const;
 export const DELIVERY_SLOTS = [1] as const;
-const STATUS_FORMATTER = new Intl.DateTimeFormat('vi-VN', {
+const STATUS_FORMATTER = new Intl.DateTimeFormat('en-US', {
   timeZone: 'Asia/Ho_Chi_Minh',
-  dateStyle: 'short',
-  timeStyle: 'short',
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
 });
 export function stopStatusOf(s: DispatchBoardStop): string {
   const done = s.departedAt ?? s.arrivedAt;

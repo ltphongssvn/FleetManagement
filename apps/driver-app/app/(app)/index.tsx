@@ -4,7 +4,7 @@
 // is intentionally not duplicated here.
 import type { JSX } from 'react';
 import { Text, View, Pressable, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { APP_VERSION, presentSyncStatus, type SyncSchedulerState } from '../../src/index.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
 const PLACEHOLDER_STATE: SyncSchedulerState = {
@@ -38,7 +38,7 @@ export default function Home(): JSX.Element {
           {ACTIONS.map((a) => (
             <Pressable
               key={a.href}
-              onPress={() => { router.push(a.href); }}
+              onPress={() => { router.push(a.href as Href); }}
               accessibilityRole="button"
               accessibilityLabel={a.label}
               style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}

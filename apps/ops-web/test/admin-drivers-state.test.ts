@@ -11,7 +11,7 @@ describe('reduceAdminDriversState', () => {
   it('transitions to loaded with rows', () => {
     const next = reduceAdminDriversState({ kind: 'loading' }, {
       type: 'loaded',
-      rows: [{ driverId: 'd1', fullName: 'A', operatorId: null, assignedVehicle: null, assignmentId: null, devices: [] }],
+      rows: [{ driverId: 'd1', fullName: 'A', phone: null, operatorId: null, assignedVehicle: null, assignmentId: null, devices: [] }],
     });
     expect(next.kind).toBe('loaded');
     if (next.kind === 'loaded') expect(next.rows).toHaveLength(1);

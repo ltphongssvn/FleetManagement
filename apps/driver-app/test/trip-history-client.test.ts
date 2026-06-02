@@ -9,7 +9,7 @@ function completedRow(id: string, completedAt: string): AssignmentRow {
   return {
     transportOrderId: 'to-' + id, roadRunId: 'rr-' + id, state: 'completed',
     plannedStartAt: null, startedAt: null, completedAt,
-    plate: null, orderRef: id, customerName: null, pickupName: null, deliveryName: null,
+    plate: null, orderRef: id, customerName: null, pickupName: null, deliveryName: null, stops: [],
   };
 }
 describe('AssignmentsClient.tripHistory', () => {

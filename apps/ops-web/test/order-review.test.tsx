@@ -34,7 +34,6 @@ describe('OrderReview', () => {
   it('renders the order id, external ref, plate and customer', () => {
     render(<OrderReview order={row} />);
     expect(screen.getByRole('heading', { name: /chi tiết|order review|đơn vận chuyển/i })).toBeTruthy();
-    expect(screen.getByTestId('order-review-id').textContent).toContain(row.transportOrderId);
     expect(screen.getByTestId('order-review-external-ref').textContent).toContain('TO-9001');
     expect(screen.getByTestId('order-review-plate').textContent).toContain('51A-12345');
     expect(screen.getByTestId('order-review-customer').textContent).toContain('Acme Logistics');

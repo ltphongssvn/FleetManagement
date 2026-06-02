@@ -126,12 +126,12 @@ services:
       # HOST_LAN_IP is the dev host's LAN IP (set in repo-root .env).
       # The phone running Expo Go fetches the JS bundle and hits this API,
       # so both URLs must resolve from the phone's perspective on the LAN.
-      EXPO_PUBLIC_API_URL: http://\${HOST_LAN_IP}:3000
+      EXPO_PUBLIC_API_URL: http://${HOST_LAN_IP}:3000
       # Tells Metro which hostname to advertise in the QR code / bundle URL.
       # Without this, Metro picks the container's internal Docker IP, which
       # the phone cannot reach, so the JS bundle never downloads and the
       # app (including the login screen) never mounts.
-      REACT_NATIVE_PACKAGER_HOSTNAME: \${HOST_LAN_IP}
+      REACT_NATIVE_PACKAGER_HOSTNAME: ${HOST_LAN_IP}
     ports:
       - "8081:8081"
       - "19000:19000"

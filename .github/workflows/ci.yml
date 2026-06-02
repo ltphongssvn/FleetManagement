@@ -34,6 +34,23 @@
 #   four partial coverage-final.json files via scripts/merge-coverage.mjs
 #   and enforces 90/90/90/90 once on the merged report.
 #
+# Local/CI lint parity (type-aware ESLint):
+#   The @typescript-eslint/no-unsafe-* rules are type-aware and need a real TS
+#   program for every linted file. Two requirements keep CI in parity with
+#   local:
+#     1. Each app/package tsconfig MUST declare every ambient @types it relies
+#        on in compilerOptions.types. An explicit types array EXCLUDES all
+#        other @types packages, so omitting "node" makes process.env / URL
+#        resolve to any and trips no-unsafe-* in a clean CI program (passes
+#        locally only because a warm program retains the globals).
+#     2. Build all workspace packages BEFORE lint/typecheck (the single "Build"
+#        step below does a full turbo run build, compiling every package's
+#        declarations) so cross-package @fleet/* import types resolve. turbo's
+#        build task also caches **/*.tsbuildinfo atomically with dist/, and
+#        each library build clears dist + tsbuildinfo before tsc so .d.ts are
+#        always re-emitted (elevenlabs/packages#595). Do NOT delete
+#        *.tsbuildinfo between build and lint.
+#
 # CI environment notes:
 #   - setup-node@v5 auto-enables package-manager caching when package.json
 #     has a packageManager field; this fails when pnpm is not yet on PATH.
@@ -106,14 +123,16 @@ jobs:
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm audit --audit-level=high
       - name: Build
+        # Full workspace build. Emits every package's dist/ + .d.ts +
+        # tsbuildinfo, which the type-aware lint/typecheck steps below depend
+        # on to resolve cross-package types. --concurrency=1 keeps peak memory
+        # bounded on the 2-core runner; turbo's ^build ordering still applies.
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm exec turbo run build --force --concurrency=1
-      - name: Build workspace packages (deps for lint/typecheck)
-        if: hashFiles('pnpm-lock.yaml') != ''
-        run: |
-          find packages -name "*.tsbuildinfo" -delete
-          pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures --filter=@fleet/main-worker
       - name: Lint
+        # pnpm -r runs each package's eslint directly (not via turbo), so it
+        # relies on the Build step above having emitted all @fleet/* .d.ts.
+        # See the "Local/CI lint parity" note in this file's header.
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm -r --if-present lint
       - name: Typecheck
@@ -247,4 +266,4 @@ jobs:
       - name: Test non-api packages (with coverage)
         # apps/api is covered by the sharded api-tests + coverage-gate jobs;
         # exclude it here so its slow suite does not run twice.
-        run: pnpm -r --if-present --filter=!@fleet/api test:coverage
+        run: pnpm -r --if-present --filter='!@fleet/api' test:coverage

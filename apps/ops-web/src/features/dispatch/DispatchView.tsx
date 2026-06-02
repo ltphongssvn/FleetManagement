@@ -34,7 +34,6 @@ import type { DispatchBoardRoadRun } from './types';
 import { StopSlotHeaders, StopSlotCells, STOP_SLOT_COL_COUNT } from './board-stops';
 const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
-  timeStyle: 'short',
 });
 function formatPlannedStart(iso: string | null): string {
   if (iso === null) return '—';
@@ -172,7 +171,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                   <td className='px-3 py-2'>{formatVehicle(r.assignedAssetId, vehicleLookup)}</td>
                   <td className='px-3 py-2'>{formatPlannedStart(r.plannedStartAt)}</td>
                   <td className='px-3 py-2'>{r.stopCount}</td>
-                  <StopSlotCells primaryRef={r.transportOrderRefs[0] ?? r.roadRunId} stops={r.stops} />
+                  <StopSlotCells primaryRef={formatOrderRef(r.transportOrderRefs)} stops={r.stops} />
                 </tr>
               ))}
               {merged.length === 0 && (

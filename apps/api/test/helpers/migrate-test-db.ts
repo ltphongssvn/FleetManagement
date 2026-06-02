@@ -33,6 +33,14 @@ export async function startMigratedTestDb(databaseName = 'fleet_test'): Promise<
 }
 
 export async function stopMigratedTestDb(testDb: MigratedTestDb): Promise<void> {
+  // Null-safe: when a beforeAll hook times out under heavy CI load, testDb is
+  // never assigned, so afterAll calls this with undefined. Guard so one slow
+  // container start surfaces ONE clear timeout, not a cascading secondary
+  // TypeError that fails unrelated test files.
+  // testDb is typed non-nullable, but a timed-out beforeAll never assigns it,
+  // so at runtime it can be undefined. Cast to a nullable view to guard honestly.
+  const maybe = testDb as { pool?: Pool } | undefined;
+  if (maybe?.pool === undefined) return;
   // Only end THIS file's pool. The container is started with .withReuse() and is
   // shared across every integration-test file in the run; calling container.stop()
   // here terminates Postgres while other files' pools still have connections in
