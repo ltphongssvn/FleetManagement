@@ -185,6 +185,7 @@ test.describe('create-order button state recovery + no-leak (T3 follow-up)', () 
     try {
       await loginAsDispatcher(page);
       await page.goto('/');
+      await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
       await page.locator('#plannedStartAt').fill('2026-07-01T08:00');
       const vehicleInput = page.locator('input#vehiclePlate');
       await vehicleInput.click();

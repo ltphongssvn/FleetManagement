@@ -61,6 +61,7 @@ test('admin pair surfaces in dispatch Section 3 Số xe and Tài xế dropdowns'
   await expect(row.getByText('E2E-T5E-001', { exact: false })).toBeVisible({ timeout: 15_000 });
   // Now go to dispatch home and check Section 3 dropdowns.
   await page.goto('/');
+  await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
   const vehicleField = page.locator('input[placeholder*="Chọn số xe" i]').first();
   await expect(vehicleField).toBeVisible({ timeout: 15_000 });
   await vehicleField.click();
