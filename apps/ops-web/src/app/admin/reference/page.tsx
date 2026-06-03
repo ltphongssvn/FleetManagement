@@ -18,6 +18,14 @@
 // form has a Số điện thoại input; each customer row shows its phone and a
 // 'Sửa SĐT' control that reveals an inline phone field + 'Lưu' which calls
 // client.update(id, name, phone). Phone travels in ReferenceOption.meta.phone.
+//
+// ROW LABEL DOM CONTRACT (regression fix): the customer NAME is rendered as
+// the outer label-span's own text and the phone as a sibling <small> — NOT a
+// nested <span>. Other E2E specs read a row's name via 'li span'.first(); if
+// the phone were a nested <span>, '.first()' would still hit the name span,
+// but to keep the name the unambiguous first text node we avoid wrapping the
+// name in its own inner <span>. This prevents specs from reading 'name+phone'
+// concatenated (which created a corrupted 'E2E-KHACH-...<phone>' customer).
 'use client';
 import { useEffect, useRef, useState, type JSX } from 'react';
 import {
@@ -175,6 +183,8 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
             const isConflict = conflictName !== null && row.label === conflictName;
             const phone = rowPhone(row);
             const isEditing = editingId === row.id;
+            const showPhoneText = isCustomers && !isEditing && phone !== '';
+            const showPhoneEdit = isCustomers && isEditing;
             return (
               <li
                 key={row.id}
@@ -185,12 +195,10 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
                   + (isConflict ? ' bg-yellow-50 ring-2 ring-amber-300 rounded px-2' : '')
                 }
               >
-                <span className='flex items-center gap-3 text-sm'>
+                <div className='flex items-center gap-3 text-sm'>
                   <span>{row.label}</span>
-                  {isCustomers && !isEditing && phone !== '' ? (
-                    <span className='text-gray-500'>{phone}</span>
-                  ) : null}
-                  {isCustomers && isEditing ? (
+                  {showPhoneText ? <small className='text-gray-500'>{phone}</small> : null}
+                  {showPhoneEdit ? (
                     <input
                       type='tel'
                       value={editPhone}
@@ -199,7 +207,7 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
                       className='w-44 rounded border px-2 py-1 text-sm'
                     />
                   ) : null}
-                </span>
+                </div>
                 <span className='flex gap-2'>
                   {isCustomers && !isEditing ? (
                     <button
@@ -211,7 +219,7 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
                       Sửa SĐT
                     </button>
                   ) : null}
-                  {isCustomers && isEditing ? (
+                  {showPhoneEdit ? (
                     <button
                       type='button'
                       disabled={busy}

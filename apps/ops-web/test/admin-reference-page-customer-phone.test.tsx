@@ -48,6 +48,16 @@ describe('ReferenceAdminPage Khách hàng Số điện thoại (L1)', () => {
     const sec = customerSection();
     expect(within(sec).getByText('0901234567')).toBeTruthy();
   });
+  it('row label contract: first li span is the name only, not name+phone (specs read it)', async () => {
+    render(<ReferenceAdminPage />);
+    await screen.findAllByText('Acme');
+    const sec = customerSection();
+    const li = within(sec).getByText('Acme').closest('li');
+    if (li === null) throw new Error('no row');
+    const firstSpan = li.querySelector('span');
+    if (firstSpan === null) throw new Error('no span in row');
+    expect(firstSpan.textContent).toBe('Acme');
+  });
   it('create() is called with name + phone from the add form', async () => {
     render(<ReferenceAdminPage />);
     await screen.findAllByText('Acme');
