@@ -342,6 +342,7 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
     const beforeMax = parseInt(dockerPsql(beforeMaxSql).stdout.trim(), 10);
     await loginAsDispatcher(page);
     await page.goto('/');
+    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
     await page.locator('#plannedStartAt').fill('2026-06-01T08:00');
     const vehicleInput = page.locator('input#vehiclePlate');
     await vehicleInput.click();

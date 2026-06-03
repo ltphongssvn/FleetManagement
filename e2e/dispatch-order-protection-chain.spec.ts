@@ -193,6 +193,7 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
     );
     await loginAsDispatcher(page);
     await page.goto('/');
+    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
     const vehicleInput = page.locator('input#vehiclePlate');
     await vehicleInput.click();
     await vehicleInput.fill('E2E-');

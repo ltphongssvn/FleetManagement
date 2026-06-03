@@ -105,6 +105,7 @@ test.describe.serial('review view back navigation (T6)', () => {
     if (!seeded) throw new Error('seeded order missing');
     await login(page);
     await page.goto('/');
+    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
     const rowLink = page.getByTestId('dispatch-board-row-' + seeded.externalRef).first();
     await expect(rowLink).toBeVisible({ timeout: 10000 });
     await rowLink.click();
@@ -117,6 +118,7 @@ test.describe.serial('review view back navigation (T6)', () => {
     if (!seeded) throw new Error('seeded order missing');
     await login(page);
     await page.goto('/');
+    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
     const rowLink = page.getByTestId('dispatch-board-row-' + seeded.externalRef).first();
     await expect(rowLink).toBeVisible({ timeout: 10000 });
     await rowLink.click();
