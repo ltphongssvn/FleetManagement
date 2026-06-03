@@ -17,6 +17,7 @@ export interface DispatchBoardRoadRun {
   readonly stopCount: number;
   readonly transportOrderRefs: readonly string[];
   readonly customerName: string | null;
+  readonly customerPhone: string | null;
   readonly stops: readonly DispatchBoardStop[];
 }
 // Mirrors API ListAssignedRow (apps/api/src/transport-orders/transport-orders.dto.ts).

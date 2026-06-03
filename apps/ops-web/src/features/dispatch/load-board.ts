@@ -26,6 +26,7 @@ const BoardRowSchema = z.object({
   stopCount: z.number().int().nonnegative(),
   transportOrderRefs: z.array(z.string()).readonly(),
   customerName: z.union([z.string(), z.null()]).default(null),
+  customerPhone: z.union([z.string(), z.null()]).default(null),
   stops: z.array(BoardStopSchema).readonly().default([]),
 });
 const BoardResponseSchema = z.object({
@@ -41,6 +42,7 @@ const PILOT_DATA = Object.freeze([
     stopCount: 3,
     transportOrderRefs: Object.freeze(['TO-1001', 'TO-1002']),
     customerName: null,
+    customerPhone: null,
     stops: Object.freeze([]),
   }),
   Object.freeze({
@@ -52,6 +54,7 @@ const PILOT_DATA = Object.freeze([
     stopCount: 2,
     transportOrderRefs: Object.freeze(['TO-1003']),
     customerName: 'Công ty Mẫu',
+    customerPhone: '0901234567',
     stops: Object.freeze([]),
   }),
 ]) satisfies readonly DispatchBoardRoadRun[];

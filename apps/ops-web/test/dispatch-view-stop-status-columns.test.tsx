@@ -26,6 +26,7 @@ const run: DispatchBoardRoadRun = {
   stopCount: 5,
   transportOrderRefs: ['XTT.05-001'],
   customerName: null,
+  customerPhone: null,
   stops: [
     { sequence: 1, stopType: 'pickup', warehouseName: 'Chơn Chính', arrivedAt: '2026-05-30T09:00:00.000Z', departedAt: '2026-05-30T09:15:00.000Z' },
     { sequence: 2, stopType: 'pickup', warehouseName: 'Cần Thơ', arrivedAt: null, departedAt: null },

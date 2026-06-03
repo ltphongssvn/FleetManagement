@@ -29,6 +29,12 @@
 // road_run_transport_order -> transport_order -> customer); the optimistic row
 // has no customer name yet (it is appended pre-projection) and renders em-dash
 // until the real projection row reconciles.
+//
+// KH phone (2026): permanent business rule — the Khách hàng cell also displays
+// the customer's Số điện thoại (phone) beneath the customer name. The phone is
+// supplied per row by the API board endpoint on the same customer join; it is
+// null for the optimistic (pre-projection) row and for customers with no phone,
+// in which case no phone line is rendered (no leak).
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
@@ -49,6 +55,23 @@ function formatPlannedStart(iso: string | null): string {
 }
 function formatCustomer(name: string | null): string {
   return name === null || name === '' ? '—' : name;
+}
+function CustomerCell({ name, phone, state, primaryRef }: { name: string | null; phone: string | null; state: string; primaryRef: string }): JSX.Element {
+  const hasPhone = phone !== null && phone !== '';
+  return (
+    <div className='flex flex-col'>
+      <span>
+        {formatCustomer(name)}
+        {state === 'cancelled' ? (
+          <span
+            data-testid={'dispatch-board-row-cancelled-' + primaryRef}
+            className='ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700'
+          >Đã hủy</span>
+        ) : null}
+      </span>
+      {hasPhone && <span className='text-xs text-slate-500'>{phone}</span>}
+    </div>
+  );
 }
 function OrderRefCell({ refs }: { refs: readonly string[] }): JSX.Element {
   const primary = refs[0];
@@ -76,6 +99,7 @@ function makeOptimisticRow(externalRef: string, opCtx: { operatorId: string; ass
     stopCount: 1,
     transportOrderRefs: [externalRef],
     customerName: null,
+    customerPhone: null,
     stops: [],
   };
 }
@@ -172,15 +196,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
               {merged.map((r) => (
                 <tr key={r.roadRunId} data-testid={'dispatch-board-rr-' + r.roadRunId} className='border-b'>
                   <td className='px-3 py-2'><OrderRefCell refs={r.transportOrderRefs} /></td>
-                  <td className='px-3 py-2'>
-                    {formatCustomer(r.customerName)}
-                    {r.state === 'cancelled' ? (
-                      <span
-                        data-testid={'dispatch-board-row-cancelled-' + formatOrderRef(r.transportOrderRefs)}
-                        className='ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700'
-                      >Đã hủy</span>
-                    ) : null}
-                  </td>
+                  <td className='px-3 py-2'><CustomerCell name={r.customerName} phone={r.customerPhone} state={r.state} primaryRef={formatOrderRef(r.transportOrderRefs)} /></td>
                   <td className='px-3 py-2'>{formatOperator(r.assignedOperatorId, driverLookup)}</td>
                   <td className='px-3 py-2'>{formatVehicle(r.assignedAssetId, vehicleLookup)}</td>
                   <td className='px-3 py-2'>{formatPlannedStart(r.plannedStartAt)}</td>
