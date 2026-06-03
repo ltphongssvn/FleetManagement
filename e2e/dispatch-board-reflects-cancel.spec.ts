@@ -125,13 +125,16 @@ test.describe('dispatch board reflects cancellation (T5)', () => {
     // After a successful cancel the dispatcher should land on the board.
     await expect(page).toHaveURL(BOARD_URL, { timeout: 10000 });
     await expect(page.getByRole('heading', { level: 1, name: 'Lệnh điều xe' })).toBeVisible();
-    // The cancelled row's Trạng thái cell must now show 'cancelled'.
-    // Use .first() to bypass strict-mode if the dispatch_board_projection
-    // contains stale rows for the same ref (e.g. residue from a prior CI run
-    // that crashed before its afterEach cleanup ran).
-    const rowLink = page.getByTestId('dispatch-board-row-' + order.externalRef).first();
-    await expect(rowLink).toBeVisible({ timeout: 10000 });
-    const row = page.locator('tr', { has: rowLink }).first();
-    await expect(row).toContainText('cancelled', { timeout: 10000 });
+    // Post-T(Khách hàng-column): the board REPLACED the Trạng thái column with
+    // Khách hàng. Cancelled orders REMAIN in dispatch_board_projection by design
+    // (the projection upserts state='cancelled'; only a tombstone deletes — see
+    // transport-orders.cancel.service.projection-event.integration.test.ts).
+    // So the dispatcher must still SEE the cancellation: the row carries a
+    // cancelled marker testid + the localized 'Đã hủy' badge, even though the
+    // standalone Trạng thái column is gone. Projection is eventually consistent,
+    // so poll the marker.
+    const cancelledMarker = page.getByTestId('dispatch-board-row-cancelled-' + order.externalRef);
+    await expect(cancelledMarker).toBeVisible({ timeout: 15000 });
+    await expect(cancelledMarker).toContainText('Đã hủy');
   });
 });

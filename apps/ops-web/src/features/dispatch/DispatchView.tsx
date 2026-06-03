@@ -172,7 +172,15 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
               {merged.map((r) => (
                 <tr key={r.roadRunId} data-testid={'dispatch-board-rr-' + r.roadRunId} className='border-b'>
                   <td className='px-3 py-2'><OrderRefCell refs={r.transportOrderRefs} /></td>
-                  <td className='px-3 py-2'>{formatCustomer(r.customerName)}</td>
+                  <td className='px-3 py-2'>
+                    {formatCustomer(r.customerName)}
+                    {r.state === 'cancelled' ? (
+                      <span
+                        data-testid={'dispatch-board-row-cancelled-' + formatOrderRef(r.transportOrderRefs)}
+                        className='ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700'
+                      >Đã hủy</span>
+                    ) : null}
+                  </td>
                   <td className='px-3 py-2'>{formatOperator(r.assignedOperatorId, driverLookup)}</td>
                   <td className='px-3 py-2'>{formatVehicle(r.assignedAssetId, vehicleLookup)}</td>
                   <td className='px-3 py-2'>{formatPlannedStart(r.plannedStartAt)}</td>
