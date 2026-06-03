@@ -1,0 +1,71 @@
+// e2e/khachhang-phone-crud.spec.ts
+// L0 ACCEPTANCE (2026): permanent business rule. In Quản lý dữ liệu điều phối
+// the Khách hàng section supports CRUD for Số điện thoại (customer phone).
+//
+// Critical user journey: a dispatcher adds a Khách hàng WITH a Số điện thoại,
+//   sees the phone rendered next to the customer, edits it, and the new value
+//   persists.
+// Business invariant: a customer row carries an optional Số điện thoại that
+//   round-trips create -> read -> update through the real UI and the API.
+//
+// Outside-in: this fails first because (a) the Khách hàng section has no
+//   Số điện thoại input, (b) the list renders no phone, and (c) the API
+//   customer create/list/update carry no phone. It drives the i18n string (L1),
+//   the admin section phone field + render (L1), the browser client phone
+//   payload (L2), the API DTO phone (L3), the service phone persistence (L4),
+//   and the schema phone column (L5).
+import { test, expect } from '@playwright/test';
+
+const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
+const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'pw';
+const BUDGET_MS = 15_000;
+const DOLLAR = String.fromCharCode(36);
+const POST_LOGIN_URL = new RegExp('/dispatch|/' + DOLLAR);
+
+test.describe.serial('Khách hàng: Số điện thoại CRUD', () => {
+  test('add customer with phone, see it, edit it, value persists', async ({ page }) => {
+    const rand = Math.floor(Math.random() * 1e9).toString(36);
+    const customerName = 'E2E-KHACH-PHONE-' + rand;
+    const phone = '0901' + String(Date.now()).slice(-6);
+    const newPhone = '0902' + String(Date.now()).slice(-6);
+
+    await page.goto('/login');
+    await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
+    await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
+    await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
+    await expect(page).toHaveURL(POST_LOGIN_URL, { timeout: 10_000 });
+
+    await page.goto('/admin/reference');
+    await expect(page.getByRole('heading', { name: 'Quản lý dữ liệu điều phối' })).toBeVisible({ timeout: BUDGET_MS });
+
+    // Scope to the Khách hàng section (first section with that heading).
+    const customerSection = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Khách hàng' }) });
+
+    // INVARIANT 1: a Số điện thoại input exists in the Khách hàng section.
+    const nameInput = customerSection.getByPlaceholder('Thêm khách hàng');
+    const phoneInput = customerSection.getByPlaceholder('Số điện thoại');
+    await expect(phoneInput).toBeVisible({ timeout: BUDGET_MS });
+
+    // CREATE with name + phone via the real UI.
+    await nameInput.fill(customerName);
+    await phoneInput.fill(phone);
+    await customerSection.getByRole('button', { name: 'Thêm khách hàng' }).click();
+
+    // INVARIANT 2: the created customer's row shows the phone.
+    const row = customerSection.locator('li').filter({ hasText: customerName });
+    await expect(row).toBeVisible({ timeout: BUDGET_MS });
+    await expect(row).toContainText(phone);
+
+    // UPDATE the phone via the row's Sửa SĐT (edit phone) control.
+    await row.getByRole('button', { name: 'Sửa SĐT' }).click();
+    const editInput = row.getByLabel('Số điện thoại');
+    await editInput.fill(newPhone);
+    await row.getByRole('button', { name: 'Lưu' }).click();
+
+    // INVARIANT 3: the new phone persists after a reload (server round-trip).
+    await page.reload();
+    const customerSection2 = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Khách hàng' }) });
+    const row2 = customerSection2.locator('li').filter({ hasText: customerName });
+    await expect(row2).toContainText(newPhone, { timeout: BUDGET_MS });
+  });
+});

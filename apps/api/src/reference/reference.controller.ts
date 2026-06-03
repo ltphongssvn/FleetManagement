@@ -12,6 +12,7 @@ import type { ReferenceListResponse } from './reference.dto.js';
 interface ReferenceWriteDto {
   name: string;
   role?: string;
+  phone?: string | null;
 }
 @Controller('reference')
 @UseGuards(JwtGuard)
@@ -42,11 +43,11 @@ export class ReferenceController {
   // --- CRUD: customers ---------------------------------------------------
   @Post('customers')
   createCustomer(@CurrentOperator() op: OperatorContext, @Body() body: ReferenceWriteDto): Promise<{ id: string; label: string }> {
-    return this.svc.createCustomer(op, body.name);
+    return this.svc.createCustomer(op, body.name, body.phone);
   }
   @Patch('customers/:id')
   updateCustomer(@CurrentOperator() op: OperatorContext, @Param('id') id: string, @Body() body: ReferenceWriteDto): Promise<void> {
-    return this.svc.updateCustomer(op, id, body.name);
+    return this.svc.updateCustomer(op, id, body.name, body.phone);
   }
   @Delete('customers/:id')
   deleteCustomer(@CurrentOperator() op: OperatorContext, @Param('id') id: string): Promise<void> {

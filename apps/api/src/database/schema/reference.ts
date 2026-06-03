@@ -45,6 +45,11 @@ export const customer = pgTable(
     customerId: uuid('customer_id').primaryKey().defaultRandom(),
     ...tenancyColumns,
     name: varchar('name', { length: 200 }).notNull(),
+    // VN domestic phone (e.g. 0901234567), stored as a nullable string per
+    // 2026 PII/E.164 guidance adapted to in-country use: digits-with-leading-0,
+    // no +84. Mirrors driver.phone (varchar 32, nullable). EXPAND-only: nullable
+    // so existing rows and old code that never sets phone stay valid.
+    phone: varchar('phone', { length: 32 }),
     active: boolean('active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },

@@ -87,4 +87,18 @@ describe('ReferenceAdminClient', () => {
     const client = new ReferenceAdminClient('vehicles', fetchFn);
     await expect(client.remove('v1')).rejects.toThrow();
   });
+  it('create() forwards the optional phone for customers (Số điện thoại)', async () => {
+    const fetchFn = vi.fn(() => Promise.resolve(jsonRes({ id: 'c1', label: 'Acme' })));
+    const client = new ReferenceAdminClient('customers', fetchFn);
+    await client.create('Acme', undefined, '0901234567');
+    const call = fetchFn.mock.calls[0] as unknown as [string, { method: string; body: string }];
+    expect(JSON.parse(call[1].body)).toEqual({ name: 'Acme', phone: '0901234567' });
+  });
+  it('update() forwards the optional phone for customers', async () => {
+    const fetchFn = vi.fn(() => Promise.resolve(jsonRes({})));
+    const client = new ReferenceAdminClient('customers', fetchFn);
+    await client.update('c1', 'Acme', '0902222222');
+    const call = fetchFn.mock.calls[0] as unknown as [string, { method: string; body: string }];
+    expect(JSON.parse(call[1].body)).toEqual({ name: 'Acme', phone: '0902222222' });
+  });
 });

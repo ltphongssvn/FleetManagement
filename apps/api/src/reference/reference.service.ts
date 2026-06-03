@@ -78,9 +78,10 @@ export class ReferenceService {
     return { items: rows };
   }
   async customers(op: OperatorContext): Promise<ReferenceListResponse> {
-    const rows = await this.db.select({ id: customer.customerId, label: customer.name }).from(customer)
+    const rows = await this.db
+      .select({ id: customer.customerId, label: customer.name, phone: customer.phone }).from(customer)
       .where(and(eq(customer.companyId, op.companyId), eq(customer.active, true))).orderBy(asc(customer.name));
-    return { items: rows };
+    return { items: rows.map((r) => ({ id: r.id, label: r.label, meta: { phone: r.phone } })) };
   }
   async cargoTypes(op: OperatorContext): Promise<ReferenceListResponse> {
     const rows = await this.db.select({ id: cargoType.cargoTypeId, label: cargoType.name }).from(cargoType)
@@ -121,11 +122,12 @@ export class ReferenceService {
   // and return it (UPSERT semantics matching the dispatcher mental
   // model 're-add this item'). Only when the existing row is already
   // active does the friendly localized ConflictException surface.
-  async createCustomer(op: OperatorContext, name: string): Promise<{ id: string; label: string }> {
+  async createCustomer(op: OperatorContext, name: string, phone?: string | null): Promise<{ id: string; label: string }> {
+    const phoneVal = phone === undefined || phone === '' ? null : phone;
     try {
       return await this.db.transaction(async (tx) => {
         const inserted = await tx.insert(customer)
-          .values({ ...this.tenancy(op), name })
+          .values({ ...this.tenancy(op), name, phone: phoneVal })
           .returning({ id: customer.customerId, label: customer.name });
         const row = inserted[0];
         /* v8 ignore next -- defensive: a successful .returning() always yields a row */
@@ -135,7 +137,7 @@ export class ReferenceService {
     } catch (e) {
       if (isPgUniqueViolation(e)) {
         const reactivated = await this.db.update(customer)
-          .set({ active: true })
+          .set({ active: true, phone: phoneVal })
           .where(and(eq(customer.companyId, op.companyId), eq(customer.name, name), eq(customer.active, false)))
           .returning({ id: customer.customerId, label: customer.name });
         if (reactivated[0]) return reactivated[0];
@@ -144,9 +146,10 @@ export class ReferenceService {
       throw e;
     }
   }
-  async updateCustomer(op: OperatorContext, id: string, name: string): Promise<void> {
+  async updateCustomer(op: OperatorContext, id: string, name: string, phone?: string | null): Promise<void> {
+    const patch = phone === undefined ? { name } : { name, phone: phone === '' ? null : phone };
     try {
-      await this.db.update(customer).set({ name })
+      await this.db.update(customer).set(patch)
         .where(and(eq(customer.companyId, op.companyId), eq(customer.customerId, id)));
     } catch (e) {
       if (isPgUniqueViolation(e)) throw new ConflictException(conflictMessage('Khách hàng', name));
