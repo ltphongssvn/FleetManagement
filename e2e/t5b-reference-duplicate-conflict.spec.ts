@@ -36,7 +36,11 @@ test('duplicate Khách hàng add surfaces friendly conflict, not HTTP 500', asyn
   const section = page.locator('section').filter({ has: page.getByRole('heading', { name: /^Khách hàng$/ }) });
   await expect(section).toBeVisible({ timeout: 15_000 });
   // Pick the first existing customer label as the duplicate to re-add.
-  const firstExisting = section.locator('ul li span').first();
+  // The customer row nests name + optional phone inside a flex wrapper span
+  // (Số điện thoại UI, 2026): <span.flex><span>NAME</span><span>PHONE</span></span>.
+  // Target the INNER name span only, or the concatenated name+phone text would
+  // be used as the duplicate and never collide.
+  const firstExisting = section.locator('ul li > div > span').first();
   const existingName = (await firstExisting.textContent())?.trim() ?? '';
   expect(existingName.length).toBeGreaterThan(0);
   await section.getByPlaceholder(/Thêm khách hàng/i).fill(existingName);
