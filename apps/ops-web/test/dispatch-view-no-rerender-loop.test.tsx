@@ -42,6 +42,7 @@ const baseRun: DispatchBoardRoadRun = {
   plannedStartAt: '2026-05-01T08:00:00.000Z',
   stopCount: 1,
   transportOrderRefs: ['XTT.05-001'],
+  customerName: null,
   stops: [],
 };
 const refs = {

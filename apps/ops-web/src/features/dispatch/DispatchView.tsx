@@ -21,11 +21,18 @@
 // the real projection row arrives. Removing the redundant useOptimistic stops
 // the loop while preserving immediate-visibility. (react.dev: effects must
 // reach a fixed point; nextjs.org prefetching: avoid churn on dynamic lists.)
+//
+// KH column (2026): permanent business rule — the Lệnh điều xe board shows a
+// Khách hàng (customer) column in place of the Trạng thái (state) column. The
+// dispatcher wants the customer name on the board, not the road-run state. The
+// customer name is supplied per row by the API board endpoint (read-time join
+// road_run_transport_order -> transport_order -> customer); the optimistic row
+// has no customer name yet (it is appended pre-projection) and renders em-dash
+// until the real projection row reconciles.
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import { useRouter } from 'next/navigation';
-import { ROAD_RUN_STATE_TONE } from '@fleet/domain';
 import { CreateOrderForm, type CreateOrderFormProps } from './CreateOrderForm';
 import { LogoutButton } from '../auth/LogoutButton';
 import { ExportOrdersExcelButton } from './ExportOrdersExcelButton';
@@ -40,10 +47,8 @@ function formatPlannedStart(iso: string | null): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '—' : PLANNED_FORMATTER.format(d);
 }
-function StateBadge({ state }: { state: DispatchBoardRoadRun['state'] }): JSX.Element {
-  return (
-    <span className={'inline-block rounded px-2 py-0.5 text-xs font-medium ' + ROAD_RUN_STATE_TONE[state]}>{state}</span>
-  );
+function formatCustomer(name: string | null): string {
+  return name === null || name === '' ? '—' : name;
 }
 function OrderRefCell({ refs }: { refs: readonly string[] }): JSX.Element {
   const primary = refs[0];
@@ -70,6 +75,7 @@ function makeOptimisticRow(externalRef: string, opCtx: { operatorId: string; ass
     plannedStartAt: null,
     stopCount: 1,
     transportOrderRefs: [externalRef],
+    customerName: null,
     stops: [],
   };
 }
@@ -154,7 +160,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
             <thead>
               <tr className='border-b text-left'>
                 <th className='px-3 py-2'>Số lệnh</th>
-                <th className='px-3 py-2'>Trạng thái</th>
+                <th className='px-3 py-2'>Khách hàng</th>
                 <th className='px-3 py-2'>Tài xế</th>
                 <th className='px-3 py-2'>Xe</th>
                 <th className='px-3 py-2'>Ngày dự kiến</th>
@@ -166,7 +172,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
               {merged.map((r) => (
                 <tr key={r.roadRunId} data-testid={'dispatch-board-rr-' + r.roadRunId} className='border-b'>
                   <td className='px-3 py-2'><OrderRefCell refs={r.transportOrderRefs} /></td>
-                  <td className='px-3 py-2'><StateBadge state={r.state} /></td>
+                  <td className='px-3 py-2'>{formatCustomer(r.customerName)}</td>
                   <td className='px-3 py-2'>{formatOperator(r.assignedOperatorId, driverLookup)}</td>
                   <td className='px-3 py-2'>{formatVehicle(r.assignedAssetId, vehicleLookup)}</td>
                   <td className='px-3 py-2'>{formatPlannedStart(r.plannedStartAt)}</td>

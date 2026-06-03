@@ -32,6 +32,7 @@ const run: DispatchBoardRoadRun = {
   plannedStartAt: '2026-04-28T09:00:00.000Z',
   stopCount: 2,
   transportOrderRefs: ['XT.0067'],
+  customerName: null,
   stops: [],
 };
 describe('DispatchView - human-readable labels (T4)', () => {

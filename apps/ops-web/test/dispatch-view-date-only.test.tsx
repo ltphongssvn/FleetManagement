@@ -19,6 +19,7 @@ const run: DispatchBoardRoadRun = {
   plannedStartAt: '2026-05-30T07:12:00.000Z',
   stopCount: 0,
   transportOrderRefs: ['XTT.05-001'],
+  customerName: null,
   stops: [],
 };
 function dataRow(): HTMLElement {
