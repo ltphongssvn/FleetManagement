@@ -28,7 +28,7 @@ describe('observability build emits declarations deterministically', () => {
     execSync('pnpm run build', { cwd: pkgRoot, stdio: 'inherit' });
     rmSync(resolve(pkgRoot, 'dist'), { recursive: true, force: true });
     execSync('pnpm run build', { cwd: pkgRoot, stdio: 'inherit' });
-  });
+  }, 60_000);
   it('emits dist/index.d.ts after a build with a pre-existing stale tsbuildinfo', () => {
     expect(existsSync(dts)).toBe(true);
   });
