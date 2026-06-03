@@ -47,6 +47,7 @@ const initialRuns: readonly DispatchBoardRoadRun[] = [
     plannedStartAt: '2026-05-01T08:00:00.000Z',
     stopCount: 1,
     transportOrderRefs: ['XTT.05-001'],
+    customerName: null,
     stops: [],
   },
 ];
@@ -109,6 +110,7 @@ describe('DispatchView — optimistic row insertion on action success (T3)', () 
         plannedStartAt: null,
         stopCount: 1,
         transportOrderRefs: ['XTT.05-002'],
+        customerName: null,
         stops: [],
       },
     ];
@@ -189,6 +191,7 @@ describe('DispatchView — optimistic row insertion on action success (T3)', () 
         plannedStartAt: 'not-a-date',
         stopCount: 0,
         transportOrderRefs: [],
+        customerName: null,
         stops: [],
       },
     ];

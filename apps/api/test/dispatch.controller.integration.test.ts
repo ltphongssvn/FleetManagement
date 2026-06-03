@@ -26,9 +26,14 @@ async function seedStopChain(roadRunId: string, transportOrderId: string): Promi
   const co = OP.companyId;
   const wid = '11111111-aaaa-4aaa-8aaa-111111111111';
   const sid = '22222222-aaaa-4aaa-8aaa-222222222222';
+  const cid = '33333333-aaaa-4aaa-8aaa-333333333333';
   await testDb.db.execute(sql.raw(
-    'INSERT INTO transport_order (transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, external_ref, created_at, updated_at) ' +
-    'VALUES (' + q(transportOrderId) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q('XTT.05-001') + ', now(), now())'
+    'INSERT INTO customer (customer_id, company_id, business_unit_id, depot_id, legal_entity_id, name) ' +
+    'VALUES (' + q(cid) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q('Công ty Vận Tải Số 1') + ')'
+  ));
+  await testDb.db.execute(sql.raw(
+    'INSERT INTO transport_order (transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, external_ref, customer_id, created_at, updated_at) ' +
+    'VALUES (' + q(transportOrderId) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q('XTT.05-001') + ', ' + q(cid) + ', now(), now())'
   ));
   await testDb.db.execute(sql.raw(
     'INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, assigned_operator_id, assigned_asset_id) ' +
@@ -59,19 +64,20 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
     await testDb.db.execute(sql.raw('TRUNCATE TABLE road_run_transport_order CASCADE'));
     await testDb.db.execute(sql.raw('TRUNCATE TABLE transport_order CASCADE'));
     await testDb.db.execute(sql.raw('TRUNCATE TABLE warehouse CASCADE'));
+    await testDb.db.execute(sql.raw('TRUNCATE TABLE customer CASCADE'));
   });
   it('returns mapped rows scoped to operator companyId', async () => {
     await insertProjection('aaaaaaaa-1111-4111-8111-111111111111', '2026-04-29T12:00:00.000Z');
     const result = await ctrl.getBoard(OP);
     expect(result.rows).toHaveLength(1);
-    const r = result.rows[0]; if (!r) throw new Error('expected row');
+    const r = result.rows[0]; if (r === undefined) throw new Error('expected row');
     expect(r.plannedStartAt).toBe('2026-04-29T12:00:00.000Z');
     expect(r.transportOrderRefs).toEqual(['TO-1', 'TO-2']);
   });
   it('serializes null plannedStartAt', async () => {
     await insertProjection('bbbbbbbb-1111-4111-8111-111111111111', null);
     const result = await ctrl.getBoard(OP);
-    const r = result.rows[0]; if (!r) throw new Error('expected row');
+    const r = result.rows[0]; if (r === undefined) throw new Error('expected row');
     expect(r.plannedStartAt).toBeNull();
   });
   it('returns empty rows when projection has no data for operator scope', async () => {
@@ -84,7 +90,7 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
     await insertProjection('dddddddd-1111-4111-8111-111111111111', '2026-04-29T12:00:00.000Z', { companyId: otherCo });
     const result = await ctrl.getBoard(OP);
     expect(result.rows).toHaveLength(1);
-    const r = result.rows[0]; if (!r) throw new Error('expected row');
+    const r = result.rows[0]; if (r === undefined) throw new Error('expected row');
     expect(r.roadRunId).toBe('cccccccc-1111-4111-8111-111111111111');
   });
   // T10: the board enriches each row with its per-stop status so the Lệnh điều
@@ -95,13 +101,26 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
     await seedStopChain(rr, 'ffffffff-1111-4111-8111-111111111111');
     const result = await ctrl.getBoard(OP);
     const row = result.rows.find((r) => r.roadRunId === rr);
-    if (!row) throw new Error('expected board row');
+    if (row === undefined) throw new Error('expected board row');
     expect(row.stops).toBeDefined();
     const s = row.stops.find((x) => x.sequence === 1);
-    if (!s) throw new Error('expected stop 1');
+    if (s === undefined) throw new Error('expected stop 1');
     expect(s.warehouseName).toBe('Chơn Chính');
     expect(s.stopType).toBe('pickup');
     expect(s.arrivedAt).toBe('2026-05-30T09:00:00.000Z');
     expect(s.departedAt).toBe('2026-05-30T09:15:00.000Z');
+  });
+  // KH column (2026): the board must expose the order's customer name so the
+  // Lệnh điều xe table can show Khách hàng in place of Trạng thái. Enriched at
+  // read time via road_run_transport_order -> transport_order -> customer,
+  // scoped by company_id (mirrors the T10 stop-enrichment join).
+  it('attaches the customer name to the row (Khách hàng column source)', async () => {
+    const rr = 'a1a1a1a1-1111-4111-8111-111111111111';
+    await insertProjection(rr, '2026-05-30T08:00:00.000Z');
+    await seedStopChain(rr, 'b2b2b2b2-1111-4111-8111-111111111111');
+    const result = await ctrl.getBoard(OP);
+    const row = result.rows.find((r) => r.roadRunId === rr);
+    if (row === undefined) throw new Error('expected board row');
+    expect(row.customerName).toBe('Công ty Vận Tải Số 1');
   });
 });
