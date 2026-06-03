@@ -20,6 +20,7 @@ const run: DispatchBoardRoadRun = {
   stopCount: 0,
   transportOrderRefs: ['XTT.05-001'],
   customerName: null,
+  customerPhone: null,
   stops: [],
 };
 function dataRow(): HTMLElement {

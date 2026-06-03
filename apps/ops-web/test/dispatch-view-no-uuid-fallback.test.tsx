@@ -23,6 +23,7 @@ const run: DispatchBoardRoadRun = {
   stopCount: 0,
   transportOrderRefs: [],
   customerName: null,
+  customerPhone: null,
   stops: [],
 };
 describe('DispatchView - no UUID fallback in Số lệnh', () => {

@@ -16,6 +16,12 @@
 // company_id (same summary-projection + read-time-join pattern as T10). The
 // projection schema is unchanged: customer is reference data already owned by
 // the same tenant, so a read-time join is correct and avoids a migration.
+//
+// KH phone (2026): permanent business rule — the board row also carries the
+// customer's Số điện thoại so the Lệnh điều xe table can display it next to
+// Khách hàng. customer.phone is selected on the SAME read-time customer join
+// (no extra query, no schema change). EXPAND-only/nullable: phone is null when
+// the customer has none, so old data and old code stay valid.
 import { Controller, Get, Inject, UseGuards } from '@nestjs/common';
 import { and, eq, inArray } from 'drizzle-orm';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
@@ -49,6 +55,7 @@ export interface DispatchBoardRow {
   readonly stopCount: number;
   readonly transportOrderRefs: readonly string[];
   readonly customerName: string | null;
+  readonly customerPhone: string | null;
   readonly stops: readonly DispatchBoardStop[];
 }
 @Controller('dispatch')
@@ -72,6 +79,9 @@ export class DispatchController {
     // Customer enrichment: the first customer name found per road run, joined
     // via road_run_transport_order -> transport_order -> customer.
     const customerByRoadRun = new Map<string, string>();
+    // Customer phone enrichment: the first customer phone found per road run,
+    // taken from the SAME customer join. Null when the customer has no phone.
+    const customerPhoneByRoadRun = new Map<string, string | null>();
     if (roadRunIds.length > 0) {
       const stopRows = await this.db
         .select({
@@ -105,6 +115,7 @@ export class DispatchController {
         .select({
           roadRunId: roadRunTransportOrder.roadRunId,
           customerName: customer.name,
+          customerPhone: customer.phone,
         })
         .from(roadRunTransportOrder)
         .innerJoin(transportOrder, eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId))
@@ -117,6 +128,7 @@ export class DispatchController {
       for (const cr of customerRows) {
         if (!customerByRoadRun.has(cr.roadRunId)) {
           customerByRoadRun.set(cr.roadRunId, cr.customerName);
+          customerPhoneByRoadRun.set(cr.roadRunId, cr.customerPhone);
         }
       }
     }
@@ -130,6 +142,7 @@ export class DispatchController {
         stopCount: r.stopCount,
         transportOrderRefs: r.transportOrderRefs,
         customerName: customerByRoadRun.get(r.roadRunId) ?? null,
+        customerPhone: customerPhoneByRoadRun.get(r.roadRunId) ?? null,
         stops: stopsByRoadRun.get(r.roadRunId) ?? [],
       })),
     };

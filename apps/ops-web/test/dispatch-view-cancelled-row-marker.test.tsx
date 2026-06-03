@@ -28,6 +28,7 @@ function baseRun(overrides: Partial<DispatchBoardRoadRun>): DispatchBoardRoadRun
     stopCount: 2,
     transportOrderRefs: ['XT.0067'],
     customerName: 'Công ty Vận Tải Số 1',
+    customerPhone: null,
     stops: [],
     ...overrides,
   };

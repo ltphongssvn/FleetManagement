@@ -28,8 +28,8 @@ async function seedStopChain(roadRunId: string, transportOrderId: string): Promi
   const sid = '22222222-aaaa-4aaa-8aaa-222222222222';
   const cid = '33333333-aaaa-4aaa-8aaa-333333333333';
   await testDb.db.execute(sql.raw(
-    'INSERT INTO customer (customer_id, company_id, business_unit_id, depot_id, legal_entity_id, name) ' +
-    'VALUES (' + q(cid) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q('Công ty Vận Tải Số 1') + ')'
+    'INSERT INTO customer (customer_id, company_id, business_unit_id, depot_id, legal_entity_id, name, phone) ' +
+    'VALUES (' + q(cid) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q('Công ty Vận Tải Số 1') + ', ' + q('0901234567') + ')'
   ));
   await testDb.db.execute(sql.raw(
     'INSERT INTO transport_order (transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, external_ref, customer_id, created_at, updated_at) ' +
@@ -122,5 +122,19 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
     const row = result.rows.find((r) => r.roadRunId === rr);
     if (row === undefined) throw new Error('expected board row');
     expect(row.customerName).toBe('Công ty Vận Tải Số 1');
+  });
+
+  // KH phone (2026): permanent business rule — the board must also expose the
+  // order customer's Số điện thoại so the Lệnh điều xe table can display it next
+  // to Khách hàng. Enriched at read time on the SAME customer join (add
+  // customer.phone to the existing customerRows select), scoped by company_id.
+  it('attaches the customer phone to the row (Số điện thoại source)', async () => {
+    const rr = 'c3c3c3c3-1111-4111-8111-111111111111';
+    await insertProjection(rr, '2026-05-30T08:00:00.000Z');
+    await seedStopChain(rr, 'd4d4d4d4-1111-4111-8111-111111111111');
+    const result = await ctrl.getBoard(OP);
+    const row = result.rows.find((r) => r.roadRunId === rr);
+    if (row === undefined) throw new Error('expected board row');
+    expect(row.customerPhone).toBe('0901234567');
   });
 });

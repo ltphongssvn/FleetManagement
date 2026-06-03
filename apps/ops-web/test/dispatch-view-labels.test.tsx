@@ -33,6 +33,7 @@ const run: DispatchBoardRoadRun = {
   stopCount: 2,
   transportOrderRefs: ['XT.0067'],
   customerName: null,
+  customerPhone: null,
   stops: [],
 };
 describe('DispatchView - human-readable labels (T4)', () => {

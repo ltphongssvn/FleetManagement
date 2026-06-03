@@ -43,6 +43,7 @@ const baseRun: DispatchBoardRoadRun = {
   stopCount: 1,
   transportOrderRefs: ['XTT.05-001'],
   customerName: null,
+  customerPhone: null,
   stops: [],
 };
 const refs = {

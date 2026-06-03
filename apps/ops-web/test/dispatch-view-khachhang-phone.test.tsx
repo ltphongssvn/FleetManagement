@@ -1,9 +1,10 @@
-// apps/ops-web/test/dispatch-view-khachhang-column.test.tsx
-// L2 (2026): permanent business rule — the Lệnh điều xe board shows a Khách
-// hàng (customer) column in place of the Trạng thái (state) column.
+// apps/ops-web/test/dispatch-view-khachhang-phone.test.tsx
+// L2 (2026): permanent business rule — the Lệnh điều xe board displays the
+// customer's Số điện thoại next to Khách hàng in the customer cell.
 //
-// Business invariant: the board renders a Khách hàng columnheader showing the
-// row's customerName, and renders NO Trạng thái columnheader.
+// Business invariant: when a row's customerPhone is set, the board renders that
+// phone in the Khách hàng cell; when customerPhone is null, no phone is shown
+// (no stray text / no leak), only the customer name (or em-dash) remains.
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, within, cleanup } from '@testing-library/react';
 import { DispatchView } from '@/features/dispatch/DispatchView';
@@ -33,31 +34,31 @@ const run: DispatchBoardRoadRun = {
   stopCount: 2,
   transportOrderRefs: ['XT.0067'],
   customerName: 'Công ty Vận Tải Số 1',
-  customerPhone: null,
+  customerPhone: '0901234567',
   stops: [],
 };
-describe('DispatchView - Khách hàng column replaces Trạng thái', () => {
-  it('renders a Khách hàng column header', () => {
+describe('DispatchView - Khách hàng shows Số điện thoại', () => {
+  it('renders the customer phone in the Khách hàng cell', () => {
     render(<DispatchView initialRuns={[run]} refs={refs} />);
-    const headers = screen.getAllByRole('columnheader').map((h) => h.textContent);
-    expect(headers).toContain('Khách hàng');
+    const cells = within(dataRow()).getAllByRole('cell');
+    const customerCell = cells[1];
+    if (customerCell === undefined) throw new Error('expected a customer cell');
+    expect(within(customerCell).getByText('0901234567')).toBeInTheDocument();
   });
-  it('does NOT render a Trạng thái column header', () => {
+  it('still renders the customer name alongside the phone', () => {
     render(<DispatchView initialRuns={[run]} refs={refs} />);
-    const headers = screen.getAllByRole('columnheader').map((h) => h.textContent);
-    expect(headers).not.toContain('Trạng thái');
+    const cells = within(dataRow()).getAllByRole('cell');
+    const customerCell = cells[1];
+    if (customerCell === undefined) throw new Error('expected a customer cell');
+    expect(within(customerCell).getByText('Công ty Vận Tải Số 1')).toBeInTheDocument();
   });
-  it('renders the row customer name in the board', () => {
-    render(<DispatchView initialRuns={[run]} refs={refs} />);
-    const row = dataRow();
-    expect(within(row).getByText('Công ty Vận Tải Số 1')).toBeInTheDocument();
-  });
-  it('renders em-dash when customerName is null (no leak)', () => {
-    const r2: DispatchBoardRoadRun = { ...run, customerName: null, transportOrderRefs: ['XT.0099'] };
+  it('shows no phone text when customerPhone is null (no leak)', () => {
+    const r2: DispatchBoardRoadRun = { ...run, customerPhone: null, transportOrderRefs: ['XT.0099'] };
     render(<DispatchView initialRuns={[r2]} refs={refs} />);
     const cells = within(dataRow()).getAllByRole('cell');
     const customerCell = cells[1];
     if (customerCell === undefined) throw new Error('expected a customer cell');
-    expect(customerCell.textContent).toBe('—');
+    expect(within(customerCell).queryByText('0901234567')).toBeNull();
+    expect(within(customerCell).getByText('Công ty Vận Tải Số 1')).toBeInTheDocument();
   });
 });
