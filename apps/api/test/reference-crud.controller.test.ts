@@ -34,16 +34,25 @@ describe('ReferenceController CRUD', () => {
   it('createCustomer delegates with the name', async () => {
     svc.createCustomer.mockResolvedValueOnce({ id: 'c1', label: 'Acme' });
     const r = await controller.createCustomer(OP, { name: 'Acme' });
-    expect(svc.createCustomer).toHaveBeenCalledWith(OP, 'Acme');
+    expect(svc.createCustomer).toHaveBeenCalledWith(OP, 'Acme', undefined);
     expect(r).toEqual({ id: 'c1', label: 'Acme' });
   });
   it('updateCustomer delegates with id + name', async () => {
     await controller.updateCustomer(OP, 'c1', { name: 'Acme Corp' });
-    expect(svc.updateCustomer).toHaveBeenCalledWith(OP, 'c1', 'Acme Corp');
+    expect(svc.updateCustomer).toHaveBeenCalledWith(OP, 'c1', 'Acme Corp', undefined);
   });
   it('deleteCustomer delegates with id', async () => {
     await controller.deleteCustomer(OP, 'c1');
     expect(svc.deleteCustomer).toHaveBeenCalledWith(OP, 'c1');
+  });
+  it('createCustomer delegates with name + phone (Số điện thoại)', async () => {
+    svc.createCustomer.mockResolvedValueOnce({ id: 'c2', label: 'Acme' });
+    await controller.createCustomer(OP, { name: 'Acme', phone: '0901234567' });
+    expect(svc.createCustomer).toHaveBeenCalledWith(OP, 'Acme', '0901234567');
+  });
+  it('updateCustomer delegates with id + name + phone', async () => {
+    await controller.updateCustomer(OP, 'c1', { name: 'Acme', phone: '0902222222' });
+    expect(svc.updateCustomer).toHaveBeenCalledWith(OP, 'c1', 'Acme', '0902222222');
   });
   it('createCargoType delegates with the name', async () => {
     svc.createCargoType.mockResolvedValueOnce({ id: 'g1', label: 'Rice' });
