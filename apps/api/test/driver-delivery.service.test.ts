@@ -20,7 +20,19 @@ const op = {
 
 function dbWithRoadRun(state: string | null): never {
   const rrRow = state === null ? [] : [{ roadRunId: 'rr-1', state, companyId: 'co-1', assignedOperatorId: 'op-1' }];
-  const selChain = { from: () => ({ where: () => ({ limit: () => Promise.resolve(rrRow) }) }) };
+  // The rr ownership lookup uses .from().where().limit() -> rrRow.
+  // The completion guard (assertAllManifestsCommitted) uses .from().where()
+  // WITHOUT .limit(), awaiting an array of rows. We make where() BOTH awaitable
+  // (resolves [] => zero linked orders => guard is trivially satisfied, so this
+  // unit test stays focused on FSM + ownership + tri-write; the manifest-count
+  // gate is covered by driver-delivery.complete-requires-manifests.integration)
+  // AND still expose .limit() for the rr lookup.
+  const whereResult: { limit: (n: number) => Promise<readonly unknown[]> } & PromiseLike<readonly unknown[]> = {
+    limit: () => Promise.resolve(rrRow),
+    then: <R>(onfulfilled?: ((value: readonly unknown[]) => R | PromiseLike<R>) | null): PromiseLike<R> =>
+      Promise.resolve([] as readonly unknown[]).then(onfulfilled),
+  };
+  const selChain = { from: () => ({ where: () => whereResult }) };
   const updChain = { set: () => ({ where: () => Promise.resolve(undefined) }) };
   return {
     transaction: (fn: (tx: unknown) => unknown) => fn({
