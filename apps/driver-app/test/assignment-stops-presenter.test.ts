@@ -3,6 +3,12 @@
 // render EVERY stop the Lệnh điều xe - Tải thùng form created, in sequence —
 // not a collapsed pickup/delivery pair. Pure presenter (no native deps),
 // mirroring capture-screen-presenter. Vietnamese UI is immutable.
+//
+// Each stop row must also carry the capture-route descriptor (stopKind +
+// stopIndex) so the assignment card can deep-link to the per-warehouse proof
+// screen (/capture?stopKind=loading&stopIndex=0..3 | stopKind=unloading).
+// pickup -> loading with a 0-based stopIndex (matching displayIndex-1);
+// delivery -> unloading with stopIndex null (single unloading warehouse).
 import { describe, it, expect } from 'vitest';
 import { presentAssignmentStops } from '../src/assignments/assignment-stops-presenter.js';
 import type { StopRow } from '../src/assignments/assignments-client.js';
@@ -48,5 +54,33 @@ describe('presentAssignmentStops (multi-stop parity)', () => {
   });
   it('returns empty for no stops', () => {
     expect(presentAssignmentStops([])).toEqual([]);
+  });
+  it('exposes capture descriptor: pickup -> loading with 0-based stopIndex', () => {
+    const vm = presentAssignmentStops(stops);
+    expect(vm[0]?.stopKind).toBe('loading');
+    expect(vm[0]?.stopIndex).toBe(0);
+    expect(vm[1]?.stopKind).toBe('loading');
+    expect(vm[1]?.stopIndex).toBe(1);
+    expect(vm[2]?.stopKind).toBe('loading');
+    expect(vm[2]?.stopIndex).toBe(2);
+  });
+  it('exposes capture descriptor: delivery -> unloading with null stopIndex', () => {
+    const vm = presentAssignmentStops(stops);
+    expect(vm[3]?.stopKind).toBe('unloading');
+    expect(vm[3]?.stopIndex).toBeNull();
+  });
+  it('keeps loading stopIndex aligned to pickup order under interleaving', () => {
+    const interleaved: readonly StopRow[] = [
+      { sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: 'P1', arrivedAt: null, departedAt: null },
+      { sequence: 2, stopType: 'delivery', plannedAt: null, warehouseName: 'D1', arrivedAt: null, departedAt: null },
+      { sequence: 3, stopType: 'pickup', plannedAt: null, warehouseName: 'P2', arrivedAt: null, departedAt: null },
+    ];
+    const vm = presentAssignmentStops(interleaved);
+    expect(vm[0]?.stopKind).toBe('loading');
+    expect(vm[0]?.stopIndex).toBe(0);
+    expect(vm[1]?.stopKind).toBe('unloading');
+    expect(vm[1]?.stopIndex).toBeNull();
+    expect(vm[2]?.stopKind).toBe('loading');
+    expect(vm[2]?.stopIndex).toBe(1);
   });
 });

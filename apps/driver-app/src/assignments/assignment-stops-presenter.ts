@@ -7,6 +7,11 @@
 // created (1..N pickup warehouses + delivery) renders in sequence. Pickups are
 // numbered 1-based independently of delivery interleaving ('Kho nhận hàng N');
 // deliveries render as 'Kho giao hàng'. A stop is done once departedAt is set.
+//
+// Each row also carries the capture-route descriptor so the card can deep-link
+// to the per-warehouse proof screen (/capture?stopKind=...&stopIndex=...):
+//   pickup   -> stopKind 'loading',  stopIndex 0-based (pickup order, = displayIndex-1)
+//   delivery -> stopKind 'unloading', stopIndex null (single unloading warehouse)
 import type { StopRow } from './assignments-client.js';
 export interface AssignmentStopVM {
   readonly key: string;
@@ -14,6 +19,8 @@ export interface AssignmentStopVM {
   readonly label: string;
   readonly warehouseName: string;
   readonly done: boolean;
+  readonly stopKind: 'loading' | 'unloading';
+  readonly stopIndex: number | null;
 }
 const NO_WAREHOUSE = '— Chưa có kho —';
 function isPickup(stopType: string): boolean {
@@ -23,11 +30,18 @@ export function presentAssignmentStops(stops: readonly StopRow[]): readonly Assi
   let pickupIndex = 0;
   return stops.map((s) => {
     let label: string;
+    let stopKind: 'loading' | 'unloading';
+    let stopIndex: number | null;
     if (isPickup(s.stopType)) {
+      // 0-based loading index for the capture route; 1-based for display.
+      stopIndex = pickupIndex;
       pickupIndex += 1;
       label = 'Kho nhận hàng ' + String(pickupIndex);
+      stopKind = 'loading';
     } else {
       label = 'Kho giao hàng';
+      stopKind = 'unloading';
+      stopIndex = null;
     }
     return {
       key: 'stop-' + String(s.sequence),
@@ -35,6 +49,8 @@ export function presentAssignmentStops(stops: readonly StopRow[]): readonly Assi
       label,
       warehouseName: s.warehouseName ?? NO_WAREHOUSE,
       done: s.departedAt !== null,
+      stopKind,
+      stopIndex,
     };
   });
 }
