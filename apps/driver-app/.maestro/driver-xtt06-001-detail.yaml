@@ -1,0 +1,125 @@
+# apps/driver-app/.maestro/driver-xtt06-001-detail.yaml
+# Maestro E2E: verify EVERY field of dispatch order XTT.06-001 is transferred
+# end-to-end to the driver app, logging in as the real assigned driver
+# NGUYỄN THANH PHONG (phone 0903998784, seed password driver1pass).  # pragma: allowlist secret
+#
+# Source of truth (live DB): order XTT.06-001, customer ĐA NĂNG, vehicle
+# 62H 05194, road_run state planned, 5 stops in sequence:
+#   1 pickup   Cần Thơ
+#   2 pickup   Mêkong ( Lai Vung )
+#   3 pickup   Lương Thực ( Bình Minh Đồng Tháp )
+#   4 pickup   Thốt Nốt
+#   5 delivery ĐA NĂNG
+# The driver assignments card renders customer as "Khách hàng: <name>", vehicle
+# as "Số xe: <plate>", and each stop via the stops presenter as
+# "Kho nhận hàng N: <warehouse>" (pickups, 1-based) / "Kho giao hàng: <warehouse>"
+# (delivery). The list endpoint /transport-orders/assigned filters only by the
+# driver operatorId (no state filter), so a planned order surfaces.
+#
+# Selector notes:
+# - Maestro text: is a REGEX over text/accessibility text, partial match. The
+#   warehouse names with parentheses (Mêkong ( Lai Vung ), Lương Thực ( ... ))
+#   contain regex metacharacters, so those stops are asserted on their
+#   metacharacter-free prefix — still proving the right label + warehouse
+#   reached the driver. Names without metacharacters are asserted in full.
+# - Inputs/submit are targeted by text: (accessibility label); on Android RN
+#   testID sets no resource-id for TextInput and the submit Pressable renders as
+#   a Button whose accessibilityLabel is its only id.
+# - The card can overflow the viewport, so stops are reached via
+#   scrollUntilVisible (top-to-bottom; each is further down, so forward scroll
+#   suffices and doubles as the visibility assertion).
+#
+# Run: maestro test apps/driver-app/.maestro/driver-xtt06-001-detail.yaml
+appId: host.exp.exponent
+---
+# 2026 Expo+Maestro launch (per EAS/Maestro CI guide): open the project deep
+# link directly with dev-menu-suppressing URL params. No launchApp + blind Back
+# choreography (that races Expo Go's home and can bounce to the launcher).
+# Expo Go can land on its home on the very first deep link from a cold start, so
+# fire openLink, give it a moment, then fire it again to navigate in. Any
+# first-launch dev-menu/tools overlay is dismissed reactively via runFlow-when,
+# not a blind keypress.
+- openLink: exp://10.0.2.2:8081/--/?platform=android&dev=true&minify=false&disableOnboarding=1
+- waitForAnimationToEnd:
+    timeout: 6000
+- openLink: exp://10.0.2.2:8081/--/?platform=android&dev=true&minify=false&disableOnboarding=1
+- waitForAnimationToEnd:
+    timeout: 6000
+# Reactively clear Expo Go overlays only if present (no-op otherwise):
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - pressKey: back
+- runFlow:
+    when:
+      visible: "Reload"
+    commands:
+      - pressKey: back
+# Wait for the app to settle on EITHER the login screen (logged out) OR the
+# home screen (a prior session persisted). Expo Go keeps the auth token across
+# runs, so the app may skip login entirely.
+- extendedWaitUntil:
+    visible:
+      text: "Đăng nhập để xem lệnh điều xe|Trạng thái đồng bộ"
+    timeout: 180000
+# Log in only if the login screen is showing; skip when already authenticated.
+- runFlow:
+    when:
+      visible: "Đăng nhập để xem lệnh điều xe"
+    commands:
+      - tapOn:
+          text: "Số điện thoại"
+      - inputText: "${MAESTRO_DRIVER_PHONE ?? '0903998784'}"
+      - tapOn:
+          text: "Mật khẩu"
+      - inputText: "${MAESTRO_DRIVER_PASSWORD ?? 'driver1pass'}"  # pragma: allowlist secret
+      - hideKeyboard
+      - tapOn:
+          text: "Đăng nhập"
+      - extendedWaitUntil:
+          visible: "Trạng thái đồng bộ"
+          timeout: 60000
+- tapOn:
+    text: "Xem lệnh điều xe"
+# Assignments list: wait for XTT.06-001 to load (fetch from /transport-orders/assigned).
+- extendedWaitUntil:
+    visible: "XTT.06-001"
+    timeout: 60000
+# Order header + vehicle + run state.
+- assertVisible: "XTT.06-001"
+- assertVisible: "planned"
+- assertVisible: "Khách hàng: ĐA NĂNG"
+- assertVisible: "Số xe: 62H 05194"
+# All 5 stops, in sequence, with the presenter's labels (scroll into view).
+# Maestro text: is a FULL-ELEMENT regex (must match the entire node text), so a
+# bare prefix like "...Mêkong" fails against "...Mêkong ( Lai Vung )". Appending
+# .* makes each selector match the whole label and also subsumes the parenthesis
+# metacharacters in the warehouse names. scrollUntilVisible brings each stop into
+# view in sequence (FlatList renders lazily). The label proves both the sequence
+# position (Kho nhận hàng N / Kho giao hàng) and the warehouse reached the driver.
+- scrollUntilVisible:
+    element:
+      text: "Kho nhận hàng 1: Cần Thơ.*"
+    direction: DOWN
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Kho nhận hàng 2: Mêkong.*"
+    direction: DOWN
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Kho nhận hàng 3: Lương Thực.*"
+    direction: DOWN
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Kho nhận hàng 4: Thốt Nốt.*"
+    direction: DOWN
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Kho giao hàng: ĐA NĂNG.*"
+    direction: DOWN
+    timeout: 20000
