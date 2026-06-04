@@ -1,0 +1,67 @@
+# apps/driver-app/.maestro/driver-login-assignment.yaml
+# Maestro E2E flow (Expo): driver logs into the Fleet Driver app and reaches the
+# home screen, then opens Xem lệnh điều xe (assignments).
+#
+# Critical user journey: a real driver (phone + password) authenticates and sees
+#   the driver home + can open their assignment list.
+#
+# Expo pattern (per docs.maestro.dev React Native): with Expo Go / dev client you
+# CANNOT launchApp with an http appId — the app runs inside the Expo container.
+# Use openLink with the Expo dev URL instead, run on an Android emulator or iOS
+# simulator. Local run:
+#   maestro test apps/driver-app/.maestro/driver-login-assignment.yaml
+# Credentials via env (no secret committed); for the real NGUYỄN THANH PHONG
+# assignment: MAESTRO_DRIVER_PHONE=4132102192 MAESTRO_DRIVER_PASSWORD=driver1pass  # pragma: allowlist secret
+#
+# Host: the Android emulator reaches the dev host via the alias 10.0.2.2 (NOT
+# localhost — on the emulator "localhost" is the emulator itself, so the deep
+# link cannot reach Metro on the host and Expo Go stays on its home screen).
+# Metro serves on the host's :8081 (published by the driver-app container).
+#
+# Selectors: on Android, RN testID does NOT set a resource-id for TextInput, and
+# here the Pressable renders as android.widget.Button whose accessibilityLabel
+# (not testID) becomes the only accessibility identity — so these nodes have NO
+# resource-id. Maestro's `id:` matches the accessibility identifier (absent),
+# while `text:` matches text OR accessibility text. So phone, password, and the
+# submit button are all targeted by text: (their accessibilityLabel / label).
+appId: host.exp.Exponent
+---
+- openLink: exp://10.0.2.2:8081/--/?platform=android&dev=true&minify=false&disableOnboarding=1
+# Software-rendered emulator (CPU-only host) throws a transient System UI ANR
+# while the JS bundle loads. Dismiss it (tap Wait) if present.
+- tapOn:
+    text: "Wait"
+    optional: true
+# First-launch Expo Go shows a dev-menu / tools bottom-sheet OVER the loaded app,
+# occluding the login screen. Pressing the Android Back key dismisses it.
+- pressKey: back
+# Mount signal: wait for the login SUBTITLE, not "Fleet Driver". Expo Go shows
+# a "Fleet Driver" recent-project / splash label WHILE the JS bundle is still
+# downloading ("Bundling NN%"), so gating on it lets a bare assert fire before
+# the app mounts. The subtitle only renders once the real login screen mounts.
+- extendedWaitUntil:
+    visible: "Đăng nhập để xem lệnh điều xe"
+    timeout: 180000
+- assertVisible: "Fleet Driver"
+- assertVisible: "Đăng nhập để xem lệnh điều xe"
+- tapOn:
+    text: "Số điện thoại"
+- inputText: "${MAESTRO_DRIVER_PHONE ?? '0900000001'}"
+- tapOn:
+    text: "Mật khẩu"
+- inputText: "${MAESTRO_DRIVER_PASSWORD ?? 'driver1pass'}"
+# Hide the soft keyboard: after typing the password the keyboard covers the
+# submit button and the post-login screen, so the next assert would run against
+# an occluded view. hideKeyboard restores the full layout before submitting.
+- hideKeyboard
+- tapOn:
+    text: "Đăng nhập"
+# Post-login: login does a network round-trip to /auth/login then navigates to
+# the home screen, so the sync-status marker is not instantly present. Poll for
+# it via extendedWaitUntil instead of a bare assertVisible.
+- extendedWaitUntil:
+    visible: "Trạng thái đồng bộ"
+    timeout: 60000
+- assertVisible: "Xem lệnh điều xe"
+- tapOn:
+    text: "Xem lệnh điều xe"
