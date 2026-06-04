@@ -93,6 +93,7 @@ repos:
         name: Validate JSON Files
       - id: check-yaml
         name: Validate YAML Files
+        exclude: ^apps/driver-app/\.maestro/
       - id: check-added-large-files
         args: ['--maxkb=500']
         name: Check for Large Files

@@ -51,6 +51,7 @@ export default function Login(): JSX.Element {
         <View style={styles.cardBody}>
           <Text style={styles.label}>SỐ ĐIỆN THOẠI</Text>
           <TextInput
+            testID="Số điện thoại"
             style={styles.input}
             placeholder="0900000001"
             placeholderTextColor={colors.slate400}
@@ -63,6 +64,7 @@ export default function Login(): JSX.Element {
           />
           <Text style={[styles.label, { marginTop: spacing.md }]}>MẬT KHẨU</Text>
           <TextInput
+            testID="Mật khẩu"
             style={styles.input}
             placeholder="Nhập mật khẩu"
             placeholderTextColor={colors.slate400}
@@ -74,6 +76,7 @@ export default function Login(): JSX.Element {
             accessibilityLabel="Mật khẩu"
           />
           <Pressable
+            testID="Đăng nhập"
             style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
             onPress={submit}
             accessibilityRole="button"

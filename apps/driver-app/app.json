@@ -31,7 +31,13 @@
       ],
       "@sentry/react-native",
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Ứng dụng cần quyền truy cập máy ảnh để bạn chụp ảnh phiếu cân hàng làm bằng chứng nhận/giao hàng tại kho."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -49,6 +55,9 @@
       },
       "router": {}
     },
-    "owner": "ltphongssvn"
+    "owner": "ltphongssvn",
+    "locales": {
+      "vi": "./locales/vi.json"
+    }
   }
 }

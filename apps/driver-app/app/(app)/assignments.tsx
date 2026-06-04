@@ -1,10 +1,19 @@
 // apps/driver-app/app/(app)/assignments.tsx
-// Driver assignments list. Each card shows the order plus ONE context-aware
-// action button (Nhận lệnh / Bắt đầu chuyến / Hoàn thành) driven by the
-// road_run state. Tapping it calls the delivery-lifecycle endpoint; on
+// Driver assignments list. Each card shows the order, a per-warehouse capture
+// (proof) button for EVERY stop, plus ONE context-aware lifecycle action button
+// (Nhận lệnh / Bắt đầu chuyến / Hoàn thành) driven by the road_run state.
+// Tapping the lifecycle button calls the delivery-lifecycle endpoint; on
 // success the list refetches so the card reflects the new state. The state
 // change is also what the dispatcher's board reads, so accepting an order
 // is the driver's acknowledgement back to dispatch.
+//
+// Per-warehouse capture: each stop row is a button that deep-links to the
+// manifest-photo proof screen for THAT warehouse, passing the capture
+// descriptor (stopKind + stopIndex) from presentAssignmentStops via
+// captureHrefForStop. This is how the driver photographs the weighing receipt
+// as pickup/delivery proof at each destination (loading 1..N + the unloading
+// warehouse). Passing the descriptor is required: a bare /capture link renders
+// the invalid_stop screen.
 //
 // Server state — the list and the lifecycle transitions — is owned by the
 // useAssignments TanStack Query hook: useQuery for the list, useMutation for
@@ -16,6 +25,7 @@ import { ActivityIndicator, FlatList, Pressable, Text, View, StyleSheet } from '
 import { nextDriverAction } from '../../src/assignments/assignment-action-policy.js';
 import { useAssignments } from '../../src/assignments/use-assignments.js';
 import { presentAssignmentStops } from '../../src/assignments/assignment-stops-presenter.js';
+import { captureHrefForStop } from '../../src/assignments/capture-href.js';
 import { formatVnDateUS } from '../../src/config/vn-locale.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
 // Road-run state -> badge colour. Unknown states fall back to slate.
@@ -91,26 +101,41 @@ export default function Assignments(): JSX.Element {
               </View>
               {item.customerName ? <Text style={styles.detail}>Khách hàng: {item.customerName}</Text> : null}
               {item.plate ? <Text style={styles.detail}>Số xe: {item.plate}</Text> : null}
-              {presentAssignmentStops(item.stops).map((st) => (
-                <Text key={st.key} style={styles.detail}>
-                  {st.label}: {st.warehouseName}{st.done ? ' ✓' : ''}
-                </Text>
-              ))}
+              {/* Each stop is a capture (proof) button: tapping opens the
+                  per-warehouse manifest-photo screen for that exact stop. */}
+              {presentAssignmentStops(item.stops).map((st) => {
+                const captureLabel =
+                  st.stopKind === 'loading'
+                    ? 'Chụp ảnh phiếu nhận hàng - ' + st.label
+                    : 'Chụp ảnh phiếu giao hàng - ' + st.label;
+                return (
+                  <Pressable
+                    key={st.key}
+                    onPress={() => {
+                      router.push(
+                        captureHrefForStop(item.transportOrderId, {
+                          stopKind: st.stopKind,
+                          stopIndex: st.stopIndex,
+                        }) as Href,
+                      );
+                    }}
+                    accessibilityRole={'button'}
+                    accessibilityLabel={captureLabel}
+                    style={({ pressed }) => [styles.stopButton, pressed && styles.stopButtonPressed]}
+                  >
+                    <Text style={styles.stopButtonText}>
+                      {st.label}: {st.warehouseName}{st.done ? ' ✓' : ''}
+                    </Text>
+                    <Text style={styles.stopButtonHint}>
+                      {st.stopKind === 'loading' ? 'Chụp ảnh phiếu nhận hàng' : 'Chụp ảnh phiếu giao hàng'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
               {item.plannedStartAt ? (
                 <Text style={styles.detail}>Khởi hành: {formatVnDateUS(item.plannedStartAt)}</Text>
               ) : null}
-              {actionKind === null ? (
-                <Pressable
-                  onPress={() => {
-                    router.push(('/capture?transportOrderId=' + item.transportOrderId) as Href);
-                  }}
-                  accessibilityRole={'button'}
-                  accessibilityLabel={'Chụp ảnh giao hàng'}
-                  style={({ pressed }) => [styles.captureBtn, pressed && styles.actionBtnPressed]}
-                >
-                  <Text style={styles.actionText}>Chụp ảnh giao hàng</Text>
-                </Pressable>
-              ) : (
+              {actionKind !== null ? (
                 <Pressable
                   onPress={() => { lifecycle.mutate({ roadRunId: item.roadRunId, kind: actionKind }); }}
                   disabled={isPending}
@@ -128,7 +153,7 @@ export default function Assignments(): JSX.Element {
                     <Text style={styles.actionText}>{action.label}</Text>
                   )}
                 </Pressable>
-              )}
+              ) : null}
             </View>
           );
         }}
@@ -181,6 +206,18 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: colors.white, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   detail: { ...typography.caption, color: colors.slate600, marginTop: 2 },
+  stopButton: {
+    backgroundColor: colors.slate100,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.slate200,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  stopButtonPressed: { backgroundColor: colors.slate200 },
+  stopButtonText: { ...typography.caption, color: colors.slate900, fontWeight: '600' },
+  stopButtonHint: { ...typography.caption, color: colors.indigo600, marginTop: 2 },
   actionBtn: {
     backgroundColor: colors.indigo600,
     borderRadius: radius.md,
