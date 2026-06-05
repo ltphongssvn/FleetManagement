@@ -1,6 +1,7 @@
 // apps/api/src/reference/reference.service.ts
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, notExists } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { driver, vehicle, customer, cargoType, warehouse, orderSequence } from '../database/schema/reference.js';
@@ -9,6 +10,13 @@ import { transportOrder, roadRun, roadRunTransportOrder } from '../database/sche
 import type { OperatorContext } from '../auth/operator-context.js';
 import type { ReferenceListResponse } from './reference.dto.js';
 import { isPgUniqueViolation } from '../common/pg-errors.js';
+// 2026 permanent business rule: a driver/truck bound to a road_run that has
+// NOT reached a terminal state is BUSY and must disappear from the dispatch
+// form dropdowns (Tài xế / Số xe) so a dispatcher cannot double-book it onto a
+// second simultaneous job. Completion = the road_run reaches state='completed'
+// (all pickup+delivery manifests captured); 'cancelled' also frees the pair.
+// Non-terminal states that keep a pair BUSY:
+const ROAD_RUN_NON_TERMINAL_STATES = ['planned', 'dispatched', 'started'] as const;
 export interface DriverVehicleAssignmentItem {
   readonly operatorId: string;
   readonly vehicleId: string;
@@ -30,6 +38,34 @@ export class ReferenceService {
       depotId: op.depotId, legalEntityId: op.legalEntityId,
     };
   }
+  // Anti-join predicate: TRUE when NO non-terminal road_run binds this OPERATOR
+  // in the same tenancy. Used to hide busy drivers from the Tài xế dropdown.
+  private operatorNotBusy(op: OperatorContext): SQL {
+    return notExists(
+      this.db
+        .select({ rr: roadRun.roadRunId })
+        .from(roadRun)
+        .where(and(
+          eq(roadRun.companyId, op.companyId),
+          eq(roadRun.assignedOperatorId, driver.operatorId),
+          inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
+        )),
+    );
+  }
+  // Anti-join predicate: TRUE when NO non-terminal road_run binds this ASSET
+  // (vehicle) in the same tenancy. Used to hide busy trucks from Số xe.
+  private assetNotBusy(op: OperatorContext): SQL {
+    return notExists(
+      this.db
+        .select({ rr: roadRun.roadRunId })
+        .from(roadRun)
+        .where(and(
+          eq(roadRun.companyId, op.companyId),
+          eq(roadRun.assignedAssetId, vehicle.vehicleId),
+          inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
+        )),
+    );
+  }
   async drivers(op: OperatorContext): Promise<ReferenceListResponse> {
     const rows = await this.db
       .selectDistinct({ id: driver.operatorId, label: driver.fullName })
@@ -44,6 +80,7 @@ export class ReferenceService {
         eq(vehicle.active, true),
         isNull(driverVehicleAssignment.revokedAt),
         isNotNull(driver.operatorId),
+        this.operatorNotBusy(op),
       ))
       .orderBy(asc(driver.fullName));
     const items = rows
@@ -73,6 +110,7 @@ export class ReferenceService {
         eq(driver.active, true),
         isNull(driverVehicleAssignment.revokedAt),
         isNotNull(driver.operatorId),
+        this.assetNotBusy(op),
       ))
       .orderBy(asc(vehicle.plate));
     return { items: rows };
@@ -108,6 +146,8 @@ export class ReferenceService {
         eq(driver.active, true),
         eq(vehicle.active, true),
         isNotNull(driver.operatorId),
+        this.operatorNotBusy(op),
+        this.assetNotBusy(op),
       ))
       .orderBy(asc(driver.operatorId));
     const items = rows
