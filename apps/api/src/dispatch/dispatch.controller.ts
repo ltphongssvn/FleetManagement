@@ -22,6 +22,21 @@
 // Khách hàng. customer.phone is selected on the SAME read-time customer join
 // (no extra query, no schema change). EXPAND-only/nullable: phone is null when
 // the customer has none, so old data and old code stay valid.
+//
+// Tài xế + Xe display (2026): permanent business rule — the board row carries
+// the assigned driver's full name (driverName) and the assigned vehicle's
+// plate (vehiclePlate), resolved SERVER-SIDE at read time. Previously ops-web
+// resolved assignedOperatorId/assignedAssetId to labels via a client-side
+// reference lookup built from the dispatch form's driver/vehicle dropdown
+// lists. After the hide-busy-driver-vehicle rule (PR #36) filters a now-busy
+// driver/vehicle OUT of those dropdown lists, the client lookup misses and the
+// Tài xế/Xe cells render em-dash. The fix mirrors the export service's proven
+// joins: LEFT JOIN driver ON (operator_id = assigned_operator_id, companyId)
+// and LEFT JOIN vehicle ON (vehicle_id = assigned_asset_id, companyId), so the
+// label is authoritative and independent of the pair-filtered dropdowns. The
+// companyId guard on each join prevents cross-tenant leakage; a missing
+// reference row yields null (ops-web renders em-dash). Projection schema is
+// unchanged — driver/vehicle are reference data owned by the same tenant.
 import { Controller, Get, Inject, UseGuards } from '@nestjs/common';
 import { and, eq, inArray } from 'drizzle-orm';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
@@ -29,9 +44,11 @@ import type { FleetDb } from '../database/database.module.js';
 import {
   customer,
   dispatchBoardProjection,
+  driver,
   roadRunTransportOrder,
   stop,
   transportOrder,
+  vehicle,
   warehouse,
 } from '../database/schema/index.js';
 import { JwtGuard } from '../auth/jwt.guard.js';
@@ -51,6 +68,8 @@ export interface DispatchBoardRow {
   readonly state: string;
   readonly assignedOperatorId: string | null;
   readonly assignedAssetId: string | null;
+  readonly driverName: string | null;
+  readonly vehiclePlate: string | null;
   readonly plannedStartAt: string | null;
   readonly stopCount: number;
   readonly transportOrderRefs: readonly string[];
@@ -66,9 +85,31 @@ export class DispatchController {
   async getBoard(
     @CurrentOperator() op: OperatorContext,
   ): Promise<{ rows: readonly DispatchBoardRow[] }> {
+    // Resolve driver/vehicle labels SERVER-SIDE via the same proven joins the
+    // export service uses, so the board never depends on the pair-filtered
+    // dispatch-form dropdown lists for label resolution. companyId guards each
+    // join against cross-tenant leakage; a missing reference row yields null.
     const rows = await this.db
-      .select()
+      .select({
+        roadRunId: dispatchBoardProjection.roadRunId,
+        state: dispatchBoardProjection.state,
+        assignedOperatorId: dispatchBoardProjection.assignedOperatorId,
+        assignedAssetId: dispatchBoardProjection.assignedAssetId,
+        plannedStartAt: dispatchBoardProjection.plannedStartAt,
+        stopCount: dispatchBoardProjection.stopCount,
+        transportOrderRefs: dispatchBoardProjection.transportOrderRefs,
+        driverName: driver.fullName,
+        vehiclePlate: vehicle.plate,
+      })
       .from(dispatchBoardProjection)
+      .leftJoin(driver, and(
+        eq(driver.operatorId, dispatchBoardProjection.assignedOperatorId),
+        eq(driver.companyId, op.companyId),
+      ))
+      .leftJoin(vehicle, and(
+        eq(vehicle.vehicleId, dispatchBoardProjection.assignedAssetId),
+        eq(vehicle.companyId, op.companyId),
+      ))
       .where(eq(dispatchBoardProjection.companyId, op.companyId))
       .orderBy(dispatchBoardProjection.plannedStartAt)
       .limit(DISPATCH_BOARD_MAX_ROWS);
@@ -138,6 +179,8 @@ export class DispatchController {
         state: r.state,
         assignedOperatorId: r.assignedOperatorId,
         assignedAssetId: r.assignedAssetId,
+        driverName: r.driverName,
+        vehiclePlate: r.vehiclePlate,
         plannedStartAt: r.plannedStartAt?.toISOString() ?? null,
         stopCount: r.stopCount,
         transportOrderRefs: r.transportOrderRefs,

@@ -22,6 +22,8 @@ const run: DispatchBoardRoadRun = {
   state: 'started',
   assignedOperatorId: 'op-1',
   assignedAssetId: 'truck-7',
+  driverName: null,
+  vehiclePlate: null,
   plannedStartAt: '2026-05-30T08:00:00.000Z',
   stopCount: 5,
   transportOrderRefs: ['XTT.05-001'],

@@ -22,6 +22,10 @@ const BoardRowSchema = z.object({
   state: z.enum(ROAD_RUN_STATES as unknown as [RoadRunState, ...RoadRunState[]]),
   assignedOperatorId: z.union([z.string().uuid(), z.null()]),
   assignedAssetId: z.union([z.string().uuid(), z.null()]),
+  // Server-resolved driver/vehicle labels (2026). Nullable + defaulted so an
+  // older API that does not yet return them still parses (EXPAND-only).
+  driverName: z.union([z.string(), z.null()]).default(null),
+  vehiclePlate: z.union([z.string(), z.null()]).default(null),
   plannedStartAt: z.union([z.string(), z.null()]),
   stopCount: z.number().int().nonnegative(),
   transportOrderRefs: z.array(z.string()).readonly(),
@@ -38,6 +42,8 @@ const PILOT_DATA = Object.freeze([
     state: 'planned' as const,
     assignedOperatorId: null,
     assignedAssetId: null,
+    driverName: null,
+    vehiclePlate: null,
     plannedStartAt: '2026-04-28T08:00:00.000Z',
     stopCount: 3,
     transportOrderRefs: Object.freeze(['TO-1001', 'TO-1002']),
@@ -50,6 +56,8 @@ const PILOT_DATA = Object.freeze([
     state: 'dispatched' as const,
     assignedOperatorId: '33333333-3333-4333-8333-333333333333',
     assignedAssetId: '44444444-4444-4444-8444-444444444444',
+    driverName: 'NGUYỄN VĂN MẪU',
+    vehiclePlate: '51A-12345',
     plannedStartAt: '2026-04-28T09:00:00.000Z',
     stopCount: 2,
     transportOrderRefs: Object.freeze(['TO-1003']),
@@ -81,9 +89,9 @@ export async function loadDispatchBoard(): Promise<readonly DispatchBoardRoadRun
     }
     return PILOT_DATA;
   }
-  const res = await fetch(`${apiUrl}/dispatch/board`, {
+  const res = await fetch(apiUrl + '/dispatch/board', {
     cache: 'no-store',
-    headers: { Authorization: `Bearer ${authToken}` },
+    headers: { Authorization: 'Bearer ' + authToken },
   });
   if (!res.ok) {
     // 401 from the API means the cookie's JWT is expired or invalid.
@@ -96,7 +104,7 @@ export async function loadDispatchBoard(): Promise<readonly DispatchBoardRoadRun
       return PILOT_DATA;
     }
     if (isProduction()) {
-      throw new Error(`Dispatch board fetch failed: ${String(res.status)} ${res.statusText}`);
+      throw new Error('Dispatch board fetch failed: ' + String(res.status) + ' ' + res.statusText);
     }
     return PILOT_DATA;
   }
@@ -104,7 +112,7 @@ export async function loadDispatchBoard(): Promise<readonly DispatchBoardRoadRun
   const parsed = BoardResponseSchema.safeParse(json);
   if (!parsed.success) {
     if (isProduction()) {
-      throw new Error(`Dispatch board response shape invalid: ${parsed.error.message}`);
+      throw new Error('Dispatch board response shape invalid: ' + parsed.error.message);
     }
     return PILOT_DATA;
   }
