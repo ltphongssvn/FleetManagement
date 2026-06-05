@@ -23,6 +23,7 @@ const ACTIONS: readonly ActionDef[] = [
   { label: 'Lịch sử chuyến (theo tháng)', href: '/history' },
   { label: 'Lệnh điều phối (trực tiếp)', href: '/commands' },
   { label: 'Chụp ảnh phiếu giao hàng', href: '/capture' },
+  { label: 'Đổi mật khẩu', href: '/change-password' },
 ];
 export default function Home(): JSX.Element {
   const view = presentSyncStatus(PLACEHOLDER_STATE, Date.now());
