@@ -110,3 +110,6 @@ reports/
 
 # curl debugging artifacts
 cookies.txt
+
+# E2E runtime handoff artifacts (driver-leg credentials emitted by dispatcher-to-driver spec)
+.e2e-artifacts/
