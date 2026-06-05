@@ -33,6 +33,7 @@ export default function AdminDriversPage(): JSX.Element {
   const [vehicleSelect, setVehicleSelect] = useState<Record<string, string>>({});
   const [deviceIdInput, setDeviceIdInput] = useState<Record<string, string>>({});
   const [phoneEdits, setPhoneEdits] = useState<Record<string, string>>({});
+  const [resetMsg, setResetMsg] = useState<Record<string, string>>({});
   const [vehicles, setVehicles] = useState<readonly VehicleOption[]>([]);
   const [createForm, setCreateForm] = useState<CreateFormState>(EMPTY_CREATE_FORM);
   const [busy, setBusy] = useState(false);
@@ -127,6 +128,20 @@ export default function AdminDriversPage(): JSX.Element {
       await refresh();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'update phone failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const handleResetPassword = async (row: DriverRow): Promise<void> => {
+    const next = window.prompt('Mật khẩu mới cho ' + row.fullName + ' (≥ 6 ký tự):', '');
+    if (next === null) return;
+    if (next.length < 6) { alert('Mật khẩu mới phải có ít nhất 6 ký tự'); return; }
+    setBusy(true);
+    try {
+      await client.resetPassword(row.driverId, next);
+      setResetMsg((m) => ({ ...m, [row.driverId]: 'Đã đặt lại mật khẩu' }));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'đặt lại mật khẩu thất bại');
     } finally {
       setBusy(false);
     }
@@ -292,6 +307,18 @@ export default function AdminDriversPage(): JSX.Element {
                   >
                     Xóa
                   </button>
+                  <button
+                    type='button'
+                    disabled={busy}
+                    aria-label={'Đặt lại mật khẩu của ' + row.fullName}
+                    onClick={() => { void handleResetPassword(row); }}
+                    className='rounded bg-amber-500 px-3 py-1 text-sm text-white hover:bg-amber-600 disabled:bg-gray-400'
+                  >
+                    Đặt lại mật khẩu
+                  </button>
+                  {resetMsg[row.driverId] !== undefined ? (
+                    <span className='self-center text-sm text-green-700'>{resetMsg[row.driverId]}</span>
+                  ) : null}
                 </div>
               </td>
             </tr>

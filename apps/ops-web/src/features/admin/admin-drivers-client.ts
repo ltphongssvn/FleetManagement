@@ -63,6 +63,18 @@ export class AdminDriversClient {
     });
     if (!res.ok) throw new Error(`PATCH /admin/drivers/:id HTTP ${String(res.status)}`);
   }
+  async resetPassword(driverId: string, newPassword: string): Promise<void> {
+    const token = await this.config.bearerToken();
+    const fetchFn = this.config.fetchFn ?? globalThis.fetch;
+    // Service-desk reset: POST {newPassword} only (no current password). The
+    // API is JWT-guarded and audit-logs the actor->target reset; 204 on success.
+    const res = await fetchFn(`/api/admin/drivers/${driverId}/reset-password`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newPassword }),
+    });
+    if (!res.ok) throw new Error(`POST /admin/drivers/:id/reset-password HTTP ${String(res.status)}`);
+  }
   async remove(driverId: string): Promise<void> {
     const token = await this.config.bearerToken();
     const fetchFn = this.config.fetchFn ?? globalThis.fetch;
