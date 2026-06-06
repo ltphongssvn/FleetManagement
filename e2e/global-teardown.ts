@@ -85,7 +85,15 @@ export default function globalTeardown(): void {
     // Soft-delete leftover active E2E vehicles (admins use active=false).
     'UPDATE vehicle SET active=false WHERE company_id=' + sq + COMPANY_ID + sq +
       ' AND plate LIKE ' + sq + 'E2E-%' + sq + ' AND active=true;',
-    // Soft-delete leftover active E2E drivers.
+    // Soft-delete leftover active E2E drivers. A deactivated driver is filtered
+    // out of the dispatcher form (active=true) and the admin list, so it cannot
+    // leak into the live app. This is soft-delete (active=false), NOT a hard
+    // DELETE: the driver row is the parent of passkey_credential (FK with no
+    // cascade) and deactivation is the reversible lifecycle state the rest of
+    // the app already understands. The separate manual Maestro driver-leg canary
+    // must therefore REACTIVATE its seed immediately before running (the in-
+    // process API assertion in dispatcher-to-driver-fulfillment.spec.ts is the
+    // deterministic dispatcher->driver proof; Maestro is a manual canary).
     'UPDATE driver SET active=false WHERE company_id=' + sq + COMPANY_ID + sq +
       ' AND full_name LIKE ' + sq + 'E2E%' + sq + ' AND active=true;',
   ];

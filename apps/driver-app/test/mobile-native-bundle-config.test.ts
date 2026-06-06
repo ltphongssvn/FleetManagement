@@ -1,78 +1,110 @@
 // apps/driver-app/test/mobile-native-bundle-config.test.ts
-// TDD: driver-app must serve a native Metro bundle reachable from iOS/Android
-// devices, and the Maestro flow must drive the real login journey reliably.
+// TDD: the driver-app Android E2E target is a RELEASE build (assembleRelease),
+// not Expo Go. A release build embeds the minified JS bundle in the APK and
+// EXCLUDES expo-dev-menu / expo-dev-launcher (debug-only), so there is no
+// dev-menu onboarding sheet, no Tools FAB, no ANR, and no Metro dependency.
+// The Maestro flow therefore launchApp's the real package id and drives the
+// login journey directly. These invariants pin the release-build contract.
+//
+// Why a release build (Maestro discussion #3041; expo/expo#44234): "Perform a
+// Release rather than a Debug build of your application, and it'll stop
+// bothering you. As a bonus, your tests will be more representative of what
+// your users see." The dev-client path was rejected on the WSL2 software-
+// rendered emulator (49-min build, 14-min cold dev-launcher, skipOnboarding not
+// surviving pm clear). See context/expo-go-vs-dev-build-vs-release-build-for-
+// maestro-e2e.md for the full decision record.
+//
+// SOURCE-OF-TRUTH RULE (ADR-005): android/ is gitignored (managed-workflow CNG;
+// prebuild regenerates it), so EVERY native release setting MUST be asserted
+// against its COMMITTED source -- app.json -- NOT against a prebuild-generated
+// artifact like android/gradle.properties (absent on a clean CI checkout ->
+// ENOENT). app.json expo.updates.enabled=false is what prebuild writes into
+// gradle.properties + the AndroidManifest meta-data, so app.json is the
+// reproducible source the test must validate.
 //
 // Verified invariants:
-//   1. EXPO_PUBLIC_API_URL must be LAN-reachable (not localhost / 127.0.0.1).
-//   2. REACT_NATIVE_PACKAGER_HOSTNAME must be set on the driver-app service.
-//   3. driver-app Dockerfile CMD must NOT pin Metro to --web only.
-//   4. driver-app Dockerfile CMD must NOT combine --offline with a host-mode flag.
-//   5. driver-app Dockerfile CMD must pass --offline.
-//   6. The Android Maestro flow openLink must target 10.0.2.2 (not localhost).
-//   7. The flow must wait for the login SUBTITLE via extendedWaitUntil.
-//   8. The flow must dismiss the Expo Go overlay with pressKey: back.
-//   9. driver-app Dockerfile CMD must pass --clear.
-//  10. The flow must hideKeyboard before submitting. After typing into the
-//      password field the soft keyboard covers the submit button and the
-//      post-login screen; without hideKeyboard the subsequent assert runs while
-//      the keyboard still occludes the view. (Maestro 2026 RN guidance.)
-//  11. The post-login marker "Trạng thái đồng bộ" must be awaited via
-//      extendedWaitUntil, not a bare assertVisible: login does a network
-//      round-trip then navigates, so the home screen is not instantly present.
+//   1. expo-build-properties enables usesCleartextTraffic so the release build
+//      may talk to the api over plain HTTP (Android blocks cleartext in release
+//      by default; debug/Expo Go permit it). Without this the login POST fails
+//      with "Network request failed" even though TCP connects.
+//   2. app.json expo.updates.enabled=false so the release app uses the EMBEDDED
+//      bundle and does not run the EAS Update OTA check on launch (which raced
+//      the cold start as "New update available..."). Asserted against app.json
+//      (committed), not android/gradle.properties (gitignored / prebuild-only).
+//   3. The Maestro flow launchApp's the real package id (com.fleetmanagement.
+//      driver) and does NOT openLink an exp:// URL (that is the Expo Go model).
+//   4. The flow does NOT tap a dev-menu "Continue" button: a release build has
+//      no expo-dev-menu, so the onboarding sheet never renders.
+//   5. The flow waits for the login SUBTITLE via extendedWaitUntil before
+//      interacting (the app still cold-boots; gate on the real mount signal).
+//   6. The flow hideKeyboard before submitting (the soft keyboard otherwise
+//      occludes the submit button / post-login screen).
+//   7. The post-login marker is awaited via extendedWaitUntil (login does a
+//      network round-trip then navigates; the home screen is not instant).
+//   8. EXPO_PUBLIC_API_URL on the driver-app service is LAN-reachable (not a
+//      bare localhost/127.0.0.1) for the Expo Go / web paths that still read it.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 const composePath = resolve(__dirname, '../../../compose.yaml');
-const dockerfilePath = resolve(__dirname, '../Dockerfile');
+const appJsonPath = resolve(__dirname, '../app.json');
 const maestroFlowPath = resolve(__dirname, '../.maestro/driver-login-assignment.yaml');
 const compose = readFileSync(composePath, 'utf8');
-const dockerfile = readFileSync(dockerfilePath, 'utf8');
+const appJson = readFileSync(appJsonPath, 'utf8');
 const maestroFlow = readFileSync(maestroFlowPath, 'utf8');
+interface ExpoConfig {
+  expo?: {
+    plugins?: unknown[];
+    updates?: { enabled?: boolean };
+  };
+}
+const expoCfg = JSON.parse(appJson) as ExpoConfig;
 function extractDriverAppBlock(yaml: string): string {
   const m = /^ {2}driver-app:[\s\S]*?(?=\n {0,2}\S|$(?![\s\S]))/m.exec(yaml);
   return m?.[0] ?? '';
 }
-function dockerfileCmd(df: string): string {
-  const m = /CMD\s+\[([^\]]+)\]/.exec(df);
+function appIdLine(flow: string): string {
+  const m = /^appId:\s*(\S+)/m.exec(flow);
   return m?.[1] ?? '';
 }
-function openLinkUrl(flow: string): string {
-  const m = /openLink:\s*(\S+)/.exec(flow);
-  return m?.[1] ?? '';
-}
-describe('driver-app mobile native bundle config', () => {
-  const block = extractDriverAppBlock(compose);
-  it('EXPO_PUBLIC_API_URL is LAN-reachable (not localhost / 127.0.0.1)', () => {
-    const m = /EXPO_PUBLIC_API_URL:\s*(\S+)/.exec(block);
-    expect(m, 'EXPO_PUBLIC_API_URL must be declared on driver-app service').not.toBeNull();
-    const url = m?.[1] ?? '';
-    expect(url).not.toMatch(/localhost/);
-    expect(url).not.toMatch(/127\.0\.0\.1/);
+describe('driver-app release-build E2E contract', () => {
+  it('app.json enables usesCleartextTraffic via expo-build-properties (release HTTP)', () => {
+    // Parse plugins and find expo-build-properties android.usesCleartextTraffic.
+    const plugins = expoCfg.expo?.plugins ?? [];
+    const bp = plugins.find(
+      (p): p is [string, { android?: { usesCleartextTraffic?: boolean } }] =>
+        Array.isArray(p) && p[0] === 'expo-build-properties',
+    );
+    expect(bp, 'expo-build-properties plugin must be configured').toBeDefined();
+    expect(
+      bp?.[1]?.android?.usesCleartextTraffic,
+      'android.usesCleartextTraffic must be true so the release APK can reach the api over HTTP',
+    ).toBe(true);
   });
-  it('REACT_NATIVE_PACKAGER_HOSTNAME is set so Metro advertises a reachable host', () => {
-    expect(block).toMatch(/REACT_NATIVE_PACKAGER_HOSTNAME:\s*\S+/);
+  it('app.json disables expo-updates so the release build uses the embedded bundle', () => {
+    // ADR-005: assert the COMMITTED source (app.json), not the gitignored
+    // prebuild-generated android/gradle.properties. prebuild writes
+    // expo.updates.enabled into gradle.properties + the AndroidManifest, so
+    // app.json is the reproducible source of truth on a clean CI checkout.
+    expect(
+      expoCfg.expo?.updates?.enabled,
+      'expo.updates.enabled=false avoids the OTA check that races the cold start',
+    ).toBe(false);
   });
-  it('Dockerfile CMD does not restrict Metro to --web only', () => {
-    const cmd = dockerfileCmd(dockerfile);
-    expect(cmd, 'Dockerfile must declare a CMD').not.toBe('');
-    expect(cmd).not.toMatch(/"--web"/);
+  it('Maestro flow launchApp the real package id (not Expo Go openLink)', () => {
+    expect(appIdLine(maestroFlow), 'appId must be the standalone package').toMatch(
+      /^com\.fleetmanagement\.driver$/,
+    );
+    expect(maestroFlow, 'release flow must launchApp').toMatch(/^- launchApp\b/m);
+    expect(maestroFlow, 'release flow must NOT openLink an exp:// URL (Expo Go model)').not.toMatch(
+      /openLink:/,
+    );
   });
-  it('Dockerfile CMD does not combine --offline with a host-mode flag', () => {
-    const cmd = dockerfileCmd(dockerfile);
-    expect(cmd).not.toMatch(/"--host"/);
-    expect(cmd).not.toMatch(/"--lan"/);
-    expect(cmd).not.toMatch(/"--tunnel"/);
-    expect(cmd).not.toMatch(/"--localhost"/);
-  });
-  it('Dockerfile CMD passes --offline so non-interactive Metro skips Expo account auth', () => {
-    const cmd = dockerfileCmd(dockerfile);
-    expect(cmd).toMatch(/"--offline"/);
-  });
-  it('Android Maestro flow openLink targets emulator-reachable 10.0.2.2 (not localhost)', () => {
-    const url = openLinkUrl(maestroFlow);
-    expect(url, 'flow must contain an openLink: exp:// URL').not.toBe('');
-    expect(url).not.toMatch(/localhost/);
-    expect(url).toMatch(/exp:\/\/10\.0\.2\.2:8081/);
+  it('flow does NOT tap a dev-menu Continue button (release has no dev-menu)', () => {
+    expect(
+      maestroFlow,
+      'a release build excludes expo-dev-menu, so there is no onboarding sheet to dismiss',
+    ).not.toMatch(/text:\s*["']Continue["']/);
   });
   it('flow waits for the login subtitle via extendedWaitUntil before interacting', () => {
     const ewuBlocks = maestroFlow.match(/extendedWaitUntil:[\s\S]*?(?=\n- |\n*$)/g) ?? [];
@@ -81,26 +113,6 @@ describe('driver-app mobile native bundle config', () => {
     );
     expect(subtitleWaited, 'subtitle must be guarded by extendedWaitUntil, not a bare assertVisible').toBe(true);
   });
-  it('flow dismisses the Expo Go SDK 55 dev-menu onboarding sheet by gating on Continue then tapping it', () => {
-    // SDK 55 (Expo changelog 2026; expo/expo#45640): first launch after a state
-    // wipe shows the dev-menu onboarding overlay ("This is the developer menu...")
-    // whose isOnboardingFinished flag resets on every `pm clear`. The community
-    // Maestro mitigation (expo/expo#45640, Maestro discussion #3041) is to TAP the
-    // sheet's dismiss button ("Continue" / "Got it!"), NOT pressKey: back — the
-    // sheet is a native overlay that a back-press fires THROUGH while it is still
-    // animating in during the cold bundle ("Bundling NN%") after a no-cache
-    // rebuild, leaving it occluding the login form. The flow must therefore GATE
-    // on the Continue button appearing (extendedWaitUntil absorbing the bundle
-    // download/compile) and then tap it. This matches driver-change-password.yaml.
-    const ewuBlocks = maestroFlow.match(/extendedWaitUntil:[\s\S]*?(?=\n- |\n*$)/g) ?? [];
-    const continueGated = ewuBlocks.some((b) => /visible:[\s\S]*?text:\s*["']Continue["']/.test(b));
-    expect(continueGated, 'flow must gate on the dev-menu Continue button via extendedWaitUntil before dismissing').toBe(true);
-    expect(maestroFlow, 'flow must tap Continue to dismiss the SDK 55 dev-menu onboarding sheet').toMatch(/tapOn:[\s\S]*?text:\s*["']Continue["']/);
-  });
-  it('Dockerfile CMD passes --clear so Metro serves a fresh bundle each start', () => {
-    const cmd = dockerfileCmd(dockerfile);
-    expect(cmd).toMatch(/"--clear"/);
-  });
   it('flow hides the keyboard before submitting login', () => {
     expect(maestroFlow, 'flow must hideKeyboard so the keyboard does not occlude submit / post-login screen').toMatch(/hideKeyboard/);
   });
@@ -108,5 +120,13 @@ describe('driver-app mobile native bundle config', () => {
     const ewuBlocks = maestroFlow.match(/extendedWaitUntil:[\s\S]*?(?=\n- |\n*$)/g) ?? [];
     const syncWaited = ewuBlocks.some((b) => /visible:\s*["']?Trạng thái đồng bộ/.test(b));
     expect(syncWaited, 'post-login Trạng thái đồng bộ must be awaited via extendedWaitUntil').toBe(true);
+  });
+  it('EXPO_PUBLIC_API_URL on driver-app is LAN-reachable (not localhost / 127.0.0.1)', () => {
+    const block = extractDriverAppBlock(compose);
+    const m = /EXPO_PUBLIC_API_URL:\s*(\S+)/.exec(block);
+    expect(m, 'EXPO_PUBLIC_API_URL must be declared on driver-app service').not.toBeNull();
+    const url = m?.[1] ?? '';
+    expect(url).not.toMatch(/localhost/);
+    expect(url).not.toMatch(/127\.0\.0\.1/);
   });
 });

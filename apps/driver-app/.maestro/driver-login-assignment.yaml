@@ -1,62 +1,58 @@
 # apps/driver-app/.maestro/driver-login-assignment.yaml
-# Maestro E2E flow (Expo): driver logs into the Fleet Driver app and reaches the
-# home screen, then opens Xem lệnh điều xe (assignments).
+# Maestro E2E flow (RELEASE build): driver logs into the Fleet Driver app and
+# reaches the home screen, then opens Xem lệnh điều xe (assignments).
 #
 # Critical user journey: a real driver (phone + password) authenticates and sees
 #   the driver home + can open their assignment list.
 #
-# Expo pattern (per docs.maestro.dev React Native): with Expo Go / dev client you
-# CANNOT launchApp with an http appId — the app runs inside the Expo container.
-# Use openLink with the Expo dev URL instead, run on an Android emulator or iOS
-# simulator. Local run:
-#   maestro test apps/driver-app/.maestro/driver-login-assignment.yaml
-# Credentials via env (no secret committed); for the real NGUYỄN THANH PHONG
-# assignment: MAESTRO_DRIVER_PHONE=4132102192 MAESTRO_DRIVER_PASSWORD=driver1pass  # pragma: allowlist secret
+# RELEASE-build model (NOT Expo Go): the JS bundle is embedded in the APK by
+# assembleRelease and expo-dev-menu/expo-dev-launcher are excluded (debug-only),
+# so the app is a standalone package. launchApp the real package id directly --
+# there is no Expo container, no exp:// openLink, no dev-menu onboarding sheet,
+# no Tools FAB, and no Metro dependency. This eliminates the dev-menu overlay
+# walls at the source (Maestro #3041; expo/expo#44234: "Perform a Release rather
+# than a Debug build... it'll stop bothering you").
 #
-# Host: the Android emulator reaches the dev host via the alias 10.0.2.2 (NOT
-# localhost — on the emulator "localhost" is the emulator itself, so the deep
-# link cannot reach Metro on the host and Expo Go stays on its home screen).
-# Metro serves on the host's :8081 (published by the driver-app container).
+# Build + run (see context/android-release-build-for-e2e-the-recipe-and-pitfalls.md):
+#   1. adb reverse tcp:3000 tcp:3000   (emulator localhost:3000 -> host api;
+#      the WSL2 emulator cannot reach 10.0.2.2 or the LAN IP, only adb reverse)
+#   2. build with EXPO_PUBLIC_API_URL=http://localhost:3000 baked in, plus
+#      usesCleartextTraffic (HTTP) and expo.updates.enabled=false (no OTA).
+#   3. adb uninstall com.fleetmanagement.driver && adb install app-release.apk
+#   4. seed an ACTIVE driver (e2e/dispatcher-to-driver-fulfillment.spec.ts) and
+#      ensure it stays active.toBe(true) when this flow runs (global-teardown
+#      deactivates E2E% drivers -- run this BEFORE teardown, or reactivate).
+#   5. MAESTRO_DRIVER_PHONE / MAESTRO_DRIVER_PASSWORD from the handoff artifact.
 #
 # Selectors: on Android, RN testID does NOT set a resource-id for TextInput, and
-# here the Pressable renders as android.widget.Button whose accessibilityLabel
-# (not testID) becomes the only accessibility identity — so these nodes have NO
-# resource-id. Maestro's `id:` matches the accessibility identifier (absent),
-# while `text:` matches text OR accessibility text. So phone, password, and the
-# submit button are all targeted by text: (their accessibilityLabel / label).
-appId: host.exp.Exponent
+# the submit Pressable renders as android.widget.Button whose accessibilityLabel
+# becomes its only accessibility identity. Maestro text: matches text OR
+# accessibility text, so phone, password, and submit are targeted by text:.
+appId: com.fleetmanagement.driver
 ---
-- openLink: exp://10.0.2.2:8081/--/?platform=android&dev=true&minify=false&disableOnboarding=1
-# Software-rendered emulator (CPU-only host) throws a transient System UI ANR
-# while the JS bundle loads. Dismiss it (tap Wait) if present.
+# Deterministic logged-out start: the RELEASE app persists the auth token in app
+# storage, so after a prior GREEN run launchApp lands on the HOME screen and the
+# login subtitle never appears (the failure this flow hit -- an INVALID RED:
+# stale session state, not a product gap). clearState wipes app data (shared
+# prefs + databases + accounts -- the persisted token) atomically with launch,
+# guaranteeing the flow always begins logged out. 2026 canonical Maestro idiom
+# for a clean start (Maestro docs; OneUptime); on Android clearState == pm clear.
+# Safe here: clears APP DATA only -- the baked EXPO_PUBLIC_API_URL + cleartext
+# flag live in the APK, and hide_error_dialogs + adb reverse are device-level.
+# No dev-menu re-trigger: this is a RELEASE build (dev-launcher excluded).
+- launchApp:
+    clearState: true
+# Software-rendered emulator can throw a transient System UI ANR during cold
+# boot; dismiss it (tap Wait) if present. Harmless no-op when absent.
 - tapOn:
     text: "Wait"
     optional: true
-# After a fresh no-cache rebuild Expo Go must download + compile the new bundle
-# ("Loading from ..." / "New update available, downloading..." / "Bundling NN%").
-# SDK 55 then shows the dev-menu ONBOARDING sheet ("This is the developer menu...")
-# OVER the login screen; its isOnboardingFinished flag resets on every `pm clear`
-# (expo/expo#45640). The sheet does not exist until the bundle finishes, so an
-# immediate dismissal fires THROUGH the loading screen and the sheet appears LATE,
-# occluding the login form. Per the community Maestro mitigation (expo/expo#45640;
-# Maestro discussion #3041), dismiss it by TAPPING its button, not pressKey: back.
-# Gate on the "Continue" button with a long timeout that absorbs the
-# download+compile, THEN tap it. Matches driver-change-password.yaml.
-- extendedWaitUntil:
-    visible:
-      text: "Continue"
-    timeout: 180000
-    optional: true
-- tapOn:
-    text: "Continue"
-    optional: true
-# Mount signal: wait for the login SUBTITLE, not "Fleet Driver". Expo Go shows
-# a "Fleet Driver" recent-project / splash label WHILE the JS bundle is still
-# downloading ("Bundling NN%"), so gating on it lets a bare assert fire before
-# the app mounts. The subtitle only renders once the real login screen mounts.
+# Mount signal: wait for the login SUBTITLE (not "Fleet Driver", which can show
+# during the brief cold-boot splash). The subtitle renders once the real login
+# screen mounts.
 - extendedWaitUntil:
     visible: "Đăng nhập để xem lệnh điều xe"
-    timeout: 180000
+    timeout: 120000
 - assertVisible: "Fleet Driver"
 - assertVisible: "Đăng nhập để xem lệnh điều xe"
 - tapOn:
