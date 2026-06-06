@@ -32,9 +32,24 @@ appId: host.exp.Exponent
 - tapOn:
     text: "Wait"
     optional: true
-# First-launch Expo Go shows a dev-menu / tools bottom-sheet OVER the loaded app,
-# occluding the login screen. Pressing the Android Back key dismisses it.
-- pressKey: back
+# After a fresh no-cache rebuild Expo Go must download + compile the new bundle
+# ("Loading from ..." / "New update available, downloading..." / "Bundling NN%").
+# SDK 55 then shows the dev-menu ONBOARDING sheet ("This is the developer menu...")
+# OVER the login screen; its isOnboardingFinished flag resets on every `pm clear`
+# (expo/expo#45640). The sheet does not exist until the bundle finishes, so an
+# immediate dismissal fires THROUGH the loading screen and the sheet appears LATE,
+# occluding the login form. Per the community Maestro mitigation (expo/expo#45640;
+# Maestro discussion #3041), dismiss it by TAPPING its button, not pressKey: back.
+# Gate on the "Continue" button with a long timeout that absorbs the
+# download+compile, THEN tap it. Matches driver-change-password.yaml.
+- extendedWaitUntil:
+    visible:
+      text: "Continue"
+    timeout: 180000
+    optional: true
+- tapOn:
+    text: "Continue"
+    optional: true
 # Mount signal: wait for the login SUBTITLE, not "Fleet Driver". Expo Go shows
 # a "Fleet Driver" recent-project / splash label WHILE the JS bundle is still
 # downloading ("Bundling NN%"), so gating on it lets a bare assert fire before
