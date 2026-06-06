@@ -11,17 +11,26 @@
 // bothering you. As a bonus, your tests will be more representative of what
 // your users see." The dev-client path was rejected on the WSL2 software-
 // rendered emulator (49-min build, 14-min cold dev-launcher, skipOnboarding not
-// surviving `pm clear`). See context/expo-go-vs-dev-build-vs-release-build-for-
+// surviving pm clear). See context/expo-go-vs-dev-build-vs-release-build-for-
 // maestro-e2e.md for the full decision record.
+//
+// SOURCE-OF-TRUTH RULE (ADR-005): android/ is gitignored (managed-workflow CNG;
+// prebuild regenerates it), so EVERY native release setting MUST be asserted
+// against its COMMITTED source -- app.json -- NOT against a prebuild-generated
+// artifact like android/gradle.properties (absent on a clean CI checkout ->
+// ENOENT). app.json expo.updates.enabled=false is what prebuild writes into
+// gradle.properties + the AndroidManifest meta-data, so app.json is the
+// reproducible source the test must validate.
 //
 // Verified invariants:
 //   1. expo-build-properties enables usesCleartextTraffic so the release build
 //      may talk to the api over plain HTTP (Android blocks cleartext in release
 //      by default; debug/Expo Go permit it). Without this the login POST fails
 //      with "Network request failed" even though TCP connects.
-//   2. android/gradle.properties sets expo.updates.enabled=false so the release
-//      app uses the EMBEDDED bundle and does not run the EAS Update OTA check on
-//      launch (which raced the cold start as "New update available...").
+//   2. app.json expo.updates.enabled=false so the release app uses the EMBEDDED
+//      bundle and does not run the EAS Update OTA check on launch (which raced
+//      the cold start as "New update available..."). Asserted against app.json
+//      (committed), not android/gradle.properties (gitignored / prebuild-only).
 //   3. The Maestro flow launchApp's the real package id (com.fleetmanagement.
 //      driver) and does NOT openLink an exp:// URL (that is the Expo Go model).
 //   4. The flow does NOT tap a dev-menu "Continue" button: a release build has
@@ -39,12 +48,17 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 const composePath = resolve(__dirname, '../../../compose.yaml');
 const appJsonPath = resolve(__dirname, '../app.json');
-const gradlePropsPath = resolve(__dirname, '../android/gradle.properties');
 const maestroFlowPath = resolve(__dirname, '../.maestro/driver-login-assignment.yaml');
 const compose = readFileSync(composePath, 'utf8');
 const appJson = readFileSync(appJsonPath, 'utf8');
-const gradleProps = readFileSync(gradlePropsPath, 'utf8');
 const maestroFlow = readFileSync(maestroFlowPath, 'utf8');
+interface ExpoConfig {
+  expo?: {
+    plugins?: unknown[];
+    updates?: { enabled?: boolean };
+  };
+}
+const expoCfg = JSON.parse(appJson) as ExpoConfig;
 function extractDriverAppBlock(yaml: string): string {
   const m = /^ {2}driver-app:[\s\S]*?(?=\n {0,2}\S|$(?![\s\S]))/m.exec(yaml);
   return m?.[0] ?? '';
@@ -56,10 +70,7 @@ function appIdLine(flow: string): string {
 describe('driver-app release-build E2E contract', () => {
   it('app.json enables usesCleartextTraffic via expo-build-properties (release HTTP)', () => {
     // Parse plugins and find expo-build-properties android.usesCleartextTraffic.
-    const cfg = JSON.parse(appJson) as {
-      expo?: { plugins?: unknown[] };
-    };
-    const plugins = cfg.expo?.plugins ?? [];
+    const plugins = expoCfg.expo?.plugins ?? [];
     const bp = plugins.find(
       (p): p is [string, { android?: { usesCleartextTraffic?: boolean } }] =>
         Array.isArray(p) && p[0] === 'expo-build-properties',
@@ -70,11 +81,15 @@ describe('driver-app release-build E2E contract', () => {
       'android.usesCleartextTraffic must be true so the release APK can reach the api over HTTP',
     ).toBe(true);
   });
-  it('gradle.properties disables expo-updates so the release build uses the embedded bundle', () => {
+  it('app.json disables expo-updates so the release build uses the embedded bundle', () => {
+    // ADR-005: assert the COMMITTED source (app.json), not the gitignored
+    // prebuild-generated android/gradle.properties. prebuild writes
+    // expo.updates.enabled into gradle.properties + the AndroidManifest, so
+    // app.json is the reproducible source of truth on a clean CI checkout.
     expect(
-      gradleProps,
+      expoCfg.expo?.updates?.enabled,
       'expo.updates.enabled=false avoids the OTA check that races the cold start',
-    ).toMatch(/^expo\.updates\.enabled=false$/m);
+    ).toBe(false);
   });
   it('Maestro flow launchApp the real package id (not Expo Go openLink)', () => {
     expect(appIdLine(maestroFlow), 'appId must be the standalone package').toMatch(
