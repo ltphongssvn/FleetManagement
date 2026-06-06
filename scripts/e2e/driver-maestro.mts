@@ -27,7 +27,7 @@ function log(section: string, msg: string): void {
   console.log('\n=== ' + section + ' ===\n' + msg);
 }
 
-async function seed(): Promise<{ phone: string; password: string }> {
+async function seed(): Promise<{ phone: string; password: string; orderRef: string; vehicleLabel: string }> {
   const r = await execa(
     'pnpm',
     ['exec', 'playwright', 'test', SPEC, '--reporter=list'],
@@ -38,9 +38,9 @@ async function seed(): Promise<{ phone: string; password: string }> {
     console.log(r.all);
     throw new Error('seed failed');
   }
-  const handoff = JSON.parse(readFileSync(join(WT, '.e2e-artifacts/driver-handoff.json'), 'utf8')) as { driverPhone: string; driverPassword: string };
+  const handoff = JSON.parse(readFileSync(join(WT, '.e2e-artifacts/driver-handoff.json'), 'utf8')) as { driverPhone: string; driverPassword: string; orderRef: string; vehicleLabel: string };
   log('seed', 'phone=' + handoff.driverPhone + ' pw=' + handoff.driverPassword);
-  return { phone: handoff.driverPhone, password: handoff.driverPassword };
+  return { phone: handoff.driverPhone, password: handoff.driverPassword, orderRef: handoff.orderRef, vehicleLabel: handoff.vehicleLabel };
 }
 
 async function reactivate(phone: string): Promise<void> {
@@ -67,8 +67,8 @@ async function ensureEmulatorSettings(): Promise<void> {
   log('hide_error_dialogs', (r.all ?? '').trim());
 }
 
-async function runFlow(phone: string, password: string): Promise<number> {
-  const r = await execa('maestro', ['test', FLOW], { cwd: WT, env: { ...env, MAESTRO_DRIVER_PHONE: phone, MAESTRO_DRIVER_PASSWORD: password }, reject: false, all: true });
+async function runFlow(phone: string, password: string, orderRef: string, vehicleLabel: string): Promise<number> {
+  const r = await execa('maestro', ['test', FLOW], { cwd: WT, env: { ...env, MAESTRO_DRIVER_PHONE: phone, MAESTRO_DRIVER_PASSWORD: password, MAESTRO_ORDER_REF: orderRef, MAESTRO_VEHICLE_LABEL: vehicleLabel }, reject: false, all: true });
   log('maestro', (r.all ?? '') + '\nRC=' + r.exitCode);
   return r.exitCode ?? 1;
 }
@@ -89,11 +89,11 @@ function copyScreens(): void {
 }
 
 async function main(): Promise<void> {
-  const { phone, password } = await seed();
+  const { phone, password, orderRef, vehicleLabel } = await seed();
   await reactivate(phone);
   await adbReverse();
   await ensureEmulatorSettings();
-  const rc = await runFlow(phone, password);
+  const rc = await runFlow(phone, password, orderRef, vehicleLabel);
   if (rc !== 0) {
     copyScreens();
     process.exitCode = 1;

@@ -1,0 +1,70 @@
+# apps/driver-app/.maestro/driver-assigned-order-detail.yaml
+# Maestro E2E flow (RELEASE build): the driver logs in and sees the order the
+# dispatcher created for them in the assignments list, with the SEEDED vehicle
+# and the planned run state.
+#
+# Critical user journey: a dispatcher-created order reaches the assigned driver
+#   end-to-end -- the driver opens Xem lệnh điều xe and the order appears with
+#   its ref, the assigned vehicle, and its state.
+# Business invariant: GET /transport-orders/assigned returns the road run bound
+#   to the driver operatorId (no state filter), so a planned order surfaces with
+#   its orderRef + Số xe label.
+#
+# SELF-SEEDED, run-order-independent (2026 standard; see
+# context/e2e-test-data-via-api-factory-not-manual-fixtures.md): this flow does
+# NOT hardcode a named order/customer/warehouse. The dispatcher->driver seed
+# (e2e/dispatcher-to-driver-fulfillment.spec.ts) creates a UNIQUE order bound to
+# a UNIQUE seeded vehicle and emits orderRef + vehicleLabel to the handoff
+# artifact; the harness passes them as MAESTRO_ORDER_REF + MAESTRO_VEHICLE_LABEL.
+# Only seed-CONTROLLED values are asserted: the order ref (row title), the
+# seeded vehicle (Số xe: <label>), and the planned state badge. Customer and
+# warehouse names are NOT set by the seed (the dispatcher form picks the first
+# option), so they are intentionally NOT asserted -- asserting them would
+# reintroduce the manual-fixture coupling this flow exists to remove.
+#
+# RELEASE-build model (NOT Expo Go): assembleRelease embeds the minified JS
+# bundle and EXCLUDES expo-dev-menu/expo-dev-launcher, so launchApp the real
+# package id directly -- no exp:// openLink, no dev-menu sheet, no Metro
+# dependency (Maestro #3041; expo/expo#44234; Maestro RN docs: "For EAS builds
+# or standalone apps, use launchApp with your Package Name").
+#
+# clearState:true = deterministic logged-out start (the release app persists the
+# auth token; on Android clearState == pm clear). Selectors: RN testID sets no
+# resource-id on TextInput and the submit Pressable is a Button whose
+# accessibilityLabel is its only identity, so inputs/buttons match by text:.
+appId: com.fleetmanagement.driver
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    text: "Wait"
+    optional: true
+- extendedWaitUntil:
+    visible: "Đăng nhập để xem lệnh điều xe"
+    timeout: 120000
+# --- Log in as the seeded driver (env from the handoff via the harness) ---
+- tapOn:
+    text: "Số điện thoại"
+- inputText: "${MAESTRO_DRIVER_PHONE ?? '0900000001'}"
+- tapOn:
+    text: "Mật khẩu"
+- inputText: "${MAESTRO_DRIVER_PASSWORD ?? 'driver1pass'}"
+- hideKeyboard
+- tapOn:
+    text: "Đăng nhập"
+- extendedWaitUntil:
+    visible: "Trạng thái đồng bộ"
+    timeout: 60000
+# --- Open the assignments list ---
+- tapOn:
+    text: "Xem lệnh điều xe"
+# The seeded order (orderRef from the handoff) loads from
+# /transport-orders/assigned. The row title is the order ref.
+- extendedWaitUntil:
+    visible: "${MAESTRO_ORDER_REF ?? 'XTT'}"
+    timeout: 60000
+- assertVisible: "${MAESTRO_ORDER_REF ?? 'XTT'}"
+# Run state: the dispatcher-created order starts planned.
+- assertVisible: "planned"
+# The seeded vehicle is bound to the road run (Số xe: <seeded label>).
+- assertVisible: "Số xe: ${MAESTRO_VEHICLE_LABEL ?? '62H'}"
