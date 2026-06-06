@@ -13,8 +13,10 @@ interface PluginEntry { 0: string; 1?: Record<string, unknown> }
 interface AppJson {
   expo: {
     plugins: (string | PluginEntry)[];
-    locales?: Record<string, string | Record<string, string>>;
-    ios?: { infoPlist?: Record<string, unknown> };
+    ios?: {
+      infoPlist?: Record<string, unknown>;
+      locales?: Record<string, string | Record<string, string>>;
+    };
   };
 }
 const app = JSON.parse(readFileSync(resolve(__dirname, '../app.json'), 'utf8')) as AppJson;
@@ -38,8 +40,13 @@ describe('@fleet/driver-app - expo-image-picker camera permission localization',
     expect(typeof cam, 'cameraPermission must be a string').toBe('string');
     expect(cam as string).toMatch(VN_DIACRITICS);
   });
-  it('declares Vietnamese (vi) as a supported native locale', () => {
-    expect(app.expo.locales, 'expo.locales must be declared').toBeDefined();
-    expect(Object.keys(app.expo.locales ?? {})).toContain('vi');
+  it('declares Vietnamese (vi) as a supported iOS native locale', () => {
+    // locales is scoped under ios: the NS* purpose strings localize the iOS
+    // system permission dialog. A top-level locales additionally emits orphan
+    // Android string resources (values-b+vi) with no base entry, failing
+    // lintVitalRelease with ExtraTranslation (expo/expo#38860, #40200). See
+    // docs/adr/005-android-e2e-release-build.md.
+    expect(app.expo.ios?.locales, 'expo.ios.locales must be declared').toBeDefined();
+    expect(Object.keys(app.expo.ios?.locales ?? {})).toContain('vi');
   });
 });

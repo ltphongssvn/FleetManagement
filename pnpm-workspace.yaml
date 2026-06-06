@@ -73,6 +73,7 @@ overrides:
   brace-expansion: ">=5.0.6"
   ws: ">=8.20.1"
   protobufjs: ">=8.2.0"
+  "@expo/dom-webview": "55.0.6"
   qs: ">=6.15.2"
 minimumReleaseAgeExclude:
   - tmp@0.2.6
