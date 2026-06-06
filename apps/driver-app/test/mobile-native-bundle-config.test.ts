@@ -81,9 +81,21 @@ describe('driver-app mobile native bundle config', () => {
     );
     expect(subtitleWaited, 'subtitle must be guarded by extendedWaitUntil, not a bare assertVisible').toBe(true);
   });
-  it('flow dismisses the Expo Go overlay with pressKey back (not tapping Continue)', () => {
-    expect(maestroFlow, 'flow must pressKey: back to close the Expo bottom-sheet').toMatch(/pressKey:\s*[Bb]ack/);
-    expect(maestroFlow, 'flow must NOT tap Continue (it re-triggers the tools menu)').not.toMatch(/text:\s*["']Continue["']/);
+  it('flow dismisses the Expo Go SDK 55 dev-menu onboarding sheet by gating on Continue then tapping it', () => {
+    // SDK 55 (Expo changelog 2026; expo/expo#45640): first launch after a state
+    // wipe shows the dev-menu onboarding overlay ("This is the developer menu...")
+    // whose isOnboardingFinished flag resets on every `pm clear`. The community
+    // Maestro mitigation (expo/expo#45640, Maestro discussion #3041) is to TAP the
+    // sheet's dismiss button ("Continue" / "Got it!"), NOT pressKey: back — the
+    // sheet is a native overlay that a back-press fires THROUGH while it is still
+    // animating in during the cold bundle ("Bundling NN%") after a no-cache
+    // rebuild, leaving it occluding the login form. The flow must therefore GATE
+    // on the Continue button appearing (extendedWaitUntil absorbing the bundle
+    // download/compile) and then tap it. This matches driver-change-password.yaml.
+    const ewuBlocks = maestroFlow.match(/extendedWaitUntil:[\s\S]*?(?=\n- |\n*$)/g) ?? [];
+    const continueGated = ewuBlocks.some((b) => /visible:[\s\S]*?text:\s*["']Continue["']/.test(b));
+    expect(continueGated, 'flow must gate on the dev-menu Continue button via extendedWaitUntil before dismissing').toBe(true);
+    expect(maestroFlow, 'flow must tap Continue to dismiss the SDK 55 dev-menu onboarding sheet').toMatch(/tapOn:[\s\S]*?text:\s*["']Continue["']/);
   });
   it('Dockerfile CMD passes --clear so Metro serves a fresh bundle each start', () => {
     const cmd = dockerfileCmd(dockerfile);
