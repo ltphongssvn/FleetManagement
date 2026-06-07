@@ -19,7 +19,7 @@ function formatDateTime(iso: string | null): string {
   if (iso === null) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' });
 }
 // T8: per-type slot labels mirroring the create form's fixed slots.
 function slotLabelsFor(stops: readonly ListAssignedRowStop[]): readonly string[] {
@@ -51,10 +51,6 @@ export function OrderReview({ order }: OrderReviewProps): JSX.Element {
     <section className='mx-auto w-full max-w-3xl rounded-2xl bg-white/95 p-6 shadow-sm'>
       <h1 className='text-2xl font-bold tracking-tight text-slate-900'>Chi tiết đơn vận chuyển</h1>
       <dl className='mt-6 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2'>
-        <div>
-          <dt className='font-medium text-slate-500'>Mã đơn (ID)</dt>
-          <dd data-testid='order-review-id' className='mt-1 font-mono text-slate-900 break-all'>{order.transportOrderId}</dd>
-        </div>
         <div>
           <dt className='font-medium text-slate-500'>Mã tham chiếu</dt>
           <dd data-testid='order-review-external-ref' className='mt-1 text-slate-900'>{dash(order.externalRef)}</dd>

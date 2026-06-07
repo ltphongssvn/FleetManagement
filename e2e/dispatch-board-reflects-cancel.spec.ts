@@ -14,8 +14,12 @@
 // contained, parallel-safe, and immune to cascade timing.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { dockerExecNode } from './helpers/docker-exec';
+
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
-async function mintDispatcherToken(): Promise<string> {
+const DOLLAR = String.fromCharCode(36);
+const BOARD_URL = new RegExp('/' + DOLLAR);
+
+function mintDispatcherToken(): string {
   const script =
     'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
     ',{method:' + JSON.stringify('POST') +
@@ -23,9 +27,10 @@ async function mintDispatcherToken(): Promise<string> {
     ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
   const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out || !out.includes('.')) throw new Error('Token mint failed: ' + out);
+  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
   return out.trim();
 }
+
 async function apiPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
@@ -34,6 +39,7 @@ async function apiPost<T>(api: APIRequestContext, token: string, path: string, b
   if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   return (await res.json()) as T;
 }
+
 interface SeededOrder {
   externalRef: string;
   transportOrderId: string;
@@ -41,10 +47,11 @@ interface SeededOrder {
   driverId: string;
   operatorId: string;
 }
+
 async function seedOrder(api: APIRequestContext): Promise<SeededOrder> {
-  const token = await mintDispatcherToken();
-  const ts = Date.now();
-  const phone = '09' + String(ts).slice(-8);
+  const token = mintDispatcherToken();
+  const ts = String(Date.now());
+  const phone = '09' + ts.slice(-8);
   const drv = await apiPost<{ driverId: string; operatorId: string }>(
     api, token, '/admin/drivers',
     { fullName: 'E2E-T5-CANCEL-' + ts, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
@@ -70,6 +77,7 @@ async function seedOrder(api: APIRequestContext): Promise<SeededOrder> {
     operatorId: drv.operatorId,
   };
 }
+
 async function login(page: Page): Promise<void> {
   await page.goto('/login');
   await page.getByLabel(/tên đăng nhập|username/i).fill('dispatcher');
@@ -77,16 +85,19 @@ async function login(page: Page): Promise<void> {
   await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
 }
+
 const seededOrders: SeededOrder[] = [];
+
 async function cleanupOrder(api: APIRequestContext, o: SeededOrder): Promise<void> {
   // Soft-deleting either endpoint cascades: revokes assignment AND cancels
   // any non-terminal transport_order. We soft-delete the vehicle (sufficient
   // to clean both the pair and the order in one call).
-  const token = await mintDispatcherToken();
+  const token = mintDispatcherToken();
   await api.delete(API_URL + '/reference/vehicles/' + o.vehicleId, {
     headers: { Authorization: 'Bearer ' + token },
   });
 }
+
 test.describe('dispatch board reflects cancellation (T5)', () => {
   test.afterEach(async ({ request }) => {
     while (seededOrders.length > 0) {
@@ -112,15 +123,18 @@ test.describe('dispatch board reflects cancellation (T5)', () => {
     await page.getByTestId('order-cancel-reason').selectOption('customer_request');
     await page.getByTestId('order-cancel-submit').click();
     // After a successful cancel the dispatcher should land on the board.
-    await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+    await expect(page).toHaveURL(BOARD_URL, { timeout: 10000 });
     await expect(page.getByRole('heading', { level: 1, name: 'Lệnh điều xe' })).toBeVisible();
-    // The cancelled row's Trạng thái cell must now show 'cancelled'.
-    // Use .first() to bypass strict-mode if the dispatch_board_projection
-    // contains stale rows for the same ref (e.g. residue from a prior CI run
-    // that crashed before its afterEach cleanup ran).
-    const rowLink = page.getByTestId('dispatch-board-row-' + order.externalRef).first();
-    await expect(rowLink).toBeVisible({ timeout: 10000 });
-    const row = page.locator('tr', { has: rowLink }).first();
-    await expect(row).toContainText('cancelled', { timeout: 10000 });
+    // Post-T(Khách hàng-column): the board REPLACED the Trạng thái column with
+    // Khách hàng. Cancelled orders REMAIN in dispatch_board_projection by design
+    // (the projection upserts state='cancelled'; only a tombstone deletes — see
+    // transport-orders.cancel.service.projection-event.integration.test.ts).
+    // So the dispatcher must still SEE the cancellation: the row carries a
+    // cancelled marker testid + the localized 'Đã hủy' badge, even though the
+    // standalone Trạng thái column is gone. Projection is eventually consistent,
+    // so poll the marker.
+    const cancelledMarker = page.getByTestId('dispatch-board-row-cancelled-' + order.externalRef);
+    await expect(cancelledMarker).toBeVisible({ timeout: 15000 });
+    await expect(cancelledMarker).toContainText('Đã hủy');
   });
 });

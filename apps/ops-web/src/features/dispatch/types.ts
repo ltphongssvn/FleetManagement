@@ -13,9 +13,19 @@ export interface DispatchBoardRoadRun {
   readonly state: RoadRunState;
   readonly assignedOperatorId: string | null;
   readonly assignedAssetId: string | null;
+  // Server-resolved labels (2026): the API board endpoint resolves the
+  // assigned driver/vehicle to driver.full_name and vehicle.plate via a
+  // company-scoped LEFT JOIN, so the board no longer depends on the
+  // pair-filtered dispatch-form dropdown lists to render Tài xế/Xe. Null when
+  // the reference row is missing (ops-web renders em-dash) or for the
+  // optimistic (pre-projection) row.
+  readonly driverName: string | null;
+  readonly vehiclePlate: string | null;
   readonly plannedStartAt: string | null;
   readonly stopCount: number;
   readonly transportOrderRefs: readonly string[];
+  readonly customerName: string | null;
+  readonly customerPhone: string | null;
   readonly stops: readonly DispatchBoardStop[];
 }
 // Mirrors API ListAssignedRow (apps/api/src/transport-orders/transport-orders.dto.ts).

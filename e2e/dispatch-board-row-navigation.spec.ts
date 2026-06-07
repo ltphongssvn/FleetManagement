@@ -24,11 +24,11 @@ import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
 const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
 const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'pw';
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
-const POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
+const _POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 
 
-async function mintDispatcherToken(): Promise<string> {
+function mintDispatcherToken(): string {
   const script =
     'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
     ',{method:' + JSON.stringify('POST') +
@@ -36,7 +36,7 @@ async function mintDispatcherToken(): Promise<string> {
     ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
   const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out || !out.includes('.')) throw new Error('Token mint failed: ' + out);
+  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
   return out.trim();
 }
 
@@ -62,7 +62,7 @@ async function adminPost<T>(api: APIRequestContext, token: string, path: string,
 }
 
 async function seedOrder(api: APIRequestContext): Promise<Seeded> {
-  const token = await mintDispatcherToken();
+  const token = mintDispatcherToken();
   const ts = Date.now();
   const phone = '09' + String(ts).slice(-8);
   const driverLabel = 'E2E DRIVER T5-NAV ' + String(ts);
@@ -107,7 +107,7 @@ function cleanupSeeded(seeded: Seeded): void {
     try { dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + rrId + sq + ';'); } catch { /* tolerate */ }
   }
   try { dockerPsql('DELETE FROM outbox WHERE company_id=' + sq + COMPANY_ID + sq + ' AND payload->>' + sq + 'externalRef' + sq + '=' + sq + seeded.externalRef + sq + ';'); } catch { /* tolerate */ }
-  try { dockerPsql('DELETE FROM dispatch_board_projection WHERE company_id=' + sq + COMPANY_ID + sq + ' AND external_ref=' + sq + seeded.externalRef + sq + ';'); } catch { /* tolerate */ }
+  try { dockerPsql('DELETE FROM dispatch_board_projection WHERE company_id=' + sq + COMPANY_ID + sq + ' AND transport_order_refs @> ' + sq + '["' + seeded.externalRef + '"]' + sq + '::jsonb;'); } catch { /* tolerate */ }
   try { dockerPsql('DELETE FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq + ' AND external_ref=' + sq + seeded.externalRef + sq + ';'); } catch { /* tolerate */ }
 }
 
@@ -139,7 +139,7 @@ test.describe.serial('dispatch board row navigation (T5)', () => {
     // so the first test isn't racing the outbox processor.
     const sq = String.fromCharCode(39);
     for (let i = 0; i < 30; i++) {
-      const r = dockerPsql('SELECT 1 FROM dispatch_board_projection WHERE company_id=' + sq + COMPANY_ID + sq + ' AND external_ref=' + sq + seeded.externalRef + sq + ' LIMIT 1;');
+      const r = dockerPsql('SELECT 1 FROM dispatch_board_projection WHERE company_id=' + sq + COMPANY_ID + sq + ' AND transport_order_refs @> ' + sq + '["' + seeded.externalRef + '"]' + sq + '::jsonb LIMIT 1;');
       if (r.stdout.trim() === '1') break;
       await new Promise<void>((resolve) => setTimeout(resolve, 500));
     }
@@ -168,6 +168,7 @@ test.describe.serial('dispatch board row navigation (T5)', () => {
     if (!seeded) throw new Error('seeded order missing');
     await login(page);
     await page.goto('/');
+    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
     const rowLink = page.getByTestId('dispatch-board-row-' + seeded.externalRef).first();
     await expect(rowLink).toBeVisible({ timeout: 10000 });
     await rowLink.click();

@@ -12,6 +12,7 @@ export interface ListInput { readonly companyId: string; }
 export interface DriverListRow {
   readonly driverId: string;
   readonly fullName: string;
+  readonly phone: string | null;
   readonly operatorId: string | null;
   readonly assignedVehicle: Vehicle | null;
   readonly assignmentId: string | null;
@@ -46,6 +47,7 @@ export class AdminDriversListService {
       result.push({
         driverId: d.driverId,
         fullName: d.fullName,
+        phone: d.phone,
         operatorId: d.operatorId,
         assignedVehicle,
         assignmentId: a?.assignmentId ?? null,

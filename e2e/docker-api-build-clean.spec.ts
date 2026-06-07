@@ -8,7 +8,7 @@ import { join } from 'node:path';
 test.describe.serial('docker api image builds without native-build errors', () => {
   test('Dockerfile.api build log contains no gyp/compiler/python errors', () => {
     const repoRoot = process.cwd();
-    const logPath = join(tmpdir(), 'fm-api-build-' + Date.now() + '.log');
+    const logPath = join(tmpdir(), 'fm-api-build-' + String(Date.now()) + '.log');
     try {
       execSync(
         'docker build --no-cache --progress=plain -f Dockerfile.api -t fm-api-test . > ' +

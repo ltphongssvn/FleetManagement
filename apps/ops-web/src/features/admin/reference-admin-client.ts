@@ -17,6 +17,7 @@ export type FetchFn = typeof globalThis.fetch;
 export interface ReferenceOption {
   readonly id: string;
   readonly label: string;
+  readonly meta?: Record<string, string | null>;
 }
 export type ReferenceSegment = 'customers' | 'cargo-types' | 'vehicles' | 'warehouses';
 async function extractServerMessage(res: Response): Promise<string | null> {
@@ -50,8 +51,10 @@ export class ReferenceAdminClient {
     const data = (await res.json()) as { items?: ReferenceOption[] };
     return data.items ?? [];
   }
-  async create(name: string, role?: string): Promise<ReferenceOption> {
-    const body = role === undefined ? { name } : { name, role };
+  async create(name: string, role?: string, phone?: string | null): Promise<ReferenceOption> {
+    const body: { name: string; role?: string; phone?: string | null } = { name };
+    if (role !== undefined) body.role = role;
+    if (phone !== undefined) body.phone = phone;
     const res = await this.fetchFn(this.base(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -60,11 +63,13 @@ export class ReferenceAdminClient {
     if (!res.ok) await failWithBestMessage(res, 'POST ' + this.base() + ' HTTP ' + String(res.status));
     return (await res.json()) as ReferenceOption;
   }
-  async update(id: string, name: string): Promise<void> {
+  async update(id: string, name: string, phone?: string | null): Promise<void> {
+    const body: { name: string; phone?: string | null } = { name };
+    if (phone !== undefined) body.phone = phone;
     const res = await this.fetchFn(this.base() + '/' + id, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) await failWithBestMessage(res, 'PATCH ' + this.base() + '/:id HTTP ' + String(res.status));
   }

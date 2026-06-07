@@ -26,7 +26,7 @@ import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 function sq39(): string { return String.fromCharCode(39); }
-async function mintDispatcherToken(): Promise<string> {
+function mintDispatcherToken(): string {
   const script =
     'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
     ',{method:' + JSON.stringify('POST') +
@@ -34,7 +34,7 @@ async function mintDispatcherToken(): Promise<string> {
     ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
   const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (out.length === 0 || out.includes('.') === false) throw new Error('Token mint failed: ' + out);
+  if (out.length === 0 || !out.includes('.')) throw new Error('Token mint failed: ' + out);
   return out.trim();
 }
 interface SeededPair {
@@ -61,13 +61,13 @@ async function adminPost<T>(api: APIRequestContext, token: string, path: string,
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
-  if (res.ok() === false) {
+  if (!res.ok()) {
     throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   }
   return (await res.json()) as T;
 }
 async function setupPair(api: APIRequestContext, suffix: string): Promise<SeededPair> {
-  const token = await mintDispatcherToken();
+  const token = mintDispatcherToken();
   const ts = Date.now();
   const phone = '09' + String(ts).slice(-8);
   const driverLabel = 'E2E DRIVER ' + suffix + ' ' + String(ts);
@@ -111,7 +111,7 @@ async function loginAsDispatcher(page: Page): Promise<void> {
   await page.getByLabel(/tên đăng nhập|username/i).fill('dispatcher');
   await page.getByLabel(/mật khẩu|password/i).fill('any-password');
   await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await page.waitForURL((url) => url.pathname.startsWith('/login') === false);
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'));
 }
 async function pickCombobox(page: Page, inputId: string, optionLabel: string): Promise<void> {
   // Hardening (testing-tdd.md): under serial multi-spec load the optimistic
@@ -230,7 +230,7 @@ test.describe('review view reflects create-order form (T7)', () => {
       expect(uuidRe.test(txt), tid + ' must not display a UUID: ' + txt).toBe(false);
     }
   });
-  test.afterAll(async () => {
+  test.afterAll(() => {
     test.setTimeout(60000);
     const sq = sq39();
     for (const ref of seededOrderRefs) {

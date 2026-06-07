@@ -33,7 +33,7 @@ import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 function sq39(): string { return String.fromCharCode(39); }
-async function mintDispatcherToken(): Promise<string> {
+function mintDispatcherToken(): string {
   const script =
     'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
     ',{method:' + JSON.stringify('POST') +
@@ -41,7 +41,7 @@ async function mintDispatcherToken(): Promise<string> {
     ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
   const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (out.length === 0 || out.includes('.') === false) throw new Error('Token mint failed: ' + out);
+  if (out.length === 0 || !out.includes('.')) throw new Error('Token mint failed: ' + out);
   return out.trim();
 }
 interface SeededPair {
@@ -58,7 +58,7 @@ async function adminPost<T>(api: APIRequestContext, token: string, path: string,
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
-  if (res.ok() === false) {
+  if (!res.ok()) {
     throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   }
   return (await res.json()) as T;
@@ -68,18 +68,18 @@ async function adminDelete(api: APIRequestContext, token: string, path: string, 
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
-  if (res.ok() === false) {
+  if (!res.ok()) {
     throw new Error('DELETE ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   }
 }
 async function listLabels(api: APIRequestContext, token: string, path: string): Promise<readonly string[]> {
   const res = await api.get(API_URL + path, { headers: { Authorization: 'Bearer ' + token } });
-  if (res.ok() === false) throw new Error('GET ' + path + ' failed ' + String(res.status()));
+  if (!res.ok()) throw new Error('GET ' + path + ' failed ' + String(res.status()));
   const json = (await res.json()) as { items: readonly { label: string }[] };
   return json.items.map((i) => i.label).sort();
 }
 async function setupPair(api: APIRequestContext, suffix: string): Promise<SeededPair> {
-  const token = await mintDispatcherToken();
+  const token = mintDispatcherToken();
   const ts = Date.now();
   const phone = '09' + String(ts).slice(-8);
   const driverLabel = 'E2E DRIVER ' + suffix + ' ' + String(ts);
@@ -110,7 +110,7 @@ async function loginAsDispatcher(page: Page): Promise<void> {
   await page.getByLabel(/tên đăng nhập|username/i).fill('dispatcher');
   await page.getByLabel(/mật khẩu|password/i).fill('any-password');
   await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await page.waitForURL((url) => url.pathname.startsWith('/login') === false);
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'));
 }
 test.describe.configure({ mode: 'serial' });
 test.describe('dispatch order protection chain (Layers 1-5)', () => {
@@ -168,7 +168,7 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
   });
   test.afterAll(async ({ request }) => {
     test.setTimeout(90000);
-    const token = await mintDispatcherToken();
+    const token = mintDispatcherToken();
     const vehiclesAfter = await listLabels(request, token, '/reference/vehicles');
     const driversAfter = await listLabels(request, token, '/reference/drivers');
     const leakedVehicles = vehiclesAfter.filter((l) => seededVehicleLabels.has(l));
@@ -193,6 +193,7 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
     );
     await loginAsDispatcher(page);
     await page.goto('/');
+    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
     const vehicleInput = page.locator('input#vehiclePlate');
     await vehicleInput.click();
     await vehicleInput.fill('E2E-');
@@ -304,7 +305,7 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
     expect(res.ok()).toBe(false);
     expect(res.status()).toBeGreaterThanOrEqual(400);
   });
-  test('Layer 5: DB NOT NULL constraint rejects road_run with NULL assigned_operator_id', async () => {
+  test('Layer 5: DB NOT NULL constraint rejects road_run with NULL assigned_operator_id', () => {
     const sq = sq39();
     const fakeVehicleUuid = '00000000-0000-0000-0000-0000000000ff';
     const sql =

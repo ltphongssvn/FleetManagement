@@ -120,6 +120,20 @@
       "when": 1780112881000,
       "tag": "20260529210801_transport_order_cargo_type_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1780112882000,
+      "tag": "0015_driver_password_reset_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1780492245104,
+      "tag": "0018_amused_firebird",
+      "breakpoints": true
     }
   ]
 }

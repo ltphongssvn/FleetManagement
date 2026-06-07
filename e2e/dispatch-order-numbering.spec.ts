@@ -30,10 +30,10 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
-const POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
+const _POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 const ORDER_NUMBER_REGEX = /^XTT\.(0[1-9]|1[0-2])-\d{3,}$/;
-async function mintToken(username: string): Promise<string> {
+function mintToken(username: string): string {
   const script =
     'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
     ',{method:' + JSON.stringify('POST') +
@@ -41,10 +41,10 @@ async function mintToken(username: string): Promise<string> {
     ',body:' + JSON.stringify('grant_type=password&username=' + username + '&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
   const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out || !out.includes('.')) throw new Error('Token mint failed for ' + username + ': ' + out);
+  if (!out.includes('.')) throw new Error('Token mint failed for ' + username + ': ' + out);
   return out.trim();
 }
-const mintDispatcherToken = (): Promise<string> => mintToken('dispatcher');
+const mintDispatcherToken = (): string => mintToken('dispatcher');
 interface SeededPair {
   driverId: string;
   operatorId: string;
@@ -80,7 +80,7 @@ async function listLabels(api: APIRequestContext, token: string, path: string): 
   return json.items.map((i) => i.label).sort();
 }
 async function setupPair(api: APIRequestContext, suffix: string): Promise<SeededPair> {
-  const token = await mintDispatcherToken();
+  const token = mintDispatcherToken();
   const ts = Date.now();
   const phone = '09' + String(ts).slice(-8);
   const driverLabel = 'E2E DRIVER ' + suffix + ' ' + String(ts);
@@ -136,7 +136,7 @@ function externalRefOf(transportOrderId: string): string {
   return r.stdout.trim();
 }
 function parseSeq(ref: string): number {
-  const m = ref.match(/^XTT\.\d{2}-(\d+)$/);
+  const m = /^XTT\.\d{2}-(\d+)$/.exec(ref);
   if (!m) throw new Error('externalRef does not match XTT.MM-NNN: ' + ref);
   return parseInt(m[1], 10);
 }
@@ -220,7 +220,7 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
   });
   test.afterAll(async ({ request }) => {
     test.setTimeout(90000);
-    const token = await mintDispatcherToken();
+    const token = mintDispatcherToken();
     const vehiclesAfter = await listLabels(request, token, '/reference/vehicles');
     const driversAfter = await listLabels(request, token, '/reference/drivers');
     const leakedVehicles = vehiclesAfter.filter((l) => seededVehicleLabels.has(l));
@@ -342,6 +342,7 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
     const beforeMax = parseInt(dockerPsql(beforeMaxSql).stdout.trim(), 10);
     await loginAsDispatcher(page);
     await page.goto('/');
+    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
     await page.locator('#plannedStartAt').fill('2026-06-01T08:00');
     const vehicleInput = page.locator('input#vehiclePlate');
     await vehicleInput.click();

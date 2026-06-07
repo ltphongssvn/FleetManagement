@@ -29,17 +29,17 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
 
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
-const POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
+const _POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 
 const RECOVERY_BUDGET_MS = 15_000;
-const ORDER_NUMBER_REGEX = /^XTT\.(0[1-9]|1[0-2])-\d{3,}$/;
+const _ORDER_NUMBER_REGEX = /^XTT\.(0[1-9]|1[0-2])-\d{3,}$/;
 // Unanchored variant for extracting the ref from banner text like
 // 'Số Lệnh: XTT.05-052' where the anchored regex would not match.
 const ORDER_NUMBER_EXTRACT_RE = /XTT\.(0[1-9]|1[0-2])-\d{3,}/;
 
 
-async function mintToken(username: string): Promise<string> {
+function mintToken(username: string): string {
   const script =
     'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
     ',{method:' + JSON.stringify('POST') +
@@ -47,7 +47,7 @@ async function mintToken(username: string): Promise<string> {
     ',body:' + JSON.stringify('grant_type=password&username=' + username + '&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
   const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out || !out.includes('.')) throw new Error('Token mint failed for ' + username + ': ' + out);
+  if (!out.includes('.')) throw new Error('Token mint failed for ' + username + ': ' + out);
   return out.trim();
 }
 
@@ -71,7 +71,7 @@ async function adminPost<T>(api: APIRequestContext, token: string, path: string,
 }
 
 async function setupPair(api: APIRequestContext, suffix: string): Promise<SeededPair> {
-  const token = await mintToken('dispatcher');
+  const token = mintToken('dispatcher');
   const ts = Date.now();
   const phone = '09' + String(ts).slice(-8);
   const driverLabel = 'E2E DRIVER ' + suffix + ' ' + String(ts);
@@ -185,6 +185,7 @@ test.describe('create-order button state recovery + no-leak (T3 follow-up)', () 
     try {
       await loginAsDispatcher(page);
       await page.goto('/');
+      await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
       await page.locator('#plannedStartAt').fill('2026-07-01T08:00');
       const vehicleInput = page.locator('input#vehiclePlate');
       await vehicleInput.click();
@@ -209,7 +210,7 @@ test.describe('create-order button state recovery + no-leak (T3 follow-up)', () 
       const banner = page.getByRole('status').filter({ hasText: /XTT\./ });
       await expect(banner).toBeVisible({ timeout: 10_000 });
       const bannerText = (await banner.textContent()) ?? '';
-      const match = bannerText.match(ORDER_NUMBER_EXTRACT_RE);
+      const match = ORDER_NUMBER_EXTRACT_RE.exec(bannerText);
       expect(match).not.toBeNull();
       if (match) seededOrderRefs.push(match[0]);
     } finally {

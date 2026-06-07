@@ -1,0 +1,94 @@
+# apps/driver-app/.maestro/driver-capture-proof-per-warehouse.yaml
+# Maestro E2E flow (RELEASE build): the driver opens their assigned order and
+# reaches the per-warehouse manifest-photo (proof) capture screen for both a
+# pickup (loading) stop and the delivery (unloading) stop, by TAPPING the stop
+# rows -- not deep-linking. Proves the capture screen renders the correct
+# proof title + camera button for each stop kind.
+#
+# Critical user journey: at each destination the driver taps the stop row on
+#   their assignment and photographs the weighing receipt as proof.
+# Business invariant: each stop row deep-links (in-app, via captureHrefForStop)
+#   to /capture with the stop descriptor; the capture screen shows
+#   'Phiếu nhận hàng - Kho nhận hàng N' (loading) / 'Phiếu giao hàng - Kho dỡ
+#   hàng' (unloading) + the 'Chụp ảnh' shutter.
+#
+# SELF-SEEDED, run-order-independent (2026 standard; see
+# context/e2e-test-data-via-api-factory-not-manual-fixtures.md): does NOT
+# hardcode XTT.06-001's UUID or named warehouses, and does NOT exp:// deep-link
+# to /capture (the Expo Go model). The seed
+# (e2e/dispatcher-to-driver-fulfillment.spec.ts) creates a UNIQUE order with one
+# pickup + one delivery stop bound to the seeded driver; this flow navigates by
+# TAPPING the stop rows. Only seed-INDEPENDENT capture-screen text is asserted:
+# the loading-1 title 'Phiếu nhận hàng - Kho nhận hàng 1', the unloading title
+# 'Phiếu giao hàng - Kho dỡ hàng', and the 'Chụp ảnh' shutter -- these are
+# fixed by the capture-screen presenter regardless of warehouse name, so no
+# manual-fixture coupling. (The dispatcher form creates one pickup + one
+# delivery, so loading stop #1 + the unloading stop are what exist to capture.)
+#
+# RELEASE-build model (NOT Expo Go): assembleRelease embeds the minified JS
+# bundle and EXCLUDES expo-dev-menu/expo-dev-launcher, so launchApp the real
+# package id directly -- no exp:// openLink, no dev-menu sheet, no Metro
+# dependency (Maestro #3041; expo/expo#44234; Maestro RN docs: standalone/EAS
+# builds use launchApp with the Package Name). In-app navigation is by TAP, not
+# custom-scheme deep link (Android 12+ custom schemes hit the disambiguation
+# dialog; the app navigates via captureHrefForStop on a tap).
+#
+# clearState:true = deterministic logged-out start (release app persists the
+# token; on Android clearState == pm clear). Selectors: RN testID sets no
+# resource-id on TextInput and the submit Pressable is a Button whose
+# accessibilityLabel is its only identity. Maestro text: is a FULL-ELEMENT regex,
+# so the capture button (label includes the warehouse name) is matched on its
+# seed-independent prefix with a trailing .*, and titles use a trailing .* too.
+appId: com.fleetmanagement.driver
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    text: "Wait"
+    optional: true
+- extendedWaitUntil:
+    visible: "Đăng nhập để xem lệnh điều xe"
+    timeout: 120000
+# --- Log in as the seeded driver (env from the handoff via the harness) ---
+- tapOn:
+    text: "Số điện thoại"
+- inputText: "${MAESTRO_DRIVER_PHONE ?? '0900000001'}"
+- tapOn:
+    text: "Mật khẩu"
+- inputText: "${MAESTRO_DRIVER_PASSWORD ?? 'driver1pass'}"
+- hideKeyboard
+- tapOn:
+    text: "Đăng nhập"
+- extendedWaitUntil:
+    visible: "Trạng thái đồng bộ"
+    timeout: 60000
+# --- Open the assignments list and wait for the seeded order to load ---
+- tapOn:
+    text: "Xem lệnh điều xe"
+- extendedWaitUntil:
+    visible: "${MAESTRO_ORDER_REF ?? 'XTT'}"
+    timeout: 60000
+# --- Pickup (loading) proof: tap the first loading capture button ---
+# The button label is 'Chụp ảnh phiếu nhận hàng - <warehouse>'; match on the
+# seed-independent prefix. Tapping navigates (captureHrefForStop) to the loading
+# stop #1 capture screen.
+- tapOn:
+    text: "Chụp ảnh phiếu nhận hàng.*"
+- extendedWaitUntil:
+    visible: "Phiếu nhận hàng - Kho nhận hàng 1.*"
+    timeout: 30000
+- assertVisible: "Chụp ảnh phiếu nhận hàng tại kho nhận hàng 1.*"
+- assertVisible: "Chụp ảnh"
+# Back to the assignments list to reach the delivery stop.
+- back
+- extendedWaitUntil:
+    visible: "${MAESTRO_ORDER_REF ?? 'XTT'}"
+    timeout: 30000
+# --- Delivery (unloading) proof: tap the delivery capture button ---
+- tapOn:
+    text: "Chụp ảnh phiếu giao hàng.*"
+- extendedWaitUntil:
+    visible: "Phiếu giao hàng - Kho dỡ hàng.*"
+    timeout: 30000
+- assertVisible: "Chụp ảnh phiếu giao hàng tại kho dỡ hàng.*"
+- assertVisible: "Chụp ảnh"

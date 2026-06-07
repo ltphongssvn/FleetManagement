@@ -29,9 +29,13 @@ const run: DispatchBoardRoadRun = {
   state: 'dispatched',
   assignedOperatorId: DRIVER_ID,
   assignedAssetId: VEHICLE_ID,
+  driverName: null,
+  vehiclePlate: null,
   plannedStartAt: '2026-04-28T09:00:00.000Z',
   stopCount: 2,
   transportOrderRefs: ['XT.0067'],
+  customerName: null,
+  customerPhone: null,
   stops: [],
 };
 describe('DispatchView - human-readable labels (T4)', () => {

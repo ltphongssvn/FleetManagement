@@ -30,7 +30,11 @@ describe('@fleet/api - CommandsController.issue (integration)', () => {
     const service = new (CommandsService as unknown as new (db: unknown) => CommandsService)(testDb.db);
     const policy = new (TenantPolicy as unknown as new (db: unknown) => TenantPolicy)(testDb.db);
     ctrl = new CommandsController(gateway, service, policy);
-  }, 30_000);
+    // Raised 30s -> 120s: under the pre-push 'pnpm -r ... test:coverage' load all
+    // workspace packages run coverage concurrently; this suite's beforeAll (PGlite
+    // migrations + gateway stub + 3 service constructors) intermittently exceeds
+    // 30s on a CPU-contended host (see context/03-testcontainers-hook-timeout).
+  }, 120_000);
   afterAll(async () => stopPgliteTestDb(testDb));
   beforeEach(async () => {
     await testDb.db.execute(sql`TRUNCATE TABLE outbox, fleet_audit_log, sync_change_feed, device_registry, road_run CASCADE`);

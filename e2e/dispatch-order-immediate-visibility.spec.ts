@@ -31,7 +31,7 @@ const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 // dispatch_board projection reconciles in the background via router.refresh.
 const ROW_VISIBILITY_BUDGET_MS = 500;
 
-async function mintDispatcherToken(): Promise<string> {
+function mintDispatcherToken(): string {
   const script =
     'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
     ',{method:' + JSON.stringify('POST') +
@@ -39,7 +39,7 @@ async function mintDispatcherToken(): Promise<string> {
     ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
   const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out || !out.includes('.')) throw new Error('Token mint failed: ' + out);
+  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
   return out.trim();
 }
 
@@ -59,7 +59,7 @@ interface Pair {
 }
 
 async function seedPair(api: APIRequestContext): Promise<Pair> {
-  const token = await mintDispatcherToken();
+  const token = mintDispatcherToken();
   // Add a random suffix so parallel workers (and --repeat-each) never collide
   // on the (company_id, full_name) unique constraint.
   const ts = Date.now();
@@ -154,7 +154,7 @@ test.describe('created order immediate visibility on dispatch board (T3)', () =>
     await expect(banner).toBeVisible({ timeout: 15_000 });
 
     const bannerText = (await banner.textContent()) ?? '';
-    const m = bannerText.match(/XTT\.[0-9]+-[0-9]+/);
+    const m = /XTT\.[0-9]+-[0-9]+/.exec(bannerText);
     if (!m) throw new Error('Banner did not contain an XTT external_ref: ' + bannerText);
     const externalRef = m[0];
     seededOrderRefs.push(externalRef);

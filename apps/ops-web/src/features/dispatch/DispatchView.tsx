@@ -21,29 +21,78 @@
 // the real projection row arrives. Removing the redundant useOptimistic stops
 // the loop while preserving immediate-visibility. (react.dev: effects must
 // reach a fixed point; nextjs.org prefetching: avoid churn on dynamic lists.)
+//
+// KH column (2026): permanent business rule — the Lệnh điều xe board shows a
+// Khách hàng (customer) column in place of the Trạng thái (state) column. The
+// dispatcher wants the customer name on the board, not the road-run state. The
+// customer name is supplied per row by the API board endpoint (read-time join
+// road_run_transport_order -> transport_order -> customer); the optimistic row
+// has no customer name yet (it is appended pre-projection) and renders em-dash
+// until the real projection row reconciles.
+//
+// KH phone (2026): permanent business rule — the Khách hàng cell also displays
+// the customer's Số điện thoại (phone) beneath the customer name. The phone is
+// supplied per row by the API board endpoint on the same customer join; it is
+// null for the optimistic (pre-projection) row and for customers with no phone,
+// in which case no phone line is rendered (no leak).
+//
+// Tài xế + Xe display (2026): permanent business rule — the Tài xế and Xe cells
+// display the SERVER-resolved driver full name (driverName) and vehicle plate
+// (vehiclePlate) the API board endpoint now returns. Previously these cells
+// resolved assignedOperatorId/assignedAssetId via a client-side reference
+// lookup (buildLookup) built from the dispatch form's driver/vehicle dropdown
+// lists. After the hide-busy-driver-vehicle rule (PR #36) filters a now-busy
+// driver/vehicle OUT of those dropdown lists, the client lookup missed and the
+// cells rendered em-dash. The server-resolved label is authoritative; the
+// client lookup remains only as a fallback for the optimistic (pre-projection)
+// row, whose driverName/vehiclePlate are still null but whose just-picked
+// driver/vehicle are present in the dropdown lookup at create time.
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import { useRouter } from 'next/navigation';
-import { ROAD_RUN_STATE_TONE } from '@fleet/domain';
 import { CreateOrderForm, type CreateOrderFormProps } from './CreateOrderForm';
 import { LogoutButton } from '../auth/LogoutButton';
 import { ExportOrdersExcelButton } from './ExportOrdersExcelButton';
-import { buildLookup, formatOperator, formatOrderRef, formatVehicle } from './labels';
+import { buildLookup, formatOrderRef } from './labels';
 import type { DispatchBoardRoadRun } from './types';
 import { StopSlotHeaders, StopSlotCells, STOP_SLOT_COL_COUNT } from './board-stops';
 const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
-  timeStyle: 'short',
 });
+const DASH = '—';
 function formatPlannedStart(iso: string | null): string {
-  if (iso === null) return '—';
+  if (iso === null) return DASH;
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : PLANNED_FORMATTER.format(d);
+  return Number.isNaN(d.getTime()) ? DASH : PLANNED_FORMATTER.format(d);
 }
-function StateBadge({ state }: { state: DispatchBoardRoadRun['state'] }): JSX.Element {
+function formatCustomer(name: string | null): string {
+  return name === null || name === '' ? DASH : name;
+}
+// Tài xế / Xe label resolution: prefer the SERVER-resolved label (authoritative,
+// independent of the pair-filtered dropdowns). Fall back to the client lookup
+// only when the server label is absent (the optimistic pre-projection row),
+// then em-dash so an opaque UUID never leaks.
+function resolveLabel(serverLabel: string | null, id: string | null, lookup: ReadonlyMap<string, string>): string {
+  if (serverLabel !== null && serverLabel !== '') return serverLabel;
+  if (id === null) return DASH;
+  return lookup.get(id) ?? DASH;
+}
+function CustomerCell({ name, phone, state, primaryRef }: { name: string | null; phone: string | null; state: string; primaryRef: string }): JSX.Element {
+  const hasPhone = phone !== null && phone !== '';
   return (
-    <span className={'inline-block rounded px-2 py-0.5 text-xs font-medium ' + ROAD_RUN_STATE_TONE[state]}>{state}</span>
+    <div className='flex flex-col'>
+      <span>
+        {formatCustomer(name)}
+        {state === 'cancelled' ? (
+          <span
+            data-testid={'dispatch-board-row-cancelled-' + primaryRef}
+            className='ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700'
+          >Đã hủy</span>
+        ) : null}
+      </span>
+      {hasPhone && <span className='text-xs text-slate-500'>{phone}</span>}
+    </div>
   );
 }
 function OrderRefCell({ refs }: { refs: readonly string[] }): JSX.Element {
@@ -68,9 +117,13 @@ function makeOptimisticRow(externalRef: string, opCtx: { operatorId: string; ass
     state: 'planned',
     assignedOperatorId: opCtx.operatorId,
     assignedAssetId: opCtx.assetId,
+    driverName: null,
+    vehiclePlate: null,
     plannedStartAt: null,
     stopCount: 1,
     transportOrderRefs: [externalRef],
+    customerName: null,
+    customerPhone: null,
     stops: [],
   };
 }
@@ -155,7 +208,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
             <thead>
               <tr className='border-b text-left'>
                 <th className='px-3 py-2'>Số lệnh</th>
-                <th className='px-3 py-2'>Trạng thái</th>
+                <th className='px-3 py-2'>Khách hàng</th>
                 <th className='px-3 py-2'>Tài xế</th>
                 <th className='px-3 py-2'>Xe</th>
                 <th className='px-3 py-2'>Ngày dự kiến</th>
@@ -167,12 +220,12 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
               {merged.map((r) => (
                 <tr key={r.roadRunId} data-testid={'dispatch-board-rr-' + r.roadRunId} className='border-b'>
                   <td className='px-3 py-2'><OrderRefCell refs={r.transportOrderRefs} /></td>
-                  <td className='px-3 py-2'><StateBadge state={r.state} /></td>
-                  <td className='px-3 py-2'>{formatOperator(r.assignedOperatorId, driverLookup)}</td>
-                  <td className='px-3 py-2'>{formatVehicle(r.assignedAssetId, vehicleLookup)}</td>
+                  <td className='px-3 py-2'><CustomerCell name={r.customerName} phone={r.customerPhone} state={r.state} primaryRef={formatOrderRef(r.transportOrderRefs)} /></td>
+                  <td className='px-3 py-2'>{resolveLabel(r.driverName, r.assignedOperatorId, driverLookup)}</td>
+                  <td className='px-3 py-2'>{resolveLabel(r.vehiclePlate, r.assignedAssetId, vehicleLookup)}</td>
                   <td className='px-3 py-2'>{formatPlannedStart(r.plannedStartAt)}</td>
                   <td className='px-3 py-2'>{r.stopCount}</td>
-                  <StopSlotCells primaryRef={r.transportOrderRefs[0] ?? r.roadRunId} stops={r.stops} />
+                  <StopSlotCells primaryRef={formatOrderRef(r.transportOrderRefs)} stops={r.stops} />
                 </tr>
               ))}
               {merged.length === 0 && (

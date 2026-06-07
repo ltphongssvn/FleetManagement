@@ -12,6 +12,20 @@
 // row is highlighted (data-testid + amber ring) and scrolled into view.
 // Vehicles (Số xe) uses scope='admin' so the listing returns ALL active
 // rows (not the pair-filtered subset the dispatch create-order form uses).
+//
+// 2026 (Khách hàng Số điện thoại): the customers section additionally
+// manages an optional VN domestic phone (e.g. 0901234567, no +84). The add
+// form has a Số điện thoại input; each customer row shows its phone and a
+// 'Sửa SĐT' control that reveals an inline phone field + 'Lưu' which calls
+// client.update(id, name, phone). Phone travels in ReferenceOption.meta.phone.
+//
+// ROW LABEL DOM CONTRACT (regression fix): the customer NAME is rendered as
+// the outer label-span's own text and the phone as a sibling <small> — NOT a
+// nested <span>. Other E2E specs read a row's name via 'li span'.first(); if
+// the phone were a nested <span>, '.first()' would still hit the name span,
+// but to keep the name the unambiguous first text node we avoid wrapping the
+// name in its own inner <span>. This prevents specs from reading 'name+phone'
+// concatenated (which created a corrupted 'E2E-KHACH-...<phone>' customer).
 'use client';
 import { useEffect, useRef, useState, type JSX } from 'react';
 import {
@@ -37,14 +51,22 @@ function extractConflictName(msg: string): string | null {
   const m = /["\u201C\u201D]([^"\u201C\u201D]+)["\u201C\u201D]\s*đã tồn tại/i.exec(msg);
   return m?.[1] ?? null;
 }
+function rowPhone(row: ReferenceOption): string {
+  const p = row.meta?.['phone'];
+  return typeof p === 'string' ? p : '';
+}
 function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
   const client = new ReferenceAdminClient(def.segment);
+  const isCustomers = def.segment === 'customers';
   const [rows, setRows] = useState<readonly ReferenceOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [conflictName, setConflictName] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
   const [busy, setBusy] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editPhone, setEditPhone] = useState('');
   const conflictRowRef = useRef<HTMLLIElement | null>(null);
   const refresh = async (preserveError = false): Promise<void> => {
     setLoading(true);
@@ -74,8 +96,10 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
     if (newName.trim().length === 0) return;
     setBusy(true);
     try {
-      await client.create(newName.trim(), def.role);
+      const phoneArg = isCustomers ? (newPhone.trim() === '' ? '' : newPhone.trim()) : undefined;
+      await client.create(newName.trim(), def.role, phoneArg);
       setNewName('');
+      setNewPhone('');
       await refresh();
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'create failed';
@@ -99,6 +123,24 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
       setBusy(false);
     }
   };
+  const startEdit = (id: string, phone: string): void => {
+    setEditingId(id);
+    setEditPhone(phone);
+  };
+  const saveEdit = async (id: string, label: string): Promise<void> => {
+    setBusy(true);
+    try {
+      await client.update(id, label, editPhone.trim() === '' ? '' : editPhone.trim());
+      setEditingId(null);
+      setEditPhone('');
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'update failed');
+      await refresh(true);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <section className='mb-8 rounded border bg-white p-4'>
       <h2 className='mb-3 text-lg font-semibold'>{def.title}</h2>
@@ -111,6 +153,16 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
           placeholder={def.addLabel}
           className='w-72 rounded border px-2 py-1 text-sm'
         />
+        {isCustomers ? (
+          <input
+            type='tel'
+            value={newPhone}
+            onChange={(e) => { setNewPhone(e.target.value); }}
+            placeholder='Số điện thoại'
+            aria-label='Số điện thoại'
+            className='w-48 rounded border px-2 py-1 text-sm'
+          />
+        ) : null}
         <button
           type='button'
           disabled={busy}
@@ -129,6 +181,10 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
           ) : null}
           {rows.map((row) => {
             const isConflict = conflictName !== null && row.label === conflictName;
+            const phone = rowPhone(row);
+            const isEditing = editingId === row.id;
+            const showPhoneText = isCustomers && !isEditing && phone !== '';
+            const showPhoneEdit = isCustomers && isEditing;
             return (
               <li
                 key={row.id}
@@ -139,8 +195,40 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
                   + (isConflict ? ' bg-yellow-50 ring-2 ring-amber-300 rounded px-2' : '')
                 }
               >
-                <span className='text-sm'>{row.label}</span>
+                <div className='flex items-center gap-3 text-sm'>
+                  <span>{row.label}</span>
+                  {showPhoneText ? <small className='text-gray-500'>{phone}</small> : null}
+                  {showPhoneEdit ? (
+                    <input
+                      type='tel'
+                      value={editPhone}
+                      onChange={(e) => { setEditPhone(e.target.value); }}
+                      aria-label='Số điện thoại'
+                      className='w-44 rounded border px-2 py-1 text-sm'
+                    />
+                  ) : null}
+                </div>
                 <span className='flex gap-2'>
+                  {isCustomers && !isEditing ? (
+                    <button
+                      type='button'
+                      disabled={busy}
+                      onClick={() => { startEdit(row.id, phone); }}
+                      className='rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600'
+                    >
+                      Sửa SĐT
+                    </button>
+                  ) : null}
+                  {showPhoneEdit ? (
+                    <button
+                      type='button'
+                      disabled={busy}
+                      onClick={() => { void saveEdit(row.id, row.label); }}
+                      className='rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700'
+                    >
+                      Lưu
+                    </button>
+                  ) : null}
                   <button
                     type='button'
                     disabled={busy}

@@ -20,10 +20,12 @@
 // Critical user journey: a dispatcher logs in, navigates the shell, opens
 // the create-order form, then visits the two admin pages. None of the
 // redundant controls listed above are visible on any of those screens.
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
 const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
 const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'dieuxe';
-async function login(page: import('@playwright/test').Page): Promise<void> {
+
+async function login(page: Page): Promise<void> {
   await page.goto('/login');
   await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
   await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
@@ -32,6 +34,7 @@ async function login(page: import('@playwright/test').Page): Promise<void> {
     page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click(),
   ]);
 }
+
 test.describe.serial('T5: redundant UI elements are absent from dispatcher experience', () => {
   test('AppShell nav does not render placeholder Đơn hàng or Báo cáo links', async ({ page }) => {
     await login(page);

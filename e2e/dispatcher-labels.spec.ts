@@ -3,16 +3,19 @@
 // by human-readable labels in the Lệnh điều xe table.
 // Outside-in TDD RED: written before labels.ts and DispatchBoard label
 // integration exist. Asserts the user-visible behavior, not implementation.
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
 const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
 const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'dieuxe';
-async function login(page: import('@playwright/test').Page): Promise<void> {
+
+async function login(page: Page): Promise<void> {
   await page.goto('/login');
   await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
   await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
   await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
   await expect(page).toHaveURL(/\/(login)?$/, { timeout: 15_000 });
 }
+
 test.describe.serial('dispatcher recognizes orders by human-readable labels', () => {
   test('table displays Số lệnh column with the order ref as primary key', async ({ page }) => {
     await login(page);
@@ -43,7 +46,7 @@ test.describe.serial('dispatcher recognizes orders by human-readable labels', ()
     const firstCell = board.locator('tbody tr').first().locator('td').first();
     const cellCount = await board.locator('tbody tr').count();
     test.skip(cellCount === 0, 'no dispatch rows seeded in this environment');
-    // Must look like a real order ref (e.g. XT.0067 / TO-1001 / E2E-...) — letters then a separator then digits — not an 8-hex slice like '0f1465bd'.
+    // Must look like a real order ref (e.g. XT.0067 / TO-1001 / E2E-...) -- letters then a separator then digits -- not an 8-hex slice like '0f1465bd'.
     await expect(firstCell).toHaveText(/[A-Z][A-Z0-9]*[-.\u002E][0-9A-Z-]+/);
   });
 });

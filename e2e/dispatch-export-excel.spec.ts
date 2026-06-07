@@ -63,11 +63,21 @@ function countExportLog(operatorId: string, trigger: string, dayKey: string): nu
   const n = parseInt(r.stdout.trim(), 10);
   return Number.isNaN(n) ? 0 : n;
 }
+async function waitForExportLogAtLeast(operatorId: string, trigger: string, dayKey: string, minCount: number, budgetMs = 10000): Promise<number> {
+  const deadline = Date.now() + budgetMs;
+  let n = countExportLog(operatorId, trigger, dayKey);
+  while (n < minCount && Date.now() < deadline) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 250));
+    n = countExportLog(operatorId, trigger, dayKey);
+  }
+  return n;
+}
 test.describe.configure({ mode: 'serial' });
 test.describe('dispatch export-excel backup chain (L1-L5)', () => {
   test('L1+L2+L3: manual export button downloads .xlsx with Vietnamese headers', async ({ page }) => {
     await loginAsDispatcher(page);
     await page.goto('/');
+    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
     const downloadPromise = page.waitForEvent('download');
     await page.getByRole('button', { name: /xu.t excel/i }).click();
     const download = await downloadPromise;
@@ -80,6 +90,7 @@ test.describe('dispatch export-excel backup chain (L1-L5)', () => {
     const before = countExportLog(DISPATCHER_OPERATOR_ID, 'manual', todayKeyVnTz());
     await loginAsDispatcher(page);
     await page.goto('/');
+    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
     const dl = page.waitForEvent('download');
     await page.getByRole('button', { name: /xu.t excel/i }).click();
     await dl;
@@ -89,7 +100,7 @@ test.describe('dispatch export-excel backup chain (L1-L5)', () => {
   test('L5: login triggers an idempotent daily login backup', async ({ page, context }) => {
     const dayKey = todayKeyVnTz();
     await loginAsDispatcher(page);
-    const afterFirst = countExportLog(DISPATCHER_OPERATOR_ID, 'login', dayKey);
+    const afterFirst = await waitForExportLogAtLeast(DISPATCHER_OPERATOR_ID, 'login', dayKey, 1);
     expect(afterFirst).toBeGreaterThanOrEqual(1);
     // Second login the same day -> idempotent, no new row.
     await context.clearCookies();
@@ -103,13 +114,15 @@ test.describe('dispatch export-excel backup chain (L1-L5)', () => {
     // day is a no-op (idempotent), so row count must remain unchanged.
     await loginAsDispatcher(page);
     await page.goto('/');
+    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
     await page.getByRole('main').getByRole('button', { name: /đăng xuất|log ?out|sign out/i }).click();
     await page.waitForURL(/\/login/);
-    const afterFirst = countExportLog(DISPATCHER_OPERATOR_ID, 'logout', dayKey);
+    const afterFirst = await waitForExportLogAtLeast(DISPATCHER_OPERATOR_ID, 'logout', dayKey, 1);
     expect(afterFirst).toBeGreaterThanOrEqual(1);
     await context.clearCookies();
     await loginAsDispatcher(page);
     await page.goto('/');
+    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
     await page.getByRole('main').getByRole('button', { name: /đăng xuất|log ?out|sign out/i }).click();
     await page.waitForURL(/\/login/);
     const afterSecond = countExportLog(DISPATCHER_OPERATOR_ID, 'logout', dayKey);

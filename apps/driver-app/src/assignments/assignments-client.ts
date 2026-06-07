@@ -5,7 +5,22 @@
 //     pre-grouped by VN-timezone month server-side (shared @fleet/domain
 //     helper) so web and mobile agree on month boundaries.
 // Both validate the wire shape at the boundary.
+//
+// Multi-stop parity (2026): the Lệnh điều xe - Tải thùng dispatch form creates
+// 1..N pickup warehouses + a delivery (multi-stop). The API ListAssignedRow
+// carries the full stops[] array; the mobile client preserves every stop in
+// sequence so the driver app workflow is a 1-1 match with the form. The legacy
+// pickupName/deliveryName remain (first pickup / last drop) for backward
+// compatibility, but stops[] is the authoritative ordered list.
 export type FetchFn = typeof globalThis.fetch;
+export interface StopRow {
+  readonly sequence: number;
+  readonly stopType: string;
+  readonly plannedAt: string | null;
+  readonly warehouseName: string | null;
+  readonly arrivedAt: string | null;
+  readonly departedAt: string | null;
+}
 export interface AssignmentRow {
   readonly transportOrderId: string;
   readonly roadRunId: string;
@@ -18,6 +33,7 @@ export interface AssignmentRow {
   readonly customerName: string | null;
   readonly pickupName: string | null;
   readonly deliveryName: string | null;
+  readonly stops: readonly StopRow[];
 }
 // A month bucket as returned by GET /transport-orders/trip-history.
 export interface TripHistoryMonth {
@@ -31,17 +47,37 @@ export interface AssignmentsClientConfig {
   readonly bearerToken: () => string | Promise<string>;
   readonly fetchFn?: FetchFn;
 }
+function nullableStr(v: unknown, name: string): string | null {
+  if (v === null) return null;
+  if (typeof v === 'string') return v;
+  throw new Error('AssignmentRow: ' + name + ' must be string|null');
+}
+function parseStop(raw: unknown): StopRow {
+  if (typeof raw !== 'object' || raw === null) throw new Error('StopRow: not an object');
+  const s = raw as Record<string, unknown>;
+  if (typeof s['sequence'] !== 'number') throw new Error('StopRow: sequence must be number');
+  if (typeof s['stopType'] !== 'string') throw new Error('StopRow: stopType must be string');
+  return {
+    sequence: s['sequence'],
+    stopType: s['stopType'],
+    plannedAt: nullableStr(s['plannedAt'], 'plannedAt'),
+    warehouseName: nullableStr(s['warehouseName'], 'warehouseName'),
+    arrivedAt: nullableStr(s['arrivedAt'], 'arrivedAt'),
+    departedAt: nullableStr(s['departedAt'], 'departedAt'),
+  };
+}
 function parseRow(raw: unknown): AssignmentRow {
   if (typeof raw !== 'object' || raw === null) throw new Error('AssignmentRow: not an object');
   const r = raw as Record<string, unknown>;
   if (typeof r['transportOrderId'] !== 'string') throw new Error('AssignmentRow: transportOrderId must be string');
   if (typeof r['roadRunId'] !== 'string') throw new Error('AssignmentRow: roadRunId must be string');
   if (typeof r['state'] !== 'string') throw new Error('AssignmentRow: state must be string');
-  const nullableStr = (v: unknown, name: string): string | null => {
-    if (v === null) return null;
-    if (typeof v === 'string') return v;
-    throw new Error('AssignmentRow: ' + name + ' must be string|null');
-  };
+  const rawStops = r['stops'];
+  let stops: readonly StopRow[] = [];
+  if (rawStops !== undefined) {
+    if (!Array.isArray(rawStops)) throw new Error('AssignmentRow: stops must be array');
+    stops = rawStops.map(parseStop);
+  }
   return {
     transportOrderId: r['transportOrderId'],
     roadRunId: r['roadRunId'],
@@ -54,6 +90,7 @@ function parseRow(raw: unknown): AssignmentRow {
     customerName: nullableStr(r['customerName'], 'customerName'),
     pickupName: nullableStr(r['pickupName'], 'pickupName'),
     deliveryName: nullableStr(r['deliveryName'], 'deliveryName'),
+    stops,
   };
 }
 function parseMonth(raw: unknown): TripHistoryMonth {

@@ -15,6 +15,7 @@ export interface VehicleInfo {
 export interface DriverRow {
   readonly driverId: string;
   readonly fullName: string;
+  readonly phone: string | null;
   readonly operatorId: string | null;
   readonly assignedVehicle: VehicleInfo | null;
   readonly assignmentId: string | null;

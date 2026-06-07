@@ -1,0 +1,78 @@
+# apps/driver-app/.maestro/driver-login-assignment.yaml
+# Maestro E2E flow (RELEASE build): driver logs into the Fleet Driver app and
+# reaches the home screen, then opens Xem lệnh điều xe (assignments).
+#
+# Critical user journey: a real driver (phone + password) authenticates and sees
+#   the driver home + can open their assignment list.
+#
+# RELEASE-build model (NOT Expo Go): the JS bundle is embedded in the APK by
+# assembleRelease and expo-dev-menu/expo-dev-launcher are excluded (debug-only),
+# so the app is a standalone package. launchApp the real package id directly --
+# there is no Expo container, no exp:// openLink, no dev-menu onboarding sheet,
+# no Tools FAB, and no Metro dependency. This eliminates the dev-menu overlay
+# walls at the source (Maestro #3041; expo/expo#44234: "Perform a Release rather
+# than a Debug build... it'll stop bothering you").
+#
+# Build + run (see context/android-release-build-for-e2e-the-recipe-and-pitfalls.md):
+#   1. adb reverse tcp:3000 tcp:3000   (emulator localhost:3000 -> host api;
+#      the WSL2 emulator cannot reach 10.0.2.2 or the LAN IP, only adb reverse)
+#   2. build with EXPO_PUBLIC_API_URL=http://localhost:3000 baked in, plus
+#      usesCleartextTraffic (HTTP) and expo.updates.enabled=false (no OTA).
+#   3. adb uninstall com.fleetmanagement.driver && adb install app-release.apk
+#   4. seed an ACTIVE driver (e2e/dispatcher-to-driver-fulfillment.spec.ts) and
+#      ensure it stays active.toBe(true) when this flow runs (global-teardown
+#      deactivates E2E% drivers -- run this BEFORE teardown, or reactivate).
+#   5. MAESTRO_DRIVER_PHONE / MAESTRO_DRIVER_PASSWORD from the handoff artifact.
+#
+# Selectors: on Android, RN testID does NOT set a resource-id for TextInput, and
+# the submit Pressable renders as android.widget.Button whose accessibilityLabel
+# becomes its only accessibility identity. Maestro text: matches text OR
+# accessibility text, so phone, password, and submit are targeted by text:.
+appId: com.fleetmanagement.driver
+---
+# Deterministic logged-out start: the RELEASE app persists the auth token in app
+# storage, so after a prior GREEN run launchApp lands on the HOME screen and the
+# login subtitle never appears (the failure this flow hit -- an INVALID RED:
+# stale session state, not a product gap). clearState wipes app data (shared
+# prefs + databases + accounts -- the persisted token) atomically with launch,
+# guaranteeing the flow always begins logged out. 2026 canonical Maestro idiom
+# for a clean start (Maestro docs; OneUptime); on Android clearState == pm clear.
+# Safe here: clears APP DATA only -- the baked EXPO_PUBLIC_API_URL + cleartext
+# flag live in the APK, and hide_error_dialogs + adb reverse are device-level.
+# No dev-menu re-trigger: this is a RELEASE build (dev-launcher excluded).
+- launchApp:
+    clearState: true
+# Software-rendered emulator can throw a transient System UI ANR during cold
+# boot; dismiss it (tap Wait) if present. Harmless no-op when absent.
+- tapOn:
+    text: "Wait"
+    optional: true
+# Mount signal: wait for the login SUBTITLE (not "Fleet Driver", which can show
+# during the brief cold-boot splash). The subtitle renders once the real login
+# screen mounts.
+- extendedWaitUntil:
+    visible: "Đăng nhập để xem lệnh điều xe"
+    timeout: 120000
+- assertVisible: "Fleet Driver"
+- assertVisible: "Đăng nhập để xem lệnh điều xe"
+- tapOn:
+    text: "Số điện thoại"
+- inputText: "${MAESTRO_DRIVER_PHONE ?? '0900000001'}"
+- tapOn:
+    text: "Mật khẩu"
+- inputText: "${MAESTRO_DRIVER_PASSWORD ?? 'driver1pass'}"
+# Hide the soft keyboard: after typing the password the keyboard covers the
+# submit button and the post-login screen, so the next assert would run against
+# an occluded view. hideKeyboard restores the full layout before submitting.
+- hideKeyboard
+- tapOn:
+    text: "Đăng nhập"
+# Post-login: login does a network round-trip to /auth/login then navigates to
+# the home screen, so the sync-status marker is not instantly present. Poll for
+# it via extendedWaitUntil instead of a bare assertVisible.
+- extendedWaitUntil:
+    visible: "Trạng thái đồng bộ"
+    timeout: 60000
+- assertVisible: "Xem lệnh điều xe"
+- tapOn:
+    text: "Xem lệnh điều xe"
