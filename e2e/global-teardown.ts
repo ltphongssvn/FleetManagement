@@ -96,6 +96,19 @@ export default function globalTeardown(): void {
     // deterministic dispatcher->driver proof; Maestro is a manual canary).
     'UPDATE driver SET active=false WHERE company_id=' + sq + COMPANY_ID + sq +
       ' AND full_name LIKE ' + sq + 'E2E%' + sq + ' AND active=true;',
+    // HARD-DELETE pass (anti-accumulation regression guard): soft-delete alone
+    // leaves inactive E2E rows piling up in the DB run after run (the leak
+    // assertion only checks active=true, so they pass yet never go away). Drop
+    // every E2E reference row AND its FK children so no E2E-* row survives a
+    // suite. Children of driver: passkey_credential + driver_vehicle_assignment
+    // (verified via pg_constraint). Order: children first, then parents.
+    'DELETE FROM passkey_credential WHERE driver_id IN (SELECT driver_id FROM driver WHERE company_id=' + sq + COMPANY_ID + sq + ' AND full_name LIKE ' + sq + 'E2E%' + sq + ');',
+    'DELETE FROM driver_vehicle_assignment WHERE company_id=' + sq + COMPANY_ID + sq + ' AND (driver_id IN (SELECT driver_id FROM driver WHERE full_name LIKE ' + sq + 'E2E%' + sq + ') OR vehicle_id IN (SELECT vehicle_id FROM vehicle WHERE plate LIKE ' + sq + 'E2E-%' + sq + '));',
+    'DELETE FROM driver WHERE company_id=' + sq + COMPANY_ID + sq + ' AND full_name LIKE ' + sq + 'E2E%' + sq + ';',
+    'DELETE FROM vehicle WHERE company_id=' + sq + COMPANY_ID + sq + ' AND plate LIKE ' + sq + 'E2E-%' + sq + ';',
+    'DELETE FROM customer WHERE company_id=' + sq + COMPANY_ID + sq + ' AND name LIKE ' + sq + 'E2E-%' + sq + ';',
+    'DELETE FROM cargo_type WHERE company_id=' + sq + COMPANY_ID + sq + ' AND name LIKE ' + sq + 'E2E-%' + sq + ';',
+    'DELETE FROM warehouse WHERE company_id=' + sq + COMPANY_ID + sq + ' AND name LIKE ' + sq + 'E2E-%' + sq + ';',
   ];
   for (const sql of cleanup) {
     const r = dockerPsql(sql);
