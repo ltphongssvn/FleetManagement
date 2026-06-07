@@ -2,6 +2,7 @@
 // Shared helper for integration tests: spin up Postgres + apply real drizzle
 // migrations. Eliminates inline CREATE TABLE drift.
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { Wait } from 'testcontainers';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
@@ -22,9 +23,23 @@ export interface MigratedTestDb {
 }
 
 export async function startMigratedTestDb(databaseName = 'fleet_test'): Promise<MigratedTestDb> {
+  // The postgres image performs an INIT RESTART when a custom database is
+  // requested: it first starts on a local-only socket to run initdb + create
+  // the database, then SIGHUP-reloads with the real pg_hba.conf that admits the
+  // Docker bridge gateway (172.17.0.1). The default port-open wait can return
+  // DURING that local-only phase, so a migrate connection races in before the
+  // real pg_hba.conf is live and Postgres answers with
+  //   FATAL: no pg_hba.conf entry for host "172.17.0.1", user "test"
+  // (a flake that only surfaces under the full parallel run). Gate readiness on
+  // the "ready to accept connections" log appearing TWICE (initdb bring-up, then
+  // the post-restart real serve), so the container is only ready once the real
+  // pg_hba.conf is active. See docker-library/postgres init-restart behavior.
   const container = await new PostgreSqlContainer(POSTGRES_IMAGE)
     .withDatabase(databaseName)
     .withReuse()
+    .withWaitStrategy(
+      Wait.forLogMessage(/database system is ready to accept connections/, 2),
+    )
     .start();
   const pool = new Pool({ connectionString: container.getConnectionUri() });
   const db = drizzle(pool, { schema, casing: 'snake_case' });
