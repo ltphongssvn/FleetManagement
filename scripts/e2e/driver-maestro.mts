@@ -123,6 +123,16 @@ async function cleanup(vehicleId: string): Promise<void> {
     'DELETE FROM transport_order WHERE transport_order_id IN (SELECT t.transport_order_id FROM transport_order t WHERE NOT EXISTS (SELECT 1 FROM road_run_transport_order x WHERE x.transport_order_id=t.transport_order_id) AND t.company_id=' + sq + COMPANY_ID + sq + ');',
     'DELETE FROM road_run WHERE assigned_asset_id=' + v + ';',
     'DELETE FROM dispatch_board_projection WHERE assigned_asset_id=' + v + ';',
+    // FULL-LIFECYCLE cleanup (anti-leak): the harness owns its seed end to end.
+    // global-teardown only runs after a Playwright suite, NOT after this
+    // standalone Maestro harness, so the seeded driver/vehicle/assignment would
+    // otherwise leak forever. Delete them here in FK order. passkey_credential
+    // has no cascade -> delete any children first (the seed creates none, but be
+    // safe). Driver is resolved via the assignment on this vehicle.
+    'DELETE FROM passkey_credential WHERE driver_id IN (SELECT driver_id FROM driver_vehicle_assignment WHERE vehicle_id=' + v + ');',
+    'DELETE FROM driver_vehicle_assignment WHERE vehicle_id=' + v + ';',
+    'DELETE FROM driver WHERE company_id=' + sq + COMPANY_ID + sq + ' AND full_name LIKE ' + sq + 'E2E%MAESTRO%' + sq + ';',
+    'DELETE FROM vehicle WHERE vehicle_id=' + v + ';',
   ];
   for (const s of stmts) {
     await execa('docker', ['exec', PG, 'psql', '-U', 'fleet', '-d', 'fleet', '-c', s], { reject: false, all: true });
