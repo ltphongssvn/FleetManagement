@@ -68,4 +68,26 @@ describe('AdminDriversPage refreshes Router Cache after a mutation', () => {
     await waitFor(() => { expect(assignMock).toHaveBeenCalledTimes(1); });
     await waitFor(() => { expect(refreshMock).toHaveBeenCalled(); });
   });
+
+  it('still refreshes Router Cache when assignment succeeds but device enroll fails', async () => {
+    // Root cause guard (MAI HIEN DIEU bug): assign + enroll were chained in one
+    // try; assign committed the driver-vehicle assignment but enrollDevice threw
+    // (device endpoint failed), the catch swallowed it, and router.refresh() was
+    // never reached -> the new pair persisted yet the dispatch form dropdowns
+    // stayed stale until a hard reload. The assignment's cache invalidation must
+    // NOT depend on the independent enroll step (2026: execute independent
+    // mutations independently; each invalidates on its own success).
+    assignMock.mockResolvedValue({ assignmentId: 'asg-2' });
+    enrollMock.mockRejectedValue(new Error('enroll endpoint 500'));
+    render(<AdminDriversPage />);
+    await screen.findByText('Driver Alpha');
+    const select = screen.getByRole('combobox');
+    fireEvent.change(select, { target: { value: 'v1' } });
+    const udid = screen.getByPlaceholderText(/UDID|thiết bị/i);
+    fireEvent.change(udid, { target: { value: 'UDID-123' } });
+    fireEvent.click(screen.getByRole('button', { name: /Phân công & đăng ký/i }));
+    await waitFor(() => { expect(assignMock).toHaveBeenCalledTimes(1); });
+    // refresh MUST fire despite the enroll rejection
+    await waitFor(() => { expect(refreshMock).toHaveBeenCalled(); });
+  });
 });

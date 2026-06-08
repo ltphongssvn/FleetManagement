@@ -93,13 +93,30 @@ export default function AdminDriversPage(): JSX.Element {
     const deviceId = deviceIdInput[driverId];
     if (vehicleId === undefined || vehicleId.length === 0) { alert('Vui lòng chọn xe'); return; }
     if (deviceId === undefined || deviceId.length === 0) { alert('Vui lòng nhập mã thiết bị (UDID)'); return; }
+    // Assign and enroll are INDEPENDENT operations. The assignment is what feeds
+    // the dispatch form's Số xe / Tài xế dropdowns, so its cache invalidation
+    // must NOT depend on the enroll step. Previously both were chained in one
+    // try: assign committed, enrollDevice threw, the catch swallowed it, and
+    // router.refresh() never ran -> the new pair persisted but the dispatch form
+    // stayed stale until a hard reload (MAI HIEN DIEU bug). Fix: refresh right
+    // after assign succeeds; run enroll in its OWN try/catch so its failure
+    // surfaces its own error without rolling back or blocking the already-fired
+    // assignment refresh. (2026: execute independent mutations independently;
+    // each invalidates the cache on its own success.)
     try {
       await client.assign({ driverId, vehicleId });
-      await client.enrollDevice({ driverId, udid: deviceId, platform: 'ios' });
       await refresh();
       router.refresh();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'assign failed');
+      return;
+    }
+    try {
+      await client.enrollDevice({ driverId, udid: deviceId, platform: 'ios' });
+      await refresh();
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'device enroll failed');
     }
   };
   const handleRevoke = async (assignmentId: string): Promise<void> => {
