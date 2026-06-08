@@ -21,9 +21,13 @@ const revokeMock = vi.fn();
 const removeMock = vi.fn();
 const createMock = vi.fn();
 const refreshMock = vi.fn();
+const { revalidateDispatchMock } = vi.hoisted(() => ({ revalidateDispatchMock: vi.fn() }));
 
 vi.mock('next/navigation', () => ({
   useRouter: (): { refresh: () => void } => ({ refresh: refreshMock }),
+}));
+vi.mock('@/features/admin/revalidate-dispatch.action', () => ({
+  revalidateDispatch: revalidateDispatchMock,
 }));
 vi.mock('@/features/admin/admin-drivers-client', () => ({
   AdminDriversClient: class {
@@ -67,5 +71,35 @@ describe('AdminDriversPage refreshes Router Cache after a mutation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Phân công & đăng ký/i }));
     await waitFor(() => { expect(assignMock).toHaveBeenCalledTimes(1); });
     await waitFor(() => { expect(refreshMock).toHaveBeenCalled(); });
+  });
+
+  it('still refreshes Router Cache when assignment succeeds but device enroll fails', async () => {
+    // Root cause guard (MAI HIEN DIEU bug): assign + enroll were chained in one
+    // try; assign committed the driver-vehicle assignment but enrollDevice threw
+    // (device endpoint failed), the catch swallowed it, and router.refresh() was
+    // never reached -> the new pair persisted yet the dispatch form dropdowns
+    // stayed stale until a hard reload. The assignment's cache invalidation must
+    // NOT depend on the independent enroll step (2026: execute independent
+    // mutations independently; each invalidates on its own success).
+    assignMock.mockResolvedValue({ assignmentId: 'asg-2' });
+    enrollMock.mockRejectedValue(new Error('enroll endpoint 500'));
+    render(<AdminDriversPage />);
+    await screen.findByText('Driver Alpha');
+    const select = screen.getByRole('combobox');
+    fireEvent.change(select, { target: { value: 'v1' } });
+    const udid = screen.getByPlaceholderText(/UDID|thiết bị/i);
+    fireEvent.change(udid, { target: { value: 'UDID-123' } });
+    fireEvent.click(screen.getByRole('button', { name: /Phân công & đăng ký/i }));
+    await waitFor(() => { expect(assignMock).toHaveBeenCalledTimes(1); });
+    // refresh MUST fire despite the enroll rejection
+    await waitFor(() => { expect(refreshMock).toHaveBeenCalled(); });
+    // CROSS-ROUTE: the dispatch form is rendered by app/page.tsx (route '/'),
+    // a DIFFERENT route from /admin/drivers. router.refresh() only clears the
+    // CURRENT route's client cache, so it cannot refresh the dispatch dropdowns
+    // (the MAI HIỀN DIỆU bug persisted after router.refresh alone). The handler
+    // must also call the revalidateDispatch server action, which runs
+    // revalidatePath('/','layout') server-side to bust the dispatch route's
+    // cache cross-route.
+    await waitFor(() => { expect(revalidateDispatchMock).toHaveBeenCalled(); });
   });
 });

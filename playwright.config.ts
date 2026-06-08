@@ -16,7 +16,14 @@ export default defineConfig({
   globalTeardown: './e2e/global-teardown.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // CI: 2 retries. Local: 1 retry (was 0). The full-suite local run contends for
+  // CPU/network when the ~5min --no-cache docker-build spec overlaps seed-heavy
+  // specs, causing transient ECONNRESET / ERR_CONNECTION_REFUSED on api.post /
+  // page.goto (resource-affected flakiness). One retry re-runs the test in a
+  // fresh worker+browser, absorbing the transient drop; kept low (1) so genuine
+  // flakiness still surfaces (Playwright tags retried passes as "flaky"). 2026
+  // best practice: retries for transient network errors, low count, don't mask.
+  retries: process.env.CI ? 2 : 1,
   workers: 1,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
