@@ -33,6 +33,7 @@ import {
   type ReferenceOption,
   type ReferenceSegment,
 } from '../../../features/admin/reference-admin-client';
+import { useRefetchOnFocus } from '../../../lib/use-refetch-on-focus';
 interface SectionDef {
   segment: ReferenceSegment;
   title: string;
@@ -84,6 +85,13 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
     }
   };
   useEffect(() => { void refresh(); }, []);
+  // Refetch-on-focus (2026 professional default), via the shared hook so each
+  // section behaves like every other server-state surface. Each ReferenceSection
+  // owns its own rows in client state (client.list() -> useState), NOT via RSC
+  // props, so re-run this section's own refresh() on focus: a reference change
+  // made elsewhere (add/remove a customer/cargo/vehicle/warehouse on another tab
+  // or device, or a vehicle (un)pairing) appears here without a manual reload.
+  useRefetchOnFocus(() => { void refresh(); });
   useEffect(() => {
     if (conflictName !== null && conflictRowRef.current !== null) {
       const el = conflictRowRef.current;

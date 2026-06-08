@@ -11,6 +11,7 @@ import { useEffect, useReducer, useState, type JSX } from 'react';
 import { useRouter } from 'next/navigation';
 import { revalidateDispatch } from '../../../features/admin/revalidate-dispatch.action';
 import { AdminDriversClient } from '../../../features/admin/admin-drivers-client';
+import { useRefetchOnFocus } from '../../../lib/use-refetch-on-focus';
 import {
   reduceAdminDriversState,
   type DriverRow,
@@ -52,6 +53,13 @@ export default function AdminDriversPage(): JSX.Element {
       dispatch({ type: 'error', message: e instanceof Error ? e.message : 'load failed' });
     }
   };
+  // Refetch-on-focus (2026 professional default), via the shared hook so this
+  // page behaves like every other server-state surface. This page owns its
+  // rows in client state (client.list() -> useReducer), NOT via RSC props, so a
+  // bare router.refresh() would not repopulate it — re-run our own refresh() so
+  // a driver/assignment change made elsewhere (revoke/assign on another tab or
+  // device) appears here without a manual reload.
+  useRefetchOnFocus(() => { void refresh(); });
   const loadVehicles = async (): Promise<void> => {
     try {
       const res = await fetch('/api/reference/vehicles?scope=admin');

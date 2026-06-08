@@ -27,6 +27,7 @@ import { notFound } from 'next/navigation';
 import { OrderReview } from '@/features/dispatch/OrderReview';
 import { CancelOrderForm } from '@/features/dispatch/CancelOrderForm';
 import { AppShell } from '@/features/shell/AppShell';
+import { RefetchOnFocusMount } from '@/features/shell/RefetchOnFocusMount';
 import type { ListAssignedRow } from '@/features/dispatch/types';
 export const dynamic = 'force-dynamic';
 interface PageProps { params: Promise<{ id: string }> }
@@ -66,6 +67,11 @@ export default async function OrderReviewPage({ params }: PageProps): Promise<JS
   const order = await res.json() as ListAssignedRow;
   return (
     <AppShell {...(username !== undefined ? { username } : {})}>
+      {/* Refetch-on-focus: this RSC fetches the order server-side and cannot use
+          hooks, so a client mount re-runs router.refresh() on visible/focus to
+          re-fetch the order (e.g. its state badge after an external cancel)
+          without a manual reload. */}
+      <RefetchOnFocusMount />
       <div className='mx-auto w-full max-w-5xl p-6'>
         <Link
           href='/'
