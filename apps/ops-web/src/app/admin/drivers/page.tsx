@@ -9,6 +9,7 @@
 'use client';
 import { useEffect, useReducer, useState, type JSX } from 'react';
 import { useRouter } from 'next/navigation';
+import { revalidateDispatch } from '../../../features/admin/revalidate-dispatch.action';
 import { AdminDriversClient } from '../../../features/admin/admin-drivers-client';
 import {
   reduceAdminDriversState,
@@ -80,6 +81,7 @@ export default function AdminDriversPage(): JSX.Element {
       setCreateForm(EMPTY_CREATE_FORM);
       await refresh();
       router.refresh();
+      await revalidateDispatch();
     } catch (e) {
       setCreateForm((f) => ({
         ...f,
@@ -107,6 +109,10 @@ export default function AdminDriversPage(): JSX.Element {
       await client.assign({ driverId, vehicleId });
       await refresh();
       router.refresh();
+      // Cross-route cache bust: the dispatch form lives at route '/', not here,
+      // so router.refresh() (current route only) cannot refresh its dropdowns.
+      // revalidateDispatch() runs revalidatePath('/','layout') server-side.
+      await revalidateDispatch();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'assign failed');
       return;
@@ -115,6 +121,7 @@ export default function AdminDriversPage(): JSX.Element {
       await client.enrollDevice({ driverId, udid: deviceId, platform: 'ios' });
       await refresh();
       router.refresh();
+      await revalidateDispatch();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'device enroll failed');
     }
@@ -126,6 +133,7 @@ export default function AdminDriversPage(): JSX.Element {
       await client.revoke(assignmentId, reason);
       await refresh();
       router.refresh();
+      await revalidateDispatch();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'revoke failed');
     }
@@ -137,6 +145,7 @@ export default function AdminDriversPage(): JSX.Element {
       await client.remove(row.driverId);
       await refresh();
       router.refresh();
+      await revalidateDispatch();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'delete failed');
     } finally {
@@ -150,6 +159,7 @@ export default function AdminDriversPage(): JSX.Element {
       await client.update(row.driverId, { fullName: row.fullName, phone: next });
       await refresh();
       router.refresh();
+      await revalidateDispatch();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'update phone failed');
     } finally {

@@ -21,9 +21,13 @@ const revokeMock = vi.fn();
 const removeMock = vi.fn();
 const createMock = vi.fn();
 const refreshMock = vi.fn();
+const { revalidateDispatchMock } = vi.hoisted(() => ({ revalidateDispatchMock: vi.fn() }));
 
 vi.mock('next/navigation', () => ({
   useRouter: (): { refresh: () => void } => ({ refresh: refreshMock }),
+}));
+vi.mock('@/features/admin/revalidate-dispatch.action', () => ({
+  revalidateDispatch: revalidateDispatchMock,
 }));
 vi.mock('@/features/admin/admin-drivers-client', () => ({
   AdminDriversClient: class {
@@ -89,5 +93,13 @@ describe('AdminDriversPage refreshes Router Cache after a mutation', () => {
     await waitFor(() => { expect(assignMock).toHaveBeenCalledTimes(1); });
     // refresh MUST fire despite the enroll rejection
     await waitFor(() => { expect(refreshMock).toHaveBeenCalled(); });
+    // CROSS-ROUTE: the dispatch form is rendered by app/page.tsx (route '/'),
+    // a DIFFERENT route from /admin/drivers. router.refresh() only clears the
+    // CURRENT route's client cache, so it cannot refresh the dispatch dropdowns
+    // (the MAI HIỀN DIỆU bug persisted after router.refresh alone). The handler
+    // must also call the revalidateDispatch server action, which runs
+    // revalidatePath('/','layout') server-side to bust the dispatch route's
+    // cache cross-route.
+    await waitFor(() => { expect(revalidateDispatchMock).toHaveBeenCalled(); });
   });
 });
