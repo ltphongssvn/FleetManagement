@@ -176,6 +176,25 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
     });
     if (next.length !== stickyRuns.length) setStickyRuns(next);
   }, [initialRuns, stickyRuns]);
+  // Refetch-on-focus (2026 professional default): when this tab was backgrounded
+  // while data changed elsewhere (another dispatcher / another device / another
+  // tab), re-pull the server projection the moment the tab is shown again or the
+  // window regains focus. router.refresh() re-fetches the RSC payload and MERGES
+  // it, preserving client state (the optimistic stickyRuns + form inputs survive)
+  // — unlike a hard location.reload(). Depends only on the stable router, fires
+  // solely on visible/focus (never on hidden, never on mount), and removes both
+  // listeners on unmount, so it converges and cannot drive a re-render loop.
+  useEffect(() => {
+    const refetchIfVisible = (): void => {
+      if (document.visibilityState === 'visible') router.refresh();
+    };
+    document.addEventListener('visibilitychange', refetchIfVisible);
+    window.addEventListener('focus', refetchIfVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', refetchIfVisible);
+      window.removeEventListener('focus', refetchIfVisible);
+    };
+  }, [router]);
   const driverLookup = buildLookup(refs.drivers);
   const vehicleLookup = buildLookup(refs.vehicles ?? []);
   const merged = mergeRuns(initialRuns, stickyRuns);
