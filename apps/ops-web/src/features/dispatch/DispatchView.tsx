@@ -57,6 +57,7 @@ import { ExportOrdersExcelButton } from './ExportOrdersExcelButton';
 import { buildLookup, formatOrderRef } from './labels';
 import type { DispatchBoardRoadRun } from './types';
 import { StopSlotHeaders, StopSlotCells, STOP_SLOT_COL_COUNT } from './board-stops';
+import { useRefetchOnFocus } from '../../lib/use-refetch-on-focus';
 const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
 });
@@ -176,25 +177,14 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
     });
     if (next.length !== stickyRuns.length) setStickyRuns(next);
   }, [initialRuns, stickyRuns]);
-  // Refetch-on-focus (2026 professional default): when this tab was backgrounded
-  // while data changed elsewhere (another dispatcher / another device / another
-  // tab), re-pull the server projection the moment the tab is shown again or the
-  // window regains focus. router.refresh() re-fetches the RSC payload and MERGES
-  // it, preserving client state (the optimistic stickyRuns + form inputs survive)
-  // — unlike a hard location.reload(). Depends only on the stable router, fires
-  // solely on visible/focus (never on hidden, never on mount), and removes both
-  // listeners on unmount, so it converges and cannot drive a re-render loop.
-  useEffect(() => {
-    const refetchIfVisible = (): void => {
-      if (document.visibilityState === 'visible') router.refresh();
-    };
-    document.addEventListener('visibilitychange', refetchIfVisible);
-    window.addEventListener('focus', refetchIfVisible);
-    return () => {
-      document.removeEventListener('visibilitychange', refetchIfVisible);
-      window.removeEventListener('focus', refetchIfVisible);
-    };
-  }, [router]);
+  // Refetch-on-focus (2026 professional default), via the shared
+  // useRefetchOnFocus hook so every server-state surface behaves identically:
+  // when this tab was backgrounded while data changed elsewhere (another
+  // dispatcher / device / tab), re-pull the server projection on
+  // visibilitychange->visible / window focus. router.refresh() re-fetches the
+  // RSC payload and MERGES it, preserving client state (optimistic stickyRuns +
+  // form inputs) — unlike location.reload().
+  useRefetchOnFocus(() => { router.refresh(); });
   const driverLookup = buildLookup(refs.drivers);
   const vehicleLookup = buildLookup(refs.vehicles ?? []);
   const merged = mergeRuns(initialRuns, stickyRuns);
