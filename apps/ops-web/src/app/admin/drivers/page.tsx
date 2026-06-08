@@ -8,6 +8,7 @@
 // Xóa button per row.
 'use client';
 import { useEffect, useReducer, useState, type JSX } from 'react';
+import { useRouter } from 'next/navigation';
 import { AdminDriversClient } from '../../../features/admin/admin-drivers-client';
 import {
   reduceAdminDriversState,
@@ -30,6 +31,7 @@ const EMPTY_CREATE_FORM: CreateFormState = {
 };
 export default function AdminDriversPage(): JSX.Element {
   const [state, dispatch] = useReducer(reduceAdminDriversState, { kind: 'loading' });
+  const router = useRouter();
   const [vehicleSelect, setVehicleSelect] = useState<Record<string, string>>({});
   const [deviceIdInput, setDeviceIdInput] = useState<Record<string, string>>({});
   const [phoneEdits, setPhoneEdits] = useState<Record<string, string>>({});
@@ -77,6 +79,7 @@ export default function AdminDriversPage(): JSX.Element {
       });
       setCreateForm(EMPTY_CREATE_FORM);
       await refresh();
+      router.refresh();
     } catch (e) {
       setCreateForm((f) => ({
         ...f,
@@ -94,6 +97,7 @@ export default function AdminDriversPage(): JSX.Element {
       await client.assign({ driverId, vehicleId });
       await client.enrollDevice({ driverId, udid: deviceId, platform: 'ios' });
       await refresh();
+      router.refresh();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'assign failed');
     }
@@ -104,6 +108,7 @@ export default function AdminDriversPage(): JSX.Element {
     try {
       await client.revoke(assignmentId, reason);
       await refresh();
+      router.refresh();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'revoke failed');
     }
@@ -114,6 +119,7 @@ export default function AdminDriversPage(): JSX.Element {
     try {
       await client.remove(row.driverId);
       await refresh();
+      router.refresh();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'delete failed');
     } finally {
@@ -126,6 +132,7 @@ export default function AdminDriversPage(): JSX.Element {
     try {
       await client.update(row.driverId, { fullName: row.fullName, phone: next });
       await refresh();
+      router.refresh();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'update phone failed');
     } finally {
