@@ -1,0 +1,19 @@
+# Dockerfile.worker - Railway target wrapper for the main-worker service.
+# Mirrors Dockerfile.api: shared base -> builder (native deps + pnpm install +
+# turbo build of @fleet/main-worker + pnpm deploy) -> slim runtime stage that
+# runs the BullMQ consumer (intake/projections/outbox/etc.). No port: the worker
+# is a queue consumer, not an HTTP server.
+FROM node:22-alpine AS base
+RUN corepack enable
+WORKDIR /repo
+FROM base AS builder
+RUN apk add --no-cache build-base python3
+COPY . .
+RUN pnpm install --frozen-lockfile && \
+    pnpm exec turbo run build --filter=@fleet/main-worker && \
+    pnpm --filter=@fleet/main-worker deploy --prod --no-optional /tmp/worker-deploy
+FROM node:22-alpine
+WORKDIR /app
+COPY --from=builder /tmp/worker-deploy /app
+COPY --from=builder /repo/workers/main-worker/dist /app/dist
+CMD ["node", "dist/main.js"]

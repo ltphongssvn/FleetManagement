@@ -10,6 +10,7 @@ import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 type Tx = Parameters<Parameters<FleetDb['transaction']>[0]>[0];
 import { manifest, uploadSession } from '../database/schema/manifest.js';
+import { outbox } from '../database/schema/append-paths.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { appendTriWrite } from '../database/append-tri-write.js';
 import { transportOrder } from '../database/schema/transport.js';
@@ -174,6 +175,12 @@ export class ManifestService {
           eq(manifest.manifestId, updatedSession.manifestId),
           inArray(manifest.state, [...MANIFEST_VERIFIABLE_STATES]),
         ));
+      // Enqueue the intake job in the SAME tx as the verifying transition so the
+      // worker validates the uploaded object and finalizes it to committed/rejected.
+      // Without this, manifests stay in verifying forever and the road_run
+      // completion gate (counts only committed) blocks every driver. Routed to the
+      // intake queue via outbox-routing (manifest_intake.requested -> intake).
+      await this.emitManifestIntakeRequestedEvent(tx, updatedSession.manifestId, updatedSession.uploadSessionId, op);
 
       return {
         uploadSessionId: updatedSession.uploadSessionId,
@@ -252,6 +259,40 @@ export class ManifestService {
     }
   }
 
+  // Intake-request event: enqueues the manifest for worker-side validation.
+  // Tri-write so audit + sync_change_feed record the request; outbox row is
+  // routed to the intake queue (manifest_intake.requested -> intake) by the
+  // outbox-routing policy. Emitted in commitUpload's tx alongside the verifying
+  // transition so a committed upload always has a corresponding intake job.
+  private async emitManifestIntakeRequestedEvent(
+    tx: Tx,
+    manifestId: string,
+    uploadSessionId: string,
+    op: OperatorContext,
+  ): Promise<void> {
+    // Outbox-only (NOT a tri-write): manifest_intake.requested is an internal
+    // queue trigger asking the worker to validate the uploaded object, not an
+    // auditable domain state change. The manifest is already in 'verifying' from
+    // commitUpload; the real audited facts are manifest.committed/.rejected,
+    // written by finalizeIntake. Per event-sourcing practice the audit/event log
+    // records state changes only, so we write just the outbox row that the
+    // outbox-routing policy maps to the intake queue.
+    const serverSeq = await allocateServerSeq(tx);
+    await tx.insert(outbox).values({
+      companyId: op.companyId,
+      businessUnitId: op.businessUnitId,
+      depotId: op.depotId,
+      legalEntityId: op.legalEntityId,
+      queueName: OUTBOX_QUEUES.INTAKE,
+      payload: {
+        aggregateType: 'manifest_intake',
+        eventType: 'manifest_intake.requested',
+        manifestId,
+        uploadSessionId,
+        serverSeq: serverSeq.toString(),
+      },
+    });
+  }
   // Tri-write event via shared appendTriWrite helper.
   // TODO(audit): replace randomUUID + new Date() with injected IdGenerator + Clock
   // when extending Clock pattern (see common/clock.ts) to ManifestService.
