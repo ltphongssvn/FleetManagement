@@ -123,7 +123,14 @@ export class OutboxRelayService implements OnModuleDestroy {
 
       try {
         const q = this.getQueue(decision.queueName);
-        await q.add(parsed.data.eventType, row.payload, {
+        // Head-body split: the outbox payload is an envelope
+        // ({aggregateType, eventType, serverSeq}) wrapping the job BODY. Routing
+        // above reads the envelope; the consumer strict-parses only the BODY, so
+        // we strip the envelope fields before enqueueing. (Without this the
+        // consumer dead-letters with schema_validation_failed on the extra keys.)
+        const envelope = (row.payload ?? {}) as Record<string, unknown>;
+        const { aggregateType: _at, eventType: _et, serverSeq: _ss, ...body } = envelope;
+        await q.add(parsed.data.eventType, body, {
           jobId: row.outbox_id,
           removeOnComplete: { age: 3600 },
           removeOnFail: false,
