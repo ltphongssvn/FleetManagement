@@ -71,9 +71,13 @@ describe('@fleet/api - OutboxRelayService (integration)', () => {
     const projAdd = queues['projections']?.add;
     if (!projAdd) throw new Error('projections queue missing');
     expect(projAdd).toHaveBeenCalledTimes(1);
+    // The relay strips the routing envelope ({aggregateType,eventType,serverSeq})
+    // before enqueue, so the BullMQ job body no longer carries those fields. This
+    // projections payload is envelope-only, so the enqueued body is {}. Routing
+    // still used the envelope; the job name + jobId are unaffected.
     expect(projAdd).toHaveBeenCalledWith(
       'road_run_started',
-      expect.objectContaining({ aggregateType: 'road_run', eventType: 'road_run_started' }),
+      expect.not.objectContaining({ aggregateType: expect.anything(), eventType: expect.anything() }),
       expect.objectContaining({ jobId: expect.any(String) }),
     );
   });

@@ -1,4 +1,4 @@
-import { OUTBOX_QUEUES } from '@fleet/sync-protocol';
+import { OUTBOX_QUEUES, MANIFEST_MAX_SIZE_BYTES } from '@fleet/sync-protocol';
 // apps/api/src/manifest/manifest.service.ts
 // Manifest service per Frozen Stack PDF "Manifest" + "Uploads".
 import { Inject, Injectable } from '@nestjs/common';
@@ -180,7 +180,7 @@ export class ManifestService {
       // Without this, manifests stay in verifying forever and the road_run
       // completion gate (counts only committed) blocks every driver. Routed to the
       // intake queue via outbox-routing (manifest_intake.requested -> intake).
-      await this.emitManifestIntakeRequestedEvent(tx, updatedSession.manifestId, updatedSession.uploadSessionId, op);
+      await this.emitManifestIntakeRequestedEvent(tx, updatedSession, op);
 
       return {
         uploadSessionId: updatedSession.uploadSessionId,
@@ -266,17 +266,23 @@ export class ManifestService {
   // transition so a committed upload always has a corresponding intake job.
   private async emitManifestIntakeRequestedEvent(
     tx: Tx,
-    manifestId: string,
-    uploadSessionId: string,
+    session: typeof uploadSession.$inferSelect,
     op: OperatorContext,
   ): Promise<void> {
     // Outbox-only (NOT a tri-write): manifest_intake.requested is an internal
     // queue trigger asking the worker to validate the uploaded object, not an
     // auditable domain state change. The manifest is already in 'verifying' from
     // commitUpload; the real audited facts are manifest.committed/.rejected,
-    // written by finalizeIntake. Per event-sourcing practice the audit/event log
-    // records state changes only, so we write just the outbox row that the
-    // outbox-routing policy maps to the intake queue.
+    // written by finalizeIntake.
+    //
+    // Payload = routing envelope ({aggregateType,eventType}) + the intake job
+    // BODY. The outbox relay routes on the envelope then enqueues the body
+    // (envelope stripped) as the BullMQ job, which the worker strict-parses with
+    // IntakeJobDataWireSchema (@fleet/sync-protocol). actual*/computedHash/
+    // virusScanClean are null here; the worker fills them during S3 HEAD + hash +
+    // scan. providedHash carries the client-supplied hash (if any) for the
+    // worker's hash_mismatch check.
+    if (!session.manifestId) throw new UploadSessionMissingManifestError(session.uploadSessionId);
     const serverSeq = await allocateServerSeq(tx);
     await tx.insert(outbox).values({
       companyId: op.companyId,
@@ -287,9 +293,17 @@ export class ManifestService {
       payload: {
         aggregateType: 'manifest_intake',
         eventType: 'manifest_intake.requested',
-        manifestId,
-        uploadSessionId,
         serverSeq: serverSeq.toString(),
+        manifestId: session.manifestId,
+        uploadSessionId: session.uploadSessionId,
+        expectedContentType: session.contentType,
+        expectedSizeBytes: session.expectedSizeBytes ?? session.actualSizeBytes ?? 0,
+        maxSizeBytes: MANIFEST_MAX_SIZE_BYTES,
+        actualContentType: null,
+        actualSizeBytes: null,
+        providedHash: session.contentHash,
+        computedHash: null,
+        virusScanClean: null,
       },
     });
   }

@@ -20,6 +20,7 @@ export {
 export {
   ALLOWED_MANIFEST_MIME_TYPES,
   type ManifestMimeType,
+  MANIFEST_MAX_SIZE_BYTES,
 } from './manifest-types.js';
 export {
   PILOT_CURRENCIES,
@@ -33,6 +34,10 @@ export {
   ErpMappingContextWireSchema,
   ErpJobDataWireSchema,
 } from './erp-types.js';
+export {
+  type IntakeJobDataWire,
+  IntakeJobDataWireSchema,
+} from './intake-types.js';
 export {
   OUTBOX_ROUTING_POLICY_VERSION,
   routeOutboxRow,
