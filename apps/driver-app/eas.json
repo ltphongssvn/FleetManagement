@@ -1,6 +1,6 @@
 {
   "cli": {
-    "version": ">=18.11.0 <19.0.0",
+    "version": ">=20.0.0 <21.0.0",
     "appVersionSource": "remote"
   },
   "build": {
@@ -19,7 +19,8 @@
         "APP_ENV": "development",
         "EXPO_PUBLIC_API_URL": "http://localhost:3000",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
-      }
+      },
+      "node": "22.20.0"
     },
     "preview": {
       "distribution": "internal",
@@ -31,7 +32,8 @@
         "APP_ENV": "preview",
         "EXPO_PUBLIC_API_URL": "https://api-production-fd42.up.railway.app",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
-      }
+      },
+      "node": "22.20.0"
     },
     "production": {
       "channel": "production",
@@ -42,7 +44,8 @@
       "env": {
         "APP_ENV": "production",
         "EXPO_PUBLIC_API_URL": "https://api-production-fd42.up.railway.app"
-      }
+      },
+      "node": "22.20.0"
     }
   },
   "submit": {
