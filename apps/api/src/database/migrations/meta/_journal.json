@@ -134,6 +134,13 @@
       "when": 1780492245104,
       "tag": "0018_amused_firebird",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1781065644544,
+      "tag": "0019_add_manifest_stop_id",
+      "breakpoints": true
     }
   ]
 }

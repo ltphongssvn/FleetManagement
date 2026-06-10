@@ -10,10 +10,10 @@
     "pnpm": ">=11.0.0 <12.0.0"
   },
   "scripts": {
-    "build": "turbo run build",
-    "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck",
-    "test": "turbo run test:unit",
+    "build": "turbo run build --concurrency=50%",
+    "lint": "turbo run lint --concurrency=50%",
+    "typecheck": "turbo run typecheck --concurrency=50%",
+    "test": "turbo run test:unit --concurrency=50%",
     "dev": "turbo run dev",
     "clean": "turbo run clean && rm -rf node_modules .turbo",
     "test:e2e": "playwright test",
@@ -42,7 +42,7 @@
     "prettier": "^3.8.3",
     "semantic-release": "^25.0.3",
     "tsx": "^4.21.0",
-    "turbo": "^2.9.16",
+    "turbo": "^2.9.17",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.58.2",
     "vitest": "^4.1.4"

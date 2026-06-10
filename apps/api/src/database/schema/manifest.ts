@@ -3,7 +3,7 @@
 import { pgTable, uuid, varchar, timestamp, index, integer, jsonb, pgEnum, check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { tenancyColumns } from './tenancy.js';
-import { transportOrder } from './transport.js';
+import { transportOrder, stop } from './transport.js';
 
 export const uploadSessionStateEnum = pgEnum('upload_session_state', [
   'initiated',
@@ -44,6 +44,11 @@ export const manifest = pgTable(
       .references(() => transportOrder.transportOrderId, { onDelete: 'cascade' }),
     /** UUIDv7 client-generated per PDF "Correlation IDs" */
     manifestCorrelationId: uuid('manifest_correlation_id').notNull().unique(),
+    /** Stop this proof photo documents (captured-time association; explicit
+     *  reference, never inferred). Nullable: pre-existing manifests + the brief
+     *  window before the driver-app sends it. set null on stop delete so proof
+     *  survives stop edits. */
+    stopId: uuid('stop_id').references(() => stop.stopId, { onDelete: 'set null' }),
     state: manifestStateEnum('state').notNull().default('pending'),
     capturedByOperatorId: uuid('captured_by_operator_id'),
     capturedAt: timestamp('captured_at', { withTimezone: true, mode: 'date' }),
@@ -56,6 +61,7 @@ export const manifest = pgTable(
   (t) => [
     index('manifest_transport_order_idx').on(t.transportOrderId),
     index('manifest_state_idx').on(t.state),
+    index('manifest_stop_idx').on(t.stopId),
   ],
 );
 
