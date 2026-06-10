@@ -8,6 +8,8 @@ import { INTAKE_POLICY_VERSION } from '../src/intake/intake-policy.js';
 const validJob: IntakeJobData = {
   manifestId: '11111111-1111-4111-8111-111111111111',
   uploadSessionId: '22222222-2222-4222-8222-222222222222',
+  s3Key: 'manifests/co/m/c.jpg',
+  s3Bucket: 'fleet-pilot-artifacts',
   expectedContentType: 'image/jpeg',
   expectedSizeBytes: 1_500_000,
   maxSizeBytes: 5_000_000,

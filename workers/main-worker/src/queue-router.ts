@@ -16,6 +16,7 @@ import { ErpJobDataSchema } from './erp/erp-job.js';
 import { ErpProcessor } from './erp/erp-processor.js';
 import { sendErpInvoice, type ErpClientPort } from './erp/erp-send-flow.js';
 import type { IntakeCallback } from './intake/intake-callback.js';
+import type { IntakeObjectStore } from './intake/intake-object-store.js';
 
 export interface RouterResult {
   readonly handled: boolean;
@@ -51,11 +52,32 @@ export async function routeJob(
   deadLetters: DeadLetterSink,
   intakeCallback?: IntakeCallback,
   erpClient?: ErpClientPort,
+  objectStore?: IntakeObjectStore,
 ): Promise<RouterResult> {
   try {
     if (name === 'intake') {
       const data = IntakeJobDataSchema.parse(job.data);
-      const decision = new IntakeProcessor().process(data);
+      // S3 HEAD enrichment: validate the ACTUAL stored object (content-type +
+      // size) rather than client-reported values (2026 best practice). When an
+      // objectStore is injected, HEAD the persisted key/bucket and fill actuals;
+      // a null result (object absent) leaves actuals null -> policy returns
+      // object_missing. Virus scan is deferred for the pilot, so a present object
+      // is marked virusScanClean=true (the async AV stage is a later seam).
+      // Without an objectStore (unit tests), the policy runs on the job actuals
+      // as-is.
+      let enriched = data;
+      if (objectStore) {
+        const head = await objectStore.headObject({ bucket: data.s3Bucket, key: data.s3Key });
+        enriched = head === null
+          ? { ...data, actualContentType: null, actualSizeBytes: null }
+          : {
+              ...data,
+              actualContentType: head.contentType,
+              actualSizeBytes: head.sizeBytes,
+              virusScanClean: data.virusScanClean ?? true,
+            };
+      }
+      const decision = new IntakeProcessor().process(enriched);
       // Worker reports back to API so it can transition manifest+upload_session
       // and emit manifest.committed to outbox (PDF Day-One #5 + #8).
       if (intakeCallback) {

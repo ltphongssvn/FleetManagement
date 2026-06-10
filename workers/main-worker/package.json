@@ -27,11 +27,12 @@
     "node": ">=22.0.0 <25.0.0"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1038.0",
+    "@fleet/domain": "workspace:*",
     "@fleet/sync-protocol": "workspace:*",
     "bullmq": "^5.76.2",
     "ioredis": "^5.10.1",
-    "zod": "^3.23.8",
-    "@fleet/domain": "workspace:*"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "fast-check": "^4.7.0",

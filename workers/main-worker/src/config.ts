@@ -10,6 +10,14 @@ const ConfigSchema = z.object({
   FLEET_API_TOKEN: z.string().min(1).optional(),
   ERP_API_URL: z.string().url().optional(),
   ERP_API_KEY: z.string().min(1).optional(),
+  // S3 intake enrichment: worker HEADs the uploaded object to validate the real
+  // content-type + size. AWS_REGION + S3_ARTIFACTS_BUCKET mirror the API. Creds
+  // come from the default chain in prod; explicit keys/endpoint support local S3.
+  AWS_REGION: z.string().min(1).optional(),
+  S3_ARTIFACTS_BUCKET: z.string().min(1).optional(),
+  AWS_ACCESS_KEY_ID: z.string().min(1).optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+  S3_ENDPOINT: z.string().url().optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
