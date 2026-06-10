@@ -48,11 +48,13 @@ export default function Capture(): JSX.Element {
     transportOrderId?: string;
     stopKind?: string;
     stopIndex?: string;
+    stopSequence?: string;
   }>();
   const transportOrderId = strParam(params.transportOrderId) ?? null;
   const stopParse = parseCaptureStop({
     stopKind: strParam(params.stopKind),
     stopIndex: strParam(params.stopIndex),
+    stopSequence: strParam(params.stopSequence),
   });
 
   const [state, dispatch] = useReducer(
@@ -98,6 +100,9 @@ export default function Capture(): JSX.Element {
         transportOrderId,
         contentType: picked.mime,
         fileBytes: picked.bytes,
+        ...(state.phase !== 'invalid_stop' && state.stop.stopSequence !== null
+          ? { stopSequence: state.stop.stopSequence }
+          : {}),
       });
       dispatch({ type: 'UPLOAD_OK', manifestId: result.manifestId });
     } catch (e) {

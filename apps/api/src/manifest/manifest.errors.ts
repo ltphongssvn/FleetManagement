@@ -70,3 +70,13 @@ export class UploadSessionMissingManifestError extends ManifestError {
     super(`Upload session ${uploadSessionId} has no associated manifest`);
   }
 }
+
+export class StopNotOnTransportOrderError extends Error {
+  constructor(
+    public readonly transportOrderId: string,
+    public readonly ref: { readonly stopId: string | null; readonly stopSequence: number | null },
+  ) {
+    super('Stop ref does not resolve to a stop on transport order ' + transportOrderId);
+    this.name = 'StopNotOnTransportOrderError';
+  }
+}
