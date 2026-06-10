@@ -7,14 +7,18 @@
 export interface CaptureStopDescriptor {
   readonly stopKind: 'loading' | 'unloading';
   readonly stopIndex: number | null;
+  /** 1-based DB stop.sequence — rides the href so capture can send the
+   *  ManifestStopRef ({stopId: null, stopSequence}) at negotiate. */
+  readonly sequence: number;
 }
 export function captureHrefForStop(
   transportOrderId: string,
   stop: CaptureStopDescriptor,
 ): string {
   const base = '/capture?transportOrderId=' + transportOrderId + '&stopKind=' + stop.stopKind;
+  const seq = '&stopSequence=' + String(stop.sequence);
   if (stop.stopKind === 'loading' && stop.stopIndex !== null) {
-    return base + '&stopIndex=' + String(stop.stopIndex);
+    return base + '&stopIndex=' + String(stop.stopIndex) + seq;
   }
-  return base;
+  return base + seq;
 }

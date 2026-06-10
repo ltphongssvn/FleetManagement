@@ -28,6 +28,9 @@ export interface ManifestUploadInput {
   readonly contentType: 'image/jpeg' | 'image/png' | 'image/heic' | 'application/pdf';
   readonly fileBytes: Uint8Array;
   readonly contentHash?: string;
+  /** 1-based stop.sequence for capture-time association (ManifestStopRef,
+   *  @fleet/sync-protocol). Omitted -> no stop field sent (legacy back-compat). */
+  readonly stopSequence?: number;
   readonly fetchFn?: typeof globalThis.fetch;
 }
 
@@ -50,6 +53,9 @@ export async function negotiateAndUploadManifest(input: ManifestUploadInput): Pr
       transportOrderId: input.transportOrderId,
       contentType: input.contentType,
       expectedSizeBytes: input.fileBytes.byteLength,
+      ...(input.stopSequence !== undefined
+        ? { stop: { stopId: null, stopSequence: input.stopSequence } }
+        : {}),
     }),
   });
   if (!negRes.ok) {

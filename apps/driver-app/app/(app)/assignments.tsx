@@ -114,6 +114,7 @@ export default function Assignments(): JSX.Element {
                     onPress={() => {
                       router.push(
                         captureHrefForStop(item.transportOrderId, {
+                          sequence: st.sequence,
                           stopKind: st.stopKind,
                           stopIndex: st.stopIndex,
                         }) as Href,
