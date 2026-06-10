@@ -1,12 +1,17 @@
 // apps/ops-web/src/features/dispatch/types.ts
 // Mirrors API dispatch_board_projection per Frozen Stack PDF 'Ops web (single page)'.
 import type { RoadRunState } from '@fleet/domain';
+import type { StopProof } from '@fleet/sync-protocol';
 export interface DispatchBoardStop {
   readonly sequence: number;
   readonly stopType: string;
   readonly warehouseName: string | null;
   readonly arrivedAt: string | null;
   readonly departedAt: string | null;
+  // Per-stop proof photo (Phiếu Cân). Shape is the single-source-of-truth
+  // StopProof from @fleet/sync-protocol. null when no committed manifest is
+  // tied to this stop. EXPAND-only: existing fields unchanged.
+  readonly proof: StopProof | null;
 }
 export interface DispatchBoardRoadRun {
   readonly roadRunId: string;

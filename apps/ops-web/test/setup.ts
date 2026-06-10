@@ -7,8 +7,15 @@
 // Also stubs next/navigation's useRouter so client components that call
 // router.refresh() (e.g. CreateOrderForm post-T3 button state recovery)
 // render under jsdom without 'app router to be mounted' invariant errors.
-import { vi } from 'vitest';
+import { vi, afterEach } from 'vitest';
+import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+// RTL queries are global to document.body; without auto-cleanup, renders
+// from one test leak into the next (duplicate elements). This config does
+// not set globals:true, so RTL's afterEach(cleanup) must be registered here.
+afterEach(() => {
+  cleanup();
+});
 if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = class {
     observe(): void { /* noop */ }

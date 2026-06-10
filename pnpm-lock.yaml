@@ -387,6 +387,9 @@ importers:
       '@fleet/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@fleet/sync-protocol':
+        specifier: workspace:*
+        version: link:../../packages/sync-protocol
       '@headlessui/react':
         specifier: ^2.2.10
         version: 2.2.10(react-dom@19.2.0(react@19.2.0))(react@19.2.0)

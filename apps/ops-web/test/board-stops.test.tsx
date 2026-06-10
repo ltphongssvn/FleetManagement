@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { stopStatusOf, stopForSlot } from '@/features/dispatch/board-stops';
 import type { DispatchBoardStop } from '@/features/dispatch/types';
 function stop(p: Partial<DispatchBoardStop>): DispatchBoardStop {
-  return { sequence: 1, stopType: 'pickup', warehouseName: null, arrivedAt: null, departedAt: null, ...p };
+  return { sequence: 1, stopType: 'pickup', warehouseName: null, arrivedAt: null, departedAt: null, proof: null, ...p };
 }
 describe('board-stops - stopStatusOf', () => {
   it('prefers departedAt and formats the time', () => {
