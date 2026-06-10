@@ -296,6 +296,8 @@ export class ManifestService {
         serverSeq: serverSeq.toString(),
         manifestId: session.manifestId,
         uploadSessionId: session.uploadSessionId,
+        s3Key: session.s3Key,
+        s3Bucket: session.s3Bucket,
         expectedContentType: session.contentType,
         expectedSizeBytes: session.expectedSizeBytes ?? session.actualSizeBytes ?? 0,
         maxSizeBytes: MANIFEST_MAX_SIZE_BYTES,

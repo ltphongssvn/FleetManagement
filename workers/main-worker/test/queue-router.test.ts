@@ -1,6 +1,7 @@
 // workers/main-worker/test/queue-router.test.ts
 import { describe, it, expect } from 'vitest';
 import { routeJob, createBullDeadLetterSink, type DeadLetterSink, type DeadLetterEntry } from '../src/queue-router.js';
+import type { IntakeObjectStore, IntakeObjectHead } from '../src/intake/intake-object-store.js';
 function makeSink(): { sink: DeadLetterSink; sent: DeadLetterEntry[] } {
   const sent: DeadLetterEntry[] = [];
   return {
@@ -8,16 +9,35 @@ function makeSink(): { sink: DeadLetterSink; sent: DeadLetterEntry[] } {
     sink: { send: (entry) => { sent.push(entry); return Promise.resolve(); } },
   };
 }
+// Store that returns a fixed HEAD result (or null = object absent).
+function fakeStore(head: IntakeObjectHead | null): IntakeObjectStore {
+  return { headObject: () => Promise.resolve(head) };
+}
+// Wire body the API actually emits: actuals are null; the worker HEADs S3 to fill
+// them. s3Key/s3Bucket tell the worker where the object is.
 const validIntakeJob = {
   manifestId: '11111111-1111-4111-8111-111111111111',
   uploadSessionId: '22222222-2222-4222-8222-222222222222',
+  s3Key: 'manifests/co/m/c.jpg',
+  s3Bucket: 'fleet-pilot-artifacts',
   expectedContentType: 'image/jpeg',
   expectedSizeBytes: 1_500_000,
   maxSizeBytes: 5_000_000,
+  actualContentType: null,
+  actualSizeBytes: null,
+  providedHash: null,
+  computedHash: null,
+  virusScanClean: null,
+};
+// Fully-populated body (actuals present) for no-store paths: when no
+// IntakeObjectStore is injected, routeJob runs the policy on the job's actuals
+// as-is, so these exercise the post-enrichment policy branches directly.
+const preFilledIntakeJob = {
+  ...validIntakeJob,
   actualContentType: 'image/jpeg',
-  actualSizeBytes: 1_400_000,
-  providedHash: 'a'.repeat(64),
-  computedHash: 'a'.repeat(64),
+  actualSizeBytes: 1_450_000,
+  providedHash: null,
+  computedHash: null,
   virusScanClean: true,
 };
 const validErpJob = {
@@ -33,13 +53,29 @@ const validErpJob = {
   mapping: { customerExternalId: 'EXT-1', jobCodeExternalId: 'EXT-J-1' },
 };
 describe('@fleet/main-worker - queue-router', () => {
-  it('routes valid intake job to IntakeProcessor', async () => {
+  it('HEADs S3, fills actuals, and accepts when the object matches', async () => {
     const { sink, sent } = makeSink();
-    const result = await routeJob('intake', { id: 'j1', data: validIntakeJob }, sink);
+    const store = fakeStore({ contentType: 'image/jpeg', sizeBytes: 1_450_000 });
+    const result = await routeJob('intake', { id: 'j1', data: validIntakeJob }, sink, undefined, undefined, store);
     expect(result.handled).toBe(true);
     expect(result.deadLettered).toBe(false);
     expect(result.summary).toContain('accepted');
     expect(sent).toHaveLength(0);
+  });
+  it('rejects object_missing when the S3 object is absent (HEAD null)', async () => {
+    const { sink } = makeSink();
+    const store = fakeStore(null);
+    const result = await routeJob('intake', { id: 'jM', data: validIntakeJob }, sink, undefined, undefined, store);
+    expect(result.handled).toBe(true);
+    expect(result.deadLettered).toBe(false);
+    expect(result.summary).toContain('rejected:object_missing');
+  });
+  it('rejects size_mismatch when the real object is far larger than expected', async () => {
+    const { sink } = makeSink();
+    const store = fakeStore({ contentType: 'image/jpeg', sizeBytes: 9_000_000 });
+    const result = await routeJob('intake', { id: 'jS', data: validIntakeJob }, sink, undefined, undefined, store);
+    expect(result.handled).toBe(true);
+    expect(result.summary).toContain('rejected');
   });
   it('routes valid erp job to ErpProcessor with handled=true and deadLettered=false', async () => {
     const { sink } = makeSink();
@@ -149,7 +185,7 @@ describe('@fleet/main-worker - queue-router non-Zod throw inside try block', () 
 });
 describe('@fleet/main-worker - queue-router rejected-decision summary branches', () => {
   it('summary includes rejectionCode when intake processor rejects (not zod, valid schema)', async () => {
-    const rejectedIntakeJob = { ...validIntakeJob, virusScanClean: false };
+    const rejectedIntakeJob = { ...preFilledIntakeJob, virusScanClean: false };
     const { sink } = makeSink();
     const result = await routeJob('intake', { id: 'jR1', data: rejectedIntakeJob }, sink);
     expect(result.handled).toBe(true);
@@ -179,7 +215,7 @@ describe('@fleet/main-worker - queue-router with optional ports', () => {
     const { sink } = makeSink();
     const calls: unknown[] = [];
     const cb = { finalize: (input: unknown) => { calls.push(input); return Promise.resolve(); } };
-    const result = await routeJob('intake', { id: 'jc1', data: validIntakeJob }, sink, cb);
+    const result = await routeJob('intake', { id: 'jc1', data: preFilledIntakeJob }, sink, cb);
     expect(result.handled).toBe(true);
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ uploadSessionId: validIntakeJob.uploadSessionId, accepted: true });

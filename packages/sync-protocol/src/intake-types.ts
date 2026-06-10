@@ -16,6 +16,8 @@ const IntakeManifestMimeSchema = z.enum(ALLOWED_MANIFEST_MIME_TYPES as unknown a
 export const IntakeJobDataWireSchema = z.object({
   manifestId: z.string().uuid(),
   uploadSessionId: z.string().uuid(),
+  s3Key: z.string().min(1).max(512),
+  s3Bucket: z.string().min(1).max(128),
   expectedContentType: IntakeManifestMimeSchema,
   expectedSizeBytes: z.number().int().positive(),
   maxSizeBytes: z.number().int().positive(),

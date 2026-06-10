@@ -521,6 +521,9 @@ importers:
 
   workers/main-worker:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.1038.0
+        version: 3.1038.0
       '@fleet/domain':
         specifier: workspace:*
         version: link:../../packages/domain
