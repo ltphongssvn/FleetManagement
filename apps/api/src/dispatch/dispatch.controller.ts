@@ -1,43 +1,17 @@
 // apps/api/src/dispatch/dispatch.controller.ts
 // Read-only HTTP endpoint serving dispatch_board_projection rows for ops-web.
-// Frozen Stack PDF Day-One #7: 'RSC reads from dispatch_board_projection'.
-// JwtGuard + CurrentOperator pattern mirrors manifest.controller.ts and
-// sync.controller.ts so scope is taken from JWT claims (defense against IDOR).
+// Per-stop enrichment (warehouse name, arrival/departure, customer) is joined at
+// read time, scoped by company_id (summary projection + read-time-join pattern).
 //
-// T10 (2026): each board row is enriched with its per-stop status (warehouse
-// name + arrived/departed timestamps) so the Lệnh điều xe table can show
-// Điểm nhận hàng 1..4 / Kho giao hàng 1 columns. The projection stays a
-// summary (no schema change); per-stop detail is joined at read time from
-// road_run_transport_order -> stop -> warehouse, scoped by company_id.
-//
-// KH column (2026): each row is also enriched with its customer name so the
-// Lệnh điều xe table can show Khách hàng in place of Trạng thái. Joined at
-// read time road_run_transport_order -> transport_order -> customer, scoped by
-// company_id (same summary-projection + read-time-join pattern as T10). The
-// projection schema is unchanged: customer is reference data already owned by
-// the same tenant, so a read-time join is correct and avoids a migration.
-//
-// KH phone (2026): permanent business rule — the board row also carries the
-// customer's Số điện thoại so the Lệnh điều xe table can display it next to
-// Khách hàng. customer.phone is selected on the SAME read-time customer join
-// (no extra query, no schema change). EXPAND-only/nullable: phone is null when
-// the customer has none, so old data and old code stay valid.
-//
-// Tài xế + Xe display (2026): permanent business rule — the board row carries
-// the assigned driver's full name (driverName) and the assigned vehicle's
-// plate (vehiclePlate), resolved SERVER-SIDE at read time. Previously ops-web
-// resolved assignedOperatorId/assignedAssetId to labels via a client-side
-// reference lookup built from the dispatch form's driver/vehicle dropdown
-// lists. After the hide-busy-driver-vehicle rule (PR #36) filters a now-busy
-// driver/vehicle OUT of those dropdown lists, the client lookup misses and the
-// Tài xế/Xe cells render em-dash. The fix mirrors the export service's proven
-// joins: LEFT JOIN driver ON (operator_id = assigned_operator_id, companyId)
-// and LEFT JOIN vehicle ON (vehicle_id = assigned_asset_id, companyId), so the
-// label is authoritative and independent of the pair-filtered dropdowns. The
-// companyId guard on each join prevents cross-tenant leakage; a missing
-// reference row yields null (ops-web renders em-dash). Projection schema is
-// unchanged — driver/vehicle are reference data owned by the same tenant.
-import { Controller, Get, Inject, UseGuards } from '@nestjs/common';
+// Phiếu Cân (2026): each stop is additionally enriched with its proof photo when
+// a COMMITTED manifest is tied to that stop (manifest.stop_id). proof carries the
+// manifestId + a short-lived presigned S3 GET URL (minted by StopProofUrlSigner,
+// injected) so ops-web renders a clickable "Phiếu Cân" link without exposing the
+// private bucket. The S3 object key/bucket come from the manifest's upload_session.
+// EXPAND-only: arrivedAt/departedAt are unchanged; proof is added (null when no
+// committed manifest), so existing ops-web code stays valid. Response shape is the
+// single-source-of-truth DispatchStopView/DispatchOrderView in @fleet/sync-protocol.
+import { Controller, Get, Inject, Optional, UseGuards } from '@nestjs/common';
 import { and, eq, inArray } from 'drizzle-orm';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
@@ -45,23 +19,35 @@ import {
   customer,
   dispatchBoardProjection,
   driver,
+  manifest,
   roadRunTransportOrder,
   stop,
   transportOrder,
+  uploadSession,
   vehicle,
   warehouse,
 } from '../database/schema/index.js';
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
+import { STOP_PROOF_URL_SIGNER, type StopProofUrlSigner } from './stop-proof-url.port.js';
 /** Pilot dispatch board cap. PDF Day-One: 5 trucks/depot, ~tens of runs/day. */
 const DISPATCH_BOARD_MAX_ROWS = 500;
+/** Proof-photo link TTL: 15 minutes is enough to view from the board. */
+const PROOF_URL_TTL_SECONDS = 900;
+export interface DispatchBoardStopProof {
+  readonly manifestId: string;
+  readonly photoUrl: string;
+  readonly capturedAt: string;
+}
 export interface DispatchBoardStop {
+  readonly stopId: string;
   readonly sequence: number;
   readonly stopType: string;
   readonly warehouseName: string | null;
   readonly arrivedAt: string | null;
   readonly departedAt: string | null;
+  readonly proof: DispatchBoardStopProof | null;
 }
 export interface DispatchBoardRow {
   readonly roadRunId: string;
@@ -80,15 +66,14 @@ export interface DispatchBoardRow {
 @Controller('dispatch')
 @UseGuards(JwtGuard)
 export class DispatchController {
-  constructor(@Inject(DRIZZLE_DB) private readonly db: FleetDb) {}
+  constructor(
+    @Inject(DRIZZLE_DB) private readonly db: FleetDb,
+    @Optional() @Inject(STOP_PROOF_URL_SIGNER) private readonly proofSigner?: StopProofUrlSigner,
+  ) {}
   @Get('board')
   async getBoard(
     @CurrentOperator() op: OperatorContext,
   ): Promise<{ rows: readonly DispatchBoardRow[] }> {
-    // Resolve driver/vehicle labels SERVER-SIDE via the same proven joins the
-    // export service uses, so the board never depends on the pair-filtered
-    // dispatch-form dropdown lists for label resolution. companyId guards each
-    // join against cross-tenant leakage; a missing reference row yields null.
     const rows = await this.db
       .select({
         roadRunId: dispatchBoardProjection.roadRunId,
@@ -114,19 +99,14 @@ export class DispatchController {
       .orderBy(dispatchBoardProjection.plannedStartAt)
       .limit(DISPATCH_BOARD_MAX_ROWS);
     const roadRunIds = rows.map((r) => r.roadRunId);
-    // Per-stop enrichment: join the board's road runs to their stops via
-    // road_run_transport_order, with warehouse names. Grouped by road run.
     const stopsByRoadRun = new Map<string, DispatchBoardStop[]>();
-    // Customer enrichment: the first customer name found per road run, joined
-    // via road_run_transport_order -> transport_order -> customer.
     const customerByRoadRun = new Map<string, string>();
-    // Customer phone enrichment: the first customer phone found per road run,
-    // taken from the SAME customer join. Null when the customer has no phone.
     const customerPhoneByRoadRun = new Map<string, string | null>();
     if (roadRunIds.length > 0) {
       const stopRows = await this.db
         .select({
           roadRunId: roadRunTransportOrder.roadRunId,
+          stopId: stop.stopId,
           sequence: stop.sequence,
           stopType: stop.stopType,
           warehouseName: warehouse.name,
@@ -141,14 +121,55 @@ export class DispatchController {
           inArray(roadRunTransportOrder.roadRunId, roadRunIds),
         ))
         .orderBy(stop.sequence);
+      // Proof photos: committed manifests tied to these stops, joined to their
+      // upload_session for the S3 object key. Map stopId -> {manifestId, key,
+      // bucket, capturedAt} for the most recent committed manifest per stop.
+      const stopIds = stopRows.map((sr) => sr.stopId);
+      const proofByStopId = new Map<string, { manifestId: string; bucket: string; key: string; capturedAt: string }>();
+      if (stopIds.length > 0) {
+        const proofRows = await this.db
+          .select({
+            stopId: manifest.stopId,
+            manifestId: manifest.manifestId,
+            committedAt: manifest.committedAt,
+            s3Key: uploadSession.s3Key,
+            s3Bucket: uploadSession.s3Bucket,
+          })
+          .from(manifest)
+          .innerJoin(uploadSession, eq(uploadSession.manifestId, manifest.manifestId))
+          .where(and(
+            eq(manifest.companyId, op.companyId),
+            eq(manifest.state, 'committed'),
+            inArray(manifest.stopId, stopIds),
+          ));
+        for (const pr of proofRows) {
+          if (pr.stopId === null) continue;
+          if (!proofByStopId.has(pr.stopId)) {
+            proofByStopId.set(pr.stopId, {
+              manifestId: pr.manifestId,
+              bucket: pr.s3Bucket,
+              key: pr.s3Key,
+              capturedAt: (pr.committedAt ?? new Date()).toISOString(),
+            });
+          }
+        }
+      }
       for (const sr of stopRows) {
         const list = stopsByRoadRun.get(sr.roadRunId) ?? [];
+        const p = proofByStopId.get(sr.stopId);
+        let proof: DispatchBoardStopProof | null = null;
+        if (p && this.proofSigner) {
+          const photoUrl = await this.proofSigner.presignProofUrl({ bucket: p.bucket, key: p.key, ttlSeconds: PROOF_URL_TTL_SECONDS });
+          proof = { manifestId: p.manifestId, photoUrl, capturedAt: p.capturedAt };
+        }
         list.push({
+          stopId: sr.stopId,
           sequence: sr.sequence,
           stopType: sr.stopType,
           warehouseName: sr.warehouseName,
           arrivedAt: sr.arrivedAt ? sr.arrivedAt.toISOString() : null,
           departedAt: sr.departedAt ? sr.departedAt.toISOString() : null,
+          proof,
         });
         stopsByRoadRun.set(sr.roadRunId, list);
       }
