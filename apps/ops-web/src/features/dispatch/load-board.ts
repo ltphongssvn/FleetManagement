@@ -9,6 +9,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { ROAD_RUN_STATES, type RoadRunState } from '@fleet/domain';
+import { StopProofSchema } from '@fleet/sync-protocol';
 import type { DispatchBoardRoadRun } from './types.js';
 const BoardStopSchema = z.object({
   sequence: z.number().int(),
@@ -16,6 +17,10 @@ const BoardStopSchema = z.object({
   warehouseName: z.union([z.string(), z.null()]),
   arrivedAt: z.union([z.string(), z.null()]),
   departedAt: z.union([z.string(), z.null()]),
+  // Per-stop proof photo (Phiếu Cân) — single-source-of-truth StopProofSchema
+  // from @fleet/sync-protocol. Nullable + defaulted so an older API that does
+  // not yet return it still parses (EXPAND-only).
+  proof: z.union([StopProofSchema, z.null()]).default(null),
 });
 const BoardRowSchema = z.object({
   roadRunId: z.string().uuid(),

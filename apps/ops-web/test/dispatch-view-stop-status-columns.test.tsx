@@ -30,11 +30,11 @@ const run: DispatchBoardRoadRun = {
   customerName: null,
   customerPhone: null,
   stops: [
-    { sequence: 1, stopType: 'pickup', warehouseName: 'Chơn Chính', arrivedAt: '2026-05-30T09:00:00.000Z', departedAt: '2026-05-30T09:15:00.000Z' },
-    { sequence: 2, stopType: 'pickup', warehouseName: 'Cần Thơ', arrivedAt: null, departedAt: null },
-    { sequence: 3, stopType: 'pickup', warehouseName: 'Thốt Nốt', arrivedAt: null, departedAt: null },
-    { sequence: 4, stopType: 'pickup', warehouseName: 'Trí Mai', arrivedAt: null, departedAt: null },
-    { sequence: 5, stopType: 'delivery', warehouseName: 'ĐA NĂNG', arrivedAt: null, departedAt: null },
+    { sequence: 1, stopType: 'pickup', warehouseName: 'Chơn Chính', arrivedAt: '2026-05-30T09:00:00.000Z', departedAt: '2026-05-30T09:15:00.000Z', proof: null },
+    { sequence: 2, stopType: 'pickup', warehouseName: 'Cần Thơ', arrivedAt: null, departedAt: null, proof: null },
+    { sequence: 3, stopType: 'pickup', warehouseName: 'Thốt Nốt', arrivedAt: null, departedAt: null, proof: null },
+    { sequence: 4, stopType: 'pickup', warehouseName: 'Trí Mai', arrivedAt: null, departedAt: null, proof: null },
+    { sequence: 5, stopType: 'delivery', warehouseName: 'ĐA NĂNG', arrivedAt: null, departedAt: null, proof: null },
   ],
 };
 describe('@fleet/ops-web - DispatchView per-stop status columns (T10)', () => {
