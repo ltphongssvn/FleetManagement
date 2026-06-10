@@ -16,6 +16,7 @@ import { loadConfig } from './config.js';
 import { routeJob, createBullDeadLetterSink } from './queue-router.js';
 import { FetchIntakeCallback, type IntakeCallback } from './intake/intake-callback.js';
 import { FetchErpClient } from './erp/fetch-erp-client.js';
+import { S3IntakeObjectStore, type IntakeObjectStore } from './intake/intake-object-store.js';
 import type { ErpClientPort } from './erp/erp-send-flow.js';
 
 function bootstrap(): void {
@@ -45,12 +46,24 @@ function bootstrap(): void {
   if (config.ERP_API_URL && config.ERP_API_KEY) {
     erpClient = new FetchErpClient({ baseUrl: config.ERP_API_URL, apiKey: config.ERP_API_KEY });
   }
+  // S3 intake enrichment store: only constructed when AWS_REGION is set. Without
+  // it, routeJob skips enrichment (actuals stay null -> object_missing), which is
+  // the correct fail-closed signal that S3 is unconfigured.
+  let objectStore: IntakeObjectStore | undefined;
+  if (config.AWS_REGION) {
+    objectStore = new S3IntakeObjectStore({
+      region: config.AWS_REGION,
+      endpoint: config.S3_ENDPOINT,
+      accessKeyId: config.AWS_ACCESS_KEY_ID,
+      secretAccessKey: config.AWS_SECRET_ACCESS_KEY,
+    });
+  }
 
   const workers = QUEUE_NAMES.map((name) => {
     const worker = new Worker(
       name,
       async (job) => {
-        const result = await routeJob(name, job, deadLetters, intakeCallback, erpClient);
+        const result = await routeJob(name, job, deadLetters, intakeCallback, erpClient, objectStore);
         console.log(`[${name}] job ${String(job.id)} ${result.summary}`);
         return { processed: true, deadLettered: result.deadLettered };
       },
