@@ -1,4 +1,4 @@
-import { OUTBOX_QUEUES, MANIFEST_MAX_SIZE_BYTES } from '@fleet/sync-protocol';
+import { OUTBOX_QUEUES, MANIFEST_MAX_SIZE_BYTES, type ManifestStopRef } from '@fleet/sync-protocol';
 // apps/api/src/manifest/manifest.service.ts
 // Manifest service per Frozen Stack PDF "Manifest" + "Uploads".
 import { Inject, Injectable } from '@nestjs/common';
@@ -13,11 +13,11 @@ import { manifest, uploadSession } from '../database/schema/manifest.js';
 import { outbox } from '../database/schema/append-paths.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { appendTriWrite } from '../database/append-tri-write.js';
-import { transportOrder } from '../database/schema/transport.js';
+import { stop, transportOrder } from '../database/schema/transport.js';
 import { BLOB_STORE, type IBlobStore } from '../storage/storage-provider.interface.js';
 import type { Env } from '../config/env.config.js';
 import type { NegotiateUploadInput, NegotiateUploadResponse, CommitUploadInput, CommitUploadResponse } from './manifest.dto.js';
-import { ManifestInsertFailedError, TransportOrderNotOwnedError, UploadSessionInsertFailedError, UploadSessionMissingManifestError, UploadSessionNotFoundError, UploadSessionInvalidStateError, ManifestStateInvalidTransitionError } from './manifest.errors.js';
+import { ManifestInsertFailedError, TransportOrderNotOwnedError, UploadSessionInsertFailedError, UploadSessionMissingManifestError, UploadSessionNotFoundError, UploadSessionInvalidStateError, ManifestStateInvalidTransitionError, StopNotOnTransportOrderError } from './manifest.errors.js';
 
 import {
   UPLOAD_SESSION_COMMITTABLE_STATES,
@@ -44,7 +44,8 @@ export class ManifestService {
   async negotiateUpload(input: NegotiateUploadInput, op: OperatorContext): Promise<NegotiateUploadResponse> {
     return this.db.transaction(async (tx) => {
       await this.assertTransportOrderOwnership(tx, input.transportOrderId, op);
-      const manifestRow = await this.findOrCreateManifest(tx, input, op);
+      const stopId = await this.resolveStopRef(tx, input.transportOrderId, input.stop ?? null, op);
+      const manifestRow = await this.findOrCreateManifest(tx, input, stopId, op);
       const key = this.buildS3Key(op, manifestRow.manifestId, input.manifestCorrelationId, input.contentType);
       const presigned = await this.blobs.presignUpload({ key, contentType: input.contentType, ttlSeconds: this.presignTtlSeconds });
 
@@ -75,13 +76,14 @@ export class ManifestService {
     });
   }
 
-  private async findOrCreateManifest(tx: Tx, input: NegotiateUploadInput, op: OperatorContext): Promise<{ manifestId: string }> {
+  private async findOrCreateManifest(tx: Tx, input: NegotiateUploadInput, stopId: string | null, op: OperatorContext): Promise<{ manifestId: string }> {
     const [created] = await tx
       .insert(manifest)
       .values({
         transportOrderId: input.transportOrderId,
         manifestCorrelationId: input.manifestCorrelationId,
         capturedByOperatorId: op.operatorId,
+        stopId,
         companyId: op.companyId,
         businessUnitId: op.businessUnitId,
         depotId: op.depotId,
@@ -101,6 +103,47 @@ export class ManifestService {
       .limit(1);
     if (!winner) throw new ManifestInsertFailedError(input.manifestCorrelationId);
     return winner;
+  }
+
+  // Resolve the capture-time stop ref (ManifestStopRef, @fleet/sync-protocol)
+  // to the stop PK, scoped to BOTH the transport order and the tenant so a
+  // stopId from another order/company can never be attached (cross-order guard).
+  // The schema refine guarantees at least one of stopId/stopSequence non-null;
+  // explicit narrowing keeps tsc strict without type assertions.
+  private async resolveStopRef(
+    tx: Tx,
+    transportOrderId: string,
+    ref: ManifestStopRef | null,
+    op: OperatorContext,
+  ): Promise<string | null> {
+    if (ref === null) return null;
+    if (ref.stopId !== null) {
+      const [row] = await tx
+        .select({ stopId: stop.stopId })
+        .from(stop)
+        .where(and(
+          eq(stop.stopId, ref.stopId),
+          eq(stop.transportOrderId, transportOrderId),
+          eq(stop.companyId, op.companyId),
+        ))
+        .limit(1);
+      if (!row) throw new StopNotOnTransportOrderError(transportOrderId, ref);
+      return row.stopId;
+    }
+    if (ref.stopSequence !== null) {
+      const [row] = await tx
+        .select({ stopId: stop.stopId })
+        .from(stop)
+        .where(and(
+          eq(stop.sequence, ref.stopSequence),
+          eq(stop.transportOrderId, transportOrderId),
+          eq(stop.companyId, op.companyId),
+        ))
+        .limit(1);
+      if (!row) throw new StopNotOnTransportOrderError(transportOrderId, ref);
+      return row.stopId;
+    }
+    return null;
   }
 
   private async assertTransportOrderOwnership(

@@ -1,12 +1,16 @@
 // apps/api/src/manifest/manifest.dto.ts
 import { z } from 'zod';
-import { ALLOWED_MANIFEST_MIME_TYPES } from '@fleet/sync-protocol';
+import { ALLOWED_MANIFEST_MIME_TYPES, ManifestStopRefSchema } from '@fleet/sync-protocol';
 
 export const NegotiateUploadSchema = z.object({
   manifestCorrelationId: z.string().uuid(),
   transportOrderId: z.string().uuid(),
   contentType: z.enum(ALLOWED_MANIFEST_MIME_TYPES),
   expectedSizeBytes: z.number().int().positive().max(50 * 1024 * 1024),
+  // Capture-time stop ref (Phiếu Cân association) — ManifestStopRefSchema from
+  // @fleet/sync-protocol (Zod-first SSOT). EXPAND-only: absent/null for older
+  // clients; when present the service resolves + persists manifest.stop_id.
+  stop: ManifestStopRefSchema.nullish(),
 });
 export type NegotiateUploadInput = z.infer<typeof NegotiateUploadSchema>;
 
