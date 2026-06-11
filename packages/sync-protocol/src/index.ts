@@ -63,3 +63,4 @@ export {
   type OutboxQueueName,
 } from './outbox-routing.js';
 export { COMMAND_EVENTS, type CommandEventName } from './command-events.js';
+export * from './order-timeline-contract.js';

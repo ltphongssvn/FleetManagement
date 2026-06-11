@@ -76,5 +76,7 @@ overrides:
   "@expo/dom-webview": "55.0.6"
   qs: ">=6.15.2"
   shell-quote: ">=1.8.4"
+  '@grpc/grpc-js@>=1.14.0 <1.14.4': ^1.14.4
 minimumReleaseAgeExclude:
   - tmp@0.2.6
+  - '@grpc/grpc-js@1.14.4'
