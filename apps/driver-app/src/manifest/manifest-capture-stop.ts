@@ -13,8 +13,8 @@ export const MAX_LOADING_WAREHOUSES = 4 as const;
 export type CaptureStopKind = 'loading' | 'unloading';
 
 export type CaptureStop =
-  | { readonly kind: 'loading'; readonly stopIndex: number; readonly displayIndex: number }
-  | { readonly kind: 'unloading' };
+  | { readonly kind: 'loading'; readonly stopIndex: number; readonly displayIndex: number; readonly stopSequence: number | null }
+  | { readonly kind: 'unloading'; readonly stopSequence: number | null };
 
 export type CaptureStopRejectionCode =
   | 'stop_kind_missing'
@@ -26,6 +26,7 @@ export type CaptureStopRejectionCode =
 export interface CaptureStopParams {
   readonly stopKind?: string | undefined;
   readonly stopIndex?: string | undefined;
+  readonly stopSequence?: string | undefined;
 }
 
 export type CaptureStopParseResult =
@@ -40,6 +41,17 @@ function reject(code: CaptureStopRejectionCode): CaptureStopParseResult {
   return { accepted: false, rejectionCode: code };
 }
 
+/** Lenient parse of the 1-based DB stop sequence. The association is an
+ *  enhancement (Phiếu Cân link), not a capture gate: malformed/absent input
+ *  degrades to null so the driver can still photograph the receipt. */
+function parseStopSequence(raw: string | undefined): number | null {
+  if (raw === undefined || raw.length === 0) return null;
+  if (!/^\d+$/.test(raw)) return null;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isSafeInteger(n) || n < 1) return null;
+  return n;
+}
+
 export function parseCaptureStop(params: CaptureStopParams): CaptureStopParseResult {
   const kindRaw = params.stopKind;
   if (kindRaw === undefined || kindRaw.length === 0) {
@@ -47,7 +59,7 @@ export function parseCaptureStop(params: CaptureStopParams): CaptureStopParseRes
   }
   if (kindRaw === 'unloading') {
     // Exactly one unloading warehouse per journey; any stopIndex is ignored.
-    return accept({ kind: 'unloading' });
+    return accept({ kind: 'unloading', stopSequence: parseStopSequence(params.stopSequence) });
   }
   if (kindRaw !== 'loading') {
     return reject('stop_kind_invalid');
@@ -67,5 +79,5 @@ export function parseCaptureStop(params: CaptureStopParams): CaptureStopParseRes
   if (idx < 0 || idx >= MAX_LOADING_WAREHOUSES) {
     return reject('loading_index_out_of_range');
   }
-  return accept({ kind: 'loading', stopIndex: idx, displayIndex: idx + 1 });
+  return accept({ kind: 'loading', stopIndex: idx, displayIndex: idx + 1, stopSequence: parseStopSequence(params.stopSequence) });
 }

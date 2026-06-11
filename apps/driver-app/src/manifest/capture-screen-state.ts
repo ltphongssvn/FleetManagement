@@ -40,7 +40,7 @@ export type CaptureEvent =
  *  zero-arg initialCaptureState(); production code MUST go through
  *  initialCaptureStateForStop() so the machine is anchored to a real
  *  warehouse stop. */
-const DEFAULT_STOP: CaptureStop = { kind: 'unloading' };
+const DEFAULT_STOP: CaptureStop = { kind: 'unloading', stopSequence: null };
 
 export function initialCaptureState(): CaptureState {
   return { phase: 'idle', stop: DEFAULT_STOP };

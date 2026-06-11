@@ -13,6 +13,7 @@ describe('stopStatusOf date-only', () => {
       warehouseName: 'Kho A',
       arrivedAt: '2026-05-31T11:20:00.000Z',
       departedAt: '2026-05-31T12:00:00.000Z',
+      proof: null,
     };
     const txt = stopStatusOf(stop);
     expect(txt).toContain('May 31, 2026');

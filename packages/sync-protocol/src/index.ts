@@ -39,6 +39,20 @@ export {
   IntakeJobDataWireSchema,
 } from './intake-types.js';
 export {
+  ManifestStopRefSchema,
+  type ManifestStopRef,
+} from './manifest-stop-contract.js';
+export {
+  STOP_TYPES,
+  type StopType,
+  StopProofSchema,
+  type StopProof,
+  DispatchStopViewSchema,
+  type DispatchStopView,
+  DispatchOrderViewSchema,
+  type DispatchOrderView,
+} from './dispatch-stop-view-contract.js';
+export {
   OUTBOX_ROUTING_POLICY_VERSION,
   routeOutboxRow,
   type OutboxRoutingInput,

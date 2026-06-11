@@ -18,6 +18,14 @@ export default defineConfig({
     // >30s when starved). 60s matches vitest.coverage.config.ts.
     testTimeout: 60_000,
     hookTimeout: 60_000,
+    // Cap parallel workers: several unit-glob files boot Testcontainers/PGlite
+    // (app.module, pglite-smoke, manifest.commit-finalize.parallel). Running all
+    // in parallel under the 8-package turbo run oversubscribes Docker/CPU and
+    // causes ECONNREFUSED + hook timeouts. A deliberate worker cap (2026 best
+    // practice for Testcontainers under Vitest) bounds simultaneous container
+    // starts without serializing the whole suite.
+    pool: 'forks',
+    maxWorkers: 2,
     coverage: {
       provider: 'v8',
       include: [resolve(__dirname, 'src/**/*.ts')],

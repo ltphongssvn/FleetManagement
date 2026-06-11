@@ -16,7 +16,7 @@ describe('presentCapture with multi-warehouse stop', () => {
   it('loading stop #1 renders loading-manifest title for warehouse 1', () => {
     const state: CaptureState = initialCaptureStateForStop({
       accepted: true,
-      stop: { kind: 'loading', stopIndex: 0, displayIndex: 1 },
+      stop: { kind: 'loading', stopIndex: 0, displayIndex: 1, stopSequence: null },
     });
     const vm = presentCapture(state);
     expect(vm.title).toBe('Phiếu nhận hàng - Kho nhận hàng 1');
@@ -28,7 +28,7 @@ describe('presentCapture with multi-warehouse stop', () => {
   it('loading stop #4 renders loading-manifest title for warehouse 4', () => {
     const state: CaptureState = initialCaptureStateForStop({
       accepted: true,
-      stop: { kind: 'loading', stopIndex: 3, displayIndex: 4 },
+      stop: { kind: 'loading', stopIndex: 3, displayIndex: 4, stopSequence: null },
     });
     const vm = presentCapture(state);
     expect(vm.title).toBe('Phiếu nhận hàng - Kho nhận hàng 4');
@@ -39,7 +39,7 @@ describe('presentCapture with multi-warehouse stop', () => {
   it('unloading stop renders delivery-receipt title at the unloading warehouse', () => {
     const state: CaptureState = initialCaptureStateForStop({
       accepted: true,
-      stop: { kind: 'unloading' },
+      stop: { kind: 'unloading', stopSequence: null },
     });
     const vm = presentCapture(state);
     expect(vm.title).toBe('Phiếu giao hàng - Kho dỡ hàng');

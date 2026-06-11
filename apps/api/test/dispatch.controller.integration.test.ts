@@ -65,6 +65,9 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
     await testDb.db.execute(sql.raw('TRUNCATE TABLE transport_order CASCADE'));
     await testDb.db.execute(sql.raw('TRUNCATE TABLE warehouse CASCADE'));
     await testDb.db.execute(sql.raw('TRUNCATE TABLE customer CASCADE'));
+    await testDb.db.execute(sql.raw('TRUNCATE TABLE upload_session CASCADE'));
+    await testDb.db.execute(sql.raw('TRUNCATE TABLE manifest CASCADE'));
+    await testDb.db.execute(sql.raw('TRUNCATE TABLE road_run CASCADE'));
   });
   it('returns mapped rows scoped to operator companyId', async () => {
     await insertProjection('aaaaaaaa-1111-4111-8111-111111111111', '2026-04-29T12:00:00.000Z');
@@ -137,4 +140,73 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
     if (row === undefined) throw new Error('expected board row');
     expect(row.customerPhone).toBe('0901234567');
   });
+
+  const RR = 'cccccccc-1111-4111-8111-111111111111';
+  const TO = 'cccccccc-2222-4222-8222-222222222222';
+  const SID = '22222222-aaaa-4aaa-8aaa-222222222222';
+  const MID = '55555555-aaaa-4aaa-8aaa-555555555555';
+
+  it('returns proof {manifestId, photoUrl} for a stop with a committed manifest', async () => {
+    await insertProjection(RR, '2026-06-08T08:00:00.000Z');
+    await seedStopChain(RR, TO);
+    await seedCommittedManifestForStop(TO, SID, MID);
+    // Faked proof-URL signer: deterministic, no real S3. The controller must
+    // accept this port and call it with the committed manifest's S3 object.
+    const PROOF_URL = 'https://s3.example/signed-proof?sig=test';
+    const fakeSigner = { presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) => Promise.resolve(PROOF_URL) };
+    const ctrlWithSigner = new DispatchController(testDb.db as never, fakeSigner as never);
+    const result = await ctrlWithSigner.getBoard(OP);
+    const row = result.rows.find((r) => r.roadRunId === RR);
+    if (!row) throw new Error('expected board row');
+    const stopWithProof = row.stops.find((s) => s.sequence === 1);
+    if (!stopWithProof) throw new Error('expected stop seq 1');
+    // The stop must validate against the shared contract and carry proof.
+    const parsed = DispatchStopViewSchema.parse(stopWithProof);
+    expect(parsed.proof).not.toBeNull();
+    expect(parsed.proof?.manifestId).toBe(MID);
+    expect(parsed.proof?.photoUrl).toBe(PROOF_URL);
+  });
+
+  it('returns proof === null for a stop with no committed manifest', async () => {
+    await insertProjection(RR, '2026-06-08T08:00:00.000Z');
+    await seedStopChain(RR, TO);
+    const fakeSigner = { presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) => Promise.resolve('https://s3.example/x') };
+    const ctrlWithSigner = new DispatchController(testDb.db as never, fakeSigner as never);
+    const result = await ctrlWithSigner.getBoard(OP);
+    const row = result.rows.find((r) => r.roadRunId === RR);
+    if (!row) throw new Error('expected board row');
+    const s1 = row.stops.find((s) => s.sequence === 1);
+    if (!s1) throw new Error('expected stop seq 1');
+    expect(DispatchStopViewSchema.parse(s1).proof).toBeNull();
+  });
+
 });
+
+// --- T-proof (2026, outside-in acceptance): per-stop proof-photo "Phiếu Cân" ---
+// Outermost behavior: when a stop has a COMMITTED manifest tied to it
+// (manifest.stop_id), GET /dispatch/board returns that stop with a non-null
+// proof = { manifestId, photoUrl }, where photoUrl is a presigned S3 GET URL.
+// Stops without a committed manifest have proof === null. This RED test drives:
+// the manifest<->stop join, the DispatchStopView.proof field, and the injected
+// proof-URL signer port (faked here for determinism, mirroring the worker S3 fake).
+import { DispatchStopViewSchema } from '@fleet/sync-protocol';
+
+async function seedCommittedManifestForStop(
+  transportOrderId: string,
+  stopId: string,
+  manifestId: string,
+): Promise<void> {
+  const co = OP.companyId;
+  const corr = '44444444-aaaa-4aaa-8aaa-444444444444';
+  await testDb.db.execute(sql.raw(
+    'INSERT INTO manifest (manifest_id, company_id, business_unit_id, depot_id, legal_entity_id, transport_order_id, manifest_correlation_id, stop_id, state, captured_at, committed_at) ' +
+    'VALUES (' + q(manifestId) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' +
+    q(transportOrderId) + ', ' + q(corr) + ', ' + q(stopId) + ', ' + q('committed') + ', now(), now())'
+  ));
+  // upload_session holds the S3 object key the controller presigns for the proof.
+  await testDb.db.execute(sql.raw(
+    'INSERT INTO upload_session (upload_session_id, company_id, business_unit_id, depot_id, legal_entity_id, manifest_id, operator_id, s3_key, s3_bucket, content_type, state, committed_at) ' +
+    'VALUES (' + q('66666666-aaaa-4aaa-8aaa-666666666666') + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' +
+    q(manifestId) + ', ' + q(co) + ', ' + q('manifests/co/' + manifestId + '/photo.jpg') + ', ' + q('fleet-pilot-artifacts') + ', ' + q('image/jpeg') + ', ' + q('committed') + ', now())'
+  ));
+}

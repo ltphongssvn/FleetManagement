@@ -16,7 +16,7 @@ describe('capture screen-state with stop descriptor', () => {
   it('initial state for a loading stop is idle and carries the stop', () => {
     const s = initialCaptureStateForStop({
       accepted: true,
-      stop: { kind: 'loading', stopIndex: 0, displayIndex: 1 },
+      stop: { kind: 'loading', stopIndex: 0, displayIndex: 1, stopSequence: null },
     });
     expect(s.phase).toBe('idle');
     if (s.phase !== 'idle') throw new Error('unreachable');
@@ -28,7 +28,7 @@ describe('capture screen-state with stop descriptor', () => {
   it('initial state for an unloading stop is idle and carries the stop', () => {
     const s = initialCaptureStateForStop({
       accepted: true,
-      stop: { kind: 'unloading' },
+      stop: { kind: 'unloading', stopSequence: null },
     });
     expect(s.phase).toBe('idle');
     if (s.phase !== 'idle') throw new Error('unreachable');
@@ -48,7 +48,7 @@ describe('capture screen-state with stop descriptor', () => {
   it('reducer preserves the stop across PICKED -> UPLOAD_START -> UPLOAD_OK', () => {
     const s0: CaptureState = initialCaptureStateForStop({
       accepted: true,
-      stop: { kind: 'loading', stopIndex: 2, displayIndex: 3 },
+      stop: { kind: 'loading', stopIndex: 2, displayIndex: 3, stopSequence: null },
     });
     const s1 = reduceCapture(s0, {
       type: 'PICKED',

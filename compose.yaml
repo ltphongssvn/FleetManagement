@@ -111,10 +111,33 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      localstack:
+        condition: service_healthy
     environment:
       NODE_ENV: development
       DATABASE_URL: postgres://fleet:fleet@postgres:5432/fleet  # pragma: allowlist secret
       REDIS_URL: redis://redis:6379
+      # S3 intake enrichment (worker HEADs the uploaded object): without these
+      # the object store is never constructed and intake fail-closes with
+      # rejected:object_missing even though the object exists. In-network
+      # endpoint (localstack:4566) per split-horizon LocalStack pattern; the
+      # api keeps S3_PUBLIC_URL for browser-reachable presigned URLs.
+      AWS_REGION: us-west-2
+      S3_ARTIFACTS_BUCKET: fleet-pilot-artifacts
+      S3_ENDPOINT: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test  # pragma: allowlist secret
+      AWS_SECRET_ACCESS_KEY: test  # pragma: allowlist secret
+      # Intake finalize callback (worker -> POST /upload/intake-result). Without
+      # BOTH vars main.ts never constructs the callback: intake computes a verdict
+      # but the manifest stays verifying forever. The token is a local
+      # service-account ES256 JWT (iss fleet-pilot-api, aud fleet-driver,
+      # operator_id+company_id = pilot sentinel) minted with the dev
+      # JWT_PRIVATE_KEY_PEM. The VALUE lives in the gitignored repo-root .env as
+      # WORKER_FLEET_API_TOKEN (compose interpolates from .env) -- never commit
+      # token literals. Mint: docker exec -w /app fleet-pilot-api-1 node
+      # --input-type=module -e "<jose SignJWT script>" (see PR #70).
+      FLEET_API_URL: http://api:3000
+      FLEET_API_TOKEN: ${WORKER_FLEET_API_TOKEN}
   driver-app:
     build:
       context: .
