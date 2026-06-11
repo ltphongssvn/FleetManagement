@@ -33,7 +33,10 @@ import type { S3Client } from '@aws-sdk/client-s3';
         if (accessKeyId !== undefined) overrides.accessKeyId = accessKeyId;
         if (secretAccessKey !== undefined) overrides.secretAccessKey = secretAccessKey;
         const client: S3Client = defaultS3Client(region, overrides);
-        return new S3StopProofUrlSigner(client);
+        // T-proof-host: browser-reachable origin for proof GET URLs, mirroring
+        // S3BlobStore.presignUpload (split-horizon LocalStack rewrite).
+        const publicUrl = config.get('S3_PUBLIC_URL', { infer: true });
+        return new S3StopProofUrlSigner(client, publicUrl);
       },
     },
   ],
