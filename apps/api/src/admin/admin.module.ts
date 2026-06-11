@@ -4,6 +4,8 @@ import { AuthModule } from '../auth/auth.module.js';
 import { AdminAssignmentService } from './admin-assignment.service.js';
 import { AdminAssignmentController } from './admin-assignment.controller.js';
 import { AdminDriversListService } from './admin-drivers-list.service.js';
+import { AdminOrderTimelineService } from './admin-order-timeline.service.js';
+import { AdminOrderTimelineController } from './admin-order-timeline.controller.js';
 import { AdminDriversListController } from './admin-drivers-list.controller.js';
 import { AdminDeviceEnrollService } from './admin-device-enroll.service.js';
 import { AdminDeviceEnrollController } from './admin-device-enroll.controller.js';
@@ -28,12 +30,14 @@ const bcryptHashProvider = {
   controllers: [
     AdminAssignmentController,
     AdminDriversListController,
+    AdminOrderTimelineController,
     AdminDeviceEnrollController,
     AdminDriversCreateController,
     AdminDriversUpdateController,
     AdminDriversResetPasswordController,
   ],
   providers: [
+    AdminOrderTimelineService,
     AdminAssignmentService,
     AdminDriversListService,
     AdminDeviceEnrollService,
@@ -43,6 +47,7 @@ const bcryptHashProvider = {
     bcryptHashProvider,
   ],
   exports: [
+    AdminOrderTimelineService,
     AdminAssignmentService,
     AdminDriversListService,
     AdminDeviceEnrollService,
