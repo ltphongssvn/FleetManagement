@@ -297,6 +297,9 @@ importers:
       expo-build-properties:
         specifier: ~55.0.14
         version: 55.0.14(expo@55.0.26)
+      expo-constants:
+        specifier: ~55.0.16
+        version: 55.0.16(expo@55.0.26)(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))
       expo-crypto:
         specifier: ~55.0.15
         version: 55.0.15(expo@55.0.26)
@@ -352,6 +355,9 @@ importers:
         specifier: ^4.4.1
         version: 4.4.1
     devDependencies:
+      '@sentry/cli':
+        specifier: 2.58.4
+        version: 2.58.4
       '@stryker-mutator/core':
         specifier: ^9.6.1
         version: 9.6.1(@types/node@22.19.17)

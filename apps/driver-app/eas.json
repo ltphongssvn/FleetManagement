@@ -18,7 +18,8 @@
       "env": {
         "APP_ENV": "development",
         "EXPO_PUBLIC_API_URL": "http://localhost:3000",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "SENTRY_ALLOW_FAILURE": "true"
       },
       "node": "22.20.0"
     },
@@ -31,7 +32,8 @@
       "env": {
         "APP_ENV": "preview",
         "EXPO_PUBLIC_API_URL": "https://api-production-fd42.up.railway.app",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "SENTRY_ALLOW_FAILURE": "true"
       },
       "node": "22.20.0"
     },
@@ -43,7 +45,9 @@
       },
       "env": {
         "APP_ENV": "production",
-        "EXPO_PUBLIC_API_URL": "https://api-production-fd42.up.railway.app"
+        "EXPO_PUBLIC_API_URL": "https://api-production-fd42.up.railway.app",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "SENTRY_ALLOW_FAILURE": "true"
       },
       "node": "22.20.0"
     }
