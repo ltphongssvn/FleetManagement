@@ -18,6 +18,12 @@ const ConfigSchema = z.object({
   AWS_ACCESS_KEY_ID: z.string().min(1).optional(),
   AWS_SECRET_ACCESS_KEY: z.string().min(1).optional(),
   S3_ENDPOINT: z.string().url().optional(),
+  // Phieu-can net-weight extraction (Gemini VLM adapter). Key optional: absent
+  // -> extraction jobs complete with 'ports not configured' skip (pilot can run
+  // without it). Model defaults to gemini-3.5-flash (GA): wrong kg on a stop is
+  // business-unacceptable, accuracy tier wins; override for cost A/B.
+  GEMINI_API_KEY: z.string().min(1).optional(),
+  GEMINI_MODEL: z.string().min(1).default('gemini-3.5-flash'),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

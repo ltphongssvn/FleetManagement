@@ -17,6 +17,9 @@ import { ErpProcessor } from './erp/erp-processor.js';
 import { sendErpInvoice, type ErpClientPort } from './erp/erp-send-flow.js';
 import type { IntakeCallback } from './intake/intake-callback.js';
 import type { IntakeObjectStore } from './intake/intake-object-store.js';
+import { ExtractionJobDataWireSchema } from '@fleet/sync-protocol';
+import { runExtraction, type ExtractionObjectStore, type VlmExtractorPort } from './extraction/extraction-flow.js';
+import type { ExtractionCallback } from './extraction/extraction-callback.js';
 
 export interface RouterResult {
   readonly handled: boolean;
@@ -53,6 +56,9 @@ export async function routeJob(
   intakeCallback?: IntakeCallback,
   erpClient?: ErpClientPort,
   objectStore?: IntakeObjectStore,
+  extractionCallback?: ExtractionCallback,
+  extractionStore?: ExtractionObjectStore,
+  vlmExtractor?: VlmExtractorPort,
 ): Promise<RouterResult> {
   try {
     if (name === 'intake') {
@@ -105,6 +111,20 @@ export async function routeJob(
       const summary = decision.accepted
         ? `accepted policy=${decision.policyVersion}`
         : `rejected:${decision.rejectionCode} policy=${decision.policyVersion}`;
+      return { handled: true, summary, deadLettered: false };
+    }
+    if (name === 'extraction') {
+      const data = ExtractionJobDataWireSchema.parse(job.data);
+      if (!extractionStore || !vlmExtractor) {
+        return { handled: true, summary: 'extraction skipped: ports not configured', deadLettered: false };
+      }
+      const outcome = await runExtraction(data, extractionStore, vlmExtractor);
+      if (outcome.kind === 'failed') throw outcome.error;
+      if (extractionCallback) {
+        await extractionCallback.finalize(outcome.result);
+      }
+      const kg = outcome.result.extractedNetWeightKg;
+      const summary = `${outcome.result.status}${kg === null ? '' : ` kg=${String(kg)}`}`;
       return { handled: true, summary, deadLettered: false };
     }
     return { handled: false, summary: 'stub', deadLettered: false };
