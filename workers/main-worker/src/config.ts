@@ -22,7 +22,9 @@ const ConfigSchema = z.object({
   // -> extraction jobs complete with 'ports not configured' skip (pilot can run
   // without it). Model defaults to gemini-3.5-flash (GA): wrong kg on a stop is
   // business-unacceptable, accuracy tier wins; override for cost A/B.
-  GEMINI_API_KEY: z.string().min(1).optional(),
+  // Compose interpolates ${GEMINI_API_KEY:-} => EMPTY STRING when unset in
+  // .env; empty must mean ABSENT (skip extraction), not a boot crash.
+  GEMINI_API_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
   GEMINI_MODEL: z.string().min(1).default('gemini-3.5-flash'),
 });
 

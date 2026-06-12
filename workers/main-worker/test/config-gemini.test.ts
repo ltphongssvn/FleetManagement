@@ -23,7 +23,9 @@ describe('config: Gemini extraction keys', () => {
     expect(c.GEMINI_MODEL).toBe('gemini-2.5-flash');
   });
 
-  it('rejects an empty GEMINI_API_KEY (set-but-blank is a config bug)', () => {
-    expect(() => loadConfig({ ...BASE, GEMINI_API_KEY: '' } as NodeJS.ProcessEnv)).toThrow(/Invalid environment/);
+  it('treats empty GEMINI_API_KEY as absent (compose ${VAR:-} interpolation)', () => {
+    const c = loadConfig({ ...BASE, GEMINI_API_KEY: '' } as NodeJS.ProcessEnv);
+    expect(c.GEMINI_API_KEY).toBeUndefined();
+    expect(c.GEMINI_MODEL).toBe('gemini-3.5-flash');
   });
 });
