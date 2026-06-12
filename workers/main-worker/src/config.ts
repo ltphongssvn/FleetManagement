@@ -7,7 +7,10 @@ const ConfigSchema = z.object({
   REDIS_URL: z.string().url().default('redis://localhost:6379'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   FLEET_API_URL: z.string().url().optional(),
-  FLEET_API_TOKEN: z.string().min(1).optional(),
+  // Compose substitutes UNSET ${WORKER_FLEET_API_TOKEN} with an EMPTY STRING
+  // (spec behavior) -- empty must mean ABSENT (callbacks skip), never a boot
+  // crash on token-less machines (CI, fresh clones). Same class as GEMINI key.
+  FLEET_API_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
   ERP_API_URL: z.string().url().optional(),
   ERP_API_KEY: z.string().min(1).optional(),
   // S3 intake enrichment: worker HEADs the uploaded object to validate the real

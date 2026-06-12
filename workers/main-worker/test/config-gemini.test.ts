@@ -23,6 +23,11 @@ describe('config: Gemini extraction keys', () => {
     expect(c.GEMINI_MODEL).toBe('gemini-2.5-flash');
   });
 
+  it('treats empty FLEET_API_TOKEN as absent (compose blank-string interpolation; worker must boot keyless)', () => {
+    const c = loadConfig({ ...BASE, FLEET_API_TOKEN: '', FLEET_API_URL: 'http://api:3000' } as NodeJS.ProcessEnv);
+    expect(c.FLEET_API_TOKEN).toBeUndefined();
+  });
+
   it('treats empty GEMINI_API_KEY as absent (compose ${VAR:-} interpolation)', () => {
     const c = loadConfig({ ...BASE, GEMINI_API_KEY: '' } as NodeJS.ProcessEnv);
     expect(c.GEMINI_API_KEY).toBeUndefined();
