@@ -115,28 +115,38 @@ async function seed(): Promise<SeedResult> {
 // the seeded order graph so it does not pollute the board / manual verification.
 // Tolerant: a failed statement does not abort the rest.
 async function cleanup(vehicleId: string): Promise<void> {
-  const sq = String.fromCharCode(39);
-  const v = sq + vehicleId + sq;
-  const stmts = [
-    'DELETE FROM stop WHERE transport_order_id IN (SELECT t.transport_order_id FROM transport_order t JOIN road_run_transport_order rrto ON rrto.transport_order_id=t.transport_order_id JOIN road_run r ON r.road_run_id=rrto.road_run_id WHERE r.assigned_asset_id=' + v + ');',
-    'DELETE FROM road_run_transport_order WHERE road_run_id IN (SELECT road_run_id FROM road_run WHERE assigned_asset_id=' + v + ');',
-    'DELETE FROM transport_order WHERE transport_order_id IN (SELECT t.transport_order_id FROM transport_order t WHERE NOT EXISTS (SELECT 1 FROM road_run_transport_order x WHERE x.transport_order_id=t.transport_order_id) AND t.company_id=' + sq + COMPANY_ID + sq + ');',
-    'DELETE FROM road_run WHERE assigned_asset_id=' + v + ';',
-    'DELETE FROM dispatch_board_projection WHERE assigned_asset_id=' + v + ';',
+  // Parameterized via psql -v variables: :'vid' / :'cid' interpolate as
+  // properly QUOTED SQL literals -- psql owns the quoting, zero string
+  // concatenation. One psql invocation reads all statements from stdin;
+  // ON_ERROR_STOP stays OFF so a failed statement does not abort the rest
+  // (same tolerance as the previous per-statement loop).
+  const sql = [
+    "DELETE FROM stop WHERE transport_order_id IN (SELECT t.transport_order_id FROM transport_order t JOIN road_run_transport_order rrto ON rrto.transport_order_id=t.transport_order_id JOIN road_run r ON r.road_run_id=rrto.road_run_id WHERE r.assigned_asset_id=:'vid');",
+    "DELETE FROM road_run_transport_order WHERE road_run_id IN (SELECT road_run_id FROM road_run WHERE assigned_asset_id=:'vid');",
+    "DELETE FROM transport_order WHERE transport_order_id IN (SELECT t.transport_order_id FROM transport_order t WHERE NOT EXISTS (SELECT 1 FROM road_run_transport_order x WHERE x.transport_order_id=t.transport_order_id) AND t.company_id=:'cid');",
+    "DELETE FROM road_run WHERE assigned_asset_id=:'vid';",
+    "DELETE FROM dispatch_board_projection WHERE assigned_asset_id=:'vid';",
     // FULL-LIFECYCLE cleanup (anti-leak): the harness owns its seed end to end.
     // global-teardown only runs after a Playwright suite, NOT after this
     // standalone Maestro harness, so the seeded driver/vehicle/assignment would
     // otherwise leak forever. Delete them here in FK order. passkey_credential
     // has no cascade -> delete any children first (the seed creates none, but be
     // safe). Driver is resolved via the assignment on this vehicle.
-    'DELETE FROM passkey_credential WHERE driver_id IN (SELECT driver_id FROM driver_vehicle_assignment WHERE vehicle_id=' + v + ');',
-    'DELETE FROM driver_vehicle_assignment WHERE vehicle_id=' + v + ';',
-    'DELETE FROM driver WHERE company_id=' + sq + COMPANY_ID + sq + ' AND full_name LIKE ' + sq + 'E2E%MAESTRO%' + sq + ';',
-    'DELETE FROM vehicle WHERE vehicle_id=' + v + ';',
-  ];
-  for (const s of stmts) {
-    await execa('docker', ['exec', PG, 'psql', '-U', 'fleet', '-d', 'fleet', '-c', s], { reject: false, all: true });
-  }
+    "DELETE FROM passkey_credential WHERE driver_id IN (SELECT driver_id FROM driver_vehicle_assignment WHERE vehicle_id=:'vid');",
+    // Assignment references driver (FK), and the assignment row is the ONLY
+    // link from vehicle to driver -- a CTE deletes both atomically in FK order
+    // and stays exactly seed-scoped. (The previous company-wide LIKE delete was
+    // a latent bug: it reached unrelated E2E drivers whose assignments live on
+    // OTHER vehicles, tripping the FK and aborting -- proven live 2026-06-12.)
+    "WITH del AS (DELETE FROM driver_vehicle_assignment WHERE vehicle_id=:'vid' RETURNING driver_id) DELETE FROM driver WHERE driver_id IN (SELECT driver_id FROM del);",
+    "DELETE FROM vehicle WHERE vehicle_id=:'vid';",
+  ].join('\n');
+  await execa('docker', [
+    'exec', '-i', PG, 'psql', '-U', 'fleet', '-d', 'fleet',
+    '-v', 'vid=' + vehicleId,
+    '-v', 'cid=' + COMPANY_ID,
+    '-f', '-',
+  ], { input: sql, reject: false, all: true });
   log('cleanup', 'order graph removed for vehicle ' + vehicleId);
 }
 
