@@ -11,9 +11,6 @@
       "bundleIdentifier": "com.fleetmanagement.driver",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      },
-      "locales": {
-        "vi": "./locales/vi.json"
       }
     },
     "android": {
@@ -38,7 +35,7 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Ứng dụng cần quyền truy cập máy ảnh để bạn chụp ảnh phiếu cân hàng làm bằng chứng nhận/giao hàng tại kho."
+          "cameraPermission": "\u1ee8ng d\u1ee5ng c\u1ea7n quy\u1ec1n truy c\u1eadp m\u00e1y \u1ea3nh \u0111\u1ec3 b\u1ea1n ch\u1ee5p \u1ea3nh phi\u1ebfu c\u00e2n h\u00e0ng l\u00e0m b\u1eb1ng ch\u1ee9ng nh\u1eadn/giao h\u00e0ng t\u1ea1i kho."
         }
       ],
       [
@@ -67,6 +64,9 @@
       },
       "router": {}
     },
-    "owner": "ltphongssvn"
+    "owner": "ltphongssvn",
+    "locales": {
+      "vi": "./locales/vi.json"
+    }
   }
 }
