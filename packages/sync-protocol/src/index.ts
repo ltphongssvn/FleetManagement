@@ -64,3 +64,11 @@ export {
 } from './outbox-routing.js';
 export { COMMAND_EVENTS, type CommandEventName } from './command-events.js';
 export * from './order-timeline-contract.js';
+export {
+  ExtractionJobDataWireSchema,
+  EXTRACTION_STATUSES,
+  ExtractionResultWireSchema,
+  type ExtractionJobDataWire,
+  type ExtractionStatus,
+  type ExtractionResultWire,
+} from './extraction-types.js';
