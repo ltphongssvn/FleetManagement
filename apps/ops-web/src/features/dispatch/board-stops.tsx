@@ -73,16 +73,25 @@ function StopCellContent({
     return <span data-testid={testId}>{'—'}</span>;
   }
   if (stop.proof !== null) {
+    // Phieu-can net weight (kg): present only after the extraction worker
+    // persisted a validated value; vi-VN grouping (20.730 kg = 20,730 kg).
+    const kg = stop.proof.extractedNetWeightKg ?? null;
     // External presigned S3 GET URL: new tab + noopener/noreferrer safety.
     return (
-      <a data-testid={testId}
-        href={stop.proof.photoUrl}
-        target='_blank'
-        rel='noopener noreferrer'
-        className='text-blue-600 underline hover:text-blue-800'
-      >
-        {'Phiếu Cân'}
-      </a>
+      <span data-testid={testId} className='inline-flex items-baseline gap-1'>
+        <a href={stop.proof.photoUrl}
+          target='_blank'
+          rel='noopener noreferrer'
+          className='text-blue-600 underline hover:text-blue-800'
+        >
+          {'Phiếu Cân'}
+        </a>
+        {kg !== null ? (
+          <span className='text-gray-700'>
+            {'· ' + new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(kg) + ' kg'}
+          </span>
+        ) : null}
+      </span>
     );
   }
   return <span data-testid={testId}>{stopStatusOf(stop)}</span>;

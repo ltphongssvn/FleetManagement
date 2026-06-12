@@ -58,4 +58,33 @@ describe('board-stops Phiếu Cân proof link', () => {
     // Disambiguate by the per-slot testid the component already emits.
     expect(screen.getByTestId('board-stop-status-XTT.06-005-pickup-1')).toHaveTextContent('Chưa tới');
   });
+
+  it('renders the extracted net weight (vi-VN formatted kg) beside the Phiếu Cân link', () => {
+    const stop: DispatchBoardStop = {
+      sequence: 1,
+      stopType: 'pickup',
+      warehouseName: 'Cường Thắng',
+      arrivedAt: null,
+      departedAt: null,
+      proof: { ...PROOF, extractedNetWeightKg: 20730 },
+    };
+    renderCells([stop]);
+    const cell = screen.getByTestId('board-stop-status-XTT.06-005-pickup-1');
+    expect(cell).toHaveTextContent('20.730 kg');
+    expect(screen.getByRole('link', { name: /Phiếu Cân/i })).toHaveAttribute('href', PROOF.photoUrl);
+  });
+
+  it('shows the link only (no kg text) when extraction has not produced a value', () => {
+    const stop: DispatchBoardStop = {
+      sequence: 1,
+      stopType: 'pickup',
+      warehouseName: 'Cường Thắng',
+      arrivedAt: null,
+      departedAt: null,
+      proof: PROOF,
+    };
+    renderCells([stop]);
+    const cell = screen.getByTestId('board-stop-status-XTT.06-005-pickup-1');
+    expect(cell).not.toHaveTextContent('kg');
+  });
 });
