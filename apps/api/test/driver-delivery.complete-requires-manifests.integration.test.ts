@@ -99,7 +99,8 @@ describe('@fleet/api - DriverDeliveryService.complete requires all manifests com
       return { rejected, message };
     });
     expect(outcome?.rejected).toBe(true);
-    expect(outcome?.message).toMatch(/manifest|photo|incomplete|not.*complete/i);
+    expect(outcome?.message).toContain('Chưa thể hoàn thành lệnh điều xe');
+    expect(outcome?.message).toContain('1/2 phiếu cân');
   });
   it('ALLOWS completion when every stop has a committed manifest (2 of 2 photos)', async () => {
     const outcome = await withTxIsolation(testDb, async (tx) => {
