@@ -173,7 +173,13 @@ services:
       HOSTNAME: "0.0.0.0"
       FLEET_API_URL: http://api:3000
       OIDC_TOKEN_ENDPOINT: http://mock-oauth2:8080/fleet/token
-      FLEET_API_TOKEN: eyJraWQiOiJmbGVldCIsInR5cCI6IkpXVCIsImFsZyI6IkVTMjU2In0.eyJzdWIiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwYWEiLCJhdWQiOiJmbGVldC1waWxvdCIsIm5iZiI6MTc3OTM4MjA2NiwiY29tcGFueV9pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMCIsIm9wZXJhdG9yX2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMGFhIiwiaXNzIjoiaHR0cDovL21vY2stb2F1dGgyOjgwODAvZmxlZXQiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJkaXNwYXRjaGVyIiwiZXhwIjoxNzc5NDY4NDY2LCJpYXQiOjE3NzkzODIwNjYsImp0aSI6ImMyMjJlZWRiLTk1ZWQtNDU2ZS1hNThmLWIzNDdmMjY5YWU3YiJ9.fuSr8aCErGiPdghxXlLYFPLyA2hYcW7Xe-ZcskPRHIDgrn0Uob_c9AISVsbREsMsmrg269x580-bh_gZI4-BaA  # pragma: allowlist secret
+      # Server-action auth for assign-run: a dispatcher-scope JWT minted from
+      # the local mock-oauth2 (/fleet/token, 1-day exp). The VALUE lives in the
+      # gitignored repo-root .env as OPS_WEB_FLEET_API_TOKEN (compose ${}
+      # interpolation) -- never commit token literals. Re-mint when expired:
+      # docker exec fleet-pilot-api-1 node -e "<fetch /fleet/token script>" (see
+      # context/proof-pipeline-env-and-url-horizons.md).
+      FLEET_API_TOKEN: ${OPS_WEB_FLEET_API_TOKEN}
     ports:
       - "3001:3001"
 volumes:

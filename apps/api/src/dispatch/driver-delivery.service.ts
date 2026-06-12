@@ -81,9 +81,12 @@ export class DriverDeliveryService {
     const stopCount = stopCountRows[0]?.n ?? 0;
     const committed = committedCountRows[0]?.n ?? 0;
     if (committed < stopCount) {
+      // Driver-facing message in Vietnamese (the app surfaces it verbatim);
+      // bracketed technical suffix keeps log/ops correlation in English.
       throw new BadRequestException(
-        'cannot complete road_run ' + roadRunId + ': ' + String(committed) + ' of ' +
-        String(stopCount) + ' stop manifest photos committed (missing pickup/delivery photos)',
+        'Chưa thể hoàn thành lệnh điều xe: mới có ' + String(committed) + '/' +
+        String(stopCount) + ' phiếu cân được ghi nhận. Vui lòng chụp đủ ảnh tại các điểm lấy và giao hàng.' +
+        ' [road_run ' + roadRunId + ': ' + String(committed) + ' of ' + String(stopCount) + ' committed]',
       );
     }
   }
