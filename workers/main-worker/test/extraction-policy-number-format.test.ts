@@ -1,9 +1,9 @@
 // workers/main-worker/test/extraction-policy-number-format.test.ts
-// RED: drives promoting parseOneNumber to an export so its Vietnamese number-format
-// rules can be unit-tested directly (not only transitively via parseNetWeightKg).
-// Fails until the parse-one-number codemod exports it from extraction-policy.ts.
+// Exercises parseOneNumber's Vietnamese number-format rules directly. The function was
+// extracted into @fleet/domain by the extract-parse-one-number codemod (relocated from
+// extraction-policy.ts); this imports it from its canonical home, matching the worker source.
 import { describe, it, expect } from 'vitest';
-import { parseOneNumber } from '../src/extraction/extraction-policy.js';
+import { parseOneNumber } from '@fleet/domain';
 
 describe('parseOneNumber number-format rules (direct)', () => {
   it('dot plus exactly 3 digits is a thousands separator', () => {
