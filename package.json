@@ -15,6 +15,7 @@
     "typecheck": "turbo run typecheck --concurrency=50%",
     "test": "turbo run test:unit --concurrency=50%",
     "dev": "turbo run dev",
+    "codemod": "tsx packages/codemods/src/cli.ts",
     "clean": "turbo run clean && rm -rf node_modules .turbo",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
