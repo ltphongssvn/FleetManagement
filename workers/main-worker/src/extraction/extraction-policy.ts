@@ -25,7 +25,7 @@ export interface NetWeightRaw {
   readonly twoPass?: boolean;
 }
 
-function parseOneNumber(raw: string): number | null {
+export function parseOneNumber(raw: string): number | null {
   const cleaned = raw.replace(/kg/gi, '').trim();
   // The regex is the single gate: grouped form (1-3 digits then .ddd groups)
   // or a plain digit run, with an optional 1-2 digit decimal tail. Everything
