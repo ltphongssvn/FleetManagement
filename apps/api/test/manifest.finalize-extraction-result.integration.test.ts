@@ -7,6 +7,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { ManifestService } from '../src/manifest/manifest.service.js';
+import { ManifestStateInvalidTransitionError } from '../src/manifest/manifest.errors.js';
 import type { OperatorContext } from '../src/auth/operator-context.js';
 import type { IBlobStore, PresignedUpload } from '../src/storage/storage-provider.interface.js';
 import type { ConfigService } from '@nestjs/config';
@@ -81,4 +82,29 @@ describe('@fleet/api - finalizeExtraction persists kg + emits projection event',
     `);
     expect(ob.rows).toHaveLength(0);
   });
+
+  it('unreadable: kg stays null, no projection event (guard arm)', async () => {
+    const manifestId = await committedManifest();
+    const r = await service.finalizeExtraction({ manifestId, status: 'unreadable', extractedNetWeightKg: null }, OP);
+    expect(r).toMatchObject({ manifestId, status: 'unreadable' });
+    const row = await testDb.db.execute(sql`SELECT extracted_net_weight_kg FROM manifest WHERE manifest_id = ${manifestId}::uuid`);
+    expect(row.rows[0]).toMatchObject({ extracted_net_weight_kg: null });
+  });
+
+  it('direct service call with extracted+null kg is a no-op (controller schema cannot reach this; service must still guard)', async () => {
+    const manifestId = await committedManifest();
+    const r = await service.finalizeExtraction({ manifestId, status: 'extracted', extractedNetWeightKg: null }, OP);
+    expect(r).toMatchObject({ manifestId, status: 'extracted' });
+    const row = await testDb.db.execute(sql`SELECT extracted_net_weight_kg FROM manifest WHERE manifest_id = ${manifestId}::uuid`);
+    expect(row.rows[0]).toMatchObject({ extracted_net_weight_kg: null });
+    const ob = await testDb.db.execute(sql`SELECT 1 FROM outbox WHERE payload->>'eventType' = 'manifest.net_weight_extracted'`);
+    expect(ob.rows).toHaveLength(0);
+  });
+  it('extracted + non-null kg on a non-existent manifest throws invalid-transition (no committed row to update)', async () => {
+    const missingManifestId = randomUUID();
+    await expect(
+      service.finalizeExtraction({ manifestId: missingManifestId, status: 'extracted', extractedNetWeightKg: 20730 }, OP),
+    ).rejects.toThrow(ManifestStateInvalidTransitionError);
+  });
+
 });
