@@ -28,6 +28,16 @@ export function runCodemodCli(
   return runCodemod({ project, transform: codemod.transform, dryRun });
 }
 
+// Maps a (dry-run) codemod result to a drift verdict for --check. Project results carry
+// `changes`; per-file results carry `changed`/`errored`. Any change, or any per-file
+// error (we cannot prove clean if a file threw), counts as drift.
+export function hasDrift(result: OrchestratorResult | ProjectOutcome): boolean {
+  if ('changes' in result) {
+    return result.changes.length > 0;
+  }
+  return result.changed > 0 || result.errored > 0;
+}
+
 function main(): void {
   const argv = process.argv.slice(2);
   if (argv.includes('--list')) {
@@ -42,6 +52,13 @@ function main(): void {
   const project = new Project({ tsConfigFilePath: options.tsConfigFilePath });
   const result = runCodemodCli(codemod, project, options.dryRun, options.include);
   process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+  if (options.check) {
+    if (hasDrift(result)) {
+      process.stderr.write('codemod ' + options.transform + ': drift detected (source is not migrated). Run the codemod and commit.\n');
+      process.exitCode = 1;
+    }
+    return;
+  }
   if ('errored' in result && result.errored > 0) {
     process.exitCode = 1;
   }

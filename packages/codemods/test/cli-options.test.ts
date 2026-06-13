@@ -37,6 +37,20 @@ describe('parseCliArgs', () => {
     expect(parseCliArgs(['parse-one-number']).include).toEqual([]);
   });
 
+  it('defaults check to false', () => {
+    expect(parseCliArgs(['parse-one-number']).check).toBe(false);
+  });
+
+  it('parses --check as a boolean flag', () => {
+    expect(parseCliArgs(['parse-one-number', '--check']).check).toBe(true);
+  });
+
+  it('--check implies a dry (non-writing) run', () => {
+    const opts = parseCliArgs(['extract-parse-one-number', '--check']);
+    expect(opts.check).toBe(true);
+    expect(opts.dryRun).toBe(true);
+  });
+
   it('accumulates --include globs in order, repeatable', () => {
     const opts = parseCliArgs([
       'extract-parse-one-number',
@@ -49,6 +63,6 @@ describe('parseCliArgs', () => {
   });
 
   it('exposes a strict schema that rejects unknown keys', () => {
-    expect(() => CliOptionsSchema.parse({ transform: 'parse-one-number', tsConfigFilePath: 'tsconfig.json', dryRun: false, include: [], extra: 1 })).toThrow();
+    expect(() => CliOptionsSchema.parse({ transform: 'parse-one-number', tsConfigFilePath: 'tsconfig.json', dryRun: false, include: [], check: false, extra: 1 })).toThrow();
   });
 });

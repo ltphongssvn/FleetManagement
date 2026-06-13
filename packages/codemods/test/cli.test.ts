@@ -6,7 +6,7 @@
 // RED: ../src/cli.js does not export runCodemodCli yet.
 import { describe, it, expect } from 'vitest';
 import { Project } from 'ts-morph';
-import { runCodemodCli } from '../src/cli.js';
+import { runCodemodCli, hasDrift } from '../src/cli.js';
 import { getCodemod } from '../src/registry.js';
 import { OrchestratorResultSchema, ProjectOutcomeSchema } from '../src/contracts.js';
 
@@ -53,5 +53,28 @@ describe('runCodemodCli dispatch', () => {
     expect(() => ProjectOutcomeSchema.parse(result)).not.toThrow();
     expect('changes' in result).toBe(true);
     expect('scanned' in result).toBe(false);
+  });
+});
+
+
+describe('hasDrift (--check drift detection)', () => {
+  it('per-file: drift when any file changed', () => {
+    expect(hasDrift({ dryRun: true, scanned: 2, changed: 1, errored: 0, results: [] })).toBe(true);
+  });
+
+  it('per-file: no drift when nothing changed', () => {
+    expect(hasDrift({ dryRun: true, scanned: 2, changed: 0, errored: 0, results: [] })).toBe(false);
+  });
+
+  it('per-file: errors count as drift (cannot prove clean)', () => {
+    expect(hasDrift({ dryRun: true, scanned: 2, changed: 0, errored: 1, results: [] })).toBe(true);
+  });
+
+  it('project: drift when there are changes', () => {
+    expect(hasDrift({ dryRun: true, changes: [{ filePath: '/x.ts', change: 'modified' }] })).toBe(true);
+  });
+
+  it('project: no drift when changes is empty', () => {
+    expect(hasDrift({ dryRun: true, changes: [] })).toBe(false);
   });
 });
