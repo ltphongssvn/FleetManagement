@@ -1,13 +1,28 @@
 #!/usr/bin/env node
 // packages/codemods/src/cli.ts
-// fleet-codemods CLI entrypoint: --list prints the registered codemods; otherwise parse +
-// Zod-validate argv, build a ts-morph Project from the tsconfig, run the named transform
-// across it via the orchestrator, print the JSON summary, and exit non-zero on per-file
-// errors.
+// fleet-codemods CLI entrypoint. --list prints the registered codemods. Otherwise parse +
+// Zod-validate argv, build a ts-morph Project from the tsconfig, and dispatch by codemod
+// kind: per-file -> runCodemod (OrchestratorResult), project -> runProjectCodemod
+// (ProjectOutcome). runCodemodCli is exported and pure so it can be tested without argv;
+// main() only runs when this file is executed directly, never on import.
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { Project } from 'ts-morph';
 import { parseCliArgs } from './cli-options.js';
-import { runCodemod } from './orchestrator.js';
-import { getCodemod, formatCodemodList } from './registry.js';
+import { runCodemod, runProjectCodemod } from './orchestrator.js';
+import { getCodemod, formatCodemodList, type Codemod } from './registry.js';
+import { type OrchestratorResult, type ProjectOutcome } from './contracts.js';
+
+export function runCodemodCli(
+  codemod: Codemod,
+  project: Project,
+  dryRun: boolean,
+): OrchestratorResult | ProjectOutcome {
+  if (codemod.kind === 'project') {
+    return runProjectCodemod({ project, transform: codemod.transform, dryRun });
+  }
+  return runCodemod({ project, transform: codemod.transform, dryRun });
+}
 
 function main(): void {
   const argv = process.argv.slice(2);
@@ -21,11 +36,24 @@ function main(): void {
     throw new Error('No codemod registered for ' + options.transform);
   }
   const project = new Project({ tsConfigFilePath: options.tsConfigFilePath });
-  const result = runCodemod({ project, transform: codemod.transform, dryRun: options.dryRun });
+  const result = runCodemodCli(codemod, project, options.dryRun);
   process.stdout.write(JSON.stringify(result, null, 2) + '\n');
-  if (result.errored > 0) {
+  if ('errored' in result && result.errored > 0) {
     process.exitCode = 1;
   }
 }
 
-main();
+const argv1 = process.argv[1];
+const isMain =
+  argv1 !== undefined &&
+  (() => {
+    try {
+      return realpathSync(argv1) === fileURLToPath(import.meta.url);
+    } catch {
+      return false;
+    }
+  })();
+
+if (isMain) {
+  main();
+}

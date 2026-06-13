@@ -29,4 +29,15 @@ describe('codemod registry', () => {
     }
     expect(CODEMODS.length).toBeGreaterThan(0);
   });
+
+  it('registers extract-parse-one-number as a project codemod', () => {
+    const entry = getCodemod('extract-parse-one-number');
+    expect(entry?.name).toBe('extract-parse-one-number');
+    expect(entry?.kind).toBe('project');
+    expect((entry?.description ?? '').length).toBeGreaterThan(0);
+  });
+
+  it('TRANSFORM_NAMES includes extract-parse-one-number', () => {
+    expect([...TRANSFORM_NAMES]).toContain('extract-parse-one-number');
+  });
 });

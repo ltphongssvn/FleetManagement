@@ -1,8 +1,8 @@
 // packages/codemods/src/contracts.ts
 // Zod-first contracts for @fleet/codemods. Schemas are the single source of truth; TS
-// types are inferred from them. TransformOutcome is what one AST transform reports;
-// FileResult / OrchestratorResult are what the workspace orchestrator returns per file
-// and in aggregate.
+// types are inferred from them. TransformOutcome is what one per-file AST transform
+// reports; FileResult / OrchestratorResult are what the per-file orchestrator returns.
+// ProjectChange / ProjectOutcome are what a project-level transform + orchestrator return.
 import { z } from 'zod';
 
 export const TransformOutcomeSchema = z
@@ -34,3 +34,21 @@ export const OrchestratorResultSchema = z
   .strict();
 
 export type OrchestratorResult = z.infer<typeof OrchestratorResultSchema>;
+
+export const ProjectChangeSchema = z
+  .object({
+    filePath: z.string(),
+    change: z.enum(['created', 'modified']),
+  })
+  .strict();
+
+export type ProjectChange = z.infer<typeof ProjectChangeSchema>;
+
+export const ProjectOutcomeSchema = z
+  .object({
+    dryRun: z.boolean(),
+    changes: z.array(ProjectChangeSchema),
+  })
+  .strict();
+
+export type ProjectOutcome = z.infer<typeof ProjectOutcomeSchema>;
