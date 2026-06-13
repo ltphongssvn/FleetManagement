@@ -29,6 +29,21 @@ describe('runCodemodCli dispatch', () => {
     expect('scanned' in result).toBe(true);
   });
 
+  it('spans extra include globs into the project before running (project codemod sees added source)', () => {
+    const codemod = getCodemod('extract-parse-one-number');
+    if (codemod === undefined) throw new Error('extract-parse-one-number not registered');
+    const project = inMemoryProject({
+      'workers/w/origin.ts': 'export function parseOneNumber(){ return 0; }\n',
+    });
+    const fs = project.getFileSystem();
+    fs.writeFileSync('/packages/domain/src/index.ts', 'export const domain = 1;\n');
+    const before = project.getSourceFile('/packages/domain/src/index.ts');
+    expect(before).toBeUndefined();
+    const result = runCodemodCli(codemod, project, true, ['/packages/domain/src/**/*.ts']);
+    expect(() => ProjectOutcomeSchema.parse(result)).not.toThrow();
+    expect(project.getSourceFile('/packages/domain/src/index.ts')).toBeDefined();
+  });
+
   it('routes a project codemod through runProjectCodemod (ProjectOutcome)', () => {
     const codemod = getCodemod('extract-parse-one-number');
     if (codemod === undefined) throw new Error('extract-parse-one-number not registered');

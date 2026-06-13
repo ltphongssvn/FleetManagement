@@ -33,7 +33,22 @@ describe('parseCliArgs', () => {
     expect(() => parseCliArgs(['--dry'])).toThrow();
   });
 
+  it('defaults include to an empty array', () => {
+    expect(parseCliArgs(['parse-one-number']).include).toEqual([]);
+  });
+
+  it('accumulates --include globs in order, repeatable', () => {
+    const opts = parseCliArgs([
+      'extract-parse-one-number',
+      '--include',
+      'packages/domain/src/**/*.ts',
+      '--include',
+      'packages/other/src/**/*.ts',
+    ]);
+    expect(opts.include).toEqual(['packages/domain/src/**/*.ts', 'packages/other/src/**/*.ts']);
+  });
+
   it('exposes a strict schema that rejects unknown keys', () => {
-    expect(() => CliOptionsSchema.parse({ transform: 'parse-one-number', tsConfigFilePath: 'tsconfig.json', dryRun: false, extra: 1 })).toThrow();
+    expect(() => CliOptionsSchema.parse({ transform: 'parse-one-number', tsConfigFilePath: 'tsconfig.json', dryRun: false, include: [], extra: 1 })).toThrow();
   });
 });

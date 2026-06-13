@@ -17,8 +17,12 @@ export function runCodemodCli(
   codemod: Codemod,
   project: Project,
   dryRun: boolean,
+  includeGlobs: readonly string[] = [],
 ): OrchestratorResult | ProjectOutcome {
   if (codemod.kind === 'project') {
+    if (includeGlobs.length > 0) {
+      project.addSourceFilesAtPaths([...includeGlobs]);
+    }
     return runProjectCodemod({ project, transform: codemod.transform, dryRun });
   }
   return runCodemod({ project, transform: codemod.transform, dryRun });
@@ -36,7 +40,7 @@ function main(): void {
     throw new Error('No codemod registered for ' + options.transform);
   }
   const project = new Project({ tsConfigFilePath: options.tsConfigFilePath });
-  const result = runCodemodCli(codemod, project, options.dryRun);
+  const result = runCodemodCli(codemod, project, options.dryRun, options.include);
   process.stdout.write(JSON.stringify(result, null, 2) + '\n');
   if ('errored' in result && result.errored > 0) {
     process.exitCode = 1;
