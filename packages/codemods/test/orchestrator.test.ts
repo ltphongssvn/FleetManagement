@@ -1,9 +1,9 @@
 // packages/codemods/test/orchestrator.test.ts
-// Outside-in RED for the workspace orchestrator. runCodemod applies a transform across
-// every source file in a ts-morph Project with per-file error isolation (one failing
-// file never aborts the run), honors dryRun (no writes to disk), saves changed files
-// when not dryRun, and returns a Zod-validated summary. RED: ../src/orchestrator.js
-// does not exist yet.
+// Outside-in tests for the workspace orchestrator. runCodemod applies a transform across
+// every SOURCE file in a ts-morph Project (skipping generated declaration files and dist
+// output) with per-file error isolation (one failing file never aborts the run), honors
+// dryRun (no writes to disk), saves changed files when not dryRun, and returns a
+// Zod-validated summary.
 import { describe, it, expect } from 'vitest';
 import { Project, type SourceFile } from 'ts-morph';
 import { runCodemod } from '../src/orchestrator.js';
@@ -68,5 +68,22 @@ describe('runCodemod orchestrator', () => {
     const result = runCodemod({ project, transform: boom, dryRun: false });
     expect(result.errored).toBe(1);
     expect(result.results[0]?.error).toContain('plain failure');
+  });
+
+  it('skips declaration files and dist output, scanning only real source', () => {
+    const project = projectWith({
+      'a.ts': PRIVATE,
+      'types.d.ts': 'export declare const y: number;\n',
+      'dist/built.ts': PRIVATE,
+      'node_modules/dep.ts': PRIVATE,
+    });
+    const result = runCodemod({ project, transform: transformParseOneNumber, dryRun: true });
+    expect(result.scanned).toBe(1);
+    expect(result.changed).toBe(1);
+    const paths = result.results.map((r) => r.filePath);
+    expect(paths.some((p) => p.endsWith('/a.ts'))).toBe(true);
+    expect(paths.some((p) => p.includes('.d.ts'))).toBe(false);
+    expect(paths.some((p) => p.includes('/dist/'))).toBe(false);
+    expect(paths.some((p) => p.includes('node_modules'))).toBe(false);
   });
 });

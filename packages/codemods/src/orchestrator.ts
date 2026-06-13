@@ -1,9 +1,11 @@
 // packages/codemods/src/orchestrator.ts
-// Workspace orchestrator: apply a transform across every source file in a ts-morph
+// Workspace orchestrator: apply a transform across every SOURCE file in a ts-morph
 // Project with per-file error isolation (one failing file never aborts the run),
 // honoring dryRun (no writes) and saving changed files to disk otherwise. Saving only
 // after a successful, changed transform avoids leaving the file system in a halfway
-// state. Returns a Zod-validated summary (OrchestratorResult).
+// state. Generated artifacts are never transformed: declaration files (.d.ts), anything
+// under a dist/ output directory, and node_modules are skipped. Returns a Zod-validated
+// summary (OrchestratorResult).
 import { type Project, type SourceFile } from 'ts-morph';
 import {
   OrchestratorResultSchema,
@@ -20,6 +22,10 @@ export interface RunCodemodOptions {
   readonly dryRun?: boolean;
 }
 
+function isGenerated(sourceFile: SourceFile, filePath: string): boolean {
+  return sourceFile.isDeclarationFile() || sourceFile.isInNodeModules() || filePath.includes('/dist/');
+}
+
 export function runCodemod(options: RunCodemodOptions): OrchestratorResult {
   const dryRun = options.dryRun === true;
   const results: FileResult[] = [];
@@ -27,6 +33,9 @@ export function runCodemod(options: RunCodemodOptions): OrchestratorResult {
   let errored = 0;
   for (const sourceFile of options.project.getSourceFiles()) {
     const filePath = sourceFile.getFilePath();
+    if (isGenerated(sourceFile, filePath)) {
+      continue;
+    }
     try {
       const outcome = options.transform(sourceFile);
       if (outcome.changed) {
