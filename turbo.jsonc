@@ -152,8 +152,8 @@
       "env": ["DATABASE_URL", "REDIS_URL", "API_BASE_URL", "TESTCONTAINERS_*"]
     },
     "__ci_fast__": {
-      "description": "PR gate orchestration node — lint + typecheck + test:unit. Double-underscore prevents package-script collision. Expose via root package.json script 'ci:fast' for friendly CLI. CI workflow should matrix-split (ADR-001).",
-      "dependsOn": ["lint", "typecheck", "test:unit"],
+      "description": "PR gate orchestration node — lint + typecheck + test:unit + codemod drift gate. Double-underscore prevents package-script collision. Expose via root package.json script 'ci:fast' for friendly CLI. CI workflow should matrix-split (ADR-001).",
+      "dependsOn": ["lint", "typecheck", "test:unit", "//#codemod:check"],
       "cache": false
     },
     "__ci_full__": {
@@ -169,6 +169,10 @@
     "__ci__": {
       "description": "Alias orchestration node for __ci_fast__ (GitFlow PR convention).",
       "dependsOn": ["__ci_fast__"],
+      "cache": false
+    },
+    "//#codemod:check": {
+      "description": "Root-level task: run the @fleet/codemods drift gate (extract-parse-one-number --check) across the worker tsconfig spanned with @fleet/domain source. Prefix '//#' ensures repo-root-only (it spans packages, so it is not a per-package task). Fails when source still has an un-migrated parseOneNumber outside @fleet/domain. Wired into __ci_fast__ so PRs fail on drift. cache:false — it is a fast in-memory AST pass with no cacheable output.",
       "cache": false
     },
     "//#graph": {
