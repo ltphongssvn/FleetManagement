@@ -1,10 +1,9 @@
 // packages/codemods/src/cli-options.ts
 // Zod-validated CLI options for fleet-codemods. The transform name is constrained to the
-// registered set; parseCliArgs turns argv into a validated CliOptions, throwing a
-// ZodError on an unknown or missing transform.
+// registered set (TRANSFORM_NAMES from the registry); parseCliArgs turns argv into a
+// validated CliOptions, throwing a ZodError on an unknown or missing transform.
 import { z } from 'zod';
-
-export const TRANSFORM_NAMES = ['parse-one-number'] as const;
+import { TRANSFORM_NAMES } from './registry.js';
 
 export const CliOptionsSchema = z
   .object({

@@ -10,4 +10,13 @@ export {
 } from './contracts.js';
 export { runCodemod, type Transform, type RunCodemodOptions } from './orchestrator.js';
 export { transformParseOneNumber } from './transforms/parse-one-number.js';
-export { parseCliArgs, CliOptionsSchema, TRANSFORM_NAMES, type CliOptions } from './cli-options.js';
+export { parseCliArgs, CliOptionsSchema, type CliOptions } from './cli-options.js';
+export {
+  CODEMODS,
+  TRANSFORM_NAMES,
+  getCodemod,
+  formatCodemodList,
+  type Codemod,
+  type PerFileCodemod,
+  type TransformName,
+} from './registry.js';
