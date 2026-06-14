@@ -1,0 +1,36 @@
+// workers/main-worker/test/config-gemini.test.ts
+// RED (phieu-can): worker config carries the Gemini adapter env surface.
+// GEMINI_API_KEY optional (extraction degrades to ports-not-configured skip);
+// GEMINI_MODEL defaults to gemini-3.5-flash (GA): wrong kg on a stop is a
+// business-unacceptable output, so the accuracy/hallucination-reduction tier
+// wins over cost (owner decision, see feature PR). Env-overridable for
+// cost A/B (e.g. gemini-2.5-flash) with zero code change.
+import { describe, expect, it } from 'vitest';
+import { loadConfig } from '../src/config.js';
+
+const BASE = { REDIS_URL: 'redis://localhost:6379' };
+
+describe('config: Gemini extraction keys', () => {
+  it('defaults GEMINI_MODEL to gemini-3.5-flash with no key set', () => {
+    const c = loadConfig({ ...BASE } as NodeJS.ProcessEnv);
+    expect(c.GEMINI_API_KEY).toBeUndefined();
+    expect(c.GEMINI_MODEL).toBe('gemini-3.5-flash');
+  });
+
+  it('accepts an explicit key + model override (cost A/B downgrade path)', () => {
+    const c = loadConfig({ ...BASE, GEMINI_API_KEY: 'k-abc', GEMINI_MODEL: 'gemini-2.5-flash' } as NodeJS.ProcessEnv);
+    expect(c.GEMINI_API_KEY).toBe('k-abc');
+    expect(c.GEMINI_MODEL).toBe('gemini-2.5-flash');
+  });
+
+  it('treats empty FLEET_API_TOKEN as absent (compose blank-string interpolation; worker must boot keyless)', () => {
+    const c = loadConfig({ ...BASE, FLEET_API_TOKEN: '', FLEET_API_URL: 'http://api:3000' } as NodeJS.ProcessEnv);
+    expect(c.FLEET_API_TOKEN).toBeUndefined();
+  });
+
+  it('treats empty GEMINI_API_KEY as absent (compose ${VAR:-} interpolation)', () => {
+    const c = loadConfig({ ...BASE, GEMINI_API_KEY: '' } as NodeJS.ProcessEnv);
+    expect(c.GEMINI_API_KEY).toBeUndefined();
+    expect(c.GEMINI_MODEL).toBe('gemini-3.5-flash');
+  });
+});

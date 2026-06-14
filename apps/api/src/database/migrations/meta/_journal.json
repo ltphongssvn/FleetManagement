@@ -141,6 +141,13 @@
       "when": 1781065644544,
       "tag": "0019_add_manifest_stop_id",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1781293645000,
+      "tag": "20260612124725_manifest_extracted_net_weight_kg",
+      "breakpoints": true
     }
   ]
 }

@@ -73,16 +73,30 @@ function StopCellContent({
     return <span data-testid={testId}>{'—'}</span>;
   }
   if (stop.proof !== null) {
+    // Phieu-can net weight (kg): present only after the extraction worker
+    // persisted a validated value; vi-VN grouping (20.730 kg = 20,730 kg).
+    const kg = stop.proof.extractedNetWeightKg ?? null;
     // External presigned S3 GET URL: new tab + noopener/noreferrer safety.
+    // Stacked layout: the Phiếu Cân link on top, the extracted net weight on its
+    // own line directly UNDER it (flex-col), so each stop column reads link-over-kg.
     return (
-      <a data-testid={testId}
-        href={stop.proof.photoUrl}
-        target='_blank'
-        rel='noopener noreferrer'
-        className='text-blue-600 underline hover:text-blue-800'
-      >
-        {'Phiếu Cân'}
-      </a>
+      <span data-testid={testId} className='inline-flex flex-col items-start gap-0.5'>
+        <a href={stop.proof.photoUrl}
+          target='_blank'
+          rel='noopener noreferrer'
+          className='text-blue-600 underline hover:text-blue-800'
+        >
+          {'Phiếu Cân'}
+        </a>
+        {kg !== null ? (
+          <span
+            data-testid={testId.replace('board-stop-status-', 'board-stop-netweight-')}
+            className='text-gray-700 tabular-nums'
+          >
+            {new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(kg) + ' kg'}
+          </span>
+        ) : null}
+      </span>
     );
   }
   return <span data-testid={testId}>{stopStatusOf(stop)}</span>;

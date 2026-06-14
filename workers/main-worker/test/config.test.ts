@@ -30,8 +30,8 @@ describe('@fleet/main-worker — config validation', () => {
     const cfg = loadConfig({ FLEET_API_TOKEN: 'tok-abcdefghijklmnop' });
     expect(cfg.FLEET_API_TOKEN).toBe('tok-abcdefghijklmnop');
   });
-  it('should reject an empty-string FLEET_API_TOKEN', () => {
-    expect(() => loadConfig({ FLEET_API_TOKEN: '' })).toThrow(/Invalid environment/);
+  it('should treat an empty-string FLEET_API_TOKEN as absent (compose blank-string substitution)', () => {
+    expect(loadConfig({ FLEET_API_TOKEN: '' }).FLEET_API_TOKEN).toBeUndefined();
   });
   it('should accept a multi-character ERP_API_KEY (min length, not max)', () => {
     const cfg = loadConfig({ ERP_API_KEY: 'key-abcdefghijklmnop' });
