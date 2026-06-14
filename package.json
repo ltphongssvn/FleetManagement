@@ -3,7 +3,7 @@
   "name": "fleet-management",
   "version": "0.1.0",
   "private": true,
-  "description": "Intermodal Fleet Platform — pnpm/Turborepo monorepo root",
+  "description": "Intermodal Fleet Platform \u2014 pnpm/Turborepo monorepo root",
   "packageManager": "pnpm@11.6.0+sha512.9a36518224080c6fe5165afdcfe79bfa118c29be703f3f462b1e32efe1e98e47e8750b148e08286250aad4113cc7993ca413c4e2cd447752708c2ee5751bc95f",
   "engines": {
     "node": ">=22.0.0 <25.0.0",
@@ -18,6 +18,7 @@
     "codemod": "tsx packages/codemods/src/cli.ts",
     "clean": "turbo run clean && rm -rf node_modules .turbo",
     "test:e2e": "playwright test",
+    "e2e:ops-web": "tsx scripts/e2e/ops-web-runner.ts",
     "test:e2e:ui": "playwright test --ui",
     "release": "semantic-release",
     "release:dry": "semantic-release --dry-run --no-ci",
@@ -48,6 +49,7 @@
     "turbo": "^2.9.17",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.58.2",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.4",
+    "zod": "^4.4.3"
   }
 }
