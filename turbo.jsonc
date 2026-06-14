@@ -65,9 +65,9 @@
       "cache": false
     },
     "typecheck": {
-      "description": "Pure TypeScript verification (tsc --noEmit). Owns **/*.tsbuildinfo (recursive for TS project references). When composite:true + declaration emission needed, split into separate types:build task per ADR-001.",
-      "dependsOn": ["__transit__"],
-      "outputs": ["**/*.tsbuildinfo"],
+      "description": "Pure TypeScript verification (tsc --noEmit). dependsOn ^build (not just the __transit__ ordering node): cross-package imports of @fleet/* resolve to each dependency's EMITTED .d.ts, not its source -- the same constraint the lint task documents. Without ^build a clean or --force run (no prior dist/) fails with TS2307 'Cannot find module @fleet/...' because upstream declarations are not emitted yet; it only passed before by relying on a warm dist/ from an earlier build. ^build guarantees upstream .d.ts exist, matching real CI. (If cross-package source-resolution via TS project references were wired, an ^topo node like __transit__ would suffice and keep typecheck fully parallel -- see ADR-001.) Produces no cacheable artifact (a pass/fail check), so outputs is [] -- the build task owns **/*.tsbuildinfo. Letting BOTH own it let Turbo restore a buildinfo from a foreign run, and tsc --incremental then replayed stale module resolution (the TS2307 we hit, plus the 'no output files' warning). When composite:true + declaration emission is needed, split into a types:build task per ADR-001.",
+      "dependsOn": ["^build", "__transit__"],
+      "outputs": [],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tsconfig.json",
@@ -79,8 +79,8 @@
       "outputLogs": "new-only"
     },
     "test:unit": {
-      "description": "Unit tests only — fastest cacheable feedback loop. Produces no cacheable artifacts (plain 'vitest run', no --coverage, no file reporter); coverage/** is owned by test:coverage. Declaring outputs here triggered Turbo's 'no output files found' warning on cache write. Hashes package-local + root test configs + root tsconfig (transforms/path aliases depend on it).",
-      "dependsOn": ["__transit__"],
+      "description": "Unit tests only — fastest cacheable feedback loop. Produces no cacheable artifacts (plain 'vitest run', no --coverage, no file reporter); coverage/** is owned by test:coverage. Declaring outputs here triggered Turbo's 'no output files found' warning on cache write. Hashes package-local + root test configs + root tsconfig (transforms/path aliases depend on it). Also dependsOn ^build (not just __transit__) so vitest/vite resolves @fleet/* imports to each package built dist before tests run; without it a purged or --force run races the upstream build destructive rebuild and fails with 'Failed to resolve entry for package @fleet/observability'.",
+      "dependsOn": ["^build", "__transit__"],
       "outputs": [],
       "inputs": [
         "$TURBO_DEFAULT$",
