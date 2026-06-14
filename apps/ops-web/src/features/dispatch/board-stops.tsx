@@ -77,8 +77,10 @@ function StopCellContent({
     // persisted a validated value; vi-VN grouping (20.730 kg = 20,730 kg).
     const kg = stop.proof.extractedNetWeightKg ?? null;
     // External presigned S3 GET URL: new tab + noopener/noreferrer safety.
+    // Stacked layout: the Phiếu Cân link on top, the extracted net weight on its
+    // own line directly UNDER it (flex-col), so each stop column reads link-over-kg.
     return (
-      <span data-testid={testId} className='inline-flex items-baseline gap-1'>
+      <span data-testid={testId} className='inline-flex flex-col items-start gap-0.5'>
         <a href={stop.proof.photoUrl}
           target='_blank'
           rel='noopener noreferrer'
@@ -87,8 +89,11 @@ function StopCellContent({
           {'Phiếu Cân'}
         </a>
         {kg !== null ? (
-          <span className='text-gray-700'>
-            {'· ' + new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(kg) + ' kg'}
+          <span
+            data-testid={testId.replace('board-stop-status-', 'board-stop-netweight-')}
+            className='text-gray-700 tabular-nums'
+          >
+            {new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(kg) + ' kg'}
           </span>
         ) : null}
       </span>
