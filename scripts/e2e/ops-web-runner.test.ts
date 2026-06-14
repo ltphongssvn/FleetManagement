@@ -41,6 +41,37 @@ describe('opsWebE2EEnvSchema', () => {
   });
 });
 
+describe('opsWebE2EEnvSchema E2E_REPORTER', () => {
+  it('defaults E2E_REPORTER to "list" (one settled line per test) when unset', () => {
+    const parsed = opsWebE2EEnvSchema.parse({
+      E2E_BASE_URL: 'http://localhost:3001',
+      E2E_API_URL: 'http://localhost:3000',
+      E2E_OPS_PASSWORD: 'pw', // pragma: allowlist secret -- mock-oauth2 test value, not a real credential
+    });
+    expect(parsed.E2E_REPORTER).toBe('list');
+  });
+
+  it('accepts an explicit valid reporter', () => {
+    const parsed = opsWebE2EEnvSchema.parse({
+      E2E_BASE_URL: 'http://localhost:3001',
+      E2E_API_URL: 'http://localhost:3000',
+      E2E_OPS_PASSWORD: 'pw', // pragma: allowlist secret -- mock-oauth2 test value, not a real credential
+      E2E_REPORTER: 'line',
+    });
+    expect(parsed.E2E_REPORTER).toBe('line');
+  });
+
+  it('rejects an unknown reporter', () => {
+    const r = opsWebE2EEnvSchema.safeParse({
+      E2E_BASE_URL: 'http://localhost:3001',
+      E2E_API_URL: 'http://localhost:3000',
+      E2E_OPS_PASSWORD: 'pw', // pragma: allowlist secret -- mock-oauth2 test value, not a real credential
+      E2E_REPORTER: 'nonsense-reporter',
+    });
+    expect(r.success).toBe(false);
+  });
+});
+
 describe('readinessTargets', () => {
   it('derives the api /health/ready probe and the ops-web base from the env', () => {
     const targets = readinessTargets({

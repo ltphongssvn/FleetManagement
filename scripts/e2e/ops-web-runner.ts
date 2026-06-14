@@ -17,6 +17,14 @@ export const opsWebE2EEnvSchema = z.object({
   E2E_BASE_URL: z.url(),
   E2E_API_URL: z.url(),
   E2E_OPS_PASSWORD: z.string().min(1),
+  // Reporter is part of the SSOT, not a baked-in spawn flag. Default 'list'
+  // prints one settled line per test (✓ N spec:line › title (dur)); 'line'
+  // is the compact rewriting single-line mode; 'dot'/'github'/'html'/'json'
+  // are the other Playwright built-ins. Validated so a typo fails fast here
+  // rather than as Playwright's confusing "No tests found".
+  E2E_REPORTER: z
+    .enum(['list', 'line', 'dot', 'github', 'html', 'json'])
+    .default('list'),
 });
 
 export type OpsWebE2EEnv = z.infer<typeof opsWebE2EEnvSchema>;
@@ -58,7 +66,7 @@ async function main(): Promise<void> {
   }
   const passthrough = process.argv.slice(2);
   process.stdout.write(`[e2e:ops-web] launching playwright ${passthrough.join(' ')}\n`);
-  const child = spawn('pnpm', ['exec', 'playwright', 'test', '--reporter=line', ...passthrough], {
+  const child = spawn('pnpm', ['exec', 'playwright', 'test', `--reporter=${env.E2E_REPORTER}`, ...passthrough], {
     stdio: 'inherit',
     env: { ...process.env, ...env },
   });
