@@ -1,9 +1,9 @@
 // workers/main-worker/test/extraction-flow.test.ts
-// RED (phieu-can): runExtraction orchestrates getObject -> VLM port -> policy
-// -> SSOT ExtractionResultWire build. Pure flow with injected ports (mirrors
+// runExtraction orchestrates getObject -> VLM port -> policy -> SSOT
+// ExtractionResultWire build. Pure flow with injected ports (mirrors
 // erp-send-flow): VLM/network failures -> outcome 'failed' (BullMQ retry);
-// missing object / unreadable ticket / no-net-weight-found are DETERMINISTIC
-// results that still callback (status not_found/unreadable), never retries.
+// missing object / no-field / unreadable are DETERMINISTIC results that still
+// callback, each carrying the failure `reason` so the cause is never lost.
 import { describe, expect, it, vi } from 'vitest';
 import { ExtractionResultWireSchema } from '@fleet/sync-protocol';
 import { runExtraction, type VlmExtractorPort, type ExtractionObjectStore } from '../src/extraction/extraction-flow.js';
@@ -26,28 +26,43 @@ function vlm(fields: { rawLabel: string; rawValue: string; twoPass?: boolean } |
 }
 
 describe('runExtraction', () => {
-  it('happy path: extracted + SSOT-valid result', async () => {
+  it('happy path: extracted + SSOT-valid result, no reason', async () => {
     const out = await runExtraction(JOB, stores(BYTES), vlm({ rawLabel: 'TL Hang', rawValue: '20.730 Kg' }));
     expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'extracted', extractedNetWeightKg: 20730 } });
     if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
   });
 
-  it('VLM finds nothing -> not_found (deterministic, still completes)', async () => {
+  it('VLM finds nothing -> not_found, reason no_field', async () => {
     const out = await runExtraction(JOB, stores(BYTES), vlm(null));
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'not_found', extractedNetWeightKg: null } });
+    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'not_found', extractedNetWeightKg: null, reason: 'no_field' } });
+    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
   });
 
-  it('policy rejects (sanity) -> unreadable with null kg', async () => {
+  it('policy rejects over-max -> unreadable, reason above_sanity_max', async () => {
     const out = await runExtraction(JOB, stores(BYTES), vlm({ rawLabel: 'TL Hang', rawValue: '120.000 kg' }));
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'unreadable', extractedNetWeightKg: null } });
+    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: 'above_sanity_max' } });
+    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
   });
 
-  it('object missing -> not_found (no VLM call)', async () => {
+  it('policy rejects under-min -> unreadable, reason below_sanity_min', async () => {
+    const out = await runExtraction(JOB, stores(BYTES), vlm({ rawLabel: 'TL Hang', rawValue: '50 kg' }));
+    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: 'below_sanity_min' } });
+    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
+  });
+
+  it('policy cannot parse the value -> unreadable, reason unparseable', async () => {
+    const out = await runExtraction(JOB, stores(BYTES), vlm({ rawLabel: 'TL Hang', rawValue: 'O.OOO' }));
+    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: 'unparseable' } });
+    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
+  });
+
+  it('object missing -> not_found, reason object_missing (no VLM call)', async () => {
     const extractFn = vi.fn().mockResolvedValue({ rawLabel: 'x', rawValue: 'y' });
     const v: VlmExtractorPort = { extractNetWeight: extractFn };
     const out = await runExtraction(JOB, stores(null), v);
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'not_found', extractedNetWeightKg: null } });
+    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'not_found', extractedNetWeightKg: null, reason: 'object_missing' } });
     expect(extractFn).not.toHaveBeenCalled();
+    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
   });
 
   it('VLM throw -> failed outcome (retryable), no result', async () => {

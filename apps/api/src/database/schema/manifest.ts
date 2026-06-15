@@ -47,6 +47,18 @@ export const manifestExtractionStatusEnum = pgEnum('manifest_extraction_status',
   'unreadable',
   'manual',
 ]);
+// Deterministic cause of a non-extracted outcome (SSOT vocabulary in
+// @fleet/sync-protocol EXTRACTION_FAILURE_REASONS). Nullable: only set for
+// not_found/unreadable rows so a parse refusal ('unparseable') is queryably
+// distinct from an illegible photo ('object_missing') for the review queue.
+// Expand-only; null for pending/extracted/manual.
+export const manifestExtractionReasonEnum = pgEnum('manifest_extraction_reason', [
+  'unparseable',
+  'below_sanity_min',
+  'above_sanity_max',
+  'no_field',
+  'object_missing',
+]);
 
 export const manifest = pgTable(
   'manifest',
@@ -77,6 +89,9 @@ export const manifest = pgTable(
      *  'pending'; the worker callback sets extracted/not_found/unreadable, a
      *  dispatcher's manual edit sets 'manual'. */
     extractionStatus: manifestExtractionStatusEnum('extraction_status').notNull().default('pending'),
+    /** EXPAND-only: deterministic failure cause for not_found/unreadable rows
+     *  (see manifestExtractionReasonEnum). Null for pending/extracted/manual. */
+    extractionReason: manifestExtractionReasonEnum('extraction_reason'),
     metadata: jsonb('metadata'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },

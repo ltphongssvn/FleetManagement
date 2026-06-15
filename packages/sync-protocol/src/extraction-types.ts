@@ -22,15 +22,34 @@ export type ExtractionJobDataWire = z.infer<typeof ExtractionJobDataWireSchema>;
 export const EXTRACTION_STATUSES = ['extracted', 'not_found', 'unreadable'] as const;
 export type ExtractionStatus = typeof EXTRACTION_STATUSES[number];
 
+/** Deterministic cause of a non-extracted outcome. Persisted so a parse failure
+ *  ('unparseable' / sanity bounds) is never collapsed into an undifferentiated
+ *  'unreadable' — distinguishing "VLM read fine, our parser refused" from
+ *  "image illegible" / "no field on ticket" / "object absent in store". */
+export const EXTRACTION_FAILURE_REASONS = [
+  'unparseable',
+  'below_sanity_min',
+  'above_sanity_max',
+  'no_field',
+  'object_missing',
+] as const;
+export type ExtractionFailureReason = typeof EXTRACTION_FAILURE_REASONS[number];
+
 /** POST /upload/extraction-result body. kg is present iff status==='extracted';
- *  parser-normalized: Vietnamese thousands-separator already resolved
- *  ('20.730 Kg' on the phieu can -> 20730). */
+ *  reason is present iff status!=='extracted'. kg is parser-normalized:
+ *  Vietnamese thousands-separator already resolved ('20.730 Kg' -> 20730). */
 export const ExtractionResultWireSchema = z.object({
   manifestId: z.string().uuid(),
   status: z.enum(EXTRACTION_STATUSES),
   extractedNetWeightKg: z.union([z.number().positive(), z.null()]),
-}).strict().refine(
-  (v) => (v.status === 'extracted') === (v.extractedNetWeightKg !== null),
-  { message: 'extractedNetWeightKg must be non-null iff status is extracted' },
-);
+  reason: z.enum(EXTRACTION_FAILURE_REASONS).optional(),
+}).strict()
+  .refine(
+    (v) => (v.status === 'extracted') === (v.extractedNetWeightKg !== null),
+    { message: 'extractedNetWeightKg must be non-null iff status is extracted' },
+  )
+  .refine(
+    (v) => (v.status !== 'extracted') === (v.reason !== undefined),
+    { message: 'reason must be present iff status is not extracted' },
+  );
 export type ExtractionResultWire = z.infer<typeof ExtractionResultWireSchema>;

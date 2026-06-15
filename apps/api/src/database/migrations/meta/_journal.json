@@ -155,6 +155,13 @@
       "when": 1781503200000,
       "tag": "20260615061500_manifest_extraction_status",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1781506800000,
+      "tag": "20260615071500_manifest_extraction_reason",
+      "breakpoints": true
     }
   ]
 }

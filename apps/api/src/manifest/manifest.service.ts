@@ -387,6 +387,7 @@ export class ManifestService {
     readonly manifestId: string;
     readonly status: 'extracted' | 'not_found' | 'unreadable';
     readonly extractedNetWeightKg: number | null;
+    readonly reason?: 'unparseable' | 'below_sanity_min' | 'above_sanity_max' | 'no_field' | 'object_missing' | undefined;
   }, op: OperatorContext): Promise<{ manifestId: string; status: 'extracted' | 'not_found' | 'unreadable' }> {
     return this.db.transaction(async (tx) => {
       if (input.status !== 'extracted' || input.extractedNetWeightKg === null) {
@@ -397,7 +398,7 @@ export class ManifestService {
         // a manifest no longer 'committed' simply isn't updated (0 rows, no throw).
         await tx
           .update(manifest)
-          .set({ extractionStatus: input.status })
+          .set({ extractionStatus: input.status, extractionReason: input.reason ?? null })
           .where(and(
             eq(manifest.manifestId, input.manifestId),
             eq(manifest.companyId, op.companyId),
@@ -407,7 +408,7 @@ export class ManifestService {
       }
       const updated = await tx
         .update(manifest)
-        .set({ extractedNetWeightKg: input.extractedNetWeightKg.toString(), extractionStatus: 'extracted' })
+        .set({ extractedNetWeightKg: input.extractedNetWeightKg.toString(), extractionStatus: 'extracted', extractionReason: null })
         .where(and(
           eq(manifest.manifestId, input.manifestId),
           eq(manifest.companyId, op.companyId),

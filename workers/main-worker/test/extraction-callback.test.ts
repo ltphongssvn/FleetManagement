@@ -21,7 +21,7 @@ describe('FetchExtractionCallback', () => {
   it('supports async bearerToken providers', async () => {
     const fetchFn = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
     const cb = new FetchExtractionCallback({ apiUrl: 'http://api:3000', bearerToken: () => Promise.resolve('tok-async'), fetchFn });
-    await cb.finalize({ ...RESULT, status: 'not_found', extractedNetWeightKg: null });
+    await cb.finalize({ ...RESULT, status: 'not_found', extractedNetWeightKg: null, reason: 'no_field' });
     const [, init] = fetchFn.mock.calls[0] as [string, RequestInit];
     expect((init.headers as Record<string, string>)['Authorization']).toBe('Bearer tok-async');
   });
