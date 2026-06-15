@@ -99,3 +99,35 @@ describe('board-stops Phiếu Cân proof link', () => {
     expect(screen.queryByTestId('board-stop-netweight-XTT.06-005-pickup-1')).toBeNull();
   });
 });
+
+describe('board-stops extraction status (gap 2: four distinct states)', () => {
+  function stopWith(proof: StopProof): DispatchBoardStop {
+    return { sequence: 1, stopType: 'pickup', warehouseName: 'Kho A', arrivedAt: null, departedAt: null, proof };
+  }
+
+  it('extracted: shows the kg value', () => {
+    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: 20730, extractionStatus: 'extracted' })]);
+    expect(screen.getByText(/20\.730 kg/)).toBeInTheDocument();
+  });
+
+  it('manual: shows the kg value (human-entered)', () => {
+    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: 42130, extractionStatus: 'manual' })]);
+    expect(screen.getByText(/42\.130 kg/)).toBeInTheDocument();
+  });
+
+  it('not_found: shows a "needs entry" affordance, not a blank', () => {
+    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'not_found' })]);
+    expect(screen.getByText(/Nhập KL/i)).toBeInTheDocument();
+  });
+
+  it('unreadable: shows a "needs entry" affordance', () => {
+    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'unreadable' })]);
+    expect(screen.getByText(/Nhập KL/i)).toBeInTheDocument();
+  });
+
+  it('pending: shows a "processing" indicator, not "needs entry"', () => {
+    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'pending' })]);
+    expect(screen.getByText(/Đang xử lý/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Nhập KL/i)).not.toBeInTheDocument();
+  });
+});

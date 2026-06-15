@@ -34,6 +34,20 @@ export const manifestStateEnum = pgEnum('manifest_state', [
   'rejected',
 ]);
 
+// Phieu-can net-weight extraction status (SSOT vocabulary in
+// @fleet/domain manifestExtractionStatusSchema). Persisted on EVERY worker
+// outcome (incl. not_found/unreadable) so the board can tell "processing"
+// (pending) from "needs entry" (not_found/unreadable) from a value
+// (extracted/manual) — closes the silent-failure gap. Expand-only: default
+// 'pending' backfills existing rows.
+export const manifestExtractionStatusEnum = pgEnum('manifest_extraction_status', [
+  'pending',
+  'extracted',
+  'not_found',
+  'unreadable',
+  'manual',
+]);
+
 export const manifest = pgTable(
   'manifest',
   {
@@ -59,6 +73,10 @@ export const manifest = pgTable(
      *  parsed from the committed Phieu Can by the extraction worker; null until
      *  extraction succeeds. numeric(12,3) via VLM, never trusted unvalidated. */
     extractedNetWeightKg: numeric('extracted_net_weight_kg', { precision: 12, scale: 3 }),
+    /** Extraction lifecycle status (see manifestExtractionStatusEnum). Default
+     *  'pending'; the worker callback sets extracted/not_found/unreadable, a
+     *  dispatcher's manual edit sets 'manual'. */
+    extractionStatus: manifestExtractionStatusEnum('extraction_status').notNull().default('pending'),
     metadata: jsonb('metadata'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },

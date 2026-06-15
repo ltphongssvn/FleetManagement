@@ -23,6 +23,15 @@ export const StopProofSchema = z.object({
   // producers omitting the key stay valid; null => extraction pending/failed;
   // positive number => render kg next to the Phieu Can link.
   extractedNetWeightKg: z.union([z.number().positive(), z.null()]).optional(),
+  // EXPAND-only: extraction lifecycle status so the board renders the four UI
+  // states distinctly — 'pending' (processing) vs 'not_found'/'unreadable'
+  // (needs manual entry) vs 'extracted'/'manual' (has a value). Vocabulary is
+  // the SSOT @fleet/domain manifestExtractionStatusSchema; inlined here (not
+  // imported) to keep the contract package dependency-free. optional => old
+  // producers stay valid.
+  extractionStatus: z
+    .enum(['pending', 'extracted', 'not_found', 'unreadable', 'manual'])
+    .optional(),
 }).strict();
 export type StopProof = z.infer<typeof StopProofSchema>;
 

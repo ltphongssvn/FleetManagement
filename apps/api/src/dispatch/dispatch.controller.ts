@@ -39,6 +39,7 @@ export interface DispatchBoardStopProof {
   readonly manifestId: string;
   readonly photoUrl: string;
   readonly extractedNetWeightKg?: number | null;
+  readonly extractionStatus?: 'pending' | 'extracted' | 'not_found' | 'unreadable' | 'manual';
   readonly capturedAt: string;
 }
 export interface DispatchBoardStop {
@@ -126,7 +127,7 @@ export class DispatchController {
       // upload_session for the S3 object key. Map stopId -> {manifestId, key,
       // bucket, capturedAt} for the most recent committed manifest per stop.
       const stopIds = stopRows.map((sr) => sr.stopId);
-      const proofByStopId = new Map<string, { manifestId: string; bucket: string; key: string; capturedAt: string; extractedNetWeightKg: number | null }>();
+      const proofByStopId = new Map<string, { manifestId: string; bucket: string; key: string; capturedAt: string; extractedNetWeightKg: number | null; extractionStatus: 'pending' | 'extracted' | 'not_found' | 'unreadable' | 'manual' }>();
       if (stopIds.length > 0) {
         const proofRows = await this.db
           .select({
@@ -134,6 +135,7 @@ export class DispatchController {
             manifestId: manifest.manifestId,
             committedAt: manifest.committedAt,
             extractedNetWeightKg: manifest.extractedNetWeightKg,
+            extractionStatus: manifest.extractionStatus,
             s3Key: uploadSession.s3Key,
             s3Bucket: uploadSession.s3Bucket,
           })
@@ -154,6 +156,7 @@ export class DispatchController {
               capturedAt: (pr.committedAt ?? new Date()).toISOString(),
               // numeric(12,3) arrives as a string from pg; contract wants number.
               extractedNetWeightKg: pr.extractedNetWeightKg === null ? null : Number(pr.extractedNetWeightKg),
+              extractionStatus: pr.extractionStatus,
             });
           }
         }
@@ -164,7 +167,7 @@ export class DispatchController {
         let proof: DispatchBoardStopProof | null = null;
         if (p && this.proofSigner) {
           const photoUrl = await this.proofSigner.presignProofUrl({ bucket: p.bucket, key: p.key, ttlSeconds: PROOF_URL_TTL_SECONDS });
-          proof = { manifestId: p.manifestId, photoUrl, capturedAt: p.capturedAt, extractedNetWeightKg: p.extractedNetWeightKg };
+          proof = { manifestId: p.manifestId, photoUrl, capturedAt: p.capturedAt, extractedNetWeightKg: p.extractedNetWeightKg, extractionStatus: p.extractionStatus };
         }
         list.push({
           stopId: sr.stopId,
