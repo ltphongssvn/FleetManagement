@@ -249,6 +249,7 @@ export class ManifestService {
       await this.transitionManifest(tx, session.manifestId, input);
       if (input.accepted) {
         await this.emitManifestCommittedEvent(tx, session.manifestId, input.uploadSessionId, op);
+        await this.emitManifestExtractionRequestedEvent(tx, session, op);
       } else {
         await this.emitManifestRejectedEvent(tx, session.manifestId, input.uploadSessionId, input.rejectionReasonCode, op);
       }
@@ -260,7 +261,7 @@ export class ManifestService {
     tx: Tx,
     input: { readonly uploadSessionId: string; readonly accepted: boolean },
     op: OperatorContext,
-  ): Promise<{ manifestId: string }> {
+  ): Promise<typeof uploadSession.$inferSelect & { manifestId: string }> {
     const targetUploadState = input.accepted ? 'committed' : 'rejected';
     const updated = await tx
       .update(uploadSession)
@@ -277,7 +278,7 @@ export class ManifestService {
     const session = updated[0];
     if (!session) throw new UploadSessionNotFoundError(input.uploadSessionId);
     if (!session.manifestId) throw new UploadSessionMissingManifestError(input.uploadSessionId);
-    return { manifestId: session.manifestId };
+    return { ...session, manifestId: session.manifestId };
   }
 
   private async transitionManifest(
@@ -374,6 +375,82 @@ export class ManifestService {
       queueName: OUTBOX_QUEUES.ERP,
       outboxPayload: { aggregateType: 'manifest', eventType: 'manifest.committed', manifestId },
       op,
+    });
+  }
+
+  /** Worker callback (POST /upload/extraction-result): persist the VLM-parsed
+   *  net weight on the committed manifest and emit manifest.net_weight_extracted
+   *  (-> projections) so the dispatch board picks it up. not_found/unreadable
+   *  record nothing (kg stays null) and emit nothing — extraction is best-effort
+   *  enrichment, never a state machine transition. */
+  async finalizeExtraction(input: {
+    readonly manifestId: string;
+    readonly status: 'extracted' | 'not_found' | 'unreadable';
+    readonly extractedNetWeightKg: number | null;
+  }, op: OperatorContext): Promise<{ manifestId: string; status: 'extracted' | 'not_found' | 'unreadable' }> {
+    return this.db.transaction(async (tx) => {
+      if (input.status !== 'extracted' || input.extractedNetWeightKg === null) {
+        return { manifestId: input.manifestId, status: input.status };
+      }
+      const updated = await tx
+        .update(manifest)
+        .set({ extractedNetWeightKg: input.extractedNetWeightKg.toString() })
+        .where(and(
+          eq(manifest.manifestId, input.manifestId),
+          eq(manifest.companyId, op.companyId),
+          eq(manifest.state, 'committed'),
+        ))
+        .returning({ manifestId: manifest.manifestId });
+      if (updated.length === 0) {
+        throw new ManifestStateInvalidTransitionError(input.manifestId, ['committed']);
+      }
+      const serverSeq = await allocateServerSeq(tx);
+      await appendTriWrite(tx, {
+        serverSeq,
+        actionId: randomUUID(),
+        aggregateType: 'manifest',
+        aggregateId: input.manifestId,
+        delta: { extractedNetWeightKg: input.extractedNetWeightKg },
+        eventType: 'manifest.net_weight_extracted',
+        auditPayload: { extractedNetWeightKg: input.extractedNetWeightKg },
+        operatorId: op.operatorId,
+        queueName: OUTBOX_QUEUES.PROJECTIONS,
+        outboxPayload: { aggregateType: 'manifest', eventType: 'manifest.net_weight_extracted', manifestId: input.manifestId, extractedNetWeightKg: input.extractedNetWeightKg },
+        op,
+      });
+      return { manifestId: input.manifestId, status: input.status };
+    });
+  }
+
+  // Extraction-request event: enqueues the COMMITTED manifest for worker-side
+  // VLM net-weight extraction (phieu-can). Outbox-only like the intake request
+  // (internal queue trigger, not an audited domain state change); routed
+  // manifest_extraction.requested -> extraction by outbox-routing policy.
+  // serverSeq rides in the payload for consumer-side idempotency (at-least-once
+  // relay). Body strict-parses against ExtractionJobDataWireSchema after the
+  // relay strips the routing envelope.
+  private async emitManifestExtractionRequestedEvent(
+    tx: Tx,
+    session: typeof uploadSession.$inferSelect & { manifestId: string },
+    op: OperatorContext,
+  ): Promise<void> {
+    const serverSeq = await allocateServerSeq(tx);
+    await tx.insert(outbox).values({
+      companyId: op.companyId,
+      businessUnitId: op.businessUnitId,
+      depotId: op.depotId,
+      legalEntityId: op.legalEntityId,
+      queueName: OUTBOX_QUEUES.EXTRACTION,
+      payload: {
+        aggregateType: 'manifest_extraction',
+        eventType: 'manifest_extraction.requested',
+        serverSeq: serverSeq.toString(),
+        manifestId: session.manifestId,
+        uploadSessionId: session.uploadSessionId,
+        s3Key: session.s3Key,
+        s3Bucket: session.s3Bucket,
+        contentType: session.contentType,
+      },
     });
   }
 

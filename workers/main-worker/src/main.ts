@@ -18,6 +18,10 @@ import { FetchIntakeCallback, type IntakeCallback } from './intake/intake-callba
 import { FetchErpClient } from './erp/fetch-erp-client.js';
 import { S3IntakeObjectStore, type IntakeObjectStore } from './intake/intake-object-store.js';
 import type { ErpClientPort } from './erp/erp-send-flow.js';
+import { FetchExtractionCallback, type ExtractionCallback } from './extraction/extraction-callback.js';
+import { S3ExtractionObjectStore } from './extraction/s3-extraction-object-store.js';
+import { GeminiVlmExtractor } from './extraction/gemini-vlm-extractor.js';
+import type { ExtractionObjectStore, VlmExtractorPort } from './extraction/extraction-flow.js';
 
 function bootstrap(): void {
   const config = loadConfig();
@@ -59,11 +63,35 @@ function bootstrap(): void {
     });
   }
 
+  // Extraction ports (phieu-can net weight): callback mirrors intake (same
+  // FLEET_API_URL/TOKEN gating); store mirrors the intake S3 gating; the VLM
+  // adapter only exists when GEMINI_API_KEY is set. Any port absent -> the
+  // router completes jobs with a 'ports not configured' skip (pilot-safe).
+  let extractionCallback: ExtractionCallback | undefined;
+  if (config.FLEET_API_URL && config.FLEET_API_TOKEN) {
+    const apiUrl = config.FLEET_API_URL;
+    const apiToken = config.FLEET_API_TOKEN;
+    extractionCallback = new FetchExtractionCallback({ apiUrl, bearerToken: () => apiToken });
+  }
+  let extractionStore: ExtractionObjectStore | undefined;
+  if (config.AWS_REGION) {
+    extractionStore = new S3ExtractionObjectStore({
+      region: config.AWS_REGION,
+      endpoint: config.S3_ENDPOINT,
+      accessKeyId: config.AWS_ACCESS_KEY_ID,
+      secretAccessKey: config.AWS_SECRET_ACCESS_KEY,
+    });
+  }
+  let vlmExtractor: VlmExtractorPort | undefined;
+  if (config.GEMINI_API_KEY) {
+    vlmExtractor = new GeminiVlmExtractor({ apiKey: config.GEMINI_API_KEY, model: config.GEMINI_MODEL });
+  }
+
   const workers = QUEUE_NAMES.map((name) => {
     const worker = new Worker(
       name,
       async (job) => {
-        const result = await routeJob(name, job, deadLetters, intakeCallback, erpClient, objectStore);
+        const result = await routeJob(name, job, deadLetters, intakeCallback, erpClient, objectStore, extractionCallback, extractionStore, vlmExtractor);
         console.log(`[${name}] job ${String(job.id)} ${result.summary}`);
         return { processed: true, deadLettered: result.deadLettered };
       },

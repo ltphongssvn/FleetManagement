@@ -13,6 +13,7 @@ import {
   type NegotiateUploadInput,
   type NegotiateUploadResponse,
 } from './manifest.dto.js';
+import { ExtractionResultWireSchema, type ExtractionResultWire } from '@fleet/sync-protocol';
 import { ManifestService } from './manifest.service.js';
 // OperatorContextFactory wires fleetOperator onto every authenticated request
 // via JwtGuard. Controller pulls from request, never hardcodes tenancy IDs.
@@ -56,5 +57,22 @@ export class IntakeCallbackController {
       ? { uploadSessionId: parsed.uploadSessionId, accepted: parsed.accepted }
       : { uploadSessionId: parsed.uploadSessionId, accepted: parsed.accepted, rejectionReasonCode: parsed.rejectionReasonCode };
     return this.manifests.finalizeIntake(input, op);
+  }
+}
+// Worker -> API callback for the phieu-can net-weight extraction result.
+// Body is strict-parsed against the SSOT ExtractionResultWireSchema
+// (@fleet/sync-protocol) — same schema the worker uses to BUILD the request,
+// so the boundary cannot drift (closes the intake-callback API-local-schema gap).
+@Controller('upload')
+@UseGuards(JwtGuard)
+export class ExtractionCallbackController {
+  constructor(private readonly manifests: ManifestService) {}
+  @Post('extraction-result')
+  async finalize(
+    @Body() body: unknown,
+    @CurrentOperator() op: OperatorContext,
+  ): Promise<{ manifestId: string; status: ExtractionResultWire['status'] }> {
+    const parsed: ExtractionResultWire = ExtractionResultWireSchema.parse(body);
+    return this.manifests.finalizeExtraction(parsed, op);
   }
 }

@@ -21,7 +21,15 @@ test.describe.serial('admin drivers page excludes soft-deleted rows', () => {
     await page.getByLabel(/tên đăng nhập|username/i).fill('dieuxe');
     await page.getByLabel(/mật khẩu|password/i).fill('x');
     await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-    await expect(page).toHaveURL(/\/dispatch|\/$/, { timeout: 10000 });
+    // Deterministic auth gate (anti-flake, root-cause): the post-login redirect
+    // races the fleet_session cookie write (documented session-trap class; this
+    // spec flaked on exactly that race). The test's real precondition is the
+    // session cookie, not the landing URL — poll for the cookie, then navigate
+    // explicitly. Follow-up recorded: suite-wide storageState setup project
+    // (28 specs share this inline login).
+    await expect
+      .poll(async () => (await page.context().cookies()).some((c) => c.name === 'fleet_session'), { timeout: 10000 })
+      .toBe(true);
 
     await page.goto('/admin/drivers');
     await expect(page.getByRole('heading', { name: /Quản lý tài xế|tài xế & xe/i })).toBeVisible({ timeout: 10000 });

@@ -18,6 +18,11 @@ export const StopProofSchema = z.object({
   manifestId: z.string().uuid(),
   photoUrl: z.string().url(),
   capturedAt: z.string().datetime(),
+  // EXPAND-only (phieu-can net-weight extraction): net goods weight in kg parsed
+  // from the committed Phieu Can by the extraction worker. optional => old
+  // producers omitting the key stay valid; null => extraction pending/failed;
+  // positive number => render kg next to the Phieu Can link.
+  extractedNetWeightKg: z.union([z.number().positive(), z.null()]).optional(),
 }).strict();
 export type StopProof = z.infer<typeof StopProofSchema>;
 

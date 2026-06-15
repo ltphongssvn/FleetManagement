@@ -138,6 +138,13 @@ services:
       # --input-type=module -e "<jose SignJWT script>" (see PR #70).
       FLEET_API_URL: http://api:3000
       FLEET_API_TOKEN: ${WORKER_FLEET_API_TOKEN}
+      # Phieu-can net-weight extraction (Gemini VLM). KEY interpolates from the
+      # gitignored repo-root .env -- never commit literals; unset/empty =>
+      # config treats as absent and main.ts skips the VLM port (jobs complete
+      # as 'ports not configured'). MODEL default gemini-3.5-flash
+      # (accuracy-critical kg; override in .env for cost A/B).
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
   driver-app:
     build:
       context: .

@@ -1,6 +1,6 @@
 // apps/api/src/database/schema/manifest.ts
 // Manifest + upload_session tables per Frozen Stack PDF "Manifest" + "Uploads".
-import { pgTable, uuid, varchar, timestamp, index, integer, jsonb, pgEnum, check } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, timestamp, index, integer, jsonb, numeric, pgEnum, check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { tenancyColumns } from './tenancy.js';
 import { transportOrder, stop } from './transport.js';
@@ -55,6 +55,10 @@ export const manifest = pgTable(
     committedAt: timestamp('committed_at', { withTimezone: true, mode: 'date' }),
     rejectionReasonCode: manifestRejectionReasonEnum('rejection_reason_code'),
     rejectionReasonText: varchar('rejection_reason_text', { length: 500 }),
+    /** EXPAND-only (phieu-can net-weight extraction): net goods weight in kg
+     *  parsed from the committed Phieu Can by the extraction worker; null until
+     *  extraction succeeds. numeric(12,3) via VLM, never trusted unvalidated. */
+    extractedNetWeightKg: numeric('extracted_net_weight_kg', { precision: 12, scale: 3 }),
     metadata: jsonb('metadata'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },

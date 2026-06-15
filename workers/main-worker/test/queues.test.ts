@@ -4,8 +4,8 @@ import { describe, it, expect } from 'vitest';
 import { QUEUE_NAMES, QUEUE_CONCURRENCY } from '../src/index.js';
 
 describe('@fleet/main-worker — queue registry', () => {
-  it('should define exactly 11 queues per PDF spec', () => {
-    expect(QUEUE_NAMES).toHaveLength(11);
+  it('should define exactly 12 queues (11 per PDF spec + extraction, phieu-can feature)', () => {
+    expect(QUEUE_NAMES).toHaveLength(12);
   });
 
   it('should include all PDF-mandated queue names', () => {

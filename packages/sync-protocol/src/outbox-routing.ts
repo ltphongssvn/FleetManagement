@@ -12,6 +12,7 @@ export const OUTBOX_ROUTING_POLICY_VERSION = 'outbox-routing-v1' as const;
 /** Queue names the outbox can dispatch to. Subset of QUEUE_NAMES from worker. */
 export const OUTBOX_QUEUES = {
   INTAKE: 'intake',
+  EXTRACTION: 'extraction',
   ERP: 'erp',
   PROJECTIONS: 'projections',
 } as const;
@@ -52,6 +53,12 @@ export function routeOutboxRow(input: OutboxRoutingInput): OutboxRoutingDecision
   if (input.aggregateType === 'manifest_intake') {
     if (input.eventType === 'manifest_intake.requested') {
       return { accepted: true, queueName: 'intake', policyVersion: OUTBOX_ROUTING_POLICY_VERSION };
+    }
+    return { accepted: false, rejectionCode: 'unknown_event_type', policyVersion: OUTBOX_ROUTING_POLICY_VERSION };
+  }
+  if (input.aggregateType === 'manifest_extraction') {
+    if (input.eventType === 'manifest_extraction.requested') {
+      return { accepted: true, queueName: 'extraction', policyVersion: OUTBOX_ROUTING_POLICY_VERSION };
     }
     return { accepted: false, rejectionCode: 'unknown_event_type', policyVersion: OUTBOX_ROUTING_POLICY_VERSION };
   }
