@@ -17,8 +17,10 @@ export interface ExtractionObjectStore {
 
 export interface VlmRawNetWeight {
   readonly rawLabel: string;
-  readonly rawValue: string;
-  readonly twoPass?: boolean;
+  /** One verbatim net value per weighing: length 1 = single-pass, length 2 =
+   *  lan-1/lan-2 (summed by the policy). Decomposed, never a '+'-delimited
+   *  string — removes the twoPass boolean/string contradiction at the boundary. */
+  readonly rawValues: readonly string[];
 }
 
 export interface VlmExtractorPort {
