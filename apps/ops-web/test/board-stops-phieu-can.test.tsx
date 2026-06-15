@@ -131,3 +131,31 @@ describe('board-stops extraction status (gap 2: four distinct states)', () => {
     expect(screen.queryByText(/Nhập KL/i)).not.toBeInTheDocument();
   });
 });
+
+describe('board-stops extraction reason hint (review queue: WHY it failed)', () => {
+  function stopWith(proof: StopProof): DispatchBoardStop {
+    return { sequence: 1, stopType: 'pickup', warehouseName: 'Kho A', arrivedAt: null, departedAt: null, proof };
+  }
+
+  it('unreadable + unparseable: shows a Vietnamese reason hint by the needs-entry button', () => {
+    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'unreadable', extractionReason: 'unparseable' })]);
+    expect(screen.getByText(/Nhập KL/i)).toBeInTheDocument();
+    expect(screen.getByTestId('board-stop-reason-XTT.06-005-pickup-1')).toHaveTextContent('không đọc được số');
+  });
+
+  it('not_found + object_missing: shows the matching reason hint', () => {
+    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'not_found', extractionReason: 'object_missing' })]);
+    expect(screen.getByTestId('board-stop-reason-XTT.06-005-pickup-1')).toHaveTextContent('thiếu ảnh');
+  });
+
+  it('above_sanity_max: shows the out-of-range reason hint', () => {
+    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'unreadable', extractionReason: 'above_sanity_max' })]);
+    expect(screen.getByTestId('board-stop-reason-XTT.06-005-pickup-1')).toHaveTextContent('vượt ngưỡng');
+  });
+
+  it('no reason present: needs-entry button shows WITHOUT a reason hint node', () => {
+    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'not_found' })]);
+    expect(screen.getByText(/Nhập KL/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('board-stop-reason-XTT.06-005-pickup-1')).toBeNull();
+  });
+});

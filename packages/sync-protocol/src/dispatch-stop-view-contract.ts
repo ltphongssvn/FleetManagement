@@ -32,6 +32,16 @@ export const StopProofSchema = z.object({
   extractionStatus: z
     .enum(['pending', 'extracted', 'not_found', 'unreadable', 'manual'])
     .optional(),
+  // EXPAND-only (review queue): the deterministic cause of a non-extracted
+  // outcome, so the board can show WHY (unparseable vs object_missing vs ...)
+  // and filter a dispatcher review queue — not just the bare 'unreadable'
+  // status. Vocabulary is the SSOT @fleet/sync-protocol EXTRACTION_FAILURE_REASONS;
+  // inlined here to keep the contract dependency-free. optional => old producers
+  // stay valid; null => pending/extracted/manual rows carry no reason.
+  extractionReason: z
+    .enum(['unparseable', 'below_sanity_min', 'above_sanity_max', 'no_field', 'object_missing'])
+    .nullable()
+    .optional(),
 }).strict();
 export type StopProof = z.infer<typeof StopProofSchema>;
 

@@ -14,6 +14,17 @@ import type { DispatchBoardStop } from './types';
 
 export const PICKUP_SLOTS = [1, 2, 3, 4] as const;
 export const DELIVERY_SLOTS = [1] as const;
+// Review-queue hint: human-readable Vietnamese for each extraction failure
+// reason, so a dispatcher seeing 'Nhập KL' also sees WHY it failed and can
+// triage (unparseable vs missing photo vs out-of-range). Vocabulary mirrors
+// @fleet/sync-protocol EXTRACTION_FAILURE_REASONS.
+const REASON_VI: Record<string, string> = {
+  unparseable: 'không đọc được số',
+  below_sanity_min: 'dưới ngưỡng',
+  above_sanity_max: 'vượt ngưỡng',
+  no_field: 'không thấy ô KL',
+  object_missing: 'thiếu ảnh',
+};
 
 const STATUS_FORMATTER = new Intl.DateTimeFormat('en-US', {
   timeZone: 'Asia/Ho_Chi_Minh',
@@ -105,14 +116,25 @@ function StopCellContent({
           // parse) -> show an explicit "needs manual entry" affordance instead
           // of a blank, so a dispatcher knows to fill it in (gap 2). Clicking is
           // wired to the manual-edit endpoint by the parent board.
-          <button
-            type='button'
-            data-testid={testId.replace('board-stop-status-', 'board-stop-netweight-needsentry-')}
-            onClick={() => onEnterNetWeight?.(proof.manifestId)}
-            className='text-amber-700 underline decoration-dotted hover:text-amber-900'
-          >
-            {'Nhập KL'}
-          </button>
+          <>
+            <button
+              type='button'
+              data-testid={testId.replace('board-stop-status-', 'board-stop-netweight-needsentry-')}
+              onClick={() => onEnterNetWeight?.(proof.manifestId)}
+              className='text-amber-700 underline decoration-dotted hover:text-amber-900'
+            >
+              {'Nhập KL'}
+            </button>
+            {proof.extractionReason != null && REASON_VI[proof.extractionReason] !== undefined ? (
+              <span
+                data-testid={testId.replace('board-stop-status-', 'board-stop-reason-')}
+                title={proof.extractionReason}
+                className='text-amber-600 text-xs italic'
+              >
+                {REASON_VI[proof.extractionReason]}
+              </span>
+            ) : null}
+          </>
         ) : proof.extractionStatus === 'pending' || proof.extractionStatus === undefined ? (
           // Still enqueued / not yet processed -> "processing", distinct from a
           // terminal failure so the dispatcher waits rather than re-entering.

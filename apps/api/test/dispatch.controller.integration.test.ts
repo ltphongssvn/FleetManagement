@@ -240,6 +240,38 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
     if (!s1) throw new Error('expected stop seq 1');
     expect(DispatchStopViewSchema.parse(s1).proof?.extractionStatus).toBe('not_found');
   });
+  it('proof.extractionReason surfaces the persisted failure cause (review queue)', async () => {
+    await insertProjection(RR, '2026-06-08T08:00:00.000Z');
+    await seedStopChain(RR, TO);
+    await seedCommittedManifestForStop(TO, SID, MID);
+    await testDb.db.execute(sql`UPDATE manifest SET extraction_status = 'unreadable', extraction_reason = 'unparseable' WHERE manifest_id = ${MID}::uuid`);
+    const fakeSigner = { presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) => Promise.resolve('https://s3.example/p') };
+    const ctrlWithSigner = new DispatchController(testDb.db as never, fakeSigner as never);
+    const result = await ctrlWithSigner.getBoard(OP);
+    const row = result.rows.find((r) => r.roadRunId === RR);
+    if (!row) throw new Error('expected board row');
+    const s1 = row.stops.find((q) => q.sequence === 1);
+    if (!s1) throw new Error('expected stop seq 1');
+    const proof = DispatchStopViewSchema.parse(s1).proof;
+    expect(proof?.extractionStatus).toBe('unreadable');
+    expect(proof?.extractionReason).toBe('unparseable');
+  });
+  it('proof.extractionReason is null/absent for a successful extraction', async () => {
+    await insertProjection(RR, '2026-06-08T08:00:00.000Z');
+    await seedStopChain(RR, TO);
+    await seedCommittedManifestForStop(TO, SID, MID);
+    await testDb.db.execute(sql`UPDATE manifest SET extraction_status = 'extracted', extracted_net_weight_kg = '20730.000', extraction_reason = NULL WHERE manifest_id = ${MID}::uuid`);
+    const fakeSigner = { presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) => Promise.resolve('https://s3.example/p') };
+    const ctrlWithSigner = new DispatchController(testDb.db as never, fakeSigner as never);
+    const result = await ctrlWithSigner.getBoard(OP);
+    const row = result.rows.find((r) => r.roadRunId === RR);
+    if (!row) throw new Error('expected board row');
+    const s1 = row.stops.find((q) => q.sequence === 1);
+    if (!s1) throw new Error('expected stop seq 1');
+    const proof = DispatchStopViewSchema.parse(s1).proof;
+    expect(proof?.extractionStatus).toBe('extracted');
+    expect(proof?.extractionReason ?? null).toBeNull();
+  });
 });
 
 // --- T-proof (2026, outside-in acceptance): per-stop proof-photo "Phiếu Cân" ---
