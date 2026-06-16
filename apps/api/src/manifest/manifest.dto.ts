@@ -37,3 +37,15 @@ export const CommitUploadResponseSchema = z.object({
   rejectionReasonCode: z.string().optional(),
 });
 export type CommitUploadResponse = z.infer<typeof CommitUploadResponseSchema>;
+
+// Dispatcher manual net-weight entry (board edit). manifestId identifies the
+// committed manifest; extractedNetWeightKg is the human-read weight (positive,
+// finite). Strict: no extra keys. Mirrors the worker callback's strict parsing
+// so the manual-edit boundary cannot drift.
+export const SetManualNetWeightSchema = z
+  .object({
+    manifestId: z.string().uuid(),
+    extractedNetWeightKg: z.number().positive().finite(),
+  })
+  .strict();
+export type SetManualNetWeightInput = z.infer<typeof SetManualNetWeightSchema>;

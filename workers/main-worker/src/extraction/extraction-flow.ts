@@ -3,7 +3,9 @@
 // VLM ports around the pure parsing policy (mirrors erp-send-flow).
 // Outcome semantics:
 //   completed -> ALWAYS callback the SSOT result (extracted | not_found |
-//                unreadable). Deterministic; retrying cannot change it.
+//                unreadable). Deterministic; retrying cannot change it. Every
+//                non-extracted result carries a `reason` so the cause survives
+//                (parser refusal is never collapsed into a bare 'unreadable').
 //   failed    -> infra/VLM transport error; surface to BullMQ for retry.
 import type { ExtractionJobDataWire, ExtractionResultWire } from '@fleet/sync-protocol';
 import { parseNetWeightKg } from './extraction-policy.js';
@@ -15,8 +17,10 @@ export interface ExtractionObjectStore {
 
 export interface VlmRawNetWeight {
   readonly rawLabel: string;
-  readonly rawValue: string;
-  readonly twoPass?: boolean;
+  /** One verbatim net value per weighing: length 1 = single-pass, length 2 =
+   *  lan-1/lan-2 (summed by the policy). Decomposed, never a '+'-delimited
+   *  string — removes the twoPass boolean/string contradiction at the boundary. */
+  readonly rawValues: readonly string[];
 }
 
 export interface VlmExtractorPort {
@@ -38,15 +42,15 @@ export async function runExtraction(
   try {
     const bytes = await store.getObject({ bucket: job.s3Bucket, key: job.s3Key });
     if (bytes === null) {
-      return { kind: 'completed', result: { manifestId: job.manifestId, status: 'not_found', extractedNetWeightKg: null } };
+      return { kind: 'completed', result: { manifestId: job.manifestId, status: 'not_found', extractedNetWeightKg: null, reason: 'object_missing' } };
     }
     const raw = await vlm.extractNetWeight({ bytes, contentType: job.contentType });
     if (raw === null) {
-      return { kind: 'completed', result: { manifestId: job.manifestId, status: 'not_found', extractedNetWeightKg: null } };
+      return { kind: 'completed', result: { manifestId: job.manifestId, status: 'not_found', extractedNetWeightKg: null, reason: 'no_field' } };
     }
     const parsed = parseNetWeightKg(raw);
     if (!parsed.ok) {
-      return { kind: 'completed', result: { manifestId: job.manifestId, status: 'unreadable', extractedNetWeightKg: null } };
+      return { kind: 'completed', result: { manifestId: job.manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: parsed.reason } };
     }
     return { kind: 'completed', result: { manifestId: job.manifestId, status: 'extracted', extractedNetWeightKg: parsed.kg } };
   } catch (err: unknown) {

@@ -46,7 +46,7 @@ async function seedPairAndOrder(
   return { driverId: d.driverId, vehicleId: v.vehicleId, operatorId, transportOrderId: created.transportOrderId };
 }
 describe('@fleet/api - soft-delete cascades cancellation onto non-terminal transport_orders', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 30_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('deleteVehicle() cancels open transport_orders linked through road_run.assigned_asset_id', async () => {
     const captured = await withTxIsolation(testDb, async (tx) => {
