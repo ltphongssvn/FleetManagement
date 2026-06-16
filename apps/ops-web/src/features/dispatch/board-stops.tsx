@@ -14,6 +14,17 @@ import type { DispatchBoardStop } from './types';
 
 export const PICKUP_SLOTS = [1, 2, 3, 4] as const;
 export const DELIVERY_SLOTS = [1] as const;
+// Review-queue hint: human-readable Vietnamese for each extraction failure
+// reason, so a dispatcher seeing 'Nhập KL' also sees WHY it failed and can
+// triage (unparseable vs missing photo vs out-of-range). Vocabulary mirrors
+// @fleet/sync-protocol EXTRACTION_FAILURE_REASONS.
+const REASON_VI: Record<string, string> = {
+  unparseable: 'không đọc được số',
+  below_sanity_min: 'dưới ngưỡng',
+  above_sanity_max: 'vượt ngưỡng',
+  no_field: 'không thấy ô KL',
+  object_missing: 'thiếu ảnh',
+};
 
 const STATUS_FORMATTER = new Intl.DateTimeFormat('en-US', {
   timeZone: 'Asia/Ho_Chi_Minh',
@@ -65,23 +76,28 @@ export function StopSlotHeaders(): JSX.Element {
 function StopCellContent({
   stop,
   testId,
+  onEnterNetWeight,
 }: {
   stop: DispatchBoardStop | undefined;
   testId: string;
+  onEnterNetWeight?: ((manifestId: string) => void) | undefined;
 }): JSX.Element {
   if (stop === undefined) {
     return <span data-testid={testId}>{'—'}</span>;
   }
   if (stop.proof !== null) {
+    // Capture the narrowed proof so closures (onClick) keep non-null typing
+    // without a forbidden non-null assertion.
+    const proof = stop.proof;
     // Phieu-can net weight (kg): present only after the extraction worker
     // persisted a validated value; vi-VN grouping (20.730 kg = 20,730 kg).
-    const kg = stop.proof.extractedNetWeightKg ?? null;
+    const kg = proof.extractedNetWeightKg ?? null;
     // External presigned S3 GET URL: new tab + noopener/noreferrer safety.
     // Stacked layout: the Phiếu Cân link on top, the extracted net weight on its
     // own line directly UNDER it (flex-col), so each stop column reads link-over-kg.
     return (
       <span data-testid={testId} className='inline-flex flex-col items-start gap-0.5'>
-        <a href={stop.proof.photoUrl}
+        <a href={proof.photoUrl}
           target='_blank'
           rel='noopener noreferrer'
           className='text-blue-600 underline hover:text-blue-800'
@@ -95,6 +111,39 @@ function StopCellContent({
           >
             {new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(kg) + ' kg'}
           </span>
+        ) : proof.extractionStatus === 'not_found' || proof.extractionStatus === 'unreadable' ? (
+          // Extraction ran but could not read a net weight (or it failed to
+          // parse) -> show an explicit "needs manual entry" affordance instead
+          // of a blank, so a dispatcher knows to fill it in (gap 2). Clicking is
+          // wired to the manual-edit endpoint by the parent board.
+          <>
+            <button
+              type='button'
+              data-testid={testId.replace('board-stop-status-', 'board-stop-netweight-needsentry-')}
+              onClick={() => onEnterNetWeight?.(proof.manifestId)}
+              className='text-amber-700 underline decoration-dotted hover:text-amber-900'
+            >
+              {'Nhập KL'}
+            </button>
+            {proof.extractionReason != null && REASON_VI[proof.extractionReason] !== undefined ? (
+              <span
+                data-testid={testId.replace('board-stop-status-', 'board-stop-reason-')}
+                title={proof.extractionReason}
+                className='text-amber-600 text-xs italic'
+              >
+                {REASON_VI[proof.extractionReason]}
+              </span>
+            ) : null}
+          </>
+        ) : proof.extractionStatus === 'pending' || proof.extractionStatus === undefined ? (
+          // Still enqueued / not yet processed -> "processing", distinct from a
+          // terminal failure so the dispatcher waits rather than re-entering.
+          <span
+            data-testid={testId.replace('board-stop-status-', 'board-stop-netweight-pending-')}
+            className='text-gray-400 italic'
+          >
+            {'Đang xử lý'}
+          </span>
         ) : null}
       </span>
     );
@@ -105,9 +154,11 @@ function StopCellContent({
 export function StopSlotCells({
   primaryRef,
   stops,
+  onEnterNetWeight,
 }: {
   primaryRef: string;
   stops: readonly DispatchBoardStop[] | undefined;
+  onEnterNetWeight?: ((manifestId: string) => void) | undefined;
 }): JSX.Element {
   return (
     <>
@@ -115,7 +166,7 @@ export function StopSlotCells({
         const s = stopForSlot(stops, 'pickup', n);
         return (
           <td key={'pc-' + String(n)} className='px-3 py-2 text-xs'>
-            <StopCellContent stop={s} testId={'board-stop-status-' + primaryRef + '-pickup-' + String(n)} />
+            <StopCellContent stop={s} testId={'board-stop-status-' + primaryRef + '-pickup-' + String(n)} onEnterNetWeight={onEnterNetWeight} />
           </td>
         );
       })}
@@ -123,7 +174,7 @@ export function StopSlotCells({
         const s = stopForSlot(stops, 'delivery', n);
         return (
           <td key={'dc-' + String(n)} className='px-3 py-2 text-xs'>
-            <StopCellContent stop={s} testId={'board-stop-status-' + primaryRef + '-delivery-' + String(n)} />
+            <StopCellContent stop={s} testId={'board-stop-status-' + primaryRef + '-delivery-' + String(n)} onEnterNetWeight={onEnterNetWeight} />
           </td>
         );
       })}

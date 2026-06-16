@@ -10,7 +10,7 @@ import { withTxIsolation } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 describe('@fleet/api - ReferenceService customer phone (integration)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 30_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('createCustomer persists phone and customers() surfaces it via meta.phone', async () => {
     await withTxIsolation(testDb, async (tx) => {

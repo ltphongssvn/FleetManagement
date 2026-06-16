@@ -109,6 +109,8 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     await testDb.db.execute(sql.raw('TRUNCATE TABLE transport_order CASCADE'));
     await testDb.db.execute(sql.raw('TRUNCATE TABLE customer CASCADE'));
     await testDb.db.execute(sql.raw('TRUNCATE TABLE warehouse CASCADE'));
+    await testDb.db.execute(sql.raw('TRUNCATE TABLE upload_session CASCADE'));
+    await testDb.db.execute(sql.raw('TRUNCATE TABLE manifest CASCADE'));
   });
   it('header row is EXACTLY the 11 on-screen Lệnh điều xe columns in order', async () => {
     await seedProjection('aaaaaaaa-1111-4111-8111-111111111111', ['XT.1001']);
@@ -202,5 +204,42 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     const refs: string[] = [];
     ws.eachRow((row, idx) => { if (idx > 1) { const v = row.getCell(1).value; if (typeof v === 'string') refs.push(v); } });
     expect(refs).toEqual(['XT.MINE']);
+  });
+
+  it('pickup slot shows the extracted net weight as a NUMBER when the stop has a committed Phiếu Cân', async () => {
+    const roadRunId = 'aaaaaaaa-7777-4777-8777-777777777777';
+    const toId = '00000000-0000-4000-8000-000000077001';
+    await seedProjection(roadRunId, ['XT.KG']);
+    await seedOrderGraph({
+      roadRunId,
+      transportOrderId: toId,
+      customerName: 'ĐẠI THÀNH',
+      customerPhone: '0913998771',
+      pickupWarehouseName: 'Cần Thơ',
+      deliveryWarehouseName: 'ĐẠI THÀNH',
+      pickupArrived: '2026-06-12T03:00:00Z',
+      deliveryArrived: null,
+    });
+    const co = OP.companyId;
+    const manifestId = '00000000-0000-4000-8000-0000000d0001';
+    const sessionId = '00000000-0000-4000-8000-0000000e0001';
+    const pickupStopId = '00000000-0000-4000-8000-000000050001';
+    await testDb.db.execute(sql.raw(
+      'INSERT INTO manifest (manifest_id, company_id, business_unit_id, depot_id, legal_entity_id, transport_order_id, manifest_correlation_id, stop_id, state, extracted_net_weight_kg, extraction_status) VALUES (' +
+      q(manifestId) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(toId) + ',' +
+      q('00000000-0000-7000-8000-000000770001') + ',' + q(pickupStopId) + ',' + q('committed') + ',7920.000,' + q('extracted') + ')'
+    ));
+    await testDb.db.execute(sql.raw(
+      'INSERT INTO upload_session (upload_session_id, company_id, business_unit_id, depot_id, legal_entity_id, manifest_id, operator_id, s3_key, s3_bucket, content_type, state) VALUES (' +
+      q(sessionId) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(manifestId) + ',' +
+      q('00000000-0000-4000-8000-0000000b0001') + ',' + q('manifests/x/y/z.jpg') + ',' + q('fleet-pilot-artifacts') + ',' + q('image/jpeg') + ',' + q('committed') + ')'
+    ));
+    const r = await svc.exportAndLog(OP, 'manual');
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(r.buffer as unknown as ArrayBuffer);
+    const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
+    const cell = ws.getRow(2).getCell(7).value; // Điểm nhận hàng 1
+    expect(typeof cell).toBe('number');
+    expect(cell).toBe(7920);
   });
 });

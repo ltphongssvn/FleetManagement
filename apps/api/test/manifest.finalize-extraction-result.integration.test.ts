@@ -1,8 +1,9 @@
 // apps/api/test/manifest.finalize-extraction-result.integration.test.ts
-// RED (phieu-can, API consume side): ManifestService.finalizeExtraction
-// persists extracted_net_weight_kg on status='extracted' and emits
-// manifest.net_weight_extracted (-> projections); not_found leaves kg null
-// and emits nothing.
+// (phieu-can, API consume side): ManifestService.finalizeExtraction persists
+// extracted_net_weight_kg + extraction_status on success and emits
+// manifest.net_weight_extracted (-> projections); a non-extracted outcome
+// persists status + the deterministic extraction_reason (cause is queryable for
+// the review queue) and emits nothing. extracted rows carry no reason (null).
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
@@ -46,7 +47,7 @@ async function committedManifest(): Promise<string> {
   return fin.manifestId;
 }
 
-describe('@fleet/api - finalizeExtraction persists kg + emits projection event', () => {
+describe('@fleet/api - finalizeExtraction persists kg + reason + emits projection event', () => {
   beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_extres'); }, 90_000);
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
@@ -54,12 +55,12 @@ describe('@fleet/api - finalizeExtraction persists kg + emits projection event',
     await truncateAllTables(testDb.db);
   });
 
-  it('extracted: writes kg and emits manifest.net_weight_extracted to projections', async () => {
+  it('extracted: writes kg, no reason, emits manifest.net_weight_extracted to projections', async () => {
     const manifestId = await committedManifest();
     const r = await service.finalizeExtraction({ manifestId, status: 'extracted', extractedNetWeightKg: 20730 }, OP);
     expect(r).toMatchObject({ manifestId, status: 'extracted' });
-    const row = await testDb.db.execute(sql`SELECT extracted_net_weight_kg FROM manifest WHERE manifest_id = ${manifestId}::uuid`);
-    expect(row.rows[0]).toMatchObject({ extracted_net_weight_kg: '20730.000' });
+    const row = await testDb.db.execute(sql`SELECT extracted_net_weight_kg, extraction_status, extraction_reason FROM manifest WHERE manifest_id = ${manifestId}::uuid`);
+    expect(row.rows[0]).toMatchObject({ extracted_net_weight_kg: '20730.000', extraction_status: 'extracted', extraction_reason: null });
     const ob = await testDb.db.execute(sql`
       SELECT queue_name, payload FROM outbox WHERE payload->>'eventType' = 'manifest.net_weight_extracted'
     `);
@@ -72,23 +73,23 @@ describe('@fleet/api - finalizeExtraction persists kg + emits projection event',
     expect(payload['extractedNetWeightKg']).toBe(20730);
   });
 
-  it('not_found: kg stays null, no projection event', async () => {
+  it('not_found: kg null, persists reason=object_missing, no projection event', async () => {
     const manifestId = await committedManifest();
-    await service.finalizeExtraction({ manifestId, status: 'not_found', extractedNetWeightKg: null }, OP);
-    const row = await testDb.db.execute(sql`SELECT extracted_net_weight_kg FROM manifest WHERE manifest_id = ${manifestId}::uuid`);
-    expect(row.rows[0]).toMatchObject({ extracted_net_weight_kg: null });
+    await service.finalizeExtraction({ manifestId, status: 'not_found', extractedNetWeightKg: null, reason: 'object_missing' }, OP);
+    const row = await testDb.db.execute(sql`SELECT extracted_net_weight_kg, extraction_status, extraction_reason FROM manifest WHERE manifest_id = ${manifestId}::uuid`);
+    expect(row.rows[0]).toMatchObject({ extracted_net_weight_kg: null, extraction_status: 'not_found', extraction_reason: 'object_missing' });
     const ob = await testDb.db.execute(sql`
       SELECT 1 FROM outbox WHERE payload->>'eventType' = 'manifest.net_weight_extracted'
     `);
     expect(ob.rows).toHaveLength(0);
   });
 
-  it('unreadable: kg stays null, no projection event (guard arm)', async () => {
+  it('unreadable: kg null, persists reason=unparseable, no projection event (guard arm)', async () => {
     const manifestId = await committedManifest();
-    const r = await service.finalizeExtraction({ manifestId, status: 'unreadable', extractedNetWeightKg: null }, OP);
+    const r = await service.finalizeExtraction({ manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: 'unparseable' }, OP);
     expect(r).toMatchObject({ manifestId, status: 'unreadable' });
-    const row = await testDb.db.execute(sql`SELECT extracted_net_weight_kg FROM manifest WHERE manifest_id = ${manifestId}::uuid`);
-    expect(row.rows[0]).toMatchObject({ extracted_net_weight_kg: null });
+    const row = await testDb.db.execute(sql`SELECT extracted_net_weight_kg, extraction_status, extraction_reason FROM manifest WHERE manifest_id = ${manifestId}::uuid`);
+    expect(row.rows[0]).toMatchObject({ extracted_net_weight_kg: null, extraction_status: 'unreadable', extraction_reason: 'unparseable' });
   });
 
   it('direct service call with extracted+null kg is a no-op (controller schema cannot reach this; service must still guard)', async () => {
@@ -100,11 +101,11 @@ describe('@fleet/api - finalizeExtraction persists kg + emits projection event',
     const ob = await testDb.db.execute(sql`SELECT 1 FROM outbox WHERE payload->>'eventType' = 'manifest.net_weight_extracted'`);
     expect(ob.rows).toHaveLength(0);
   });
+
   it('extracted + non-null kg on a non-existent manifest throws invalid-transition (no committed row to update)', async () => {
     const missingManifestId = randomUUID();
     await expect(
       service.finalizeExtraction({ manifestId: missingManifestId, status: 'extracted', extractedNetWeightKg: 20730 }, OP),
     ).rejects.toThrow(ManifestStateInvalidTransitionError);
   });
-
 });

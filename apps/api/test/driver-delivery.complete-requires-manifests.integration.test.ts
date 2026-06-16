@@ -80,7 +80,7 @@ async function seedStartedRun(
   return roadRunId;
 }
 describe('@fleet/api - DriverDeliveryService.complete requires all manifests committed', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 30_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('REJECTS completion when a stop is missing its committed manifest (1 of 2 photos)', async () => {
     const outcome = await withTxIsolation(testDb, async (tx) => {

@@ -387,14 +387,28 @@ export class ManifestService {
     readonly manifestId: string;
     readonly status: 'extracted' | 'not_found' | 'unreadable';
     readonly extractedNetWeightKg: number | null;
+    readonly reason?: 'unparseable' | 'below_sanity_min' | 'above_sanity_max' | 'no_field' | 'object_missing' | undefined;
   }, op: OperatorContext): Promise<{ manifestId: string; status: 'extracted' | 'not_found' | 'unreadable' }> {
     return this.db.transaction(async (tx) => {
       if (input.status !== 'extracted' || input.extractedNetWeightKg === null) {
+        // Persist the terminal status even when there is no kg, so the board can
+        // distinguish not_found/unreadable ("needs entry") from pending
+        // ("processing"). No projection event: there is no value to show, but the
+        // status itself is a write (closes the silent-failure gap). Best-effort:
+        // a manifest no longer 'committed' simply isn't updated (0 rows, no throw).
+        await tx
+          .update(manifest)
+          .set({ extractionStatus: input.status, extractionReason: input.reason ?? null })
+          .where(and(
+            eq(manifest.manifestId, input.manifestId),
+            eq(manifest.companyId, op.companyId),
+            eq(manifest.state, 'committed'),
+          ));
         return { manifestId: input.manifestId, status: input.status };
       }
       const updated = await tx
         .update(manifest)
-        .set({ extractedNetWeightKg: input.extractedNetWeightKg.toString() })
+        .set({ extractedNetWeightKg: input.extractedNetWeightKg.toString(), extractionStatus: 'extracted', extractionReason: null })
         .where(and(
           eq(manifest.manifestId, input.manifestId),
           eq(manifest.companyId, op.companyId),
@@ -419,6 +433,46 @@ export class ManifestService {
         op,
       });
       return { manifestId: input.manifestId, status: input.status };
+    });
+  }
+
+  /** Dispatcher manual net-weight entry (board edit): set extracted_net_weight_kg
+   *  by hand and mark extraction_status='manual', for manifests the VLM could not
+   *  read (not_found/unreadable) or got wrong. Emits manifest.net_weight_extracted
+   *  (-> projections) exactly like the worker path so the board updates the same
+   *  way. Only a committed manifest is editable. Closes the "DBA runs SQL" gap. */
+  async setManualNetWeight(input: {
+    readonly manifestId: string;
+    readonly extractedNetWeightKg: number;
+  }, op: OperatorContext): Promise<{ manifestId: string; status: 'manual' }> {
+    return this.db.transaction(async (tx) => {
+      const updated = await tx
+        .update(manifest)
+        .set({ extractedNetWeightKg: input.extractedNetWeightKg.toString(), extractionStatus: 'manual' })
+        .where(and(
+          eq(manifest.manifestId, input.manifestId),
+          eq(manifest.companyId, op.companyId),
+          eq(manifest.state, 'committed'),
+        ))
+        .returning({ manifestId: manifest.manifestId });
+      if (updated.length === 0) {
+        throw new ManifestStateInvalidTransitionError(input.manifestId, ['committed']);
+      }
+      const serverSeq = await allocateServerSeq(tx);
+      await appendTriWrite(tx, {
+        serverSeq,
+        actionId: randomUUID(),
+        aggregateType: 'manifest',
+        aggregateId: input.manifestId,
+        delta: { extractedNetWeightKg: input.extractedNetWeightKg },
+        eventType: 'manifest.net_weight_extracted',
+        auditPayload: { extractedNetWeightKg: input.extractedNetWeightKg, source: 'manual' },
+        operatorId: op.operatorId,
+        queueName: OUTBOX_QUEUES.PROJECTIONS,
+        outboxPayload: { aggregateType: 'manifest', eventType: 'manifest.net_weight_extracted', manifestId: input.manifestId, extractedNetWeightKg: input.extractedNetWeightKg },
+        op,
+      });
+      return { manifestId: input.manifestId, status: 'manual' };
     });
   }
 

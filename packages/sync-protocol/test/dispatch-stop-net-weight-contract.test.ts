@@ -4,6 +4,7 @@
 // Old producers (no key) stay valid; new producers emit a positive kg or null.
 import { describe, expect, it } from 'vitest';
 import { DispatchStopViewSchema, StopProofSchema } from '../src/dispatch-stop-view-contract.js';
+import { netWeightKgSchema } from '../src/dispatch-stop-view-contract.js';
 
 const proofBase = {
   manifestId: '7b6a1c9e-2f4d-4a8b-9c0d-1e2f3a4b5c6d',
@@ -43,5 +44,19 @@ describe('StopProofSchema extractedNetWeightKg (additive)', () => {
       proof: { ...proofBase, extractedNetWeightKg: 20730 },
     };
     expect(DispatchStopViewSchema.safeParse(stop).success).toBe(true);
+  });
+});
+
+
+describe('netWeightKgSchema (SSOT for a Phiếu Cân net-weight value, kg)', () => {
+  it('accepts a positive kg — the one type StopProofSchema + ExtractionResultWire reuse', () => {
+    expect(netWeightKgSchema.safeParse(7920).success).toBe(true);
+    expect(netWeightKgSchema.safeParse(0.001).success).toBe(true);
+  });
+  it('rejects zero, negatives, and non-finite (NaN / Infinity)', () => {
+    expect(netWeightKgSchema.safeParse(0).success).toBe(false);
+    expect(netWeightKgSchema.safeParse(-12).success).toBe(false);
+    expect(netWeightKgSchema.safeParse(Number.POSITIVE_INFINITY).success).toBe(false);
+    expect(netWeightKgSchema.safeParse(Number.NaN).success).toBe(false);
   });
 });

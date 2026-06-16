@@ -1,8 +1,9 @@
 // workers/main-worker/test/gemini-vlm-extractor.test.ts
-// RED (phieu-can): Gemini Flash adapter behind VlmExtractorPort. Injected
-// fetch (no SDK): correct endpoint/model/key header, inline base64 image,
-// JSON-response parse to VlmRawNetWeight, null when the model reports no
-// net-weight field, throw on non-2xx (retryable upstream).
+// Gemini Flash adapter behind VlmExtractorPort. Injected fetch (no SDK):
+// correct endpoint/model/key header, inline base64 image, JSON-response parse to
+// VlmRawNetWeight, null when the model reports no net-weight field, throw on
+// non-2xx (retryable upstream). The model returns a DECOMPOSED rawValues array
+// (one verbatim value per weighing) — no twoPass boolean, no '+'-delimited string.
 import { describe, expect, it, vi } from 'vitest';
 import { GeminiVlmExtractor } from '../src/extraction/gemini-vlm-extractor.js';
 
@@ -15,11 +16,11 @@ function okResponse(payload: unknown): Response {
 }
 
 describe('GeminiVlmExtractor', () => {
-  it('calls generateContent with key header + inline image, parses fields', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: true, rawLabel: 'TL Hang', rawValue: '20.730 Kg', twoPass: false }));
+  it('calls generateContent with key header + inline image, parses single-pass rawValues', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: true, rawLabel: 'TL Hang', rawValues: ['20.730 Kg'] }));
     const x = new GeminiVlmExtractor({ apiKey: 'k-123', model: 'gemini-flash-test', fetchFn }); // pragma: allowlist secret
     const out = await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' });
-    expect(out).toEqual({ rawLabel: 'TL Hang', rawValue: '20.730 Kg', twoPass: false });
+    expect(out).toEqual({ rawLabel: 'TL Hang', rawValues: ['20.730 Kg'] });
     const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit];
     expect(url).toContain('/models/gemini-flash-test:generateContent');
     expect((init.headers as Record<string, string>)['x-goog-api-key']).toBe('k-123');
@@ -29,8 +30,21 @@ describe('GeminiVlmExtractor', () => {
     expect(inline?.inline_data?.data).toBe(Buffer.from(BYTES).toString('base64'));
   });
 
+  it('parses a two-pass pair as a 2-element rawValues array', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: true, rawLabel: 'TL hang lan 1 / lan 2', rawValues: ['10.500', '9.730'] }));
+    const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn });
+    const out = await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' });
+    expect(out).toEqual({ rawLabel: 'TL hang lan 1 / lan 2', rawValues: ['10.500', '9.730'] });
+  });
+
   it('returns null when model reports found=false', async () => {
     const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: false }));
+    const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn });
+    expect(await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' })).toBeNull();
+  });
+
+  it('returns null when found=true but rawValues is empty', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: true, rawLabel: 'L', rawValues: [] }));
     const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn });
     expect(await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' })).toBeNull();
   });

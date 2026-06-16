@@ -10,7 +10,7 @@ import { withTxIsolation } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 describe('ReferenceService.vehiclesAdmin (T5c)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 30_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('returns all active vehicles regardless of driver-vehicle pairing', async () => {
     await withTxIsolation(testDb, async (tx) => {

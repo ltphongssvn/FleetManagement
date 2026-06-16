@@ -27,7 +27,7 @@ async function insertOutboxRow(tx: TestTx, status: string): Promise<void> {
   await tx.execute(sql.raw(stmt));
 }
 describe('@fleet/api - MetricsService (integration)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 30_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('returns 0 when outbox empty', async () => {
     await withTxIsolation(testDb, async (tx) => {

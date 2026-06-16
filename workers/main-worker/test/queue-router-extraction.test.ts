@@ -22,7 +22,7 @@ function sink(): DeadLetterSink & { sent: unknown[] } {
 function ports(value: string | null): { store: ExtractionObjectStore; vlm: VlmExtractorPort } {
   return {
     store: { getObject: vi.fn().mockResolvedValue(new Uint8Array([1])) },
-    vlm: { extractNetWeight: vi.fn().mockResolvedValue(value === null ? null : { rawLabel: 'TL Hang', rawValue: value }) },
+    vlm: { extractNetWeight: vi.fn().mockResolvedValue(value === null ? null : { rawLabel: 'TL Hang', rawValues: [value] }) },
   };
 }
 

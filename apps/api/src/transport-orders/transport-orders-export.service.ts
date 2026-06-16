@@ -41,6 +41,8 @@ import type { FleetDb } from '../database/database.module.js';
 import { dispatchBoardProjection } from '../database/schema/projections.js';
 import { customer, driver, vehicle } from '../database/schema/reference.js';
 import { roadRunTransportOrder, stop, transportOrder } from '../database/schema/transport.js';
+import { manifest, uploadSession } from '../database/schema/manifest.js';
+import { netWeightKgSchema } from '@fleet/sync-protocol';
 import { transportOrderExportLog } from '../database/schema/transport-order-export-log.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 export type ExportTrigger = 'manual' | 'login' | 'logout';
@@ -54,10 +56,12 @@ export interface ExportResult {
   readonly dayKey: string;
 }
 interface ExportStop {
+  readonly stopId: string;
   readonly sequence: number;
   readonly stopType: string;
   readonly arrivedAt: Date | null;
   readonly departedAt: Date | null;
+  readonly extractedNetWeightKg: number | null;
 }
 interface ExportRow {
   readonly roadRunId: string;
@@ -109,9 +113,14 @@ function stopForSlot(stops: readonly ExportStop[], stopType: 'pickup' | 'deliver
     .sort((a, b) => a.sequence - b.sequence);
   return ofType[slotIndex - 1];
 }
-function slotStatus(stops: readonly ExportStop[], stopType: 'pickup' | 'delivery', slotIndex: number): string {
+// Slot cell: extracted Phiếu Cân net weight as a NUMBER when the stop has a
+// committed proof carrying one (board shows kg under the "Phiếu Cân" link);
+// else the per-stop status string; em-dash when the slot has no stop.
+function slotCell(stops: readonly ExportStop[], stopType: 'pickup' | 'delivery', slotIndex: number): number | string {
   const s = stopForSlot(stops, stopType, slotIndex);
-  return s ? stopStatusOf(s) : DASH;
+  if (!s) return DASH;
+  if (s.extractedNetWeightKg !== null) return s.extractedNetWeightKg;
+  return stopStatusOf(s);
 }
 // Khách hàng cell: name with phone folded onto a second line when present.
 // Mirrors the on-screen CustomerCell which stacks name over phone.
@@ -223,6 +232,7 @@ export class TransportOrdersExportService {
       const stopRows = await this.db
         .select({
           roadRunId: roadRunTransportOrder.roadRunId,
+          stopId: stop.stopId,
           sequence: stop.sequence,
           stopType: stop.stopType,
           arrivedAt: stop.arrivedAt,
@@ -235,9 +245,30 @@ export class TransportOrdersExportService {
           inArray(roadRunTransportOrder.roadRunId, roadRunIds),
         ))
         .orderBy(asc(stop.sequence));
+      // Phiếu Cân net weight per stop: committed manifests joined to upload_session;
+      // coerce the pg numeric(12,3) string and VALIDATE via the netWeightKgSchema SSOT.
+      const allStopIds = stopRows.map((sr) => sr.stopId);
+      const weightByStopId = new Map<string, number | null>();
+      if (allStopIds.length > 0) {
+        const proofRows = await this.db
+          .select({ stopId: manifest.stopId, extractedNetWeightKg: manifest.extractedNetWeightKg })
+          .from(manifest)
+          .innerJoin(uploadSession, eq(uploadSession.manifestId, manifest.manifestId))
+          .where(and(eq(manifest.companyId, op.companyId), eq(manifest.state, 'committed'), inArray(manifest.stopId, allStopIds)));
+        for (const pr of proofRows) {
+          if (pr.stopId === null) continue;
+          if (weightByStopId.has(pr.stopId)) continue;
+          let kg: number | null = null;
+          if (pr.extractedNetWeightKg !== null) {
+            const parsed = netWeightKgSchema.safeParse(Number(pr.extractedNetWeightKg));
+            if (parsed.success) kg = parsed.data;
+          }
+          weightByStopId.set(pr.stopId, kg);
+        }
+      }
       for (const sr of stopRows) {
         const list = stopsByRoadRun.get(sr.roadRunId) ?? [];
-        list.push({ sequence: sr.sequence, stopType: sr.stopType, arrivedAt: sr.arrivedAt, departedAt: sr.departedAt });
+        list.push({ stopId: sr.stopId, sequence: sr.sequence, stopType: sr.stopType, arrivedAt: sr.arrivedAt, departedAt: sr.departedAt, extractedNetWeightKg: weightByStopId.get(sr.stopId) ?? null });
         stopsByRoadRun.set(sr.roadRunId, list);
       }
       const customerRows = await this.db
@@ -297,8 +328,8 @@ export class TransportOrdersExportService {
         r.vehiclePlate ?? DASH,
         planned,
         r.stopCount,
-        ...PICKUP_SLOTS.map((n) => slotStatus(r.stops, 'pickup', n)),
-        ...DELIVERY_SLOTS.map((n) => slotStatus(r.stops, 'delivery', n)),
+        ...PICKUP_SLOTS.map((n) => slotCell(r.stops, 'pickup', n)),
+        ...DELIVERY_SLOTS.map((n) => slotCell(r.stops, 'delivery', n)),
       ]);
     }
     ws.columns.forEach((c) => { c.width = 22; });

@@ -13,6 +13,14 @@ import { z } from 'zod';
 export const STOP_TYPES = ['pickup', 'delivery'] as const;
 export type StopType = typeof STOP_TYPES[number];
 
+/** SSOT for a Phiếu Cân net-weight VALUE (kg): a finite positive number. One
+ *  definition reused by StopProofSchema (read model) and ExtractionResultWire
+ *  (worker callback) so "what a net weight is" lives in one place. The Excel
+ *  export coerces the pg numeric(12,3) string through this same schema before
+ *  writing the cell, so the exported number is contract-validated. */
+export const netWeightKgSchema = z.number().positive().finite();
+export type NetWeightKg = z.infer<typeof netWeightKgSchema>;
+
 /** Proof of capture for a stop: the committed manifest + a presigned GET URL. */
 export const StopProofSchema = z.object({
   manifestId: z.string().uuid(),
@@ -22,7 +30,26 @@ export const StopProofSchema = z.object({
   // from the committed Phieu Can by the extraction worker. optional => old
   // producers omitting the key stay valid; null => extraction pending/failed;
   // positive number => render kg next to the Phieu Can link.
-  extractedNetWeightKg: z.union([z.number().positive(), z.null()]).optional(),
+  extractedNetWeightKg: z.union([netWeightKgSchema, z.null()]).optional(),
+  // EXPAND-only: extraction lifecycle status so the board renders the four UI
+  // states distinctly — 'pending' (processing) vs 'not_found'/'unreadable'
+  // (needs manual entry) vs 'extracted'/'manual' (has a value). Vocabulary is
+  // the SSOT @fleet/domain manifestExtractionStatusSchema; inlined here (not
+  // imported) to keep the contract package dependency-free. optional => old
+  // producers stay valid.
+  extractionStatus: z
+    .enum(['pending', 'extracted', 'not_found', 'unreadable', 'manual'])
+    .optional(),
+  // EXPAND-only (review queue): the deterministic cause of a non-extracted
+  // outcome, so the board can show WHY (unparseable vs object_missing vs ...)
+  // and filter a dispatcher review queue — not just the bare 'unreadable'
+  // status. Vocabulary is the SSOT @fleet/sync-protocol EXTRACTION_FAILURE_REASONS;
+  // inlined here to keep the contract dependency-free. optional => old producers
+  // stay valid; null => pending/extracted/manual rows carry no reason.
+  extractionReason: z
+    .enum(['unparseable', 'below_sanity_min', 'above_sanity_max', 'no_field', 'object_missing'])
+    .nullable()
+    .optional(),
 }).strict();
 export type StopProof = z.infer<typeof StopProofSchema>;
 
