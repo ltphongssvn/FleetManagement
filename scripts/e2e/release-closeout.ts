@@ -20,43 +20,40 @@ export interface ReleaseDecision {
   readonly version: string | null;
 }
 
-// Parse semantic-release output into a release decision. Strips the tool banner
-// ("Running semantic-release version X") so it is never mistaken for a release.
-export function parseReleaseDecision(log: string): ReleaseDecision {
-  const meaningful = log
-    .split('\n')
-    .filter((ln) => !/running semantic-release version/i.test(ln))
-    .join('\n');
-  const noRelease =
-    /no relevant changes, so no new version is released/i.test(meaningful) ||
-    /a new version won['\u2019]t be published/i.test(meaningful) ||
-    /will not be published/i.test(meaningful);
-  if (noRelease) return { released: false, version: null };
-  const m =
-    /(?:Published release|The next release version is|next release version is|Created tag)\s+v?(\d+\.\d+\.\d+)/i.exec(
-      meaningful,
-    );
-  if (m?.[1] !== undefined) return { released: true, version: m[1] };
-  return { released: false, version: null };
-}
-
-// A verdict is trustworthy only if semantic-release ran on the publish branch.
-export function releaseDecisionIsAuthoritative(log: string, publishBranch: string): boolean {
-  if (/a new version won['\u2019]t be published/i.test(log)) return false;
-  if (/configured to only publish from/i.test(log)) return false;
-  const onBranch = new RegExp('on (?:the )?branch ' + publishBranch + '\\b', 'i').test(log);
-  return (
-    onBranch ||
-    /no relevant changes, so no new version is released/i.test(log) ||
-    /Published release|The next release version is/i.test(log)
-  );
-}
-
 export function backMergeSubject(d: ReleaseDecision, prNumber: number): string {
   if (d.released && d.version !== null) {
     return 'Merge main into develop: back-merge #' + String(prNumber) + ' (release v' + d.version + ' published)';
   }
   return 'Merge main into develop: back-merge #' + String(prNumber) + ' (chore-only, no release published)';
+}
+
+// Resolve the published release from git tags — the authoritative post-publish
+// source for the back-merge. The Release run tags main HEAD; a tag there that is
+// NOT yet on develop is exactly what this promote carries. Idempotent: once that
+// tag is on develop, nothing new is reported. Pure set logic over tag lists (no
+// I/O) — main() supplies the git-tag reads. Replaces the post-publish release:dry
+// oracle, which is blind here (0 new commits => "no release") and needs a GH token.
+export function resolveReleaseFromTags(
+  tagsAtMainHead: readonly string[],
+  tagsOnDevelop: readonly string[],
+): ReleaseDecision {
+  const onDevelop = new Set(tagsOnDevelop);
+  const semverCmp = (a: string, b: string): number => {
+    const pa = a.split('.').map(Number);
+    const pb = b.split('.').map(Number);
+    for (let i = 0; i < 3; i += 1) {
+      const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+      if (d !== 0) return d;
+    }
+    return 0;
+  };
+  const versions = tagsAtMainHead
+    .filter((t) => !onDevelop.has(t))
+    .map((t) => t.replace(/^v/, ''))
+    .filter((v) => /^\d+\.\d+\.\d+$/.test(v))
+    .sort(semverCmp);
+  const top = versions[versions.length - 1];
+  return top === undefined ? { released: false, version: null } : { released: true, version: top };
 }
 
 // ---- side-effecting (entrypoint only) ----
@@ -91,12 +88,18 @@ function main(): void {
   console.log('\ud83d\udce1 reading semantic-release decision from the MAIN worktree ...');
   run('git', ['fetch', 'origin', '--prune', '--tags', '--quiet'], { allowFail: true });
   const mainWt = resolveWorktree(cfg.baseBranch);
-  const dryLog = run('pnpm', ['--dir', mainWt, 'run', 'release:dry'], { allowFail: true });
-  if (!releaseDecisionIsAuthoritative(dryLog, cfg.baseBranch)) {
-    console.error('\u274c release decision not authoritative (dry-run did not run on ' + cfg.baseBranch + '). Refusing to write a back-merge subject.');
-    process.exit(1);
-  }
-  const decision = parseReleaseDecision(dryLog);
+  // Authoritative post-publish source: the tag the Release run created at main
+  // HEAD that is not yet on develop. Refs are shared across worktrees; read via
+  // mainWt. No release:dry here — it is blind post-publish and needs a GH token.
+  const tagsAtMainHead = run('git', ['-C', mainWt, 'tag', '--points-at', 'origin/' + cfg.baseBranch], { allowFail: true })
+    .split('\n')
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+  const tagsOnDevelop = run('git', ['-C', mainWt, 'tag', '--merged', 'origin/' + cfg.developBranch], { allowFail: true })
+    .split('\n')
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+  const decision = resolveReleaseFromTags(tagsAtMainHead, tagsOnDevelop);
   console.log(decision.released ? '\u2705 release: v' + (decision.version ?? '?') + ' published' : '\u2139\ufe0f  release: none (chore-only)');
 
   const subject = backMergeSubject(decision, cfg.prNumber);
