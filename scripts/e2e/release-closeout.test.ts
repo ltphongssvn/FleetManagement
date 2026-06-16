@@ -11,6 +11,7 @@ import {
   releaseCloseoutConfigSchema,
   parseReleaseDecision,
   backMergeSubject,
+  releaseDecisionIsAuthoritative,
 } from './release-closeout.ts';
 
 const base = {
@@ -57,6 +58,34 @@ describe('parseReleaseDecision', () => {
     expect(d.released).toBe(false);
     expect(d.version).toBeNull();
   });
+
+  it('does NOT treat the semantic-release TOOL version as a release (real bug: v25.0.3)', () => {
+    const log = [
+      '[semantic-release] ℹ  Running semantic-release version 25.0.3',
+      '[semantic-release] ℹ  Loaded plugin "verifyConditions" from "@semantic-release/github"',
+    ].join('\n');
+    const d = parseReleaseDecision(log);
+    expect(d.released).toBe(false);
+    expect(d.version).toBeNull();
+  });
+
+  it('parses the dry-run branch-guard line (triggered on develop, publishes only from main) as not-released', () => {
+    const log = '[semantic-release] ℹ  This test run was triggered on the branch develop, while semantic-release is configured to only publish from main, therefore a new version won’t be published.';
+    const d = parseReleaseDecision(log);
+    expect(d.released).toBe(false);
+    expect(d.version).toBeNull();
+  });
+
+  it('still extracts a real published version even when the tool-version line is also present', () => {
+    const log = [
+      '[semantic-release] ℹ  Running semantic-release version 25.0.3',
+      '[semantic-release] ℹ  The next release version is 1.7.0',
+      '[semantic-release] ✔  Published release 1.7.0 on default channel',
+    ].join('\n');
+    const d = parseReleaseDecision(log);
+    expect(d.released).toBe(true);
+    expect(d.version).toBe('1.7.0');
+  });
 });
 
 describe('backMergeSubject', () => {
@@ -71,5 +100,16 @@ describe('backMergeSubject', () => {
     expect(s).toContain('#87');
     expect(s.toLowerCase()).toContain('no release');
     expect(s).not.toMatch(/v\d+\.\d+\.\d+/);
+  });
+});
+
+describe('releaseDecisionIsAuthoritative', () => {
+  it('is FALSE when semantic-release ran on a non-publish branch (verdict not trustworthy)', () => {
+    const log = '[semantic-release] This test run was triggered on the branch develop, while semantic-release is configured to only publish from main, therefore a new version won\u2019t be published.';
+    expect(releaseDecisionIsAuthoritative(log, 'main')).toBe(false);
+  });
+  it('is TRUE when the run is on the configured publish branch', () => {
+    const log = '[semantic-release] Running on branch main\n[semantic-release] There are no relevant changes, so no new version is released.';
+    expect(releaseDecisionIsAuthoritative(log, 'main')).toBe(true);
   });
 });

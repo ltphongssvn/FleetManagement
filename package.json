@@ -27,7 +27,8 @@
     "ci:fast": "turbo run __ci_fast__",
     "sync:main": "tsx scripts/sync-main.ts",
     "stack:up": "tsx scripts/e2e/stack-up.ts",
-    "release:closeout": "tsx scripts/e2e/release-closeout.ts"
+    "release:closeout": "tsx scripts/e2e/release-closeout.ts",
+    "release:promote": "tsx scripts/e2e/release-promote.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
