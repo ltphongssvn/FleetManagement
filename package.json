@@ -25,7 +25,8 @@
     "commitlint": "commitlint --edit",
     "codemod:check": "tsx packages/codemods/src/cli.ts extract-parse-one-number --project workers/main-worker/tsconfig.json --include \"packages/domain/src/**/*.ts\" --check",
     "ci:fast": "turbo run __ci_fast__",
-    "sync:main": "tsx scripts/sync-main.ts"
+    "sync:main": "tsx scripts/sync-main.ts",
+    "stack:up": "tsx scripts/e2e/stack-up.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
