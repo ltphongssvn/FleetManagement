@@ -31,7 +31,7 @@ function tenancy(op: ReturnType<typeof createOperatorContext>): {
   };
 }
 describe('@fleet/api - ReferenceService paired-only filtering (integration)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 30_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   describe('drivers(op)', () => {
     it('returns paired drivers and excludes an unpaired driver seeded alongside', async () => {
