@@ -24,7 +24,8 @@
     "release:dry": "semantic-release --dry-run --no-ci",
     "commitlint": "commitlint --edit",
     "codemod:check": "tsx packages/codemods/src/cli.ts extract-parse-one-number --project workers/main-worker/tsconfig.json --include \"packages/domain/src/**/*.ts\" --check",
-    "ci:fast": "turbo run __ci_fast__"
+    "ci:fast": "turbo run __ci_fast__",
+    "sync:main": "tsx scripts/sync-main.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
