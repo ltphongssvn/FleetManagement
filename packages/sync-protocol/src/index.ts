@@ -45,6 +45,8 @@ export {
 export {
   STOP_TYPES,
   type StopType,
+  netWeightKgSchema,
+  type NetWeightKg,
   StopProofSchema,
   type StopProof,
   DispatchStopViewSchema,

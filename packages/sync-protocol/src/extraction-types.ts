@@ -6,6 +6,7 @@
 // also SSOT here (intake's callback schema is API-local; do not copy that gap).
 import { z } from 'zod';
 import { ALLOWED_MANIFEST_MIME_TYPES } from './manifest-types.js';
+import { netWeightKgSchema } from './dispatch-stop-view-contract.js';
 
 const ExtractionMimeSchema = z.enum(ALLOWED_MANIFEST_MIME_TYPES as unknown as [string, ...string[]]);
 
@@ -41,7 +42,7 @@ export type ExtractionFailureReason = typeof EXTRACTION_FAILURE_REASONS[number];
 export const ExtractionResultWireSchema = z.object({
   manifestId: z.string().uuid(),
   status: z.enum(EXTRACTION_STATUSES),
-  extractedNetWeightKg: z.union([z.number().positive(), z.null()]),
+  extractedNetWeightKg: z.union([netWeightKgSchema, z.null()]),
   reason: z.enum(EXTRACTION_FAILURE_REASONS).optional(),
 }).strict()
   .refine(
