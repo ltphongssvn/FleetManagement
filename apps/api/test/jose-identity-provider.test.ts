@@ -123,4 +123,26 @@ describe('@fleet/api - JoseIdentityProvider (dual-issuer)', () => {
     await provider.onModuleInit();
     await expect(provider.verifyToken('eyJnocom')).rejects.toThrow(/company_id/);
   });
+
+  it('surfaces acr and amr claims from the verified token (RFC 9068)', async () => {
+    mockDecodeJwt.mockReturnValueOnce({ iss: OIDC_ISSUER });
+    mockJwtVerify.mockResolvedValueOnce({
+      payload: { sub: 'op-5', operator_id: 'op-5', company_id: 'co-5', iat: 1700000000, exp: 1700003600, acr: 'aal2', amr: ['pwd', 'hwk'] },
+    });
+    const provider = new JoseIdentityProvider(makeConfig());
+    await provider.onModuleInit();
+    const result = await provider.verifyToken('eyJacr');
+    expect(result.acr).toBe('aal2');
+    expect(result.amr).toEqual(['pwd', 'hwk']);
+  });
+
+  it('leaves acr/amr undefined when the token omits them', async () => {
+    mockDecodeJwt.mockReturnValueOnce({ iss: SELF_ISSUER });
+    mockJwtVerify.mockResolvedValueOnce({ payload: VALID });
+    const provider = new JoseIdentityProvider(makeConfig());
+    await provider.onModuleInit();
+    const result = await provider.verifyToken('eyJnoacr');
+    expect(result.acr).toBeUndefined();
+    expect(result.amr).toBeUndefined();
+  });
 });

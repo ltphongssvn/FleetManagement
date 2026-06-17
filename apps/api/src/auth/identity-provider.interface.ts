@@ -7,6 +7,11 @@ export interface VerifiedIdentity {
   readonly companyId: string;
   readonly issuedAt: number;
   readonly expiresAt: number;
+  // RFC 9068 step-up signals, surfaced so the fleet API can enforce acr/amr
+  // assurance as defense-in-depth (see step-up.guard.ts). Absent on tokens that
+  // carry no authentication-context claims (e.g. self-issued driver tokens).
+  readonly acr?: string;
+  readonly amr?: readonly string[];
 }
 
 export interface IIdentityProvider {
