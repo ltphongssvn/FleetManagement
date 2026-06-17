@@ -1,8 +1,9 @@
 import { OUTBOX_QUEUES, MANIFEST_MAX_SIZE_BYTES, type ManifestStopRef } from '@fleet/sync-protocol';
 // apps/api/src/manifest/manifest.service.ts
 // Manifest service per Frozen Stack PDF "Manifest" + "Uploads".
-import { Inject, Injectable } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { CLOCK, SystemClock, type Clock } from '../common/clock.js';
+import { ID_GENERATOR, SystemIdGenerator, type IdGenerator } from '../common/id-generator.js';
 import { ConfigService } from '@nestjs/config';
 import { and, eq, inArray } from 'drizzle-orm';
 import mime from 'mime-types';
@@ -33,12 +34,19 @@ export type { OperatorContext };
 export class ManifestService {
   private readonly presignTtlSeconds: number;
 
+  private readonly clock: Clock;
+  private readonly ids: IdGenerator;
+
   constructor(
     @Inject(DRIZZLE_DB) private readonly db: FleetDb,
     @Inject(BLOB_STORE) private readonly blobs: IBlobStore,
     @Inject(ConfigService) config: ConfigService<Env, true>,
+    @Optional() @Inject(CLOCK) clock?: Clock,
+    @Optional() @Inject(ID_GENERATOR) ids?: IdGenerator,
   ) {
     this.presignTtlSeconds = config.getOrThrow('S3_PRESIGN_TTL_SECONDS', { infer: true });
+    this.clock = clock ?? new SystemClock();
+    this.ids = ids ?? new SystemIdGenerator();
   }
 
   async negotiateUpload(input: NegotiateUploadInput, op: OperatorContext): Promise<NegotiateUploadResponse> {
@@ -267,7 +275,7 @@ export class ManifestService {
       .update(uploadSession)
       .set({
         state: targetUploadState,
-        ...(input.accepted ? { committedAt: new Date() } : { abortedAt: new Date() }),
+        ...(input.accepted ? { committedAt: this.clock.now() } : { abortedAt: this.clock.now() }),
       })
       .where(and(
         eq(uploadSession.uploadSessionId, input.uploadSessionId),
@@ -290,7 +298,7 @@ export class ManifestService {
       .update(manifest)
       .set({
         state: input.accepted ? 'committed' : 'rejected',
-        ...(input.accepted ? { committedAt: new Date() } : {}),
+        ...(input.accepted ? { committedAt: this.clock.now() } : {}),
         ...(input.accepted ? {} : input.rejectionReasonCode !== undefined ? { rejectionReasonCode: input.rejectionReasonCode } : {}),
       })
       .where(and(
@@ -354,8 +362,8 @@ export class ManifestService {
     });
   }
   // Tri-write event via shared appendTriWrite helper.
-  // TODO(audit): replace randomUUID + new Date() with injected IdGenerator + Clock
-  // when extending Clock pattern (see common/clock.ts) to ManifestService.
+  // Deterministic seam: actionId via injected IdGenerator, timestamps via injected Clock
+  // (see common/clock.ts + common/id-generator.ts). Fakes substitute both under test.
   private async emitManifestCommittedEvent(
     tx: Tx,
     manifestId: string,
@@ -365,7 +373,7 @@ export class ManifestService {
     const serverSeq = await allocateServerSeq(tx);
     await appendTriWrite(tx, {
       serverSeq,
-      actionId: randomUUID(),
+      actionId: this.ids.uuid(),
       aggregateType: 'manifest',
       aggregateId: manifestId,
       delta: { state: 'committed' },
@@ -421,7 +429,7 @@ export class ManifestService {
       const serverSeq = await allocateServerSeq(tx);
       await appendTriWrite(tx, {
         serverSeq,
-        actionId: randomUUID(),
+        actionId: this.ids.uuid(),
         aggregateType: 'manifest',
         aggregateId: input.manifestId,
         delta: { extractedNetWeightKg: input.extractedNetWeightKg },
@@ -461,7 +469,7 @@ export class ManifestService {
       const serverSeq = await allocateServerSeq(tx);
       await appendTriWrite(tx, {
         serverSeq,
-        actionId: randomUUID(),
+        actionId: this.ids.uuid(),
         aggregateType: 'manifest',
         aggregateId: input.manifestId,
         delta: { extractedNetWeightKg: input.extractedNetWeightKg },
@@ -521,7 +529,7 @@ export class ManifestService {
     const serverSeq = await allocateServerSeq(tx);
     await appendTriWrite(tx, {
       serverSeq,
-      actionId: randomUUID(),
+      actionId: this.ids.uuid(),
       aggregateType: 'manifest',
       aggregateId: manifestId,
       delta: { state: 'rejected', rejectionReasonCode: rejectionReasonCode ?? null },
