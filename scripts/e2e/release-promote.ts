@@ -35,6 +35,30 @@ function run(cmd: string, args: string[], opts: { allowFail?: boolean } = {}): s
   return r.stdout + r.stderr;
 }
 
+const releaseRunSchema = z.object({
+  databaseId: z.number(),
+  headSha: z.string(),
+  status: z.string(),
+  conclusion: z.string(),
+});
+const releaseRunArraySchema = z.array(releaseRunSchema);
+export type ReleaseRun = z.infer<typeof releaseRunSchema>;
+
+// Select the Release run for a specific merge commit (head SHA), not the most
+// recent. The wait_release race that mis-tagged #94 watched --limit 1 and let
+// closeout run before THIS commit's run created the tag. Matches full or short
+// SHA (git rev-parse --short vs the API's 40-char headSha). Pure; main() polls.
+export function selectReleaseRunForSha(
+  runs: readonly ReleaseRun[],
+  sha: string,
+): ReleaseRun | null {
+  if (sha.length < 7) return null;
+  const m = runs.find(
+    (r) => r.headSha === sha || r.headSha.startsWith(sha) || sha.startsWith(r.headSha),
+  );
+  return m ?? null;
+}
+
 function main(): void {
   const cfg = promoteConfigSchema.parse({});
   run('git', ['fetch', 'origin', '--prune', '--tags', '--quiet'], { allowFail: true });
@@ -62,10 +86,28 @@ function main(): void {
   console.log('\ud83d\udd00 admin-merge develop -> main ...');
   run('gh', releaseMergeArgs(Number(pr)));
 
-  // wait_release (semantic-release on main push)
+  // wait_release: the Release workflow runs on the main push from the admin-merge.
+  // Correlate by the merge commit SHA (not most-recent) and poll until THAT run
+  // exists and completes — fixes the race that mis-tagged #94 (closeout ran before
+  // the run created the tag). Then fetch tags so closeout's tag oracle sees it.
   console.log('\u23f3 waiting for Release workflow on ' + cfg.baseBranch + ' ...');
-  const rid = run('gh', ['run', 'list', '--workflow=Release', '--branch', cfg.baseBranch, '--limit', '1', '--json', 'databaseId', '--jq', '.[0].databaseId'], { allowFail: true }).trim();
-  if (/^\d+$/.test(rid)) run('gh', ['run', 'watch', rid, '--exit-status'], { allowFail: true });
+  run('git', ['fetch', 'origin', '--quiet'], { allowFail: true });
+  const mergeSha = run('git', ['rev-parse', 'origin/' + cfg.baseBranch]).trim();
+  let chosen: ReleaseRun | null = null;
+  for (let i = 0; i < 60; i += 1) {
+    const raw = run('gh', ['run', 'list', '--workflow=Release', '--branch', cfg.baseBranch, '--limit', '20', '--json', 'databaseId,headSha,status,conclusion'], { allowFail: true });
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw) as unknown; } catch { parsed = []; }
+    const res = releaseRunArraySchema.safeParse(parsed);
+    const runs = res.success ? res.data : [];
+    const match = selectReleaseRunForSha(runs, mergeSha);
+    if (match !== null && match.status === 'completed') { chosen = match; break; }
+    if (match !== null) { run('gh', ['run', 'watch', String(match.databaseId), '--exit-status'], { allowFail: true }); }
+    else { run('sleep', ['10'], { allowFail: true }); }
+  }
+  if (chosen === null) { console.error('\u274c timed out waiting for Release run on ' + cfg.baseBranch + ' @ ' + mergeSha); process.exit(1); }
+  if (chosen.conclusion !== 'success') { console.error('\u274c Release run ' + String(chosen.databaseId) + ' concluded: ' + chosen.conclusion); process.exit(1); }
+  run('git', ['fetch', 'origin', '--tags', '--quiet'], { allowFail: true });
 
   // closeout (authoritative decision + correct back-merge subject)
   console.log('\ud83d\udd01 running release:closeout for PR #' + pr + ' ...');
