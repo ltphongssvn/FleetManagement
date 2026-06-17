@@ -47,6 +47,10 @@ export const StepUpRequirementSchema = z
     path: ['phishingResistantAmr'],
   });
 export type StepUpRequirement = z.infer<typeof StepUpRequirementSchema>;
+// Author-facing (input) shape: defaults (requirePhishingResistant) are optional
+// here and applied by .parse(); decorators accept this, the guard parses to the
+// fully-resolved StepUpRequirement at runtime.
+export type StepUpRequirementInput = z.input<typeof StepUpRequirementSchema>;
 
 // Discriminated union: each non-satisfied branch carries exactly what the
 // RFC 9470 \"insufficient_user_authentication\" challenge needs to be built.
