@@ -11,6 +11,7 @@ import {
   promoteConfigSchema,
   promotePhases,
   releaseMergeArgs,
+  selectReleaseRunForSha,
 } from './release-promote.ts';
 
 const base = { baseBranch: 'main', developBranch: 'develop' };
@@ -41,5 +42,38 @@ describe('releaseMergeArgs', () => {
     expect(args).toContain('--admin');
     expect(args).not.toContain('--squash');
     expect(args).not.toContain('--delete-branch');
+  });
+});
+
+describe('selectReleaseRunForSha', () => {
+  // The wait_release race that mis-tagged #94: promote watched the most-recent run
+  // (--limit 1) instead of the run for THIS merge commit, so closeout ran before
+  // that run created the tag. Fix correlates by head SHA (2026 wait-for-workflow
+  // norm). Pure selector over a run list; main() polls with it until done+success.
+  const sha = 'ef20534aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const prev = 'b7b691cbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  const mk = (headSha, status, conclusion) => ({ databaseId: 1, headSha, status, conclusion });
+
+  it('returns null when no run matches the merge SHA yet (run not created -> keep polling)', () => {
+    const runs = [mk(prev, 'completed', 'success')];
+    expect(selectReleaseRunForSha(runs, sha)).toBeNull();
+  });
+  it('matches the run whose headSha equals the merge commit (full SHA)', () => {
+    const runs = [mk(prev, 'completed', 'success'), { databaseId: 42, headSha: sha, status: 'in_progress', conclusion: '' }];
+    expect(selectReleaseRunForSha(runs, sha)?.databaseId).toBe(42);
+  });
+  it('matches on a short SHA prefix (git rev-parse --short vs full API headSha)', () => {
+    const runs = [{ databaseId: 7, headSha: sha, status: 'completed', conclusion: 'success' }];
+    expect(selectReleaseRunForSha(runs, 'ef20534')?.databaseId).toBe(7);
+  });
+  it('does NOT match the previous run for a different commit (the exact #94 bug)', () => {
+    const runs = [mk(prev, 'completed', 'success')];
+    expect(selectReleaseRunForSha(runs, 'ef20534')).toBeNull();
+  });
+  it('returns the matching run regardless of status so the caller can poll to completion', () => {
+    const runs = [{ databaseId: 9, headSha: sha, status: 'queued', conclusion: '' }];
+    const r = selectReleaseRunForSha(runs, sha);
+    expect(r?.databaseId).toBe(9);
+    expect(r?.status).toBe('queued');
   });
 });
