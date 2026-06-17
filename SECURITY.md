@@ -33,8 +33,7 @@ Key decisions / invariants:
     Redis pub/sub invalidation, disconnectSockets(true) on session
     rooms, filter-repo for history purges only AFTER rotation.
   - TDD mandate is called out in the contributor checklist.
-  - security@ email is a placeholder flagged for replacement before
-    pilot launch.
+  - security contact: ltphongssvn@gmail.com (set 2026-06).
 
 Related files:
   - .pre-commit-config.yaml  — machine-enforced hooks described in §1.1
@@ -185,7 +184,7 @@ to the maintainer on call.
 
 ## 7. Reporting a Vulnerability
 
-Email: **security@** *(placeholder — replace with real alias before pilot launch)*
+Email: **ltphongssvn@gmail.com**
 
 Do **not** open public GitHub issues for suspected vulnerabilities.
 Expect acknowledgement within 2 business days.
