@@ -63,11 +63,11 @@
     "jose": "^6.2.2",
     "mime-types": "^3.0.2",
     "pg": "^8.20.0",
+    "protobufjs": ">=8.5.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.3",
-    "zod": "^3.23.8",
-    "protobufjs": ">=8.5.1"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.4.5",
@@ -77,10 +77,12 @@
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@testcontainers/postgresql": "^11.14.0",
     "@types/express": "^5.0.0",
+    "@types/ioredis-mock": "^8.2.7",
     "@types/mime-types": "^3.0.1",
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.31.10",
     "fast-check": "^4.7.0",
+    "ioredis-mock": "^8.13.1",
     "rimraf": "^6.0.1",
     "socket.io-client": "^4.8.3",
     "testcontainers": "^11.14.0",
