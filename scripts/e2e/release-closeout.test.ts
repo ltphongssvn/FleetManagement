@@ -9,9 +9,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   releaseCloseoutConfigSchema,
-  parseReleaseDecision,
   backMergeSubject,
-  releaseDecisionIsAuthoritative,
+  resolveReleaseFromTags,
 } from './release-closeout.ts';
 
 const base = {
@@ -34,60 +33,6 @@ describe('releaseCloseoutConfigSchema', () => {
   });
 });
 
-describe('parseReleaseDecision', () => {
-  it('detects a PUBLISHED release and extracts the version from semantic-release log', () => {
-    const log = [
-      '[semantic-release] [@semantic-release/commit-analyzer] Analysis of 8 commits complete: minor release',
-      '[semantic-release] Published release 1.7.0 on default channel',
-    ].join('\n');
-    const d = parseReleaseDecision(log);
-    expect(d.released).toBe(true);
-    expect(d.version).toBe('1.7.0');
-  });
-  it('detects NO release (chore-only) from the real "no relevant changes" line', () => {
-    const log = [
-      '[semantic-release] [@semantic-release/commit-analyzer] Analysis of 6 commits complete: no release',
-      '[semantic-release] There are no relevant changes, so no new version is released.',
-    ].join('\n');
-    const d = parseReleaseDecision(log);
-    expect(d.released).toBe(false);
-    expect(d.version).toBeNull();
-  });
-  it('treats an unparseable/ambiguous log as not-released (fail-safe, no fabricated version)', () => {
-    const d = parseReleaseDecision('some unrelated output');
-    expect(d.released).toBe(false);
-    expect(d.version).toBeNull();
-  });
-
-  it('does NOT treat the semantic-release TOOL version as a release (real bug: v25.0.3)', () => {
-    const log = [
-      '[semantic-release] ℹ  Running semantic-release version 25.0.3',
-      '[semantic-release] ℹ  Loaded plugin "verifyConditions" from "@semantic-release/github"',
-    ].join('\n');
-    const d = parseReleaseDecision(log);
-    expect(d.released).toBe(false);
-    expect(d.version).toBeNull();
-  });
-
-  it('parses the dry-run branch-guard line (triggered on develop, publishes only from main) as not-released', () => {
-    const log = '[semantic-release] ℹ  This test run was triggered on the branch develop, while semantic-release is configured to only publish from main, therefore a new version won’t be published.';
-    const d = parseReleaseDecision(log);
-    expect(d.released).toBe(false);
-    expect(d.version).toBeNull();
-  });
-
-  it('still extracts a real published version even when the tool-version line is also present', () => {
-    const log = [
-      '[semantic-release] ℹ  Running semantic-release version 25.0.3',
-      '[semantic-release] ℹ  The next release version is 1.7.0',
-      '[semantic-release] ✔  Published release 1.7.0 on default channel',
-    ].join('\n');
-    const d = parseReleaseDecision(log);
-    expect(d.released).toBe(true);
-    expect(d.version).toBe('1.7.0');
-  });
-});
-
 describe('backMergeSubject', () => {
   it('references the published version when a release occurred', () => {
     const s = backMergeSubject({ released: true, version: '1.7.0' }, base.prNumber);
@@ -103,13 +48,31 @@ describe('backMergeSubject', () => {
   });
 });
 
-describe('releaseDecisionIsAuthoritative', () => {
-  it('is FALSE when semantic-release ran on a non-publish branch (verdict not trustworthy)', () => {
-    const log = '[semantic-release] This test run was triggered on the branch develop, while semantic-release is configured to only publish from main, therefore a new version won\u2019t be published.';
-    expect(releaseDecisionIsAuthoritative(log, 'main')).toBe(false);
+describe('resolveReleaseFromTags', () => {
+  // Closeout runs LOCALLY, AFTER the Release workflow tagged main. A fresh dry-run
+  // is blind (0 new commits => "no release") AND needs a GH token (ENOGHTOKEN). The
+  // authoritative published version is the tag at main HEAD not yet on develop.
+  it('reports the release when a tag at main HEAD is not yet on develop (the #92 reality)', () => {
+    const d = resolveReleaseFromTags(['v1.6.1'], ['v1.6.0', 'v1.5.0']);
+    expect(d.released).toBe(true);
+    expect(d.version).toBe('1.6.1');
   });
-  it('is TRUE when the run is on the configured publish branch', () => {
-    const log = '[semantic-release] Running on branch main\n[semantic-release] There are no relevant changes, so no new version is released.';
-    expect(releaseDecisionIsAuthoritative(log, 'main')).toBe(true);
+  it('reports NO release when no tag points at main HEAD (chore-only promote)', () => {
+    const d = resolveReleaseFromTags([], ['v1.6.0', 'v1.5.0']);
+    expect(d.released).toBe(false);
+    expect(d.version).toBeNull();
+  });
+  it('is idempotent: a main-HEAD tag already on develop is not re-reported (back-merge already done)', () => {
+    const d = resolveReleaseFromTags(['v1.6.1'], ['v1.6.1', 'v1.6.0']);
+    expect(d.released).toBe(false);
+    expect(d.version).toBeNull();
+  });
+  it('strips the leading v so the version matches the semantic-release shape', () => {
+    expect(resolveReleaseFromTags(['v2.0.0'], []).version).toBe('2.0.0');
+  });
+  it('picks the highest semver when multiple new tags point at main HEAD', () => {
+    const d = resolveReleaseFromTags(['v1.6.1', 'v1.7.0'], ['v1.6.0']);
+    expect(d.released).toBe(true);
+    expect(d.version).toBe('1.7.0');
   });
 });
