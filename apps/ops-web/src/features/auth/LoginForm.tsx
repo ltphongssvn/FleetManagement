@@ -16,9 +16,16 @@ export function submitAction(_prev: LoginState, _formData: FormData): Promise<Lo
   return startLogin();
 }
 
-export function LoginForm(): JSX.Element {
+export interface LoginFormProps {
+  // A friendly message derived from /login?error= on a failed callback. The
+  // page maps the code; LoginForm just renders it when no live error exists.
+  readonly initialError?: string;
+}
+export function LoginForm({ initialError }: LoginFormProps = {}): JSX.Element {
   const [state, formAction, pending] = useActionState<LoginState, FormData>(submitAction, undefined);
-  const topError = state?.status === 'server_error' ? state.message : undefined;
+  // A live action error (this submit) wins over a stale callback error from the URL.
+  const topError =
+    state?.status === 'server_error' ? state.message : initialError;
   return (
     <form
       action={formAction}
