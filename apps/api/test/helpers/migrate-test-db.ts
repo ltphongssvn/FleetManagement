@@ -41,9 +41,43 @@ export async function startMigratedTestDb(databaseName = 'fleet_test'): Promise<
       Wait.forLogMessage(/database system is ready to accept connections/, 2),
     )
     .start();
-  const pool = new Pool({ connectionString: container.getConnectionUri() });
+  // connectionTimeoutMillis: fail fast on a stuck connect rather than hang the
+  // whole hook; the retry below covers transient drops.
+  const pool = new Pool({
+    connectionString: container.getConnectionUri(),
+    connectionTimeoutMillis: 10_000,
+  });
   const db = drizzle(pool, { schema, casing: 'snake_case' });
-  await migrate(db, { migrationsFolder });
+  // Under the full parallel run (20+ testcontainers + resource pressure) a
+  // single migrate connection can be reset mid-statement -- pg surfaces this as
+  // ECONNRESET / 'Connection terminated unexpectedly' on ~1% of runs, never the
+  // same file twice (node-postgres#3083). The container is healthy; only the
+  // transient socket dropped. Retry the migrate a few times with backoff on
+  // exactly these transient connection errors so one dropped socket does not
+  // fail an otherwise-passing suite. Non-connection errors (e.g. a real bad
+  // migration) are re-thrown immediately.
+  const isTransientConnError = (e: unknown): boolean => {
+    const msg = e instanceof Error ? e.message : String(e);
+    const code = (e as { code?: string } | undefined)?.code;
+    return (
+      code === 'ECONNRESET' ||
+      code === 'ETIMEDOUT' ||
+      code === '57P01' ||
+      /Connection terminated unexpectedly/i.test(msg) ||
+      /timeout exceeded when trying to connect/i.test(msg) ||
+      /ECONNRESET|ETIMEDOUT|read ECONNRESET/i.test(msg)
+    );
+  };
+  const maxAttempts = 5;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await migrate(db, { migrationsFolder });
+      break;
+    } catch (err) {
+      if (attempt >= maxAttempts || !isTransientConnError(err)) throw err;
+      await new Promise((r) => setTimeout(r, 250 * attempt));
+    }
+  }
   return { container, pool, db };
 }
 
