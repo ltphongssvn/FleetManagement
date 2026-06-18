@@ -8,6 +8,7 @@ import { CommandsGateway } from './commands.gateway.js';
 import { CommandsService } from './commands.service.js';
 import { TenantPolicy } from '../auth/tenant-policy.js';
 import { JwtGuard } from '../auth/jwt.guard.js';
+import { StepUpGuard, RequireStepUp } from '../auth/step-up.guard.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import { tagActiveSpan } from '../observability/otel.js';
@@ -22,7 +23,7 @@ export interface IssueCommandResponse {
 }
 
 @Controller('commands')
-@UseGuards(JwtGuard)
+@UseGuards(JwtGuard, StepUpGuard)
 export class CommandsController {
   private readonly logger = new Logger(CommandsController.name);
 
@@ -34,6 +35,9 @@ export class CommandsController {
 
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
+  // Dispatch is a privileged action: require step-up assurance (config-sourced
+  // 'dispatch' profile) on the Keycloak JWT, enforced by StepUpGuard as RFC 9470.
+  @RequireStepUp('dispatch')
   async issue(
     @Body() body: unknown,
     @CurrentOperator() op: OperatorContext,
