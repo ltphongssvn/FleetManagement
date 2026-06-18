@@ -180,6 +180,9 @@ services:
       HOSTNAME: "0.0.0.0"
       FLEET_API_URL: http://api:3000
       OIDC_TOKEN_ENDPOINT: http://mock-oauth2:8080/fleet/token
+      OIDC_AUTHORIZATION_ENDPOINT: http://mock-oauth2:8080/fleet/authorize
+      OIDC_CLIENT_ID: ops-web
+      OIDC_REDIRECT_URI: http://localhost:3001/api/auth/callback
       # Server-action auth for assign-run: a dispatcher-scope JWT minted from
       # the local mock-oauth2 (/fleet/token, 1-day exp). The VALUE lives in the
       # gitignored repo-root .env as OPS_WEB_FLEET_API_TOKEN (compose ${}
