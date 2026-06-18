@@ -1,14 +1,15 @@
 // apps/ops-web/test/login-page.test.tsx
-// RED: login page renders form with username/password inputs and submit button.
+// RED: the login page renders the revised LoginForm - a Continue with Keycloak
+// button, no username/password inputs.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-vi.mock('@/features/auth/login.action', () => ({ login: vi.fn() }));
+vi.mock('@/features/auth/login.action', () => ({ startLogin: vi.fn() }));
 describe('LoginPage', () => {
-  it('renders username/password form with submit button', async () => {
+  it('renders the Keycloak sign-in button and no credential inputs', async () => {
     const { default: LoginPage } = await import('@/app/login/page');
-    render(<LoginPage />);
-    expect(screen.getByLabelText(/username/i)).toBeDefined();
-    expect(screen.getByLabelText(/password/i)).toBeDefined();
-    expect(screen.getByRole('button', { name: /sign in/i })).toBeDefined();
+    const { container } = render(<LoginPage />);
+    expect(screen.getByRole('button', { name: /keycloak|sign in/i })).toBeDefined();
+    expect(container.querySelector('input[type=password]')).toBeNull();
+    expect(container.querySelector('input[name=username]')).toBeNull();
   });
 });
