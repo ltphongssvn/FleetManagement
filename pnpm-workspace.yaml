@@ -87,6 +87,10 @@ overrides:
   tmp@>=0.2.6 <0.2.7: ^0.2.7
   vite: ">=8.0.16"
   multer: ">=2.2.0"
+  # GHSA-vmh5-mc38-953g: undici 7.23.0-7.27.x SOCKS5 ProxyAgent TLS bypass.
+  # Transitive via @semantic-release/github + testcontainers; scoped to the
+  # vulnerable 7.x range so undici 6.x (via @semantic-release/npm) is untouched.
+  "undici@>=7.23.0 <7.28.0": ">=7.28.0"
 minimumReleaseAgeExclude:
   - tmp@0.2.6
   - '@grpc/grpc-js@1.14.4'
@@ -99,3 +103,4 @@ minimumReleaseAgeExclude:
   - protobufjs@8.4.3
   - '@opentelemetry/core@2.8.0'
   - multer@2.2.0
+  - undici@7.28.0
