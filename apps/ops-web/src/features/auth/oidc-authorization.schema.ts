@@ -25,3 +25,15 @@ export interface AuthorizationRequest {
   readonly nonce: string;
   readonly codeVerifier: string;
 }
+
+// Keycloak token endpoint response (Authorization Code + PKCE exchange). Only the
+// fields ops-web needs are modelled; unknown fields are ignored. access_token is
+// stored as the fleet_session bearer cookie (unchanged downstream contract).
+export const TokenResponseSchema = z.object({
+  access_token: z.string().min(1),
+  token_type: z.string().optional(),
+  expires_in: z.number().int().positive().optional(),
+  refresh_token: z.string().optional(),
+  id_token: z.string().optional(),
+});
+export type TokenResponse = z.infer<typeof TokenResponseSchema>;
