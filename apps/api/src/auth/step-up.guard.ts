@@ -1,16 +1,14 @@
 // apps/api/src/auth/step-up.guard.ts
-// Outside-layer adapter over evaluateStepUp(): a route guard that reads
-// @RequireStepUp(requirement) metadata, evaluates the verified identity's acr/amr
-// (RFC 9068 access-token claims), and on any unsatisfied outcome emits the
-// RFC 9470 step-up challenge (HTTP 401 + WWW-Authenticate: Bearer
-// error="insufficient_user_authentication", acr_values="<requiredAcr>") so the
-// client can renegotiate a stronger authentication event. RFC 9470 only defines
-// acr_values/max_age/scope as challenge params, so phishing-resistance is steered
-// via the acr the IdP maps to that method - there is no amr challenge param.
-// Returns a settled Promise (no async/await: the logic is synchronous) so policy
-// failures surface as rejections, matching the JwtGuard test convention. No
-// try/catch: metadata is produced by our own decorator and the identity is
-// attached by JwtGuard, so the only failures are the deliberate rejections below.
+// Outside-layer adapter over evaluateStepUp(). @RequireStepUp(profile) attaches a
+// validated profile KEY (StepUpProfileSchema) as route metadata; the guard reads
+// it, resolves the StepUpRequirement from validated Env per profile via injected
+// ConfigService at request time, then renders the RFC 9470 step-up challenge
+// (HTTP 401 + WWW-Authenticate: Bearer error="insufficient_user_authentication",
+// acr_values="<requiredAcr>") on any unsatisfied outcome. This is the idiomatic
+// Nest pattern: the guard is the single place that maps a route to its policy and
+// reads config via DI - no literal requirement baked into the decorator. RFC 9470
+// defines only acr_values/max_age/scope as challenge params, so phishing-
+// resistance is steered via the acr the IdP maps to that method.
 import {
   type CanActivate,
   type ExecutionContext,
@@ -21,19 +19,24 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
+import type { Env } from '../config/env.config.js';
 import {
   AuthContextClaimsSchema,
+  StepUpProfileSchema,
   StepUpRequirementSchema,
+  type StepUpProfile,
   type StepUpRequirementInput,
 } from './auth-context.schema.js';
 import { evaluateStepUp } from './step-up-policy.js';
 
-export const STEP_UP_KEY = 'fleet:step-up-requirement';
+export const STEP_UP_KEY = 'fleet:step-up-profile';
 
 export const RequireStepUp = (
-  requirement: StepUpRequirementInput,
-): MethodDecorator & ClassDecorator => SetMetadata(STEP_UP_KEY, requirement);
+  profile: StepUpProfile,
+): MethodDecorator & ClassDecorator =>
+  SetMetadata(STEP_UP_KEY, StepUpProfileSchema.parse(profile));
 
 function challenge(description: string, requiredAcr: string): string {
   return (
@@ -45,17 +48,39 @@ function challenge(description: string, requiredAcr: string): string {
 
 @Injectable()
 export class StepUpGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly config: ConfigService<Env, true>,
+  ) {}
+
+  private resolve(profile: StepUpProfile): StepUpRequirementInput {
+    // Per-profile -> validated Env. Record keyed by the profile enum keeps this
+    // exhaustive: adding a profile to StepUpProfileSchema forces an entry here.
+    const byProfile: Record<StepUpProfile, StepUpRequirementInput> = {
+      dispatch: {
+        acrLadder: this.config.getOrThrow('STEP_UP_ACR_LADDER', { infer: true }),
+        requiredAcr: this.config.getOrThrow('STEP_UP_DISPATCH_REQUIRED_ACR', { infer: true }),
+        requirePhishingResistant: this.config.getOrThrow(
+          'STEP_UP_DISPATCH_REQUIRE_PHISHING_RESISTANT',
+          { infer: true },
+        ),
+        phishingResistantAmr: this.config.getOrThrow('STEP_UP_PHISHING_RESISTANT_AMR', {
+          infer: true,
+        }),
+      },
+    };
+    return byProfile[profile];
+  }
 
   canActivate(ctx: ExecutionContext): Promise<boolean> {
-    const raw = this.reflector.getAllAndOverride<unknown>(STEP_UP_KEY, [
+    const profile = this.reflector.getAllAndOverride<StepUpProfile | undefined>(STEP_UP_KEY, [
       ctx.getHandler(),
       ctx.getClass(),
     ]);
-    if (raw === undefined) {
+    if (profile === undefined) {
       return Promise.resolve(true);
     }
-    const requirement = StepUpRequirementSchema.parse(raw);
+    const requirement = StepUpRequirementSchema.parse(this.resolve(profile));
 
     const http = ctx.switchToHttp();
     const identity: unknown = http.getRequest<{ identity?: unknown }>().identity;

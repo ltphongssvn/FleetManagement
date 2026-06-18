@@ -52,6 +52,12 @@ export type StepUpRequirement = z.infer<typeof StepUpRequirementSchema>;
 // fully-resolved StepUpRequirement at runtime.
 export type StepUpRequirementInput = z.input<typeof StepUpRequirementSchema>;
 
+// Named step-up profiles. Each maps (in StepUpGuard) to a config-sourced
+// requirement; this enum is the contract the @RequireStepUp decorator validates,
+// so an unknown profile fails fast at decoration time rather than at request time.
+export const StepUpProfileSchema = z.enum(['dispatch']);
+export type StepUpProfile = z.infer<typeof StepUpProfileSchema>;
+
 // Discriminated union: each non-satisfied branch carries exactly what the
 // RFC 9470 \"insufficient_user_authentication\" challenge needs to be built.
 export type StepUpDecision =
