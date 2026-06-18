@@ -24,6 +24,8 @@ interface FleetClaims extends JWTPayload {
   readonly sub: string;
   readonly company_id?: string;
   readonly operator_id?: string;
+  readonly acr?: string;
+  readonly amr?: readonly string[];
 }
 
 @Injectable()
@@ -89,12 +91,16 @@ export class JoseIdentityProvider implements IIdentityProvider, OnModuleInit {
     const operatorId = payload.operator_id ?? payload.sub;
     const companyId = payload.company_id;
     if (!companyId) throw new Error('Token missing company_id claim');
+    // exactOptionalPropertyTypes: omit acr/amr entirely when the token lacks
+    // them (absent, not explicitly undefined) so they satisfy the optional shape.
     return {
       subject: payload.sub,
       operatorId,
       companyId,
       issuedAt: payload.iat,
       expiresAt: payload.exp,
+      ...(payload.acr !== undefined ? { acr: payload.acr } : {}),
+      ...(payload.amr !== undefined ? { amr: payload.amr } : {}),
     };
   }
 }

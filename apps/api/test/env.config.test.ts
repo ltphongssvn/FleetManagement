@@ -100,3 +100,49 @@ describe('@fleet/api - validateEnv', () => {
     });
   });
 });
+
+
+describe('@fleet/api - validateEnv (step-up requirement knobs)', () => {
+  const base = {
+    DATABASE_URL: 'postgres://localhost:5432/fleet_test',
+    OIDC_ISSUER: 'https://idp.example.com/',
+    OIDC_AUDIENCE: 'fleet-api',
+    OIDC_JWKS_URI: 'https://idp.example.com/.well-known/jwks.json',
+  };
+
+  it('STEP_UP_ACR_LADDER defaults weakest->strongest', () => {
+    expect(validateEnv(base).STEP_UP_ACR_LADDER).toEqual(['aal1', 'aal2', 'aal3']);
+  });
+
+  it('STEP_UP_ACR_LADDER parses a comma-separated override and trims', () => {
+    expect(validateEnv({ ...base, STEP_UP_ACR_LADDER: ' low , high ' }).STEP_UP_ACR_LADDER).toEqual([
+      'low',
+      'high',
+    ]);
+  });
+
+  it('STEP_UP_DISPATCH_REQUIRED_ACR defaults to aal2', () => {
+    expect(validateEnv(base).STEP_UP_DISPATCH_REQUIRED_ACR).toBe('aal2');
+  });
+
+  it('STEP_UP_DISPATCH_REQUIRE_PHISHING_RESISTANT defaults to false', () => {
+    expect(validateEnv(base).STEP_UP_DISPATCH_REQUIRE_PHISHING_RESISTANT).toBe(false);
+  });
+
+  it('STEP_UP_DISPATCH_REQUIRE_PHISHING_RESISTANT coerces "true" to boolean', () => {
+    expect(
+      validateEnv({ ...base, STEP_UP_DISPATCH_REQUIRE_PHISHING_RESISTANT: 'true' })
+        .STEP_UP_DISPATCH_REQUIRE_PHISHING_RESISTANT,
+    ).toBe(true);
+  });
+
+  it('STEP_UP_PHISHING_RESISTANT_AMR defaults to [hwk]', () => {
+    expect(validateEnv(base).STEP_UP_PHISHING_RESISTANT_AMR).toEqual(['hwk']);
+  });
+
+  it('STEP_UP_PHISHING_RESISTANT_AMR parses a comma-separated override', () => {
+    expect(
+      validateEnv({ ...base, STEP_UP_PHISHING_RESISTANT_AMR: 'hwk, fido2' }).STEP_UP_PHISHING_RESISTANT_AMR,
+    ).toEqual(['hwk', 'fido2']);
+  });
+});

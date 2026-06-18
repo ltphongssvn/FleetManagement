@@ -31,6 +31,22 @@ export const EnvSchema = z.object({
   OTEL_SERVICE_NAME: z.string().default('fleet-api'),
   OTEL_SAMPLE_RATIO: z.coerce.number().min(0).max(1).default(1.0),
   FLEET_PILOT_SCOPE: z.string().uuid().default('00000000-0000-0000-0000-000000000000'),
+  // Step-up (RFC 9470) requirement knobs. The fleet API is its own trust domain,
+  // so the acr strength ladder and phishing-resistant amr set are configured here
+  // rather than imported from Keycloak. CSV envs -> trimmed string arrays.
+  STEP_UP_ACR_LADDER: z
+    .string()
+    .default('aal1,aal2,aal3')
+    .transform((v) => v.split(',').map((s) => s.trim()).filter((s) => s.length > 0)),
+  STEP_UP_DISPATCH_REQUIRED_ACR: z.string().min(1).default('aal2'),
+  STEP_UP_DISPATCH_REQUIRE_PHISHING_RESISTANT: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  STEP_UP_PHISHING_RESISTANT_AMR: z
+    .string()
+    .default('hwk')
+    .transform((v) => v.split(',').map((s) => s.trim()).filter((s) => s.length > 0)),
 });
 export type Env = z.infer<typeof EnvSchema>;
 export function validateEnv(raw: Record<string, unknown>): Env {

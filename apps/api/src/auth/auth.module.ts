@@ -14,6 +14,7 @@ import {
 import { eq } from 'drizzle-orm';
 import { JoseIdentityProvider } from './jose-identity-provider.js';
 import { JwtGuard } from './jwt.guard.js';
+import { StepUpGuard } from './step-up.guard.js';
 import { OperatorContextFactory } from './operator-context.factory.js';
 import { IDENTITY_PROVIDER } from './identity-provider.interface.js';
 import { AuthLoginService } from './auth-login.service.js';
@@ -53,6 +54,7 @@ const CHALLENGE_TTL_SECONDS = 60;
   providers: [
     { provide: IDENTITY_PROVIDER, useClass: JoseIdentityProvider },
     JwtGuard,
+    StepUpGuard,
     OperatorContextFactory,
     {
       provide: SIGN_JWT_TOKEN,
@@ -202,7 +204,7 @@ const CHALLENGE_TTL_SECONDS = 60;
       },
     },
   ],
-  exports: [IDENTITY_PROVIDER, JwtGuard, OperatorContextFactory],
+  exports: [IDENTITY_PROVIDER, JwtGuard, StepUpGuard, OperatorContextFactory],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class AuthModule {}
