@@ -9,12 +9,10 @@
 // [loadReferences] /reference/drivers log line) in a quiet window AFTER the
 // success banner. Converged board: bounded. Looping board: unbounded.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { dockerExecNode } from './helpers/docker-exec';
+import { loginAs, mintToken } from './helpers/auth';
 import { execSync } from 'node:child_process';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
-const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
-const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'pw';
 
 function opsWebRenderCount(): number {
   const out = execSync(
@@ -22,18 +20,6 @@ function opsWebRenderCount(): number {
     { encoding: 'utf8' },
   );
   return parseInt(out.trim(), 10) || 0;
-}
-
-function mintToken(): string {
-  const script =
-    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
-    ',{method:' + JSON.stringify('POST') +
-    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-    ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
-    '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
-  return out.trim();
 }
 
 async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
@@ -63,12 +49,9 @@ async function cleanupPair(api: APIRequestContext, p: Pair): Promise<void> {
   try { await api.delete(API_URL + '/admin/drivers/' + p.driverId, { headers: { Authorization: 'Bearer ' + p.token } }); } catch { /* tolerate */ }
 }
 
+// Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
-  await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
-  await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await expect(page).toHaveURL(/[/]dispatch|[/]$/, { timeout: 10_000 });
+  await loginAs(page);
 }
 
 test.describe('dispatch board does not enter an RSC re-render loop after create', () => {

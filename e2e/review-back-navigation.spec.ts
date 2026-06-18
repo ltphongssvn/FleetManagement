@@ -13,22 +13,10 @@
 // dispatch_board_projection so it never depends on shared board state that
 // the global-teardown wipes. afterAll cleans up the seeded rows.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
-const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
-const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'pw';
-const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
+import { dockerPsql } from './helpers/docker-exec';
+import { loginAs, mintDispatcherToken } from './helpers/auth';
+const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
-function mintDispatcherToken(): string {
-  const script =
-    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
-    ',{method:' + JSON.stringify('POST') +
-    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-    ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
-    '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
-  return out.trim();
-}
 interface Seeded {
   driverId: string; operatorId: string; vehicleId: string;
   assignmentId: string; transportOrderId: string; externalRef: string; token: string;
@@ -77,12 +65,9 @@ async function cleanupPair(api: APIRequestContext, seeded: Seeded): Promise<void
   try { await api.delete(API_URL + '/reference/vehicles/' + seeded.vehicleId, { headers: { Authorization: 'Bearer ' + seeded.token } }); } catch { /* tolerate */ }
   try { await api.delete(API_URL + '/admin/drivers/' + seeded.driverId, { headers: { Authorization: 'Bearer ' + seeded.token } }); } catch { /* tolerate */ }
 }
+// Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
-  await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
-  await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await expect(page).toHaveURL(/\/dispatch|\/$/, { timeout: 10000 });
+  await loginAs(page);
 }
 test.describe.serial('review view back navigation (T6)', () => {
   let seeded: Seeded | null = null;

@@ -26,30 +26,17 @@
 // outside-in strict TDD: L0 RED first. Inner action-layer change driven
 // by its own smaller RED test (test/create-order-action.test.ts).
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
+import { dockerPsql } from './helpers/docker-exec';
+import { loginAs, mintToken } from './helpers/auth';
 
-const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
-const _POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
+const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 
 const RECOVERY_BUDGET_MS = 15_000;
-const _ORDER_NUMBER_REGEX = /^XTT\.(0[1-9]|1[0-2])-\d{3,}$/;
 // Unanchored variant for extracting the ref from banner text like
 // 'Số Lệnh: XTT.05-052' where the anchored regex would not match.
 const ORDER_NUMBER_EXTRACT_RE = /XTT\.(0[1-9]|1[0-2])-\d{3,}/;
 
-
-function mintToken(username: string): string {
-  const script =
-    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
-    ',{method:' + JSON.stringify('POST') +
-    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-    ',body:' + JSON.stringify('grant_type=password&username=' + username + '&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
-    '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out.includes('.')) throw new Error('Token mint failed for ' + username + ': ' + out);
-  return out.trim();
-}
 
 interface SeededPair {
   driverId: string;
@@ -115,12 +102,9 @@ async function cleanupPair(api: APIRequestContext, pair: SeededPair): Promise<vo
   } catch { /* tolerate */ }
 }
 
+// Authenticate via injected session (PKCE login has no credential form).
 async function loginAsDispatcher(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/tên đăng nhập|username/i).fill('dispatcher');
-  await page.getByLabel(/mật khẩu|password/i).fill('any-password');
-  await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'));
+  await loginAs(page);
 }
 
 test.describe('create-order button state recovery + no-leak (T3 follow-up)', () => {

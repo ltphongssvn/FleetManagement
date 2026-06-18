@@ -13,23 +13,11 @@
 // exercises the UI cancel flow against THAT order only. Fully self-
 // contained, parallel-safe, and immune to cascade timing.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { dockerExecNode } from './helpers/docker-exec';
+import { loginAs, mintDispatcherToken } from './helpers/auth';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const DOLLAR = String.fromCharCode(36);
 const BOARD_URL = new RegExp('/' + DOLLAR);
-
-function mintDispatcherToken(): string {
-  const script =
-    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
-    ',{method:' + JSON.stringify('POST') +
-    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-    ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
-    '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
-  return out.trim();
-}
 
 async function apiPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
   const res = await api.post(API_URL + path, {
@@ -78,12 +66,9 @@ async function seedOrder(api: APIRequestContext): Promise<SeededOrder> {
   };
 }
 
+// Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/tên đăng nhập|username/i).fill('dispatcher');
-  await page.getByLabel(/mật khẩu|password/i).fill('any-password');
-  await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'));
+  await loginAs(page);
 }
 
 const seededOrders: SeededOrder[] = [];

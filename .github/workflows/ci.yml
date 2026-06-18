@@ -138,6 +138,14 @@ jobs:
       - name: Typecheck
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm -r --if-present typecheck
+      - name: E2E Typecheck
+        # The Playwright e2e specs live at the repo root (e2e/), outside any
+        # workspace package, so `pnpm -r typecheck` never reaches them. They are
+        # transpiled by Playwright's esbuild at runtime, which strips types
+        # without checking them, so type errors there go unnoticed unless tsc is
+        # run explicitly against e2e/tsconfig.json. Gate them here.
+        if: hashFiles('pnpm-lock.yaml') != ''
+        run: pnpm exec tsc --noEmit -p e2e/tsconfig.json
 
   api-tests:
     name: API tests (shard ${{ matrix.shard }}/4)

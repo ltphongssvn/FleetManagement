@@ -17,7 +17,7 @@
 // practice for parallel-safe E2E isolation tests.
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { execSync } from 'node:child_process';
-const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
+const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 function mintDispatcherToken(): string {
   const script =
     "fetch('http://mock-oauth2:8080/fleet/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:'grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret'})" +

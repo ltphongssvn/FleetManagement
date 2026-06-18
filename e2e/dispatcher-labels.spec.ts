@@ -4,16 +4,12 @@
 // Outside-in TDD RED: written before labels.ts and DispatchBoard label
 // integration exist. Asserts the user-visible behavior, not implementation.
 import { test, expect, type Page } from '@playwright/test';
+import { loginAs } from './helpers/auth';
 
-const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
-const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'dieuxe';
 
+// Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
-  await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
-  await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await expect(page).toHaveURL(/\/(login)?$/, { timeout: 15_000 });
+  await loginAs(page);
 }
 
 test.describe.serial('dispatcher recognizes orders by human-readable labels', () => {

@@ -23,7 +23,7 @@
 // labels + are torn down in afterEach (no live /reference leak).
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
-const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
+const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 function sq39(): string { return String.fromCharCode(39); }
 function mintDispatcherToken(): string {

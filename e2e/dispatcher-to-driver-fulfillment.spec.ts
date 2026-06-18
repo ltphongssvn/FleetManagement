@@ -31,25 +31,13 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
-import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
-const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
-const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'pw';
+import { dockerPsql } from './helpers/docker-exec';
+import { loginAs, mintDispatcherToken } from './helpers/auth';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 const HANDOFF_PATH = process.env['E2E_DRIVER_HANDOFF']
   ?? resolve(__dirname, '../.e2e-artifacts/driver-handoff.json');
 const KNOWN_PASSWORD = 'e2e-pass-1234'; // pragma: allowlist secret
-function mintDispatcherToken(): string {
-  const script =
-    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
-    ',{method:' + JSON.stringify('POST') +
-    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-    ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
-    '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
-  return out.trim();
-}
 interface Seed {
   driverId: string; operatorId: string; vehicleId: string;
   vehicleLabel: string; driverLabel: string; driverPhone: string;
@@ -80,12 +68,9 @@ function cleanupSeed(seed: Seed): void {
   try { dockerPsql('DELETE FROM road_run WHERE assigned_asset_id=' + v + ';'); } catch { /* tolerate */ }
   try { dockerPsql('DELETE FROM dispatch_board_projection WHERE assigned_asset_id=' + v + ';'); } catch { /* tolerate */ }
 }
+// Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/t\u00ean \u0111\u0103ng nh\u1eadp|username/i).fill(OPS_USER);
-  await page.getByLabel(/m\u1eadt kh\u1ea9u|password/i).fill(OPS_PASS);
-  await page.getByRole('button', { name: /\u0111\u0103ng nh\u1eadp|sign in|log in/i }).click();
-  await expect(page).toHaveURL(/\/dispatch|\/$/, { timeout: 10000 });
+  await loginAs(page);
 }
 test.describe.serial('dispatcher creates an order, driver fulfills it (self-seeded)', () => {
   let seed: Seed | null = null;

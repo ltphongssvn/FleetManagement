@@ -134,7 +134,7 @@ export default function globalTeardown(): void {
     ' (SELECT COUNT(*) FROM warehouse WHERE company_id=' + sq + COMPANY_ID + sq +
       ' AND name LIKE ' + sq + 'E2E-%' + sq + ' AND active=true) AS active_warehouses;';
   const r = dockerPsql(leakSql);
-  const [av, ad, pr, ac, acg, aw] = r.stdout.trim().split('|').map((s) => parseInt(s, 10));
+  const [av = 0, ad = 0, pr = 0, ac = 0, acg = 0, aw = 0] = r.stdout.trim().split('|').map((s) => parseInt(s, 10));
   if (av > 0 || ad > 0 || pr > 0 || ac > 0 || acg > 0 || aw > 0) {
     throw new Error(
       '[global-teardown] no-leak invariant violated: active_vehicles=' + String(av) +

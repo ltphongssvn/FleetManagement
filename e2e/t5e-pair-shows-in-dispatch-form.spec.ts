@@ -13,19 +13,13 @@
 // visible in the dispatch create-order Số xe / Tài xế dropdowns.
 import { test, expect, type Page } from '@playwright/test';
 import { dockerPsql } from './helpers/docker-exec';
+import { loginAs } from './helpers/auth';
 
-const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
-const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'dieuxe';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 
+// Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
-  await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
-  await Promise.all([
-    page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 }),
-    page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click(),
-  ]);
+  await loginAs(page);
 }
 
 test('admin pair surfaces in dispatch Section 3 Số xe and Tài xế dropdowns', async ({ page }) => {

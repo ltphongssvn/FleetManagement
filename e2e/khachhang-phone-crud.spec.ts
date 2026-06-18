@@ -15,12 +15,9 @@
 //   payload (L2), the API DTO phone (L3), the service phone persistence (L4),
 //   and the schema phone column (L5).
 import { test, expect } from '@playwright/test';
+import { loginAs } from './helpers/auth';
 
-const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
-const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'pw';
 const BUDGET_MS = 15_000;
-const DOLLAR = String.fromCharCode(36);
-const POST_LOGIN_URL = new RegExp('/dispatch|/' + DOLLAR);
 
 test.describe.serial('Khách hàng: Số điện thoại CRUD', () => {
   test('add customer with phone, see it, edit it, value persists', async ({ page }) => {
@@ -29,11 +26,8 @@ test.describe.serial('Khách hàng: Số điện thoại CRUD', () => {
     const phone = '0901' + String(Date.now()).slice(-6);
     const newPhone = '0902' + String(Date.now()).slice(-6);
 
-    await page.goto('/login');
-    await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
-    await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
-    await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-    await expect(page).toHaveURL(POST_LOGIN_URL, { timeout: 10_000 });
+    // Authenticate via injected session (PKCE login has no credential form).
+    await loginAs(page);
 
     await page.goto('/admin/reference');
     await expect(page.getByRole('heading', { name: 'Quản lý dữ liệu điều phối' })).toBeVisible({ timeout: BUDGET_MS });

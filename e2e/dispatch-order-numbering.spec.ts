@@ -28,23 +28,11 @@
 // afterEach pops and revokes/soft-deletes each entry; afterAll asserts the
 // dispatcher /reference/vehicles + /reference/drivers match the baseline.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
-const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
-const _POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
+import { dockerPsql } from './helpers/docker-exec';
+import { loginAs, mintDispatcherToken } from './helpers/auth';
+const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 const ORDER_NUMBER_REGEX = /^XTT\.(0[1-9]|1[0-2])-\d{3,}$/;
-function mintToken(username: string): string {
-  const script =
-    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
-    ',{method:' + JSON.stringify('POST') +
-    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-    ',body:' + JSON.stringify('grant_type=password&username=' + username + '&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
-    '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out.includes('.')) throw new Error('Token mint failed for ' + username + ': ' + out);
-  return out.trim();
-}
-const mintDispatcherToken = (): string => mintToken('dispatcher');
 interface SeededPair {
   driverId: string;
   operatorId: string;
@@ -118,7 +106,7 @@ async function createOrderViaApi(
       assignedAssetId: pair.vehicleId,
     },
   };
-  if (clientExternalRef !== null) body.externalRef = clientExternalRef;
+  if (clientExternalRef !== null) body['externalRef'] = clientExternalRef;
   const res = await api.post(API_URL + '/transport-orders', {
     headers: { Authorization: 'Bearer ' + pair.token, 'Content-Type': 'application/json' },
     data: body,
@@ -138,14 +126,11 @@ function externalRefOf(transportOrderId: string): string {
 function parseSeq(ref: string): number {
   const m = /^XTT\.\d{2}-(\d+)$/.exec(ref);
   if (!m) throw new Error('externalRef does not match XTT.MM-NNN: ' + ref);
-  return parseInt(m[1], 10);
+  return parseInt(m[1] ?? '', 10);
 }
+// Authenticate via injected session (PKCE login has no credential form).
 async function loginAsDispatcher(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/tên đăng nhập|username/i).fill('dispatcher');
-  await page.getByLabel(/mật khẩu|password/i).fill('any-password');
-  await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'));
+  await loginAs(page);
 }
 test.describe.configure({ mode: 'serial' });
 test.describe('transport order auto-numbering (T3 invariant) — full layer chain', () => {
@@ -290,8 +275,8 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
     expect(seqR.stdout.trim().length).toBeGreaterThan(0);
     const [prefix, padStr, nextStr] = seqR.stdout.trim().split('|');
     expect(prefix).toBe('XTT');
-    expect(parseInt(padStr, 10)).toBeGreaterThanOrEqual(3);
-    expect(parseInt(nextStr, 10)).toBeGreaterThanOrEqual(2);
+    expect(parseInt(padStr ?? '', 10)).toBeGreaterThanOrEqual(3);
+    expect(parseInt(nextStr ?? '', 10)).toBeGreaterThanOrEqual(2);
     const uqSql =
       'SELECT COUNT(*) FROM (SELECT external_ref, COUNT(*) c FROM transport_order ' +
       'WHERE company_id=' + sq + COMPANY_ID + sq + ' AND external_ref ~ ' + sq + '^XTT\\.(0[1-9]|1[0-2])-\\d+$' + sq + ' ' +

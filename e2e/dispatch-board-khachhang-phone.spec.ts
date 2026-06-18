@@ -12,14 +12,10 @@
 // customer-phone enrichment (L3/L4), the ops-web type + render (L1/L2), and the
 // /reference/customers create accepting a phone so the seed can set one.
 import { test, expect, type APIRequestContext } from '@playwright/test';
-import { dockerExecNode } from './helpers/docker-exec';
+import { loginAs, mintDispatcherToken } from './helpers/auth';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
-const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
-const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'pw';
 const ROW_VISIBILITY_BUDGET_MS = 15_000;
-const DOLLAR = String.fromCharCode(36);
-const POST_LOGIN_URL = new RegExp('/dispatch|/' + DOLLAR);
 
 async function pickCombobox(page: import('@playwright/test').Page, inputId: string, optionLabel: string): Promise<void> {
   const input = page.locator('#' + inputId);
@@ -33,18 +29,6 @@ async function pickCombobox(page: import('@playwright/test').Page, inputId: stri
     catch { if (attempt === 3) throw new Error('combobox option not visible: ' + optionLabel); await page.keyboard.press('Escape'); await page.waitForTimeout(250); }
   }
   await opt.click();
-}
-
-function mintDispatcherToken(): string {
-  const script =
-    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
-    ',{method:' + JSON.stringify('POST') +
-    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-    ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
-    '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
-  return out.trim();
 }
 
 async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
@@ -98,11 +82,8 @@ test.describe.serial('Lệnh điều xe board: Khách hàng shows Số điện t
   test('board displays the customer phone number for the order', async ({ page, request }) => {
     const seed = await seedAll(request);
 
-    await page.goto('/login');
-    await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
-    await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
-    await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-    await expect(page).toHaveURL(POST_LOGIN_URL, { timeout: 10_000 });
+    // Authenticate via injected session (PKCE login has no credential form).
+    await loginAs(page);
 
     await expect(page.getByTestId('create-order-form')).toBeVisible({ timeout: 15_000 });
 

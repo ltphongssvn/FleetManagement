@@ -25,11 +25,9 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { execSync } from 'node:child_process';
 import ExcelJS from 'exceljs';
-const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
-const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'pw';
+import { loginAs, mintDispatcherToken } from './helpers/auth';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const POSTGRES_CONTAINER = process.env['E2E_PG_CONTAINER'] ?? 'fleet-pilot-postgres-1';
-const API_CONTAINER = process.env['E2E_API_CONTAINER'] ?? 'fleet-pilot-api-1';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 const EXPECTED_HEADERS = [
   'Số lệnh',
@@ -54,21 +52,6 @@ function dockerPsql(sqlText: string): PsqlResult {
     const err = e as { stderr?: Buffer; stdout?: Buffer; message?: string };
     return { stdout: err.stdout ? err.stdout.toString() : '', stderr: (err.stderr ? err.stderr.toString() : '') + (err.message ?? ''), failed: true };
   }
-}
-function dockerExecNode(container: string, script: string): string {
-  const cmd = 'docker exec -i ' + container + ' node -e ' + JSON.stringify(script);
-  return execSync(cmd, { stdio: ['pipe', 'pipe', 'pipe'] }).toString();
-}
-function mintDispatcherToken(): string {
-  const script =
-    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
-    ',{method:' + JSON.stringify('POST') +
-    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-    ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
-    '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = dockerExecNode(API_CONTAINER, script);
-  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
-  return out.trim();
 }
 interface Pair { vehicleId: string; vehicleLabel: string; token: string }
 async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
@@ -99,12 +82,9 @@ function cleanupPair(pair: Pair): void {
   ];
   for (const s of stmts) { try { dockerPsql(s); } catch { /* tolerate */ } }
 }
+// Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
-  await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
-  await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await expect(page).toHaveURL(/\/dispatch|\/$/, { timeout: 10000 });
+  await loginAs(page);
 }
 async function createOrderViaUi(page: Page, pair: Pair): Promise<void> {
   await page.goto('/');

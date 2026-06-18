@@ -17,20 +17,14 @@
 //      first commit is rejected (409).
 //   7. BFF returns 404 for an unknown order id (tenant boundary).
 import { test, expect, type Page } from '@playwright/test';
+import { loginAs } from './helpers/auth';
 
-const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
-const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'pw';
-const DOLLAR = String.fromCharCode(36);
-const POST_LOGIN_URL = new RegExp('/dispatch|/' + DOLLAR);
 
 interface AssignedRow { transportOrderId: string; state: string }
 
+// Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
-  await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
-  await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await expect(page).toHaveURL(POST_LOGIN_URL, { timeout: 10000 });
+  await loginAs(page);
 }
 
 test.describe.serial('dispatch order cancel', () => {

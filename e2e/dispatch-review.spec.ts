@@ -3,14 +3,10 @@
 // Outside-in TDD RED: written before OrderReview.tsx, BFF route, and review controller exist.
 // Uses page.request so the fleet_session cookie set by login is shared with API calls.
 import { test, expect, type Page } from '@playwright/test';
-const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
-const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'pw';
+import { loginAs } from './helpers/auth';
+// Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
-  await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
-  await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await expect(page).toHaveURL(/\/dispatch|\/$/, { timeout: 10000 });
+  await loginAs(page);
 }
 test.describe.serial('dispatch order review', () => {
   test('dispatcher can open a just-created order and see its details', async ({ page }) => {
