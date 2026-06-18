@@ -1,32 +1,39 @@
 // e2e/ops-web-login.spec.ts
-// First Playwright e2e: ops-web login page renders and accepts input.
-// Asserts behavior the user sees, not implementation details.
+// ops-web /login now uses Authorization Code + PKCE: instead of a username/
+// password form, it shows a single "Continue with Keycloak" button that, on
+// submit, redirects the browser to the IdP's authorization endpoint (where
+// Google brokering + OTP/WebAuthn happen). This spec asserts that login surface
+// without completing the federated flow (which cannot run in CI). All other
+// specs authenticate via the injected-session helper (e2e/helpers/auth.ts),
+// never through this UI.
 import { test, expect } from '@playwright/test';
 
-test.describe('ops-web /login', () => {
-  test('renders Vietnamese login form with username and password fields', async ({ page }) => {
+test.describe('ops-web /login (Authorization Code + PKCE)', () => {
+  test('renders the Keycloak sign-in button and no credential fields', async ({ page }) => {
     await page.goto('/login');
-    await expect(page.getByLabel(/tên đăng nhập|username/i)).toBeVisible();
-    await expect(page.getByLabel(/mật khẩu|password/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /đăng nhập|sign in|log in/i })).toBeEnabled();
+    await expect(
+      page.getByRole('button', { name: /keycloak|sign in|đăng nhập/i }),
+    ).toBeVisible();
+    // The ROPC form is gone — no username/password inputs remain.
+    await expect(page.locator('input[type="password"]')).toHaveCount(0);
+    await expect(page.locator('input[name="username"]')).toHaveCount(0);
   });
 
-  test('blocks empty submission via HTML5 required (browser-level validation)', async ({ page }) => {
+  test('submitting initiates a redirect toward the IdP authorize endpoint', async ({ page }) => {
     await page.goto('/login');
-    const username = page.getByLabel(/username|tên đăng nhập/i);
-    await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-    // HTML5 required prevents submission; field is reported invalid by the browser.
-    const isInvalid = await username.evaluate((el: HTMLInputElement) => !el.validity.valid);
-    expect(isInvalid).toBe(true);
-  });
-
-  test('server-side validation triggers when JS submit bypasses HTML5 required', async ({ page }) => {
-    await page.goto('/login');
-    // Strip required attrs so the form action receives empty values.
-    await page.evaluate(() => {
-      document.querySelectorAll<HTMLInputElement>('input[required]').forEach((el) => { el.removeAttribute('required'); });
-    });
-    await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-    await expect(page.getByText(/required|bắt buộc/i).first()).toBeVisible();
+    // The form action calls the startLogin server action, which sets the PKCE
+    // cookies and redirects to the authorization endpoint. We assert the browser
+    // leaves /login heading to an OIDC authorize URL; we do NOT follow through
+    // the external Google/MFA pages. Tolerate either a full external redirect or
+    // a server-side error landing (?error=) if OIDC is unconfigured in-stack.
+    await page.getByRole('button', { name: /keycloak|sign in|đăng nhập/i }).click();
+    await page.waitForURL(
+      (url) => /\/protocol\/openid-connect\/auth/.test(url.href) || /[?&]error=/.test(url.href) || !/\/login$/.test(url.pathname),
+      { timeout: 15000 },
+    );
+    // PKCE transient cookies are set by the redirecting action.
+    const cookies = await page.context().cookies();
+    const names = cookies.map((c) => c.name);
+    expect(names.includes('oidc_state') || /openid-connect\/auth/.test(page.url())).toBeTruthy();
   });
 });

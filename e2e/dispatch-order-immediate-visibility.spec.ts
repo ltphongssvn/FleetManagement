@@ -14,11 +14,12 @@
 // the projection runner to drain inline during POST /transport-orders,
 // so by the time the action resolves the projection row already exists.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
+import { dockerPsql } from './helpers/docker-exec';
+import { loginAs, mintDispatcherToken } from './helpers/auth';
+import { z } from 'zod';
+import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
-const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
-const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'pw';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 
 // Hard ceiling between 'created' banner appearing and the row being visible
@@ -31,25 +32,13 @@ const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 // dispatch_board projection reconciles in the background via router.refresh.
 const ROW_VISIBILITY_BUDGET_MS = 500;
 
-function mintDispatcherToken(): string {
-  const script =
-    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
-    ',{method:' + JSON.stringify('POST') +
-    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-    ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
-    '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
-  return out.trim();
-}
-
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
+async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
   if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
-  return (await res.json()) as T;
+  return parseJson(res, schema);
 }
 
 interface Pair {
@@ -67,14 +56,16 @@ async function seedPair(api: APIRequestContext): Promise<Pair> {
   const phone = '09' + String(ts).slice(-6) + Math.floor(Math.random() * 100).toString().padStart(2, '0');
   const driverLabel = 'E2E DRIVER T3-VIZ ' + String(ts) + '-' + rand;
   const vehicleLabel = 'E2E-T3-VIZ-' + String(ts) + '-' + rand;
-  const drv = await adminPost<{ driverId: string; operatorId: string }>(
+  const drv = await adminPost(
     api, token, '/admin/drivers',
     { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
+    CreateDriverResponseSchema,
   );
-  const veh = await adminPost<{ id: string; label: string }>(api, token, '/reference/vehicles', { name: vehicleLabel });
-  const asgn = await adminPost<{ assignmentId: string }>(
+  const veh = await adminPost(api, token, '/reference/vehicles', { name: vehicleLabel }, ReferenceItemSchema);
+  const asgn = await adminPost(
     api, token, '/admin/driver-vehicle-assignments',
     { driverId: drv.driverId, vehicleId: veh.id },
+    AssignmentResponseSchema,
   );
   return {
     driverId: drv.driverId, operatorId: drv.operatorId, vehicleId: veh.id,
@@ -93,12 +84,9 @@ async function cleanupPair(api: APIRequestContext, p: Pair): Promise<void> {
   try { await api.delete(API_URL + '/admin/drivers/' + p.driverId, { headers: { Authorization: 'Bearer ' + p.token } }); } catch { /* tolerate */ }
 }
 
+// Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
-  await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
-  await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await expect(page).toHaveURL(/\/dispatch|\/$/, { timeout: 10_000 });
+  await loginAs(page);
 }
 
 test.describe('created order immediate visibility on dispatch board (T3)', () => {

@@ -1,9 +1,10 @@
 // e2e/dispatch-export-excel.spec.ts
 //
 // L0 acceptance test for the 2026 invariant: the Lệnh điều xe table is
-// exportable to Excel manually AND backed up automatically on every login
-// and every logout, with a daily-idempotent ledger row proving the backup
-// happened.
+// exportable to Excel manually AND backed up automatically on logout, with a
+// daily-idempotent ledger row proving the backup happened. (Login-time
+// auto-backup was removed with the move to Authorization Code + PKCE, where
+// ops-web no longer runs a credential server action at sign-in.)
 //
 // Layers exercised end-to-end:
 //   L1 (UI):     "Xuất Excel" button on DispatchBoard triggers a download.
@@ -21,7 +22,8 @@
 // driver table, because dispatchers are not drivers and have no driver row.
 import { test, expect, type Page } from '@playwright/test';
 import { execSync } from 'node:child_process';
-const POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
+import { loginAs } from './helpers/auth';
+const POSTGRES_CONTAINER = process.env['E2E_PG_CONTAINER'] ?? 'fleet-pilot-postgres-1';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 const DISPATCHER_OPERATOR_ID = '00000000-0000-0000-0000-0000000000aa';
 interface PsqlResult { stdout: string; stderr: string; failed: boolean }
@@ -39,12 +41,9 @@ function dockerPsql(sql: string): PsqlResult {
     };
   }
 }
+// Authenticate via injected session (PKCE login has no credential form).
 async function loginAsDispatcher(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/tên đăng nhập|username/i).fill('dispatcher');
-  await page.getByLabel(/mật khẩu|password/i).fill('any-password');
-  await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'));
+  await loginAs(page);
 }
 function todayKeyVnTz(): string {
   // Day key matches the server's VN timezone (+07:00) calendar date.
@@ -96,17 +95,6 @@ test.describe('dispatch export-excel backup chain (L1-L5)', () => {
     await dl;
     const after = countExportLog(DISPATCHER_OPERATOR_ID, 'manual', todayKeyVnTz());
     expect(after).toBe(before + 1);
-  });
-  test('L5: login triggers an idempotent daily login backup', async ({ page, context }) => {
-    const dayKey = todayKeyVnTz();
-    await loginAsDispatcher(page);
-    const afterFirst = await waitForExportLogAtLeast(DISPATCHER_OPERATOR_ID, 'login', dayKey, 1);
-    expect(afterFirst).toBeGreaterThanOrEqual(1);
-    // Second login the same day -> idempotent, no new row.
-    await context.clearCookies();
-    await loginAsDispatcher(page);
-    const afterSecond = countExportLog(DISPATCHER_OPERATOR_ID, 'login', dayKey);
-    expect(afterSecond).toBe(afterFirst);
   });
   test('L5: logout triggers an idempotent daily logout backup', async ({ page, context }) => {
     const dayKey = todayKeyVnTz();

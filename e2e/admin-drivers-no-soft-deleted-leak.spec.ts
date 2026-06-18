@@ -1,6 +1,7 @@
 // e2e/admin-drivers-no-soft-deleted-leak.spec.ts
 import { test, expect } from '@playwright/test';
 import { dockerPsql } from './helpers/docker-exec';
+import { loginAs } from './helpers/auth';
 
 test.describe.serial('admin drivers page excludes soft-deleted rows', () => {
   test('soft-deleted E2E drivers never render in Quan ly tai xe & xe', async ({ page }) => {
@@ -17,19 +18,10 @@ test.describe.serial('admin drivers page excludes soft-deleted rows', () => {
     const ins = dockerPsql(insert);
     if (ins.failed) throw new Error('seed insert failed: ' + ins.stderr);
 
-    await page.goto('/login');
-    await page.getByLabel(/tên đăng nhập|username/i).fill('dieuxe');
-    await page.getByLabel(/mật khẩu|password/i).fill('x');
-    await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-    // Deterministic auth gate (anti-flake, root-cause): the post-login redirect
-    // races the fleet_session cookie write (documented session-trap class; this
-    // spec flaked on exactly that race). The test's real precondition is the
-    // session cookie, not the landing URL — poll for the cookie, then navigate
-    // explicitly. Follow-up recorded: suite-wide storageState setup project
-    // (28 specs share this inline login).
-    await expect
-      .poll(async () => (await page.context().cookies()).some((c) => c.name === 'fleet_session'), { timeout: 10000 })
-      .toBe(true);
+    // Authenticate via injected session (e2e/helpers/auth.ts): ops-web now uses
+    // Authorization Code + PKCE, so there is no credential form to fill. The
+    // helper mints a stepped-up dispatcher token and sets fleet_session.
+    await loginAs(page);
 
     await page.goto('/admin/drivers');
     await expect(page.getByRole('heading', { name: /Quản lý tài xế|tài xế & xe/i })).toBeVisible({ timeout: 10000 });

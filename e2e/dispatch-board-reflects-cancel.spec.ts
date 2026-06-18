@@ -13,31 +13,21 @@
 // exercises the UI cancel flow against THAT order only. Fully self-
 // contained, parallel-safe, and immune to cascade timing.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { dockerExecNode } from './helpers/docker-exec';
+import { loginAs, mintDispatcherToken } from './helpers/auth';
+import { z } from 'zod';
+import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, CreateTransportOrderResponseSchema } from './helpers/contracts';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const DOLLAR = String.fromCharCode(36);
 const BOARD_URL = new RegExp('/' + DOLLAR);
 
-function mintDispatcherToken(): string {
-  const script =
-    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
-    ',{method:' + JSON.stringify('POST') +
-    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-    ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
-    '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
-  return out.trim();
-}
-
-async function apiPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
+async function apiPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
   if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
-  return (await res.json()) as T;
+  return parseJson(res, schema);
 }
 
 interface SeededOrder {
@@ -52,22 +42,26 @@ async function seedOrder(api: APIRequestContext): Promise<SeededOrder> {
   const token = mintDispatcherToken();
   const ts = String(Date.now());
   const phone = '09' + ts.slice(-8);
-  const drv = await apiPost<{ driverId: string; operatorId: string }>(
+  const drv = await apiPost(
     api, token, '/admin/drivers',
     { fullName: 'E2E-T5-CANCEL-' + ts, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
+    CreateDriverResponseSchema,
   );
-  const veh = await apiPost<{ id: string }>(
+  const veh = await apiPost(
     api, token, '/reference/vehicles', { name: 'E2E-T5-CANCEL-' + ts },
+    ReferenceItemSchema,
   );
   await apiPost(api, token, '/admin/driver-vehicle-assignments',
     { driverId: drv.driverId, vehicleId: veh.id },
+    AssignmentResponseSchema,
   );
-  const order = await apiPost<{ transportOrderId: string; externalRef: string }>(
+  const order = await apiPost(
     api, token, '/transport-orders',
     {
       stops: [{ sequence: 1, stopType: 'pickup' }],
       roadRun: { assignedOperatorId: drv.operatorId, assignedAssetId: veh.id },
     },
+    CreateTransportOrderResponseSchema,
   );
   return {
     externalRef: order.externalRef,
@@ -78,12 +72,9 @@ async function seedOrder(api: APIRequestContext): Promise<SeededOrder> {
   };
 }
 
+// Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/tên đăng nhập|username/i).fill('dispatcher');
-  await page.getByLabel(/mật khẩu|password/i).fill('any-password');
-  await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'));
+  await loginAs(page);
 }
 
 const seededOrders: SeededOrder[] = [];

@@ -13,20 +13,17 @@
 // self-contained. Override via env to reset a specific driver (e.g. PHONG):
 //   E2E_RESET_DRIVER_NAME, E2E_RESET_DRIVER_PHONE, E2E_RESET_NEW_PASSWORD.
 import { test, expect, type Page } from '@playwright/test';
-const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
-const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'dieuxe';
+import { loginAs } from './helpers/auth';
+import { parseJson, AccessTokenResponseSchema } from './helpers/contracts';
 const DRIVER_NAME = process.env['E2E_RESET_DRIVER_NAME'] ?? 'TÀI XẾ THỬ NGHIỆM 1';
 const DRIVER_PHONE = process.env['E2E_RESET_DRIVER_PHONE'] ?? '0900000001';
 const NEW_PASSWORD = process.env['E2E_RESET_NEW_PASSWORD'] ?? 'driver1pass';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
+// Authenticate via injected session (ops-web uses Authorization Code + PKCE;
+// no credential form). The helper mints a stepped-up dispatcher token and
+// sets fleet_session, then lands on the board.
 async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
-  await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
-  await Promise.all([
-    page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 }),
-    page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click(),
-  ]);
+  await loginAs(page);
 }
 test('dispatcher resets a driver password from /admin/drivers and the new password authenticates', async ({ page, request }) => {
   await login(page);
@@ -47,6 +44,6 @@ test('dispatcher resets a driver password from /admin/drivers and the new passwo
     data: { phone: DRIVER_PHONE, password: NEW_PASSWORD },
   });
   expect(res.ok()).toBeTruthy();
-  const body = (await res.json()) as { accessToken?: string };
+  const body = await parseJson(res, AccessTokenResponseSchema);
   expect(typeof body.accessToken).toBe('string');
 });
