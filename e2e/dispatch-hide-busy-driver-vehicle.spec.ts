@@ -23,6 +23,8 @@
 // labels + are torn down in afterEach (no live /reference leak).
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
+import { z } from 'zod';
+import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, ReferenceListResponseSchema } from './helpers/contracts';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 function sq39(): string { return String.fromCharCode(39); }
@@ -37,18 +39,18 @@ function mintDispatcherToken(): string {
   if (out.length === 0 || !out.includes('.')) throw new Error('Token mint failed: ' + out);
   return out.trim();
 }
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
+async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
   if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
-  return (await res.json()) as T;
+  return parseJson(res, schema);
 }
 async function listLabels(api: APIRequestContext, token: string, path: string): Promise<readonly string[]> {
   const res = await api.get(API_URL + path, { headers: { Authorization: 'Bearer ' + token } });
   if (!res.ok()) throw new Error('GET ' + path + ' failed ' + String(res.status()));
-  const json = (await res.json()) as { items: readonly { label: string }[] };
+  const json = await parseJson(res, ReferenceListResponseSchema);
   return json.items.map((i) => i.label);
 }
 interface SeededPair {
@@ -61,13 +63,15 @@ async function setupPair(api: APIRequestContext, suffix: string): Promise<Seeded
   const phone = '09' + String(ts).slice(-8);
   const driverLabel = 'E2E DRIVER ' + suffix + ' ' + String(ts);
   const vehicleLabel = 'E2E-' + suffix + '-' + String(ts);
-  const drv = await adminPost<{ driverId: string; operatorId: string }>(
+  const drv = await adminPost(
     api, token, '/admin/drivers',
     { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
+    CreateDriverResponseSchema,
   );
-  const veh = await adminPost<{ id: string; label: string }>(api, token, '/reference/vehicles', { name: vehicleLabel });
-  const asgn = await adminPost<{ assignmentId: string }>(
+  const veh = await adminPost(api, token, '/reference/vehicles', { name: vehicleLabel }, ReferenceItemSchema);
+  const asgn = await adminPost(
     api, token, '/admin/driver-vehicle-assignments', { driverId: drv.driverId, vehicleId: veh.id },
+    AssignmentResponseSchema,
   );
   return { driverId: drv.driverId, operatorId: drv.operatorId, vehicleId: veh.id, vehicleLabel, driverLabel, assignmentId: asgn.assignmentId, token };
 }

@@ -30,6 +30,8 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { dockerPsql } from './helpers/docker-exec';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
+import { z } from 'zod';
+import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, ReferenceListResponseSchema, CreateTransportOrderResponseSchema } from './helpers/contracts';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 const ORDER_NUMBER_REGEX = /^XTT\.(0[1-9]|1[0-2])-\d{3,}$/;
@@ -42,7 +44,7 @@ interface SeededPair {
   assignmentId: string;
   token: string;
 }
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
+async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
@@ -50,7 +52,7 @@ async function adminPost<T>(api: APIRequestContext, token: string, path: string,
   if (!res.ok()) {
     throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   }
-  return (await res.json()) as T;
+  return parseJson(res, schema);
 }
 async function adminDelete(api: APIRequestContext, token: string, path: string, body: unknown): Promise<void> {
   const res = await api.delete(API_URL + path, {
@@ -64,7 +66,7 @@ async function adminDelete(api: APIRequestContext, token: string, path: string, 
 async function listLabels(api: APIRequestContext, token: string, path: string): Promise<readonly string[]> {
   const res = await api.get(API_URL + path, { headers: { Authorization: 'Bearer ' + token } });
   if (!res.ok()) throw new Error('GET ' + path + ' failed ' + String(res.status()));
-  const json = (await res.json()) as { items: readonly { label: string }[] };
+  const json = await parseJson(res, ReferenceListResponseSchema);
   return json.items.map((i) => i.label).sort();
 }
 async function setupPair(api: APIRequestContext, suffix: string): Promise<SeededPair> {
@@ -73,16 +75,19 @@ async function setupPair(api: APIRequestContext, suffix: string): Promise<Seeded
   const phone = '09' + String(ts).slice(-8);
   const driverLabel = 'E2E DRIVER ' + suffix + ' ' + String(ts);
   const vehicleLabel = 'E2E-' + suffix + '-' + String(ts);
-  const drv = await adminPost<{ driverId: string; operatorId: string }>(
+  const drv = await adminPost(
     api, token, '/admin/drivers',
     { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
+    CreateDriverResponseSchema,
   );
-  const veh = await adminPost<{ id: string; label: string }>(
+  const veh = await adminPost(
     api, token, '/reference/vehicles', { name: vehicleLabel },
+    ReferenceItemSchema,
   );
-  const asgn = await adminPost<{ assignmentId: string }>(
+  const asgn = await adminPost(
     api, token, '/admin/driver-vehicle-assignments',
     { driverId: drv.driverId, vehicleId: veh.id },
+    AssignmentResponseSchema,
   );
   return {
     driverId: drv.driverId,
@@ -114,7 +119,7 @@ async function createOrderViaApi(
   if (!res.ok()) {
     throw new Error('POST /transport-orders failed ' + String(res.status()) + ': ' + (await res.text()));
   }
-  return (await res.json()) as { transportOrderId: string; roadRunId: string; externalRef?: string };
+  return parseJson(res, CreateTransportOrderResponseSchema);
 }
 function externalRefOf(transportOrderId: string): string {
   const sq = String.fromCharCode(39);

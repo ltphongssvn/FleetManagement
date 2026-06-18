@@ -11,6 +11,8 @@
 // ops-web column swap (L2) and the API read-time customer enrichment (L3).
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
+import { z } from 'zod';
+import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const ROW_VISIBILITY_BUDGET_MS = 15_000;
@@ -33,13 +35,13 @@ async function pickCombobox(page: import('@playwright/test').Page, inputId: stri
   await opt.click();
 }
 
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
+async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
   if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
-  return (await res.json()) as T;
+  return parseJson(res, schema);
 }
 
 interface Seed {
@@ -64,16 +66,17 @@ async function seedAll(api: APIRequestContext): Promise<Seed> {
   const pickupName = 'E2E-PICKUP-' + rand;
   const deliveryName = 'E2E-DELIVERY-' + rand;
 
-  const drv = await adminPost<{ driverId: string; operatorId: string }>(
+  const drv = await adminPost(
     api, token, '/admin/drivers',
     { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
+    CreateDriverResponseSchema,
   );
-  const veh = await adminPost<{ id: string; label: string }>(api, token, '/reference/vehicles', { name: vehicleLabel });
-  await adminPost(api, token, '/admin/driver-vehicle-assignments', { driverId: drv.driverId, vehicleId: veh.id });
-  await adminPost(api, token, '/reference/customers', { name: customerName });
-  await adminPost(api, token, '/reference/cargo-types', { name: cargoName });
-  await adminPost(api, token, '/reference/warehouses', { name: pickupName, role: 'pickup' });
-  await adminPost(api, token, '/reference/warehouses', { name: deliveryName, role: 'delivery' });
+  const veh = await adminPost(api, token, '/reference/vehicles', { name: vehicleLabel }, ReferenceItemSchema);
+  await adminPost(api, token, '/admin/driver-vehicle-assignments', { driverId: drv.driverId, vehicleId: veh.id }, AssignmentResponseSchema);
+  await adminPost(api, token, '/reference/customers', { name: customerName }, ReferenceItemSchema);
+  await adminPost(api, token, '/reference/cargo-types', { name: cargoName }, ReferenceItemSchema);
+  await adminPost(api, token, '/reference/warehouses', { name: pickupName, role: 'pickup' }, ReferenceItemSchema);
+  await adminPost(api, token, '/reference/warehouses', { name: deliveryName, role: 'delivery' }, ReferenceItemSchema);
 
   return { token, customerName, cargoName, vehicleLabel, driverLabel, pickupName, deliveryName };
 }

@@ -26,6 +26,8 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import { execSync } from 'node:child_process';
 import ExcelJS from 'exceljs';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
+import { z } from 'zod';
+import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const POSTGRES_CONTAINER = process.env['E2E_PG_CONTAINER'] ?? 'fleet-pilot-postgres-1';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
@@ -54,19 +56,19 @@ function dockerPsql(sqlText: string): PsqlResult {
   }
 }
 interface Pair { vehicleId: string; vehicleLabel: string; token: string }
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
+async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, { headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, data: JSON.stringify(body) });
   if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
-  return (await res.json()) as T;
+  return parseJson(res, schema);
 }
 async function setupPair(api: APIRequestContext): Promise<Pair> {
   const token = mintDispatcherToken();
   const ts = Date.now();
   const driverLabel = 'E2E DRIVER XLSXCOL ' + String(ts);
   const vehicleLabel = 'E2E-XLSXCOL-' + String(ts);
-  const drv = await adminPost<{ driverId: string; operatorId: string }>(api, token, '/admin/drivers', { fullName: driverLabel, phone: '09' + String(ts).slice(-8), password: 'e2e-pass-1234' }); // pragma: allowlist secret
-  const veh = await adminPost<{ id: string; label: string }>(api, token, '/reference/vehicles', { name: vehicleLabel });
-  await adminPost<{ assignmentId: string }>(api, token, '/admin/driver-vehicle-assignments', { driverId: drv.driverId, vehicleId: veh.id });
+  const drv = await adminPost(api, token, '/admin/drivers', { fullName: driverLabel, phone: '09' + String(ts).slice(-8), password: 'e2e-pass-1234' }, CreateDriverResponseSchema); // pragma: allowlist secret
+  const veh = await adminPost(api, token, '/reference/vehicles', { name: vehicleLabel }, ReferenceItemSchema);
+  await adminPost(api, token, '/admin/driver-vehicle-assignments', { driverId: drv.driverId, vehicleId: veh.id }, AssignmentResponseSchema);
   return { vehicleId: veh.id, vehicleLabel, token };
 }
 function cleanupPair(pair: Pair): void {

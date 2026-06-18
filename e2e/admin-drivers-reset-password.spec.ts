@@ -14,6 +14,7 @@
 //   E2E_RESET_DRIVER_NAME, E2E_RESET_DRIVER_PHONE, E2E_RESET_NEW_PASSWORD.
 import { test, expect, type Page } from '@playwright/test';
 import { loginAs } from './helpers/auth';
+import { parseJson, AccessTokenResponseSchema } from './helpers/contracts';
 const DRIVER_NAME = process.env['E2E_RESET_DRIVER_NAME'] ?? 'TÀI XẾ THỬ NGHIỆM 1';
 const DRIVER_PHONE = process.env['E2E_RESET_DRIVER_PHONE'] ?? '0900000001';
 const NEW_PASSWORD = process.env['E2E_RESET_NEW_PASSWORD'] ?? 'driver1pass';
@@ -43,6 +44,6 @@ test('dispatcher resets a driver password from /admin/drivers and the new passwo
     data: { phone: DRIVER_PHONE, password: NEW_PASSWORD },
   });
   expect(res.ok()).toBeTruthy();
-  const body = (await res.json()) as { accessToken?: string };
+  const body = await parseJson(res, AccessTokenResponseSchema);
   expect(typeof body.accessToken).toBe('string');
 });

@@ -33,6 +33,8 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { dockerPsql } from './helpers/docker-exec';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
+import { z } from 'zod';
+import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, DriverLoginResponseSchema, DriverMeResponseSchema } from './helpers/contracts';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 const HANDOFF_PATH = process.env['E2E_DRIVER_HANDOFF']
@@ -43,10 +45,10 @@ interface Seed {
   vehicleLabel: string; driverLabel: string; driverPhone: string;
   assignmentId: string; token: string;
 }
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
+async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, { headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, data: JSON.stringify(body) });
   if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
-  return (await res.json()) as T;
+  return parseJson(res, schema);
 }
 async function setupSeed(api: APIRequestContext): Promise<Seed> {
   const token = mintDispatcherToken();
@@ -54,9 +56,9 @@ async function setupSeed(api: APIRequestContext): Promise<Seed> {
   const driverPhone = '09' + String(ts).slice(-8);
   const driverLabel = 'E2E DRIVER FULFILL ' + String(ts);
   const vehicleLabel = 'E2E-FULFILL-' + String(ts);
-  const drv = await adminPost<{ driverId: string; operatorId: string }>(api, token, '/admin/drivers', { fullName: driverLabel, phone: driverPhone, password: KNOWN_PASSWORD });
-  const veh = await adminPost<{ id: string; label: string }>(api, token, '/reference/vehicles', { name: vehicleLabel });
-  const asgn = await adminPost<{ assignmentId: string }>(api, token, '/admin/driver-vehicle-assignments', { driverId: drv.driverId, vehicleId: veh.id });
+  const drv = await adminPost(api, token, '/admin/drivers', { fullName: driverLabel, phone: driverPhone, password: KNOWN_PASSWORD }, CreateDriverResponseSchema);
+  const veh = await adminPost(api, token, '/reference/vehicles', { name: vehicleLabel }, ReferenceItemSchema);
+  const asgn = await adminPost(api, token, '/admin/driver-vehicle-assignments', { driverId: drv.driverId, vehicleId: veh.id }, AssignmentResponseSchema);
   return { driverId: drv.driverId, operatorId: drv.operatorId, vehicleId: veh.id, vehicleLabel, driverLabel, driverPhone, assignmentId: asgn.assignmentId, token };
 }
 function cleanupSeed(seed: Seed): void {
@@ -134,14 +136,14 @@ test.describe.serial('dispatcher creates an order, driver fulfills it (self-seed
       data: { phone: sd.driverPhone, password: KNOWN_PASSWORD },
     });
     expect(loginRes.ok()).toBeTruthy();
-    const loginBody = (await loginRes.json()) as { accessToken?: string; driver?: { operatorId?: string } };
+    const loginBody = await parseJson(loginRes, DriverLoginResponseSchema);
     expect(typeof loginBody.accessToken).toBe('string');
     expect(loginBody.driver?.operatorId).toBe(sd.operatorId);
     const meRes = await request.get(API_URL + '/driver/me', {
       headers: { Authorization: 'Bearer ' + (loginBody.accessToken ?? '') },
     });
     expect(meRes.ok()).toBeTruthy();
-    const me = (await meRes.json()) as { assignedVehicle?: { vehicleId?: string } | null };
+    const me = await parseJson(meRes, DriverMeResponseSchema);
     expect(me.assignedVehicle?.vehicleId).toBe(sd.vehicleId);
   });
 });

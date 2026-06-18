@@ -10,6 +10,8 @@
 // success banner. Converged board: bounded. Looping board: unbounded.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { loginAs, mintToken } from './helpers/auth';
+import { z } from 'zod';
+import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
 import { execSync } from 'node:child_process';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
@@ -22,13 +24,13 @@ function opsWebRenderCount(): number {
   return parseInt(out.trim(), 10) || 0;
 }
 
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
+async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
   if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
-  return (await res.json()) as T;
+  return parseJson(res, schema);
 }
 
 interface Pair { driverId: string; vehicleId: string; vehicleLabel: string; assignmentId: string; token: string }
@@ -37,9 +39,9 @@ async function seedPair(api: APIRequestContext): Promise<Pair> {
   const token = mintToken();
   const rand = Math.floor(Math.random() * 1e9).toString(36);
   const phone = '09' + String(Date.now()).slice(-6) + Math.floor(Math.random() * 100).toString().padStart(2, '0');
-  const drv = await adminPost<{ driverId: string }>(api, token, '/admin/drivers', { fullName: 'E2E DRIVER NOLOOP ' + rand, phone, password: 'e2e-pass-1234' }); // pragma: allowlist secret
-  const veh = await adminPost<{ id: string }>(api, token, '/reference/vehicles', { name: 'E2E-NL-' + rand });
-  const asgn = await adminPost<{ assignmentId: string }>(api, token, '/admin/driver-vehicle-assignments', { driverId: drv.driverId, vehicleId: veh.id });
+  const drv = await adminPost(api, token, '/admin/drivers', { fullName: 'E2E DRIVER NOLOOP ' + rand, phone, password: 'e2e-pass-1234' }, CreateDriverResponseSchema); // pragma: allowlist secret
+  const veh = await adminPost(api, token, '/reference/vehicles', { name: 'E2E-NL-' + rand }, ReferenceItemSchema);
+  const asgn = await adminPost(api, token, '/admin/driver-vehicle-assignments', { driverId: drv.driverId, vehicleId: veh.id }, AssignmentResponseSchema);
   return { driverId: drv.driverId, vehicleId: veh.id, vehicleLabel: 'E2E-NL-' + rand, assignmentId: asgn.assignmentId, token };
 }
 

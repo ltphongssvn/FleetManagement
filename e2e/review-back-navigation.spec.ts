@@ -15,36 +15,41 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { dockerPsql } from './helpers/docker-exec';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
+import { z } from 'zod';
+import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, CreateTransportOrderResponseSchema } from './helpers/contracts';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 interface Seeded {
   driverId: string; operatorId: string; vehicleId: string;
   assignmentId: string; transportOrderId: string; externalRef: string; token: string;
 }
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
+async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
   if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
-  return (await res.json()) as T;
+  return parseJson(res, schema);
 }
 async function seedOrder(api: APIRequestContext): Promise<Seeded> {
   const token = mintDispatcherToken();
   const ts = Date.now();
   const phone = '09' + String(ts).slice(-8);
-  const drv = await adminPost<{ driverId: string; operatorId: string }>(
+  const drv = await adminPost(
     api, token, '/admin/drivers',
     { fullName: 'E2E DRIVER T6-BACK ' + String(ts), phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
+    CreateDriverResponseSchema,
   );
-  const veh = await adminPost<{ id: string; label: string }>(api, token, '/reference/vehicles', { name: 'E2E-T6-BACK-' + String(ts) });
-  const asgn = await adminPost<{ assignmentId: string }>(
+  const veh = await adminPost(api, token, '/reference/vehicles', { name: 'E2E-T6-BACK-' + String(ts) }, ReferenceItemSchema);
+  const asgn = await adminPost(
     api, token, '/admin/driver-vehicle-assignments',
     { driverId: drv.driverId, vehicleId: veh.id },
+    AssignmentResponseSchema,
   );
-  const order = await adminPost<{ transportOrderId: string; roadRunId: string; externalRef: string }>(
+  const order = await adminPost(
     api, token, '/transport-orders',
     { stops: [{ sequence: 1, stopType: 'pickup' }], roadRun: { assignedOperatorId: drv.operatorId, assignedAssetId: veh.id } },
+    CreateTransportOrderResponseSchema,
   );
   return { driverId: drv.driverId, operatorId: drv.operatorId, vehicleId: veh.id, assignmentId: asgn.assignmentId, transportOrderId: order.transportOrderId, externalRef: order.externalRef, token };
 }

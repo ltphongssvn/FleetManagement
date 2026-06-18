@@ -4,6 +4,7 @@
 // Uses page.request so the fleet_session cookie set by login is shared with API calls.
 import { test, expect, type Page } from '@playwright/test';
 import { loginAs } from './helpers/auth';
+import { parseJson, AssignedListResponseSchema } from './helpers/contracts';
 // Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
   await loginAs(page);
@@ -13,7 +14,7 @@ test.describe.serial('dispatch order review', () => {
     await login(page);
     const listRes = await page.request.get('/api/transport-orders/assigned');
     expect(listRes.status(), 'BFF /api/transport-orders/assigned must return 200').toBe(200);
-    const listJson = await listRes.json() as { rows: readonly { transportOrderId: string; externalRef: string | null }[] };
+    const listJson = await parseJson(listRes, AssignedListResponseSchema);
     test.skip(listJson.rows.length === 0, 'no assigned order available to review in this environment');
     const target = listJson.rows[0];
     if (target === undefined) throw new Error('unreachable: skipped above');

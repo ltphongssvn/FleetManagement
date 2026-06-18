@@ -18,6 +18,8 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
+import { z } from 'zod';
+import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
@@ -27,13 +29,13 @@ const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 // can reconcile + prune the optimistic row before a 1s assertion runs.
 const ROW_VISIBILITY_BUDGET_MS = 15_000;
 
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
+async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
   if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
-  return (await res.json()) as T;
+  return parseJson(res, schema);
 }
 
 interface Pair {
@@ -48,14 +50,16 @@ async function seedPair(api: APIRequestContext): Promise<Pair> {
   const phone = '09' + String(ts).slice(-6) + Math.floor(Math.random() * 100).toString().padStart(2, '0');
   const driverLabel = 'E2E DRIVER STALEREF ' + rand;
   const vehicleLabel = 'E2E-SR-' + rand;
-  const drv = await adminPost<{ driverId: string; operatorId: string }>(
+  const drv = await adminPost(
     api, token, '/admin/drivers',
     { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
+    CreateDriverResponseSchema,
   );
-  const veh = await adminPost<{ id: string; label: string }>(api, token, '/reference/vehicles', { name: vehicleLabel });
-  const asgn = await adminPost<{ assignmentId: string }>(
+  const veh = await adminPost(api, token, '/reference/vehicles', { name: vehicleLabel }, ReferenceItemSchema);
+  const asgn = await adminPost(
     api, token, '/admin/driver-vehicle-assignments',
     { driverId: drv.driverId, vehicleId: veh.id },
+    AssignmentResponseSchema,
   );
   return {
     driverId: drv.driverId, operatorId: drv.operatorId, vehicleId: veh.id,

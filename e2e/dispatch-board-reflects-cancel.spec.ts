@@ -14,18 +14,20 @@
 // contained, parallel-safe, and immune to cascade timing.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
+import { z } from 'zod';
+import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, CreateTransportOrderResponseSchema } from './helpers/contracts';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const DOLLAR = String.fromCharCode(36);
 const BOARD_URL = new RegExp('/' + DOLLAR);
 
-async function apiPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
+async function apiPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
   if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
-  return (await res.json()) as T;
+  return parseJson(res, schema);
 }
 
 interface SeededOrder {
@@ -40,22 +42,26 @@ async function seedOrder(api: APIRequestContext): Promise<SeededOrder> {
   const token = mintDispatcherToken();
   const ts = String(Date.now());
   const phone = '09' + ts.slice(-8);
-  const drv = await apiPost<{ driverId: string; operatorId: string }>(
+  const drv = await apiPost(
     api, token, '/admin/drivers',
     { fullName: 'E2E-T5-CANCEL-' + ts, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
+    CreateDriverResponseSchema,
   );
-  const veh = await apiPost<{ id: string }>(
+  const veh = await apiPost(
     api, token, '/reference/vehicles', { name: 'E2E-T5-CANCEL-' + ts },
+    ReferenceItemSchema,
   );
   await apiPost(api, token, '/admin/driver-vehicle-assignments',
     { driverId: drv.driverId, vehicleId: veh.id },
+    AssignmentResponseSchema,
   );
-  const order = await apiPost<{ transportOrderId: string; externalRef: string }>(
+  const order = await apiPost(
     api, token, '/transport-orders',
     {
       stops: [{ sequence: 1, stopType: 'pickup' }],
       roadRun: { assignedOperatorId: drv.operatorId, assignedAssetId: veh.id },
     },
+    CreateTransportOrderResponseSchema,
   );
   return {
     externalRef: order.externalRef,

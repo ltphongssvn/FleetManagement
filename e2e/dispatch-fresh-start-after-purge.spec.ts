@@ -16,6 +16,8 @@
 //       assertion that the database is clean.
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
+import { z } from 'zod';
+import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, CreateTransportOrderResponseSchema } from './helpers/contracts';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
@@ -37,13 +39,13 @@ function mintDispatcherToken(): string {
   return out.trim();
 }
 
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
+async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
   if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
-  return (await res.json()) as T;
+  return parseJson(res, schema);
 }
 
 // Track every row this spec creates so the finally block can delete it.
@@ -127,23 +129,25 @@ test.describe('dispatch fresh start after wipe (T4) @serial', () => {
       const preToken = mintDispatcherToken();
       const preTs = Date.now();
       const preRand = Math.floor(Math.random() * 1e9).toString(36);
-      const preDrv = await adminPost<{ operatorId: string; driverId: string }>(
+      const preDrv = await adminPost(
         request, preToken, '/admin/drivers',
         { fullName: 'PRESERVE DRIVER T4 ' + String(preTs) + '-' + preRand, phone: '08' + String(preTs).slice(-8), password: 'e2e-pass-1234' }, // pragma: allowlist secret
-      );
+    CreateDriverResponseSchema,
+  );
       seeded.driverIds.push(preDrv.driverId);
-      const preVeh = await adminPost<{ id: string }>(request, preToken, '/reference/vehicles', { name: 'PRESERVE-VEH-' + preRand });
+      const preVeh = await adminPost(request, preToken, '/reference/vehicles', { name: 'PRESERVE-VEH-' + preRand }, ReferenceItemSchema);
       seeded.vehicleIds.push(preVeh.id);
-      const prePair = await adminPost<{ assignmentId: string }>(
+      const prePair = await adminPost(
         request, preToken, '/admin/driver-vehicle-assignments',
         { driverId: preDrv.driverId, vehicleId: preVeh.id },
-      );
+    AssignmentResponseSchema,
+  );
       seeded.pairIds.push(prePair.assignmentId);
-      const preCust = await adminPost<{ id: string }>(request, preToken, '/reference/customers', { name: 'PRESERVE-CUST-' + preRand });
+      const preCust = await adminPost(request, preToken, '/reference/customers', { name: 'PRESERVE-CUST-' + preRand }, ReferenceItemSchema);
       seeded.customerIds.push(preCust.id);
-      const preWh = await adminPost<{ id: string }>(request, preToken, '/reference/warehouses', { name: 'PRESERVE-WH-' + preRand });
+      const preWh = await adminPost(request, preToken, '/reference/warehouses', { name: 'PRESERVE-WH-' + preRand }, ReferenceItemSchema);
       seeded.warehouseIds.push(preWh.id);
-      const preCargo = await adminPost<{ id: string }>(request, preToken, '/reference/cargo-types', { name: 'PRESERVE-CARGO-' + preRand });
+      const preCargo = await adminPost(request, preToken, '/reference/cargo-types', { name: 'PRESERVE-CARGO-' + preRand }, ReferenceItemSchema);
       seeded.cargoTypeIds.push(preCargo.id);
 
       const driversBefore = dockerPsql('SELECT COUNT(*) FROM driver WHERE active=true;').stdout.trim();
@@ -195,27 +199,30 @@ test.describe('dispatch fresh start after wipe (T4) @serial', () => {
       const postToken = mintDispatcherToken();
       const postTs = Date.now();
       const postRand = Math.floor(Math.random() * 1e9).toString(36);
-      const postDrv = await adminPost<{ operatorId: string; driverId: string }>(
+      const postDrv = await adminPost(
         request, postToken, '/admin/drivers',
         { fullName: 'E2E DRIVER T4-FRESH ' + String(postTs) + '-' + postRand, phone: '09' + String(postTs).slice(-8), password: 'e2e-pass-1234' }, // pragma: allowlist secret
-      );
+    CreateDriverResponseSchema,
+  );
       seeded.driverIds.push(postDrv.driverId);
-      const postVeh = await adminPost<{ id: string }>(request, postToken, '/reference/vehicles', { name: 'E2E-T4-FRESH-' + postRand });
+      const postVeh = await adminPost(request, postToken, '/reference/vehicles', { name: 'E2E-T4-FRESH-' + postRand }, ReferenceItemSchema);
       seeded.vehicleIds.push(postVeh.id);
-      const postPair = await adminPost<{ assignmentId: string }>(
+      const postPair = await adminPost(
         request, postToken, '/admin/driver-vehicle-assignments',
         { driverId: postDrv.driverId, vehicleId: postVeh.id },
-      );
+    AssignmentResponseSchema,
+  );
       seeded.pairIds.push(postPair.assignmentId);
 
       // INVARIANT 3 (sequence reset): first create after wipe MUST be XTT.MM-001.
-      const created = await adminPost<{ externalRef: string; transportOrderId: string; roadRunId: string }>(
+      const created = await adminPost(
         request, postToken, '/transport-orders',
         {
           stops: [{ sequence: 1, stopType: 'pickup' }],
           roadRun: { assignedOperatorId: postDrv.operatorId, assignedAssetId: postVeh.id },
         },
-      );
+    CreateTransportOrderResponseSchema,
+  );
       expect(created.externalRef).toBe('XTT.' + currentMonth2() + '-001');
 
       // ---- Clean up the transport_order we just created (it's a fact row) ----
