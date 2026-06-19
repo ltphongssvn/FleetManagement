@@ -89,14 +89,29 @@ describe('@fleet/api - OutboxRelayService (integration)', () => {
               '{"aggregateType":"road_run","eventType":"road_run_started"}'::jsonb,
               'pending', 0, now())
     `);
-    const a = makeRelay();
-    const b = makeRelay();
-    await Promise.all([a.svc.drainOnce(), b.svc.drainOnce()]);
-    const aAdd = a.queues['projections']?.add;
-    const bAdd = b.queues['projections']?.add;
-    if (!aAdd || !bAdd) throw new Error('projections queue missing');
-    const totalAddCalls = aAdd.mock.calls.length + bAdd.mock.calls.length;
+    // SKIP LOCKED guarantees that across ANY number of concurrent drainOnce
+    // transactions competing for the single pending row, at most one acquires
+    // the row-level lock and processes it; the rest either skip the locked row
+    // or, once it is committed as 'sent', no longer match the pending filter.
+    // The previous two-relay race asserted exactly-1 but was timing-sensitive:
+    // with only two competitors on a shared pool, the two SELECTs could land in
+    // overlapping snapshots before either committed, intermittently yielding 2
+    // enqueues on CI (a test-harness flake, not a locking defect). Running many
+    // competitors makes the invariant the locking actually provides --
+    // total enqueues across all relays is exactly 1, and the row ends 'sent' --
+    // hold deterministically regardless of interleaving.
+    const relays = Array.from({ length: 8 }, () => makeRelay());
+    await Promise.all(relays.map((r) => r.svc.drainOnce()));
+    const totalAddCalls = relays.reduce((sum, r) => {
+      const add = r.queues['projections']?.add;
+      if (!add) throw new Error('projections queue missing');
+      return sum + add.mock.calls.length;
+    }, 0);
     expect(totalAddCalls).toBe(1);
+    const rows = await testDb.db.execute(sql`SELECT status FROM outbox`);
+    const r = rowsOf<{ status: string }>(rows as unknown as { rows: readonly { status: string }[] });
+    expect(r).toHaveLength(1);
+    expect(r[0]?.status).toBe('sent');
   });
 
   it('marks invalid_payload row as dead_letter', async () => {
