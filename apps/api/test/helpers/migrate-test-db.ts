@@ -48,14 +48,22 @@ export async function startMigratedTestDb(databaseName = 'fleet_test'): Promise<
     connectionTimeoutMillis: 10_000,
   });
   const db = drizzle(pool, { schema, casing: 'snake_case' });
-  // Under the full parallel run (20+ testcontainers + resource pressure) a
-  // single migrate connection can be reset mid-statement -- pg surfaces this as
-  // ECONNRESET / 'Connection terminated unexpectedly' on ~1% of runs, never the
-  // same file twice (node-postgres#3083). The container is healthy; only the
-  // transient socket dropped. Retry the migrate a few times with backoff on
-  // exactly these transient connection errors so one dropped socket does not
-  // fail an otherwise-passing suite. Non-connection errors (e.g. a real bad
-  // migration) are re-thrown immediately.
+  // Serialize the migrate step across concurrently-starting test files that
+  // share the reused container. drizzle's migrator internally runs
+  //   CREATE SCHEMA IF NOT EXISTS "drizzle"
+  // and IF NOT EXISTS is NOT atomic across concurrent sessions in Postgres: two
+  // files can both pass the existence check and both INSERT into
+  // pg_catalog.pg_namespace, so one loses with
+  //   23505 duplicate key ... "pg_namespace_nspname_index" (nspname=drizzle)
+  // (a documented Postgres concurrency limitation, not a drizzle bug). A
+  // transaction-scoped advisory lock makes the migrate critical-section
+  // mutually exclusive: the first file holds the lock while it creates the
+  // schema + applies migrations, the rest wait, and the lock auto-releases when
+  // its transaction ends. The lock key is an arbitrary fixed bigint shared by
+  // all files. This prevents the race at the source rather than retrying after
+  // it. A bounded retry still wraps the whole thing to absorb transient
+  // connection drops under heavy parallelism (node-postgres#3083).
+  const MIGRATE_ADVISORY_LOCK_KEY = 4927310028461562n;
   const isTransientConnError = (e: unknown): boolean => {
     const msg = e instanceof Error ? e.message : String(e);
     const code = (e as { code?: string } | undefined)?.code;
@@ -70,12 +78,27 @@ export async function startMigratedTestDb(databaseName = 'fleet_test'): Promise<
   };
   const maxAttempts = 5;
   for (let attempt = 1; ; attempt++) {
+    const client = await pool.connect();
     try {
+      await client.query('BEGIN');
+      // pg_advisory_xact_lock blocks until the lock is acquired, then auto-
+      // releases at COMMIT/ROLLBACK -- no leak even if migrate throws.
+      await client.query('SELECT pg_advisory_xact_lock($1)', [
+        MIGRATE_ADVISORY_LOCK_KEY.toString(),
+      ]);
       await migrate(db, { migrationsFolder });
+      await client.query('COMMIT');
       break;
     } catch (err) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* connection already broken; ignore */
+      }
       if (attempt >= maxAttempts || !isTransientConnError(err)) throw err;
       await new Promise((r) => setTimeout(r, 250 * attempt));
+    } finally {
+      client.release();
     }
   }
   return { container, pool, db };
