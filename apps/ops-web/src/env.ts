@@ -6,6 +6,16 @@ import { z } from 'zod';
 const EnvSchema = z.object({
   NEXT_PUBLIC_APP_VERSION: z.string().regex(/^\d+\.\d+\.\d+/).default('0.0.0'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  // OIDC Authorization Code + PKCE login (replaces ROPC). Optional so envs
+  // that do not run the dispatcher web login (e.g. CI unit runs) need not set
+  // them; the login action fails fast with server_error if unset at runtime.
+  OIDC_AUTHORIZATION_ENDPOINT: z.string().url().optional(),
+  OIDC_TOKEN_ENDPOINT: z.string().url().optional(),
+  OIDC_CLIENT_ID: z.string().min(1).optional(),
+  OIDC_REDIRECT_URI: z.string().url().optional(),
+  // Optional acr to request at login so the dispatcher role is forced through
+  // MFA up front, matching the API's RFC 9470 step-up enforcement.
+  OIDC_DISPATCH_ACR_VALUES: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

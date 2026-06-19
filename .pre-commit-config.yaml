@@ -117,6 +117,12 @@ repos:
         language: system
         pass_filenames: false
         types_or: [ts, tsx]
+      - id: e2e-typecheck
+        name: E2E Typecheck (CI Mirror)
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f e2e/tsconfig.json ]; then pnpm exec tsc --noEmit -p e2e/tsconfig.json; else echo "Skipped (no e2e project or pnpm missing)"; fi'
+        language: system
+        pass_filenames: false
+        types_or: [ts, tsx]
   - repo: local
     hooks:
       - id: pnpm-build-push

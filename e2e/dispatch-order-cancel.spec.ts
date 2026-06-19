@@ -17,20 +17,14 @@
 //      first commit is rejected (409).
 //   7. BFF returns 404 for an unknown order id (tenant boundary).
 import { test, expect, type Page } from '@playwright/test';
+import { loginAs } from './helpers/auth';
+import { parseJson, AssignedListResponseSchema } from './helpers/contracts';
 
-const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
-const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'pw';
-const DOLLAR = String.fromCharCode(36);
-const POST_LOGIN_URL = new RegExp('/dispatch|/' + DOLLAR);
 
-interface AssignedRow { transportOrderId: string; state: string }
 
+// Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
-  await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
-  await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await expect(page).toHaveURL(POST_LOGIN_URL, { timeout: 10000 });
+  await loginAs(page);
 }
 
 test.describe.serial('dispatch order cancel', () => {
@@ -38,7 +32,7 @@ test.describe.serial('dispatch order cancel', () => {
     await login(page);
     const listRes = await page.request.get('/api/transport-orders/assigned');
     expect(listRes.status(), 'BFF /api/transport-orders/assigned must return 200').toBe(200);
-    const listJson = await listRes.json() as { rows: readonly AssignedRow[] };
+    const listJson = await parseJson(listRes, AssignedListResponseSchema);
     const cancellable = listJson.rows.find((r) => r.state !== 'cancelled' && r.state !== 'completed');
     test.skip(cancellable === undefined, 'no cancellable order available in this environment');
     if (cancellable === undefined) throw new Error('unreachable: skipped above');
@@ -58,7 +52,7 @@ test.describe.serial('dispatch order cancel', () => {
   test('idempotent: second cancel with same reason returns 200 and same record', async ({ page }) => {
     await login(page);
     const listRes = await page.request.get('/api/transport-orders/assigned');
-    const listJson = await listRes.json() as { rows: readonly AssignedRow[] };
+    const listJson = await parseJson(listRes, AssignedListResponseSchema);
     const alreadyCancelled = listJson.rows.find((r) => r.state === 'cancelled');
     test.skip(alreadyCancelled === undefined, 'no cancelled order available to retest idempotency');
     if (alreadyCancelled === undefined) throw new Error('unreachable: skipped above');
@@ -71,7 +65,7 @@ test.describe.serial('dispatch order cancel', () => {
   test('conflict: cancel with a different reason after first commit returns 409', async ({ page }) => {
     await login(page);
     const listRes = await page.request.get('/api/transport-orders/assigned');
-    const listJson = await listRes.json() as { rows: readonly AssignedRow[] };
+    const listJson = await parseJson(listRes, AssignedListResponseSchema);
     const alreadyCancelled = listJson.rows.find((r) => r.state === 'cancelled');
     test.skip(alreadyCancelled === undefined, 'no cancelled order available to retest conflict');
     if (alreadyCancelled === undefined) throw new Error('unreachable: skipped above');

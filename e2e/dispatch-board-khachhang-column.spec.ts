@@ -10,14 +10,12 @@
 // Trạng thái and (b) the API board row carries no customerName. It drives the
 // ops-web column swap (L2) and the API read-time customer enrichment (L3).
 import { test, expect, type APIRequestContext } from '@playwright/test';
-import { dockerExecNode } from './helpers/docker-exec';
+import { loginAs, mintDispatcherToken } from './helpers/auth';
+import { z } from 'zod';
+import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
-const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
-const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'pw';
 const ROW_VISIBILITY_BUDGET_MS = 15_000;
-const DOLLAR = String.fromCharCode(36);
-const POST_LOGIN_URL = new RegExp('/dispatch|/' + DOLLAR);
 
 // Headless UI Combobox is an <input role=combobox> with portal-rendered
 // role=option items, opened on focus (immediate). Drive it by typing to filter
@@ -37,25 +35,13 @@ async function pickCombobox(page: import('@playwright/test').Page, inputId: stri
   await opt.click();
 }
 
-function mintDispatcherToken(): string {
-  const script =
-    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
-    ',{method:' + JSON.stringify('POST') +
-    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-    ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
-    '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
-  return out.trim();
-}
-
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
+async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
   if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
-  return (await res.json()) as T;
+  return parseJson(res, schema);
 }
 
 interface Seed {
@@ -80,16 +66,17 @@ async function seedAll(api: APIRequestContext): Promise<Seed> {
   const pickupName = 'E2E-PICKUP-' + rand;
   const deliveryName = 'E2E-DELIVERY-' + rand;
 
-  const drv = await adminPost<{ driverId: string; operatorId: string }>(
+  const drv = await adminPost(
     api, token, '/admin/drivers',
     { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
+    CreateDriverResponseSchema,
   );
-  const veh = await adminPost<{ id: string; label: string }>(api, token, '/reference/vehicles', { name: vehicleLabel });
-  await adminPost(api, token, '/admin/driver-vehicle-assignments', { driverId: drv.driverId, vehicleId: veh.id });
-  await adminPost(api, token, '/reference/customers', { name: customerName });
-  await adminPost(api, token, '/reference/cargo-types', { name: cargoName });
-  await adminPost(api, token, '/reference/warehouses', { name: pickupName, role: 'pickup' });
-  await adminPost(api, token, '/reference/warehouses', { name: deliveryName, role: 'delivery' });
+  const veh = await adminPost(api, token, '/reference/vehicles', { name: vehicleLabel }, ReferenceItemSchema);
+  await adminPost(api, token, '/admin/driver-vehicle-assignments', { driverId: drv.driverId, vehicleId: veh.id }, AssignmentResponseSchema);
+  await adminPost(api, token, '/reference/customers', { name: customerName }, ReferenceItemSchema);
+  await adminPost(api, token, '/reference/cargo-types', { name: cargoName }, ReferenceItemSchema);
+  await adminPost(api, token, '/reference/warehouses', { name: pickupName, role: 'pickup' }, ReferenceItemSchema);
+  await adminPost(api, token, '/reference/warehouses', { name: deliveryName, role: 'delivery' }, ReferenceItemSchema);
 
   return { token, customerName, cargoName, vehicleLabel, driverLabel, pickupName, deliveryName };
 }
@@ -98,11 +85,8 @@ test.describe.serial('Lệnh điều xe board: Khách hàng column replaces Tr�
   test('board shows Khách hàng header + customer name, and no Trạng thái column', async ({ page, request }) => {
     const seed = await seedAll(request);
 
-    await page.goto('/login');
-    await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
-    await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
-    await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-    await expect(page).toHaveURL(POST_LOGIN_URL, { timeout: 10_000 });
+    // Authenticate via injected session (PKCE login has no credential form).
+    await loginAs(page);
 
     await expect(page.getByTestId('create-order-form')).toBeVisible({ timeout: 15_000 });
 

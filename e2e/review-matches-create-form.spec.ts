@@ -22,21 +22,13 @@
 //   Inner layers (L1 RTL + L2 vitest + L3 API DTO/service) will drill in
 //     once L0 is RED, per the multi-worktree outside-in TDD workflow.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
-const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
+import { dockerPsql } from './helpers/docker-exec';
+import { loginAs, mintDispatcherToken } from './helpers/auth';
+import { z } from 'zod';
+import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
+const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 function sq39(): string { return String.fromCharCode(39); }
-function mintDispatcherToken(): string {
-  const script =
-    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
-    ',{method:' + JSON.stringify('POST') +
-    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-    ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
-    '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (out.length === 0 || !out.includes('.')) throw new Error('Token mint failed: ' + out);
-  return out.trim();
-}
 interface SeededPair {
   driverId: string;
   operatorId: string;
@@ -56,7 +48,7 @@ interface SeededRefs {
   deliveryLabel: string;
   deliveryId: string;
 }
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
+async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
@@ -64,7 +56,7 @@ async function adminPost<T>(api: APIRequestContext, token: string, path: string,
   if (!res.ok()) {
     throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   }
-  return (await res.json()) as T;
+  return parseJson(res, schema);
 }
 async function setupPair(api: APIRequestContext, suffix: string): Promise<SeededPair> {
   const token = mintDispatcherToken();
@@ -72,16 +64,19 @@ async function setupPair(api: APIRequestContext, suffix: string): Promise<Seeded
   const phone = '09' + String(ts).slice(-8);
   const driverLabel = 'E2E DRIVER ' + suffix + ' ' + String(ts);
   const vehicleLabel = 'E2E-' + suffix + '-' + String(ts);
-  const drv = await adminPost<{ driverId: string; operatorId: string }>(
+  const drv = await adminPost(
     api, token, '/admin/drivers',
     { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
+    CreateDriverResponseSchema,
   );
-  const veh = await adminPost<{ id: string; label: string }>(
+  const veh = await adminPost(
     api, token, '/reference/vehicles', { name: vehicleLabel },
+    ReferenceItemSchema,
   );
-  const asgn = await adminPost<{ assignmentId: string }>(
+  const asgn = await adminPost(
     api, token, '/admin/driver-vehicle-assignments',
     { driverId: drv.driverId, vehicleId: veh.id },
+    AssignmentResponseSchema,
   );
   return {
     driverId: drv.driverId, operatorId: drv.operatorId,
@@ -95,10 +90,10 @@ async function setupRefs(api: APIRequestContext, token: string, suffix: string):
   const cargoLabel = 'E2E-CARGO-' + suffix + '-' + String(ts);
   const pickupLabel = 'E2E-PICKUP-' + suffix + '-' + String(ts);
   const deliveryLabel = 'E2E-DELIVERY-' + suffix + '-' + String(ts);
-  const c = await adminPost<{ id: string }>(api, token, '/reference/customers', { name: customerLabel });
-  const cg = await adminPost<{ id: string }>(api, token, '/reference/cargo-types', { name: cargoLabel });
-  const p = await adminPost<{ id: string }>(api, token, '/reference/warehouses', { name: pickupLabel, role: 'pickup' });
-  const d = await adminPost<{ id: string }>(api, token, '/reference/warehouses', { name: deliveryLabel, role: 'delivery' });
+  const c = await adminPost(api, token, '/reference/customers', { name: customerLabel }, ReferenceItemSchema);
+  const cg = await adminPost(api, token, '/reference/cargo-types', { name: cargoLabel }, ReferenceItemSchema);
+  const p = await adminPost(api, token, '/reference/warehouses', { name: pickupLabel, role: 'pickup' }, ReferenceItemSchema);
+  const d = await adminPost(api, token, '/reference/warehouses', { name: deliveryLabel, role: 'delivery' }, ReferenceItemSchema);
   return {
     customerLabel, customerId: c.id,
     cargoLabel, cargoId: cg.id,
@@ -106,12 +101,9 @@ async function setupRefs(api: APIRequestContext, token: string, suffix: string):
     deliveryLabel, deliveryId: d.id,
   };
 }
+// Authenticate via injected session (PKCE login has no credential form).
 async function loginAsDispatcher(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/tên đăng nhập|username/i).fill('dispatcher');
-  await page.getByLabel(/mật khẩu|password/i).fill('any-password');
-  await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'));
+  await loginAs(page);
 }
 async function pickCombobox(page: Page, inputId: string, optionLabel: string): Promise<void> {
   // Hardening (testing-tdd.md): under serial multi-spec load the optimistic

@@ -19,26 +19,14 @@
 // workers cleaning up their orders cannot empty the board for this
 // spec. afterAll cleans up the seeded order + projection rows.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
+import { dockerPsql } from './helpers/docker-exec';
+import { loginAs, mintDispatcherToken } from './helpers/auth';
+import { z } from 'zod';
+import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, CreateTransportOrderResponseSchema } from './helpers/contracts';
 
-const OPS_USER = process.env['E2E_OPS_USERNAME'] ?? 'dieuxe';
-const OPS_PASS = process.env['E2E_OPS_PASSWORD'] ?? 'pw';
-const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
-const _POSTGRES_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'fleet-pilot-postgres-1';
+const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 
-
-function mintDispatcherToken(): string {
-  const script =
-    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
-    ',{method:' + JSON.stringify('POST') +
-    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-    ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
-    '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
-  return out.trim();
-}
 
 interface Seeded {
   driverId: string;
@@ -52,13 +40,13 @@ interface Seeded {
   token: string;
 }
 
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
+async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
   if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
-  return (await res.json()) as T;
+  return parseJson(res, schema);
 }
 
 async function seedOrder(api: APIRequestContext): Promise<Seeded> {
@@ -67,21 +55,24 @@ async function seedOrder(api: APIRequestContext): Promise<Seeded> {
   const phone = '09' + String(ts).slice(-8);
   const driverLabel = 'E2E DRIVER T5-NAV ' + String(ts);
   const vehicleLabel = 'E2E-T5-NAV-' + String(ts);
-  const drv = await adminPost<{ driverId: string; operatorId: string }>(
+  const drv = await adminPost(
     api, token, '/admin/drivers',
     { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
+    CreateDriverResponseSchema,
   );
-  const veh = await adminPost<{ id: string; label: string }>(api, token, '/reference/vehicles', { name: vehicleLabel });
-  const asgn = await adminPost<{ assignmentId: string }>(
+  const veh = await adminPost(api, token, '/reference/vehicles', { name: vehicleLabel }, ReferenceItemSchema);
+  const asgn = await adminPost(
     api, token, '/admin/driver-vehicle-assignments',
     { driverId: drv.driverId, vehicleId: veh.id },
+    AssignmentResponseSchema,
   );
-  const order = await adminPost<{ transportOrderId: string; roadRunId: string; externalRef: string }>(
+  const order = await adminPost(
     api, token, '/transport-orders',
     {
       stops: [{ sequence: 1, stopType: 'pickup' }],
       roadRun: { assignedOperatorId: drv.operatorId, assignedAssetId: veh.id },
     },
+    CreateTransportOrderResponseSchema,
   );
   return {
     driverId: drv.driverId,
@@ -122,12 +113,9 @@ async function cleanupPair(api: APIRequestContext, seeded: Seeded): Promise<void
   try { await api.delete(API_URL + '/admin/drivers/' + seeded.driverId, { headers: { Authorization: 'Bearer ' + seeded.token } }); } catch { /* tolerate */ }
 }
 
+// Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/tên đăng nhập|username/i).fill(OPS_USER);
-  await page.getByLabel(/mật khẩu|password/i).fill(OPS_PASS);
-  await page.getByRole('button', { name: /đăng nhập|sign in|log in/i }).click();
-  await expect(page).toHaveURL(/\/dispatch|\/$/, { timeout: 10000 });
+  await loginAs(page);
 }
 
 test.describe.serial('dispatch board row navigation (T5)', () => {

@@ -1,6 +1,8 @@
 // apps/api/src/auth/auth.module.ts
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Redis } from 'ioredis';
+import { RedisChallengeStore, type ChallengeStorePort } from './redis-challenge-store.js';
 import { SignJWT, importPKCS8 } from 'jose';
 import bcrypt from 'bcryptjs';
 import {
@@ -12,6 +14,7 @@ import {
 import { eq } from 'drizzle-orm';
 import { JoseIdentityProvider } from './jose-identity-provider.js';
 import { JwtGuard } from './jwt.guard.js';
+import { StepUpGuard } from './step-up.guard.js';
 import { OperatorContextFactory } from './operator-context.factory.js';
 import { IDENTITY_PROVIDER } from './identity-provider.interface.js';
 import { AuthLoginService } from './auth-login.service.js';
@@ -22,15 +25,13 @@ import {
   PasskeyRegistrationService,
   type DriverLookupFn,
   type GenerateRegistrationOptionsFn,
-  type VerifyRegistrationResponseFn,
-  type ChallengeStore as RegChallengeStore,
+  type VerifyRegistrationResponseFn
 } from './passkey-registration.service.js';
 import {
   PasskeyAuthenticationService,
   type CredentialLookupFn,
   type GenerateAuthenticationOptionsFn,
-  type VerifyAuthenticationResponseFn,
-  type ChallengeStore as AuthChallengeStore,
+  type VerifyAuthenticationResponseFn
 } from './passkey-authentication.service.js';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
@@ -40,28 +41,20 @@ import { passkeyCredential } from '../database/schema/passkey-credential.js';
 
 const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 
-// In-memory challenge store. Production should use Redis with TTL.
-// Acceptable for MVP: challenges are short-lived (30-60s) and per-process state
-// is fine if the API runs as a single Railway replica (current deployment).
-class InMemoryChallengeStore implements RegChallengeStore, AuthChallengeStore {
-  private readonly m = new Map<string, { value: string; expiresAt: number }>();
-  put(key: string, value: string): Promise<void> {
-    this.m.set(key, { value, expiresAt: Date.now() + 60_000 });
-    return Promise.resolve();
-  }
-  take(key: string): Promise<string | null> {
-    const entry = this.m.get(key);
-    this.m.delete(key);
-    if (entry === undefined || entry.expiresAt < Date.now()) return Promise.resolve(null);
-    return Promise.resolve(entry.value);
-  }
-}
+// Redis-backed challenge store token. Replaces the former in-process Map (which
+// broke across replicas and lost challenges on restart). The provider builds a
+// lazy ioredis client from REDIS_URL — no connection at module-boot, so DI wiring
+// resolves without a live Redis; the connection opens on first put/take.
+export const CHALLENGE_STORE = Symbol('CHALLENGE_STORE');
+
+const CHALLENGE_TTL_SECONDS = 60;
 
 @Module({
   controllers: [AuthLoginController, PasskeyController],
   providers: [
     { provide: IDENTITY_PROVIDER, useClass: JoseIdentityProvider },
     JwtGuard,
+    StepUpGuard,
     OperatorContextFactory,
     {
       provide: SIGN_JWT_TOKEN,
@@ -106,16 +99,21 @@ class InMemoryChallengeStore implements RegChallengeStore, AuthChallengeStore {
       useFactory: (db: FleetDb): PasskeyCredentialRepository => new PasskeyCredentialRepository(db),
     },
     {
-      provide: InMemoryChallengeStore,
-      useFactory: (): InMemoryChallengeStore => new InMemoryChallengeStore(),
+      provide: CHALLENGE_STORE,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService): ChallengeStorePort => {
+        const url = config.getOrThrow<string>('REDIS_URL');
+        const redis = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: null });
+        return new RedisChallengeStore(redis, CHALLENGE_TTL_SECONDS);
+      },
     },
     {
       provide: PasskeyRegistrationService,
-      inject: [DRIZZLE_DB, PasskeyCredentialRepository, InMemoryChallengeStore, ConfigService],
+      inject: [DRIZZLE_DB, PasskeyCredentialRepository, CHALLENGE_STORE, ConfigService],
       useFactory: (
         db: FleetDb,
         repo: PasskeyCredentialRepository,
-        store: InMemoryChallengeStore,
+        store: ChallengeStorePort,
         config: ConfigService,
       ): PasskeyRegistrationService => {
         const rpId = config.get<string>('PASSKEY_RP_ID') ?? 'localhost';
@@ -157,11 +155,11 @@ class InMemoryChallengeStore implements RegChallengeStore, AuthChallengeStore {
     },
     {
       provide: PasskeyAuthenticationService,
-      inject: [DRIZZLE_DB, PasskeyCredentialRepository, InMemoryChallengeStore, ConfigService],
+      inject: [DRIZZLE_DB, PasskeyCredentialRepository, CHALLENGE_STORE, ConfigService],
       useFactory: (
         db: FleetDb,
         repo: PasskeyCredentialRepository,
-        store: InMemoryChallengeStore,
+        store: ChallengeStorePort,
         config: ConfigService,
       ): PasskeyAuthenticationService => {
         const rpId = config.get<string>('PASSKEY_RP_ID') ?? 'localhost';
@@ -206,7 +204,7 @@ class InMemoryChallengeStore implements RegChallengeStore, AuthChallengeStore {
       },
     },
   ],
-  exports: [IDENTITY_PROVIDER, JwtGuard, OperatorContextFactory],
+  exports: [IDENTITY_PROVIDER, JwtGuard, StepUpGuard, OperatorContextFactory],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class AuthModule {}

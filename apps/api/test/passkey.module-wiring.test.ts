@@ -10,6 +10,8 @@ import { DatabaseModule } from '../src/database/database.module.js';
 import { ConfigModule } from '@nestjs/config';
 import { validateEnv } from '../src/config/env.config.js';
 import { PasskeyController } from '../src/auth/passkey.controller.js';
+import { CHALLENGE_STORE } from '../src/auth/auth.module.js';
+import { RedisChallengeStore } from '../src/auth/redis-challenge-store.js';
 
 function makePems(): { privatePem: string; publicPem: string } {
   const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
@@ -45,7 +47,7 @@ describe('AuthModule wires PasskeyController', () => {
     }
   });
 
-  it('resolves PasskeyController via Nest DI', async () => {
+  it('resolves PasskeyController + a Redis-backed challenge store via Nest DI', async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({ isGlobal: true, validate: validateEnv, ignoreEnvFile: true }),
@@ -55,6 +57,11 @@ describe('AuthModule wires PasskeyController', () => {
     }).compile();
     const ctrl = moduleRef.get(PasskeyController);
     expect(ctrl).toBeInstanceOf(PasskeyController);
+    // Challenge store must be the Redis-backed, multi-replica-safe port (replaces
+    // InMemoryChallengeStore). Resolving the token proves wiring without connecting
+    // to Redis (ioredis is constructed lazily).
+    const store = moduleRef.get(CHALLENGE_STORE);
+    expect(store).toBeInstanceOf(RedisChallengeStore);
     await moduleRef.close();
   });
 });

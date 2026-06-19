@@ -16,8 +16,10 @@
 // spec is not responsible for. Self-scoping is the 2026 industry best
 // practice for parallel-safe E2E isolation tests.
 import { test, expect, type APIRequestContext } from '@playwright/test';
+import { z } from 'zod';
+import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, ReferenceListResponseSchema } from './helpers/contracts';
 import { execSync } from 'node:child_process';
-const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
+const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 function mintDispatcherToken(): string {
   const script =
     "fetch('http://mock-oauth2:8080/fleet/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:'grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret'})" +
@@ -26,18 +28,18 @@ function mintDispatcherToken(): string {
   if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
   return out.trim();
 }
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown): Promise<T> {
+async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
   if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
-  return (await res.json()) as T;
+  return parseJson(res, schema);
 }
 async function listLabels(api: APIRequestContext, token: string, path: string): Promise<readonly string[]> {
   const res = await api.get(API_URL + path, { headers: { Authorization: 'Bearer ' + token } });
   if (!res.ok()) throw new Error('GET ' + path + ' failed ' + String(res.status()));
-  const json = (await res.json()) as { items: readonly { label: string }[] };
+  const json = await parseJson(res, ReferenceListResponseSchema);
   return json.items.map((i) => i.label).sort();
 }
 test.describe('dispatch protection-chain helpers must not leak into reference data', () => {
@@ -47,16 +49,19 @@ test.describe('dispatch protection-chain helpers must not leak into reference da
     const phone = '09' + String(ts).slice(-8);
     const driverLabel = 'E2E DRIVER NOLEAK ' + String(ts);
     const vehicleLabel = 'E2E-NOLEAK-' + String(ts);
-    const drv = await adminPost<{ driverId: string; operatorId: string }>(
+    const drv = await adminPost(
       request, token, '/admin/drivers',
       { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
+      CreateDriverResponseSchema,
     );
-    const veh = await adminPost<{ id: string; label: string }>(
+    const veh = await adminPost(
       request, token, '/reference/vehicles', { name: vehicleLabel },
+      ReferenceItemSchema,
     );
-    const asgn = await adminPost<{ assignmentId: string }>(
+    const asgn = await adminPost(
       request, token, '/admin/driver-vehicle-assignments',
       { driverId: drv.driverId, vehicleId: veh.id },
+      AssignmentResponseSchema,
     );
     // Sanity: midway through, the new pair IS visible to the dispatcher.
     const vehiclesDuring = await listLabels(request, token, '/reference/vehicles');
