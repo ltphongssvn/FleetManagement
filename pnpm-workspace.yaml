@@ -91,6 +91,11 @@ overrides:
   # Transitive via @semantic-release/github + testcontainers; scoped to the
   # vulnerable 7.x range so undici 6.x (via @semantic-release/npm) is untouched.
   "undici@>=7.23.0 <7.28.0": ">=7.28.0"
+  # GHSA-vxpw-j846-p89q: undici <6.27.0 WebSocket DoS via fragment count
+  # bypass. Transitive via @semantic-release/* -> @actions/http-client (the
+  # 6.x path the 7.x pin above intentionally left alone). Dev-only (Release
+  # CI job). Scoped to the vulnerable 6.x range so other majors are untouched.
+  "undici@<6.27.0": ">=6.27.0"
 minimumReleaseAgeExclude:
   - tmp@0.2.6
   - '@grpc/grpc-js@1.14.4'
@@ -104,3 +109,4 @@ minimumReleaseAgeExclude:
   - '@opentelemetry/core@2.8.0'
   - multer@2.2.0
   - undici@7.28.0
+  - undici@6.27.0
