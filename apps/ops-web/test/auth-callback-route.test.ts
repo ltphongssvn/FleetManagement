@@ -122,4 +122,66 @@ describe('GET /api/auth/callback (Authorization Code + PKCE)', () => {
     expect(res.headers.get('location')).toContain('/login');
     expect(res.cookies.get('fleet_session')).toBeUndefined();
   });
+
+  // Behind a reverse proxy (Railway), req.url's host is the container's internal
+  // bind (0.0.0.0:3001). Building redirects from req.url would send the browser
+  // to https://0.0.0.0:3001/ (ERR_ADDRESS_INVALID). The handler must instead use
+  // the public origin. These guard that regression.
+  function makeReqInternalBind(
+    query: Record<string, string>,
+    cookies: Record<string, string>,
+    headers: Record<string, string> = {},
+  ): NextRequest {
+    // Simulate the request as the container sees it: internal-bind host.
+    const url = new URL('http://0.0.0.0:3001/api/auth/callback');
+    for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
+    const req = new NextRequest(url, { headers });
+    for (const [k, v] of Object.entries(cookies)) req.cookies.set(k, v);
+    return req;
+  }
+  function okTokenFetch(): ReturnType<typeof vi.fn> {
+    return vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ access_token: 'kc-jwt', expires_in: 300 }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+  }
+  it('redirects to the X-Forwarded-Host (not the internal bind) on success', async () => {
+    vi.stubGlobal('fetch', okTokenFetch());
+    const { GET } = await import('@/app/api/auth/callback/route');
+    const res = await GET(
+      makeReqInternalBind({ code: 'auth-code-1', state: 'state-1' }, transient(), {
+        'x-forwarded-host': 'xe.public.example',
+        'x-forwarded-proto': 'https',
+      }),
+    );
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toBe('https://xe.public.example/');
+    expect(res.headers.get('location')).not.toContain('0.0.0.0');
+  });
+  it('falls back to OIDC_REDIRECT_URI origin (never 0.0.0.0) when no forwarded host', async () => {
+    vi.stubGlobal('fetch', okTokenFetch());
+    const { GET } = await import('@/app/api/auth/callback/route');
+    const res = await GET(makeReqInternalBind({ code: 'auth-code-1', state: 'state-1' }, transient()));
+    expect(res.status).toBe(307);
+    // OIDC_REDIRECT_URI origin is https://ops.example.com -> redirect home there.
+    expect(res.headers.get('location')).toBe('https://ops.example.com/');
+    expect(res.headers.get('location')).not.toContain('0.0.0.0');
+  });
+  it('builds the /login error redirect against the public origin too', async () => {
+    const { GET } = await import('@/app/api/auth/callback/route');
+    const res = await GET(
+      makeReqInternalBind({ code: 'c', state: 'state-WRONG' }, transient('state-COOKIE'), {
+        'x-forwarded-host': 'xe.public.example',
+        'x-forwarded-proto': 'https',
+      }),
+    );
+    expect(res.status).toBe(307);
+    const location = res.headers.get('location');
+    expect(location).toContain('https://xe.public.example/login');
+    expect(location).not.toContain('0.0.0.0');
+  });
 });
