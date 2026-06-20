@@ -2,9 +2,10 @@
 // Client component: the dispatcher web sign-in. With the move to Authorization
 // Code + PKCE, ops-web no longer collects credentials - it hands authentication
 // to Keycloak (which brokers Google and enforces OTP/WebAuthn). This is a single
-// button that invokes the startLogin server action, which redirects the browser
-// to Keycloak's authorization endpoint. The only state it renders is a
-// server_error banner (e.g. OIDC misconfigured) returned by the action.
+// button (labelled in Vietnamese for the dispatcher: "Đăng nhập") that invokes
+// the startLogin server action, which redirects the browser to Keycloak's
+// authorization endpoint. The only state it renders is a server_error banner
+// (e.g. OIDC misconfigured) returned by the action.
 'use client';
 import { useActionState } from 'react';
 import type { JSX } from 'react';
@@ -31,9 +32,9 @@ export function LoginForm({ initialError }: LoginFormProps = {}): JSX.Element {
       action={formAction}
       className='flex w-full max-w-sm flex-col gap-4 rounded border border-slate-200 bg-white p-6 shadow'
     >
-      <h1 className='text-xl font-semibold'>Sign in</h1>
+      <h1 className='text-xl font-semibold'>Đăng nhập</h1>
       <p className='text-sm text-slate-600'>
-        You will be redirected to your organization&apos;s secure sign-in to continue.
+        Nhấn vào nút bên dưới để đăng nhập an toàn vào hệ thống.
       </p>
       {topError ? (
         <p role='alert' className='rounded bg-red-50 px-3 py-2 text-sm text-red-700'>
@@ -45,7 +46,7 @@ export function LoginForm({ initialError }: LoginFormProps = {}): JSX.Element {
         disabled={pending}
         className='rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50'
       >
-        {pending ? 'Redirecting…' : 'Continue with Keycloak'}
+        {pending ? 'Đang chuyển hướng…' : 'Đăng nhập'}
       </button>
     </form>
   );

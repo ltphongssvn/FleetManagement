@@ -1,5 +1,5 @@
 // apps/ops-web/test/login-form-branches.test.tsx
-// TDD: the revised LoginForm is a single 'Continue with Keycloak' button that
+// TDD: the revised LoginForm is a single Vietnamese 'Đăng nhập' button that
 // submits to the startLogin server action (Authorization Code + PKCE). There is
 // no username/password field. It still surfaces a server_error banner (e.g. OIDC
 // misconfigured) returned by the action.
@@ -19,14 +19,14 @@ const reactMock = (state: unknown, pending = false): void => {
   });
 };
 
-describe('LoginForm (Continue with Keycloak)', () => {
+describe('LoginForm (Đăng nhập / PKCE redirect)', () => {
   beforeEach(() => { vi.resetModules(); cleanup(); });
 
   it('renders a single sign-in button and no password field', async () => {
     reactMock(undefined);
     const { LoginForm } = await import('@/features/auth/LoginForm');
     const { container } = render(<LoginForm />);
-    expect(screen.getByRole('button', { name: /keycloak|sign in/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /đăng nhập|keycloak|sign in/i })).toBeDefined();
     expect(container.querySelector('input[type=password]')).toBeNull();
     expect(container.querySelector('input[name=username]')).toBeNull();
   });
