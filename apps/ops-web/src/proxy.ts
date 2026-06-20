@@ -22,5 +22,14 @@ export function proxy(req: NextRequest): NextResponse {
   return NextResponse.next();
 }
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/health).*)'],
+  // Exclude /api/auth/* from the matcher: the OAuth Authorization Code + PKCE
+  // callback (/api/auth/callback) MUST run its route handler while the user is
+  // still unauthenticated -- that handler is what exchanges the code and SETS
+  // fleet_session. If the proxy matched it, it would see no fleet_session yet and
+  // redirect to /login BEFORE the handler runs, so the token exchange never
+  // happens, no Set-Cookie is emitted, and login can never complete (the request
+  // bounces to a bare /login with the transient PKCE cookies still set). Auth
+  // endpoints are their own trust boundary and validate state/PKCE themselves.
+  // _next/static, _next/image, favicon.ico, and the health probe stay excluded.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/health|api/auth).*)'],
 };
