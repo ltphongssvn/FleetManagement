@@ -10,7 +10,7 @@ describe('LoginPage', () => {
   it('renders the Keycloak sign-in button and no credential inputs', async () => {
     const { default: LoginPage } = await import('@/app/login/page');
     const { container } = render(await LoginPage({ searchParams: Promise.resolve({}) }));
-    expect(screen.getByRole('button', { name: /keycloak|sign in/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /đăng nhập|keycloak|sign in/i })).toBeDefined();
     expect(container.querySelector('input[type=password]')).toBeNull();
     expect(container.querySelector('input[name=username]')).toBeNull();
   });
