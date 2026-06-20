@@ -76,18 +76,46 @@ export class OutboxRelayService implements OnModuleDestroy {
   }
 
   async drainOnce(): Promise<OutboxRelayResult> {
-    // Claim a batch atomically. SKIP LOCKED ensures concurrent drainOnce calls
-    // (or future multi-instance API deploys) never select the same row.
-    const claimResult = await this.db.execute<ClaimedRow>(sql`
-      SELECT outbox_id, queue_name, status, attempts, next_attempt_at, payload
-      FROM ${outbox}
-      WHERE (status = 'pending'
-             OR (status = 'failed' AND next_attempt_at IS NOT NULL AND next_attempt_at <= NOW()))
-      ORDER BY created_at ASC
-      LIMIT ${POLL_BATCH_SIZE}
-      FOR UPDATE SKIP LOCKED
-    `);
-    const rows: readonly ClaimedRow[] = claimResult.rows;
+    // Claim a batch INSIDE A TRANSACTION. FOR UPDATE SKIP LOCKED only serializes
+    // concurrent claimers while the row lock is HELD, and a row lock is held only
+    // for the life of the surrounding transaction. Running the SELECT via a bare
+    // db.execute() (autocommit) released the lock the instant the SELECT
+    // returned, so two overlapping drainOnce calls (or multi-instance deploys)
+    // both saw the same 'pending' row and double-enqueued. We therefore wrap the
+    // claim in db.transaction(): the SELECT ... FOR UPDATE SKIP LOCKED and the
+    // immediate flip of those rows to 'sent' happen atomically with the lock
+    // held, so no other claimer can grab them. We mark 'sent' optimistically at
+    // claim time (not after the broker confirms) on purpose: the outbox cannot
+    // atomically commit Postgres + Redis, and BullMQ jobId = outboxId already
+    // makes the enqueue idempotent on retry-after-crash. The publish then happens
+    // OUTSIDE the tx (the long-standing "never wrap BullMQ in a Postgres tx"
+    // invariant); if it fails, the catch below reschedules the row as
+    // 'failed'/'dead_letter'. (Trade-off per the outbox literature: at-least-once
+    // with rare duplicates is preferred over losing events; consumers are
+    // idempotent.) Dead-letter for invalid payload / unroutable rows still runs
+    // post-claim and overwrites the optimistic 'sent'.
+    const rows: readonly ClaimedRow[] = await this.db.transaction(async (tx) => {
+      const claimResult = await tx.execute<ClaimedRow>(sql`
+        SELECT outbox_id, queue_name, status, attempts, next_attempt_at, payload
+        FROM ${outbox}
+        WHERE (status = 'pending'
+               OR (status = 'failed' AND next_attempt_at IS NOT NULL AND next_attempt_at <= NOW()))
+        ORDER BY created_at ASC
+        LIMIT ${POLL_BATCH_SIZE}
+        FOR UPDATE SKIP LOCKED
+      `);
+      const claimed: readonly ClaimedRow[] = claimResult.rows;
+      if (claimed.length > 0) {
+        // Flip the claimed rows to 'sent' WHILE the lock is held, so a competing
+        // claimer cannot also select them once this tx commits.
+        await tx.execute(sql`
+          UPDATE ${outbox}
+          SET status = 'sent', attempts = attempts + 1
+          WHERE outbox_id IN (${sql.join(claimed.map((r) => sql`${r.outbox_id}`), sql`, `)})
+        `);
+      }
+      return claimed;
+    });
 
     let enqueued = 0;
     let deadLettered = 0;
@@ -135,10 +163,9 @@ export class OutboxRelayService implements OnModuleDestroy {
           removeOnComplete: { age: 3600 },
           removeOnFail: false,
         });
-        await this.db
-          .update(outbox)
-          .set({ status: 'sent', attempts: row.attempts + 1 })
-          .where(eq(outbox.outboxId, row.outbox_id));
+        // Row was already marked 'sent' (attempts incremented) atomically at
+        // claim time inside the transaction above, so no status update is needed
+        // here on the happy path -- we just count the successful enqueue.
         enqueued++;
       } catch (err: unknown) {
         const nextAttempts = row.attempts + 1;
