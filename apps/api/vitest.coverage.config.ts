@@ -34,6 +34,7 @@ const SERIAL_SPECS = [
   'test/manifest.commit-finalize.parallel.test.ts',
   'test/manifest.finalize.rejection-and-state-guard.test.ts',
   'test/manifest.find-or-create.race.test.ts',
+  'test/manifest.negotiate-stop-association.integration.test.ts',
   'test/manifest.service.concurrency.test.ts',
   'test/manifest.service.integration.test.ts',
   'test/migrations.integration.test.ts',
