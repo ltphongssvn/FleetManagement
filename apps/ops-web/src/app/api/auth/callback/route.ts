@@ -25,8 +25,32 @@ function clearTransient(res: NextResponse): NextResponse {
   }
   return res;
 }
+// Resolve the PUBLIC origin to build same-site redirect URLs against. Behind
+// Railway's edge proxy, req.url's host is the container's internal bind
+// (0.0.0.0:3001), so `new URL('/', req.url)` would redirect the browser to
+// https://0.0.0.0:3001/ (ERR_ADDRESS_INVALID) -- Railway runs the app as-is and
+// does not rewrite localhost/0.0.0.0 to the public domain. Prefer the forwarded
+// host/proto the proxy sets; otherwise fall back to the origin of
+// OIDC_REDIRECT_URI (already configured to the public callback URL, e.g.
+// https://xe.vominhchau.com/...); finally fall back to req.url for local/dev.
+function publicOrigin(req: NextRequest): string {
+  const forwardedHost = req.headers.get('x-forwarded-host');
+  if (forwardedHost !== null && forwardedHost.length > 0) {
+    const proto = req.headers.get('x-forwarded-proto') ?? 'https';
+    return `${proto}://${forwardedHost}`;
+  }
+  const redirectUri = process.env['OIDC_REDIRECT_URI'];
+  if (redirectUri !== undefined && redirectUri.length > 0) {
+    try {
+      return new URL(redirectUri).origin;
+    } catch {
+      // fall through to req.url
+    }
+  }
+  return new URL(req.url).origin;
+}
 function loginRedirect(req: NextRequest, reason: string): NextResponse {
-  const url = new URL('/login', req.url);
+  const url = new URL('/login', publicOrigin(req));
   url.searchParams.set('error', reason);
   return clearTransient(NextResponse.redirect(url));
 }
@@ -84,7 +108,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
   // Success: set fleet_session and clear the transient cookies, all on the
   // OUTGOING redirect response so the Set-Cookie headers reach the browser.
-  const res = NextResponse.redirect(new URL('/', req.url));
+  const res = NextResponse.redirect(new URL('/', publicOrigin(req)));
   res.cookies.set('fleet_session', parsed.data.access_token, {
     httpOnly: true,
     sameSite: 'lax',
