@@ -71,6 +71,13 @@ jobs:
         env:
           E2E_BASE_URL: http://localhost:3001
           E2E_API_URL: http://localhost:3000
+          # The login spec asserts that startLogin's server-action redirect points
+          # at the IdP authorize endpoint. It reads OIDC_AUTHORIZATION_ENDPOINT
+          # from its own process env; this MUST match what the Compose ops-web is
+          # configured to redirect to (compose.yaml ops-web env), i.e. the
+          # mock-oauth2 authorize URL. Without it the test would fall back to the
+          # playwright.config.ts placeholder and mismatch the real redirect.
+          OIDC_AUTHORIZATION_ENDPOINT: http://localhost:8080/fleet/authorize
         run: pnpm test:e2e
       - name: Dump container logs on failure
         if: failure()
