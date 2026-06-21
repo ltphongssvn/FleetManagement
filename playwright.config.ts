@@ -75,6 +75,16 @@ export default defineConfig({
         // Pass the OIDC config to the spawned ops-web so startLogin can build the
         // authorize request; env vars do NOT auto-propagate to the webServer
         // process, they must be passed explicitly (2026 Playwright guidance).
-        env: { ...OIDC_E2E_ENV },
+        //
+        // NODE_ENV=test (not production) for the spawned server: we run the
+        // production BUILD (next build && next start) for fidelity, but the e2e
+        // server is served over HTTP on localhost. startLogin marks the transient
+        // PKCE cookies `secure` when NODE_ENV==='production', and browsers
+        // (Chromium/WebKit) SILENTLY DROP Secure cookies on http://localhost --
+        // so the cookies the spec asserts on never get stored and the test fails
+        // only in CI. Running the server as NODE_ENV=test sets secure=false, so
+        // the cookies persist over HTTP. Production deploys still run with real
+        // NODE_ENV=production (Secure cookies) -- this override is e2e-only.
+        env: { ...OIDC_E2E_ENV, NODE_ENV: 'test' },
       },
 });
