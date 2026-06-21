@@ -21,40 +21,38 @@ test.describe('ops-web /login (Authorization Code + PKCE)', () => {
 
   test('submitting starts the PKCE flow: sets transient oidc cookies', async ({ page }) => {
     await page.goto('/login');
-    // Clicking the button invokes the startLogin server action, which (1) builds
-    // the Authorization Code + PKCE request, (2) persists the transient
-    // code_verifier/state/nonce as httpOnly cookies in its response, then
-    // (3) redirect()s the browser to the IdP authorize endpoint.
+    // Clicking the button invokes the startLogin server action, which builds the
+    // Authorization Code + PKCE request, persists the transient
+    // code_verifier/state/nonce as httpOnly cookies, then redirect()s to the IdP
+    // authorize endpoint.
     //
-    // DETERMINISM (2026 Playwright guidance -- avoid the #1 flaky-test
-    // anti-pattern of "click then immediately assert the click's async effect"):
-    // a server action is a POST to the SAME page URL carrying a `next-action`
-    // header; its response is what carries Set-Cookie and the redirect. The
-    // earlier version clicked and then POLLED the cookie jar, racing that POST
-    // and the subsequent cross-origin redirect (Next.js does not reliably
-    // auto-follow a server-action redirect() to an ABSOLUTE external URL --
-    // vercel/next.js #72842 -- so localhost timing flaked in CI, and the 2 CI
-    // retries masked it). The fix is to SYNCHRONIZE on the actual network events
-    // with waitForResponse/waitForRequest instead of polling:
-    //   - wait for the server-action POST to /login to RESOLVE (cookies are set
-    //     in that response, so after it resolves the jar is guaranteed populated)
-    //   - wait for the REQUEST to the IdP authorize endpoint to be issued (proves
-    //     startLogin reached its redirect()); we abort it so the browser never
-    //     leaves for Keycloak / the real Google+MFA pages, which cannot run in CI.
-    // The callback route's own behavior is covered separately (unit tests).
+    // ROOT CAUSE of the earlier CI flakiness, now fixed deterministically:
+    // `redirect()` INSIDE A SERVER ACTION does NOT make the browser navigate to
+    // the target as a separate top-level request. Per the Next.js docs, a
+    // server-action redirect() is returned as a 303 (See Other) ON THE
+    // SERVER-ACTION POST RESPONSE ITSELF (the Location is a response header), and
+    // for an ABSOLUTE EXTERNAL URL the Next client runtime does not reliably
+    // issue a browser navigation to it (vercel/next.js #73536/#72842). So there
+    // is NO interceptable browser request to the authorize endpoint:
+    // page.route()/waitForRequest on it can never fire, and polling the cookie
+    // jar after a click raced the POST. Both earlier approaches were therefore
+    // wrong about WHERE the signal is.
+    //
+    // The deterministic, in-our-control signal is the SERVER-ACTION POST RESPONSE
+    // (2026 guidance: for redirects/server actions, assert response status and
+    // headers). We waitForResponse on that POST (same-origin, identified by the
+    // `next-action` header), then assert: (a) it carries the authorize URL in its
+    // redirect Location header (proving startLogin reached redirect() with the
+    // right target), and (b) the three transient PKCE cookies are now in the jar
+    // (its Set-Cookie has applied once the response resolved). No cross-origin
+    // navigation, no external pages driven in CI. The callback route is covered
+    // by unit tests.
     const authorizeEndpoint = process.env['OIDC_AUTHORIZATION_ENDPOINT'];
     if (typeof authorizeEndpoint !== 'string' || authorizeEndpoint.length === 0) {
       throw new Error('OIDC_AUTHORIZATION_ENDPOINT must be set for the e2e webServer');
     }
-    // Abort the navigation to the external IdP authorize endpoint so the browser
-    // never leaves the app. Registering the route also lets us await the request
-    // deterministically below (instead of polling a mutable boolean).
-    await page.route(`${authorizeEndpoint}**`, async (route) => {
-      await route.abort();
-    });
-    // Arm the deterministic synchronizers BEFORE the click:
-    //  - the server-action POST back to the /login page (next-action submission)
-    //  - the request attempt to the IdP authorize endpoint (the redirect target)
+    // Arm the synchronizer BEFORE the click: the server-action POST back to the
+    // /login route (Next server-action submissions carry a `next-action` header).
     const actionResponsePromise = page.waitForResponse(
       (res) =>
         res.request().method() === 'POST' &&
@@ -62,17 +60,20 @@ test.describe('ops-web /login (Authorization Code + PKCE)', () => {
         res.request().headers()['next-action'] !== undefined,
       { timeout: 15000 },
     );
-    const authorizeRequestPromise = page.waitForRequest(`${authorizeEndpoint}**`, {
-      timeout: 15000,
-    });
     await page.getByRole('button', { name: /keycloak|sign in|đăng nhập/i }).click();
-    // The server action must complete; its response carries the Set-Cookie for
-    // the three transient PKCE secrets, so once it resolves they are in the jar.
-    await actionResponsePromise;
-    // startLogin must have attempted to redirect to the IdP authorize URL.
-    await authorizeRequestPromise;
-    // Now the transient PKCE secrets are deterministically present (no polling
-    // race): the action response that set them has already resolved.
+    const actionResponse = await actionResponsePromise;
+    // The server-action redirect() surfaces as a redirect on this POST response.
+    // Next encodes the target either in the standard `location` header or in its
+    // `x-action-redirect` header depending on version; accept either and require
+    // it to point at the configured authorize endpoint.
+    const headers = actionResponse.headers();
+    const redirectTarget = headers['location'] ?? headers['x-action-redirect'] ?? '';
+    expect(
+      redirectTarget.startsWith(authorizeEndpoint),
+      `startLogin must redirect to the IdP authorize endpoint (got: "${redirectTarget}")`,
+    ).toBe(true);
+    // The transient PKCE secrets are deterministically present now: the action
+    // response that set them (via Set-Cookie) has already resolved.
     const names = (await page.context().cookies()).map((c) => c.name);
     expect(names, 'startLogin must set the three transient PKCE cookies').toEqual(
       expect.arrayContaining(['oidc_code_verifier', 'oidc_state', 'oidc_nonce']),
