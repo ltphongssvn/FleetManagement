@@ -67,10 +67,15 @@ test.describe('ops-web /login (Authorization Code + PKCE)', () => {
     // `x-action-redirect` header depending on version; accept either and require
     // it to point at the configured authorize endpoint.
     const headers = actionResponse.headers();
-    const redirectTarget = headers['location'] ?? headers['x-action-redirect'] ?? '';
+    // Next.js server-action redirects encode the RedirectType as a trailing
+    // ";push"/";replace" on the header value (e.g. "<url>;push"); strip it before
+    // comparing. The header is `location` or, depending on Next version,
+    // `x-action-redirect`.
+    const rawRedirect = headers['location'] ?? headers['x-action-redirect'] ?? '';
+    const redirectTarget = rawRedirect.replace(/;(push|replace)$/, '');
     expect(
       redirectTarget.startsWith(authorizeEndpoint),
-      `startLogin must redirect to the IdP authorize endpoint (got: "${redirectTarget}")`,
+      `startLogin must redirect to the IdP authorize endpoint (expected prefix: "${authorizeEndpoint}", got: "${rawRedirect}")`,
     ).toBe(true);
     // The transient PKCE secrets are deterministically present now: the action
     // response that set them (via Set-Cookie) has already resolved.
