@@ -1,165 +1,192 @@
 <!-- docs/runbooks/keycloak-step-up-pkce.md -->
 
-# Keycloak Realm Runbook — Authorization Code + PKCE & Step-Up (corrected-A2, layer C)
+# Keycloak Realm Runbook — Passwordless Dispatcher Login (Google + WebAuthn passkey, aal3)
 
-Operational counterpart to the corrected-A2 application code. The API enforces
-RFC 9470 step-up assurance on `POST /commands`, and ops-web uses the OAuth 2.0
-Authorization Code flow with PKCE (RFC 7636) instead of the password grant. This
-runbook configures the Keycloak realm so the **deployed** environment actually
-serves the PKCE grant ops-web expects and emits the `acr`/`amr` claims the API
-checks.
+Operational counterpart to the ops-web passwordless enforcement. After clicking
+**"Đăng nhập"**, the dispatcher is redirected to Keycloak, which shows **only a
+"Sign in with Google" button — no username/password form**. Authentication is:
+Google identity (brokered) **plus** a phishing-resistant **WebAuthn passkey** on
+the dispatcher's phone. Removing the password factor eliminates credential theft.
 
-Without this configuration: ops-web login fails (no public PKCE client), and
-dispatcher commands return `401` with a `WWW-Authenticate: Bearer
-error="insufficient_user_authentication"` challenge (the access token carries no
-sufficient `acr`). This is IdP administration — there is no repo code or test for
-it; it is the third leg of corrected-A2.
+This runbook configures the Keycloak realm so the **deployed** environment issues
+exactly the token ops-web requires. There is no repo code or test for this step —
+it is IdP administration — but it is **gated by code**: see the binding contract.
 
-## Scope
+## What the deployed code enforces (the contract — do not drift from this)
 
-In scope: realm ACR→LoA mapping, a public Authorization Code + PKCE client for
-ops-web, an authentication flow that forces a second factor for the dispatcher
-role, OTP/WebAuthn required actions, `amr` alignment, and Google identity
-brokering.
+`apps/ops-web/src/app/api/auth/callback/route.ts` decodes the access token via the
+schema-first contract `apps/ops-web/src/features/auth/oidc-token-claims.schema.ts`
+and, in `DISPATCHER_PASSWORDLESS_POLICY`, **refuses any token that does not prove
+BOTH**:
 
-Out of scope: application code (shipped separately), Keycloak installation/HA,
-TLS termination, and database setup.
+| Token claim | Required value | Why |
+|---|---|---|
+| `idp` | exactly `google` | identity was brokered through Google; no local password login is accepted |
+| `acr` | `aal3` | a WebAuthn **passkey** was used; TOTP (`aal2`) is **rejected** for this role |
+| `exp` | present (positive int) | no undated token is accepted |
+| `aud` | (optional) carries the API audience `fleet-pilot` | API-side audience check |
+
+`acr` is normalized: Keycloak may emit the numeric LoA (`"3"`) or the symbol
+(`"aal3"`); both map to `aal3`. The LoA ladder is `aal1 < aal2 < aal3`.
+
+A token that fails decoding or policy NEVER becomes a session. The callback
+redirects to one of these (each is a literal the code emits):
+
+| `/login?error=` | Cause |
+|---|---|
+| `invalid_state` | state cookie ≠ returned state (CSRF) |
+| `missing_verifier` | PKCE `code_verifier` cookie absent |
+| `oidc_not_configured` | a required `OIDC_*` env var unset |
+| `token_exchange_failed` | token endpoint returned non-2xx |
+| `invalid_token_response` | token JSON missing `access_token` |
+| `invalid_token_claims` | `access_token` is not a decodable JWT |
+| `insufficient_acr` | token `acr` below `aal3` (e.g. a TOTP/`aal2` login) |
+| `idp_not_brokered` | token `idp` ≠ `google` (e.g. a local password login) |
+
+**Consequence:** the realm MUST be configured per this runbook and verified to emit
+`idp=google` + `acr=aal3` **before** the enforcement build is deployed, or every
+dispatcher login breaks. To require a different posture (e.g. allow TOTP/`aal2`),
+change the policy constant + its tests in code — the realm is not the source of
+truth for the bar.
 
 ## Prerequisites
 
-- Keycloak 24+ (tested guidance applies through 26.x). Admin access to the target
-  realm (referred to below as `<realm>`, e.g. `fleet`).
-- The ops-web public hostname (`<ops-web-host>`) and the Keycloak hostname
-  (`<kc-host>`), both HTTPS in non-local environments.
-- A Google OAuth client (Client ID + secret) for identity brokering.
+- Keycloak 26.3+ (the **Enable Passkeys** switch and automatic passkey browser
+  sub-flow land in 26.3; tested through 26.6.x). Admin access to realm `fleet`.
+- ops-web public host `<ops-web-host>` (prod: `xe.vominhchau.com`) and Keycloak
+  host `<kc-host>` (prod: `keycloak-production-7959.up.railway.app`), both HTTPS.
+- A **Google Cloud OAuth 2.0 Client** (Client ID + secret) whose authorized
+  redirect URI is `https://<kc-host>/realms/fleet/broker/google/endpoint`.
+- The dispatcher uses a device with native passkey support (iOS 16+/Android 9+).
 
 ## Binding contract (application env ⇄ realm objects)
 
-These values are a contract: the realm objects must match what the apps are
-configured with. Defaults below are the schema defaults in
-`apps/api/src/config/env.config.ts` and `apps/ops-web/src/env.ts`.
+| Env var (ops-web) | Value | Realm object it must match |
+|---|---|---|
+| `OIDC_AUTHORIZATION_ENDPOINT` | `https://<kc-host>/realms/fleet/protocol/openid-connect/auth` | realm authorize endpoint |
+| `OIDC_TOKEN_ENDPOINT` | `https://<kc-host>/realms/fleet/protocol/openid-connect/token` | realm token endpoint |
+| `OIDC_CLIENT_ID` | `ops-web` | Client → Client ID (public) |
+| `OIDC_REDIRECT_URI` | `https://<ops-web-host>/api/auth/callback` | Client → Valid redirect URIs (exact) |
+| `OIDC_DISPATCH_ACR_VALUES` | **`aal3`** | an ACR string in the realm ACR→LoA map; drives the passkey step-up |
 
-| Env var | App | Default | Realm object it must match |
-|---|---|---|---|
-| `OIDC_AUTHORIZATION_ENDPOINT` | ops-web | (required) | `https://<kc-host>/realms/<realm>/protocol/openid-connect/auth` |
-| `OIDC_TOKEN_ENDPOINT` | ops-web | (required) | `https://<kc-host>/realms/<realm>/protocol/openid-connect/token` |
-| `OIDC_CLIENT_ID` | ops-web | (required) | Client → Client ID (public) |
-| `OIDC_REDIRECT_URI` | ops-web | (required) | Client → Valid redirect URIs (exact match) |
-| `OIDC_DISPATCH_ACR_VALUES` | ops-web | (unset) | An ACR string present in the realm ACR→LoA map — set to `aal2` |
-| `STEP_UP_ACR_LADDER` | api | `aal1,aal2,aal3` | The ordered set of ACR strings you map in ACR→LoA |
-| `STEP_UP_DISPATCH_REQUIRED_ACR` | api | `aal2` | The ACR the dispatcher login must reach |
-| `STEP_UP_DISPATCH_REQUIRE_PHISHING_RESISTANT` | api | (boolean) | Whether a phishing-resistant `amr` is also required |
-| `STEP_UP_PHISHING_RESISTANT_AMR` | api | `hwk` | The `amr` value your WebAuthn authenticator actually emits (verify — see Step 6) |
+(The API independently re-checks `acr`/audience on its own endpoints; that is
+covered by the API's own configuration and is out of scope here.)
 
 ## Step 1 — Realm ACR→LoA mapping
 
-Realm settings → General (or "Tokens"/"Advanced" depending on version) → **ACR to
-LoA Mapping**. Map each ACR string to a numeric Level of Authentication. The ACR
-strings are arbitrary labels; align them to the API's `STEP_UP_ACR_LADDER`:
+Realm settings → General → **ACR to LoA Mapping**:
 
-| ACR | LoA (numeric) |
+| ACR | LoA |
 |---|---|
 | `aal1` | 1 |
 | `aal2` | 2 |
 | `aal3` | 3 |
 
-Best practice is to keep this mapping at the **realm** level (not per-client). The
-`acr` claim is added to tokens by the `acr` client scope, which is a realm-default
-scope — confirm it is assigned to the ops-web client (Step 2) so the access token
-carries `acr`.
+Keep this at the **realm** level. The `acr` claim is added by the realm-default
+`acr` client scope — confirm it is assigned to the `ops-web` client so the access
+token carries `acr`.
 
 ## Step 2 — ops-web client (Authorization Code + PKCE, public)
 
-Clients → Create client:
+Clients → `ops-web`:
 
-- Client type: **OpenID Connect**; Client ID: the value of `OIDC_CLIENT_ID`.
-- **Client authentication: Off** (public client — no secret; PKCE replaces it).
-- Authentication flow: **Standard flow** enabled; disable Direct access grants
-  (this is what removes the legacy ROPC password grant).
-- Valid redirect URIs: exactly `https://<ops-web-host>/api/auth/callback`
-  (must equal `OIDC_REDIRECT_URI`; no wildcard in production).
-- Advanced → **Proof Key for Code Exchange Code Challenge Method: S256**
-  (required — ops-web sends `code_challenge_method=S256`).
-- Advanced → Default ACR Values: optionally set `aal2` as a fallback so even a
-  request without `acr_values` reaches LoA 2. ops-web already sends
-  `acr_values=aal2` when `OIDC_DISPATCH_ACR_VALUES` is set, so this is a
-  belt-and-suspenders default.
+- Client type **OpenID Connect**; Client ID `ops-web`.
+- **Client authentication: Off** (public; PKCE replaces the secret).
+- **Standard flow: On**; **Direct access grants: Off** (no ROPC password path).
+- Valid redirect URIs: exactly `https://<ops-web-host>/api/auth/callback`.
+- Web origins: `https://<ops-web-host>`.
+- Advanced → Default ACR Values: `aal3` (belt-and-suspenders; ops-web already
+  sends `acr_values=aal3`).
+- Confirm assigned client scopes include `acr`, `fleet`, and the dedicated scope
+  used in Steps 3 and 6.
 
-## Step 3 — Authentication flow: force a second factor for the dispatcher role
+## Step 3 — Google-only sign-in (no username/password form)
 
-Duplicate the built-in **Browser** flow (e.g. `browser-fleet`) and bind it to the
-realm (or override on the ops-web client). Within the `forms` sub-flow, after
-Username/Password add **two** conditional sub-flows:
+Goal: the Keycloak screen offers **only "Sign in with Google"**.
 
-1. **Condition - Level of Authentication** (request-driven step-up): configure
-   `loa-condition-level = 2`, `loa-max-age` to your session policy. This makes a
-   request carrying `acr_values=aal2` require the second factor. Username/Password
-   alone = LoA 1; +OTP/WebAuthn = LoA 2.
+1. Identity Providers → Add provider → **Google**. Enter the Google Cloud Client
+   ID + secret. The broker **alias must be exactly `google`** (the value ops-web
+   requires in the `idp` claim). Register Keycloak's redirect URI
+   `https://<kc-host>/realms/fleet/broker/google/endpoint` in Google Cloud.
+2. Authentication → duplicate the **Browser** flow as `browser-passwordless`.
+   Remove the Username-Password-Forms sub-flow and add an **Identity Provider
+   Redirector** execution with **Default Identity Provider = `google`**. This
+   sends the user straight to Google instead of rendering any credential form.
+3. Bind `browser-passwordless` as the realm Browser flow (Authentication → Flows →
+   Action → Bind flow → Browser), or override it on the `ops-web` client.
+4. Remove any local password credential from the dispatcher user so no password
+   path can exist.
 
-2. **Condition - User Role = dispatcher** (role-driven mandatory MFA): inside this
-   conditional sub-flow, set OTP Form / WebAuthn Authenticator to **Required**. A
-   dispatcher is forced through MFA even if `acr_values` were stripped from the
-   URL — a defense-in-depth complement to (1) and to the API's server-side check.
+## Step 4 — WebAuthn passkey → acr=aal3
 
-Note: because the browser may rewrite `acr_values`, do not rely on it alone.
-Consider enabling **PAR** (Pushed Authorization Requests) on the client, and rely
-on the API re-checking `acr` in the token (already implemented).
+1. Authentication → Policies → **WebAuthn Passwordless Policy**:
+   - **Enable Passkeys: ON** (26.3+ auto-wires the passkey sub-flow; no manual flow
+     surgery needed).
+   - Relying Party ID: `<kc-host>` registrable domain.
+   - **Require Discoverable Credentials: Yes**; User Verification: **required**
+     (makes it usernameless and presence-verified — aal3-grade).
+2. Authentication → Required Actions → enable **Webauthn Register Passwordless**
+   (Default Action ON so the dispatcher enrols their phone passkey on first login).
+3. Stamp the passkey login as LoA 3: in the post-broker step-up sub-flow, gate the
+   WebAuthn Passwordless authenticator behind **Condition - Level of
+   Authentication** with `loa-condition-level = 3`. A completed passkey login is
+   then issued `acr=aal3` via the Step 1 map. Net dispatcher proof: Google identity
+   (Step 3) **+** passkey presence (this step).
 
-## Step 4 — Required actions: OTP and WebAuthn registration
+## Step 5 — (No TOTP.) Confirm aal2/TOTP cannot satisfy the gate
 
-Authentication → Required Actions:
+Do **not** add an OTP Form to the passwordless flow. The policy floor is `aal3`;
+a TOTP login reaches only `aal2` and the callback rejects it with
+`insufficient_acr`. This is intentional — a passkey is phishing-resistant, TOTP is
+not. (Changing this requires editing `DISPATCHER_PASSWORDLESS_POLICY` and its tests
+in code, not the realm.)
 
-- Enable **Configure OTP**.
-- Toggle **Webauthn Register** ON (and **Webauthn Register Passwordless** if you
-  want phishing-resistant passwordless). Set Default Action ON only if every new
-  user must enroll immediately.
+## Step 6 — Emit the `idp` claim (the piece that makes enforcement work)
 
-Realm WebAuthn policy (Authentication → Policies → WebAuthn): set the Relying
-Party ID to `<kc-host>` (or your registrable domain), and prefer
-`requireResidentKey`/user verification settings appropriate to your assurance bar.
+`idp` is **NOT** a default token claim. After a brokered login Keycloak stores the
+broker alias as the **`identity_provider` user session note**; you must propagate
+it into the access token:
 
-## Step 5 — Google identity brokering
+Clients → `ops-web` → Client scopes → `ops-web-dedicated` → **Add mapper → By
+configuration → User Session Note**:
 
-Identity Providers → Add provider → **Google**. Enter the Google Client ID and
-secret; the Redirect URI shown by Keycloak must be registered in the Google
-console. The realm authentication flow (Step 3) still applies after brokering, so
-a dispatcher who signs in via Google is still required to complete the second
-factor to reach `aal2`.
+- Name: `idp`
+- User Session Note: `identity_provider`
+- Token Claim Name: `idp`
+- Claim JSON Type: String
+- **Add to access token: ON**
 
-## Step 6 — Align `amr` with `STEP_UP_PHISHING_RESISTANT_AMR` (most error-prone step)
+Without this mapper the access token has no `idp` claim and ops-web rejects every
+login with `idp_not_brokered`. The broker alias from Step 3 must be exactly
+`google` so the claim value matches.
 
-If `STEP_UP_DISPATCH_REQUIRE_PHISHING_RESISTANT=true`, the API additionally
-requires the token's `amr` to contain a value from `STEP_UP_PHISHING_RESISTANT_AMR`
-(default `hwk`). **The exact `amr` string a WebAuthn authenticator emits is
-deployment-dependent** — commonly `hwk`, but some Keycloak versions/configs emit
-`user`. Do not assume:
+(Existing mappers from earlier setup remain: `operator_id` and `company_id` User
+Attribute mappers, and the `fleet-pilot` Audience mapper. Keep them.)
 
-1. Complete a real dispatcher login with WebAuthn against the configured realm.
-2. Decode the access token and inspect the `amr` array.
-3. Set `STEP_UP_PHISHING_RESISTANT_AMR` to the value you actually observe (e.g.
-   change the default `hwk` to `user` if that is what Keycloak emits). This is why
-   the API keeps it config-driven rather than hard-coded.
+## Step 7 — Verify BEFORE deploying the enforcement build
 
-Per-authenticator `amr` is configured on the authenticator's settings (e.g.
-Password Form → `pwd`, OTP Form → `otp`, WebAuthn → `hwk`/`user`).
-
-## Verification checklist
-
-- Decode an access token from a dispatcher login: `acr` equals `aal2` and, if
-  phishing-resistance is required, `amr` contains the configured value.
-- `POST /commands` with that token succeeds.
-- `POST /commands` with an `aal1`-only token returns `401` and a
-  `WWW-Authenticate: Bearer error="insufficient_user_authentication",
-  acr_values="aal2"` header.
-- ops-web "Continue with Keycloak" round-trips to a logged-in session; tampering
-  with the `state` cookie or query yields a `/login?error=invalid_state` banner.
+1. Clients → `ops-web` → Client scopes → **Evaluate**: pick the dispatcher user,
+   generate the access token, and confirm the payload contains **`idp": "google"`**
+   and **`acr": "aal3"`** (or `"3"`), plus `aud` containing `fleet-pilot`.
+2. Only after both claims verify, deploy the enforcement build, then run the live
+   login: **"Đăng nhập" → Google → passkey →** lands on the dispatch board
+   ("Bảng điều phối"); DevTools shows `fleet_session` set and the `oidc_*`
+   transient cookies cleared.
+3. Negative checks (any path that still issues a weaker token):
+   - a non-passkey login ⇒ `/login?error=insufficient_acr`, no session;
+   - a non-Google login ⇒ `/login?error=idp_not_brokered`, no session.
 
 ## References
 
-- Code: `apps/api/src/auth/step-up-policy.ts`, `apps/api/src/auth/step-up.guard.ts`,
-  `apps/ops-web/src/features/auth/login.action.ts`,
-  `apps/ops-web/src/app/api/auth/callback/route.ts`.
-- RFC 9470 (Step-Up Authentication Challenge), RFC 9068 (JWT access tokens / `acr`),
-  RFC 7636 (PKCE), RFC 9700 (OAuth 2.0 Security BCP).
-- Keycloak Server Administration Guide — ACR to LoA Mapping; Configuring
-  Authentication (Conditional LoA, WebAuthn).
+- Code (source of truth): `apps/ops-web/src/features/auth/oidc-token-claims.schema.ts`
+  (the contract + `DISPATCHER_PASSWORDLESS_POLICY`),
+  `apps/ops-web/src/app/api/auth/callback/route.ts` (enforcement),
+  `apps/ops-web/src/features/auth/login.action.ts` (requests `acr_values=aal3`).
+- Keycloak Server Administration Guide (26.6) — Passkeys; W3C Web Authentication
+  (WebAuthn) → Passwordless; Integrating identity providers → Mapping claims and
+  assertions (User Session Note `identity_provider`); Controlling login options →
+  ACR to LoA Mapping; Authentication flows → Identity Provider Redirector + step-up.
+- Keycloak 26.3 release notes — "Enable Passkeys" switch (WebAuthn Passwordless
+  Policy).
+- RFC 9068 (JWT access tokens / `acr`), RFC 7636 (PKCE), RFC 9700 (OAuth 2.0
+  Security BCP), RFC 9470 (Step-Up Authentication Challenge).

@@ -16,6 +16,11 @@
 // the NextResponse we return, so the Set-Cookie headers ride along on the redirect.
 import { NextResponse, type NextRequest } from 'next/server';
 import { TokenResponseSchema } from '@/features/auth/oidc-authorization.schema';
+import {
+  decodeAccessTokenClaims,
+  evaluatePasswordlessLogin,
+  DISPATCHER_PASSWORDLESS_POLICY,
+} from '@/features/auth/oidc-token-claims.schema';
 const TRANSIENT_COOKIES = ['oidc_code_verifier', 'oidc_state', 'oidc_nonce'] as const;
 // Clear the single-use PKCE cookies on the OUTGOING response (not the ambient
 // store) so the deletions are actually sent to the browser.
@@ -105,6 +110,24 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const parsed = TokenResponseSchema.safeParse(json);
   if (!parsed.success) {
     return loginRedirect(req, 'invalid_token_response');
+  }
+  // STRICT STEP-UP GATE: a successful code->token exchange is necessary but NOT
+  // sufficient. The passwordless guarantee (no password factor exists) is only
+  // real if we refuse any token that does not prove (a) the identity was brokered
+  // through Google and (b) a phishing-resistant WebAuthn passkey was used (aal3).
+  // Decode the access-token claims (signature verification is the API's job via
+  // JWKS; we only read acr/idp here) and evaluate the dispatcher policy. A token
+  // that is not a decodable JWT, or that fails the policy, never becomes a
+  // session -- we redirect to /login with a precise reason and set no cookie.
+  let claims;
+  try {
+    claims = decodeAccessTokenClaims(parsed.data.access_token);
+  } catch {
+    return loginRedirect(req, 'invalid_token_claims');
+  }
+  const gate = evaluatePasswordlessLogin(claims, DISPATCHER_PASSWORDLESS_POLICY);
+  if (!gate.ok) {
+    return loginRedirect(req, gate.reason);
   }
   // Success: set fleet_session and clear the transient cookies, all on the
   // OUTGOING redirect response so the Set-Cookie headers reach the browser.
