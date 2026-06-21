@@ -4,43 +4,17 @@
 // PILOT_DATA fallback exists ONLY when NODE_ENV !== 'production'. In production
 // we surface the failure (Next.js error.tsx boundary) rather than silently
 // rendering stale fake data.
+//
+// The response is parsed against the SINGLE SOURCE OF TRUTH canonical contract
+// DispatchBoardResponseSchema from @fleet/sync-protocol (the tolerant client
+// view: unknown keys — e.g. the API's per-stop stopId — are dropped, and
+// EXPAND-only nullable/default fields are applied). There is NO loader-local
+// board schema; the API and ops-web parse/produce the same contract.
 import 'server-only';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { z } from 'zod';
-import { ROAD_RUN_STATES, type RoadRunState } from '@fleet/domain';
-import { StopProofSchema } from '@fleet/sync-protocol';
+import { DispatchBoardResponseSchema } from '@fleet/sync-protocol';
 import type { DispatchBoardRoadRun } from './types.js';
-const BoardStopSchema = z.object({
-  sequence: z.number().int(),
-  stopType: z.string(),
-  warehouseName: z.union([z.string(), z.null()]),
-  arrivedAt: z.union([z.string(), z.null()]),
-  departedAt: z.union([z.string(), z.null()]),
-  // Per-stop proof photo (Phiếu Cân) — single-source-of-truth StopProofSchema
-  // from @fleet/sync-protocol. Nullable + defaulted so an older API that does
-  // not yet return it still parses (EXPAND-only).
-  proof: z.union([StopProofSchema, z.null()]).default(null),
-});
-const BoardRowSchema = z.object({
-  roadRunId: z.string().uuid(),
-  state: z.enum(ROAD_RUN_STATES as unknown as [RoadRunState, ...RoadRunState[]]),
-  assignedOperatorId: z.union([z.string().uuid(), z.null()]),
-  assignedAssetId: z.union([z.string().uuid(), z.null()]),
-  // Server-resolved driver/vehicle labels (2026). Nullable + defaulted so an
-  // older API that does not yet return them still parses (EXPAND-only).
-  driverName: z.union([z.string(), z.null()]).default(null),
-  vehiclePlate: z.union([z.string(), z.null()]).default(null),
-  plannedStartAt: z.union([z.string(), z.null()]),
-  stopCount: z.number().int().nonnegative(),
-  transportOrderRefs: z.array(z.string()).readonly(),
-  customerName: z.union([z.string(), z.null()]).default(null),
-  customerPhone: z.union([z.string(), z.null()]).default(null),
-  stops: z.array(BoardStopSchema).readonly().default([]),
-});
-const BoardResponseSchema = z.object({
-  rows: z.array(BoardRowSchema).readonly(),
-});
 const PILOT_DATA = Object.freeze([
   Object.freeze({
     roadRunId: '11111111-1111-4111-8111-111111111111',
@@ -114,7 +88,7 @@ export async function loadDispatchBoard(): Promise<readonly DispatchBoardRoadRun
     return PILOT_DATA;
   }
   const json = (await res.json()) as unknown;
-  const parsed = BoardResponseSchema.safeParse(json);
+  const parsed = DispatchBoardResponseSchema.safeParse(json);
   if (!parsed.success) {
     if (isProduction()) {
       throw new Error('Dispatch board response shape invalid: ' + parsed.error.message);
