@@ -34,6 +34,19 @@ function transient(state = 'state-1', verifier = 'verifier-1'): Record<string, s
   return { oidc_state: state, oidc_code_verifier: verifier, oidc_nonce: 'nonce-1' };
 }
 
+// Mint a realistic JWT access token carrying the claims the callback now
+// ENFORCES (acr + idp). Signature is irrelevant (ops-web decodes, does not
+// verify; JWKS verification is the API's job). A valid dispatcher token is
+// brokered via Google and reached aal3 (WebAuthn passkey).
+function makeAccessJwt(claims: Record<string, unknown>): string {
+  const b64 = (o: unknown): string => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const header = b64({ alg: 'RS256', typ: 'JWT' });
+  const body = b64({ exp: 9999999999, aud: 'fleet-pilot', ...claims });
+  return `${header}.${body}.sig`;
+}
+// The canonical "good" token: Google-brokered, aal3 passkey.
+const VALID_JWT = makeAccessJwt({ acr: 'aal3', idp: 'google' });
+
 // A deleted cookie is emitted as a Set-Cookie with an empty value + Max-Age=0; in
 // the NextResponse cookie jar it reads back as value ''. Treat present-with-''
 // as "cleared".
@@ -51,7 +64,7 @@ describe('GET /api/auth/callback (Authorization Code + PKCE)', () => {
   it('exchanges the code (with code_verifier) and sets fleet_session, then redirects home', async () => {
     const fetchMock = vi.fn(() =>
       Promise.resolve(
-        new Response(JSON.stringify({ access_token: 'kc-jwt', expires_in: 300 }), {
+        new Response(JSON.stringify({ access_token: VALID_JWT, expires_in: 300 }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         }),
@@ -75,7 +88,7 @@ describe('GET /api/auth/callback (Authorization Code + PKCE)', () => {
 
     // session set ON THE RESPONSE, transient PKCE cookies cleared ON THE RESPONSE
     const session = res.cookies.get('fleet_session');
-    expect(session?.value).toBe('kc-jwt');
+    expect(session?.value).toBe(VALID_JWT);
     expect(session?.httpOnly).toBe(true);
     expect(session?.sameSite).toBe('lax');
     expect(session?.path).toBe('/');
@@ -142,7 +155,7 @@ describe('GET /api/auth/callback (Authorization Code + PKCE)', () => {
   function okTokenFetch(): ReturnType<typeof vi.fn> {
     return vi.fn(() =>
       Promise.resolve(
-        new Response(JSON.stringify({ access_token: 'kc-jwt', expires_in: 300 }), {
+        new Response(JSON.stringify({ access_token: VALID_JWT, expires_in: 300 }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         }),
@@ -183,5 +196,53 @@ describe('GET /api/auth/callback (Authorization Code + PKCE)', () => {
     const location = res.headers.get('location');
     expect(location).toContain('https://xe.public.example/login');
     expect(location).not.toContain('0.0.0.0');
+  });
+
+  // STRICT STEP-UP ENFORCEMENT: even after a successful code->token exchange, the
+  // callback must REFUSE a token that does not prove the passwordless guarantee
+  // (Google-brokered + aal3 passkey). fleet_session must NOT be set on refusal.
+  function tokenFetchReturning(accessToken: string): ReturnType<typeof vi.fn> {
+    return vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ access_token: accessToken, expires_in: 300 }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+  }
+  it('REJECTS a token below aal3 (TOTP/aal2) -> /login?error=insufficient_acr, no session', async () => {
+    vi.stubGlobal('fetch', tokenFetchReturning(makeAccessJwt({ acr: 'aal2', idp: 'google' })));
+    const { GET } = await import('@/app/api/auth/callback/route');
+    const res = await GET(makeReq({ code: 'auth-code-1', state: 'state-1' }, transient()));
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toContain('/login');
+    expect(res.headers.get('location')).toContain('error=insufficient_acr');
+    expect(res.cookies.get('fleet_session')).toBeUndefined();
+  });
+  it('REJECTS a non-Google-brokered token -> /login?error=idp_not_brokered, no session', async () => {
+    vi.stubGlobal('fetch', tokenFetchReturning(makeAccessJwt({ acr: 'aal3' })));
+    const { GET } = await import('@/app/api/auth/callback/route');
+    const res = await GET(makeReq({ code: 'auth-code-1', state: 'state-1' }, transient()));
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toContain('/login');
+    expect(res.headers.get('location')).toContain('error=idp_not_brokered');
+    expect(res.cookies.get('fleet_session')).toBeUndefined();
+  });
+  it('REJECTS an access token that is not a decodable JWT -> /login, no session', async () => {
+    vi.stubGlobal('fetch', tokenFetchReturning('opaque-not-a-jwt'));
+    const { GET } = await import('@/app/api/auth/callback/route');
+    const res = await GET(makeReq({ code: 'auth-code-1', state: 'state-1' }, transient()));
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toContain('/login');
+    expect(res.cookies.get('fleet_session')).toBeUndefined();
+  });
+  it('ACCEPTS a Google-brokered aal3 passkey token -> sets fleet_session', async () => {
+    vi.stubGlobal('fetch', tokenFetchReturning(makeAccessJwt({ acr: 'aal3', idp: 'google' })));
+    const { GET } = await import('@/app/api/auth/callback/route');
+    const res = await GET(makeReq({ code: 'auth-code-1', state: 'state-1' }, transient()));
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toMatch(/\/$|ops\.example\.com\/$/);
+    expect(res.cookies.get('fleet_session')?.value).toBeDefined();
   });
 });
