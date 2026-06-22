@@ -3,16 +3,23 @@
 // Per-stop enrichment (warehouse name, arrival/departure, customer) is joined at
 // read time, scoped by company_id (summary projection + read-time-join pattern).
 //
+// Response shape is the SINGLE SOURCE OF TRUTH @fleet/sync-protocol contract: the
+// row/stop/proof types are inferred (z.infer) from DispatchBoardApiResponseSchema
+// / DispatchStopViewSchema / StopProofSchema — there are NO hand-written response
+// interfaces here. The API emits the richer DispatchStopView stop (which carries
+// the internal stopId it needs to associate proofs); ops-web parses the leaner
+// DispatchBoardRowSchema (stops without stopId) per Postel.
+//
 // Phiếu Cân (2026): each stop is additionally enriched with its proof photo when
 // a COMMITTED manifest is tied to that stop (manifest.stop_id). proof carries the
 // manifestId + a short-lived presigned S3 GET URL (minted by StopProofUrlSigner,
 // injected) so ops-web renders a clickable "Phiếu Cân" link without exposing the
 // private bucket. The S3 object key/bucket come from the manifest's upload_session.
 // EXPAND-only: arrivedAt/departedAt are unchanged; proof is added (null when no
-// committed manifest), so existing ops-web code stays valid. Response shape is the
-// single-source-of-truth DispatchStopView/DispatchOrderView in @fleet/sync-protocol.
+// committed manifest), so existing ops-web code stays valid.
 import { Controller, Get, Inject, Optional, UseGuards } from '@nestjs/common';
 import { and, eq, inArray } from 'drizzle-orm';
+import type { DispatchBoardApiResponse, DispatchBoardApiRow, DispatchStopView, StopProof } from '@fleet/sync-protocol';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import {
@@ -35,37 +42,44 @@ import { STOP_PROOF_URL_SIGNER, type StopProofUrlSigner } from './stop-proof-url
 const DISPATCH_BOARD_MAX_ROWS = 500;
 /** Proof-photo link TTL: 15 minutes is enough to view from the board. */
 const PROOF_URL_TTL_SECONDS = 900;
-export interface DispatchBoardStopProof {
+// Internal proof-association carrier: the committed-manifest fields resolved per
+// stopId before the presigned URL is minted. NOT the wire shape (StopProof is) —
+// this holds the S3 bucket/key needed to sign, which never leave the server.
+interface ProofSource {
   readonly manifestId: string;
-  readonly photoUrl: string;
-  readonly extractedNetWeightKg?: number | null;
-  readonly extractionStatus?: 'pending' | 'extracted' | 'not_found' | 'unreadable' | 'manual';
-  readonly extractionReason?: 'unparseable' | 'below_sanity_min' | 'above_sanity_max' | 'no_field' | 'object_missing' | null;
+  readonly bucket: string;
+  readonly key: string;
   readonly capturedAt: string;
+  readonly extractedNetWeightKg: number | null;
+  readonly extractionStatus: 'pending' | 'extracted' | 'not_found' | 'unreadable' | 'manual';
+  readonly extractionReason: 'unparseable' | 'below_sanity_min' | 'above_sanity_max' | 'no_field' | 'object_missing' | null;
 }
-export interface DispatchBoardStop {
-  readonly stopId: string;
-  readonly sequence: number;
-  readonly stopType: string;
-  readonly warehouseName: string | null;
-  readonly arrivedAt: string | null;
-  readonly departedAt: string | null;
-  readonly proof: DispatchBoardStopProof | null;
+// Feature 3 (2026): pickup-vs-delivery net-weight difference (kg) for one road
+// run, computed server-side from the already-enriched stops. Sign convention:
+// positive => more picked up than delivered. Returns null UNLESS every
+// contributing weight is known (all pickup stop weights AND the delivery stop
+// weight), because a partial aggregate would silently misrepresent the
+// dispatcher reconciliation (2026 missing-data best practice). Reused by the
+// Excel export so the board and the export never diverge.
+export function computeWeightDiffKg(stops: readonly DispatchStopView[]): number | null {
+  const weightOf = (s: DispatchStopView): number | null => s.proof?.extractedNetWeightKg ?? null;
+  const pickups = stops.filter((s) => s.stopType.toLowerCase() === 'pickup');
+  const delivery = stops.find((s) => {
+    const t = s.stopType.toLowerCase();
+    return t === 'delivery' || t === 'dropoff';
+  });
+  if (pickups.length === 0 || delivery === undefined) return null;
+  const deliveryKg = weightOf(delivery);
+  if (deliveryKg === null) return null;
+  let pickupTotal = 0;
+  for (const p of pickups) {
+    const kg = weightOf(p);
+    if (kg === null) return null;
+    pickupTotal += kg;
+  }
+  return pickupTotal - deliveryKg;
 }
-export interface DispatchBoardRow {
-  readonly roadRunId: string;
-  readonly state: string;
-  readonly assignedOperatorId: string | null;
-  readonly assignedAssetId: string | null;
-  readonly driverName: string | null;
-  readonly vehiclePlate: string | null;
-  readonly plannedStartAt: string | null;
-  readonly stopCount: number;
-  readonly transportOrderRefs: readonly string[];
-  readonly customerName: string | null;
-  readonly customerPhone: string | null;
-  readonly stops: readonly DispatchBoardStop[];
-}
+
 @Controller('dispatch')
 @UseGuards(JwtGuard)
 export class DispatchController {
@@ -76,7 +90,7 @@ export class DispatchController {
   @Get('board')
   async getBoard(
     @CurrentOperator() op: OperatorContext,
-  ): Promise<{ rows: readonly DispatchBoardRow[] }> {
+  ): Promise<DispatchBoardApiResponse> {
     const rows = await this.db
       .select({
         roadRunId: dispatchBoardProjection.roadRunId,
@@ -102,7 +116,7 @@ export class DispatchController {
       .orderBy(dispatchBoardProjection.plannedStartAt)
       .limit(DISPATCH_BOARD_MAX_ROWS);
     const roadRunIds = rows.map((r) => r.roadRunId);
-    const stopsByRoadRun = new Map<string, DispatchBoardStop[]>();
+    const stopsByRoadRun = new Map<string, DispatchStopView[]>();
     const customerByRoadRun = new Map<string, string>();
     const customerPhoneByRoadRun = new Map<string, string | null>();
     if (roadRunIds.length > 0) {
@@ -125,10 +139,10 @@ export class DispatchController {
         ))
         .orderBy(stop.sequence);
       // Proof photos: committed manifests tied to these stops, joined to their
-      // upload_session for the S3 object key. Map stopId -> {manifestId, key,
-      // bucket, capturedAt} for the most recent committed manifest per stop.
+      // upload_session for the S3 object key. Map stopId -> ProofSource for the
+      // most recent committed manifest per stop.
       const stopIds = stopRows.map((sr) => sr.stopId);
-      const proofByStopId = new Map<string, { manifestId: string; bucket: string; key: string; capturedAt: string; extractedNetWeightKg: number | null; extractionStatus: 'pending' | 'extracted' | 'not_found' | 'unreadable' | 'manual'; extractionReason: ('unparseable' | 'below_sanity_min' | 'above_sanity_max' | 'no_field' | 'object_missing') | null }>();
+      const proofByStopId = new Map<string, ProofSource>();
       if (stopIds.length > 0) {
         const proofRows = await this.db
           .select({
@@ -167,7 +181,7 @@ export class DispatchController {
       for (const sr of stopRows) {
         const list = stopsByRoadRun.get(sr.roadRunId) ?? [];
         const p = proofByStopId.get(sr.stopId);
-        let proof: DispatchBoardStopProof | null = null;
+        let proof: StopProof | null = null;
         if (p && this.proofSigner) {
           const photoUrl = await this.proofSigner.presignProofUrl({ bucket: p.bucket, key: p.key, ttlSeconds: PROOF_URL_TTL_SECONDS });
           proof = { manifestId: p.manifestId, photoUrl, capturedAt: p.capturedAt, extractedNetWeightKg: p.extractedNetWeightKg, extractionStatus: p.extractionStatus, extractionReason: p.extractionReason };
@@ -175,7 +189,7 @@ export class DispatchController {
         list.push({
           stopId: sr.stopId,
           sequence: sr.sequence,
-          stopType: sr.stopType,
+          stopType: sr.stopType as DispatchStopView['stopType'],
           warehouseName: sr.warehouseName,
           arrivedAt: sr.arrivedAt ? sr.arrivedAt.toISOString() : null,
           departedAt: sr.departedAt ? sr.departedAt.toISOString() : null,
@@ -204,21 +218,21 @@ export class DispatchController {
         }
       }
     }
-    return {
-      rows: rows.map((r) => ({
-        roadRunId: r.roadRunId,
-        state: r.state,
-        assignedOperatorId: r.assignedOperatorId,
-        assignedAssetId: r.assignedAssetId,
-        driverName: r.driverName,
-        vehiclePlate: r.vehiclePlate,
-        plannedStartAt: r.plannedStartAt?.toISOString() ?? null,
-        stopCount: r.stopCount,
-        transportOrderRefs: r.transportOrderRefs,
-        customerName: customerByRoadRun.get(r.roadRunId) ?? null,
-        customerPhone: customerPhoneByRoadRun.get(r.roadRunId) ?? null,
-        stops: stopsByRoadRun.get(r.roadRunId) ?? [],
-      })),
-    };
+    const result: DispatchBoardApiRow[] = rows.map((r) => ({
+      roadRunId: r.roadRunId,
+      state: r.state,
+      assignedOperatorId: r.assignedOperatorId,
+      assignedAssetId: r.assignedAssetId,
+      driverName: r.driverName,
+      vehiclePlate: r.vehiclePlate,
+      plannedStartAt: r.plannedStartAt?.toISOString() ?? null,
+      stopCount: r.stopCount,
+      transportOrderRefs: r.transportOrderRefs,
+      customerName: customerByRoadRun.get(r.roadRunId) ?? null,
+      customerPhone: customerPhoneByRoadRun.get(r.roadRunId) ?? null,
+      weightDiffKg: computeWeightDiffKg(stopsByRoadRun.get(r.roadRunId) ?? []),
+      stops: stopsByRoadRun.get(r.roadRunId) ?? [],
+    }));
+    return { rows: result };
   }
 }

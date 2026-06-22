@@ -2,12 +2,16 @@
 // Mutation-killing contract tests for the proof-photo stop-association +
 // dispatch read-model schemas. Accept + reject both sides of every boundary
 // (.strict(), .refine(), .url(), .datetime(), unions) so Stryker can't swap them.
+// The board response schemas are tolerant (strip) by design (Postel / 2026
+// tolerant-reader): unknown keys are dropped, not rejected — asserted below.
 import { describe, it, expect } from 'vitest';
 import {
   ManifestStopRefSchema,
   StopProofSchema,
   DispatchStopViewSchema,
-  DispatchOrderViewSchema,
+  DispatchBoardStopSchema,
+  DispatchBoardRowSchema,
+  DispatchBoardResponseSchema,
   STOP_TYPES,
 } from '../src/index.js';
 
@@ -67,20 +71,89 @@ describe('DispatchStopViewSchema', () => {
   it('rejects an unknown stopType (kills enum widening)', () => {
     expect(() => DispatchStopViewSchema.parse({ ...validStop, stopType: 'transfer' })).toThrow();
   });
+  it('rejects extra keys (.strict())', () => {
+    expect(() => DispatchStopViewSchema.parse({ ...validStop, extra: 1 })).toThrow();
+  });
   it('exposes exactly pickup+delivery as STOP_TYPES', () => {
     expect([...STOP_TYPES]).toEqual(['pickup', 'delivery']);
   });
 });
 
-describe('DispatchOrderViewSchema', () => {
-  it('accepts an order view with an array of stops', () => {
-    const view = { roadRunId: UUID, orderReference: 'XTT.06-005', roadRunState: 'completed', stops: [validStop] };
-    expect(DispatchOrderViewSchema.parse(view)).toEqual(view);
+// Canonical board stop as the loader PARSES it: tolerant (strip). It carries NO
+// stopId field, and the API's per-stop stopId is silently dropped rather than
+// rejected — preserving the former non-strict loader behaviour (Postel).
+const validBoardStop = { sequence: 1, stopType: 'pickup', warehouseName: 'Kho 1', arrivedAt: null, departedAt: null, proof: null };
+
+describe('DispatchBoardStopSchema (tolerant loader shape)', () => {
+  it('accepts a well-formed board stop and defaults proof to null when omitted', () => {
+    const parsed = DispatchBoardStopSchema.parse({ sequence: 1, stopType: 'pickup', warehouseName: 'Kho 1', arrivedAt: null, departedAt: null });
+    expect(parsed.proof).toBeNull();
   });
-  it('rejects an empty orderReference (.min(1))', () => {
-    expect(() => DispatchOrderViewSchema.parse({ roadRunId: UUID, orderReference: '', roadRunState: 'x', stops: [] })).toThrow();
+  it('strips the API per-stop stopId (tolerant reader, not .strict())', () => {
+    const parsed = DispatchBoardStopSchema.parse({ ...validBoardStop, stopId: UUID });
+    expect(parsed).not.toHaveProperty('stopId');
+    expect(parsed.warehouseName).toBe('Kho 1');
   });
-  it('rejects extra keys (.strict())', () => {
-    expect(() => DispatchOrderViewSchema.parse({ roadRunId: UUID, orderReference: 'X', roadRunState: 'x', stops: [], extra: 1 })).toThrow();
+  it('accepts a null warehouseName (union branch)', () => {
+    expect(DispatchBoardStopSchema.parse({ ...validBoardStop, warehouseName: null }).warehouseName).toBeNull();
+  });
+});
+
+// Canonical board row (replaces the former divergent order-view schema, which was
+// missing the fields actually on the wire). Real GET /dispatch/board row:
+// tolerant (strip), enum state, EXPAND-only nullable + .default() carry-overs.
+const validRow = {
+  roadRunId: UUID,
+  state: 'completed',
+  assignedOperatorId: null,
+  assignedAssetId: null,
+  driverName: null,
+  vehiclePlate: null,
+  plannedStartAt: null,
+  stopCount: 0,
+  transportOrderRefs: ['XTT.06-005'],
+  customerName: null,
+  customerPhone: null,
+  weightDiffKg: null,
+  stops: [],
+};
+
+describe('DispatchBoardRowSchema', () => {
+  it('accepts a well-formed board row', () => {
+    expect(DispatchBoardRowSchema.parse(validRow)).toEqual(validRow);
+  });
+  it('rejects an unknown road-run state (kills enum widening)', () => {
+    expect(() => DispatchBoardRowSchema.parse({ ...validRow, state: 'archived' })).toThrow();
+  });
+  it('rejects a non-uuid roadRunId', () => {
+    expect(() => DispatchBoardRowSchema.parse({ ...validRow, roadRunId: 'nope' })).toThrow();
+  });
+  it('rejects a negative stopCount (kills .nonnegative() removal)', () => {
+    expect(() => DispatchBoardRowSchema.parse({ ...validRow, stopCount: -1 })).toThrow();
+  });
+  it('strips unknown keys (tolerant reader, not .strict())', () => {
+    const parsed = DispatchBoardRowSchema.parse({ ...validRow, extra: 1 });
+    expect(parsed).not.toHaveProperty('extra');
+    expect(parsed.roadRunId).toBe(UUID);
+  });
+  it('applies EXPAND defaults when nullable label fields are omitted', () => {
+    const minimal = { roadRunId: UUID, state: 'planned', assignedOperatorId: null, assignedAssetId: null, plannedStartAt: null, stopCount: 0, transportOrderRefs: [] };
+    const parsed = DispatchBoardRowSchema.parse(minimal);
+    expect(parsed.driverName).toBeNull();
+    expect(parsed.vehiclePlate).toBeNull();
+    expect(parsed.customerName).toBeNull();
+    expect(parsed.customerPhone).toBeNull();
+    expect(parsed.stops).toEqual([]);
+  });
+});
+
+describe('DispatchBoardResponseSchema', () => {
+  it('accepts a rows envelope', () => {
+    expect(DispatchBoardResponseSchema.parse({ rows: [validRow] }).rows).toHaveLength(1);
+  });
+  it('strips unknown keys (tolerant reader, not .strict())', () => {
+    const parsed = DispatchBoardResponseSchema.parse({ rows: [validRow], extra: 1 });
+    expect(parsed).not.toHaveProperty('extra');
+    expect(parsed.rows).toHaveLength(1);
   });
 });

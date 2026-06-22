@@ -3,28 +3,32 @@
 // T1 (2026): exports the Lệnh điều xe (dispatch board) rows as an .xlsx
 // Buffer using ExcelJS and records the export in transport_order_export_log.
 //
-// COLUMN PARITY (2026): the exported workbook contains EXACTLY the columns the
-// on-screen Lệnh điều xe table shows, in the same order:
-//   Số lệnh | Khách hàng | Tài xế | Xe | Ngày dự kiến | Số điểm |
-//   Điểm nhận hàng 1..4 | Kho giao hàng 1
-// The Khách hàng cell carries the customer name and, when present, the phone on
-// a second line (the on-screen cell stacks name over phone; Excel is flat so the
-// phone is folded into that one cell — it is NOT a separate column). Each
-// Điểm/Kho cell carries the per-stop status string the board renders: 'Chưa tới'
-// until the stop is arrived/departed, else 'Đã hoàn thành <vn-date>'; em-dash for
-// a slot with no stop. The customer + per-stop data is joined at read time using
-// the SAME joins DispatchController.getBoard uses (road_run_transport_order ->
-// transport_order -> customer; road_run_transport_order -> stop -> warehouse),
-// scoped by companyId. No projection schema change.
+// DATA EXPORT (2026, Feature 2): the workbook is a DATA export for spreadsheet
+// analysis, NOT a screenshot of the board. After the 6 identifying columns
+// (Số lệnh | Khách hàng | Tài xế | Xe | Ngày dự kiến | Số điểm) each stop slot
+// contributes a PAIR of columns: the warehouse NAME and the extracted net weight
+// as a NUMBER (kg). There is NO per-stop status text and NO em-dash filler: a
+// slot with no stop, or a stop whose Phiếu Cân weight has not been extracted yet,
+// leaves the weight cell EMPTY (a true blank, never 0) so spreadsheet SUM/AVERAGE
+// over a kg column stay correct — a 0 would assert a real zero weight and skew
+// AVERAGE/COUNT (2026 missing-data export best practice). The warehouse name and
+// per-stop weight are joined at read time using the SAME company-scoped joins
+// DispatchController.getBoard uses (road_run_transport_order -> stop -> warehouse;
+// committed manifest -> upload_session for the extracted weight). No projection
+// schema change.
+//
+// The Khách hàng cell carries the customer name and, when present, the phone on a
+// second line (the on-screen cell stacks name over phone; Excel is flat so the
+// phone is folded into that one cell — it is NOT a separate column).
 //
 // Label resolution (2026-05): rows JOIN dispatch_board_projection LEFT JOIN
 // driver (operator_id) and LEFT JOIN vehicle (vehicle_id) so cells contain
 // driver.full_name / vehicle.plate — never raw UUIDs. Missing reference rows
-// fall back to em-dash (—), matching the DispatchBoard labels.ts invariant.
+// fall back to em-dash (—) in those identifying columns, matching labels.ts.
 //
-// Tenant scope: every join is gated by op.companyId. The export log row
-// records (operator_id, company_id, trigger, day_key, row_count, sha256,
-// filename) so the daily-backup invariant is auditable.
+// Tenant scope: every join is gated by op.companyId. The export log row records
+// (operator_id, company_id, trigger, day_key, row_count, sha256, filename) so the
+// daily-backup invariant is auditable.
 //
 // Idempotency: for trigger='login'|'logout' a partial unique index on
 // (company_id, operator_id, day_key, trigger) prevents duplicate ledger rows.
@@ -35,14 +39,15 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import ExcelJS from 'exceljs';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { dispatchBoardProjection } from '../database/schema/projections.js';
 import { customer, driver, vehicle } from '../database/schema/reference.js';
 import { roadRunTransportOrder, stop, transportOrder } from '../database/schema/transport.js';
 import { manifest, uploadSession } from '../database/schema/manifest.js';
-import { netWeightKgSchema } from '@fleet/sync-protocol';
+import { warehouse } from '../database/schema/reference.js';
+import { netWeightKgSchema, type ExportDateRange } from '@fleet/sync-protocol';
 import { transportOrderExportLog } from '../database/schema/transport-order-export-log.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 export type ExportTrigger = 'manual' | 'login' | 'logout';
@@ -59,8 +64,7 @@ interface ExportStop {
   readonly stopId: string;
   readonly sequence: number;
   readonly stopType: string;
-  readonly arrivedAt: Date | null;
-  readonly departedAt: Date | null;
+  readonly warehouseName: string | null;
   readonly extractedNetWeightKg: number | null;
 }
 interface ExportRow {
@@ -74,14 +78,16 @@ interface ExportRow {
   readonly customerPhone: string | null;
   readonly stops: readonly ExportStop[];
 }
-// On-screen Lệnh điều xe columns, in order. Mirrors DispatchView.tsx +
-// board-stops.tsx (PICKUP_SLOTS 1..4, DELIVERY_SLOTS 1).
+// On-screen Lệnh điều xe slots, in order. Mirrors board-stops.tsx
+// (PICKUP_SLOTS 1..4, DELIVERY_SLOTS 1).
 const PICKUP_SLOTS = [1, 2, 3, 4] as const;
 const DELIVERY_SLOTS = [1] as const;
+const KG_SUFFIX = ' - KL (kg)';
+// 6 identifying columns, then a (name, kg) PAIR per slot.
 const HEADERS = [
   'Số lệnh', 'Khách hàng', 'Tài xế', 'Xe', 'Ngày dự kiến', 'Số điểm',
-  ...PICKUP_SLOTS.map((n) => 'Điểm nhận hàng ' + String(n)),
-  ...DELIVERY_SLOTS.map((n) => 'Kho giao hàng ' + String(n)),
+  ...PICKUP_SLOTS.flatMap((n) => ['Điểm nhận hàng ' + String(n), 'Điểm nhận hàng ' + String(n) + KG_SUFFIX]),
+  ...DELIVERY_SLOTS.flatMap((n) => ['Kho giao hàng ' + String(n), 'Kho giao hàng ' + String(n) + KG_SUFFIX]),
 ] as const;
 const DASH = '—';
 const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-GB', {
@@ -89,19 +95,6 @@ const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-GB', {
   dateStyle: 'medium',
   timeStyle: 'short',
 });
-// Mirrors board-stops.tsx stopStatusOf: completed-with-VN-date or 'Chưa tới'.
-const STOP_STATUS_FORMATTER = new Intl.DateTimeFormat('en-US', {
-  timeZone: 'Asia/Ho_Chi_Minh',
-  year: 'numeric',
-  month: 'short',
-  day: 'numeric',
-});
-function stopStatusOf(s: ExportStop): string {
-  const done = s.departedAt ?? s.arrivedAt;
-  if (done === null) return 'Chưa tới';
-  if (Number.isNaN(done.getTime())) return 'Chưa tới';
-  return 'Đã hoàn thành ' + STOP_STATUS_FORMATTER.format(done);
-}
 // Mirrors board-stops.tsx stopForSlot: nth stop of a type, 1-based slot index.
 function stopForSlot(stops: readonly ExportStop[], stopType: 'pickup' | 'delivery', slotIndex: number): ExportStop | undefined {
   const ofType = stops
@@ -113,17 +106,22 @@ function stopForSlot(stops: readonly ExportStop[], stopType: 'pickup' | 'deliver
     .sort((a, b) => a.sequence - b.sequence);
   return ofType[slotIndex - 1];
 }
-// Slot cell: extracted Phiếu Cân net weight as a NUMBER when the stop has a
-// committed proof carrying one (board shows kg under the "Phiếu Cân" link);
-// else the per-stop status string; em-dash when the slot has no stop.
-function slotCell(stops: readonly ExportStop[], stopType: 'pickup' | 'delivery', slotIndex: number): number | string {
+// Warehouse-name cell for a slot: the stop's warehouse name, or null (true blank)
+// when the slot has no stop / no name. Never em-dash filler in a data export.
+function slotNameCell(stops: readonly ExportStop[], stopType: 'pickup' | 'delivery', slotIndex: number): string | null {
   const s = stopForSlot(stops, stopType, slotIndex);
-  if (!s) return DASH;
-  if (s.extractedNetWeightKg !== null) return s.extractedNetWeightKg;
-  return stopStatusOf(s);
+  if (s === undefined) return null;
+  return s.warehouseName === null || s.warehouseName === '' ? null : s.warehouseName;
+}
+// Weight cell for a slot: the extracted Phiếu Cân net weight as a NUMBER, or null
+// (true blank) when the slot has no stop or no extracted weight yet. NEVER 0 and
+// NEVER a status string, so SUM/AVERAGE over the kg column stay correct.
+function slotWeightCell(stops: readonly ExportStop[], stopType: 'pickup' | 'delivery', slotIndex: number): number | null {
+  const s = stopForSlot(stops, stopType, slotIndex);
+  if (s === undefined) return null;
+  return s.extractedNetWeightKg;
 }
 // Khách hàng cell: name with phone folded onto a second line when present.
-// Mirrors the on-screen CustomerCell which stacks name over phone.
 function customerCell(name: string | null, phone: string | null): string {
   const baseName = name === null || name === '' ? DASH : name;
   if (phone === null || phone === '') return baseName;
@@ -142,7 +140,7 @@ function tenantSlug(companyId: string): string {
 @Injectable()
 export class TransportOrdersExportService {
   constructor(@Inject(DRIZZLE_DB) private readonly db: FleetDb) {}
-  async exportAndLog(op: OperatorContext, trigger: ExportTrigger): Promise<ExportResult> {
+  async exportAndLog(op: OperatorContext, trigger: ExportTrigger, range?: ExportDateRange): Promise<ExportResult> {
     const dayKey = vnDayKey();
     if (trigger === 'login' || trigger === 'logout') {
       const existing = await this.db
@@ -169,7 +167,7 @@ export class TransportOrdersExportService {
         };
       }
     }
-    const rows = await this.fetchRows(op);
+    const rows = await this.fetchRows(op, range);
     const buffer = await this.buildXlsxBufferFromRows(rows);
     const sha256 = createHash('sha256').update(buffer).digest('hex');
     const filename =
@@ -201,9 +199,9 @@ export class TransportOrdersExportService {
     };
   }
   // Same scope + joins as DispatchController.getBoard: driver/vehicle labels via
-  // company-scoped LEFT JOINs on the projection; customer name/phone and per-stop
-  // detail enriched at read time from road_run_transport_order, grouped by road run.
-  private async fetchRows(op: OperatorContext): Promise<readonly ExportRow[]> {
+  // company-scoped LEFT JOINs on the projection; customer name/phone, per-stop
+  // warehouse name + extracted weight enriched at read time, grouped by road run.
+  private async fetchRows(op: OperatorContext, range?: ExportDateRange): Promise<readonly ExportRow[]> {
     const base = await this.db
       .select({
         roadRunId: dispatchBoardProjection.roadRunId,
@@ -222,7 +220,20 @@ export class TransportOrdersExportService {
         eq(vehicle.vehicleId, dispatchBoardProjection.assignedAssetId),
         eq(vehicle.companyId, op.companyId),
       ))
-      .where(eq(dispatchBoardProjection.companyId, op.companyId))
+      .where(and(
+        eq(dispatchBoardProjection.companyId, op.companyId),
+        // Feature 4: inclusive VN-local calendar-date window. Convert the stored
+        // UTC instant to Asia/Ho_Chi_Minh wall-clock, take its date, and bound it
+        // by [from, to]. A null planned_start_at yields NULL here and is excluded
+        // when a range is applied (an order with no planned date cannot fall in a
+        // date window).
+        range === undefined
+          ? undefined
+          : sql`(${dispatchBoardProjection.plannedStartAt} AT TIME ZONE 'Asia/Ho_Chi_Minh')::date >= ${range.from}::date`,
+        range === undefined
+          ? undefined
+          : sql`(${dispatchBoardProjection.plannedStartAt} AT TIME ZONE 'Asia/Ho_Chi_Minh')::date <= ${range.to}::date`,
+      ))
       .orderBy(asc(dispatchBoardProjection.plannedStartAt));
     const roadRunIds = base.map((r) => r.roadRunId);
     const stopsByRoadRun = new Map<string, ExportStop[]>();
@@ -235,11 +246,11 @@ export class TransportOrdersExportService {
           stopId: stop.stopId,
           sequence: stop.sequence,
           stopType: stop.stopType,
-          arrivedAt: stop.arrivedAt,
-          departedAt: stop.departedAt,
+          warehouseName: warehouse.name,
         })
         .from(roadRunTransportOrder)
         .innerJoin(stop, eq(stop.transportOrderId, roadRunTransportOrder.transportOrderId))
+        .leftJoin(warehouse, eq(warehouse.warehouseId, stop.yardId))
         .where(and(
           eq(roadRunTransportOrder.companyId, op.companyId),
           inArray(roadRunTransportOrder.roadRunId, roadRunIds),
@@ -268,7 +279,7 @@ export class TransportOrdersExportService {
       }
       for (const sr of stopRows) {
         const list = stopsByRoadRun.get(sr.roadRunId) ?? [];
-        list.push({ stopId: sr.stopId, sequence: sr.sequence, stopType: sr.stopType, arrivedAt: sr.arrivedAt, departedAt: sr.departedAt, extractedNetWeightKg: weightByStopId.get(sr.stopId) ?? null });
+        list.push({ stopId: sr.stopId, sequence: sr.sequence, stopType: sr.stopType, warehouseName: sr.warehouseName, extractedNetWeightKg: weightByStopId.get(sr.stopId) ?? null });
         stopsByRoadRun.set(sr.roadRunId, list);
       }
       const customerRows = await this.db
@@ -328,8 +339,8 @@ export class TransportOrdersExportService {
         r.vehiclePlate ?? DASH,
         planned,
         r.stopCount,
-        ...PICKUP_SLOTS.map((n) => slotCell(r.stops, 'pickup', n)),
-        ...DELIVERY_SLOTS.map((n) => slotCell(r.stops, 'delivery', n)),
+        ...PICKUP_SLOTS.flatMap((n) => [slotNameCell(r.stops, 'pickup', n), slotWeightCell(r.stops, 'pickup', n)]),
+        ...DELIVERY_SLOTS.flatMap((n) => [slotNameCell(r.stops, 'delivery', n), slotWeightCell(r.stops, 'delivery', n)]),
       ]);
     }
     ws.columns.forEach((c) => { c.width = 22; });

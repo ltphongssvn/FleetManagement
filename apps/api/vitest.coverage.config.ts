@@ -23,6 +23,7 @@ const SERIAL_SPECS = [
   'test/admin-drivers-list.service.test.ts',
   'test/admin-drivers-update.service.test.ts',
   'test/append-tri-write.test.ts',
+  'test/commands.gateway.integration.test.ts',
   'test/commands.controller.concurrency.integration.test.ts',
   'test/commands.controller.integration.test.ts',
   'test/commands.controller.tenant-policy.integration.test.ts',
@@ -38,6 +39,7 @@ const SERIAL_SPECS = [
   'test/manifest.service.concurrency.test.ts',
   'test/manifest.service.integration.test.ts',
   'test/migrations.integration.test.ts',
+  'test/order-numbering.collision.integration.test.ts',
   'test/outbox-relay.service.integration.test.ts',
   'test/pre-push-hooks-mirror-ci.test.ts',
   'test/projection-runner.service.integration.test.ts',
@@ -53,7 +55,7 @@ const SERIAL_SPECS = [
 ];
 export default defineConfig({
   test: {
-    globalSetup: ['./test/helpers/global-teardown.ts'],
+    globalSetup: ['./test/helpers/pg-global-setup.ts', './test/helpers/global-teardown.ts'],
     testTimeout: 60_000,
     hookTimeout: 60_000,
     // pool:forks isolates v8 coverage instrumentation per file, preventing

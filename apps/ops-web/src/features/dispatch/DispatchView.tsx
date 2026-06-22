@@ -70,6 +70,14 @@ function formatPlannedStart(iso: string | null): string {
 function formatCustomer(name: string | null): string {
   return name === null || name === '' ? DASH : name;
 }
+// Chenh lech (Feature 3): the SERVER-computed pickup-vs-delivery net-weight
+// difference (kg), vi-VN grouped (12500 => 12.500 kg); sign preserved
+// (negative => delivery exceeded pickup). null => weights incomplete => em-dash,
+// so a partial reconciliation never shows a misleading number.
+const WEIGHT_DIFF_FORMATTER = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
+function formatWeightDiff(kg: number | null): string {
+  return kg === null ? DASH : WEIGHT_DIFF_FORMATTER.format(kg) + ' kg';
+}
 // Tài xế / Xe label resolution: prefer the SERVER-resolved label (authoritative,
 // independent of the pair-filtered dropdowns). Fall back to the client lookup
 // only when the server label is absent (the optimistic pre-projection row),
@@ -125,6 +133,7 @@ function makeOptimisticRow(externalRef: string, opCtx: { operatorId: string; ass
     transportOrderRefs: [externalRef],
     customerName: null,
     customerPhone: null,
+    weightDiffKg: null,
     stops: [],
   };
 }
@@ -222,6 +231,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                 <th className='px-3 py-2'>Xe</th>
                 <th className='px-3 py-2'>Ngày dự kiến</th>
                 <th className='px-3 py-2'>Số điểm</th>
+                <th className='px-3 py-2'>Chênh lệch</th>
                 <StopSlotHeaders />
               </tr>
             </thead>
@@ -234,11 +244,12 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                   <td className='px-3 py-2'>{resolveLabel(r.vehiclePlate, r.assignedAssetId, vehicleLookup)}</td>
                   <td className='px-3 py-2'>{formatPlannedStart(r.plannedStartAt)}</td>
                   <td className='px-3 py-2'>{r.stopCount}</td>
+                  <td className='px-3 py-2 tabular-nums' data-testid={'dispatch-board-weightdiff-' + formatOrderRef(r.transportOrderRefs)}>{formatWeightDiff(r.weightDiffKg)}</td>
                   <StopSlotCells primaryRef={formatOrderRef(r.transportOrderRefs)} stops={r.stops} />
                 </tr>
               ))}
               {merged.length === 0 && (
-                <tr><td colSpan={6 + STOP_SLOT_COL_COUNT} className='px-3 py-6 text-center text-slate-500'>Chưa có lệnh điều xe nào.</td></tr>
+                <tr><td colSpan={7 + STOP_SLOT_COL_COUNT} className='px-3 py-6 text-center text-slate-500'>Chưa có lệnh điều xe nào.</td></tr>
               )}
             </tbody>
           </table>

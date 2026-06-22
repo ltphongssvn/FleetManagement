@@ -13,9 +13,10 @@
 // download. The auto endpoint is fire-and-forget from the ops-web
 // login.action.ts / logout.action.ts; it returns a short JSON
 // summary so the caller can log without holding the binary.
-import { Body, Controller, Get, Post, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { z } from 'zod';
+import { ExportDateRangeSchema, type ExportDateRange } from '@fleet/sync-protocol';
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
@@ -43,10 +44,20 @@ export class TransportOrdersExportController {
   // /transport-orders/export.xlsx.
   @Get('transport-orders-export.xlsx')
   async exportXlsx(
+    @Query() query: Record<string, unknown>,
     @CurrentOperator() op: OperatorContext,
     @Res() res: Response,
   ): Promise<void> {
-    const result: ExportResult = await this.svc.exportAndLog(op, 'manual');
+    // Feature 4: optional dispatcher-selected inclusive day-range. Only when BOTH
+    // from and to are present do we validate + apply a range; a partial/absent
+    // range exports everything (unchanged behavior). ExportDateRangeSchema is the
+    // SSOT (YYYY-MM-DD format + from<=to); an invalid range throws -> 400, never a
+    // silent empty export.
+    let range: ExportDateRange | undefined;
+    if (query['from'] !== undefined && query['to'] !== undefined) {
+      range = ExportDateRangeSchema.parse({ from: query['from'], to: query['to'] });
+    }
+    const result: ExportResult = await this.svc.exportAndLog(op, 'manual', range);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename=' + String.fromCharCode(34) + result.filename + String.fromCharCode(34));
     res.setHeader('Content-Length', String(result.buffer.byteLength));

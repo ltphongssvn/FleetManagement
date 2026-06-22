@@ -8,6 +8,7 @@
 // triggers a browser download from memory.
 'use server';
 import { cookies } from 'next/headers';
+import { ExportDateRangeSchema, type ExportDateRange } from '@fleet/sync-protocol';
 export type ExportOrdersExcelResult =
   | { status: 'ok'; bodyBase64: string; filename: string }
   | { status: 'auth_required' }
@@ -18,17 +19,28 @@ function parseFilename(contentDisposition: string | null): string {
   const m = FILENAME_RE.exec(contentDisposition);
   return m?.[1] ?? 'lenh-dieu-xe.xlsx';
 }
-export async function exportOrdersExcel(): Promise<ExportOrdersExcelResult> {
+export async function exportOrdersExcel(range?: ExportDateRange): Promise<ExportOrdersExcelResult> {
   const apiUrl = process.env['FLEET_API_URL'];
   if (apiUrl === undefined || apiUrl.length === 0) {
     return { status: 'server_error', message: 'FLEET_API_URL not configured' };
+  }
+  // Feature 4: optional dispatcher-selected inclusive day-range. Validate against
+  // the SSOT before calling the API so an inverted/malformed range fails fast on
+  // this side too (the API re-validates). Empty range => export everything.
+  let querySuffix = '';
+  if (range !== undefined) {
+    const parsed = ExportDateRangeSchema.safeParse(range);
+    if (!parsed.success) {
+      return { status: 'server_error', message: 'Khoảng ngày không hợp lệ' };
+    }
+    querySuffix = '?from=' + parsed.data.from + '&to=' + parsed.data.to;
   }
   const cookieStore = await cookies();
   const token = cookieStore.get('fleet_session')?.value;
   if (token === undefined || token.length === 0) {
     return { status: 'auth_required' };
   }
-  const res = await fetch(apiUrl + '/transport-orders-export.xlsx', {
+  const res = await fetch(apiUrl + '/transport-orders-export.xlsx' + querySuffix, {
     cache: 'no-store',
     headers: { Authorization: 'Bearer ' + token },
   });

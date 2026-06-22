@@ -51,6 +51,7 @@ const initialRuns: readonly DispatchBoardRoadRun[] = [
     transportOrderRefs: ['XTT.05-001'],
     customerName: null,
     customerPhone: null,
+    weightDiffKg: null,
     stops: [],
   },
 ];
@@ -117,6 +118,7 @@ describe('DispatchView — optimistic row insertion on action success (T3)', () 
         transportOrderRefs: ['XTT.05-002'],
         customerName: null,
         customerPhone: null,
+        weightDiffKg: null,
         stops: [],
       },
     ];
@@ -201,6 +203,7 @@ describe('DispatchView — optimistic row insertion on action success (T3)', () 
         transportOrderRefs: [],
         customerName: null,
         customerPhone: null,
+        weightDiffKg: null,
         stops: [],
       },
     ];
