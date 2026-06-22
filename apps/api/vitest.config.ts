@@ -8,7 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   test: {
     clearMocks: true,
-    globalSetup: ['./test/helpers/global-teardown.ts'],
+    globalSetup: ['./test/helpers/pg-global-setup.ts', './test/helpers/global-teardown.ts'],
     include: ['test/**/*.test.ts'],
     exclude: ['test/**/*.integration.test.ts', 'node_modules', 'dist'],
     // Raised from the 5s default: under the parallel 8-package turbo run,

@@ -55,7 +55,7 @@ const SERIAL_SPECS = [
 ];
 export default defineConfig({
   test: {
-    globalSetup: ['./test/helpers/global-teardown.ts'],
+    globalSetup: ['./test/helpers/pg-global-setup.ts', './test/helpers/global-teardown.ts'],
     testTimeout: 60_000,
     hookTimeout: 60_000,
     // pool:forks isolates v8 coverage instrumentation per file, preventing
