@@ -40,6 +40,16 @@ export type RoadRunStateName = typeof ROAD_RUN_STATES[number];
 export const netWeightKgSchema = z.number().positive().finite();
 export type NetWeightKg = z.infer<typeof netWeightKgSchema>;
 
+/** SSOT for the pickup-vs-delivery weight DIFFERENCE (kg). Unlike netWeightKgSchema
+ *  (a positive weight), a difference may be negative (delivery exceeds pickup) or
+ *  zero, so it is a finite number with NO sign constraint. Computed server-side as
+ *  (sum of pickup stop weights) - (delivery stop weight), and ONLY when every
+ *  contributing stop weight is known (else null) — a partial diff would silently
+ *  mislead the dispatcher's reconciliation (2026 missing-data best practice: never
+ *  report a partial aggregate as if complete). */
+export const weightDiffKgSchema = z.number().finite();
+export type WeightDiffKg = z.infer<typeof weightDiffKgSchema>;
+
 /** Proof of capture for a stop: the committed manifest + a presigned GET URL.
  *  .strict(): this is the API-authored outgoing shape, validated server-side. */
 export const StopProofSchema = z.object({
@@ -133,6 +143,11 @@ export const DispatchBoardRowSchema = z.object({
   transportOrderRefs: z.array(z.string()).readonly(),
   customerName: z.union([z.string(), z.null()]).default(null),
   customerPhone: z.union([z.string(), z.null()]).default(null),
+  // Feature 3 (2026): pickup-vs-delivery net-weight difference (kg), computed
+  // server-side = (sum of pickup stop weights) - (delivery stop weight); null
+  // unless EVERY contributing weight is known. EXPAND-only: nullable + default
+  // so an older API that omits it still parses.
+  weightDiffKg: z.union([weightDiffKgSchema, z.null()]).default(null),
   stops: z.array(DispatchBoardStopSchema).readonly().default([]),
 });
 export type DispatchBoardRow = z.infer<typeof DispatchBoardRowSchema>;

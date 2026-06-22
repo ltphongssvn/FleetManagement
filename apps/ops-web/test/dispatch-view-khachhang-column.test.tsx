@@ -36,6 +36,7 @@ const run: DispatchBoardRoadRun = {
   transportOrderRefs: ['XT.0067'],
   customerName: 'Công ty Vận Tải Số 1',
   customerPhone: null,
+  weightDiffKg: null,
   stops: [],
 };
 describe('DispatchView - Khách hàng column replaces Trạng thái', () => {

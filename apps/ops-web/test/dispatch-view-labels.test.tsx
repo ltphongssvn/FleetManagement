@@ -36,6 +36,7 @@ const run: DispatchBoardRoadRun = {
   transportOrderRefs: ['XT.0067'],
   customerName: null,
   customerPhone: null,
+  weightDiffKg: null,
   stops: [],
 };
 describe('DispatchView - human-readable labels (T4)', () => {

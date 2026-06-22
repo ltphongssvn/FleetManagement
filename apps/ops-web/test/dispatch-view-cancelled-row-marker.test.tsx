@@ -31,6 +31,7 @@ function baseRun(overrides: Partial<DispatchBoardRoadRun>): DispatchBoardRoadRun
     transportOrderRefs: ['XT.0067'],
     customerName: 'Công ty Vận Tải Số 1',
     customerPhone: null,
+    weightDiffKg: null,
     stops: [],
     ...overrides,
   };

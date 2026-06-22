@@ -28,6 +28,7 @@ const PILOT_DATA = Object.freeze([
     transportOrderRefs: Object.freeze(['TO-1001', 'TO-1002']),
     customerName: null,
     customerPhone: null,
+    weightDiffKg: null,
     stops: Object.freeze([]),
   }),
   Object.freeze({
@@ -42,6 +43,7 @@ const PILOT_DATA = Object.freeze([
     transportOrderRefs: Object.freeze(['TO-1003']),
     customerName: 'Công ty Mẫu',
     customerPhone: '0901234567',
+    weightDiffKg: null,
     stops: Object.freeze([]),
   }),
 ]) satisfies readonly DispatchBoardRoadRun[];

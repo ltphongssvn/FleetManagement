@@ -114,6 +114,7 @@ const validRow = {
   transportOrderRefs: ['XTT.06-005'],
   customerName: null,
   customerPhone: null,
+  weightDiffKg: null,
   stops: [],
 };
 
