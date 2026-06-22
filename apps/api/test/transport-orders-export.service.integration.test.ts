@@ -4,18 +4,18 @@
 //   1) reads dispatch_board_projection scoped to companyId (DispatchController
 //      scope rule), enriched at read time with the SAME joins the board uses:
 //      customer name + phone (road_run_transport_order -> transport_order ->
-//      customer) and per-stop status (road_run_transport_order -> stop ->
+//      customer) and per-stop warehouse (road_run_transport_order -> stop ->
 //      warehouse);
-//   2) produces an .xlsx whose first sheet header is EXACTLY the on-screen
-//      Lệnh điều xe columns, in order:
+//   2) produces an .xlsx whose first sheet is a DATA export (2026, Feature 2):
+//      the 6 identifying columns, then per stop slot a PAIR of columns — the
+//      warehouse NAME and the extracted net weight as a NUMBER (kg). NO per-stop
+//      status text ('Chưa tới'/'Đã hoàn thành') and NO em-dash filler: a slot
+//      with no stop, or a stop with no extracted weight yet, leaves the weight
+//      cell EMPTY (blank, never 0) so spreadsheet SUM/AVERAGE over the column
+//      stay correct (2026 missing-data export best practice).
 //        Số lệnh | Khách hàng | Tài xế | Xe | Ngày dự kiến | Số điểm |
-//        Điểm nhận hàng 1..4 | Kho giao hàng 1
-//      The Khách hàng cell carries the customer name and, when present, the
-//      phone on a second line (the on-screen cell stacks name over phone);
-//      Excel is flat so the phone is folded into that one cell, NOT a column.
-//      Each Điểm/Kho cell carries the per-stop status string the board renders
-//      (stopStatusOf): 'Chưa tới' until arrived/departed, else
-//      'Đã hoàn thành <vn-date>'; em-dash when the slot has no stop.
+//        Điểm nhận hàng 1 | Điểm nhận hàng 1 - KL (kg) | ... (slots 2..4) |
+//        Kho giao hàng 1 | Kho giao hàng 1 - KL (kg)
 //   3) writes a transport_order_export_log row (row_count, sha256, filename);
 //   4) honors idempotency for trigger='login'|'logout' per VN-tz day.
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
@@ -28,9 +28,14 @@ import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 let svc: TransportOrdersExportService;
 const OP = createOperatorContext({ companyId: '00000000-0000-0000-0000-000000000aaa' });
+// Feature 2 (2026): per-slot warehouse-name + kg-number column PAIRS, no status.
 const EXPECTED_HEADERS = [
   'Số lệnh', 'Khách hàng', 'Tài xế', 'Xe', 'Ngày dự kiến', 'Số điểm',
-  'Điểm nhận hàng 1', 'Điểm nhận hàng 2', 'Điểm nhận hàng 3', 'Điểm nhận hàng 4', 'Kho giao hàng 1',
+  'Điểm nhận hàng 1', 'Điểm nhận hàng 1 - KL (kg)',
+  'Điểm nhận hàng 2', 'Điểm nhận hàng 2 - KL (kg)',
+  'Điểm nhận hàng 3', 'Điểm nhận hàng 3 - KL (kg)',
+  'Điểm nhận hàng 4', 'Điểm nhận hàng 4 - KL (kg)',
+  'Kho giao hàng 1', 'Kho giao hàng 1 - KL (kg)',
 ];
 function q(s: string): string { return String.fromCharCode(39) + s + String.fromCharCode(39); }
 async function seedProjection(roadRunId: string, refs: readonly string[]): Promise<void> {
@@ -44,9 +49,6 @@ async function seedProjection(roadRunId: string, refs: readonly string[]): Promi
     q('planned') + ',2,' + q(refsJson) + '::jsonb,1,' + q('2026-05-24T08:00:00Z') + ')';
   await testDb.db.execute(sql.raw(stmt));
 }
-// Seed the full read graph the board/export enrichment joins traverse:
-// road_run_transport_order -> transport_order(customerId) -> customer(name,phone)
-// and road_run_transport_order -> stop(yardId,arrived/departed) -> warehouse(name).
 async function seedOrderGraph(opts: {
   roadRunId: string;
   transportOrderId: string;
@@ -54,7 +56,7 @@ async function seedOrderGraph(opts: {
   customerPhone: string | null;
   pickupWarehouseName: string;
   deliveryWarehouseName: string;
-  pickupArrived: string | null; // ISO or null
+  pickupArrived: string | null;
   deliveryArrived: string | null;
 }): Promise<void> {
   const co = OP.companyId;
@@ -112,7 +114,7 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     await testDb.db.execute(sql.raw('TRUNCATE TABLE upload_session CASCADE'));
     await testDb.db.execute(sql.raw('TRUNCATE TABLE manifest CASCADE'));
   });
-  it('header row is EXACTLY the 11 on-screen Lệnh điều xe columns in order', async () => {
+  it('header row is EXACTLY the identifying columns + per-slot name/kg pairs', async () => {
     await seedProjection('aaaaaaaa-1111-4111-8111-111111111111', ['XT.1001']);
     const r = await svc.exportAndLog(OP, 'manual');
     expect(r.rowCount).toBe(1);
@@ -121,7 +123,7 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
     expect(headerOf(ws)).toEqual(EXPECTED_HEADERS);
   });
-  it('Khách hàng cell shows customer name + phone; stop slots show per-stop status', async () => {
+  it('Khách hàng cell shows name + phone; stop slots show warehouse name + kg NUMBER, NO status text', async () => {
     await seedProjection('aaaaaaaa-2222-4222-8222-222222222222', ['XT.GRAPH']);
     await seedOrderGraph({
       roadRunId: 'aaaaaaaa-2222-4222-8222-222222222222',
@@ -139,20 +141,27 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
     expect(headerOf(ws)).toEqual(EXPECTED_HEADERS);
     const data = rowValues(ws, 2);
-    // col index (0-based after slice(1)): 0 Số lệnh,1 Khách hàng,2 Tài xế,3 Xe,
-    // 4 Ngày dự kiến,5 Số điểm,6 Điểm nhận hàng 1,7..9 pickup2-4,10 Kho giao hàng 1
+    // 0-based after slice(1): 0..5 identifying; then pairs:
+    // 6 P1 name,7 P1 kg, 8 P2 name,9 P2 kg, 10 P3,11, 12 P4,13, 14 D1 name,15 D1 kg
     expect(String(data[0])).toBe('XT.GRAPH');
     const kh = String(data[1]);
     expect(kh).toContain('ĐA NĂNG');
     expect(kh).toContain('0903998784');
-    // pickup slot 1 has an arrived timestamp -> completed status
-    expect(String(data[6])).toContain('Đã hoàn thành');
-    // delivery slot 1 not arrived/departed -> Chưa tới
-    expect(String(data[10])).toBe('Chưa tới');
-    // unused pickup slots 2-4 -> em-dash
-    expect(String(data[7])).toBe('—');
-    expect(String(data[8])).toBe('—');
-    expect(String(data[9])).toBe('—');
+    // pickup slot 1: warehouse name present; NO status text anywhere in the row
+    expect(String(data[6])).toBe('Cần Thơ');
+    // delivery slot 1: warehouse name present
+    expect(String(data[14])).toBe('ĐA NĂNG');
+    // no weights extracted yet -> kg cells are EMPTY (blank), never 0, never status
+    expect(data[7] === null || data[7] === undefined).toBe(true);
+    expect(data[15] === null || data[15] === undefined).toBe(true);
+    // unused pickup slots 2-4: both name and kg cells EMPTY (no em-dash, no status)
+    for (const i of [8, 9, 10, 11, 12, 13]) {
+      expect(data[i] === null || data[i] === undefined).toBe(true);
+    }
+    // explicit: the row contains NO legacy status strings anywhere
+    const whole = data.map((v) => (typeof v === 'string' ? v : '')).join(' | ');
+    expect(whole).not.toContain('Chưa tới');
+    expect(whole).not.toContain('Đã hoàn thành');
   });
   it('manual: inserts a ledger row with stable sha256 + canonical filename', async () => {
     await seedProjection('bbbbbbbb-1111-4111-8111-111111111111', ['XT.1002']);
@@ -206,7 +215,7 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     expect(refs).toEqual(['XT.MINE']);
   });
 
-  it('pickup slot shows the extracted net weight as a NUMBER when the stop has a committed Phiếu Cân', async () => {
+  it('pickup slot shows the extracted net weight as a NUMBER in the paired kg column', async () => {
     const roadRunId = 'aaaaaaaa-7777-4777-8777-777777777777';
     const toId = '00000000-0000-4000-8000-000000077001';
     await seedProjection(roadRunId, ['XT.KG']);
@@ -238,8 +247,10 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(r.buffer as unknown as ArrayBuffer);
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
-    const cell = ws.getRow(2).getCell(7).value; // Điểm nhận hàng 1
-    expect(typeof cell).toBe('number');
-    expect(cell).toBe(7920);
+    // paired layout: col 7 = P1 name, col 8 = P1 kg number
+    expect(ws.getRow(2).getCell(7).value).toBe('Cần Thơ');
+    const kgCell = ws.getRow(2).getCell(8).value;
+    expect(typeof kgCell).toBe('number');
+    expect(kgCell).toBe(7920);
   });
 });
