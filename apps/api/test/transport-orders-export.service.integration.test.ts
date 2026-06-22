@@ -25,6 +25,7 @@ import ExcelJS from 'exceljs';
 import { TransportOrdersExportService } from '../src/transport-orders/transport-orders-export.service.js';
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
+import type { ExportDateRange } from '@fleet/sync-protocol';
 let testDb: PgliteTestDb;
 let svc: TransportOrdersExportService;
 const OP = createOperatorContext({ companyId: '00000000-0000-0000-0000-000000000aaa' });
@@ -97,7 +98,6 @@ function headerOf(ws: ExcelJS.Worksheet): string[] {
 function rowValues(ws: ExcelJS.Worksheet, rowIdx: number): unknown[] {
   return (ws.getRow(rowIdx).values as unknown[]).slice(1);
 }
-describe('@fleet/api - TransportOrdersExportService (integration)', () => {
   beforeAll(async () => {
     testDb = await startPgliteTestDb();
     svc = new TransportOrdersExportService(testDb.db as never);
@@ -114,6 +114,8 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     await testDb.db.execute(sql.raw('TRUNCATE TABLE upload_session CASCADE'));
     await testDb.db.execute(sql.raw('TRUNCATE TABLE manifest CASCADE'));
   });
+
+describe('@fleet/api - TransportOrdersExportService (integration)', () => {
   it('header row is EXACTLY the identifying columns + per-slot name/kg pairs', async () => {
     await seedProjection('aaaaaaaa-1111-4111-8111-111111111111', ['XT.1001']);
     const r = await svc.exportAndLog(OP, 'manual');
@@ -252,5 +254,64 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     const kgCell = ws.getRow(2).getCell(8).value;
     expect(typeof kgCell).toBe('number');
     expect(kgCell).toBe(7920);
+  });
+});
+
+
+// --- Feature 4 (2026): dispatcher-selectable export day-range (VN tz) ---
+// The manual export accepts an optional inclusive [from, to] range of VN-local
+// calendar dates and exports only road runs whose planned_start_at falls in that
+// window IN VIETNAM TIME (UTC+7), proven by a boundary row whose UTC instant is
+// the previous day in UTC but the next day in VN.
+describe('@fleet/api - export day-range filter (Feature 4)', () => {
+  function qq(v: string): string { return String.fromCharCode(39) + v + String.fromCharCode(39); }
+  async function seedAt(roadRunId: string, ref: string, plannedUtc: string): Promise<void> {
+    const co = OP.companyId;
+    const refsJson = JSON.stringify([ref]);
+    await testDb.db.execute(sql.raw(
+      'INSERT INTO dispatch_board_projection ' +
+      '(road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, stop_count, transport_order_refs, server_seq, planned_start_at) ' +
+      'VALUES (' + qq(roadRunId) + ',' + qq(co) + ',' + qq(co) + ',' + qq(co) + ',' + qq(co) + ',' + qq('planned') + ',1,' + qq(refsJson) + '::jsonb,1,' + qq(plannedUtc) + ')'
+    ));
+  }
+  async function refsInWorkbook(buffer: Buffer): Promise<string[]> {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer as unknown as ArrayBuffer);
+    const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
+    const out: string[] = [];
+    ws.eachRow((row, idx) => { if (idx > 1) { const v = row.getCell(1).value; if (typeof v === 'string') out.push(v); } });
+    return out.sort();
+  }
+  beforeEach(async () => {
+    await testDb.db.execute(sql.raw('TRUNCATE TABLE dispatch_board_projection CASCADE'));
+    await testDb.db.execute(sql.raw('TRUNCATE TABLE transport_order_export_log CASCADE'));
+  });
+
+  it('exports only road runs whose VN-local planned date is within [from, to]', async () => {
+    await seedAt('a0000000-1111-4111-8111-000000000001', 'XT.D10', '2026-05-10T02:00:00Z');
+    await seedAt('a0000000-1111-4111-8111-000000000002', 'XT.D15', '2026-05-15T02:00:00Z');
+    await seedAt('a0000000-1111-4111-8111-000000000003', 'XT.D20', '2026-05-20T02:00:00Z');
+    const range: ExportDateRange = { from: '2026-05-10', to: '2026-05-15' };
+    const r = await svc.exportAndLog(OP, 'manual', range);
+    expect(await refsInWorkbook(r.buffer)).toEqual(['XT.D10', 'XT.D15']);
+    expect(r.rowCount).toBe(2);
+  });
+
+  it('uses VN time (UTC+7) for the boundary, not UTC', async () => {
+    // 2026-05-20T18:00:00Z is 2026-05-21 01:00 in Vietnam -> VN date 2026-05-21,
+    // which is OUTSIDE [2026-05-10, 2026-05-20] even though the UTC date is 05-20.
+    await seedAt('a0000000-2222-4222-8222-000000000001', 'XT.VNEDGE', '2026-05-20T18:00:00Z');
+    // A row clearly inside the window for contrast.
+    await seedAt('a0000000-2222-4222-8222-000000000002', 'XT.INSIDE', '2026-05-12T05:00:00Z');
+    const range: ExportDateRange = { from: '2026-05-10', to: '2026-05-20' };
+    const r = await svc.exportAndLog(OP, 'manual', range);
+    expect(await refsInWorkbook(r.buffer)).toEqual(['XT.INSIDE']);
+  });
+
+  it('with no range, exports all rows (unchanged behavior)', async () => {
+    await seedAt('a0000000-3333-4333-8333-000000000001', 'XT.ALL1', '2026-05-10T02:00:00Z');
+    await seedAt('a0000000-3333-4333-8333-000000000002', 'XT.ALL2', '2026-09-01T02:00:00Z');
+    const r = await svc.exportAndLog(OP, 'manual');
+    expect(await refsInWorkbook(r.buffer)).toEqual(['XT.ALL1', 'XT.ALL2']);
   });
 });

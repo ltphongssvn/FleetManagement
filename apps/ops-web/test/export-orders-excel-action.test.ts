@@ -65,4 +65,44 @@ describe('@fleet/ops-web - exportOrdersExcel action', () => {
     const result = await exportOrdersExcel();
     expect(result.status).toBe('server_error');
   });
+
+  it('appends from/to query params when a valid range is passed', async () => {
+    const xlsxBytes = new Uint8Array([0x50, 0x4b]);
+    vi.mocked(cookies).mockResolvedValue({
+      get: vi.fn().mockReturnValue({ value: 'jwt' }),
+    } as never);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(xlsxBytes, {
+      status: 200,
+      headers: { 'content-disposition': 'attachment; filename=' + String.fromCharCode(34) + 'f.xlsx' + String.fromCharCode(34) },
+    }) as never);
+    const result = await exportOrdersExcel({ from: '2026-05-01', to: '2026-05-31' });
+    expect(result.status).toBe('ok');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      FLEET_API_URL + '/transport-orders-export.xlsx?from=2026-05-01&to=2026-05-31',
+      expect.objectContaining({ cache: 'no-store' }),
+    );
+  });
+  it('does not append query params when no range is passed (exports all)', async () => {
+    vi.mocked(cookies).mockResolvedValue({
+      get: vi.fn().mockReturnValue({ value: 'jwt' }),
+    } as never);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(new Uint8Array([0x50]), {
+      status: 200,
+      headers: { 'content-disposition': 'attachment; filename=' + String.fromCharCode(34) + 'f.xlsx' + String.fromCharCode(34) },
+    }) as never);
+    await exportOrdersExcel();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      FLEET_API_URL + '/transport-orders-export.xlsx',
+      expect.objectContaining({ cache: 'no-store' }),
+    );
+  });
+  it('returns server_error WITHOUT calling fetch when the range is inverted (from > to)', async () => {
+    vi.mocked(cookies).mockResolvedValue({
+      get: vi.fn().mockReturnValue({ value: 'jwt' }),
+    } as never);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const result = await exportOrdersExcel({ from: '2026-05-31', to: '2026-05-01' });
+    expect(result.status).toBe('server_error');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

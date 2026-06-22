@@ -84,3 +84,9 @@ export {
   type ExtractionStatus,
   type ExtractionResultWire,
 } from './extraction-types.js';
+export {
+  exportDayKeySchema,
+  type ExportDayKey,
+  ExportDateRangeSchema,
+  type ExportDateRange,
+} from './transport-order-export-contract.js';

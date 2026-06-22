@@ -62,4 +62,30 @@ describe('@fleet/ops-web - ExportOrdersExcelButton', () => {
     await userEvent.click(screen.getByRole('button', { name: /xu.t excel/i }));
     await waitFor(() => { expect(screen.getByRole('alert')).toBeInTheDocument(); });
   });
+
+  it('renders Từ ngày / Đến ngày date inputs for the optional range', () => {
+    render(<ExportOrdersExcelButton />);
+    expect(screen.getByLabelText(/T. ng.y/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Đến ng.y/i)).toBeInTheDocument();
+  });
+  it('on click with both dates set: calls the action WITH the {from,to} range', async () => {
+    exportOrdersExcel.mockResolvedValue({ status: 'auth_required' });
+    render(<ExportOrdersExcelButton />);
+    const from = screen.getByTestId('export-range-from');
+    const to = screen.getByTestId('export-range-to');
+    await userEvent.type(from, '2026-05-01');
+    await userEvent.type(to, '2026-05-31');
+    await userEvent.click(screen.getByRole('button', { name: /xu.t excel/i }));
+    await waitFor(() => {
+      expect(exportOrdersExcel).toHaveBeenCalledWith({ from: '2026-05-01', to: '2026-05-31' });
+    });
+  });
+  it('on click with no dates set: calls the action with no range (undefined)', async () => {
+    exportOrdersExcel.mockResolvedValue({ status: 'auth_required' });
+    render(<ExportOrdersExcelButton />);
+    await userEvent.click(screen.getByRole('button', { name: /xu.t excel/i }));
+    await waitFor(() => {
+      expect(exportOrdersExcel).toHaveBeenCalledWith(undefined);
+    });
+  });
 });

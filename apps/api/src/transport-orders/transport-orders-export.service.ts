@@ -39,7 +39,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import ExcelJS from 'exceljs';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { dispatchBoardProjection } from '../database/schema/projections.js';
@@ -47,7 +47,7 @@ import { customer, driver, vehicle } from '../database/schema/reference.js';
 import { roadRunTransportOrder, stop, transportOrder } from '../database/schema/transport.js';
 import { manifest, uploadSession } from '../database/schema/manifest.js';
 import { warehouse } from '../database/schema/reference.js';
-import { netWeightKgSchema } from '@fleet/sync-protocol';
+import { netWeightKgSchema, type ExportDateRange } from '@fleet/sync-protocol';
 import { transportOrderExportLog } from '../database/schema/transport-order-export-log.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 export type ExportTrigger = 'manual' | 'login' | 'logout';
@@ -140,7 +140,7 @@ function tenantSlug(companyId: string): string {
 @Injectable()
 export class TransportOrdersExportService {
   constructor(@Inject(DRIZZLE_DB) private readonly db: FleetDb) {}
-  async exportAndLog(op: OperatorContext, trigger: ExportTrigger): Promise<ExportResult> {
+  async exportAndLog(op: OperatorContext, trigger: ExportTrigger, range?: ExportDateRange): Promise<ExportResult> {
     const dayKey = vnDayKey();
     if (trigger === 'login' || trigger === 'logout') {
       const existing = await this.db
@@ -167,7 +167,7 @@ export class TransportOrdersExportService {
         };
       }
     }
-    const rows = await this.fetchRows(op);
+    const rows = await this.fetchRows(op, range);
     const buffer = await this.buildXlsxBufferFromRows(rows);
     const sha256 = createHash('sha256').update(buffer).digest('hex');
     const filename =
@@ -201,7 +201,7 @@ export class TransportOrdersExportService {
   // Same scope + joins as DispatchController.getBoard: driver/vehicle labels via
   // company-scoped LEFT JOINs on the projection; customer name/phone, per-stop
   // warehouse name + extracted weight enriched at read time, grouped by road run.
-  private async fetchRows(op: OperatorContext): Promise<readonly ExportRow[]> {
+  private async fetchRows(op: OperatorContext, range?: ExportDateRange): Promise<readonly ExportRow[]> {
     const base = await this.db
       .select({
         roadRunId: dispatchBoardProjection.roadRunId,
@@ -220,7 +220,20 @@ export class TransportOrdersExportService {
         eq(vehicle.vehicleId, dispatchBoardProjection.assignedAssetId),
         eq(vehicle.companyId, op.companyId),
       ))
-      .where(eq(dispatchBoardProjection.companyId, op.companyId))
+      .where(and(
+        eq(dispatchBoardProjection.companyId, op.companyId),
+        // Feature 4: inclusive VN-local calendar-date window. Convert the stored
+        // UTC instant to Asia/Ho_Chi_Minh wall-clock, take its date, and bound it
+        // by [from, to]. A null planned_start_at yields NULL here and is excluded
+        // when a range is applied (an order with no planned date cannot fall in a
+        // date window).
+        range === undefined
+          ? undefined
+          : sql`(${dispatchBoardProjection.plannedStartAt} AT TIME ZONE 'Asia/Ho_Chi_Minh')::date >= ${range.from}::date`,
+        range === undefined
+          ? undefined
+          : sql`(${dispatchBoardProjection.plannedStartAt} AT TIME ZONE 'Asia/Ho_Chi_Minh')::date <= ${range.to}::date`,
+      ))
       .orderBy(asc(dispatchBoardProjection.plannedStartAt));
     const roadRunIds = base.map((r) => r.roadRunId);
     const stopsByRoadRun = new Map<string, ExportStop[]>();
