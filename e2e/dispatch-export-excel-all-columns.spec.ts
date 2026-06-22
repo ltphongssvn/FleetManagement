@@ -1,21 +1,17 @@
 // e2e/dispatch-export-excel-all-columns.spec.ts
 //
-// L0 acceptance (RED first) for the 2026 invariant: the manually-exported
-// Lệnh điều xe Excel workbook must contain EVERY column shown on the on-screen
-// Lệnh điều xe table, in the SAME left-to-right order.
-//
-// The on-screen table (apps/ops-web/src/features/dispatch/DispatchView.tsx +
-// board-stops.tsx) renders these 11 column headers:
-//   Số lệnh | Khách hàng | Tài xế | Xe | Ngày dự kiến | Số điểm |
-//   Điểm nhận hàng 1 | Điểm nhận hàng 2 | Điểm nhận hàng 3 | Điểm nhận hàng 4 |
-//   Kho giao hàng 1
+// L0 acceptance for the 2026 export invariant. The manually-exported Lệnh điều
+// xe Excel workbook is a DATA export: after the 6 identifying columns
+//   Số lệnh | Khách hàng | Tài xế | Xe | Ngày dự kiến | Số điểm
+// each stop slot contributes a PAIR of columns — the warehouse NAME and the
+// extracted net weight as a NUMBER (kg) — for pickup slots 1..4 and delivery
+// slot 1, giving 16 columns total:
+//   ... | Điểm nhận hàng 1 | Điểm nhận hàng 1 - KL (kg) | ... (slots 2..4) |
+//       Kho giao hàng 1 | Kho giao hàng 1 - KL (kg)
+// There is NO per-stop status text and no em-dash filler; a slot with no stop,
+// or no extracted weight yet, leaves the kg cell blank (Feature 2).
 // (Khách hàng renders the customer name with the phone on a sub-line; Excel is
 // flat, so the phone is folded into the Khách hàng cell — it is NOT a column.)
-//
-// The export service today emits only 6 headers (Số lệnh / Trạng thái / Tài xế
-// / Xe / Ngày dự kiến / Số điểm), so this spec is a VALID RED: it fails because
-// the product is missing the Khách hàng + per-stop columns, not because of any
-// harness/setup problem.
 //
 // Seeding (anti-pattern guard): this spec OWNS its data. It mints a dispatcher
 // token, creates a driver+vehicle+active-assignment pair via the admin API,
@@ -39,10 +35,15 @@ const EXPECTED_HEADERS = [
   'Ngày dự kiến',
   'Số điểm',
   'Điểm nhận hàng 1',
+  'Điểm nhận hàng 1 - KL (kg)',
   'Điểm nhận hàng 2',
+  'Điểm nhận hàng 2 - KL (kg)',
   'Điểm nhận hàng 3',
+  'Điểm nhận hàng 3 - KL (kg)',
   'Điểm nhận hàng 4',
+  'Điểm nhận hàng 4 - KL (kg)',
   'Kho giao hàng 1',
+  'Kho giao hàng 1 - KL (kg)',
 ];
 interface PsqlResult { stdout: string; stderr: string; failed: boolean }
 function dockerPsql(sqlText: string): PsqlResult {
@@ -109,7 +110,7 @@ test.describe.serial('export Excel contains all on-screen Lệnh điều xe colu
   let pair: Pair | null = null;
   test.beforeAll(async ({ request }) => { pair = await setupPair(request); });
   test.afterAll(() => { if (pair) cleanupPair(pair); });
-  test('exported workbook header row equals the 11 on-screen table columns in order', async ({ page }) => {
+  test('exported workbook header row equals the 16 identifying + per-slot name/kg columns in order', async ({ page }) => {
     if (!pair) throw new Error('pair missing');
     await login(page);
     await createOrderViaUi(page, pair);

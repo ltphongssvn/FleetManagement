@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { ExpoPushProvider, defaultExpoClient, type ExpoLike } from '../src/push/expo-push-provider.js';
+import { Expo } from 'expo-server-sdk';
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
 import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
 let testDb: PgliteTestDb;
@@ -135,14 +136,31 @@ describe('@fleet/api - defaultExpoClient', () => {
     expect(chunks.flat()).toHaveLength(messages.length);
     expect(chunks.every((c) => Array.isArray(c))).toBe(true);
   });
-  it('sendPushNotificationsAsync delegates to the real Expo client and maps tickets to {status}', async () => {
-    const client = defaultExpoClient();
-    const tickets = await client.sendPushNotificationsAsync([
-      { to: 'ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]', title: 't', body: 'b' },
-    ]);
-    expect(Array.isArray(tickets)).toBe(true);
-    expect(tickets).toHaveLength(1);
-    expect(typeof tickets[0]?.status).toBe('string');
-    expect(Object.keys(tickets[0] ?? {})).toEqual(['status']);
+  it('sendPushNotificationsAsync maps the SDK push tickets to {status} (no network)', async () => {
+    // defaultExpoClient wraps the real expo-server-sdk Expo client, whose
+    // sendPushNotificationsAsync POSTs to https://exp.host. A unit test must never hit
+    // the real network (offline/CI -> EAI_AGAIN, non-deterministic, slow). The logic that
+    // belongs to US — and is worth testing — is the mapping tickets.map(t => ({ status:
+    // t.status })). So we spy on the SDK collaborator method (Expo.prototype
+    // .sendPushNotificationsAsync) to return a controlled ExpoPushTicket array matching the
+    // SDK documented success-ticket shape ({ status: 'ok', id }), and assert our mapping.
+    // isExpoPushToken / chunkPushNotifications remain the REAL SDK in the tests above.
+    const sendSpy = vi
+      .spyOn(Expo.prototype, 'sendPushNotificationsAsync')
+      .mockResolvedValue([{ status: 'ok', id: 'ticket-1' }]);
+    try {
+      const client = defaultExpoClient();
+      const tickets = await client.sendPushNotificationsAsync([
+        { to: 'ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]', title: 't', body: 'b' },
+      ]);
+      expect(Array.isArray(tickets)).toBe(true);
+      expect(tickets).toHaveLength(1);
+      expect(tickets[0]?.status).toBe('ok');
+      // mapping must project ONLY { status } — the receipt id is intentionally dropped.
+      expect(Object.keys(tickets[0] ?? {})).toEqual(['status']);
+      expect(sendSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      sendSpy.mockRestore();
+    }
   });
 });
