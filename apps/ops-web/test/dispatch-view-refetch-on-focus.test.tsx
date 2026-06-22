@@ -48,6 +48,7 @@ const baseRun: DispatchBoardRoadRun = {
   transportOrderRefs: ['XTT.05-001'],
   customerName: null,
   customerPhone: null,
+  weightDiffKg: null,
   stops: [],
 };
 const refs = {

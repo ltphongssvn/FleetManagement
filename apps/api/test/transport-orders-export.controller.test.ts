@@ -53,8 +53,8 @@ describe('@fleet/api - TransportOrdersExportController', () => {
       sha256: 'abc', rowCount: 3, exportLogId: 'log-1', trigger: 'manual', dayKey: '2026-05-24',
     });
     const res = mockRes();
-    await ctl.exportXlsx(op, res as unknown as Parameters<typeof ctl.exportXlsx>[1]);
-    expect(exportAndLog).toHaveBeenCalledWith(op, 'manual');
+    await ctl.exportXlsx({}, op, res as unknown as Parameters<typeof ctl.exportXlsx>[2]);
+    expect(exportAndLog).toHaveBeenCalledWith(op, 'manual', undefined);
     expect(res.headers['content-type']).toBe(
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
@@ -62,6 +62,39 @@ describe('@fleet/api - TransportOrdersExportController', () => {
     expect(res.headers['content-disposition']).toContain('lenh-dieu-xe_t_2026-05-24_manual_deadbeef.xlsx');
     expect(res.body).toBe(buffer);
   });
+
+  it('GET export.xlsx with valid from/to threads the parsed range to the service', async () => {
+    exportAndLog.mockResolvedValue({
+      buffer: Buffer.from([0x50, 0x4b]), filename: 'f.xlsx', sha256: 'a', rowCount: 1,
+      exportLogId: 'log-r', trigger: 'manual', dayKey: '2026-05-24',
+    });
+    const res = mockRes();
+    await ctl.exportXlsx({ from: '2026-05-01', to: '2026-05-31' }, op, res as unknown as Parameters<typeof ctl.exportXlsx>[2]);
+    expect(exportAndLog).toHaveBeenCalledWith(op, 'manual', { from: '2026-05-01', to: '2026-05-31' });
+  });
+  it('GET export.xlsx rejects an inverted range (from > to)', async () => {
+    const res = mockRes();
+    await expect(
+      ctl.exportXlsx({ from: '2026-05-31', to: '2026-05-01' }, op, res as unknown as Parameters<typeof ctl.exportXlsx>[2]),
+    ).rejects.toThrow();
+    expect(exportAndLog).not.toHaveBeenCalled();
+  });
+  it('GET export.xlsx rejects a malformed date', async () => {
+    const res = mockRes();
+    await expect(
+      ctl.exportXlsx({ from: '2026-5-1', to: '2026-05-31' }, op, res as unknown as Parameters<typeof ctl.exportXlsx>[2]),
+    ).rejects.toThrow();
+  });
+  it('GET export.xlsx with only one of from/to ignores the partial range (exports all)', async () => {
+    exportAndLog.mockResolvedValue({
+      buffer: Buffer.from([0x50]), filename: 'f.xlsx', sha256: 'a', rowCount: 1,
+      exportLogId: 'log-p', trigger: 'manual', dayKey: '2026-05-24',
+    });
+    const res = mockRes();
+    await ctl.exportXlsx({ from: '2026-05-01' }, op, res as unknown as Parameters<typeof ctl.exportXlsx>[2]);
+    expect(exportAndLog).toHaveBeenCalledWith(op, 'manual', undefined);
+  });
+
   it('POST /export/auto with trigger=login delegates and returns ledger summary', async () => {
     exportAndLog.mockResolvedValue({
       buffer: Buffer.alloc(0), filename: 'f.xlsx', sha256: 'sha-x',

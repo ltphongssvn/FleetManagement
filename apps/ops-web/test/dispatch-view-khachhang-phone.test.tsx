@@ -37,6 +37,7 @@ const run: DispatchBoardRoadRun = {
   transportOrderRefs: ['XT.0067'],
   customerName: 'Công ty Vận Tải Số 1',
   customerPhone: '0901234567',
+  weightDiffKg: null,
   stops: [],
 };
 describe('DispatchView - Khách hàng shows Số điện thoại', () => {

@@ -1,41 +1,19 @@
 // apps/ops-web/src/features/dispatch/types.ts
-// Mirrors API dispatch_board_projection per Frozen Stack PDF 'Ops web (single page)'.
-import type { RoadRunState } from '@fleet/domain';
-import type { StopProof } from '@fleet/sync-protocol';
-export interface DispatchBoardStop {
-  readonly sequence: number;
-  readonly stopType: string;
-  readonly warehouseName: string | null;
-  readonly arrivedAt: string | null;
-  readonly departedAt: string | null;
-  // Per-stop proof photo (Phiếu Cân). Shape is the single-source-of-truth
-  // StopProof from @fleet/sync-protocol. null when no committed manifest is
-  // tied to this stop. EXPAND-only: existing fields unchanged.
-  readonly proof: StopProof | null;
-}
-export interface DispatchBoardRoadRun {
-  readonly roadRunId: string;
-  readonly state: RoadRunState;
-  readonly assignedOperatorId: string | null;
-  readonly assignedAssetId: string | null;
-  // Server-resolved labels (2026): the API board endpoint resolves the
-  // assigned driver/vehicle to driver.full_name and vehicle.plate via a
-  // company-scoped LEFT JOIN, so the board no longer depends on the
-  // pair-filtered dispatch-form dropdown lists to render Tài xế/Xe. Null when
-  // the reference row is missing (ops-web renders em-dash) or for the
-  // optimistic (pre-projection) row.
-  readonly driverName: string | null;
-  readonly vehiclePlate: string | null;
-  readonly plannedStartAt: string | null;
-  readonly stopCount: number;
-  readonly transportOrderRefs: readonly string[];
-  readonly customerName: string | null;
-  readonly customerPhone: string | null;
-  readonly stops: readonly DispatchBoardStop[];
-}
+// Dispatch board view types. The board row + stop shapes are the SINGLE SOURCE
+// OF TRUTH canonical Zod schemas in @fleet/sync-protocol (DispatchBoardRowSchema
+// / DispatchBoardStopSchema); this module re-exports their inferred types under
+// the ops-web-domain names used across the dispatch feature (one road_run == one
+// board row). No board shape is re-declared here — there is exactly one
+// definition, in the contract package, that the API and ops-web both derive from.
+export type {
+  StopProof,
+  DispatchBoardStop,
+  DispatchBoardRow as DispatchBoardRoadRun,
+} from '@fleet/sync-protocol';
+
 // Mirrors API ListAssignedRow (apps/api/src/transport-orders/transport-orders.dto.ts).
 // Used by the dispatcher review view to render one order with its road-run,
-// stops, and enrichment fields.
+// stops, and enrichment fields. (Unrelated to the board row shape above.)
 export interface ListAssignedRowStop {
   readonly sequence: number;
   readonly stopType: string;

@@ -1,6 +1,6 @@
 // packages/sync-protocol/src/index.ts
 // Barrel export for @fleet/sync-protocol package.
-// Named exports only — no `export *` to prevent namespace pollution.
+// Named exports only (no wildcard re-export) to prevent namespace pollution.
 export {
   type ActionId,
   type SyncCursor,
@@ -47,12 +47,22 @@ export {
   type StopType,
   netWeightKgSchema,
   type NetWeightKg,
+  weightDiffKgSchema,
+  type WeightDiffKg,
   StopProofSchema,
   type StopProof,
   DispatchStopViewSchema,
   type DispatchStopView,
-  DispatchOrderViewSchema,
-  type DispatchOrderView,
+  DispatchBoardStopSchema,
+  type DispatchBoardStop,
+  DispatchBoardRowSchema,
+  type DispatchBoardRow,
+  DispatchBoardResponseSchema,
+  type DispatchBoardResponse,
+  DispatchBoardApiRowSchema,
+  type DispatchBoardApiRow,
+  DispatchBoardApiResponseSchema,
+  type DispatchBoardApiResponse,
 } from './dispatch-stop-view-contract.js';
 export {
   OUTBOX_ROUTING_POLICY_VERSION,
@@ -74,3 +84,9 @@ export {
   type ExtractionStatus,
   type ExtractionResultWire,
 } from './extraction-types.js';
+export {
+  exportDayKeySchema,
+  type ExportDayKey,
+  ExportDateRangeSchema,
+  type ExportDateRange,
+} from './transport-order-export-contract.js';

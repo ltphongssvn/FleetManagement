@@ -9,6 +9,12 @@
 // truth, producer = api /dispatch/board) renders a clickable 'Phiếu Cân'
 // hyperlink to the presigned photo URL instead of the arrival-status text.
 // Outside-in TDD: apps/ops-web/test/board-stops-phieu-can.test.tsx.
+//
+// Warehouse name (Feature 1, 2026): each stop cell renders its warehouse NAME
+// stacked ABOVE the link/status, so the dispatcher reads warehouse-over-kg per
+// column (e.g. "Đức Tài" over "Phiếu Cân" over "7.920 kg"). warehouseName is the
+// canonical DispatchBoardStop field (server LEFT JOIN warehouse). null name =>
+// no node (no em-dash leak). Outside-in TDD: board-stops-warehouse-name.test.tsx.
 import type { JSX } from 'react';
 import type { DispatchBoardStop } from './types';
 
@@ -68,23 +74,21 @@ export function StopSlotHeaders(): JSX.Element {
   );
 }
 
-// Renders one stop cell: the 'Phiếu Cân' proof link when a committed proof
-// photo exists, otherwise the arrival-status text; em-dash for empty slots.
-// The <a opener deliberately shares its line with the first attribute — a
-// bare '<a' alone on a shallow-indented line gets stripped by some shells
-// during heredoc writes (context/file-editing-pattern.md, rule 5).
-function StopCellContent({
+// The arrival/proof portion of a stop cell: the 'Phiếu Cân' proof link when a
+// committed proof photo exists, otherwise the arrival-status text. This is the
+// content rendered UNDER the warehouse name. The <a opener deliberately shares
+// its line with the first attribute — a bare '<a' alone on a shallow-indented
+// line gets stripped by some shells during heredoc writes
+// (context/file-editing-pattern.md, rule 5).
+function StopCellInner({
   stop,
   testId,
   onEnterNetWeight,
 }: {
-  stop: DispatchBoardStop | undefined;
+  stop: DispatchBoardStop;
   testId: string;
   onEnterNetWeight?: ((manifestId: string) => void) | undefined;
 }): JSX.Element {
-  if (stop === undefined) {
-    return <span data-testid={testId}>{'—'}</span>;
-  }
   if (stop.proof !== null) {
     // Capture the narrowed proof so closures (onClick) keep non-null typing
     // without a forbidden non-null assertion.
@@ -149,6 +153,38 @@ function StopCellContent({
     );
   }
   return <span data-testid={testId}>{stopStatusOf(stop)}</span>;
+}
+
+// One stop cell: the warehouse NAME (when present) stacked ABOVE the arrival/
+// proof content. Empty slot (no stop) => em-dash only. The name testid derives
+// from the slot status testid (board-stop-status- -> board-stop-warehouse-),
+// matching the netweight/reason testid convention.
+function StopCellContent({
+  stop,
+  testId,
+  onEnterNetWeight,
+}: {
+  stop: DispatchBoardStop | undefined;
+  testId: string;
+  onEnterNetWeight?: ((manifestId: string) => void) | undefined;
+}): JSX.Element {
+  if (stop === undefined) {
+    return <span data-testid={testId}>{'—'}</span>;
+  }
+  const warehouseName = stop.warehouseName;
+  return (
+    <span className='inline-flex flex-col items-start gap-0.5'>
+      {warehouseName !== null && warehouseName !== '' ? (
+        <span
+          data-testid={testId.replace('board-stop-status-', 'board-stop-warehouse-')}
+          className='font-medium text-gray-900'
+        >
+          {warehouseName}
+        </span>
+      ) : null}
+      <StopCellInner stop={stop} testId={testId} onEnterNetWeight={onEnterNetWeight} />
+    </span>
+  );
 }
 
 export function StopSlotCells({
