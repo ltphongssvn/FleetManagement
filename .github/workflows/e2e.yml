@@ -41,6 +41,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The e2e specs import @fleet/sync-protocol (the export-header SSOT) at the
+      # Playwright-host level. Its dist/ is gitignored and built per-job, so build it
+      # (and any workspace deps it needs) before Playwright resolves the import.
+      - run: pnpm --filter @fleet/sync-protocol... run build
       - run: pnpm exec playwright install chromium --with-deps
       - name: Generate ephemeral ES256 keypair + disposable .env
         run: |
