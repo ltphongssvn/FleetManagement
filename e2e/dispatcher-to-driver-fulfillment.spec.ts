@@ -38,7 +38,7 @@ import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentR
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 const HANDOFF_PATH = process.env['E2E_DRIVER_HANDOFF']
-  ?? resolve(__dirname, '../.e2e-artifacts/driver-handoff.json');
+  ?? resolve(import.meta.dirname, '../.e2e-artifacts/driver-handoff.json');
 const KNOWN_PASSWORD = 'e2e-pass-1234'; // pragma: allowlist secret
 interface Seed {
   driverId: string; operatorId: string; vehicleId: string;

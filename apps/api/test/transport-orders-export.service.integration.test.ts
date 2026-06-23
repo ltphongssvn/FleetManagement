@@ -26,18 +26,14 @@ import { TransportOrdersExportService } from '../src/transport-orders/transport-
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 import type { ExportDateRange } from '@fleet/sync-protocol';
+import { LENH_DIEU_XE_EXPORT_HEADERS } from '@fleet/sync-protocol';
 let testDb: PgliteTestDb;
 let svc: TransportOrdersExportService;
 const OP = createOperatorContext({ companyId: '00000000-0000-0000-0000-000000000aaa' });
-// Feature 2 (2026): per-slot warehouse-name + kg-number column PAIRS, no status.
-const EXPECTED_HEADERS = [
-  'Số lệnh', 'Khách hàng', 'Tài xế', 'Xe', 'Ngày dự kiến', 'Số điểm',
-  'Điểm nhận hàng 1', 'Điểm nhận hàng 1 - KL (kg)',
-  'Điểm nhận hàng 2', 'Điểm nhận hàng 2 - KL (kg)',
-  'Điểm nhận hàng 3', 'Điểm nhận hàng 3 - KL (kg)',
-  'Điểm nhận hàng 4', 'Điểm nhận hàng 4 - KL (kg)',
-  'Kho giao hàng 1', 'Kho giao hàng 1 - KL (kg)',
-];
+// The header contract is the provider-owned SSOT in @fleet/sync-protocol; this test
+// imports it instead of re-declaring the array, so it cannot drift from what the
+// service writes. (Asserting the imported value still proves the service emits it.)
+const EXPECTED_HEADERS = LENH_DIEU_XE_EXPORT_HEADERS;
 function q(s: string): string { return String.fromCharCode(39) + s + String.fromCharCode(39); }
 async function seedProjection(roadRunId: string, refs: readonly string[]): Promise<void> {
   const co = OP.companyId;
@@ -143,21 +139,24 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
     expect(headerOf(ws)).toEqual(EXPECTED_HEADERS);
     const data = rowValues(ws, 2);
-    // 0-based after slice(1): 0..5 identifying; then pairs:
-    // 6 P1 name,7 P1 kg, 8 P2 name,9 P2 kg, 10 P3,11, 12 P4,13, 14 D1 name,15 D1 kg
+    // 0-based after slice(1): 0..5 identifying; 6 = Chênh lệch; then pairs:
+    // 7 P1 name,8 P1 kg, 9 P2 name,10 P2 kg, 11 P3,12, 13 P4,14, 15 D1 name,16 D1 kg
     expect(String(data[0])).toBe('XT.GRAPH');
     const kh = String(data[1]);
     expect(kh).toContain('ĐA NĂNG');
     expect(kh).toContain('0903998784');
     // pickup slot 1: warehouse name present; NO status text anywhere in the row
-    expect(String(data[6])).toBe('Cần Thơ');
+    // Chênh lệch (col 6) is BLANK here: only the pickup is seeded with no weight,
+    // so the diff is incomplete -> true blank, never 0.
+    expect(data[6] === null || data[6] === undefined).toBe(true);
+    expect(String(data[7])).toBe('Cần Thơ');
     // delivery slot 1: warehouse name present
-    expect(String(data[14])).toBe('ĐA NĂNG');
+    expect(String(data[15])).toBe('ĐA NĂNG');
     // no weights extracted yet -> kg cells are EMPTY (blank), never 0, never status
-    expect(data[7] === null || data[7] === undefined).toBe(true);
-    expect(data[15] === null || data[15] === undefined).toBe(true);
+    expect(data[8] === null || data[8] === undefined).toBe(true);
+    expect(data[16] === null || data[16] === undefined).toBe(true);
     // unused pickup slots 2-4: both name and kg cells EMPTY (no em-dash, no status)
-    for (const i of [8, 9, 10, 11, 12, 13]) {
+    for (const i of [9, 10, 11, 12, 13, 14]) {
       expect(data[i] === null || data[i] === undefined).toBe(true);
     }
     // explicit: the row contains NO legacy status strings anywhere
@@ -249,11 +248,68 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(r.buffer as unknown as ArrayBuffer);
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
-    // paired layout: col 7 = P1 name, col 8 = P1 kg number
-    expect(ws.getRow(2).getCell(7).value).toBe('Cần Thơ');
-    const kgCell = ws.getRow(2).getCell(8).value;
+    // col 7 = Chênh lệch; paired layout shifts by 1: col 8 = P1 name, col 9 = P1 kg
+    expect(ws.getRow(2).getCell(8).value).toBe('Cần Thơ');
+    const kgCell = ws.getRow(2).getCell(9).value;
     expect(typeof kgCell).toBe('number');
     expect(kgCell).toBe(7920);
+  });
+
+  // Feature 3 export parity: the board shows a Chenh lech (pickup-vs-delivery
+  // net-weight difference) column; the export MUST carry the same value, computed
+  // by the shared @fleet/sync-protocol computeWeightDiffKg SSOT. Here pickup
+  // 7920 - delivery 5000 = 2920, emitted as a NUMBER in the Chenh lech column.
+  it('emits a Chênh lệch column with the numeric pickup-minus-delivery weight diff', async () => {
+    const roadRunId = 'aaaaaaaa-8888-4888-8888-888888888888';
+    const toId = '00000000-0000-4000-8000-000000088001';
+    await seedProjection(roadRunId, ['XT.DIFF']);
+    await seedOrderGraph({
+      roadRunId,
+      transportOrderId: toId,
+      customerName: 'ĐẠI THÀNH',
+      customerPhone: '0913998773',
+      pickupWarehouseName: 'Cần Thơ',
+      deliveryWarehouseName: 'ĐẠI THÀNH',
+      pickupArrived: '2026-06-12T03:00:00Z',
+      deliveryArrived: '2026-06-12T09:00:00Z',
+    });
+    const co = OP.companyId;
+    const pickupStopId = '00000000-0000-4000-8000-000000050001';
+    const deliveryStopId = '00000000-0000-4000-8000-000000050002';
+    // pickup manifest: 7920 kg committed+extracted on the pickup stop
+    await testDb.db.execute(sql.raw(
+      'INSERT INTO manifest (manifest_id, company_id, business_unit_id, depot_id, legal_entity_id, transport_order_id, manifest_correlation_id, stop_id, state, extracted_net_weight_kg, extraction_status) VALUES (' +
+      q('00000000-0000-4000-8000-0000000d8001') + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(toId) + ',' +
+      q('00000000-0000-7000-8000-000000780001') + ',' + q(pickupStopId) + ',' + q('committed') + ',7920.000,' + q('extracted') + ')'
+    ));
+    await testDb.db.execute(sql.raw(
+      'INSERT INTO upload_session (upload_session_id, company_id, business_unit_id, depot_id, legal_entity_id, manifest_id, operator_id, s3_key, s3_bucket, content_type, state) VALUES (' +
+      q('00000000-0000-4000-8000-0000000e8001') + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q('00000000-0000-4000-8000-0000000d8001') + ',' +
+      q('00000000-0000-4000-8000-0000000b8001') + ',' + q('manifests/x/y/p.jpg') + ',' + q('fleet-pilot-artifacts') + ',' + q('image/jpeg') + ',' + q('committed') + ')'
+    ));
+    // delivery manifest: 5000 kg committed+extracted on the delivery stop
+    await testDb.db.execute(sql.raw(
+      'INSERT INTO manifest (manifest_id, company_id, business_unit_id, depot_id, legal_entity_id, transport_order_id, manifest_correlation_id, stop_id, state, extracted_net_weight_kg, extraction_status) VALUES (' +
+      q('00000000-0000-4000-8000-0000000d8002') + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(toId) + ',' +
+      q('00000000-0000-7000-8000-000000780002') + ',' + q(deliveryStopId) + ',' + q('committed') + ',5000.000,' + q('extracted') + ')'
+    ));
+    await testDb.db.execute(sql.raw(
+      'INSERT INTO upload_session (upload_session_id, company_id, business_unit_id, depot_id, legal_entity_id, manifest_id, operator_id, s3_key, s3_bucket, content_type, state) VALUES (' +
+      q('00000000-0000-4000-8000-0000000e8002') + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q('00000000-0000-4000-8000-0000000d8002') + ',' +
+      q('00000000-0000-4000-8000-0000000b8002') + ',' + q('manifests/x/y/d.jpg') + ',' + q('fleet-pilot-artifacts') + ',' + q('image/jpeg') + ',' + q('committed') + ')'
+    ));
+    const r = await svc.exportAndLog(OP, 'manual');
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(r.buffer as unknown as ArrayBuffer);
+    const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
+    const headers = headerOf(ws);
+    expect(headers).toContain('Chênh lệch');
+    const diffCol = headers.indexOf('Chênh lệch');
+    // Chênh lệch sits right after Số điểm (col index 5), before the stop pairs.
+    expect(diffCol).toBe(6);
+    const cell = ws.getRow(2).getCell(diffCol + 1).value;
+    expect(typeof cell).toBe('number');
+    expect(cell).toBe(2920);
   });
 });
 

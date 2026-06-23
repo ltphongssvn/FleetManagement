@@ -1,13 +1,15 @@
 // e2e/dispatch-export-excel-all-columns.spec.ts
 //
 // L0 acceptance for the 2026 export invariant. The manually-exported Lệnh điều
-// xe Excel workbook is a DATA export: after the 6 identifying columns
-//   Số lệnh | Khách hàng | Tài xế | Xe | Ngày dự kiến | Số điểm
+// xe Excel workbook is a DATA export: after the 6 identifying columns plus the
+// Chênh lệch (pickup-vs-delivery weight diff) column
+//   Số lệnh | Khách hàng | Tài xế | Xe | Ngày dự kiến | Số điểm | Chênh lệch
 // each stop slot contributes a PAIR of columns — the warehouse NAME and the
 // extracted net weight as a NUMBER (kg) — for pickup slots 1..4 and delivery
-// slot 1, giving 16 columns total:
+// slot 1, giving 17 columns total:
 //   ... | Điểm nhận hàng 1 | Điểm nhận hàng 1 - KL (kg) | ... (slots 2..4) |
 //       Kho giao hàng 1 | Kho giao hàng 1 - KL (kg)
+// The exact set is the @fleet/sync-protocol SSOT imported below — this comment is
 // There is NO per-stop status text and no em-dash filler; a slot with no stop,
 // or no extracted weight yet, leaves the kg cell blank (Feature 2).
 // (Khách hàng renders the customer name with the phone on a sub-line; Excel is
@@ -23,28 +25,16 @@ import { execSync } from 'node:child_process';
 import ExcelJS from 'exceljs';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { z } from 'zod';
+import { LENH_DIEU_XE_EXPORT_HEADERS } from '@fleet/sync-protocol';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const POSTGRES_CONTAINER = process.env['E2E_PG_CONTAINER'] ?? 'fleet-pilot-postgres-1';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
-const EXPECTED_HEADERS = [
-  'Số lệnh',
-  'Khách hàng',
-  'Tài xế',
-  'Xe',
-  'Ngày dự kiến',
-  'Số điểm',
-  'Điểm nhận hàng 1',
-  'Điểm nhận hàng 1 - KL (kg)',
-  'Điểm nhận hàng 2',
-  'Điểm nhận hàng 2 - KL (kg)',
-  'Điểm nhận hàng 3',
-  'Điểm nhận hàng 3 - KL (kg)',
-  'Điểm nhận hàng 4',
-  'Điểm nhận hàng 4 - KL (kg)',
-  'Kho giao hàng 1',
-  'Kho giao hàng 1 - KL (kg)',
-];
+// The expected header row is the provider-owned SSOT exported by @fleet/sync-protocol
+// (the SAME constant the export service builds the workbook from). Importing it —
+// now possible because e2e is a workspace member — makes it structurally impossible
+// for this acceptance spec to assert a stale column set, which is exactly the drift
+// that previously slipped past the PR gate and only failed on the release push.
 interface PsqlResult { stdout: string; stderr: string; failed: boolean }
 function dockerPsql(sqlText: string): PsqlResult {
   const cmd = 'docker exec -i ' + POSTGRES_CONTAINER + ' psql -U fleet -d fleet -tA -v ON_ERROR_STOP=1';
@@ -110,7 +100,7 @@ test.describe.serial('export Excel contains all on-screen Lệnh điều xe colu
   let pair: Pair | null = null;
   test.beforeAll(async ({ request }) => { pair = await setupPair(request); });
   test.afterAll(() => { if (pair) cleanupPair(pair); });
-  test('exported workbook header row equals the 16 identifying + per-slot name/kg columns in order', async ({ page }) => {
+  test('exported workbook header row equals the 17 SSOT columns (6 identifying + Chênh lệch + per-slot name/kg pairs) in order', async ({ page }) => {
     if (!pair) throw new Error('pair missing');
     await login(page);
     await createOrderViaUi(page, pair);
@@ -124,6 +114,6 @@ test.describe.serial('export Excel contains all on-screen Lệnh điều xe colu
     const ws = wb.worksheets[0];
     if (!ws) throw new Error('no worksheet in exported workbook');
     const header = (ws.getRow(1).values as unknown[]).slice(1).map((v) => String(v));
-    expect(header).toEqual(EXPECTED_HEADERS);
+    expect(header).toEqual([...LENH_DIEU_XE_EXPORT_HEADERS]);
   });
 });

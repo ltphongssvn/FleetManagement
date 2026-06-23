@@ -47,7 +47,7 @@ import { customer, driver, vehicle } from '../database/schema/reference.js';
 import { roadRunTransportOrder, stop, transportOrder } from '../database/schema/transport.js';
 import { manifest, uploadSession } from '../database/schema/manifest.js';
 import { warehouse } from '../database/schema/reference.js';
-import { netWeightKgSchema, type ExportDateRange } from '@fleet/sync-protocol';
+import { netWeightKgSchema, computeWeightDiffKg, LENH_DIEU_XE_EXPORT_HEADERS, EXPORT_PICKUP_SLOTS, EXPORT_DELIVERY_SLOTS, type ExportDateRange, type WeightDiffStop } from '@fleet/sync-protocol';
 import { transportOrderExportLog } from '../database/schema/transport-order-export-log.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 export type ExportTrigger = 'manual' | 'login' | 'logout';
@@ -78,17 +78,12 @@ interface ExportRow {
   readonly customerPhone: string | null;
   readonly stops: readonly ExportStop[];
 }
-// On-screen Lệnh điều xe slots, in order. Mirrors board-stops.tsx
-// (PICKUP_SLOTS 1..4, DELIVERY_SLOTS 1).
-const PICKUP_SLOTS = [1, 2, 3, 4] as const;
-const DELIVERY_SLOTS = [1] as const;
-const KG_SUFFIX = ' - KL (kg)';
-// 6 identifying columns, then a (name, kg) PAIR per slot.
-const HEADERS = [
-  'Số lệnh', 'Khách hàng', 'Tài xế', 'Xe', 'Ngày dự kiến', 'Số điểm',
-  ...PICKUP_SLOTS.flatMap((n) => ['Điểm nhận hàng ' + String(n), 'Điểm nhận hàng ' + String(n) + KG_SUFFIX]),
-  ...DELIVERY_SLOTS.flatMap((n) => ['Kho giao hàng ' + String(n), 'Kho giao hàng ' + String(n) + KG_SUFFIX]),
-] as const;
+// On-screen Lệnh điều xe slots, in order. The slot vocabulary AND the full header
+// row are the provider-owned SSOT in @fleet/sync-protocol (imported above), so the
+// service that WRITES the workbook, its tests, and the e2e spec that READS it all
+// share one definition and cannot drift. Local aliases keep the row builder terse.
+const PICKUP_SLOTS = EXPORT_PICKUP_SLOTS;
+const DELIVERY_SLOTS = EXPORT_DELIVERY_SLOTS;
 const DASH = '—';
 const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'Asia/Ho_Chi_Minh',
@@ -327,7 +322,7 @@ export class TransportOrdersExportService {
     wb.creator = 'FleetManagement';
     wb.created = new Date(0);
     const ws = wb.addWorksheet('Lệnh điều xe');
-    ws.addRow([...HEADERS]);
+    ws.addRow([...LENH_DIEU_XE_EXPORT_HEADERS]);
     ws.getRow(1).font = { bold: true };
     for (const r of rows) {
       const primaryRef = r.transportOrderRefs[0] ?? DASH;
@@ -339,6 +334,11 @@ export class TransportOrdersExportService {
         r.vehiclePlate ?? DASH,
         planned,
         r.stopCount,
+        // Feature 3: pickup-vs-delivery net-weight difference via the shared
+        // @fleet/sync-protocol SSOT, so this column matches the dispatch board
+        // exactly. null (true blank) when any contributing weight is unknown —
+        // never 0 — consistent with the kg columns missing-data rule.
+        computeWeightDiffKg(r.stops.map((st): WeightDiffStop => ({ stopType: st.stopType as WeightDiffStop['stopType'], extractedNetWeightKg: st.extractedNetWeightKg }))),
         ...PICKUP_SLOTS.flatMap((n) => [slotNameCell(r.stops, 'pickup', n), slotWeightCell(r.stops, 'pickup', n)]),
         ...DELIVERY_SLOTS.flatMap((n) => [slotNameCell(r.stops, 'delivery', n), slotWeightCell(r.stops, 'delivery', n)]),
       ]);

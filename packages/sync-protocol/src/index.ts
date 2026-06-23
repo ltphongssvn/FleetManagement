@@ -49,6 +49,9 @@ export {
   type NetWeightKg,
   weightDiffKgSchema,
   type WeightDiffKg,
+  WeightDiffStopSchema,
+  type WeightDiffStop,
+  computeWeightDiffKg,
   StopProofSchema,
   type StopProof,
   DispatchStopViewSchema,
@@ -90,3 +93,11 @@ export {
   ExportDateRangeSchema,
   type ExportDateRange,
 } from './transport-order-export-contract.js';
+
+export {
+  EXPORT_PICKUP_SLOTS,
+  EXPORT_DELIVERY_SLOTS,
+  EXPORT_KG_SUFFIX,
+  EXPORT_IDENTIFYING_HEADERS,
+  LENH_DIEU_XE_EXPORT_HEADERS,
+} from './transport-order-export-headers.js';

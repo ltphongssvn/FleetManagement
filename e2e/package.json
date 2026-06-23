@@ -1,0 +1,20 @@
+{
+  "name": "@fleet/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Top-level Playwright acceptance suite. A workspace member so specs import shared @fleet contracts (export-header SSOT) via the workspace protocol instead of re-declaring them.",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fleet/sync-protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@types/node": "^22.10.2",
+    "exceljs": "^4.4.0",
+    "typescript": "^5.7.2",
+    "zod": "catalog:"
+  }
+}
