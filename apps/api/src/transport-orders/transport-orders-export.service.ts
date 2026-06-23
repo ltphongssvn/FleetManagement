@@ -47,7 +47,7 @@ import { customer, driver, vehicle } from '../database/schema/reference.js';
 import { roadRunTransportOrder, stop, transportOrder } from '../database/schema/transport.js';
 import { manifest, uploadSession } from '../database/schema/manifest.js';
 import { warehouse } from '../database/schema/reference.js';
-import { netWeightKgSchema, type ExportDateRange } from '@fleet/sync-protocol';
+import { netWeightKgSchema, computeWeightDiffKg, type ExportDateRange, type WeightDiffStop } from '@fleet/sync-protocol';
 import { transportOrderExportLog } from '../database/schema/transport-order-export-log.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 export type ExportTrigger = 'manual' | 'login' | 'logout';
@@ -85,7 +85,7 @@ const DELIVERY_SLOTS = [1] as const;
 const KG_SUFFIX = ' - KL (kg)';
 // 6 identifying columns, then a (name, kg) PAIR per slot.
 const HEADERS = [
-  'Số lệnh', 'Khách hàng', 'Tài xế', 'Xe', 'Ngày dự kiến', 'Số điểm',
+  'Số lệnh', 'Khách hàng', 'Tài xế', 'Xe', 'Ngày dự kiến', 'Số điểm', 'Chênh lệch',
   ...PICKUP_SLOTS.flatMap((n) => ['Điểm nhận hàng ' + String(n), 'Điểm nhận hàng ' + String(n) + KG_SUFFIX]),
   ...DELIVERY_SLOTS.flatMap((n) => ['Kho giao hàng ' + String(n), 'Kho giao hàng ' + String(n) + KG_SUFFIX]),
 ] as const;
@@ -339,6 +339,11 @@ export class TransportOrdersExportService {
         r.vehiclePlate ?? DASH,
         planned,
         r.stopCount,
+        // Feature 3: pickup-vs-delivery net-weight difference via the shared
+        // @fleet/sync-protocol SSOT, so this column matches the dispatch board
+        // exactly. null (true blank) when any contributing weight is unknown —
+        // never 0 — consistent with the kg columns missing-data rule.
+        computeWeightDiffKg(r.stops.map((st): WeightDiffStop => ({ stopType: st.stopType as WeightDiffStop['stopType'], extractedNetWeightKg: st.extractedNetWeightKg }))),
         ...PICKUP_SLOTS.flatMap((n) => [slotNameCell(r.stops, 'pickup', n), slotWeightCell(r.stops, 'pickup', n)]),
         ...DELIVERY_SLOTS.flatMap((n) => [slotNameCell(r.stops, 'delivery', n), slotWeightCell(r.stops, 'delivery', n)]),
       ]);
