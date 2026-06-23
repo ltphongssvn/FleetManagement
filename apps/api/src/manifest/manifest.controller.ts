@@ -40,7 +40,7 @@ export class ManifestController {
   }
 }
 const FinalizeIntakeSchema = z.object({
-  uploadSessionId: z.string().uuid(),
+  uploadSessionId: z.guid(),
   accepted: z.boolean(),
   rejectionReasonCode: ManifestRejectionReasonSchema.optional(),
 }).strict();

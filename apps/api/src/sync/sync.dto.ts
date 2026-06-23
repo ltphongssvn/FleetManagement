@@ -3,11 +3,11 @@
 import { z } from 'zod';
 
 export const SyncActionDto = z.object({
-  actionId: z.string().uuid(),
+  actionId: z.guid(),
   aggregateType: z.string().min(1).max(64),
-  aggregateId: z.string().uuid(),
+  aggregateId: z.guid(),
   payload: z.unknown(),
-  timestamp: z.string().datetime(),
+  timestamp: z.iso.datetime(),
 });
 
 export const SyncRequestDto = z.object({

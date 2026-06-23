@@ -18,7 +18,7 @@ export const SIGN_JWT_TOKEN = Symbol.for('SignJwtFn');
 const FinishAuthSchema = z.object({
   id: z.string().min(1),
   challenge: z.string().min(1),
-}).passthrough();
+}).loose();
 type FinishAuthBody = z.infer<typeof FinishAuthSchema>;
 
 @Controller('auth/passkey')

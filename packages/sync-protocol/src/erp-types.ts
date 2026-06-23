@@ -15,9 +15,9 @@ export const PILOT_CURRENCY_SET: ReadonlySet<string> = new Set(PILOT_CURRENCIES)
 export const ERP_AMOUNT_CENTS_MAX = 1_000_000_000 as const;
 
 export const ErpInvoicePayloadWireSchema = z.object({
-  manifestCorrelationId: z.string().uuid(),
-  transportOrderId: z.string().uuid(),
-  internalCustomerId: z.string().uuid(),
+  manifestCorrelationId: z.guid(),
+  transportOrderId: z.guid(),
+  internalCustomerId: z.guid(),
   internalJobCode: z.string().min(1).max(64),
   amountCents: z.number().int().positive().max(ERP_AMOUNT_CENTS_MAX),
   currency: z.enum(PILOT_CURRENCIES),

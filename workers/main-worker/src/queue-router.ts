@@ -134,7 +134,7 @@ export async function routeJob(
         originalQueue: name,
         jobId: job.id ?? null,
         reason: 'schema_validation_failed',
-        errorIssues: err.issues.map((i) => ({ path: i.path, message: i.message })),
+        errorIssues: err.issues.map((i) => ({ path: i.path.map((seg) => String(seg)), message: i.message })),
         originalPayload: job.data,
         receivedAt: new Date().toISOString(),
       });

@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { ALLOWED_MANIFEST_MIME_TYPES, ManifestStopRefSchema } from '@fleet/sync-protocol';
 
 export const NegotiateUploadSchema = z.object({
-  manifestCorrelationId: z.string().uuid(),
-  transportOrderId: z.string().uuid(),
+  manifestCorrelationId: z.guid(),
+  transportOrderId: z.guid(),
   contentType: z.enum(ALLOWED_MANIFEST_MIME_TYPES),
   expectedSizeBytes: z.number().int().positive().max(50 * 1024 * 1024),
   // Capture-time stop ref (Phiếu Cân association) — ManifestStopRefSchema from
@@ -15,24 +15,24 @@ export const NegotiateUploadSchema = z.object({
 export type NegotiateUploadInput = z.infer<typeof NegotiateUploadSchema>;
 
 export const NegotiateUploadResponseSchema = z.object({
-  uploadSessionId: z.string().uuid(),
-  url: z.string().url(),
+  uploadSessionId: z.guid(),
+  url: z.url(),
   key: z.string(),
   bucket: z.string(),
-  expiresAt: z.string().datetime(),
+  expiresAt: z.iso.datetime(),
 });
 export type NegotiateUploadResponse = z.infer<typeof NegotiateUploadResponseSchema>;
 
 export const CommitUploadSchema = z.object({
-  uploadSessionId: z.string().uuid(),
+  uploadSessionId: z.guid(),
   contentHash: z.string().min(32).max(128).optional(),
   actualSizeBytes: z.number().int().positive().max(50 * 1024 * 1024),
 });
 export type CommitUploadInput = z.infer<typeof CommitUploadSchema>;
 
 export const CommitUploadResponseSchema = z.object({
-  uploadSessionId: z.string().uuid(),
-  manifestId: z.string().uuid(),
+  uploadSessionId: z.guid(),
+  manifestId: z.guid(),
   state: z.literal('verifying'),
   rejectionReasonCode: z.string().optional(),
 });
@@ -44,8 +44,8 @@ export type CommitUploadResponse = z.infer<typeof CommitUploadResponseSchema>;
 // so the manual-edit boundary cannot drift.
 export const SetManualNetWeightSchema = z
   .object({
-    manifestId: z.string().uuid(),
-    extractedNetWeightKg: z.number().positive().finite(),
+    manifestId: z.guid(),
+    extractedNetWeightKg: z.number().positive(),
   })
   .strict();
 export type SetManualNetWeightInput = z.infer<typeof SetManualNetWeightSchema>;

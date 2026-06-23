@@ -38,7 +38,7 @@ const MAX_ATTEMPTS_BEFORE_DEAD_LETTER = 5;
 export const OutboxPayloadSchema = z.object({
   aggregateType: z.string().min(1).max(64),
   eventType: z.string().min(1).max(128),
-}).passthrough();
+}).loose();
 
 export interface OutboxRelayResult {
   readonly polled: number;

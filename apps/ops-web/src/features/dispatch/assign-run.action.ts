@@ -7,15 +7,15 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 
 const AssignRunInputSchema = z.object({
-  roadRunId: z.string().uuid(),
-  operatorId: z.string().uuid(),
+  roadRunId: z.guid(),
+  operatorId: z.guid(),
   assetId: z.string().min(1).max(64).optional(),
 });
 
 export type AssignRunInput = z.infer<typeof AssignRunInputSchema>;
 
 export interface AssignRunIssue {
-  readonly code: 'invalid_uuid' | 'invalid_string' | 'too_short' | 'too_long' | 'unknown';
+  readonly code: 'invalid_uuid' | 'too_short' | 'too_long' | 'unknown';
   readonly path: readonly string[];
   readonly message: string;
 }
@@ -26,9 +26,10 @@ export type AssignRunResult =
   | { readonly status: 'api_error'; readonly httpStatus: number; readonly message: string }
   | { readonly status: 'config_missing'; readonly message: string };
 
-function mapZodIssue(issue: { code: string; path: readonly (string | number)[]; message: string }): AssignRunIssue {
+function mapZodIssue(issue: z.core.$ZodIssue): AssignRunIssue {
   const path = issue.path.map((p) => String(p));
-  if (issue.code === 'invalid_string') return { code: 'invalid_uuid', path, message: issue.message };
+  if (issue.code === 'invalid_format')
+    return { code: 'invalid_uuid', path, message: issue.message };
   if (issue.code === 'too_small') return { code: 'too_short', path, message: issue.message };
   if (issue.code === 'too_big') return { code: 'too_long', path, message: issue.message };
   return { code: 'unknown', path, message: issue.message };

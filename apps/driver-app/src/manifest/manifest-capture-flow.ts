@@ -7,7 +7,7 @@
 import { z } from 'zod';
 
 const NegotiateResponseSchema = z.object({
-  uploadSessionId: z.uuid(),
+  uploadSessionId: z.guid(),
   url: z.url(),
   key: z.string(),
   bucket: z.string(),
@@ -15,8 +15,8 @@ const NegotiateResponseSchema = z.object({
 });
 
 const CommitResponseSchema = z.object({
-  uploadSessionId: z.uuid(),
-  manifestId: z.uuid(),
+  uploadSessionId: z.guid(),
+  manifestId: z.guid(),
   state: z.literal('verifying'),
 });
 
