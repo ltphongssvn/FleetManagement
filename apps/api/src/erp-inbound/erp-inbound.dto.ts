@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 export const InvoiceAckSchema = z.object({
   invoiceId: z.string().min(1).max(128),
-  manifestCorrelationId: z.string().uuid(),
+  manifestCorrelationId: z.guid(),
   erpSystem: z.string().min(1).max(64),
   status: z.enum(['acknowledged', 'failed']),
   failureReason: z.string().max(256).optional(),

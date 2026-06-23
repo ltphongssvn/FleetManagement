@@ -7,7 +7,7 @@ import { JwtGuard } from '../auth/jwt.guard.js';
 import { AdminDeviceEnrollService } from './admin-device-enroll.service.js';
 
 const EnrollSchema = z.object({
-  driverId: z.string().uuid(),
+  driverId: z.guid(),
   udid: z.string().min(1).max(128),
   platform: z.enum(['ios', 'android', 'web']),
 });

@@ -11,13 +11,13 @@ export const CommandTypeSchema = z.enum([
 export type CommandType = z.infer<typeof CommandTypeSchema>;
 
 export const CommandPayloadSchema = z.object({
-  commandId: z.string().uuid(),
+  commandId: z.guid(),
   type: CommandTypeSchema,
-  targetOperatorId: z.string().uuid(),
+  targetOperatorId: z.guid(),
   aggregateType: z.string().min(1).max(64),
-  aggregateId: z.string().uuid(),
+  aggregateId: z.guid(),
   payload: z.unknown(),
-  issuedAt: z.string().datetime(),
+  issuedAt: z.iso.datetime(),
 });
 export type CommandPayload = z.infer<typeof CommandPayloadSchema>;
 
@@ -34,14 +34,14 @@ export const AckRejectionReasonSchema = z.enum([
 export type AckRejectionReason = z.infer<typeof AckRejectionReasonSchema>;
 
 const ReceivedAckSchema = z.object({
-  commandId: z.string().uuid(),
-  ackedAt: z.string().datetime(),
+  commandId: z.guid(),
+  ackedAt: z.iso.datetime(),
   status: z.literal('received'),
 });
 
 const RejectedAckSchema = z.object({
-  commandId: z.string().uuid(),
-  ackedAt: z.string().datetime(),
+  commandId: z.guid(),
+  ackedAt: z.iso.datetime(),
   status: z.literal('rejected'),
   reasonCode: AckRejectionReasonSchema,
   reasonText: z.string().max(500).optional(),

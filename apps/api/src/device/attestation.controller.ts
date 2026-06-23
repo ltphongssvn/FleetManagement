@@ -27,7 +27,7 @@ export interface AttestationRepository {
 const VerifyBodySchema = z.object({
   platform: z.enum(['android', 'ios']),
   token: z.string().min(1),
-  deviceId: z.string().uuid(),
+  deviceId: z.guid(),
 });
 type VerifyBody = z.infer<typeof VerifyBodySchema>;
 

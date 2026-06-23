@@ -14,7 +14,7 @@ import { z } from 'zod';
  *  resolves/validates them against the stop table. sequence is 1-based per the
  *  stop.sequence column; stopId is the stop PK when the client already has it. */
 export const ManifestStopRefSchema = z.object({
-  stopId: z.union([z.string().uuid(), z.null()]),
+  stopId: z.union([z.guid(), z.null()]),
   stopSequence: z.union([z.number().int().positive(), z.null()]),
 }).strict().refine(
   (v) => v.stopId !== null || v.stopSequence !== null,

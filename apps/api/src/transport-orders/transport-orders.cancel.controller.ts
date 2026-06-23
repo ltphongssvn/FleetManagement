@@ -44,7 +44,7 @@ import {
   TransportOrderCannotBeCancelledError,
   TransportOrderNotFoundError,
 } from './transport-orders.errors.js';
-const IdParamSchema = z.string().uuid();
+const IdParamSchema = z.guid();
 @Controller('transport-orders')
 @UseGuards(JwtGuard)
 export class TransportOrdersCancelController {

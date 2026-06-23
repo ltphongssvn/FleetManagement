@@ -21,11 +21,11 @@
 'use server';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
-const UuidOrEmpty = z.union([z.string().uuid(), z.literal('')]).default('');
+const UuidOrEmpty = z.union([z.guid(), z.literal('')]).default('');
 const FormSchema = z.object({
   plannedStartAt: z.string().min(1, 'Required'),
-  assignedOperatorId: z.string().uuid('Invalid driver id'),
-  assignedAssetId: z.string().uuid('Invalid vehicle id'),
+  assignedOperatorId: z.guid('Invalid driver id'),
+  assignedAssetId: z.guid('Invalid vehicle id'),
   customer: UuidOrEmpty,
   cargo: UuidOrEmpty,
   vehiclePlate: z.string().max(50).optional().default(''),

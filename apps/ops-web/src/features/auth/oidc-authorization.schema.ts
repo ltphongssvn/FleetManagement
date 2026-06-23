@@ -8,9 +8,9 @@
 import { z } from 'zod';
 
 export const AuthorizationRequestConfigSchema = z.object({
-  authorizationEndpoint: z.string().url(),
+  authorizationEndpoint: z.url(),
   clientId: z.string().min(1),
-  redirectUri: z.string().url(),
+  redirectUri: z.url(),
   scopes: z.array(z.string().min(1)).min(1).default(['openid', 'profile', 'fleet']),
   acrValues: z.string().min(1).optional(),
 });

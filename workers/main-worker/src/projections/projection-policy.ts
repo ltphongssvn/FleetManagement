@@ -29,7 +29,7 @@ export const SyncFeedEventSchema = z.object({
     return BigInt(v);
   }),
   aggregateType: z.string().min(1).max(64),
-  aggregateId: z.string().uuid(),
+  aggregateId: z.guid(),
   delta: z.unknown(),
 }).strict();
 

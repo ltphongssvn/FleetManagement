@@ -12,8 +12,8 @@ const ExtractionMimeSchema = z.enum(ALLOWED_MANIFEST_MIME_TYPES as unknown as [s
 
 /** Queue body enqueued by the outbox relay for manifest_extraction.requested. */
 export const ExtractionJobDataWireSchema = z.object({
-  manifestId: z.string().uuid(),
-  uploadSessionId: z.string().uuid(),
+  manifestId: z.guid(),
+  uploadSessionId: z.guid(),
   s3Key: z.string().min(1).max(512),
   s3Bucket: z.string().min(1).max(128),
   contentType: ExtractionMimeSchema,
@@ -40,7 +40,7 @@ export type ExtractionFailureReason = typeof EXTRACTION_FAILURE_REASONS[number];
  *  reason is present iff status!=='extracted'. kg is parser-normalized:
  *  Vietnamese thousands-separator already resolved ('20.730 Kg' -> 20730). */
 export const ExtractionResultWireSchema = z.object({
-  manifestId: z.string().uuid(),
+  manifestId: z.guid(),
   status: z.enum(EXTRACTION_STATUSES),
   extractedNetWeightKg: z.union([netWeightKgSchema, z.null()]),
   reason: z.enum(EXTRACTION_FAILURE_REASONS).optional(),

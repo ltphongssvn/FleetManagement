@@ -39,6 +39,14 @@ packages:
   - "workers/*"
   - "packages/*"
 injectWorkspacePackages: true
+# Single source of truth for the Zod version across every workspace package.
+# All @fleet/* packages reference this via the catalog: protocol in their
+# package.json (dependencies AND devDependencies), so the entire monorepo
+# resolves ONE Zod, and a version bump is a one-line change here. Pinned to the
+# latest stable Zod 4 (4.x is now published at the package root and is the 2026
+# ecosystem standard). Exact (not ^) so the resolved version is deterministic.
+catalog:
+  zod: 4.4.3
 # Dependencies permitted to run install/build lifecycle scripts. pnpm 11
 # blocks all build scripts by default; these are the packages that
 # legitimately need to compile native addons or download prebuilt binaries.
