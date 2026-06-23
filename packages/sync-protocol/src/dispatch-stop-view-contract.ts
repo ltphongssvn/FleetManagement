@@ -50,6 +50,44 @@ export type NetWeightKg = z.infer<typeof netWeightKgSchema>;
 export const weightDiffKgSchema = z.number();
 export type WeightDiffKg = z.infer<typeof weightDiffKgSchema>;
 
+/** Schema-first MINIMAL stop projection the weight-diff algorithm reads: just
+ *  the leg (stopType) and its extracted Phieu Can net weight (kg) or null. This
+ *  is the SSOT input both callers map INTO — the dispatch controller maps its
+ *  richer DispatchStopView stops, and the Excel export maps its flat export rows
+ *  — so the board column and the exported column share ONE computation and can
+ *  never diverge. extractedNetWeightKg is a true blank (null) when unknown, never
+ *  0, so an absent weight forces the whole diff to null rather than skewing it. */
+export const WeightDiffStopSchema = z.object({
+  stopType: z.enum(STOP_TYPES),
+  extractedNetWeightKg: z.union([netWeightKgSchema, z.null()]),
+}).strict();
+export type WeightDiffStop = z.infer<typeof WeightDiffStopSchema>;
+
+/** SSOT pickup-vs-delivery net-weight difference (kg) for ONE road run, computed
+ *  from the already-resolved stop weights. Sign convention: positive => more
+ *  picked up than delivered. Returns null UNLESS every contributing weight is
+ *  known (all pickup stop weights AND the delivery stop weight), because a partial
+ *  aggregate would silently misrepresent the dispatcher reconciliation (2026
+ *  missing-data best practice). Pure + dependency-free; the SINGLE definition
+ *  shared by GET /dispatch/board and the Excel export so the two never diverge. */
+export function computeWeightDiffKg(stops: readonly WeightDiffStop[]): WeightDiffKg | null {
+  // stopType is the STOP_TYPES literal union (pickup | delivery) per the schema,
+  // so direct equality is exhaustive — no normalization or other-leg aliasing.
+  const pickups = stops.filter((s) => s.stopType === 'pickup');
+  const delivery = stops.find((s) => s.stopType === 'delivery');
+  if (pickups.length === 0 || delivery === undefined) return null;
+  const deliveryKg = delivery.extractedNetWeightKg;
+  if (deliveryKg === null) return null;
+  let pickupTotal = 0;
+  for (const p of pickups) {
+    const kg = p.extractedNetWeightKg;
+    if (kg === null) return null;
+    pickupTotal += kg;
+  }
+  return pickupTotal - deliveryKg;
+}
+
+
 /** Proof of capture for a stop: the committed manifest + a presigned GET URL.
  *  .strict(): this is the API-authored outgoing shape, validated server-side. */
 export const StopProofSchema = z.object({
