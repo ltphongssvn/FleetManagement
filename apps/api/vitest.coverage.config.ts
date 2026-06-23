@@ -1,101 +1,53 @@
 // apps/api/vitest.coverage.config.ts
 // Combined config: runs unit + integration tests in one pass for merged coverage.
 //
-// Parallelism (T6-PERF, 2026): Vitest v4 `projects` split. The 40 service/
-// integration specs that build a PER-FILE in-memory PGlite and use
-// withTxIsolation (transaction rollback, single connection) are fully
-// isolated across files, so they run PARALLEL. A minority of specs are racy
-// under parallel execution and MUST serialize:
-//   * testcontainers specs race on host port binds;
-//   * specs that TRUNCATE shared tables / use multiple real connections
-//     (concurrency + cancel + schema + wipe + migrations) deadlock or
-//     interfere when run concurrently.
-// Those are pinned to a SERIAL project (maxWorkers:1). Previously the whole
-// suite ran fileParallelism:false single-fork, costing ~21min; the split
-// restores the ~5-6min CI budget without re-exposing the races.
+// Parallelism (2026): a SINGLE all-parallel project. The previous parallel/serial
+// split existed because the suite used a PER-FILE Postgres testcontainer model:
+// testcontainer specs raced on host port binds, and specs that TRUNCATE shared
+// tables / use multiple real connections interfered when run concurrently, so
+// those were pinned to a serial (maxWorkers:1, fileParallelism:false, 180s hook)
+// project.
+//
+// The single-shared-container refactor eliminated BOTH races structurally:
+//   * ONE Postgres container is started in globalSetup (pg-global-setup.ts),
+//     before any worker -> no per-file container, no per-file host port bind.
+//   * each test file clones a migrated template into its OWN database
+//     (CREATE DATABASE <name> TEMPLATE fleet_test_template, ~10ms) -> every file
+//     operates on an ISOLATED database, so TRUNCATE / multi-connection / collision
+//     specs cannot interfere across files.
+// With per-file database isolation there is no remaining reason to serialize, so
+// SERIAL_SPECS and the serial project are removed. Container startup is paid once
+// in globalSetup (off every per-file beforeAll critical path), so the default 60s
+// hook budget is ample (a per-file beforeAll now just clones, it does not start a
+// container). maxWorkers stays bounded so concurrent per-file pools never approach
+// the container max_connections under the pnpm -r full-workspace coverage run.
 import { defineConfig } from 'vitest/config';
-// Racy specs that must run serially (testcontainers port binds + multi-
-// connection / TRUNCATE shared-state interference). Everything else is
-// per-file PGlite + withTxIsolation and is safe to parallelize.
-const SERIAL_SPECS = [
-  'test/admin-assignment.service.test.ts',
-  'test/admin-device-enroll.service.test.ts',
-  'test/admin-drivers-list.service.test.ts',
-  'test/admin-drivers-update.service.test.ts',
-  'test/append-tri-write.test.ts',
-  'test/commands.gateway.integration.test.ts',
-  'test/commands.controller.concurrency.integration.test.ts',
-  'test/commands.controller.integration.test.ts',
-  'test/commands.controller.tenant-policy.integration.test.ts',
-  'test/device-enrollment.service.test.ts',
-  'test/device.service.integration.test.ts',
-  'test/dispatch.controller.integration.test.ts',
-  'test/driver-me.service.test.ts',
-  'test/erp.schema.integration.test.ts',
-  'test/manifest.commit-finalize.parallel.test.ts',
-  'test/manifest.finalize.rejection-and-state-guard.test.ts',
-  'test/manifest.find-or-create.race.test.ts',
-  'test/manifest.negotiate-stop-association.integration.test.ts',
-  'test/manifest.service.concurrency.test.ts',
-  'test/manifest.service.integration.test.ts',
-  'test/migrations.integration.test.ts',
-  'test/order-numbering.collision.integration.test.ts',
-  'test/outbox-relay.service.integration.test.ts',
-  'test/pre-push-hooks-mirror-ci.test.ts',
-  'test/projection-runner.service.integration.test.ts',
-  'test/sync.service.integration.test.ts',
-  'test/transport-orders-export.labels.integration.test.ts',
-  'test/transport-orders-export.service.integration.test.ts',
-  'test/transport-orders.service.concurrency.test.ts',
-  'test/transport-orders.service.full-fields.integration.test.ts',
-  'test/transport.schema.integration.test.ts',
-  'test/vitest-global-teardown-cleans-testcontainers.test.ts',
-  'test/wipe-business-data.empty.test.ts',
-  'test/wipe-business-data.integration.test.ts',
-];
+
 export default defineConfig({
   test: {
     globalSetup: ['./test/helpers/pg-global-setup.ts', './test/helpers/global-teardown.ts'],
     testTimeout: 60_000,
     hookTimeout: 60_000,
-    // pool:forks isolates v8 coverage instrumentation per file, preventing
-    // the cross-file coverage drop we hit when many files share one worker.
+    // pool:forks isolates v8 coverage instrumentation per file, preventing the
+    // cross-file coverage drop seen when many files share one worker.
     pool: 'forks',
-    projects: [
-      {
-        // PARALLEL: per-file PGlite + withTxIsolation specs. Fully isolated
-        // across files, so they run concurrently for the bulk of the speedup.
-        extends: true,
-        test: {
-          name: 'parallel',
-          include: ['test/**/*.test.ts'],
-          exclude: SERIAL_SPECS,
-          // Bounded to 4 workers (CI shard model). Unbounded oversubscribes
-          // CPU when the pre-push hook runs all workspace packages'
-          // test:coverage concurrently (pnpm -r), starving workers and
-          // timing out the testcontainers specs.
-          maxWorkers: 2,
-        },
-      },
-      {
-        // SERIAL: testcontainers + TRUNCATE / multi-connection specs.
-        // maxWorkers:1 serializes them to avoid port-bind + lock races.
-        extends: true,
-        test: {
-          name: 'serial',
-          include: SERIAL_SPECS,
-          maxWorkers: 1,
-          fileParallelism: false,
-          // Testcontainers start + reuse handshake + drizzle migrate runs in
-          // beforeAll. Under heavy load (pnpm -r runs every package's coverage
-          // concurrently, ~680s wall), the default/60s hook budget is exceeded
-          // and the run flakes on a container-start timeout. 180s gives the
-          // shared reused container headroom without masking real hangs.
-          hookTimeout: 180_000,
-          testTimeout: 120_000,
-        },
-      },
-    ],
+    // Single all-parallel project (per-file database isolation makes the
+    // testcontainer specs safe to run concurrently). maxWorkers is set to 1 on
+    // purpose: this suite mixes TWO heavy database strategies in one pool -
+    // real-Postgres specs that bootstrap a full Nest app + open connections, and
+    // PGlite specs that boot a Postgres-compiled-to-WASM instance per file. When
+    // two max-weight files (especially two concurrent PGlite WASM boots) run at
+    // once on a resource-constrained host, CPU contention stretches each WASM
+    // boot until the beforeAll budget is exceeded and the run melts down (a
+    // documented PGlite-under-contention failure mode). The old serial project
+    // masked this by phase-separating the workloads; with that removed, bounding
+    // the pool to 1 is what prevents the oversubscription. This is NOT the
+    // unbounded per-file-container timeout treadmill we eliminated earlier: the
+    // shared container is started ONCE in globalSetup, so a serial run still only
+    // pays a ~10ms template clone per file (no per-file container start). Raise
+    // to 2+ only on a well-resourced CI runner that can absorb concurrent boots.
+    include: ['test/**/*.test.ts'],
+    maxWorkers: 1,
     coverage: {
       provider: 'v8',
       clean: true,
