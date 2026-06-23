@@ -44,17 +44,37 @@ describe('@fleet/api - local pre-push hooks mirror remote CI coverage gate', () 
     expect(covLine).toMatch(/--workspace-concurrency[= ]1\b/);
   });
 });
-describe('@fleet/api - coverage config parallelizes safe specs, serializes racy ones', () => {
+describe('@fleet/api - coverage config is a single all-parallel project on the shared container', () => {
   const cfgPath = resolve(here, '../vitest.coverage.config.ts');
   const cfg = readFileSync(cfgPath, 'utf8');
-  it('defines vitest projects to separate parallel vs serial suites', () => {
-    expect(cfg).toMatch(/projects\s*:/);
+  // Strip // line comments and block comments so these structural assertions
+  // inspect the ACTUAL config, not the prose that documents the prior design
+  // (the header comment legitimately mentions projects/serial/fileParallelism).
+  const cfgCode = cfg
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split(NL)
+    .map((l) => l.replace(/\/\/.*$/, ''))
+    .join(NL);
+  // Since the single-shared-container refactor, every file clones the migrated
+  // template into its OWN database, so per-file isolation (not a serial project)
+  // is what prevents cross-file interference. These assertions pin that design so
+  // the old per-file-container parallel/serial split cannot silently return.
+  it('wires the shared-container globalSetup chain (pg-global-setup before global-teardown)', () => {
+    const setupIdx = cfg.indexOf('pg-global-setup.ts');
+    const teardownIdx = cfg.indexOf('global-teardown.ts');
+    expect(setupIdx).toBeGreaterThan(-1);
+    expect(teardownIdx).toBeGreaterThan(-1);
+    expect(setupIdx).toBeLessThan(teardownIdx);
   });
-  it('keeps a serial (maxWorkers:1) project for the racy specs', () => {
-    expect(cfg).toMatch(/maxWorkers\s*:\s*1/);
+  it('does NOT split into a parallel/serial projects array (per-file DB isolation replaces it)', () => {
+    expect(cfgCode).not.toMatch(/projects\s*:/);
+    expect(cfgCode).not.toMatch(/name:\s*['"]serial['"]/);
   });
-  it('runs a PARALLEL project (does not force single-fork over the whole suite)', () => {
-    expect(cfg).toMatch(/name:\s*['"]parallel['"]/);
-    expect(cfg).not.toMatch(/singleFork\s*:\s*true/);
+  it('does not force single-fork / fileParallelism:false over the whole suite', () => {
+    expect(cfgCode).not.toMatch(/singleFork\s*:\s*true/);
+    expect(cfgCode).not.toMatch(/fileParallelism\s*:\s*false/);
+  });
+  it('bounds maxWorkers so concurrent per-file pools stay under the container connection limit', () => {
+    expect(cfgCode).toMatch(/maxWorkers\s*:\s*\d+/);
   });
 });

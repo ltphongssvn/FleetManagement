@@ -17,6 +17,7 @@
 import { inject } from 'vitest';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
+import { randomBytes } from 'node:crypto';
 import * as schema from '../../src/database/schema/index.js';
 import { sql } from 'drizzle-orm';
 import { TestPgConnectionSchema, TEST_PG_INJECT_KEY } from './test-pg-connection-contract.js';
@@ -67,14 +68,22 @@ const isTransientConnError = (e: unknown): boolean => {
 };
 
 export async function startMigratedTestDb(databaseName = 'fleet_test'): Promise<MigratedTestDb> {
-  // Clone the migrated template into a per-file database. CREATE DATABASE is
-  // autocommit-only (it cannot run inside a transaction block) and Postgres
-  // refuses to clone a template that has any open session, so we serialize the
-  // clone across concurrently-starting files with a SESSION-level advisory lock
-  // held on the SAME connection that runs the DDL. The lock + CREATE DATABASE on
-  // one connection is what actually makes the clone critical-section mutually
-  // exclusive (a lock on a different connection would not). A bounded retry wraps
-  // the whole thing to absorb transient connection drops under heavy parallelism.
+  // Clone the migrated template into a per-file database. The effective DB name
+  // ALWAYS gets a unique random suffix appended to the caller-supplied prefix, so
+  // two files that pass the SAME name (e.g. the bare default) still get distinct,
+  // fully isolated databases. This makes per-file isolation hold STRUCTURALLY
+  // regardless of caller naming discipline: no file can DROP/terminate a database
+  // another file is using (the 57P01 / 3D000 collisions seen when these specs run
+  // in parallel). The readable prefix is kept so the DB name still identifies its
+  // origin file when inspecting pg_stat_activity.
+  const dbName = databaseName + '_' + randomBytes(6).toString('hex');
+  // CREATE DATABASE is autocommit-only (it cannot run inside a transaction block)
+  // and Postgres refuses to clone a template that has any open session, so we
+  // serialize the clone across concurrently-starting files with a SESSION-level
+  // advisory lock held on the SAME connection that runs the DDL. The lock + CREATE
+  // DATABASE on one connection is what actually makes the clone critical-section
+  // mutually exclusive (a lock on a different connection would not). A bounded
+  // retry wraps the whole thing to absorb transient connection drops under load.
   const injected = TestPgConnectionSchema.parse(inject(TEST_PG_INJECT_KEY));
   const adminUri = baseConnectionUri(injected.database);
 
@@ -87,16 +96,16 @@ export async function startMigratedTestDb(databaseName = 'fleet_test'): Promise<
       // Session advisory lock (blocks until acquired); released explicitly below.
       await client.query('SELECT pg_advisory_lock($1)', [CLONE_ADVISORY_LOCK_KEY.toString()]);
       locked = true;
-      // Drop a stale same-named DB from a prior reused-container run, terminating
-      // any stragglers first, then clone the migrated template. No ENCODING/LC_*
-      // overrides: inherit from the template to avoid 22023 collation mismatch.
+      // The unique name should never pre-exist, but terminate + DROP IF EXISTS is
+      // cheap insurance against an aborted prior run that left the same name. No
+      // ENCODING/LC_* overrides: inherit from the template to avoid 22023.
       await client.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
-        [databaseName],
+        [dbName],
       );
-      await client.query('DROP DATABASE IF EXISTS ' + quoteIdent(databaseName));
+      await client.query('DROP DATABASE IF EXISTS ' + quoteIdent(dbName));
       await client.query(
-        'CREATE DATABASE ' + quoteIdent(databaseName) + ' TEMPLATE ' + quoteIdent(TEMPLATE_DB_NAME),
+        'CREATE DATABASE ' + quoteIdent(dbName) + ' TEMPLATE ' + quoteIdent(TEMPLATE_DB_NAME),
       );
       break;
     } catch (err) {
@@ -128,11 +137,11 @@ export async function startMigratedTestDb(databaseName = 'fleet_test'): Promise<
 
   // Connect the returned pool to the freshly-cloned per-file database.
   const pool = new Pool({
-    connectionString: baseConnectionUri(databaseName),
+    connectionString: baseConnectionUri(dbName),
     connectionTimeoutMillis: 10_000,
   });
   const db = drizzle(pool, { schema, casing: 'snake_case' });
-  return { databaseName, pool, db };
+  return { databaseName: dbName, pool, db };
 }
 
 export async function stopMigratedTestDb(testDb: MigratedTestDb): Promise<void> {
