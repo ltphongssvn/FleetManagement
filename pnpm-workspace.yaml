@@ -38,6 +38,10 @@ packages:
   - "apps/*"
   - "workers/*"
   - "packages/*"
+  # The top-level Playwright acceptance suite is a first-class workspace member
+  # (@fleet/e2e) so its specs IMPORT shared contracts (e.g. the export-header SSOT)
+  # via the workspace: protocol instead of re-declaring them and drifting.
+  - "e2e"
 injectWorkspacePackages: true
 # Single source of truth for the Zod version across every workspace package.
 # All @fleet/* packages reference this via the catalog: protocol in their

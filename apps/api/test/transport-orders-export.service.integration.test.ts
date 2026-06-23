@@ -26,18 +26,14 @@ import { TransportOrdersExportService } from '../src/transport-orders/transport-
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 import type { ExportDateRange } from '@fleet/sync-protocol';
+import { LENH_DIEU_XE_EXPORT_HEADERS } from '@fleet/sync-protocol';
 let testDb: PgliteTestDb;
 let svc: TransportOrdersExportService;
 const OP = createOperatorContext({ companyId: '00000000-0000-0000-0000-000000000aaa' });
-// Feature 2 (2026): per-slot warehouse-name + kg-number column PAIRS, no status.
-const EXPECTED_HEADERS = [
-  'Số lệnh', 'Khách hàng', 'Tài xế', 'Xe', 'Ngày dự kiến', 'Số điểm', 'Chênh lệch',
-  'Điểm nhận hàng 1', 'Điểm nhận hàng 1 - KL (kg)',
-  'Điểm nhận hàng 2', 'Điểm nhận hàng 2 - KL (kg)',
-  'Điểm nhận hàng 3', 'Điểm nhận hàng 3 - KL (kg)',
-  'Điểm nhận hàng 4', 'Điểm nhận hàng 4 - KL (kg)',
-  'Kho giao hàng 1', 'Kho giao hàng 1 - KL (kg)',
-];
+// The header contract is the provider-owned SSOT in @fleet/sync-protocol; this test
+// imports it instead of re-declaring the array, so it cannot drift from what the
+// service writes. (Asserting the imported value still proves the service emits it.)
+const EXPECTED_HEADERS = LENH_DIEU_XE_EXPORT_HEADERS;
 function q(s: string): string { return String.fromCharCode(39) + s + String.fromCharCode(39); }
 async function seedProjection(roadRunId: string, refs: readonly string[]): Promise<void> {
   const co = OP.companyId;
