@@ -37,7 +37,7 @@ export type RoadRunStateName = typeof ROAD_RUN_STATES[number];
  *  (worker callback) so "what a net weight is" lives in one place. The Excel
  *  export coerces the pg numeric(12,3) string through this same schema before
  *  writing the cell, so the exported number is contract-validated. */
-export const netWeightKgSchema = z.number().positive().finite();
+export const netWeightKgSchema = z.number().positive();
 export type NetWeightKg = z.infer<typeof netWeightKgSchema>;
 
 /** SSOT for the pickup-vs-delivery weight DIFFERENCE (kg). Unlike netWeightKgSchema
@@ -47,15 +47,15 @@ export type NetWeightKg = z.infer<typeof netWeightKgSchema>;
  *  contributing stop weight is known (else null) — a partial diff would silently
  *  mislead the dispatcher's reconciliation (2026 missing-data best practice: never
  *  report a partial aggregate as if complete). */
-export const weightDiffKgSchema = z.number().finite();
+export const weightDiffKgSchema = z.number();
 export type WeightDiffKg = z.infer<typeof weightDiffKgSchema>;
 
 /** Proof of capture for a stop: the committed manifest + a presigned GET URL.
  *  .strict(): this is the API-authored outgoing shape, validated server-side. */
 export const StopProofSchema = z.object({
-  manifestId: z.string().uuid(),
-  photoUrl: z.string().url(),
-  capturedAt: z.string().datetime(),
+  manifestId: z.guid(),
+  photoUrl: z.url(),
+  capturedAt: z.iso.datetime(),
   // EXPAND-only (phieu-can net-weight extraction): net goods weight in kg parsed
   // from the committed Phieu Can by the extraction worker. optional => old
   // producers omitting the key stay valid; null => extraction pending/failed;
@@ -87,15 +87,15 @@ export type StopProof = z.infer<typeof StopProofSchema>;
  *  proof === null => no committed photo yet (render arrival status); non-null =>
  *  render the "Phieu Can" link. */
 export const DispatchStopViewSchema = z.object({
-  stopId: z.string().uuid(),
+  stopId: z.guid(),
   sequence: z.number().int().positive(),
   stopType: z.enum(STOP_TYPES),
   warehouseName: z.union([z.string(), z.null()]),
   // Preserved from the pre-existing DispatchBoardStop shape (EXPAND-only): the
   // board still shows arrival/departure; proof is ADDED, nothing removed, so old
   // ops-web code stays valid.
-  arrivedAt: z.union([z.string().datetime(), z.null()]),
-  departedAt: z.union([z.string().datetime(), z.null()]),
+  arrivedAt: z.union([z.iso.datetime(), z.null()]),
+  departedAt: z.union([z.iso.datetime(), z.null()]),
   // proof === null => no committed manifest for this stop (render arrival status);
   // non-null => render the "Phieu Can" hyperlink to proof.photoUrl.
   proof: z.union([StopProofSchema, z.null()]),
@@ -132,10 +132,10 @@ export type DispatchBoardStop = z.infer<typeof DispatchBoardStopSchema>;
  *  labels + ordered stops. Tolerant (strip). Nullable + defaulted fields are
  *  EXPAND-only carry-overs so an older API that omits them still parses. */
 export const DispatchBoardRowSchema = z.object({
-  roadRunId: z.string().uuid(),
+  roadRunId: z.guid(),
   state: z.enum(ROAD_RUN_STATES),
-  assignedOperatorId: z.union([z.string().uuid(), z.null()]),
-  assignedAssetId: z.union([z.string().uuid(), z.null()]),
+  assignedOperatorId: z.union([z.guid(), z.null()]),
+  assignedAssetId: z.union([z.guid(), z.null()]),
   driverName: z.union([z.string(), z.null()]).default(null),
   vehiclePlate: z.union([z.string(), z.null()]).default(null),
   plannedStartAt: z.union([z.string(), z.null()]),

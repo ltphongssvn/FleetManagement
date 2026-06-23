@@ -33,7 +33,7 @@ const CancelReasonSchema = z.enum([
   'other',
 ]);
 const FormSchema = z.object({
-  transportOrderId: z.string().uuid('Invalid order id'),
+  transportOrderId: z.guid('Invalid order id'),
   reason: CancelReasonSchema,
   note: z.string().max(500).optional(),
 });

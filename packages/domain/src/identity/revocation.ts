@@ -48,5 +48,5 @@ export interface RevocationEvent {
 export const RevocationEventSchema = z.object({
   reasonSchemaVersion: z.literal(REVOCATION_REASON_SCHEMA_VERSION),
   reason: RevocationReasonSchema,
-  revokedAt: z.string().datetime(),
+  revokedAt: z.iso.datetime(),
 });

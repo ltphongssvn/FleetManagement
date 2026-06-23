@@ -15,19 +15,19 @@
 import { z } from 'zod';
 export const CreateTransportOrderSchema = z.object({
   externalRef: z.string().min(1).max(64).optional(),
-  customerId: z.string().uuid().optional(),
-  cargoTypeId: z.string().uuid().optional(),
+  customerId: z.guid().optional(),
+  cargoTypeId: z.guid().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
   stops: z.array(z.object({
     sequence: z.number().int().positive(),
     stopType: z.string().min(1).max(32),
-    yardId: z.string().uuid().optional(),
-    plannedAt: z.string().datetime().optional(),
+    yardId: z.guid().optional(),
+    plannedAt: z.iso.datetime().optional(),
   })).min(1).max(20),
   roadRun: z.object({
-    plannedStartAt: z.string().datetime().optional(),
-    assignedOperatorId: z.string().uuid(),
-    assignedAssetId: z.string().uuid(),
+    plannedStartAt: z.iso.datetime().optional(),
+    assignedOperatorId: z.guid(),
+    assignedAssetId: z.guid(),
   }),
 }).strict();
 export type CreateTransportOrderInput = z.infer<typeof CreateTransportOrderSchema>;

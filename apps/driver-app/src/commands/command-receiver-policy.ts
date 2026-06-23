@@ -12,11 +12,11 @@ const CommandTypeSchema = z.enum([
 ]);
 
 const CommandPayloadSchema = z.object({
-  commandId: z.uuid(),
+  commandId: z.guid(),
   type: CommandTypeSchema,
-  targetOperatorId: z.uuid(),
+  targetOperatorId: z.guid(),
   aggregateType: z.string().min(1).max(64),
-  aggregateId: z.uuid(),
+  aggregateId: z.guid(),
   payload: z.unknown(),
   issuedAt: z.iso.datetime(),
 });

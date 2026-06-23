@@ -9,10 +9,10 @@ const EnvSchema = z.object({
   // OIDC Authorization Code + PKCE login (replaces ROPC). Optional so envs
   // that do not run the dispatcher web login (e.g. CI unit runs) need not set
   // them; the login action fails fast with server_error if unset at runtime.
-  OIDC_AUTHORIZATION_ENDPOINT: z.string().url().optional(),
-  OIDC_TOKEN_ENDPOINT: z.string().url().optional(),
+  OIDC_AUTHORIZATION_ENDPOINT: z.url().optional(),
+  OIDC_TOKEN_ENDPOINT: z.url().optional(),
   OIDC_CLIENT_ID: z.string().min(1).optional(),
-  OIDC_REDIRECT_URI: z.string().url().optional(),
+  OIDC_REDIRECT_URI: z.url().optional(),
   // Optional acr to request at login so the dispatcher role is forced through
   // MFA up front, matching the API's RFC 9470 step-up enforcement.
   OIDC_DISPATCH_ACR_VALUES: z.string().min(1).optional(),

@@ -23,7 +23,7 @@ import { TransportOrderNotFoundError } from './transport-orders.errors.js';
 // Accept either a UUID or an XTT.MM-NNN-style external_ref. The external_ref
 // pattern is intentionally narrow (uppercase letters + '.' + digits/letters)
 // to refuse arbitrary strings as the URL :id param.
-const UuidSchema = z.string().uuid();
+const UuidSchema = z.guid();
 const ExternalRefSchema = z.string().regex(/^[A-Z][A-Z0-9]*\.[A-Za-z0-9_-]+$/);
 const IdOrRefSchema = z.union([UuidSchema, ExternalRefSchema]);
 @Controller('transport-orders')

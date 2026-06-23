@@ -8,8 +8,8 @@ import { AdminAssignmentService } from './admin-assignment.service.js';
 import type { DriverVehicleAssignment } from '../database/schema/driver-vehicle-assignment.js';
 
 const CreateSchema = z.object({
-  driverId: z.string().uuid(),
-  vehicleId: z.string().uuid(),
+  driverId: z.guid(),
+  vehicleId: z.guid(),
 });
 
 const RevokeSchema = z.object({

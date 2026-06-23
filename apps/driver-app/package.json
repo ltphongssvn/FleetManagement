@@ -53,7 +53,7 @@
     "react-native-web": "^0.21.2",
     "socket.io-client": "^4.8.3",
     "uuid": ">=14.0.0",
-    "zod": "^4.4.1"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@sentry/cli": "2.58.4",

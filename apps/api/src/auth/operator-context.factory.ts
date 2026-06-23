@@ -10,7 +10,7 @@ import { IdentityExpiredError, MissingCompanyIdError, MissingOperatorIdError } f
 
 export const PILOT_TENANCY_SENTINEL = '00000000-0000-0000-0000-000000000000';
 
-const UuidSchema = z.string().uuid();
+const UuidSchema = z.guid();
 
 @Injectable()
 export class OperatorContextFactory {

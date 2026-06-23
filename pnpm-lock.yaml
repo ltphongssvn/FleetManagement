@@ -5,6 +5,12 @@ settings:
   excludeLinksFromLockfile: false
   injectWorkspacePackages: true
 
+catalogs:
+  default:
+    zod:
+      specifier: 4.4.3
+      version: 4.4.3
+
 overrides:
   vite@<8.0.16: '>=8.0.16'
   esbuild: '>=0.28.1'
@@ -123,7 +129,7 @@ importers:
         specifier: 4.1.5
         version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@22.19.17)(@vitest/coverage-istanbul@4.1.5)(@vitest/coverage-v8@4.1.5)(jsdom@25.0.1)(vite@8.0.16(@types/node@22.19.17)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.9.0))
       zod:
-        specifier: ^4.4.3
+        specifier: 'catalog:'
         version: 4.4.3
 
   apps/api:
@@ -240,8 +246,8 @@ importers:
         specifier: ^4.8.3
         version: 4.8.3
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@electric-sql/pglite':
         specifier: ^0.4.5
@@ -382,8 +388,8 @@ importers:
         specifier: '>=14.0.0'
         version: 14.0.0
       zod:
-        specifier: ^4.4.1
-        version: 4.4.1
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@sentry/cli':
         specifier: 2.58.4
@@ -446,8 +452,8 @@ importers:
         specifier: ^0.0.1
         version: 0.0.1
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@stryker-mutator/core':
         specifier: ^9.6.1
@@ -498,8 +504,8 @@ importers:
         specifier: ^28.0.0
         version: 28.0.0
       zod:
-        specifier: ^3.25.76
-        version: 3.25.76
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@stryker-mutator/core':
         specifier: ^9.6.1
@@ -517,8 +523,8 @@ importers:
   packages/domain:
     dependencies:
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@stryker-mutator/core':
         specifier: ^9.6.1
@@ -533,8 +539,8 @@ importers:
   packages/observability:
     dependencies:
       zod:
-        specifier: ^3.25.76
-        version: 3.25.76
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@stryker-mutator/core':
         specifier: ^9.6.1
@@ -552,8 +558,8 @@ importers:
   packages/sync-protocol:
     dependencies:
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@stryker-mutator/core':
         specifier: ^9.6.1
@@ -599,8 +605,8 @@ importers:
         specifier: ^5.10.1
         version: 5.10.1
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       fast-check:
         specifier: ^4.7.0
@@ -9798,9 +9804,6 @@ packages:
 
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
-  zod@4.4.1:
-    resolution: {integrity: sha512-a6ENMBBGZBsnlSebQ/eKCguSBeGKSf4O7BPnqVPmYGtpBYI7VSqoVqw+QcB7kPRjbqPwhYTpFbVj/RqNz/CT0Q==}
 
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
@@ -20643,7 +20646,5 @@ snapshots:
       readable-stream: 4.7.0
 
   zod@3.25.76: {}
-
-  zod@4.4.1: {}
 
   zod@4.4.3: {}
