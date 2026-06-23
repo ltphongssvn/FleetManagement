@@ -19,7 +19,8 @@
 // committed manifest), so existing ops-web code stays valid.
 import { Controller, Get, Inject, Optional, UseGuards } from '@nestjs/common';
 import { and, eq, inArray } from 'drizzle-orm';
-import type { DispatchBoardApiResponse, DispatchBoardApiRow, DispatchStopView, StopProof } from '@fleet/sync-protocol';
+import { computeWeightDiffKg } from '@fleet/sync-protocol';
+import type { DispatchBoardApiResponse, DispatchBoardApiRow, DispatchStopView, StopProof, WeightDiffStop } from '@fleet/sync-protocol';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import {
@@ -53,31 +54,6 @@ interface ProofSource {
   readonly extractedNetWeightKg: number | null;
   readonly extractionStatus: 'pending' | 'extracted' | 'not_found' | 'unreadable' | 'manual';
   readonly extractionReason: 'unparseable' | 'below_sanity_min' | 'above_sanity_max' | 'no_field' | 'object_missing' | null;
-}
-// Feature 3 (2026): pickup-vs-delivery net-weight difference (kg) for one road
-// run, computed server-side from the already-enriched stops. Sign convention:
-// positive => more picked up than delivered. Returns null UNLESS every
-// contributing weight is known (all pickup stop weights AND the delivery stop
-// weight), because a partial aggregate would silently misrepresent the
-// dispatcher reconciliation (2026 missing-data best practice). Reused by the
-// Excel export so the board and the export never diverge.
-export function computeWeightDiffKg(stops: readonly DispatchStopView[]): number | null {
-  const weightOf = (s: DispatchStopView): number | null => s.proof?.extractedNetWeightKg ?? null;
-  const pickups = stops.filter((s) => s.stopType.toLowerCase() === 'pickup');
-  const delivery = stops.find((s) => {
-    const t = s.stopType.toLowerCase();
-    return t === 'delivery' || t === 'dropoff';
-  });
-  if (pickups.length === 0 || delivery === undefined) return null;
-  const deliveryKg = weightOf(delivery);
-  if (deliveryKg === null) return null;
-  let pickupTotal = 0;
-  for (const p of pickups) {
-    const kg = weightOf(p);
-    if (kg === null) return null;
-    pickupTotal += kg;
-  }
-  return pickupTotal - deliveryKg;
 }
 
 @Controller('dispatch')
@@ -230,7 +206,12 @@ export class DispatchController {
       transportOrderRefs: r.transportOrderRefs,
       customerName: customerByRoadRun.get(r.roadRunId) ?? null,
       customerPhone: customerPhoneByRoadRun.get(r.roadRunId) ?? null,
-      weightDiffKg: computeWeightDiffKg(stopsByRoadRun.get(r.roadRunId) ?? []),
+      weightDiffKg: computeWeightDiffKg(
+        (stopsByRoadRun.get(r.roadRunId) ?? []).map((s): WeightDiffStop => ({
+          stopType: s.stopType,
+          extractedNetWeightKg: s.proof?.extractedNetWeightKg ?? null,
+        })),
+      ),
       stops: stopsByRoadRun.get(r.roadRunId) ?? [],
     }));
     return { rows: result };
