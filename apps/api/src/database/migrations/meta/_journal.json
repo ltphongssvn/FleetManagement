@@ -162,6 +162,13 @@
       "when": 1781506800000,
       "tag": "20260615071500_manifest_extraction_reason",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1782328277158,
+      "tag": "0023_colorful_wild_pack",
+      "breakpoints": true
     }
   ]
 }

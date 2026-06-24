@@ -2,6 +2,10 @@
 // Unit tests for ProjectionRunnerService — kill Stryker mutants by mocking
 // drizzle chain (insert/execute/select/update/delete), schema markers, and
 // the applyDispatchBoardEvent policy.
+//
+// SOFT DELETE: a tombstone now yields a 'soft_delete' decision which the runner applies
+// as an UPDATE setting deleted_at (the app role holds no DELETE privilege), NOT a physical
+// delete. These tests assert the UPDATE path + that current-row reads filter deleted_at.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { mockApplyDispatchBoardEvent } = vi.hoisted(() => ({
@@ -12,6 +16,7 @@ vi.mock('drizzle-orm', () => ({
   eq: (col: unknown, value: unknown) => ({ _kind: 'eq', col, value }),
   and: (...preds: unknown[]) => ({ _kind: 'and', preds }),
   gt: (col: unknown, value: unknown) => ({ _kind: 'gt', col, value }),
+  isNull: (col: unknown) => ({ _kind: 'isNull', col }),
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
     _kind: 'sql',
     raw: strings.join('?'),
@@ -36,6 +41,7 @@ vi.mock('../src/database/schema/index.js', () => ({
   dispatchBoardProjection: {
     roadRunId: 'dispatchBoardProjection.roadRunId',
     companyId: 'dispatchBoardProjection.companyId',
+    deletedAt: 'dispatchBoardProjection.deletedAt',
   },
   projectionStatus: {
     projectionName: 'projectionStatus.projectionName',
@@ -182,7 +188,7 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
       polled: 0,
       applied: 0,
       noops: 0,
-      deletes: 0,
+      softDeletes: 0,
       newWatermark: '0',
     });
     // Should have inserted seed status row
@@ -254,7 +260,7 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
     const res = await svc.drainOnce('co-1');
     expect(res.applied).toBe(1);
     expect(res.noops).toBe(0);
-    expect(res.deletes).toBe(0);
+    expect(res.softDeletes).toBe(0);
     expect(res.polled).toBe(1);
     expect(res.newWatermark).toBe('10');
     // upsert was via insert().values().onConflictDoUpdate()
@@ -269,25 +275,35 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
       state: 'planned',
       stopCount: 2,
     });
+    // upsert re-activates a hidden row by clearing deleted_at
+    expect(upsertCall.onConflictDoUpdate?.set).toMatchObject({ deletedAt: null });
   });
 
-  it('applies delete decisions and counts deletes++', async () => {
+  it('applies soft_delete decisions as an UPDATE setting deleted_at and counts softDeletes++', async () => {
     const events = [
       { serverSeq: 5n, aggregateType: 'road_run', aggregateId: 'rr-9', delta: {}, createdAt: new Date() },
     ];
-    mockApplyDispatchBoardEvent.mockReturnValueOnce({ kind: 'delete', roadRunId: 'rr-9' });
+    mockApplyDispatchBoardEvent.mockReturnValueOnce({ kind: 'soft_delete', roadRunId: 'rr-9', serverSeq: 5n });
     const { db, tx } = makeFakeDb({ eventsReturn: events, currentRowsReturns: [[]] });
     const svc = new ProjectionRunnerService(db as never);
     const res = await svc.drainOnce('co-1');
-    expect(res.deletes).toBe(1);
+    expect(res.softDeletes).toBe(1);
     expect(res.applied).toBe(0);
     expect(res.noops).toBe(0);
-    expect(tx.deleteCalls).toHaveLength(1);
-    expect(tx.deleteCalls[0]?.where).toMatchObject({
+    // NO physical delete is ever issued (app role holds no DELETE privilege).
+    expect(tx.deleteCalls).toHaveLength(0);
+    // The soft-delete is an UPDATE setting deleted_at. updateCalls[0] is the soft-delete;
+    // updateCalls[1] is the projection_status watermark update at the end.
+    const softDeleteUpdate = tx.updateCalls[0];
+    if (!softDeleteUpdate) throw new Error('expected soft-delete update');
+    expect(softDeleteUpdate.set).toMatchObject({ serverSeq: 5n });
+    expect(softDeleteUpdate.set?.['deletedAt'] instanceof Date).toBe(true);
+    expect(softDeleteUpdate.where).toMatchObject({
       _kind: 'and',
       preds: [
         { _kind: 'eq', col: 'dispatchBoardProjection.roadRunId', value: 'rr-9' },
         { _kind: 'eq', col: 'dispatchBoardProjection.companyId', value: 'co-1' },
+        { _kind: 'isNull', col: 'dispatchBoardProjection.deletedAt' },
       ],
     });
   });
@@ -302,7 +318,7 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
     const res = await svc.drainOnce('co-1');
     expect(res.noops).toBe(1);
     expect(res.applied).toBe(0);
-    expect(res.deletes).toBe(0);
+    expect(res.softDeletes).toBe(0);
     // No delete, no upsert
     expect(tx.deleteCalls).toHaveLength(0);
     const upsertCall = tx.insertCalls.find((c) => c.onConflictDoUpdate !== undefined);
@@ -410,6 +426,27 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
     });
   });
 
+  it('current-row load filters out soft-deleted rows (deleted_at IS NULL predicate)', async () => {
+    const events = [
+      { serverSeq: 4n, aggregateType: 'road_run', aggregateId: 'rr-1', delta: {}, createdAt: new Date() },
+    ];
+    mockApplyDispatchBoardEvent.mockReturnValueOnce({ kind: 'noop' });
+    const { db, tx } = makeFakeDb({ eventsReturn: events, currentRowsReturns: [[]] });
+    const svc = new ProjectionRunnerService(db as never);
+    await svc.drainOnce('co-1');
+    // selectCalls[0] is events; selectCalls[1] is the current-row load.
+    const currentLoad = tx.selectCalls[1];
+    if (!currentLoad) throw new Error('expected current-row select');
+    expect(currentLoad.where).toMatchObject({
+      _kind: 'and',
+      preds: [
+        { _kind: 'eq', col: 'dispatchBoardProjection.roadRunId', value: 'rr-1' },
+        { _kind: 'eq', col: 'dispatchBoardProjection.companyId', value: 'co-1' },
+        { _kind: 'isNull', col: 'dispatchBoardProjection.deletedAt' },
+      ],
+    });
+  });
+
   it('passes null current when no currentRow exists', async () => {
     const events = [
       { serverSeq: 1n, aggregateType: 'road_run', aggregateId: 'rr-1', delta: {}, createdAt: new Date() },
@@ -439,6 +476,7 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
     });
     const svc = new ProjectionRunnerService(db as never);
     await svc.drainOnce('co-1');
+    // The only update is the projection_status watermark update (noop event = no soft-delete).
     expect(tx.updateCalls).toHaveLength(1);
     const upd = tx.updateCalls[0];
     if (!upd) throw new Error('expected update');

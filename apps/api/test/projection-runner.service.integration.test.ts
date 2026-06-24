@@ -100,13 +100,13 @@ describe('@fleet/api - ProjectionRunnerService (integration)', () => {
     expect(r).toHaveLength(0);
   });
 
-  it('handles delete decision (cancel state) by removing projection row', async () => {
+  it('handles tombstone (cancel state) by HIDING the projection row via soft-delete, not physical delete', async () => {
     // Seed an existing projection row.
     await testDb.db.execute(sql`
       INSERT INTO dispatch_board_projection (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, stop_count, transport_order_refs, server_seq, updated_at)
       VALUES (${ROAD_RUN_ID}, ${COMPANY}, ${COMPANY}, ${COMPANY}, ${COMPANY}, 'started', 1, '[]'::jsonb, 1, now())
     `);
-    // Emit a cancelled delta which the policy maps to a delete decision.
+    // Emit a cancelled delta which the policy maps to a soft_delete decision.
     await testDb.db.execute(sql`
       INSERT INTO sync_change_feed (feed_id, company_id, business_unit_id, depot_id, legal_entity_id, server_seq, action_id, aggregate_type, aggregate_id, delta, created_at)
       VALUES (gen_random_uuid(), ${COMPANY}, ${BU}, ${DEPOT}, ${LE}, 2, ${ACTION_2}, 'road_run', ${ROAD_RUN_ID},
@@ -115,9 +115,13 @@ describe('@fleet/api - ProjectionRunnerService (integration)', () => {
     `);
     const svc = new ProjectionRunnerService(testDb.db);
     const result = await svc.drainOnce(COMPANY);
-    expect(result.deletes).toBe(1);
-    const r = rowsOf<{ count: string }>(await testDb.db.execute(sql`SELECT COUNT(*)::text as count FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID}`) as unknown as { rows: readonly { count: string }[] });
-    expect(r[0]?.count).toBe('0');
+    expect(result.softDeletes).toBe(1);
+    // The row is NOT physically removed: it still exists, but deleted_at is now set.
+    const total = rowsOf<{ count: string }>(await testDb.db.execute(sql`SELECT COUNT(*)::text as count FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID}`) as unknown as { rows: readonly { count: string }[] });
+    expect(total[0]?.count).toBe('1');
+    // Active (visible) rows filtered by deleted_at IS NULL: the row is hidden, so zero.
+    const active = rowsOf<{ count: string }>(await testDb.db.execute(sql`SELECT COUNT(*)::text as count FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID} AND deleted_at IS NULL`) as unknown as { rows: readonly { count: string }[] });
+    expect(active[0]?.count).toBe('0');
   });
 
   it('treats malformed delta as noop without poisoning the batch', async () => {

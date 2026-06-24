@@ -8,8 +8,14 @@
 // Concurrency safety: SELECT...FOR UPDATE on projection_status row locks the
 // scope so only one runner processes events for a given (projectionName, scope)
 // at a time. Pilot deploys 1 API instance; this guards future multi-instance.
+//
+// SOFT DELETE: a tombstone event yields a 'soft_delete' decision. Because the app
+// role holds NO DELETE/TRUNCATE privilege (business rule: app users never delete DB
+// records), the runner HIDES the road run by UPDATEing deleted_at instead of issuing a
+// physical DELETE. All projection reads filter deleted_at IS NULL, so a hidden row is
+// invisible to the board and is treated as absent when a later event for it arrives.
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { eq, and, gt, sql } from 'drizzle-orm';
+import { eq, and, gt, isNull, sql } from 'drizzle-orm';
 import {
   applyDispatchBoardEvent,
   DISPATCH_BOARD_PROJECTION_NAME,
@@ -31,7 +37,8 @@ export interface RunnerResult {
   readonly polled: number;
   readonly applied: number;
   readonly noops: number;
-  readonly deletes: number;
+  /** Count of tombstone events applied as soft-deletes (deleted_at set), NOT physical deletes. */
+  readonly softDeletes: number;
   readonly newWatermark: string;
 }
 
@@ -78,7 +85,7 @@ export class ProjectionRunnerService {
 
       let applied = 0;
       let noops = 0;
-      let deletes = 0;
+      let softDeletes = 0;
       let newWatermark = watermark;
       // PDF lag_ms: freshness of READ MODEL, i.e. age of the OLDEST event still
       // unprocessed when we start this batch. Using the newest event in the
@@ -93,13 +100,16 @@ export class ProjectionRunnerService {
           delta: ev.delta,
         };
 
-        // Load current projection row (if any) for this aggregate.
+        // Load current ACTIVE projection row (if any) for this aggregate. Soft-deleted
+        // rows (deleted_at IS NOT NULL) are treated as absent, so a later event for a
+        // hidden road run is evaluated against null current state.
         const currentRows = await tx
           .select()
           .from(dispatchBoardProjection)
           .where(and(
             eq(dispatchBoardProjection.roadRunId, ev.aggregateId),
             eq(dispatchBoardProjection.companyId, scope),
+            isNull(dispatchBoardProjection.deletedAt),
           ))
           .limit(1);
         const currentRow = currentRows[0];
@@ -132,12 +142,19 @@ export class ProjectionRunnerService {
 
         if (decision.kind === 'noop') {
           noops++;
-        } else if (decision.kind === 'delete') {
-          await tx.delete(dispatchBoardProjection).where(and(
-            eq(dispatchBoardProjection.roadRunId, decision.roadRunId),
-            eq(dispatchBoardProjection.companyId, scope),
-          ));
-          deletes++;
+        } else if (decision.kind === 'soft_delete') {
+          // SOFT DELETE: hide the row by setting deleted_at (an UPDATE the app role CAN
+          // do) instead of a physical DELETE. If no active row exists the UPDATE affects
+          // zero rows, which is the correct no-op for a tombstone of an absent road run.
+          await tx
+            .update(dispatchBoardProjection)
+            .set({ deletedAt: new Date(), serverSeq: decision.serverSeq, updatedAt: new Date() })
+            .where(and(
+              eq(dispatchBoardProjection.roadRunId, decision.roadRunId),
+              eq(dispatchBoardProjection.companyId, scope),
+              isNull(dispatchBoardProjection.deletedAt),
+            ));
+          softDeletes++;
         } else {
           // upsert
           const row = decision.row;
@@ -173,6 +190,8 @@ export class ProjectionRunnerService {
                 transportOrderRefs: row.transportOrderRefs,
                 serverSeq: row.serverSeq,
                 updatedAt: new Date(),
+                // Re-activate a previously hidden row if it is re-created post-tombstone.
+                deletedAt: null,
               },
             });
           applied++;
@@ -191,7 +210,7 @@ export class ProjectionRunnerService {
         ));
 
       this.logger.debug(
-        `[projection ${DISPATCH_BOARD_PROJECTION_NAME} scope=${scope}] polled=${String(events.length)} applied=${String(applied)} noops=${String(noops)} deletes=${String(deletes)} watermark=${newWatermark.toString()} lagMs=${String(lagMs)}`,
+        `[projection ${DISPATCH_BOARD_PROJECTION_NAME} scope=${scope}] polled=${String(events.length)} applied=${String(applied)} noops=${String(noops)} softDeletes=${String(softDeletes)} watermark=${newWatermark.toString()} lagMs=${String(lagMs)}`,
       );
 
       return {
@@ -199,7 +218,7 @@ export class ProjectionRunnerService {
         polled: events.length,
         applied,
         noops,
-        deletes,
+        softDeletes,
         newWatermark: newWatermark.toString(),
       };
     });
