@@ -75,13 +75,13 @@ describe('@fleet/main-worker - applyDispatchBoardEvent', () => {
     expect(result.kind).toBe('noop');
     if (result.kind === 'noop') expect(result.reason).toBe('invalid_delta');
   });
-  it('returns delete for tombstone delta with serverSeq propagated for watermarking', () => {
+  it('returns soft_delete for tombstone delta with serverSeq propagated for watermarking', () => {
     const result = applyDispatchBoardEvent(
       event({ serverSeq: 250n, delta: { tombstone: true } }),
       baseCurrent,
     );
-    expect(result.kind).toBe('delete');
-    if (result.kind === 'delete') {
+    expect(result.kind).toBe('soft_delete');
+    if (result.kind === 'soft_delete') {
       expect(result.roadRunId).toBe(ROAD_RUN_ID);
       expect(result.serverSeq).toBe(250n);
     }
@@ -369,7 +369,7 @@ describe('@fleet/main-worker - applyDispatchBoardEvent property invariants', () 
         }),
         (event) => {
           const r = applyDispatchBoardEvent(event, baseCurrent);
-          expect(['noop', 'upsert', 'delete']).toContain(r.kind);
+          expect(['noop', 'upsert', 'soft_delete']).toContain(r.kind);
           return true;
         },
       ),

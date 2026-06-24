@@ -25,11 +25,21 @@ export const dispatchBoardProjection = pgTable(
     /** server_seq of the latest event applied to this row (monotonic). */
     serverSeq: bigint('server_seq', { mode: 'bigint' }).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    /** Soft-delete tombstone: NULL = active/visible row; non-NULL = hidden. The app
+     *  role holds no DELETE/TRUNCATE (business rule: app users never delete records),
+     *  so the projection runner HIDES a tombstoned road run by UPSERTing deleted_at
+     *  instead of physically removing the row. All reads filter deleted_at IS NULL. */
+    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
   },
   (t) => [
     index('dispatch_board_projection_state_idx').on(t.state),
     index('dispatch_board_projection_company_idx').on(t.companyId),
     index('dispatch_board_projection_planned_start_idx').on(t.plannedStartAt),
+    // Partial index supporting the hot read path: the dispatch board only ever reads
+    // ACTIVE rows (deleted_at IS NULL), so index just those for company-scoped scans.
+    index('dispatch_board_projection_active_idx')
+      .on(t.companyId)
+      .where(sql`"deleted_at" is null`),
     check('dispatch_board_projection_stop_count_nonneg', sql`${t.stopCount} >= 0`),
     check('dispatch_board_projection_server_seq_nonneg', sql`${t.serverSeq} >= 0`),
   ],

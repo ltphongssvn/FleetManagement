@@ -17,8 +17,11 @@
 // private bucket. The S3 object key/bucket come from the manifest's upload_session.
 // EXPAND-only: arrivedAt/departedAt are unchanged; proof is added (null when no
 // committed manifest), so existing ops-web code stays valid.
+//
+// SOFT DELETE: the board read filters deleted_at IS NULL so road runs hidden by a
+// tombstone (soft-deleted, since the app role holds no DELETE privilege) never appear.
 import { Controller, Get, Inject, Optional, UseGuards } from '@nestjs/common';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { computeWeightDiffKg } from '@fleet/sync-protocol';
 import type { DispatchBoardApiResponse, DispatchBoardApiRow, DispatchStopView, StopProof, WeightDiffStop } from '@fleet/sync-protocol';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
@@ -88,7 +91,11 @@ export class DispatchController {
         eq(vehicle.vehicleId, dispatchBoardProjection.assignedAssetId),
         eq(vehicle.companyId, op.companyId),
       ))
-      .where(eq(dispatchBoardProjection.companyId, op.companyId))
+      .where(and(
+        eq(dispatchBoardProjection.companyId, op.companyId),
+        // Hide soft-deleted (tombstoned) road runs from the board.
+        isNull(dispatchBoardProjection.deletedAt),
+      ))
       .orderBy(dispatchBoardProjection.plannedStartAt)
       .limit(DISPATCH_BOARD_MAX_ROWS);
     const roadRunIds = rows.map((r) => r.roadRunId);

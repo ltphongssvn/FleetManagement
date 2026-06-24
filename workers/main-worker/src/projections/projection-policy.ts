@@ -64,10 +64,25 @@ export interface SyncFeedEvent {
   readonly delta: unknown;
 }
 
-export type ProjectionDelta =
-  | { readonly kind: 'noop'; readonly reason: 'unobserved_aggregate' | 'stale_event' | 'invalid_delta' }
-  | { readonly kind: 'upsert'; readonly row: RoadRunProjectionRow }
-  | { readonly kind: 'delete'; readonly roadRunId: string; readonly serverSeq: bigint };
+/** Reasons a projection event is a no-op. */
+export const ProjectionNoopReasonSchema = z.enum([
+  'unobserved_aggregate',
+  'stale_event',
+  'invalid_delta',
+]);
+export type ProjectionNoopReason = z.infer<typeof ProjectionNoopReasonSchema>;
+
+/** The projection decision, schema-first as a Zod DISCRIMINATED UNION on 'kind' so
+ *  consumers narrow exhaustively. The tombstone case is 'soft_delete' (NOT a physical
+ *  delete): the runner applies it as an upsert setting deleted_at, because the application
+ *  role holds no DELETE/TRUNCATE privilege (business rule: app users never delete records).
+ *  roadRunId/serverSeq are carried for the upsert key + watermarking. */
+export const ProjectionDeltaSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('noop'), reason: ProjectionNoopReasonSchema }).strict(),
+  z.object({ kind: z.literal('upsert'), row: z.custom<RoadRunProjectionRow>() }).strict(),
+  z.object({ kind: z.literal('soft_delete'), roadRunId: z.string(), serverSeq: z.bigint() }).strict(),
+]);
+export type ProjectionDelta = z.infer<typeof ProjectionDeltaSchema>;
 
 interface RoadRunDeltaShape {
   readonly state?: unknown;
@@ -159,7 +174,7 @@ export function applyDispatchBoardEvent(
   }
 
   if (event.delta.tombstone === true) {
-    return { kind: 'delete', roadRunId: event.aggregateId, serverSeq: event.serverSeq };
+    return { kind: 'soft_delete', roadRunId: event.aggregateId, serverSeq: event.serverSeq };
   }
 
   const state = asState(event.delta.state);

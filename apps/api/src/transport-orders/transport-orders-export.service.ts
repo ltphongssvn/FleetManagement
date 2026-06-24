@@ -36,10 +36,14 @@
 // existing row instead of inserting again. Manual exports bypass the check.
 //
 // Day key: VN timezone (UTC+7) calendar date as YYYY-MM-DD, computed in pure JS.
+//
+// SOFT DELETE: the projection read filters deleted_at IS NULL so a road run hidden
+// by a tombstone (soft-deleted; the app role holds no DELETE) is excluded from the
+// export, exactly as it is hidden from the on-screen board.
 import { Inject, Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import ExcelJS from 'exceljs';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { dispatchBoardProjection } from '../database/schema/projections.js';
@@ -217,6 +221,8 @@ export class TransportOrdersExportService {
       ))
       .where(and(
         eq(dispatchBoardProjection.companyId, op.companyId),
+        // Hide soft-deleted (tombstoned) road runs from the export, matching the board.
+        isNull(dispatchBoardProjection.deletedAt),
         // Feature 4: inclusive VN-local calendar-date window. Convert the stored
         // UTC instant to Asia/Ho_Chi_Minh wall-clock, take its date, and bound it
         // by [from, to]. A null planned_start_at yields NULL here and is excluded
