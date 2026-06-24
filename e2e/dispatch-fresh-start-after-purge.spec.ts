@@ -166,7 +166,7 @@ test.describe('dispatch fresh start after wipe (T4) @serial', () => {
       // ---- Run the wipe via the production wipeBusinessData() module ----
       const wipeOut = dockerExecNode(
         'fleet-pilot-api-1',
-        'import(' + JSON.stringify('./dist/maintenance/wipe-business-data.js') + ').then(m=>m.wipeBusinessData(require(' + JSON.stringify('drizzle-orm/node-postgres') + ').drizzle(new (require(' + JSON.stringify('pg') + ').Pool)({connectionString:process.env.DATABASE_URL})))).then(()=>process.stdout.write(' + JSON.stringify('WIPE-OK') + ')).catch(e=>{console.error(e);process.exit(1)})',
+        'import(' + JSON.stringify('./dist/maintenance/wipe-business-data.js') + ').then(m=>m.wipeBusinessData(require(' + JSON.stringify('drizzle-orm/node-postgres') + ').drizzle(new (require(' + JSON.stringify('pg') + ').Pool)({connectionString:process.env.DATABASE_URL}))),{environment:' + JSON.stringify('production') + ',authorization:{confirmedEnvironment:' + JSON.stringify('production') + ',reason:' + JSON.stringify('e2e T4 acceptance fresh-start wipe (operator-confirmed)') + '}}).then(()=>process.stdout.write(' + JSON.stringify('WIPE-OK') + ')).catch(e=>{console.error(e);process.exit(1)})',
       );
       expect(wipeOut).toContain('WIPE-OK');
 
