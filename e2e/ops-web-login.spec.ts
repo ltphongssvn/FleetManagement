@@ -77,11 +77,25 @@ test.describe('ops-web /login (Authorization Code + PKCE)', () => {
       redirectTarget.startsWith(authorizeEndpoint),
       `startLogin must redirect to the IdP authorize endpoint (expected prefix: "${authorizeEndpoint}", got: "${rawRedirect}")`,
     ).toBe(true);
-    // The transient PKCE secrets are deterministically present now: the action
-    // response that set them (via Set-Cookie) has already resolved.
-    const names = (await page.context().cookies()).map((c) => c.name);
-    expect(names, 'startLogin must set the three transient PKCE cookies').toEqual(
-      expect.arrayContaining(['oidc_code_verifier', 'oidc_state', 'oidc_nonce']),
-    );
+    // The transient PKCE secrets are set via Set-Cookie ON the server-action POST
+    // response above. waitForResponse resolves when that response is RECEIVED over
+    // the wire, but the browser commits Set-Cookie to its cookie store
+    // ASYNCHRONOUSLY, a beat later — so a single-shot context().cookies() read here
+    // occasionally observed an empty jar (the residual ~1% flake). Poll the actual
+    // end-state condition (web-first assertion) instead of reading once: expect.poll
+    // re-reads the jar until all three cookies are present or it times out. This is
+    // deterministic regardless of the exact Set-Cookie commit timing.
+    await expect
+      .poll(
+        async () => {
+          const names = (await page.context().cookies()).map((c) => c.name);
+          return ['oidc_code_verifier', 'oidc_state', 'oidc_nonce'].every((n) => names.includes(n));
+        },
+        {
+          timeout: 10000,
+          message: 'startLogin must set the three transient PKCE cookies (oidc_code_verifier, oidc_state, oidc_nonce)',
+        },
+      )
+      .toBe(true);
   });
 });
