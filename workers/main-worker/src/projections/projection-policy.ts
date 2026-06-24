@@ -57,12 +57,10 @@ export interface RoadRunProjectionRow {
   readonly serverSeq: bigint;
 }
 
-export interface SyncFeedEvent {
-  readonly serverSeq: bigint;
-  readonly aggregateType: string;
-  readonly aggregateId: string;
-  readonly delta: unknown;
-}
+/** SyncFeedEvent is the INFERRED output type of SyncFeedEventSchema (single source of
+ *  truth). serverSeq is bigint in the output because the schema transform coerces
+ *  string|number|bigint -> bigint at parse; do NOT hand-maintain a parallel interface. */
+export type SyncFeedEvent = z.infer<typeof SyncFeedEventSchema>;
 
 /** Reasons a projection event is a no-op. */
 export const ProjectionNoopReasonSchema = z.enum([
@@ -245,9 +243,9 @@ export function applyDispatchBoardEvent(
     row: {
       roadRunId: event.aggregateId,
       state,
-      // Pick: explicit \`undefined\` means "absent in delta" -> preserve current.
-      // \`null\` and other valid values from the delta override current (so explicit
-      // null clears nullable fields). \`??\` is wrong here because it conflates null
+      // Pick: explicit `undefined` means "absent in delta" -> preserve current.
+      // `null` and other valid values from the delta override current (so explicit
+      // null clears nullable fields). `??` is wrong here because it conflates null
       // with undefined; we use a small helper to keep eslint happy.
       assignedOperatorId: pick(assignedOperatorId, current.assignedOperatorId),
       assignedAssetId: pick(assignedAssetId, current.assignedAssetId),
