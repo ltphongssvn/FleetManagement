@@ -1,11 +1,12 @@
 import { initSentry } from './observability/sentry-bootstrap.js';
 // apps/api/src/main.ts
-// OTel SDK is started by ./observability/otel-bootstrap.ts via `node --import`.
+// OTel SDK is started by ./observability/otel-bootstrap.ts via 'node --import'.
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { ZodExceptionFilter } from './common/zod-exception.filter.js';
 import { shutdownOtel } from './observability/otel.js';
 import { assertSingleInstance } from './runtime/single-instance-guard.js';
+import { selectMigrationConnectionString } from './database/migration-connection.js';
 
 assertSingleInstance(process.env);
 initSentry();
@@ -15,8 +16,10 @@ async function maybeMigrate(): Promise<void> {
   const { drizzle } = await import('drizzle-orm/node-postgres');
   const { migrate } = await import('drizzle-orm/node-postgres/migrator');
   const { Pool } = await import('pg');
-  const url = process.env['DATABASE_URL'];
-  if (!url) throw new Error('DB_AUTO_MIGRATE=true but DATABASE_URL is unset');
+  // Migrations require DDL (CREATE/ALTER); use the elevated migration credential when
+  // provided (MIGRATION_DATABASE_URL), else fall back to DATABASE_URL. The helper
+  // throws if neither is set, preserving the previous DB_AUTO_MIGRATE guard.
+  const url = selectMigrationConnectionString(process.env);
   const pool = new Pool({ connectionString: url, max: 1 });
   try {
     await migrate(drizzle(pool), { migrationsFolder: './dist/database/migrations' });
@@ -31,8 +34,15 @@ async function maybeSeed(): Promise<void> {
   const { Pool } = await import('pg');
   const schema = await import('./database/schema/index.js');
   const { seedReference } = await import('./database/seeds/reference-seed.js');
-  const url = process.env['DATABASE_URL'];
-  if (!url) return;
+  // Seeding writes reference rows at boot alongside migrate; use the same elevated
+  // migration credential. Seeding stays best-effort: if no connection string is
+  // configured at all, skip rather than fail boot.
+  let url: string;
+  try {
+    url = selectMigrationConnectionString(process.env);
+  } catch {
+    return;
+  }
   const pool = new Pool({ connectionString: url, max: 1 });
   try {
     // 2026 best practice: environment-gate test fixtures. The login-capable
