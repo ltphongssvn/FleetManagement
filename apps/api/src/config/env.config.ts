@@ -4,6 +4,11 @@ export const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
   DATABASE_URL: z.url(),
+  // Layer-1 least-privilege split: when set, this elevated DDL-capable connection
+  // string is used for boot-time migrations + seeding, while DATABASE_URL is the
+  // restricted runtime role (no DDL, no DELETE). Optional: unset -> migrations fall
+  // back to DATABASE_URL, so single-credential environments are unaffected.
+  MIGRATION_DATABASE_URL: z.url().optional(),
   DB_POOL_MAX: z.coerce.number().int().positive().default(10),
   DB_IDLE_TIMEOUT_MS: z.coerce.number().int().nonnegative().default(30_000),
   REDIS_URL: z.url().default('redis://localhost:6379'),
