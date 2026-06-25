@@ -19,6 +19,18 @@ const EXEMPT = new Set([
   'migrations.integration.test.ts',
 ]);
 
+// NARROW, JUSTIFIED carve-out for the no-inline-DDL check ONLY (not the helper-usage
+// check). These files DO use the migrate-test-db helper (and are still verified to),
+// but they legitimately contain DDL keywords as STRING LITERALS that they assert are
+// REJECTED — they do not use DDL to set up schema, which is what the guard forbids.
+// This is the explicit approved-variant allowlist (the Semgrep pattern-not equivalent),
+// preferred over broadly exempting the file or obscuring the SQL via concatenation.
+//   * fleet-app-role-privileges.integration.test.ts asserts the least-privilege runtime
+//     role (fleet_app) is DENIED DROP TABLE / ALTER TABLE (SQLSTATE 42501).
+const DDL_ASSERTION_EXEMPT = new Set([
+  'fleet-app-role-privileges.integration.test.ts',
+]);
+
 const FORBIDDEN_DDL = /\b(CREATE\s+TABLE|CREATE\s+TYPE|DROP\s+TABLE|ALTER\s+TABLE)\b/i;
 
 async function listSchemaIntegrationFiles(): Promise<readonly string[]> {
@@ -49,7 +61,11 @@ describe('@fleet/api - integration tests use migrations as schema source', () =>
   });
 
   it('all schema integration tests contain no inline DDL (CREATE/DROP/ALTER)', async () => {
-    const files = await listSchemaIntegrationFiles();
+    // Subject to the DDL-assertion carve-out: files that assert DDL is rejected (rather
+    // than using it for setup) are checked against the helper-usage rule above but not
+    // this literal-scan, since the forbidden tokens appear only inside asserted-denied
+    // query strings.
+    const files = (await listSchemaIntegrationFiles()).filter((f) => !DDL_ASSERTION_EXEMPT.has(f));
     for (const f of files) {
       const content = await readFile(resolve(testDir, f), 'utf-8');
       // Strip line comments before scanning so accepted tests can mention DDL in prose.
