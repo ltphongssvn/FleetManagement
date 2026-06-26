@@ -1,0 +1,28 @@
+{
+  "$schema": "./railway-reference-guard.schema-note",
+  "description": "Allowlist for railway-reference-guard.ts. Each entry permits a specific service.VARIABLE to hold a hardcoded connection-string literal instead of a ${{Producer.VAR}} reference. Every entry MUST document why the literal is legitimate. Keep this list minimal; the default expectation is that *_URL variables are references so a single rotation propagates to all consumers.",
+  "services": {
+    "190981c2-6312-415d-a4e1-b5b3b292c8bc": "ops-web",
+    "42eea026": "Redis",
+    "520a832b-fcf2-40fe-a23b-d265e96ecc38": "api",
+    "5da9fe14-98aa-4fab-9905-78dc3fa348b7": "worker",
+    "62b5cc17": "Postgres",
+    "903c460b": "Postgres-vDl0",
+    "a220959e": "mock-oauth2",
+    "ce4c705a": "Keycloak"
+  },
+  "urlVariableNamePattern": "(?:^|_)(?:DATABASE|DB|REDIS|MONGO|MONGODB|AMQP|RABBITMQ|KAFKA|ELASTIC|ELASTICSEARCH|CLICKHOUSE|MYSQL|POSTGRES|POSTGRESQL)_?URL$|_URL$",
+  "credentialUrlPattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^:/?#@\\s]+:[^@/?#\\s]+@",
+  "allow": [
+    {
+      "service": "api",
+      "variable": "DATABASE_URL",
+      "reason": "Runtime connection uses the custom no-DELETE 'fleet_app' role, which has its own password and is NOT the postgres superuser. Railway exposes no output variable for the fleet_app URL, so this must be a literal. The fleet_app password is rotated via a separate documented procedure. Migration credential (MIGRATION_DATABASE_URL) IS a reference: ${{Postgres.DATABASE_URL}}."
+    },
+    {
+      "service": "worker",
+      "variable": "DATABASE_URL",
+      "reason": "Same as api.DATABASE_URL: fleet_app runtime role literal; no Railway output variable exists for it."
+    }
+  ]
+}
