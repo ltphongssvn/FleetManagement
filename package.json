@@ -30,7 +30,8 @@
     "release:closeout": "tsx scripts/e2e/release-closeout.ts",
     "release:promote": "tsx scripts/e2e/release-promote.ts",
     "guard:railway-references": "tsx scripts/railway-reference-guard.ts",
-    "stack:restart": "tsx scripts/e2e/stack-restart.ts"
+    "stack:restart": "tsx scripts/e2e/stack-restart.ts",
+    "deploy:railway": "node -e \"console.error('Production deploys run via CI only. Trigger with: gh workflow run railway-deploy.yml --ref main -f services=auto'); process.exit(1)\""
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
