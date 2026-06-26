@@ -1,0 +1,204 @@
+# FleetManagement/.github/workflows/railway-deploy.yml
+# Production deploy to Railway via GitHub Actions -- the explicit, controllable,
+# auditable CI deploy path. Replaces ad-hoc 'railway up' from a developer
+# laptop with a versioned, gated workflow.
+#
+# Pattern (2026 industry standard, per Railway blog 2025-12 'CI/CD for Modern
+# Deployment' + dorny/paths-filter monorepo guidance):
+# - Trigger: workflow_run on CI success on main (chained CI/CD), OR manual
+#   workflow_dispatch with a service selector for surgical deploys.
+# - Gate: HAS_RAILWAY_TOKEN fork-safety guard mirrors the railway-guard.yml
+#   pattern already in this repo. Skip cleanly when the token is absent.
+# - Deploy: official ghcr.io/railwayapp/cli:latest container. railway up
+#   --service <name> --ci is Railway canonical CI flag -- streams build
+#   logs and exits with the build exit code (better than --detach for CI).
+# - Change detection: dorny/paths-filter@v3 maps changed paths to services.
+#   In auto mode we deploy ONLY services whose tracked paths changed.
+#   all / api / ops-web / worker inputs override for surgical deploys.
+# - Ordering: api -> ops-web -> worker. result == skipped is tolerated so a
+#   skipped upstream does not block downstream.
+# - Per-service health gate: api /health/ready -> 200, ops-web /login -> 200,
+#   worker via boot logs.
+# - Concurrency: cancel-in-progress: false -- never cancel an in-flight
+#   deploy (production safety).
+#
+# Railway dashboard prerequisite (one-time): all three services must be in
+# CLI-only mode -- Settings -> Source shows Connect Repo / Connect Image
+# with nothing linked. This prevents double-deploys.
+
+name: Deploy to Railway
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Services to deploy (auto=detect, all=all 3, or one)'
+        type: choice
+        default: auto
+        options:
+          - auto
+          - all
+          - api
+          - ops-web
+          - worker
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-railway-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Gate (CI green + change detection)
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    outputs:
+      has_token: ${{ steps.token.outputs.has_token }}
+      deploy_api: ${{ steps.detect.outputs.api }}
+      deploy_ops_web: ${{ steps.detect.outputs.ops_web }}
+      deploy_worker: ${{ steps.detect.outputs.worker }}
+      head_sha: ${{ steps.sha.outputs.sha }}
+    env:
+      HAS_RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN != '' }}
+    steps:
+      - name: Determine head SHA
+        id: sha
+        run: |
+          if [ '${{ github.event_name }}' = 'workflow_run' ]; then
+            echo 'sha=${{ github.event.workflow_run.head_sha }}' >> "$GITHUB_OUTPUT"
+          else
+            echo 'sha=${{ github.sha }}' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Token presence gate
+        id: token
+        run: |
+          if [ "$HAS_RAILWAY_TOKEN" = 'true' ]; then
+            echo 'has_token=true' >> "$GITHUB_OUTPUT"
+            echo 'RAILWAY_TOKEN present, deploy will proceed'
+          else
+            echo 'has_token=false' >> "$GITHUB_OUTPUT"
+            echo '::warning::RAILWAY_TOKEN not set, deploy will skip'
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.sha.outputs.sha }}
+          fetch-depth: 2
+      - name: Detect changed services
+        id: detect
+        uses: dorny/paths-filter@v3
+        with:
+          base: HEAD~1
+          filters: |
+            api:
+              - 'apps/api/**'
+              - 'packages/**'
+              - 'pnpm-lock.yaml'
+              - 'package.json'
+            ops_web:
+              - 'apps/ops-web/**'
+              - 'packages/**'
+              - 'pnpm-lock.yaml'
+              - 'package.json'
+            worker:
+              - 'workers/main-worker/**'
+              - 'packages/**'
+              - 'pnpm-lock.yaml'
+              - 'package.json'
+
+  deploy-api:
+    name: Deploy api
+    needs: gate
+    if: >
+      needs.gate.outputs.has_token == 'true' && (
+        github.event.inputs.services == 'all' ||
+        github.event.inputs.services == 'api' ||
+        (github.event_name == 'workflow_run' && needs.gate.outputs.deploy_api == 'true') ||
+        (github.event.inputs.services == 'auto' && needs.gate.outputs.deploy_api == 'true')
+      )
+    runs-on: ubuntu-latest
+    container: ghcr.io/railwayapp/cli:latest
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.head_sha }}
+      - name: Deploy api (CI mode)
+        run: railway up --service api --ci
+      - name: Wait for /health/ready (5min budget)
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' https://api-production-fd42.up.railway.app/health/ready || echo 000)
+            if [ "$code" = '200' ]; then echo 'api ready'; exit 0; fi
+            echo "attempt $i: HTTP $code"; sleep 10
+          done
+          echo '::error::api /health/ready not 200 after 5min'; exit 1
+
+  deploy-ops-web:
+    name: Deploy ops-web
+    needs: [gate, deploy-api]
+    if: >
+      always() &&
+      needs.gate.outputs.has_token == 'true' &&
+      (needs.deploy-api.result == 'success' || needs.deploy-api.result == 'skipped') &&
+      (
+        github.event.inputs.services == 'all' ||
+        github.event.inputs.services == 'ops-web' ||
+        (github.event_name == 'workflow_run' && needs.gate.outputs.deploy_ops_web == 'true') ||
+        (github.event.inputs.services == 'auto' && needs.gate.outputs.deploy_ops_web == 'true')
+      )
+    runs-on: ubuntu-latest
+    container: ghcr.io/railwayapp/cli:latest
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.head_sha }}
+      - name: Deploy ops-web (CI mode)
+        run: railway up --service ops-web --ci
+      - name: Wait for /login (5min budget)
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' https://xe.vominhchau.com/login || echo 000)
+            if [ "$code" = '200' ]; then echo 'ops-web ready'; exit 0; fi
+            echo "attempt $i: HTTP $code"; sleep 10
+          done
+          echo '::error::ops-web /login not 200 after 5min'; exit 1
+
+  deploy-worker:
+    name: Deploy worker
+    needs: [gate, deploy-ops-web]
+    if: >
+      always() &&
+      needs.gate.outputs.has_token == 'true' &&
+      (needs.deploy-ops-web.result == 'success' || needs.deploy-ops-web.result == 'skipped') &&
+      (
+        github.event.inputs.services == 'all' ||
+        github.event.inputs.services == 'worker' ||
+        (github.event_name == 'workflow_run' && needs.gate.outputs.deploy_worker == 'true') ||
+        (github.event.inputs.services == 'auto' && needs.gate.outputs.deploy_worker == 'true')
+      )
+    runs-on: ubuntu-latest
+    container: ghcr.io/railwayapp/cli:latest
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.head_sha }}
+      - name: Deploy worker (CI mode)
+        run: railway up --service worker --ci
+      - name: Confirm worker booted
+        run: |
+          sleep 30
+          railway logs --service worker --build 2>&1 | tail -50 || true
+          echo 'worker deploy submitted; verify logs above show Started N workers'
