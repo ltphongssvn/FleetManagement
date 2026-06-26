@@ -124,7 +124,7 @@ test.describe('created order immediate visibility on dispatch board (T3)', () =>
     await expect(page.getByRole('heading', { level: 1, name: 'Lệnh điều xe' })).toBeVisible();
 
     const now = new Date(Date.now() + 60 * 60 * 1000);
-    const localIso = now.toISOString().slice(0, 16);
+    const localIso = now.toISOString().slice(0, 10);
     await page.locator('#plannedStartAt').fill(localIso);
     const vehicleInput = page.locator('input#vehiclePlate');
     await vehicleInput.click();

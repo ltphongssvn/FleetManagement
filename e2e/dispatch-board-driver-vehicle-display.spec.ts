@@ -89,7 +89,7 @@ test.describe.serial('Lệnh điều xe board: Tài xế + Xe display driver nam
 
     await expect(page.getByTestId('create-order-form')).toBeVisible({ timeout: 15_000 });
 
-    const localIso = '2026-06-02T08:00';
+    const localIso = '2026-06-02';
     await page.locator('#plannedStartAt').fill(localIso);
     await pickCombobox(page, 'customer', seed.customerName);
     await pickCombobox(page, 'cargo', seed.cargoName);
