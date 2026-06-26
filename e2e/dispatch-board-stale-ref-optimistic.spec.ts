@@ -144,7 +144,7 @@ test.describe('stale-ref projection does not hide the optimistic row', () => {
     await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
 
     const now = new Date(Date.now() + 60 * 60 * 1000);
-    const localIso = now.toISOString().slice(0, 16);
+    const localIso = now.toISOString().slice(0, 10);
     await page.locator('#plannedStartAt').fill(localIso);
     const vehicleInput = page.locator('input#vehiclePlate');
     await vehicleInput.click();

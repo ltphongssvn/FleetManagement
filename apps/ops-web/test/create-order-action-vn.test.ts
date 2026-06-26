@@ -5,6 +5,9 @@
 // (those fields have no FK in the schema). Industry 2026 CQRS norm: write
 // side persists normalized FKs; the read side joins them once to render the
 // Vietnamese labels back to the dispatcher.
+//
+// T8 (2026): date-only contract — plannedStartAt / pickupAt / deliveryAt are
+// YYYY-MM-DD per z.iso.date().
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 const cookieGet = vi.fn();
 vi.mock('next/headers', () => ({ cookies: () => Promise.resolve({ get: cookieGet }) }));
@@ -22,15 +25,15 @@ describe('createOrder VN fields', () => {
     vi.stubGlobal('fetch', fetchMock);
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = new FormData();
-    fd.set('plannedStartAt', '2026-04-10T08:00');
+    fd.set('plannedStartAt', '2026-04-10');
     fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
     fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
-    fd.set('deliveryAt', '2026-04-10T11:00');
+    fd.set('deliveryAt', '2026-04-10');
     fd.set('customer', CUSTOMER_ID);
     fd.set('cargo', CARGO_ID);
     fd.set('vehiclePlate', '62H 05817');
     fd.set('driverName', 'LÊ VĂN CHÂU');
-    fd.set('pickupAt', '2026-04-10T09:00');
+    fd.set('pickupAt', '2026-04-10');
     fd.set('pickupWarehouse_1', PICKUP_WH_ID);
     fd.set('deliveryWarehouse_1', DELIVERY_WH_ID);
     await createOrder(undefined, fd);
