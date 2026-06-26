@@ -216,7 +216,7 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
     // window silently drops the value, native required-validation then blocks
     // submit and no Số Lệnh banner appears (Playwright docs / Microsoft #27759).
     await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15000 });
-    await page.locator('#plannedStartAt').fill('2026-06-01T08:00');
+    await page.locator('#plannedStartAt').fill('2026-06-01');
     const vehicleInput = page.locator('input#vehiclePlate');
     await vehicleInput.click();
     await vehicleInput.fill(pair.vehicleLabel);
@@ -227,8 +227,8 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
     const vehicleOption = page.getByRole('option', { name: pair.vehicleLabel });
     await expect(vehicleOption).toBeVisible({ timeout: 15000 });
     await vehicleOption.click();
-    await page.locator('#pickupAt').fill('2026-06-01T09:00');
-    await page.locator('#deliveryAt').fill('2026-06-01T18:00');
+    await page.locator('#pickupAt').fill('2026-06-01');
+    await page.locator('#deliveryAt').fill('2026-06-01');
     await page.locator('input#pickupWarehouse_1').click();
     const pickupOption = page.getByRole('option').first();
     await expect(pickupOption).toBeVisible({ timeout: 15000 });

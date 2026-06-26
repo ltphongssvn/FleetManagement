@@ -3,6 +3,8 @@
 // Pickups share one pickupAt; deliveries share one deliveryAt. The dispatcher
 // may add a 5th, 6th... warehouse on either side. Empty slots are dropped;
 // >=1 pickup and >=1 delivery required.
+//
+// T8 (2026): date-only contract — pickupAt and deliveryAt are YYYY-MM-DD.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 const cookieGet = vi.fn();
 vi.mock('next/headers', () => ({ cookies: () => Promise.resolve({ get: cookieGet }) }));
@@ -15,18 +17,16 @@ function lastBody(fetchMock: ReturnType<typeof vi.fn>): Record<string, unknown> 
 }
 function baseForm(): FormData {
   const fd = new FormData();
-
-  fd.set('plannedStartAt', '2026-05-09T08:00');
+  fd.set('plannedStartAt', '2026-05-09');
   fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
   fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
-  fd.set('pickupAt', '2026-05-10T09:00');
-  fd.set('deliveryAt', '2026-05-15T11:00');
+  fd.set('pickupAt', '2026-05-10');
+  fd.set('deliveryAt', '2026-05-15');
   return fd;
 }
 describe('createOrder dynamic pickup + delivery warehouses (no hard cap)', () => {
   beforeEach(() => {
     cookieGet.mockReset();
-
     vi.unstubAllGlobals();
     vi.resetModules();
   });

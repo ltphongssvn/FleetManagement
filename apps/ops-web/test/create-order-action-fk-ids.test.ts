@@ -5,6 +5,9 @@
 // metadata break referential integrity and prevent any read-side
 // enrichment (industry 2026 CQRS norm: write-side persists FK,
 // read-side joins them once at projection time).
+//
+// T8 (2026): date-only contract — plannedStartAt / pickupAt / deliveryAt are
+// YYYY-MM-DD per z.iso.date().
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 const cookieGet = vi.fn();
 vi.mock('next/headers', () => ({ cookies: () => Promise.resolve({ get: cookieGet }) }));
@@ -17,14 +20,14 @@ const DRIVER_OP_ID = '00000000-0000-0000-0000-000000000001';
 const VEHICLE_ID = '00000000-0000-0000-0000-0000000000a2';
 function buildFormData(): FormData {
   const fd = new FormData();
-  fd.set('plannedStartAt', '2026-06-02T08:00');
+  fd.set('plannedStartAt', '2026-06-02');
   fd.set('assignedOperatorId', DRIVER_OP_ID);
   fd.set('assignedAssetId', VEHICLE_ID);
   fd.set('customer', CUSTOMER_ID);
   fd.set('cargo', CARGO_ID);
-  fd.set('pickupAt', '2026-06-02T09:00');
+  fd.set('pickupAt', '2026-06-02');
   fd.set('pickupWarehouse_1', PICKUP_WH_ID);
-  fd.set('deliveryAt', '2026-06-02T18:00');
+  fd.set('deliveryAt', '2026-06-02');
   fd.set('deliveryWarehouse_1', DELIVERY_WH_ID);
   return fd;
 }

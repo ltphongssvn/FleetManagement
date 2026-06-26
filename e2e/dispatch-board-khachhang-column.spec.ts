@@ -91,10 +91,10 @@ test.describe.serial('Lệnh điều xe board: Khách hàng column replaces Tr�
     await expect(page.getByTestId('create-order-form')).toBeVisible({ timeout: 15_000 });
 
     // Fill the create-order form via the real UI (minimal happy path).
-    // datetime-local inputs require a YYYY-MM-DDTHH:mm value string; the en-US
+    // date inputs (type='date') require a YYYY-MM-DD value string; the en-US
     // 'May 30, 2026' the board shows is a DISPLAY format produced server-side,
     // not the input value.
-    const localIso = '2026-06-02T08:00';
+    const localIso = '2026-06-02';
     await page.locator('#plannedStartAt').fill(localIso);
     await pickCombobox(page, 'customer', seed.customerName);
     await pickCombobox(page, 'cargo', seed.cargoName);

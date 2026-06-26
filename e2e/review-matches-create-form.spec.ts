@@ -154,18 +154,18 @@ test.describe('review view reflects create-order form (T7)', () => {
     await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15000 });
     // Section 1: planned start (ngày điều xe)
     const plannedStart = page.locator('#plannedStartAt');
-    await plannedStart.fill('2026-06-02T08:00');
-    await expect(plannedStart).toHaveValue('2026-06-02T08:00', { timeout: 5000 });
+    await plannedStart.fill('2026-06-02');
+    await expect(plannedStart).toHaveValue('2026-06-02', { timeout: 5000 });
     // Section 2: khách hàng + tên hàng
     await pickCombobox(page, 'customer', refs.customerLabel);
     await pickCombobox(page, 'cargo', refs.cargoLabel);
     // Section 3: số xe (auto-selects driver via pairing)
     await pickCombobox(page, 'vehiclePlate', pair.vehicleLabel);
     // Section 4: ngày nhận + kho nhận hàng 1
-    await page.locator('#pickupAt').fill('2026-06-02T09:00');
+    await page.locator('#pickupAt').fill('2026-06-02');
     await pickCombobox(page, 'pickupWarehouse_1', refs.pickupLabel);
     // Section 5: ngày giao + kho giao hàng 1
-    await page.locator('#deliveryAt').fill('2026-06-02T18:00');
+    await page.locator('#deliveryAt').fill('2026-06-02');
     await pickCombobox(page, 'deliveryWarehouse_1', refs.deliveryLabel);
     await page.getByRole('button', { name: 'Tạo lệnh' }).click();
     await expect(page.getByText(/Số Lệnh:[ ]*XTT[.]/i)).toBeVisible({ timeout: 20000 });
