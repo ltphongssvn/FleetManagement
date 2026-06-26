@@ -42,6 +42,8 @@ jobs:
     name: Enforce reference variables
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     defaults:
       run:
         shell: bash
@@ -50,6 +52,7 @@ jobs:
       # presence of RAILWAY_TOKEN to a job-level env var the steps can gate on.
       HAS_RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN != '' }}
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_ENVIRONMENT: production
     steps:
       - name: Skip notice (no RAILWAY_TOKEN configured)
         if: env.HAS_RAILWAY_TOKEN != 'true'
