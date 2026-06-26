@@ -18,27 +18,15 @@
 // in metadata defeats both. Backward-compat free-text strings remain
 // supported as a defaulted-empty metadata fallback to avoid breaking
 // tests/callers that haven't migrated to UUID inputs yet.
+//
+// T8 (2026): date-only dispatcher inputs. The Zod contract lives in the
+// sibling create-order.schema.ts module (NOT exported here) because Next.js
+// 15+ requires every top-level export of a 'use server' module to be an
+// async function. Schema-first contracts remain the source of truth; this
+// module is the side-effecting handler that consumes the schema.
 'use server';
 import { cookies } from 'next/headers';
-import { z } from 'zod';
-const UuidOrEmpty = z.union([z.guid(), z.literal('')]).default('');
-const FormSchema = z.object({
-  plannedStartAt: z.string().min(1, 'Required'),
-  assignedOperatorId: z.guid('Invalid driver id'),
-  assignedAssetId: z.guid('Invalid vehicle id'),
-  customer: UuidOrEmpty,
-  cargo: UuidOrEmpty,
-  vehiclePlate: z.string().max(50).optional().default(''),
-  driverName: z.string().max(200).optional().default(''),
-  pickupAt: z.string().min(1, 'Required'),
-  deliveryAt: z.string().min(1, 'Required'),
-  pickupWarehouses: z
-    .array(UuidOrEmpty)
-    .min(1, 'At least one pickup warehouse is required'),
-  deliveryWarehouses: z
-    .array(UuidOrEmpty)
-    .min(1, 'At least one delivery warehouse is required'),
-});
+import { DateOnlyFormSchema } from './create-order.schema';
 type ErrorKey =
   | 'plannedStartAt' | 'assignedOperatorId' | 'assignedAssetId'
   | 'customer' | 'cargo' | 'vehiclePlate' | 'driverName'
@@ -49,9 +37,11 @@ export type CreateOrderState =
   | { status: 'api_error'; message: string }
   | { status: 'server_error'; message: string }
   | { status: 'created'; externalRef: string; transportOrderId: string };
-function toIso(local: string): string {
-  const withSec = local.length === 16 ? local + ':00' : local;
-  return new Date(withSec + 'Z').toISOString();
+function toIso(dateOnly: string): string {
+  // Date-only input (YYYY-MM-DD) promoted to UTC midnight ISO datetime.
+  // z.iso.date() guarantees the format before we reach here, so this is a
+  // total function from a validated input.
+  return new Date(dateOnly + 'T00:00:00Z').toISOString();
 }
 function collectWarehouses(formData: FormData, prefix: string): string[] {
   const out: string[] = [];
@@ -63,7 +53,7 @@ function collectWarehouses(formData: FormData, prefix: string): string[] {
   return out;
 }
 export async function createOrder(_prev: CreateOrderState, formData: FormData): Promise<CreateOrderState> {
-  const parsed = FormSchema.safeParse({
+  const parsed = DateOnlyFormSchema.safeParse({
     plannedStartAt: formData.get('plannedStartAt'),
     assignedOperatorId: formData.get('assignedOperatorId'),
     assignedAssetId: formData.get('assignedAssetId'),
@@ -103,11 +93,6 @@ export async function createOrder(_prev: CreateOrderState, formData: FormData): 
     plannedAt: deliveryPlannedAt,
     ...(yardId !== '' ? { yardId } : {}),
   }));
-  // externalRef is intentionally omitted: the API allocates it server-side
-  // and any stale value from the form must NOT be forwarded.
-  // T7: customerId and cargoTypeId are FK ids forwarded to the API root
-  // body; the write-side service persists them on transport_order so the
-  // read-side projection/review joins succeed (referential integrity).
   const body: Record<string, unknown> = {
     metadata: {
       vehiclePlate: parsed.data.vehiclePlate,
@@ -132,13 +117,5 @@ export async function createOrder(_prev: CreateOrderState, formData: FormData): 
     return { status: 'api_error', message: 'API request failed: ' + String(res.status) + ' ' + res.statusText };
   }
   const json = (await res.json()) as { transportOrderId: string; roadRunId: string; externalRef: string };
-  // T3 follow-up (button state recovery): intentionally NOT calling
-  // revalidatePath('/'). Per Next.js v15 regression (vercel/next.js#82289),
-  // revalidating the page that hosts the form keeps useActionState's
-  // pending flag true until the entire server-rendered page re-renders,
-  // which on '/' includes heavy data fetching (drivers, vehicles,
-  // customers, warehouses, orders table). That strands the dispatcher
-  // on 'Đang tạo…'. The client (CreateOrderForm) triggers a targeted
-  // router.refresh() after the action settles to refresh server data.
   return { status: 'created', externalRef: json.externalRef, transportOrderId: json.transportOrderId };
 }

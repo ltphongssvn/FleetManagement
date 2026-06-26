@@ -333,13 +333,13 @@ test.describe('transport order auto-numbering (T3 invariant) — full layer chai
     await loginAsDispatcher(page);
     await page.goto('/');
     await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
-    await page.locator('#plannedStartAt').fill('2026-06-01T08:00');
+    await page.locator('#plannedStartAt').fill('2026-06-01');
     const vehicleInput = page.locator('input#vehiclePlate');
     await vehicleInput.click();
     await vehicleInput.fill(pair.vehicleLabel);
     await page.getByRole('option', { name: pair.vehicleLabel }).click();
-    await page.locator('#pickupAt').fill('2026-06-01T09:00');
-    await page.locator('#deliveryAt').fill('2026-06-01T18:00');
+    await page.locator('#pickupAt').fill('2026-06-01');
+    await page.locator('#deliveryAt').fill('2026-06-01');
     await page.locator('input#pickupWarehouse_1').click();
     await page.getByRole('option').first().click();
     await page.locator('input#deliveryWarehouse_1').click();

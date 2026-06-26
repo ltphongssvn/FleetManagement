@@ -22,6 +22,12 @@
 // T5: removed redundant 'Đặt lại' / 'Reset' footer button. Mid-creation
 // reset silently nukes dispatcher work; a page reload or a new order
 // supersedes it. The submit button is now the sole footer action.
+//
+// T8 (2026): date-only dispatcher inputs. Ngày điều xe / Ngày nhận hàng /
+// Ngày giao hàng render as type='date' (HTML5 date picker, no time). The
+// underlying server action's Zod contract enforces YYYY-MM-DD via
+// z.iso.date(); the time component is promoted to UTC midnight only when
+// the action forwards to the api, so the api wire contract is unchanged.
 'use client';
 import { useActionState, useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
@@ -71,11 +77,6 @@ export function CreateOrderForm({
   onCreated,
 }: CreateOrderFormProps): JSX.Element {
   const [state, formAction, pending] = useActionState<CreateOrderState, FormData>(createOrder, undefined);
-  // T3 follow-up (button state recovery): the server action intentionally
-  // no longer calls revalidatePath('/'), so trigger a targeted client-side
-  // refresh here once the action settles to 'created'. router.refresh()
-  // refetches server data WITHOUT blocking the useActionState transition,
-  // so the submit button returns to 'Tạo lệnh' immediately.
   const router = useRouter();
   const [pickupCount, setPickupCount] = useState(4);
   const [deliveryCount, setDeliveryCount] = useState(1);
@@ -90,21 +91,8 @@ export function CreateOrderForm({
   const [vehicleValue, setVehicleValue] = useState('');
   const [assetIdValue, setAssetIdValue] = useState('');
   const [driverValue, setDriverValue] = useState('');
-  // Hydration-ready signal (Playwright docs / Microsoft #27759, 2026): the
-  // form is SSR'd before React hydrates. This effect runs only after mount
-  // (hydration complete), flipping data-hydrated to 'true' so a test (or any
-  // automation) can wait for real interactivity instead of racing the static
-  // server HTML and silently dropping the first input value.
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => { setHydrated(true); }, []);
-  // Fire the created-handler EXACTLY ONCE per allocated externalRef. The
-  // previous effect depended on [state, router, onCreated, assetIdValue,
-  // driverValue] and called router.refresh() inside; onCreated is a fresh
-  // arrow on every parent render, and refresh() re-renders the parent, so the
-  // effect re-fired endlessly -> continuous RSC re-render storm (?_rsc= ->
-  // ERR_INSUFFICIENT_RESOURCES; blinking board). 2026 fix (react.dev: effects
-  // must converge): guard on a ref holding the last-handled ref so the bridge +
-  // refresh run once per creation, and depend only on [state].
   const handledRefRef = useRef<string | null>(null);
   const onCreatedRef = useRef(onCreated);
   onCreatedRef.current = onCreated;
@@ -173,7 +161,7 @@ export function CreateOrderForm({
           </div>
           <div>
             <label htmlFor='plannedStartAt' className={labelCls}>{tx('orderForm.orderDate')}</label>
-            <input id='plannedStartAt' name='plannedStartAt' type='datetime-local' required className={inputMt} />
+            <input id='plannedStartAt' name='plannedStartAt' type='date' required className={inputMt} />
           </div>
         </div>
       </div>
@@ -230,7 +218,7 @@ export function CreateOrderForm({
         <p className='mb-3 text-xs text-slate-500'>{tx('orderForm.maxPickupsHint')}</p>
         <div className='mb-4'>
           <label htmlFor='pickupAt' className={labelCls}>{tx('orderForm.pickupDate')}</label>
-          <input id='pickupAt' name='pickupAt' type='datetime-local' required className={inputMt} />
+          <input id='pickupAt' name='pickupAt' type='date' required className={inputMt} />
           <FieldError msg={errs.pickupAt} />
         </div>
         <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
@@ -261,7 +249,7 @@ export function CreateOrderForm({
         <p className='mb-3 text-xs text-slate-500'>{tx('orderForm.deliveryHint')}</p>
         <div className='mb-4'>
           <label htmlFor='deliveryAt' className={labelCls}>{tx('orderForm.deliveryDate')}</label>
-          <input id='deliveryAt' name='deliveryAt' type='datetime-local' required className={inputMt} />
+          <input id='deliveryAt' name='deliveryAt' type='date' required className={inputMt} />
           <FieldError msg={errs.deliveryAt} />
         </div>
         <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
