@@ -5,34 +5,44 @@
 // useActionState hook so the server action surfaces idempotent / 409
 // / 404 outcomes back to the UI.
 //
-// Defense in depth: the open button is hidden when the order is already
-// in a non-cancellable state (cancelled / completed). The API remains
-// the authority — if state was stale and the user races a click, the
-// 409 path is still handled gracefully via the action's discriminated
-// union return.
+// SCHEMA-FIRST SSOT (cancel-refactor 2026): the reason VALUES are no longer
+// hardcoded here. REASON_LABELS is a Record<CancelReason, string> keyed by the
+// @fleet/domain enum, and the <option> list is derived by iterating the shared
+// CANCEL_REASONS (canonical order preserved). Adding a reason to the domain enum
+// is now a COMPILE ERROR here until a Vietnamese label is supplied for it -- the
+// type-safety guard that was missing when the six values were a loose string[].
+// The labels themselves remain Vietnamese domain language (presentation layer);
+// only the value vocabulary is shared contract.
 //
-// Post-cancel navigation: the action itself issues redirect('/') on
-// success. Next.js's Server-Action redirect protocol drives the
-// browser to '/' before the form unmounts, so the dispatcher lands on
-// the refreshed Bảng điều phối board. The form never sees a
-// status='cancelled' result here.
+// Defense in depth: the open button is hidden when the order is already in a
+// non-cancellable state (cancelled / completed). The API remains the authority --
+// if state was stale and the user races a click, the 409 path is handled
+// gracefully via the action's discriminated union return.
 //
-// data-testid hooks are the contract consumed by the Playwright L0
-// acceptance spec: order-cancel-open, order-cancel-reason,
-// order-cancel-note, order-cancel-submit. Do not rename without
-// updating the e2e specs.
+// Post-cancel navigation: the action itself issues redirect('/') on success.
+// Next.js's Server-Action redirect protocol drives the browser to '/' before the
+// form unmounts, so the dispatcher lands on the refreshed Bảng điều phối board.
+// The form never sees a status='cancelled' result here.
+//
+// data-testid hooks are the contract consumed by the Playwright L0 acceptance
+// spec: order-cancel-open, order-cancel-reason, order-cancel-note,
+// order-cancel-submit. Do not rename without updating the e2e specs.
 'use client';
 import { useActionState, useState } from 'react';
 import type { JSX } from 'react';
+import { CANCEL_REASONS, type CancelReason } from '@fleet/domain';
 import { cancelOrder, type CancelOrderState } from './cancel-order.action';
-const REASON_OPTIONS: readonly { value: string; label: string }[] = [
-  { value: 'customer_request',  label: 'Khách hàng yêu cầu' },
-  { value: 'driver_unavailable', label: 'Tài xế không khả dụng' },
-  { value: 'vehicle_breakdown',  label: 'Sự cố phương tiện' },
-  { value: 'weather',            label: 'Thời tiết' },
-  { value: 'duplicate',          label: 'Đơn trùng lặp' },
-  { value: 'other',              label: 'Khác' },
-];
+// Vietnamese display labels for each canonical reason code. Keyed by CancelReason
+// so the compiler enforces exhaustiveness: a new enum member breaks this build
+// until its label is added. Order shown to the dispatcher follows CANCEL_REASONS.
+const REASON_LABELS: Record<CancelReason, string> = {
+  customer_request: 'Khách hàng yêu cầu',
+  driver_unavailable: 'Tài xế không khả dụng',
+  vehicle_breakdown: 'Sự cố phương tiện',
+  weather: 'Thời tiết',
+  duplicate: 'Đơn trùng lặp',
+  other: 'Khác',
+};
 const NON_CANCELLABLE_STATES: ReadonlySet<string> = new Set(['cancelled', 'completed']);
 export interface CancelOrderFormProps {
   readonly transportOrderId: string;
@@ -74,8 +84,8 @@ export function CancelOrderForm({ transportOrderId, state }: CancelOrderFormProp
             className='mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm'
           >
             <option value='' disabled>-- Chọn lý do --</option>
-            {REASON_OPTIONS.map((r) => (
-              <option key={r.value} value={r.value}>{r.label}</option>
+            {CANCEL_REASONS.map((value) => (
+              <option key={value} value={value}>{REASON_LABELS[value]}</option>
             ))}
           </select>
         </div>

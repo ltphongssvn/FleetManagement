@@ -41,6 +41,9 @@ export {
   ROAD_RUN_STATE_TONE,
   groupCompletedTripsByMonth,
   type TripMonthGroup,
+  type CancelReason,
+  CancelReasonSchema,
+  CANCEL_REASONS,
 } from './transport/index.js';
 export {
   UPLOAD_SESSION_STATES,
