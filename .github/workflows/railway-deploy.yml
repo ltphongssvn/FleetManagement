@@ -9,6 +9,11 @@
 #   workflow_dispatch with a service selector for surgical deploys.
 # - Gate: HAS_RAILWAY_TOKEN fork-safety guard mirrors the railway-guard.yml
 #   pattern already in this repo. Skip cleanly when the token is absent.
+# - Base-SHA resolution: extracted into scripts/ci/resolve-ci-sha.ts (schema-
+#   first Zod + pure functions + vitest contract) so the resolution rules can
+#   be unit-tested. Replaces the inline 'base: HEAD~1' which failed under
+#   workflow_run context with 'git failed exit 128' (paths-filter tried to
+#   merge-base HEAD~1 against a non-existent local ref).
 # - Deploy: official ghcr.io/railwayapp/cli:latest container. railway up
 #   --service <name> --ci is Railway canonical CI flag -- streams build
 #   logs and exits with the build exit code (better than --detach for CI).
@@ -65,18 +70,10 @@ jobs:
       deploy_api: ${{ steps.detect.outputs.api }}
       deploy_ops_web: ${{ steps.detect.outputs.ops_web }}
       deploy_worker: ${{ steps.detect.outputs.worker }}
-      head_sha: ${{ steps.sha.outputs.sha }}
+      head_sha: ${{ steps.resolve.outputs.head_sha }}
     env:
       HAS_RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN != '' }}
     steps:
-      - name: Determine head SHA
-        id: sha
-        run: |
-          if [ '${{ github.event_name }}' = 'workflow_run' ]; then
-            echo 'sha=${{ github.event.workflow_run.head_sha }}' >> "$GITHUB_OUTPUT"
-          else
-            echo 'sha=${{ github.sha }}' >> "$GITHUB_OUTPUT"
-          fi
       - name: Token presence gate
         id: token
         run: |
@@ -89,13 +86,37 @@ jobs:
           fi
       - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.sha.outputs.sha }}
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 2
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Resolve base SHA (pure TS, unit-tested)
+        id: resolve
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_SHA: ${{ github.sha }}
+          WORKFLOW_RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          BASE_SHA=$(pnpm exec tsx scripts/ci/resolve-ci-sha.ts)
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = 'workflow_run' ]; then
+            echo "head_sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "head_sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "resolved base_sha=$BASE_SHA"
       - name: Detect changed services
         id: detect
         uses: dorny/paths-filter@v3
         with:
-          base: HEAD~1
+          base: ${{ steps.resolve.outputs.base_sha }}
           filters: |
             api:
               - 'apps/api/**'
