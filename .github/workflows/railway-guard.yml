@@ -1,0 +1,83 @@
+# ============================================================================
+# File:     FleetManagement/.github/workflows/railway-guard.yml
+# Purpose:  Pre-deploy guard that fails the build if any Railway service variable
+#           holds a hardcoded connection-string LITERAL (redis://user:pass@host,
+#           postgresql://user:pass@host) where a reference is expected. Railway
+#           reference variables auto-propagate a single credential rotation to
+#           every consumer on its next deploy; hardcoded literals silently rot.
+#
+# Why a separate workflow (not a step in ci.yml):
+#   The guard reads LIVE Railway config via `railway environment config --json`,
+#   which needs the Railway CLI authenticated with a Project Token. The main CI
+#   jobs are hermetic (no platform access), so this concern is isolated here.
+#
+# How it gates deploys:
+#   This workflow runs on: push. With Railway's "Wait for CI" enabled on the
+#   service, a failing workflow moves the deployment to SKIPPED — so a detected
+#   literal blocks the deploy. See:
+#   https://docs.railway.com/deployments/github-autodeploys
+#
+# Token setup (one-time):
+#   1. Railway dashboard -> project -> Settings -> Tokens -> create a Project
+#      Token scoped to the production environment.
+#   2. GitHub repo -> Settings -> Secrets and variables -> Actions -> add a
+#      secret named RAILWAY_TOKEN with that value.
+#
+# Fork/PR safety:
+#   Forked PRs do not receive repository secrets. The job surfaces the secret to
+#   a job-level env flag and SKIPS cleanly when it is absent, so external PRs are
+#   not blocked. The guard only enforces where the token is configured.
+# ============================================================================
+name: Railway reference guard
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+concurrency:
+  group: railway-guard-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  guard:
+    name: Enforce reference variables
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      # Secrets cannot be used directly in `if:` conditions, so surface the
+      # presence of RAILWAY_TOKEN to a job-level env var the steps can gate on.
+      HAS_RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN != '' }}
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+    steps:
+      - name: Skip notice (no RAILWAY_TOKEN configured)
+        if: env.HAS_RAILWAY_TOKEN != 'true'
+        run: |
+          echo "RAILWAY_TOKEN is not configured for this context (e.g. a forked PR)."
+          echo "Skipping the Railway reference guard. Configure a Project Token in"
+          echo "repository secrets as RAILWAY_TOKEN to enforce it."
+      - name: Checkout
+        if: env.HAS_RAILWAY_TOKEN == 'true'
+        uses: actions/checkout@v5
+      - name: Setup pnpm
+        if: env.HAS_RAILWAY_TOKEN == 'true'
+        uses: pnpm/action-setup@v5
+      - name: Setup Node
+        if: env.HAS_RAILWAY_TOKEN == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Install Railway CLI
+        if: env.HAS_RAILWAY_TOKEN == 'true'
+        run: npm install -g @railway/cli
+      - name: Install workspace dependencies
+        if: env.HAS_RAILWAY_TOKEN == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Run Railway reference guard
+        if: env.HAS_RAILWAY_TOKEN == 'true'
+        # Exits non-zero if any hardcoded connection-string literal is found
+        # where a reference is expected, failing the workflow and (with
+        # Wait-for-CI) skipping the deploy.
+        run: pnpm guard:railway-references
