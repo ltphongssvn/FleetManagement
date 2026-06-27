@@ -4,11 +4,11 @@
 // container (the single-shared-container structural guard forbids it); the one
 // container is started once in pg-global-setup.ts. Here we:
 //   1. inject() the shared base connection (Zod-validated SSOT shape),
-//   2. CREATE DATABASE <name> TEMPLATE fleet_test_template — a filesystem-level
+//   2. CREATE DATABASE <name> TEMPLATE fleet_test_template -- a filesystem-level
 //      clone of the already-migrated template (~10ms, no per-file migration),
 //   3. return a pool/db bound to that per-file database.
 // Per-file databases are fully isolated, so files parallelize with zero shared-
-// table contention — which removes the beforeAll startup races that the old
+// table contention -- which removes the beforeAll startup races that the old
 // per-file-container model suffered under load.
 //
 // The exported surface (startMigratedTestDb / stopMigratedTestDb /
@@ -23,7 +23,7 @@ import { sql } from 'drizzle-orm';
 import { TestPgConnectionSchema, TEST_PG_INJECT_KEY } from './test-pg-connection-contract.js';
 import { TEMPLATE_DB_NAME } from './pg-global-setup.js';
 
-// MigratedTestDb keeps `container` out of the shape now — there is no per-file
+// MigratedTestDb keeps `container` out of the shape now -- there is no per-file
 // container. Existing files only ever touch `.db` and `.pool`, so this is
 // compatible. The per-file database name is retained so teardown can DROP it.
 export interface MigratedTestDb {
@@ -148,15 +148,41 @@ export async function stopMigratedTestDb(testDb: MigratedTestDb): Promise<void> 
   // Null-safe: a timed-out beforeAll never assigns testDb, so afterAll may call
   // this with undefined. Guard so one slow start surfaces ONE clear error, not a
   // cascading TypeError across unrelated files.
-  const maybe = testDb as { pool?: Pool } | undefined;
+  const maybe = testDb as { pool?: Pool; databaseName?: string } | undefined;
   if (maybe?.pool === undefined) return;
-  // Close this file's pool. We deliberately do NOT DROP the per-file database
-  // here: dropping requires terminating connections and races with other files'
-  // CREATE DATABASE under the shared advisory lock; the whole container is reaped
-  // at run end by global-teardown.ts, so leftover per-file DBs are harmless and
-  // disappear with the container. (Dropping is reintroduced only if disk growth
-  // within a single run becomes a problem, which it does not at this suite size.)
+  // Close this file pool first so connections from this run are not in the
+  // terminate set below.
   await testDb.pool.end();
+
+  // 2026 cleanup: DROP the per-file database to keep the shared container data
+  // directory bounded across a long coverage run (~235 files clone the template
+  // in one pass). The historical reason for NOT dropping -- racing with other
+  // files CREATE DATABASE under the shared advisory lock -- only applied when
+  // files ran in parallel. With vitest maxWorkers:1 + pool:forks (see
+  // vitest.coverage.config.ts) files are STRICTLY sequential, so the race is
+  // structurally impossible. Terminating stragglers first defends against the
+  // (rare) afterAll path that crashed before pool.end() ran. Best-effort: a
+  // DROP failure is logged but does not fail the suite (the container is reaped
+  // at run end regardless, so leftover DBs are still bounded by the run length).
+  const dbName = maybe.databaseName;
+  if (typeof dbName !== 'string' || dbName.length === 0) return;
+  const c = TestPgConnectionSchema.parse(inject(TEST_PG_INJECT_KEY));
+  const adminPool = new Pool({
+    connectionString: baseConnectionUri(c.database),
+    connectionTimeoutMillis: 10_000,
+  });
+  try {
+    await adminPool.query(
+      'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
+      [dbName],
+    );
+    await adminPool.query('DROP DATABASE IF EXISTS ' + quoteIdent(dbName));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stderr.write('[stopMigratedTestDb] DROP DATABASE ' + dbName + ' failed (non-fatal): ' + msg + '\n');
+  } finally {
+    await adminPool.end();
+  }
 }
 
 // Truncate every public-schema table in a SINGLE atomic TRUNCATE (one statement
