@@ -80,6 +80,16 @@ export {
   type TripHistoryResponse,
 } from './list-assigned-contract.js';
 export {
+  CommandTypeSchema,
+  type CommandType,
+  CommandPayloadSchema,
+  type CommandPayload,
+  AckRejectionReasonSchema,
+  type AckRejectionReason,
+  CommandAckSchema,
+  type CommandAck,
+} from './command-contract.js';
+export {
   OUTBOX_ROUTING_POLICY_VERSION,
   routeOutboxRow,
   type OutboxRoutingInput,

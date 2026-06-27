@@ -1,51 +1,20 @@
 // apps/api/src/commands/command.dto.ts
-// Command wire types per Frozen Stack PDF "Command flow".
-import { z } from 'zod';
-
-export const CommandTypeSchema = z.enum([
-  'assign_run',
-  'reassign_run',
-  'cancel_run',
-  'status_update',
-]);
-export type CommandType = z.infer<typeof CommandTypeSchema>;
-
-export const CommandPayloadSchema = z.object({
-  commandId: z.guid(),
-  type: CommandTypeSchema,
-  targetOperatorId: z.guid(),
-  aggregateType: z.string().min(1).max(64),
-  aggregateId: z.guid(),
-  payload: z.unknown(),
-  issuedAt: z.iso.datetime(),
-});
-export type CommandPayload = z.infer<typeof CommandPayloadSchema>;
-
-/** Structured rejection reasons (enum for analytics; free-text deprecated). */
-export const AckRejectionReasonSchema = z.enum([
-  'operator_offline',
-  'operator_busy',
-  'invalid_state',
-  'not_authorized',
-  'stale_command',
-  'duplicate_command',
-  'client_error',
-]);
-export type AckRejectionReason = z.infer<typeof AckRejectionReasonSchema>;
-
-const ReceivedAckSchema = z.object({
-  commandId: z.guid(),
-  ackedAt: z.iso.datetime(),
-  status: z.literal('received'),
-});
-
-const RejectedAckSchema = z.object({
-  commandId: z.guid(),
-  ackedAt: z.iso.datetime(),
-  status: z.literal('rejected'),
-  reasonCode: AckRejectionReasonSchema,
-  reasonText: z.string().max(500).optional(),
-});
-
-export const CommandAckSchema = z.discriminatedUnion('status', [ReceivedAckSchema, RejectedAckSchema]);
-export type CommandAck = z.infer<typeof CommandAckSchema>;
+// Command wire types per Frozen Stack PDF 'Command flow'.
+//
+// SCHEMA-FIRST SSOT (P0-#4, 2026): the command wire contract is NO LONGER defined
+// here. It lives once in @fleet/sync-protocol (command-contract.ts) and is
+// re-exported below so this module's importers (commands.controller,
+// commands.gateway, commands.service, tests) keep their existing import paths.
+// This DTO previously declared the schemas inline, identical to the driver-app's
+// copy in command-receiver-policy.ts -- one wire contract, duplicated. The api
+// ISSUES commands and the driver-app RECEIVES them against the same shapes.
+export {
+  CommandTypeSchema,
+  type CommandType,
+  CommandPayloadSchema,
+  type CommandPayload,
+  AckRejectionReasonSchema,
+  type AckRejectionReason,
+  CommandAckSchema,
+  type CommandAck,
+} from '@fleet/sync-protocol';
