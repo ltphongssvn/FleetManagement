@@ -6,36 +6,35 @@
 // at '/'), then issues a server-side redirect to '/' so the dispatcher
 // lands directly on the refreshed board.
 //
+// SCHEMA-FIRST SSOT (cancel-refactor 2026): the reason vocabulary is NOT
+// declared here. It is imported from @fleet/domain (CancelReasonSchema), the
+// SINGLE definition shared with the API DTO. This module previously declared
+// its own z.enum copy that had drifted from the API (note had no min(1) here).
+// note is now min(1).max(500) to match the API contract; this is behavior-
+// preserving because whitespace-only notes are already coerced to undefined
+// below before parsing, so a 1-char floor can never reject a real submission.
+//
 // Why redirect from the action instead of useEffect in the form: after a
 // successful cancel the form's parent server component re-renders with
-// state='cancelled', the form returns null and unmounts, and any
-// post-mount client-side effect (router.push or window.location.assign)
-// races the unmount. Calling redirect() inside the action delegates the
-// navigation to Next.js's Server-Action redirect protocol, which is
-// reliable: the browser navigates to '/' before the form is unmounted.
+// state='cancelled', the form returns null and unmounts, and any post-mount
+// client-side effect (router.push or window.location.assign) races the unmount.
+// Calling redirect() inside the action delegates navigation to Next.js's
+// Server-Action redirect protocol: the browser navigates to '/' before unmount.
 //
-// Discriminated-union return: only error branches are returned now
-// (invalid/server_error/api_error/not_found/conflict). The 'cancelled'
-// branch is unreachable because redirect() throws and never returns.
-// Keeping it in the union for caller type-safety so existing form code
-// that checks result?.status compiles unchanged.
+// Discriminated-union return: only error branches are returned
+// (invalid/server_error/api_error/not_found/conflict). The 'cancelled' branch is
+// unreachable because redirect() throws and never returns; it is kept in the
+// union for caller type-safety so form code checking result?.status compiles.
 'use server';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-const CancelReasonSchema = z.enum([
-  'customer_request',
-  'driver_unavailable',
-  'vehicle_breakdown',
-  'weather',
-  'duplicate',
-  'other',
-]);
+import { CancelReasonSchema } from '@fleet/domain';
 const FormSchema = z.object({
   transportOrderId: z.guid('Invalid order id'),
   reason: CancelReasonSchema,
-  note: z.string().max(500).optional(),
+  note: z.string().min(1).max(500).optional(),
 });
 type ErrorKey = 'transportOrderId' | 'reason' | 'note';
 export type CancelOrderState =
