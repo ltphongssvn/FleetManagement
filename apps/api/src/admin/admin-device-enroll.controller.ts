@@ -5,11 +5,14 @@ import type { OperatorContext } from '@fleet/domain';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { AdminDeviceEnrollService } from './admin-device-enroll.service.js';
+// Platform enum SSOT (P1-#6): single PlatformSchema shared with the device
+// enrollment + attestation controllers instead of an inline z.enum here.
+import { PlatformSchema } from '../device/platform.js';
 
 const EnrollSchema = z.object({
   driverId: z.guid(),
   udid: z.string().min(1).max(128),
-  platform: z.enum(['ios', 'android', 'web']),
+  platform: PlatformSchema,
 });
 
 @UseGuards(JwtGuard)
