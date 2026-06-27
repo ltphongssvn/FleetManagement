@@ -11,6 +11,9 @@ import { z } from 'zod';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { AttestationService } from './attestation.service.js';
+// Platform enum SSOT (P1-#6): attestation accepts the mobile-only subset of the
+// shared PlatformSchema (no web attestation token), derived via .exclude(['web']).
+import { AttestationPlatformSchema, type AttestationPlatform } from './platform.js';
 import type { OperatorContext } from '@fleet/domain';
 
 export const ATTESTATION_NONCE_STORE = Symbol.for('AttestationNonceStore');
@@ -21,11 +24,11 @@ export interface AttestationNonceStore {
   consume(operatorId: string): Promise<string | null>;
 }
 export interface AttestationRepository {
-  markAttestationVerified(input: { deviceId: string; platform: 'android' | 'ios'; tokenHashHex: string }): Promise<void>;
+  markAttestationVerified(input: { deviceId: string; platform: AttestationPlatform; tokenHashHex: string }): Promise<void>;
 }
 
 const VerifyBodySchema = z.object({
-  platform: z.enum(['android', 'ios']),
+  platform: AttestationPlatformSchema,
   token: z.string().min(1),
   deviceId: z.guid(),
 });
