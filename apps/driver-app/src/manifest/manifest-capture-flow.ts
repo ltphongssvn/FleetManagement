@@ -4,21 +4,16 @@
 //   2. PUT bytes to S3 presigned URL
 //   3. POST /upload/commit -> transitions state to verifying
 // Worker-side intake validates and calls /upload/intake-result to finalize.
-import { z } from 'zod';
-
-const NegotiateResponseSchema = z.object({
-  uploadSessionId: z.guid(),
-  url: z.url(),
-  key: z.string(),
-  bucket: z.string(),
-  expiresAt: z.string(),
-});
-
-const CommitResponseSchema = z.object({
-  uploadSessionId: z.guid(),
-  manifestId: z.guid(),
-  state: z.literal('verifying'),
-});
+//
+// SCHEMA-FIRST SSOT (P0-#5, 2026): the negotiate/commit RESPONSE envelopes are
+// imported from @fleet/sync-protocol (manifest-response-contract.ts), the SINGLE
+// definition shared with the API. This module previously RE-DECLARED them, and its
+// commit-response schema had DRIFTED -- it omitted rejectionReasonCode, which the
+// API emits. Parsing against the shared superset schema fixes that silent drop.
+import {
+  NegotiateUploadResponseSchema,
+  CommitUploadResponseSchema,
+} from '@fleet/sync-protocol';
 
 export interface ManifestUploadInput {
   readonly apiUrl: string;
@@ -61,7 +56,7 @@ export async function negotiateAndUploadManifest(input: ManifestUploadInput): Pr
   if (!negRes.ok) {
     throw new Error(`/upload/negotiate HTTP ${String(negRes.status)} ${negRes.statusText}`);
   }
-  const negJson = NegotiateResponseSchema.parse(await negRes.json());
+  const negJson = NegotiateUploadResponseSchema.parse(await negRes.json());
 
   // 2. PUT to S3
   const putRes = await fetchFn(negJson.url, {
@@ -86,6 +81,6 @@ export async function negotiateAndUploadManifest(input: ManifestUploadInput): Pr
   if (!commitRes.ok) {
     throw new Error(`/upload/commit HTTP ${String(commitRes.status)} ${commitRes.statusText}`);
   }
-  const commitJson = CommitResponseSchema.parse(await commitRes.json());
+  const commitJson = CommitUploadResponseSchema.parse(await commitRes.json());
   return { manifestId: commitJson.manifestId, uploadSessionId: commitJson.uploadSessionId };
 }
