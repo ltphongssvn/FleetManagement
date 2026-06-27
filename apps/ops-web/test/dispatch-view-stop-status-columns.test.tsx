@@ -43,7 +43,7 @@ describe('@fleet/ops-web - DispatchView per-stop status columns (T10)', () => {
     render(<DispatchView initialRuns={[run]} refs={refs} />);
     const headers = screen.getAllByRole('columnheader').map((h) => h.textContent);
     expect(headers).toEqual(expect.arrayContaining([
-      'Điểm nhận hàng 1', 'Điểm nhận hàng 2', 'Điểm nhận hàng 3', 'Điểm nhận hàng 4', 'Kho giao hàng 1',
+      'Điểm nhận hàng 1', 'Điểm nhận hàng 2', 'Điểm nhận hàng 3', 'Điểm nhận hàng 4', 'Kho giao hàng',
     ]));
   });
   it('shows a completed time for an arrived stop and Chưa tới for the rest', () => {

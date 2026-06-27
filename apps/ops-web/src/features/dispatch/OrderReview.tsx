@@ -6,7 +6,7 @@
 // Playwright acceptance spec.
 //
 // T8: review mirrors the 'Lệnh điều xe - Tải thùng' form — fixed slot labels
-// (Điểm nhận hàng 1..4, Kho giao hàng 1..) and 'Ngày tạo lệnh' (createdAt).
+// (Điểm nhận hàng 1..4, Kho giao hàng) and 'Ngày tạo lệnh' (createdAt).
 // T9: each stop also shows its warehouse name and a completion status derived
 // from arrivedAt/departedAt (2026 DSD/timeline UX: confirm-then-record, show
 // the actual time when done). The stops list has labelled columns.
@@ -23,6 +23,11 @@ function formatDateTime(iso: string | null): string {
 }
 // T8: per-type slot labels mirroring the create form's fixed slots.
 function slotLabelsFor(stops: readonly ListAssignedRowStop[]): readonly string[] {
+  // 2026: when there is exactly one delivery stop on this order, render the
+  // bare 'Kho giao hàng' label (the numeric suffix carries no information);
+  // keep the numbered form when an order has multiple delivery stops so they
+  // remain distinguishable.
+  const totalDelivery = stops.filter((s) => s.stopType !== 'pickup').length;
   let pickupN = 0;
   let deliveryN = 0;
   return stops.map((s) => {
@@ -31,7 +36,7 @@ function slotLabelsFor(stops: readonly ListAssignedRowStop[]): readonly string[]
       return 'Điểm nhận hàng ' + String(pickupN);
     }
     deliveryN += 1;
-    return 'Kho giao hàng ' + String(deliveryN);
+    return totalDelivery === 1 ? 'Kho giao hàng' : 'Kho giao hàng ' + String(deliveryN);
   });
 }
 // T9: completion status from the immutable arrival/departure timestamps.

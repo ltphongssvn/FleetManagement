@@ -53,9 +53,10 @@ describe('OrderReview - form parity (T8)', () => {
     expect(screen.getByText('Điểm nhận hàng 3')).toBeTruthy();
     expect(screen.getByText('Điểm nhận hàng 4')).toBeTruthy();
   });
-  it('labels the delivery stop Kho giao hàng 1 and shows no raw stopType', () => {
+  it('labels the delivery stop Kho giao hàng (no numeric suffix when there is exactly one delivery stop) and shows no raw stopType', () => {
     render(<OrderReview order={row} />);
-    expect(screen.getByText('Kho giao hàng 1')).toBeTruthy();
+    expect(screen.getByText('Kho giao hàng')).toBeTruthy();
+    expect(screen.queryByText('Kho giao hàng 1')).toBeNull();
     const stops = screen.getByTestId('order-review-stops');
     expect(stops.textContent).not.toMatch(/pickup|delivery/i);
   });
