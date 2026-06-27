@@ -1,6 +1,26 @@
 // apps/api/src/manifest/manifest.dto.ts
+//
+// SCHEMA-FIRST SSOT (P0-#5, 2026): the manifest upload RESPONSE envelopes
+// (NegotiateUploadResponse / CommitUploadResponse) are NO LONGER defined here.
+// They live once in @fleet/sync-protocol (manifest-response-contract.ts) and are
+// re-exported below so this module's importers (manifest.controller,
+// manifest.service) keep their import paths. The driver-app previously
+// RE-DECLARED these response shapes in manifest-capture-flow.ts, and its commit
+// response had DRIFTED (it omitted rejectionReasonCode, which this API emits);
+// both now derive from the one shared schema.
+//
+// The REQUEST schemas below stay local: they are the Axis-1 inbound boundary
+// validators for THIS endpoint (correlation id, size caps, capture-time stop ref,
+// manual net-weight edit) -- not a shared/duplicated shape. The driver-app builds
+// these requests inline, so there is nothing to consolidate on the request side.
 import { z } from 'zod';
 import { ALLOWED_MANIFEST_MIME_TYPES, ManifestStopRefSchema } from '@fleet/sync-protocol';
+export {
+  NegotiateUploadResponseSchema,
+  type NegotiateUploadResponse,
+  CommitUploadResponseSchema,
+  type CommitUploadResponse,
+} from '@fleet/sync-protocol';
 
 export const NegotiateUploadSchema = z.object({
   manifestCorrelationId: z.guid(),
@@ -14,29 +34,12 @@ export const NegotiateUploadSchema = z.object({
 });
 export type NegotiateUploadInput = z.infer<typeof NegotiateUploadSchema>;
 
-export const NegotiateUploadResponseSchema = z.object({
-  uploadSessionId: z.guid(),
-  url: z.url(),
-  key: z.string(),
-  bucket: z.string(),
-  expiresAt: z.iso.datetime(),
-});
-export type NegotiateUploadResponse = z.infer<typeof NegotiateUploadResponseSchema>;
-
 export const CommitUploadSchema = z.object({
   uploadSessionId: z.guid(),
   contentHash: z.string().min(32).max(128).optional(),
   actualSizeBytes: z.number().int().positive().max(50 * 1024 * 1024),
 });
 export type CommitUploadInput = z.infer<typeof CommitUploadSchema>;
-
-export const CommitUploadResponseSchema = z.object({
-  uploadSessionId: z.guid(),
-  manifestId: z.guid(),
-  state: z.literal('verifying'),
-  rejectionReasonCode: z.string().optional(),
-});
-export type CommitUploadResponse = z.infer<typeof CommitUploadResponseSchema>;
 
 // Dispatcher manual net-weight entry (board edit). manifestId identifies the
 // committed manifest; extractedNetWeightKg is the human-read weight (positive,
