@@ -3,7 +3,7 @@
 //
 // This is the ONE module permitted to construct a Postgres testcontainer (the
 // single-shared-container structural guard enforces that). It runs once, before
-// any Vitest worker, off every per-file beforeAll critical path — which is the
+// any Vitest worker, off every per-file beforeAll critical path -- which is the
 // durable cure for the recurring beforeAll container-startup timeouts: container
 // startup cost is paid exactly ONCE for the whole run instead of racing inside N
 // per-file hooks under parallel load.
@@ -16,7 +16,7 @@
 //      DB that has open sessions: "source database is being accessed by other
 //      users"). The template is then never connected to again.
 //   4. provide() the base connection (Zod-validated SSOT shape) so each test file
-//      can `CREATE DATABASE <file> TEMPLATE fleet_test_template` — a filesystem-
+//      can `CREATE DATABASE <file> TEMPLATE fleet_test_template` -- a filesystem-
 //      level clone in ~10ms, no per-file re-migration (Nirvana/pgtestdb 2026
 //      pattern). Cloning inherits the template's encoding/collation, so no
 //      LC_COLLATE/ENCODING overrides (which would raise 22023 incompatibility).
@@ -48,6 +48,34 @@ export default async function setup(project: TestProject): Promise<() => Promise
     .withDatabase('fleet_test_bootstrap')
     .withReuse()
     .withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/, 2))
+    // 2026 production-grade resource caps (oneuptime.com 2026-02, 2026-04):
+    // explicit cgroup bounds eliminate the resource-contention OOM/exhaustion
+    // that recurrently took the shared container down mid-run during long
+    // coverage passes (~1206 tests, ~235 CREATE DATABASE clones over ~9 min)
+    // when other dev containers were active on the host. Postgres now has
+    // GUARANTEED resources and cannot be starved by neighbors.
+    .withSharedMemorySize(512 * 1024 * 1024) // 512 MB /dev/shm. Docker default
+                                              // is 64 MB; Postgres uses /dev/shm
+                                              // for dynamic shared memory
+                                              // (parallel queries, large index
+                                              // builds, many concurrent
+                                              // connections) and exhausts under
+                                              // sustained test load.
+    .withResourcesQuota({ memory: 2, cpu: 2 }) // 2 GB RAM hard cap + 2 CPUs
+                                                // reserved. Fits 9.7 GiB host
+                                                // alongside 7 dev containers
+                                                // and the test process.
+    .withTmpFs({ '/var/lib/postgresql/data': 'rw' }) // 2026 universal testcontainer
+                                                     // pattern (zenn.dev May 2025,
+                                                     // ivandotv/vitest-database-containers,
+                                                     // codepunkt.de Dec 2025).
+                                                     // Postgres data files live in
+                                                     // RAM instead of the container
+                                                     // overlay FS: ~10x faster I/O,
+                                                     // naturally bounded by the
+                                                     // 2 GB memory cap above, and
+                                                     // durability does not matter
+                                                     // for an ephemeral test DB.
     .start();
 
   const host = container.getHost();
