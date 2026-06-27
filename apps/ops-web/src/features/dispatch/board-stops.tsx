@@ -1,7 +1,7 @@
 // apps/ops-web/src/features/dispatch/board-stops.tsx
 // Shared per-stop board helpers (T10). The Lệnh điều xe board and the
 // DispatchView home board both render fixed per-stop status columns
-// (Điểm nhận hàng 1..4, Kho giao hàng 1) derived from each stop's
+// (Điểm nhận hàng 1..4, Kho giao hàng) derived from each stop's
 // arrived/departed timestamps (2026 DSD/timeline UX: confirm-then-record).
 //
 // Per-stop proof photo (Phiếu Cân): a stop whose DispatchBoardStop.proof is
@@ -68,7 +68,13 @@ export function StopSlotHeaders(): JSX.Element {
         <th key={'ph-' + String(n)} className='px-3 py-2'>{'Điểm nhận hàng ' + String(n)}</th>
       ))}
       {DELIVERY_SLOTS.map((n) => (
-        <th key={'dh-' + String(n)} className='px-3 py-2'>{'Kho giao hàng ' + String(n)}</th>
+        // 2026: render the bare label because there is exactly one delivery
+        // slot per road run today (DELIVERY_SLOTS = [1] above). The trailing
+        // slot number carries no information when N == 1. If a future product
+        // change adds multiple delivery slots, the DELIVERY_SLOTS constant
+        // must be expanded AND this label must become 'Kho giao hàng N' so
+        // the dispatcher can still distinguish them.
+        <th key={'dh-' + String(n)} className='px-3 py-2'>{'Kho giao hàng'}</th>
       ))}
     </>
   );
