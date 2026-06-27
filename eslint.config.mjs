@@ -55,6 +55,7 @@ export default tseslint.config(
             "scripts/*.ts",
             "scripts/e2e/*.ts",
             "scripts/e2e/*.mts",
+            "scripts/ci/*.ts",
           ],
           defaultProject: "tsconfig.base.json",
         },
