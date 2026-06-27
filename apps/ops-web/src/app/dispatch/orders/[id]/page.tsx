@@ -4,6 +4,12 @@
 // it to the OrderReview presentational component. notFound() is called on
 // any non-2xx so unknown ids render the framework 404, matching the API.
 //
+// P0-#2 (2026): the BFF response is now PARSED at this trust boundary via
+// ListAssignedRowSchema (the @fleet/sync-protocol SSOT) instead of being cast
+// with 'as ListAssignedRow'. An untrusted server response that drifts from the
+// contract now throws a descriptive ZodError here — at the boundary, with the
+// offending path — rather than silently surfacing as undefined deep in the UI.
+//
 // T5 (2026):
 //   * Composes the CancelOrderForm client component below the review pane.
 //     The form decides for itself whether to render the open button based
@@ -24,11 +30,11 @@ import type { JSX } from 'react';
 import Link from 'next/link';
 import { cookies, headers } from 'next/headers';
 import { notFound } from 'next/navigation';
+import { ListAssignedRowSchema } from '@fleet/sync-protocol';
 import { OrderReview } from '@/features/dispatch/OrderReview';
 import { CancelOrderForm } from '@/features/dispatch/CancelOrderForm';
 import { AppShell } from '@/features/shell/AppShell';
 import { RefetchOnFocusMount } from '@/features/shell/RefetchOnFocusMount';
-import type { ListAssignedRow } from '@/features/dispatch/types';
 export const dynamic = 'force-dynamic';
 interface PageProps { params: Promise<{ id: string }> }
 function decodeUsername(token: string | undefined): string | undefined {
@@ -64,7 +70,9 @@ export default async function OrderReviewPage({ params }: PageProps): Promise<JS
   });
   if (res.status === 404) notFound();
   if (!res.ok) throw new Error('Failed to load order: ' + String(res.status));
-  const order = await res.json() as ListAssignedRow;
+  // Trust boundary: validate the untrusted BFF response against the shared
+  // contract instead of casting. Throws a descriptive ZodError on drift.
+  const order = ListAssignedRowSchema.parse(await res.json());
   return (
     <AppShell {...(username !== undefined ? { username } : {})}>
       {/* Refetch-on-focus: this RSC fetches the order server-side and cannot use
