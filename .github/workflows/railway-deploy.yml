@@ -155,7 +155,10 @@ jobs:
       - name: Deploy api (CI mode)
         run: railway up --service api --ci
       - name: Wait for /health/ready (5min budget)
+        # ghcr.io/railwayapp/cli is a minimal Alpine image; curl is not
+        # installed by default. apk-install it for the HTTP probe.
         run: |
+          apk add --no-cache curl >/dev/null
           for i in $(seq 1 30); do
             code=$(curl -s -o /dev/null -w '%{http_code}' https://api-production-fd42.up.railway.app/health/ready || echo 000)
             if [ "$code" = '200' ]; then echo 'api ready'; exit 0; fi
@@ -187,7 +190,10 @@ jobs:
       - name: Deploy ops-web (CI mode)
         run: railway up --service ops-web --ci
       - name: Wait for /login (5min budget)
+        # ghcr.io/railwayapp/cli is a minimal Alpine image; curl is not
+        # installed by default. apk-install it for the HTTP probe.
         run: |
+          apk add --no-cache curl >/dev/null
           for i in $(seq 1 30); do
             code=$(curl -s -o /dev/null -w '%{http_code}' https://xe.vominhchau.com/login || echo 000)
             if [ "$code" = '200' ]; then echo 'ops-web ready'; exit 0; fi
