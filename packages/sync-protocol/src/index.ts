@@ -68,6 +68,18 @@ export {
   type DispatchBoardApiResponse,
 } from './dispatch-stop-view-contract.js';
 export {
+  ListAssignedRowStopSchema,
+  type ListAssignedRowStop,
+  ListAssignedRowSchema,
+  type ListAssignedRow,
+  ListAssignedResponseSchema,
+  type ListAssignedResponse,
+  TripHistoryMonthSchema,
+  type TripHistoryMonth,
+  TripHistoryResponseSchema,
+  type TripHistoryResponse,
+} from './list-assigned-contract.js';
+export {
   OUTBOX_ROUTING_POLICY_VERSION,
   routeOutboxRow,
   type OutboxRoutingInput,
