@@ -1,0 +1,108 @@
+# .github/workflows/promote.yml
+# Auto-promote develop -> main on green CI + E2E.
+#
+# Why this exists (release cadence as a forcing function):
+#   In GitFlow, develop is an integration branch and nothing automatically
+#   promotes to main, so unreleased commits silently accumulate into large,
+#   risky batches (the "develop holding tank" anti-pattern). This workflow
+#   removes the manual promote step: every time develop is fully green it
+#   opens/merges a develop -> main PR, so releases stay small and frequent and
+#   the production Dockerfiles (exercised only on the release path) get tested
+#   per-change instead of per-batch.
+#
+# Gating (atomic two-workflow check):
+#   develop runs CI and E2E (Playwright) in parallel on every push. A single
+#   workflow_run event only tells us one of them finished, so the gate job
+#   re-derives the develop head SHA and explicitly confirms BOTH the latest CI
+#   AND the latest E2E run for that exact SHA concluded success before
+#   promoting. Whichever finishes second is the run that sees both green.
+#
+# Token note (no PAT available; GITHUB_TOKEN only):
+#   A merge pushed with GITHUB_TOKEN does NOT emit push events, so release.yml
+#   (on: push main) and railway-deploy.yml (on: workflow_run CI on main) would
+#   be suppressed. The documented exception is workflow_dispatch /
+#   repository_dispatch, which CAN be fired with GITHUB_TOKEN + actions: write.
+#   So after merging we EXPLICITLY dispatch release.yml and railway-deploy.yml.
+name: Promote develop to main
+
+on:
+  workflow_run:
+    workflows: ["CI", "E2E (Playwright)"]
+    types: [completed]
+
+concurrency:
+  group: promote-develop-to-main
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  promote:
+    name: Promote develop -> main
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.head_branch == 'develop' &&
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Verify both CI and E2E are green for develop head SHA
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          echo "Gating on develop SHA: $SHA"
+          DEV_TIP=$(git rev-parse origin/develop)
+          if [ "$DEV_TIP" != "$SHA" ]; then
+            echo "develop tip ($DEV_TIP) != event SHA ($SHA); newer push will promote. Skipping."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ci_concl=$(gh run list --workflow=ci.yml --branch=develop --commit="$SHA" --limit=1 --json conclusion --jq '.[0].conclusion // ""')
+          e2e_concl=$(gh run list --workflow=e2e.yml --branch=develop --commit="$SHA" --limit=1 --json conclusion --jq '.[0].conclusion // ""')
+          echo "CI conclusion:  $ci_concl"
+          echo "E2E conclusion: $e2e_concl"
+          if [ "$ci_concl" = "success" ] && [ "$e2e_concl" = "success" ]; then
+            echo "Both CI and E2E green for $SHA -> promoting."
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Not both green yet (CI=$ci_concl E2E=$e2e_concl). The sibling workflow completion will re-run this gate."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open develop -> main PR
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          existing=$(gh pr list --base main --head develop --state open --json number --jq '.[0].number // ""')
+          if [ -z "$existing" ]; then
+            gh pr create --base main --head develop --title "release: promote develop to main" --body "Automated promotion: develop is green on both CI and E2E. Merging triggers semantic-release and the Railway deploy." || echo "No diff between develop and main; nothing to promote."
+          else
+            echo "Reusing open promotion PR #$existing"
+          fi
+
+      - name: Merge promotion PR and dispatch release + deploy
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          num=$(gh pr list --base main --head develop --state open --json number --jq '.[0].number // ""')
+          if [ -z "$num" ]; then
+            echo "No open promotion PR (develop already == main). Nothing to do."
+            exit 0
+          fi
+          gh pr merge "$num" --merge --admin
+          echo "Merged PR #$num into main."
+          gh workflow run release.yml --ref main || echo "release.yml dispatch skipped/failed"
+          gh workflow run railway-deploy.yml --ref main || echo "railway-deploy.yml dispatch skipped/failed"
