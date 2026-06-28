@@ -5,9 +5,11 @@ import { z } from 'zod';
 import type { OperatorContext } from '@fleet/domain';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import { DeviceEnrollmentService } from './device-enrollment.service.js';
+// Platform enum SSOT (P1-#6): shared PlatformSchema instead of an inline z.enum.
+import { PlatformSchema } from './platform.js';
 
 const EnrollRequestSchema = z.object({
-  platform: z.enum(['ios', 'android', 'web']),
+  platform: PlatformSchema,
   appVersion: z.string().min(1).max(32),
   expoPushToken: z.string().min(1).max(256).optional(),
 });

@@ -2,46 +2,27 @@
 // Pure state policy for receiving dispatch commands. UI-framework agnostic.
 // Validates wire-shape with zod, deduplicates by commandId, builds ack payload.
 // I/O (socket emit, secure-store persistence) lives outside this module.
-import { z } from "zod";
+//
+// SCHEMA-FIRST SSOT (P0-#4, 2026): the command wire contract is imported from
+// @fleet/sync-protocol (command-contract.ts), the SINGLE definition shared with
+// the API. This module previously RE-DECLARED CommandTypeSchema +
+// CommandPayloadSchema identically to the api, and HAND-WROTE AckRejectionReason +
+// CommandAck as untyped TS unions (no runtime validation). Importing the shared
+// schema removes the duplication AND upgrades the ack types to their validated
+// schema form (CommandAck is now z.infer of a discriminatedUnion, so a drifted
+// ack shape is catchable at runtime, not just at compile time).
+import {
+  CommandPayloadSchema,
+  type CommandPayload,
+  type CommandAck,
+} from "@fleet/sync-protocol";
 
-const CommandTypeSchema = z.enum([
-  "assign_run",
-  "reassign_run",
-  "cancel_run",
-  "status_update",
-]);
-
-const CommandPayloadSchema = z.object({
-  commandId: z.guid(),
-  type: CommandTypeSchema,
-  targetOperatorId: z.guid(),
-  aggregateType: z.string().min(1).max(64),
-  aggregateId: z.guid(),
-  payload: z.unknown(),
-  issuedAt: z.iso.datetime(),
-});
-
-export type CommandType = z.infer<typeof CommandTypeSchema>;
-export type CommandPayload = z.infer<typeof CommandPayloadSchema>;
-
-export type AckRejectionReason =
-  | "operator_offline"
-  | "operator_busy"
-  | "invalid_state"
-  | "not_authorized"
-  | "stale_command"
-  | "duplicate_command"
-  | "client_error";
-
-export type CommandAck =
-  | { readonly commandId: string; readonly ackedAt: string; readonly status: "received" }
-  | {
-      readonly commandId: string;
-      readonly ackedAt: string;
-      readonly status: "rejected";
-      readonly reasonCode: AckRejectionReason;
-      readonly reasonText?: string;
-    };
+export type {
+  CommandType,
+  CommandPayload,
+  AckRejectionReason,
+  CommandAck,
+} from "@fleet/sync-protocol";
 
 export interface ReceiverState {
   readonly inbox: readonly CommandPayload[];
@@ -86,7 +67,7 @@ export function receiveCommand(
     // otherwise use the all-zero sentinel. Keeps ack shape valid for the server.
     // Narrow rawPayload to an indexable Record only when it is a real object
     // (excludes null, primitives, and undefined). Using a typeguard function
-    // gives Stryker fewer redundant conditional mutants than an inlined `&&`.
+    // gives Stryker fewer redundant conditional mutants than an inlined and-chain.
     const rawCommandId = isPlainObject(rawPayload) ? rawPayload["commandId"] : undefined;
     const maybeId: string = typeof rawCommandId === "string"
       ? rawCommandId

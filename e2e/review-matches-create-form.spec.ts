@@ -206,7 +206,7 @@ test.describe('review view reflects create-order form (T7)', () => {
     await expect(page.getByText('Điểm nhận hàng 1')).toBeVisible();
     await expect(page.getByTestId('order-review-stops')).not.toContainText('pickup');
     await expect(page.getByTestId('order-review-stops')).not.toContainText('delivery');
-    await expect(page.getByText('Kho giao hàng 1')).toBeVisible();
+    await expect(page.getByText('Kho giao hàng')).toBeVisible();
     // T9: each stop shows its warehouse name (matching the form selection).
     await expect(page.getByTestId('order-review-stops')).toContainText(refs.pickupLabel);
     await expect(page.getByTestId('order-review-stops')).toContainText(refs.deliveryLabel);

@@ -11,8 +11,8 @@ COPY . .
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile && \
     pnpm exec turbo run build --filter=@fleet/api... --filter=@fleet/main-worker --filter=@fleet/ops-web && \
-    pnpm --filter=@fleet/api deploy --prod --no-optional /tmp/api-deploy && \
-    pnpm --filter=@fleet/main-worker deploy --prod --no-optional /tmp/worker-deploy
+    pnpm --filter=@fleet/api deploy --prod --no-optional --legacy /tmp/api-deploy && \
+    pnpm --filter=@fleet/main-worker deploy --prod --no-optional --legacy /tmp/worker-deploy
 
 FROM node:22-alpine AS api
 WORKDIR /app

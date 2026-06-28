@@ -43,6 +43,12 @@ export {
   type ManifestStopRef,
 } from './manifest-stop-contract.js';
 export {
+  NegotiateUploadResponseSchema,
+  type NegotiateUploadResponse,
+  CommitUploadResponseSchema,
+  type CommitUploadResponse,
+} from './manifest-response-contract.js';
+export {
   STOP_TYPES,
   type StopType,
   netWeightKgSchema,
@@ -67,6 +73,28 @@ export {
   DispatchBoardApiResponseSchema,
   type DispatchBoardApiResponse,
 } from './dispatch-stop-view-contract.js';
+export {
+  ListAssignedRowStopSchema,
+  type ListAssignedRowStop,
+  ListAssignedRowSchema,
+  type ListAssignedRow,
+  ListAssignedResponseSchema,
+  type ListAssignedResponse,
+  TripHistoryMonthSchema,
+  type TripHistoryMonth,
+  TripHistoryResponseSchema,
+  type TripHistoryResponse,
+} from './list-assigned-contract.js';
+export {
+  CommandTypeSchema,
+  type CommandType,
+  CommandPayloadSchema,
+  type CommandPayload,
+  AckRejectionReasonSchema,
+  type AckRejectionReason,
+  CommandAckSchema,
+  type CommandAck,
+} from './command-contract.js';
 export {
   OUTBOX_ROUTING_POLICY_VERSION,
   routeOutboxRow,

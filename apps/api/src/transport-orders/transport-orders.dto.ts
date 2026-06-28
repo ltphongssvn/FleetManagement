@@ -12,7 +12,23 @@
 // server allocates external_ref via OrderNumberingService and returns it on
 // the create response. The DTO still accepts an optional externalRef field
 // for backward compatibility with older clients, but the service ignores it.
+//
+// SCHEMA-FIRST SSOT (P0-#2, 2026): the assigned-orders / review row contract
+// (ListAssignedRow + stop, ListAssignedResponse, TripHistory*) is NO LONGER
+// hand-written here. It lives once as Zod schemas in @fleet/sync-protocol and is
+// re-exported below so this DTO's service/controller call sites keep importing
+// the same type names. ops-web previously RE-DECLARED the identical row shape and
+// CAST its BFF response 'as ListAssignedRow'; both now derive from the one schema
+// (ops-web parses at its boundary). The create-side schema below stays local: it
+// is request-input validation specific to this endpoint, not a shared read shape.
 import { z } from 'zod';
+export {
+  type ListAssignedRowStop,
+  type ListAssignedRow,
+  type ListAssignedResponse,
+  type TripHistoryMonth,
+  type TripHistoryResponse,
+} from '@fleet/sync-protocol';
 export const CreateTransportOrderSchema = z.object({
   externalRef: z.string().min(1).max(64).optional(),
   customerId: z.guid().optional(),
@@ -35,41 +51,4 @@ export interface CreateTransportOrderResponse {
   readonly transportOrderId: string;
   readonly roadRunId: string;
   readonly externalRef: string;
-}
-export interface ListAssignedRow {
-  readonly transportOrderId: string;
-  readonly externalRef: string | null;
-  readonly roadRunId: string;
-  readonly state: string;
-  readonly plannedStartAt: string | null;
-  readonly createdAt: string | null;
-  readonly startedAt: string | null;
-  readonly completedAt: string | null;
-  readonly orderRef: string | null;
-  readonly plate: string | null;
-  readonly customerName: string | null;
-  readonly cargoName: string | null;
-  readonly driverName: string | null;
-  readonly pickupName: string | null;
-  readonly deliveryName: string | null;
-  readonly stops: readonly {
-    readonly sequence: number;
-    readonly stopType: string;
-    readonly plannedAt: string | null;
-    readonly warehouseName: string | null;
-    readonly arrivedAt: string | null;
-    readonly departedAt: string | null;
-  }[];
-}
-export interface ListAssignedResponse {
-  readonly rows: readonly ListAssignedRow[];
-}
-export interface TripHistoryMonth {
-  readonly monthKey: string;
-  readonly label: string;
-  readonly count: number;
-  readonly trips: readonly ListAssignedRow[];
-}
-export interface TripHistoryResponse {
-  readonly months: readonly TripHistoryMonth[];
 }

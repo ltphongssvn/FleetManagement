@@ -186,7 +186,16 @@ jobs:
       - name: Build workspace package deps
         run: pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures --filter=@fleet/main-worker
       - name: Pre-pull Postgres image (testcontainers warm cache)
-        run: docker pull postgres:16.4-alpine3.20
+        # Pull through Google's mirror.gcr.io pull-through cache to avoid
+        # flaky/rate-limited Docker Hub pulls on the shared GitHub Actions
+        # egress IP (observed: connection timeout on registry-1.docker.io).
+        # Re-tag to the canonical Docker Hub name so testcontainers
+        # (POSTGRES_IMAGE in pg-global-setup.ts) resolves from the warm local
+        # cache. Falls back to a direct Docker Hub pull if the mirror misses.
+        run: |
+          docker pull mirror.gcr.io/library/postgres:16.4-alpine3.20 \
+            && docker tag mirror.gcr.io/library/postgres:16.4-alpine3.20 postgres:16.4-alpine3.20 \
+            || docker pull postgres:16.4-alpine3.20
       - name: Test shard (coverage, threshold-free)
         working-directory: apps/api
         # No VITEST_ENFORCE_THRESHOLDS: this shard runs only 1/4 of the test

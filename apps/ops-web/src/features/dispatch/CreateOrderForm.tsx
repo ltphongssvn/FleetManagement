@@ -257,7 +257,7 @@ export function CreateOrderForm({
             const whId = 'deliveryWarehouse_' + String(n);
             return (
               <div key={n} className='rounded-lg border border-slate-200 bg-slate-50/60 p-3'>
-                <label htmlFor={whId} className={labelCls}>{tx('orderForm.deliveryWarehouse')} {n}</label>
+                <label htmlFor={whId} className={labelCls}>{deliveryRows.length === 1 ? tx('orderForm.deliveryWarehouse') : tx('orderForm.deliveryWarehouse') + ' ' + String(n)}</label>
                 <ComboboxField id={whId} name={whId} options={deliveryWarehouses} placeholder={tx('orderForm.none')} submitValue='id' />
               </div>
             );
