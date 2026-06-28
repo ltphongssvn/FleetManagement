@@ -7,7 +7,7 @@ RUN apk add --no-cache build-base python3
 COPY . .
 RUN pnpm install --frozen-lockfile && \
     pnpm exec turbo run build --filter=@fleet/api... && \
-    pnpm --filter=@fleet/api deploy --prod --no-optional /tmp/api-deploy
+    pnpm --filter=@fleet/api deploy --prod --no-optional --legacy /tmp/api-deploy
 FROM node:22-alpine
 WORKDIR /app
 COPY --from=builder /tmp/api-deploy /app
