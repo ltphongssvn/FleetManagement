@@ -84,12 +84,22 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          existing=$(gh pr list --base main --head develop --state open --json number --jq '.[0].number // ""')
-          if [ -z "$existing" ]; then
-            gh pr create --base main --head develop --title "release: promote develop to main" --body "Automated promotion: develop is green on both CI and E2E. Merging triggers semantic-release and the Railway deploy." || echo "No diff between develop and main; nothing to promote."
-          else
-            echo "Reusing open promotion PR #$existing"
+          # If develop has no commits ahead of main there is nothing to promote.
+          ahead=$(git rev-list --count origin/main..origin/develop)
+          echo "develop is $ahead commit(s) ahead of main"
+          if [ "$ahead" = "0" ]; then
+            echo "Nothing to promote (develop == main)."
+            exit 0
           fi
+          existing=$(gh pr list --base main --head develop --state open --json number --jq '.[0].number // ""')
+          if [ -n "$existing" ]; then
+            echo "Reusing open promotion PR #$existing"
+            exit 0
+          fi
+          # Create the PR. Do NOT mask failures: if Actions lacks permission to
+          # open PRs, or any other error occurs, this step must fail loudly so
+          # the promotion does not silently no-op.
+          gh pr create --base main --head develop             --title "release: promote develop to main"             --body "Automated promotion: develop is green on both CI and E2E. Merging triggers semantic-release and the Railway deploy."
 
       - name: Merge promotion PR and dispatch release + deploy
         if: steps.gate.outputs.ready == 'true'
@@ -102,7 +112,9 @@ jobs:
             echo "No open promotion PR (develop already == main). Nothing to do."
             exit 0
           fi
-          gh pr merge "$num" --merge --admin
+          # required_approving_review_count is 0 and required checks already
+          # passed on develop's SHA, so a normal merge succeeds without --admin.
+          gh pr merge "$num" --merge
           echo "Merged PR #$num into main."
           gh workflow run release.yml --ref main || echo "release.yml dispatch skipped/failed"
           gh workflow run railway-deploy.yml --ref main || echo "railway-deploy.yml dispatch skipped/failed"
