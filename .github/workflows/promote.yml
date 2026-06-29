@@ -11,11 +11,12 @@
 #   per-change instead of per-batch.
 #
 # Gating (atomic two-workflow check):
-#   develop runs CI and E2E (Playwright) in parallel on every push. A single
-#   workflow_run event only tells us one of them finished, so the gate job
-#   re-derives the develop head SHA and explicitly confirms BOTH the latest CI
-#   AND the latest E2E run for that exact SHA concluded success before
-#   promoting. Whichever finishes second is the run that sees both green.
+#   develop runs CI and E2E (Playwright) in parallel on every push. Each, on
+#   success, dispatches THIS workflow. Because either may dispatch first, the
+#   gate job re-derives develop's head SHA and explicitly confirms BOTH the
+#   latest CI AND the latest E2E run for that exact SHA concluded success before
+#   promoting. If only one is green yet, it exits cleanly; the second dispatch
+#   re-runs the gate and proceeds.
 #
 # Auth (GitHub App, not GITHUB_TOKEN):
 #   GITHUB_TOKEN cannot push to a branch protected by a ruleset, and merges it
@@ -30,14 +31,19 @@
 #   reconciling, develop drifts one commit behind every release. After merging,
 #   we back-merge main -> develop and push with [skip ci] in the message so the
 #   back-merge does NOT re-trigger CI/E2E (which would re-fire this workflow on
-#   a content-free commit -> empty release -> more drift -> loop). Belt-and-
-#   suspenders: the job is skipped when the triggering actor is the App bot.
+#   a content-free commit -> empty release -> more drift -> loop). Because the
+#   back-merge runs no CI/E2E, neither dispatches this workflow, so promotion
+#   cannot re-fire on the bot's own commit -- no loop, and no skipped runs.
 name: Promote develop to main
 
 on:
-  workflow_run:
-    workflows: ["CI", "E2E (Playwright)"]
-    types: [completed]
+  # Dispatched explicitly by CI and E2E (their final develop-only job) when they
+  # succeed. Using workflow_dispatch instead of workflow_run means this workflow
+  # NEVER launches just to skip: it only runs when a green CI/E2E on develop
+  # asks it to. (workflow_run has no conclusion/actor filter at the trigger
+  # level, so it would fire-then-skip on unrelated completions and on the bot's
+  # own [skip ci] back-merge chain.)
+  workflow_dispatch:
 
 concurrency:
   group: promote-develop-to-main
@@ -50,12 +56,6 @@ jobs:
   promote:
     name: Promote develop -> main
     runs-on: ubuntu-latest
-    # Only on develop, only on success, and never in response to the App bot's
-    # own back-merge push (anti-loop guard).
-    if: >-
-      github.event.workflow_run.head_branch == 'develop' &&
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.actor.login != 'fleetmgmt-promote-bot[bot]'
     steps:
       - name: Mint GitHub App token
         id: app-token
@@ -75,16 +75,11 @@ jobs:
         id: gate
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
+          # Dispatched on develop success; gate on develop's CURRENT head SHA.
+          SHA=$(git rev-parse origin/develop)
           echo "Gating on develop SHA: $SHA"
-          DEV_TIP=$(git rev-parse origin/develop)
-          if [ "$DEV_TIP" != "$SHA" ]; then
-            echo "develop tip ($DEV_TIP) != event SHA ($SHA); newer push will promote. Skipping."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
           ci_concl=$(gh run list --workflow=ci.yml --branch=develop --commit="$SHA" --limit=1 --json conclusion --jq '.[0].conclusion // ""')
           e2e_concl=$(gh run list --workflow=e2e.yml --branch=develop --commit="$SHA" --limit=1 --json conclusion --jq '.[0].conclusion // ""')
           echo "CI conclusion:  $ci_concl"

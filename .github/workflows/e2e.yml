@@ -93,3 +93,27 @@ jobs:
           name: playwright-report
           path: playwright-report/
           if-no-files-found: ignore
+
+  # On a green E2E run for a develop push, dispatch the promote workflow (see
+  # the matching job in ci.yml and the rationale in promote.yml's header). Each
+  # of CI and E2E dispatches independently; promote.yml re-verifies BOTH are
+  # green for develop's head before promoting, so double-dispatch is safe and
+  # produces no skipped runs.
+  dispatch-promote:
+    name: Dispatch promote (develop, on success)
+    needs: [playwright]
+    if: >-
+      success() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch promote.yml
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh workflow run promote.yml --repo "$GITHUB_REPOSITORY" --ref develop
+          echo 'Dispatched promote.yml (E2E green on develop).'
