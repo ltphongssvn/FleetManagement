@@ -90,6 +90,21 @@ describe('pickCurrentSha', () => {
     });
     expect(pickCurrentSha(env)).toBe(VALID_SHA);
   });
+  it('falls back to GITHUB_SHA when workflow_run head_sha is an EMPTY STRING', () => {
+    // Regression: GitHub Actions yields '' (not undefined) for
+    // ${{ github.event.workflow_run.head_sha }} when the deploy workflow is
+    // invoked via workflow_dispatch (e.g. the auto-promote dispatch). The
+    // schema must normalize '' -> undefined so parsing succeeds and we fall
+    // back to GITHUB_SHA, instead of crashing on the 40-hex-char check (which
+    // failed the production deploy after a release promotion).
+    const env = ciEnvSchema.parse({
+      GITHUB_EVENT_NAME: 'workflow_dispatch',
+      GITHUB_SHA: VALID_SHA,
+      WORKFLOW_RUN_HEAD_SHA: '',
+    });
+    expect(env.WORKFLOW_RUN_HEAD_SHA).toBeUndefined();
+    expect(pickCurrentSha(env)).toBe(VALID_SHA);
+  });
 });
 
 describe('resolveBaseSha', () => {

@@ -24,7 +24,17 @@ const fullShaSchema = z.string().regex(/^[0-9a-f]{40}$/, 'must be 40 hex chars')
 export const ciEnvSchema = z.object({
   GITHUB_EVENT_NAME: z.string().min(1, 'event name required'),
   GITHUB_SHA: fullShaSchema,
-  WORKFLOW_RUN_HEAD_SHA: fullShaSchema.optional(),
+  // GitHub Actions yields an EMPTY STRING (not undefined) for
+  // ${{ github.event.workflow_run.head_sha }} on non-workflow_run events
+  // (e.g. workflow_dispatch). Zod .optional() only tolerates undefined, so a
+  // raw empty string would fail the 40-hex-char check and crash the deploy.
+  // Normalize '' -> undefined at the boundary so any caller (dispatch or
+  // workflow_run) parses correctly; pickCurrentSha then falls back to
+  // GITHUB_SHA when the value is absent.
+  WORKFLOW_RUN_HEAD_SHA: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    fullShaSchema.optional(),
+  ),
 });
 
 export type CiEnv = z.infer<typeof ciEnvSchema>;
