@@ -69,8 +69,19 @@
 # ============================================================================
 name: CI
 on:
+  # Scope: run CI ONCE per change. On a PR branch, push+pull_request would BOTH
+  # fire, doubling the concurrent Postgres-testcontainer / PGlite-WASM load the
+  # apps/api suite is tuned for (vitest.coverage.config.ts maxWorkers:1) and
+  # intermittently melting a shard under runner CPU/Docker contention. So:
+  #   * pull_request on ANY base branch -> the single run that validates a PR
+  #     (its checks satisfy the ruleset, which matches by check NAME regardless
+  #     of triggering event), and it tests the merge result.
+  #   * push ONLY on the long-lived branches main + develop -> where there is no
+  #     PR, so push is the sole trigger; this is also what fires the
+  #     dispatch-promote job on a green develop push.
+  # Feature-branch pushes no longer self-run CI; the PR's pull_request run does.
   push:
-    branches: ["**"]
+    branches: [main, develop]
   pull_request:
     branches: ["**"]
 concurrency:
@@ -284,3 +295,30 @@ jobs:
         # apps/api is covered by the sharded api-tests + coverage-gate jobs;
         # exclude it here so its slow suite does not run twice.
         run: pnpm -r --if-present --filter='!@fleet/api' test:coverage
+
+  # ---------------------------------------------------------------------------
+  # On a green CI run for a develop push, explicitly dispatch the promote
+  # workflow. This replaces promote.yml's old workflow_run trigger (which would
+  # launch-then-skip on every unrelated completion). A workflow_dispatch fired
+  # with GITHUB_TOKEN is the documented exception that DOES start a new run, and
+  # it only happens here on real success -> no skipped promote runs. promote.yml
+  # re-verifies that BOTH CI and E2E are green for develop's head before acting,
+  # so dispatching from each independently is safe.
+  dispatch-promote:
+    name: Dispatch promote (develop, on success)
+    needs: [setup, api-tests, coverage-gate, other-tests]
+    if: >-
+      success() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch promote.yml
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh workflow run promote.yml --repo "$GITHUB_REPOSITORY" --ref develop
+          echo 'Dispatched promote.yml (CI green on develop).'
