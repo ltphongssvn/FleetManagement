@@ -69,8 +69,19 @@
 # ============================================================================
 name: CI
 on:
+  # Scope: run CI ONCE per change. On a PR branch, push+pull_request would BOTH
+  # fire, doubling the concurrent Postgres-testcontainer / PGlite-WASM load the
+  # apps/api suite is tuned for (vitest.coverage.config.ts maxWorkers:1) and
+  # intermittently melting a shard under runner CPU/Docker contention. So:
+  #   * pull_request on ANY base branch -> the single run that validates a PR
+  #     (its checks satisfy the ruleset, which matches by check NAME regardless
+  #     of triggering event), and it tests the merge result.
+  #   * push ONLY on the long-lived branches main + develop -> where there is no
+  #     PR, so push is the sole trigger; this is also what fires the
+  #     dispatch-promote job on a green develop push.
+  # Feature-branch pushes no longer self-run CI; the PR's pull_request run does.
   push:
-    branches: ["**"]
+    branches: [main, develop]
   pull_request:
     branches: ["**"]
 concurrency:
