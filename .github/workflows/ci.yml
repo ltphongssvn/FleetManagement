@@ -284,3 +284,30 @@ jobs:
         # apps/api is covered by the sharded api-tests + coverage-gate jobs;
         # exclude it here so its slow suite does not run twice.
         run: pnpm -r --if-present --filter='!@fleet/api' test:coverage
+
+  # ---------------------------------------------------------------------------
+  # On a green CI run for a develop push, explicitly dispatch the promote
+  # workflow. This replaces promote.yml's old workflow_run trigger (which would
+  # launch-then-skip on every unrelated completion). A workflow_dispatch fired
+  # with GITHUB_TOKEN is the documented exception that DOES start a new run, and
+  # it only happens here on real success -> no skipped promote runs. promote.yml
+  # re-verifies that BOTH CI and E2E are green for develop's head before acting,
+  # so dispatching from each independently is safe.
+  dispatch-promote:
+    name: Dispatch promote (develop, on success)
+    needs: [setup, api-tests, coverage-gate, other-tests]
+    if: >-
+      success() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch promote.yml
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh workflow run promote.yml --repo "$GITHUB_REPOSITORY" --ref develop
+          echo 'Dispatched promote.yml (CI green on develop).'
