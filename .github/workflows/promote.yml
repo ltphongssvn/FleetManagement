@@ -1,5 +1,5 @@
 # .github/workflows/promote.yml
-# Auto-promote develop -> main on green CI + E2E.
+# Auto-promote develop -> main on green CI + E2E, then back-merge main -> develop.
 #
 # Why this exists (release cadence as a forcing function):
 #   In GitFlow, develop is an integration branch and nothing automatically
@@ -17,12 +17,21 @@
 #   AND the latest E2E run for that exact SHA concluded success before
 #   promoting. Whichever finishes second is the run that sees both green.
 #
-# Token note (no PAT available; GITHUB_TOKEN only):
-#   A merge pushed with GITHUB_TOKEN does NOT emit push events, so release.yml
-#   (on: push main) and railway-deploy.yml (on: workflow_run CI on main) would
-#   be suppressed. The documented exception is workflow_dispatch /
-#   repository_dispatch, which CAN be fired with GITHUB_TOKEN + actions: write.
-#   So after merging we EXPLICITLY dispatch release.yml and railway-deploy.yml.
+# Auth (GitHub App, not GITHUB_TOKEN):
+#   GITHUB_TOKEN cannot push to a branch protected by a ruleset, and merges it
+#   makes do not emit push events (so release.yml / railway-deploy.yml would be
+#   suppressed). We mint a GitHub App installation token (fleetmgmt-promote-bot,
+#   on the ruleset bypass list for develop + main). The App can: merge the
+#   promotion PR, push the back-merge directly to develop, and -- because App
+#   tokens DO trigger downstream workflows -- fire release + deploy via push.
+#
+# Back-merge + loop prevention:
+#   Promoting creates a merge commit on main that develop lacks; without
+#   reconciling, develop drifts one commit behind every release. After merging,
+#   we back-merge main -> develop and push with [skip ci] in the message so the
+#   back-merge does NOT re-trigger CI/E2E (which would re-fire this workflow on
+#   a content-free commit -> empty release -> more drift -> loop). Belt-and-
+#   suspenders: the job is skipped when the triggering actor is the App bot.
 name: Promote develop to main
 
 on:
@@ -35,27 +44,37 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  pull-requests: write
-  actions: write
+  contents: read
 
 jobs:
   promote:
     name: Promote develop -> main
     runs-on: ubuntu-latest
+    # Only on develop, only on success, and never in response to the App bot's
+    # own back-merge push (anti-loop guard).
     if: >-
       github.event.workflow_run.head_branch == 'develop' &&
-      github.event.workflow_run.conclusion == 'success'
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.actor.login != 'fleetmgmt-promote-bot[bot]'
     steps:
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.PROMOTE_APP_ID }}
+          private-key: ${{ secrets.PROMOTE_APP_PRIVATE_KEY }}
+
       - name: Checkout
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: true
 
       - name: Verify both CI and E2E are green for develop head SHA
         id: gate
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
@@ -81,10 +100,9 @@ jobs:
       - name: Open develop -> main PR
         if: steps.gate.outputs.ready == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
-          # If develop has no commits ahead of main there is nothing to promote.
           ahead=$(git rev-list --count origin/main..origin/develop)
           echo "develop is $ahead commit(s) ahead of main"
           if [ "$ahead" = "0" ]; then
@@ -96,15 +114,12 @@ jobs:
             echo "Reusing open promotion PR #$existing"
             exit 0
           fi
-          # Create the PR. Do NOT mask failures: if Actions lacks permission to
-          # open PRs, or any other error occurs, this step must fail loudly so
-          # the promotion does not silently no-op.
-          gh pr create --base main --head develop             --title "release: promote develop to main"             --body "Automated promotion: develop is green on both CI and E2E. Merging triggers semantic-release and the Railway deploy."
+          gh pr create --base main --head develop --title "release: promote develop to main" --body "Automated promotion: develop is green on both CI and E2E. Merging triggers semantic-release and the Railway deploy."
 
-      - name: Merge promotion PR and dispatch release + deploy
+      - name: Merge promotion PR (triggers release + deploy via App push)
         if: steps.gate.outputs.ready == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
           num=$(gh pr list --base main --head develop --state open --json number --jq '.[0].number // ""')
@@ -112,9 +127,24 @@ jobs:
             echo "No open promotion PR (develop already == main). Nothing to do."
             exit 0
           fi
-          # required_approving_review_count is 0 and required checks already
-          # passed on develop's SHA, so a normal merge succeeds without --admin.
           gh pr merge "$num" --merge
-          echo "Merged PR #$num into main."
-          gh workflow run release.yml --ref main || echo "release.yml dispatch skipped/failed"
-          gh workflow run railway-deploy.yml --ref main || echo "railway-deploy.yml dispatch skipped/failed"
+          echo "Merged PR #$num into main. App-authored merge push will trigger release.yml and railway-deploy.yml."
+
+      - name: Back-merge main into develop (skip ci, prevents drift + loop)
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          git config user.name 'fleetmgmt-promote-bot[bot]'
+          git config user.email '297748693+fleetmgmt-promote-bot[bot]@users.noreply.github.com'
+          git fetch origin main develop
+          git checkout develop
+          git reset --hard origin/develop
+          if git merge-base --is-ancestor origin/main HEAD; then
+            echo 'develop already contains main; no back-merge needed.'
+            exit 0
+          fi
+          git merge --no-ff origin/main -m 'chore: back-merge main into develop [skip ci]'
+          git push origin develop
+          echo 'Back-merged main into develop with [skip ci]; develop is back in sync with main.'
