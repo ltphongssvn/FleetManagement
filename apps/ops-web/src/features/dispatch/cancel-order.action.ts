@@ -6,6 +6,21 @@
 // at '/'), then issues a server-side redirect to '/' so the dispatcher
 // lands directly on the refreshed board.
 //
+// AUTH OWNERSHIP (hotfix 2026): this action OWNS its authentication. The auth
+// proxy (apps/ops-web/src/proxy.ts) deliberately passes Server Action POSTs
+// through untouched, because Next.js cannot forward a proxy rewrite/redirect for
+// an action response -- diverting a Cancel POST to /login made the action client
+// receive the /login payload instead of an action result and throw 'An
+// unexpected response was received from the server' (the production crash:
+// HTTP 404 + x-nextjs-action-not-found + x-middleware-rewrite:/login). Per the
+// Next.js 2026 guidance (vercel/next.js #64993 + the May-2026 auth advisories),
+// proxy.ts is a UX layer, not a security boundary; Server Actions are public
+// POST endpoints that must authenticate themselves. So when the fleet_session
+// cookie is missing/expired we redirect('/login') here, using the same
+// Server-Action redirect protocol as the success path (the browser navigates to
+// /login to re-authenticate, no opaque error). A genuine config fault
+// (FLEET_API_URL unset) remains a server_error -- it is not an auth condition.
+//
 // SCHEMA-FIRST SSOT (cancel-refactor 2026): the reason vocabulary is NOT
 // declared here. It is imported from @fleet/domain (CancelReasonSchema), the
 // SINGLE definition shared with the API DTO. This module previously declared
@@ -65,7 +80,11 @@ export async function cancelOrder(_prev: CancelOrderState, formData: FormData): 
   if (!apiUrl) return { status: 'server_error', message: 'FLEET_API_URL not configured' };
   const cookieStore = await cookies();
   const token = cookieStore.get('fleet_session')?.value;
-  if (!token) return { status: 'server_error', message: 'Not authenticated' };
+  // Missing/expired session: the proxy passed this Server Action through (it
+  // cannot redirect an action response), so the action redirects to /login
+  // itself. redirect() throws the Server-Action navigation directive; the
+  // browser navigates to /login to re-authenticate. Never a server_error here.
+  if (!token) redirect('/login');
   const body: { reason: string; note?: string } = { reason: parsed.data.reason };
   if (parsed.data.note !== undefined) body.note = parsed.data.note;
   const res = await fetch(apiUrl + '/transport-orders/' + parsed.data.transportOrderId + '/cancel', {
