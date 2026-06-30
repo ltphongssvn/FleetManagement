@@ -140,6 +140,20 @@ export async function startMigratedTestDb(databaseName = 'fleet_test'): Promise<
     connectionString: baseConnectionUri(dbName),
     connectionTimeoutMillis: 10_000,
   });
+  // Background-error sink (node-postgres docs: a Pool emits 'error' on behalf of
+  // its idle clients when the backend drops a connection; with NO listener, Node
+  // escalates it to an uncaught exception and the process exits non-zero). During
+  // teardown stopMigratedTestDb() runs pg_terminate_backend on this database,
+  // which makes any still-connected idle client emit a FATAL 57P01 ("terminating
+  // connection due to administrator command"). If a test (e.g. the concurrency
+  // spec that fires 20 simultaneous commands) leaves a connection draining when
+  // pool.end() resolves, that straggler is terminated and its async 'error'
+  // surfaces AFTER all test files passed -> the whole shard fails with an
+  // unhandled 57P01 and zero failing assertions. This was an intermittent,
+  // contention-sensitive CI flake. Swallowing ONLY background idle-client errors
+  // here is safe: a real query error still rejects its own await inside the test;
+  // pg routes only out-of-band connection errors through this emitter.
+  pool.on('error', () => { /* idle-client connection error during teardown; ignore */ });
   const db = drizzle(pool, { schema, casing: 'snake_case' });
   return { databaseName: dbName, pool, db };
 }
