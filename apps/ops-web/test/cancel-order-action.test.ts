@@ -8,8 +8,17 @@
 // catches and asserts on the call args. Idempotent retries (API echoes
 // idempotent=true) follow the same path.
 //
-// Error paths still return discriminated-union values: invalid,
-// server_error, api_error, not_found, conflict.
+// Auth contract (hotfix 2026): a missing/expired fleet_session no longer
+// returns server_error. The proxy now passes Server Action POSTs through
+// untouched (it cannot forward a rewrite/redirect for an action response), so
+// the action OWNS auth and redirects an unauthenticated caller to /login via the
+// same Server-Action redirect protocol used for the success path. This is the
+// defense-in-depth the Next.js 2026 guidance prescribes (proxy.ts is a UX layer,
+// not a security boundary). A genuine config fault (FLEET_API_URL unset) is still
+// a server_error — that is not an auth condition.
+//
+// Other error paths still return discriminated-union values: invalid,
+// server_error (config), api_error, not_found, conflict.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 const cookieGet = vi.fn();
 vi.mock('next/headers', () => ({ cookies: () => Promise.resolve({ get: cookieGet }) }));
@@ -127,15 +136,26 @@ describe('cancelOrder server action (T5)', () => {
     const r = await cancelOrder(undefined, fd);
     expect(r).toEqual({ status: 'server_error', message: expect.stringContaining('FLEET_API_URL') });
   });
-  it('returns server_error when the auth cookie is missing', async () => {
+  it('redirects to /login when the auth cookie is missing (expired session)', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue(undefined);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
     const { cancelOrder } = await import('@/features/dispatch/cancel-order.action');
     const fd = new FormData();
     fd.set('transportOrderId', VALID_ID);
     fd.set('reason', 'customer_request');
-    const r = defined(await cancelOrder(undefined, fd));
-    expect(r.status).toBe('server_error');
+    let caught: unknown;
+    try {
+      await cancelOrder(undefined, fd);
+    } catch (e) {
+      caught = e;
+    }
+    // The unauthenticated caller is redirected to /login (Server-Action redirect
+    // protocol throws), NOT given a server_error, and the API is never called.
+    expect(caught).toBeInstanceOf(NextRedirectError);
+    expect(redirect).toHaveBeenCalledWith('/login');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
   it('returns not_found when the API returns 404', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');

@@ -1,17 +1,40 @@
 // apps/ops-web/src/proxy.ts
 // Auth middleware: gates protected routes behind the fleet_session cookie.
+//
 // RSC prefetch loop guard: unauthenticated RSC requests get rewrite-to-/login
 // (not 307) since Next.js drops ?_rsc on redirect and the router loops.
 // Discriminator: Accept: text/x-component (RSC) vs text/html (document).
+//
+// Server Action carve-out (hotfix 2026): a Cancel/mutation click is a Server
+// Action POST fired against the CURRENT protected route (e.g.
+// /dispatch/orders/:id) and carries the Next-Action request header. Next.js
+// CANNOT forward a proxy rewrite/redirect for a Server Action response, so
+// diverting one to /login makes the action client receive the /login payload
+// instead of an action result and throw 'An unexpected response was received
+// from the server' (the route error boundary then shows 'Something went wrong').
+// Proven live against production: such a POST returned HTTP 404 with
+// x-nextjs-action-not-found:1 and x-middleware-rewrite:/login. Per Next.js 2026
+// guidance (vercel/next.js #64993) and the May-2026 auth advisories, proxy.ts is
+// a UX/redirect layer, NOT a security boundary (cf. CVE-2025-29927); Server
+// Actions are public POST endpoints that MUST authenticate themselves. So we let
+// Next-Action requests pass untouched and the action enforces auth (cancelOrder
+// redirects an unauthenticated caller to /login).
 import { NextResponse, type NextRequest } from 'next/server';
 const PUBLIC_PATHS = new Set(['/login']);
 const RSC_ACCEPT = 'text/x-component';
 function isRscRequest(req: NextRequest): boolean {
   return req.headers.get('accept')?.includes(RSC_ACCEPT) ?? false;
 }
+function isServerAction(req: NextRequest): boolean {
+  return req.headers.get('next-action') !== null;
+}
 export function proxy(req: NextRequest): NextResponse {
   const { pathname } = req.nextUrl;
   if (PUBLIC_PATHS.has(pathname)) return NextResponse.next();
+  // Never divert a Server Action POST to /login (see file header): Next.js cannot
+  // forward a rewrite/redirect for an action response. The action authenticates
+  // itself and redirects unauthenticated callers to /login.
+  if (isServerAction(req)) return NextResponse.next();
   const session = req.cookies.get('fleet_session')?.value;
   if (!session) {
     const loginUrl = new URL('/login', req.url);
