@@ -17,7 +17,7 @@
 # - Deploy: official ghcr.io/railwayapp/cli:latest container. railway up
 #   --service <name> --ci is Railway canonical CI flag -- streams build
 #   logs and exits with the build exit code (better than --detach for CI).
-# - Change detection: dorny/paths-filter@v3 maps changed paths to services.
+# - Change detection: dorny/paths-filter@v4 maps changed paths to services.
 #   In auto mode we deploy ONLY services whose tracked paths changed.
 #   all / api / ops-web / worker inputs override for surgical deploys.
 # - Ordering: api -> ops-web -> worker. result == skipped is tolerated so a
@@ -84,7 +84,7 @@ jobs:
             echo 'has_token=false' >> "$GITHUB_OUTPUT"
             echo '::warning::RAILWAY_TOKEN not set, deploy will skip'
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 2
@@ -114,7 +114,7 @@ jobs:
           echo "resolved base_sha=$BASE_SHA"
       - name: Detect changed services
         id: detect
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           base: ${{ steps.resolve.outputs.base_sha }}
           filters: |
@@ -149,7 +149,7 @@ jobs:
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ needs.gate.outputs.head_sha }}
       - name: Deploy api (CI mode)
@@ -184,7 +184,7 @@ jobs:
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ needs.gate.outputs.head_sha }}
       - name: Deploy ops-web (CI mode)
@@ -219,7 +219,7 @@ jobs:
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ needs.gate.outputs.head_sha }}
       - name: Deploy worker (CI mode)
