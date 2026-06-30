@@ -116,14 +116,25 @@ test.describe('dispatch board reflects cancellation (T5)', () => {
     // After a successful cancel the dispatcher should land on the board.
     await expect(page).toHaveURL(BOARD_URL, { timeout: 10000 });
     await expect(page.getByRole('heading', { level: 1, name: 'Lệnh điều xe' })).toBeVisible();
-    // Post-T(Khách hàng-column): the board REPLACED the Trạng thái column with
-    // Khách hàng. Cancelled orders REMAIN in dispatch_board_projection by design
-    // (the projection upserts state='cancelled'; only a tombstone deletes — see
-    // transport-orders.cancel.service.projection-event.integration.test.ts).
-    // So the dispatcher must still SEE the cancellation: the row carries a
-    // cancelled marker testid + the localized 'Đã hủy' badge, even though the
-    // standalone Trạng thái column is gone. Projection is eventually consistent,
-    // so poll the marker.
+    // Post-pagination (status-partitioned board, 2026): the DEFAULT board view is
+    // ACTIVE only (planned|dispatched|started). A cancelled order is FINISHED
+    // (completed|cancelled), so it is correctly EXCLUDED from the active landing
+    // view and lives behind the 'Đã hoàn tất' (Finished) tab. Cancelled orders
+    // REMAIN in dispatch_board_projection by design (the projection upserts
+    // state='cancelled'; only a tombstone deletes — see
+    // transport-orders.cancel.service.projection-event.integration.test.ts), so
+    // the dispatcher sees the cancellation by switching to the Finished view,
+    // where the row carries the cancelled marker testid + the localized 'Đã hủy'
+    // badge. (The API drains the projection synchronously on cancel, so the
+    // Finished view's SSR fetch already reflects state='cancelled'.)
+    //
+    // First confirm the cancelled order is NOT on the default Active board
+    // (the partition is doing its job), then navigate to Finished and assert it
+    // appears there with the badge. The Finished tab is a plain <a> (full
+    // navigation), so Playwright auto-waits for the fresh SSR render.
+    await expect(page.getByTestId('dispatch-board-row-cancelled-' + order.externalRef)).toHaveCount(0);
+    await page.getByTestId('dispatch-board-filter-finished').click();
+    await expect(page).toHaveURL(/group=finished/, { timeout: 10000 });
     const cancelledMarker = page.getByTestId('dispatch-board-row-cancelled-' + order.externalRef);
     await expect(cancelledMarker).toBeVisible({ timeout: 15000 });
     await expect(cancelledMarker).toContainText('Đã hủy');
