@@ -10,20 +10,27 @@
 // the internal stopId it needs to associate proofs); ops-web parses the leaner
 // DispatchBoardRowSchema (stops without stopId) per Postel.
 //
+// Pagination (2026): getBoardPage adds offset/page-number pagination over the
+// projection, filtered by status group (active = planned|dispatched|started;
+// finished = completed|cancelled — the partition derives from the SSOT
+// statesForStatusGroup), returning the SSOT paginated envelope
+// (DispatchBoardPageApiResponseSchema: data + page/pageSize/total/totalPages/
+// hasMore). The per-row enrichment (stops, customer, proof, weight-diff) is
+// shared with getBoard via the private enrichRows() so the paginated and full
+// boards can never diverge in how a row is shaped.
+//
 // Phiếu Cân (2026): each stop is additionally enriched with its proof photo when
 // a COMMITTED manifest is tied to that stop (manifest.stop_id). proof carries the
 // manifestId + a short-lived presigned S3 GET URL (minted by StopProofUrlSigner,
 // injected) so ops-web renders a clickable "Phiếu Cân" link without exposing the
 // private bucket. The S3 object key/bucket come from the manifest's upload_session.
-// EXPAND-only: arrivedAt/departedAt are unchanged; proof is added (null when no
-// committed manifest), so existing ops-web code stays valid.
 //
 // SOFT DELETE: the board read filters deleted_at IS NULL so road runs hidden by a
 // tombstone (soft-deleted, since the app role holds no DELETE privilege) never appear.
-import { Controller, Get, Inject, Optional, UseGuards } from '@nestjs/common';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
-import { computeWeightDiffKg } from '@fleet/sync-protocol';
-import type { DispatchBoardApiResponse, DispatchBoardApiRow, DispatchStopView, StopProof, WeightDiffStop } from '@fleet/sync-protocol';
+import { Controller, Get, Inject, Optional, Query, UseGuards } from '@nestjs/common';
+import { and, count, eq, inArray, isNull } from 'drizzle-orm';
+import { computeWeightDiffKg, statesForStatusGroup, RoadRunPageQuerySchema } from '@fleet/sync-protocol';
+import type { DispatchBoardApiResponse, DispatchBoardApiRow, DispatchBoardPageApiResponse, DispatchStopView, StopProof, WeightDiffStop } from '@fleet/sync-protocol';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import {
@@ -57,6 +64,20 @@ interface ProofSource {
   readonly extractedNetWeightKg: number | null;
   readonly extractionStatus: 'pending' | 'extracted' | 'not_found' | 'unreadable' | 'manual';
   readonly extractionReason: 'unparseable' | 'below_sanity_min' | 'above_sanity_max' | 'no_field' | 'object_missing' | null;
+}
+// The base projection row (after driver/vehicle label joins) that enrichRows
+// turns into a full DispatchBoardApiRow. Identical select shape in getBoard and
+// getBoardPage, so both feed the same enrichment.
+interface BoardBaseRow {
+  readonly roadRunId: string;
+  readonly state: DispatchBoardApiRow['state'];
+  readonly assignedOperatorId: string | null;
+  readonly assignedAssetId: string | null;
+  readonly plannedStartAt: Date | null;
+  readonly stopCount: number;
+  readonly transportOrderRefs: readonly string[];
+  readonly driverName: string | null;
+  readonly vehiclePlate: string | null;
 }
 
 @Controller('dispatch')
@@ -93,11 +114,70 @@ export class DispatchController {
       ))
       .where(and(
         eq(dispatchBoardProjection.companyId, op.companyId),
-        // Hide soft-deleted (tombstoned) road runs from the board.
         isNull(dispatchBoardProjection.deletedAt),
       ))
       .orderBy(dispatchBoardProjection.plannedStartAt)
       .limit(DISPATCH_BOARD_MAX_ROWS);
+    return { rows: await this.enrichRows(op, rows) };
+  }
+  // Paginated + status-partitioned board. Offset/page-number pagination (the
+  // dispatcher UI needs page-number jump, which only offset supports); group
+  // filters by the SSOT active/finished partition; total drives totalPages +
+  // hasMore (never paginate without a total).
+  // GET /dispatch/board/page?group=&page=&pageSize=&search= — paginated board.
+  // Tenancy comes from the JWT (CurrentOperator), never the query string (no
+  // IDOR), mirroring getBoard + the export controller. Raw query is parsed by
+  // the SSOT RoadRunPageQuerySchema (coerces strings, defaults, .strict()).
+  @Get('board/page')
+  async getBoardPage(
+    @CurrentOperator() op: OperatorContext,
+    @Query() query: Record<string, unknown>,
+  ): Promise<DispatchBoardPageApiResponse> {
+    const { group, page, pageSize } = RoadRunPageQuerySchema.parse(query);
+    const states = statesForStatusGroup(group);
+    const whereClause = and(
+      eq(dispatchBoardProjection.companyId, op.companyId),
+      isNull(dispatchBoardProjection.deletedAt),
+      inArray(dispatchBoardProjection.state, [...states]),
+    );
+    const totalRows = await this.db
+      .select({ value: count() })
+      .from(dispatchBoardProjection)
+      .where(whereClause);
+    const total = totalRows[0]?.value ?? 0;
+    const rows = await this.db
+      .select({
+        roadRunId: dispatchBoardProjection.roadRunId,
+        state: dispatchBoardProjection.state,
+        assignedOperatorId: dispatchBoardProjection.assignedOperatorId,
+        assignedAssetId: dispatchBoardProjection.assignedAssetId,
+        plannedStartAt: dispatchBoardProjection.plannedStartAt,
+        stopCount: dispatchBoardProjection.stopCount,
+        transportOrderRefs: dispatchBoardProjection.transportOrderRefs,
+        driverName: driver.fullName,
+        vehiclePlate: vehicle.plate,
+      })
+      .from(dispatchBoardProjection)
+      .leftJoin(driver, and(
+        eq(driver.operatorId, dispatchBoardProjection.assignedOperatorId),
+        eq(driver.companyId, op.companyId),
+      ))
+      .leftJoin(vehicle, and(
+        eq(vehicle.vehicleId, dispatchBoardProjection.assignedAssetId),
+        eq(vehicle.companyId, op.companyId),
+      ))
+      .where(whereClause)
+      .orderBy(dispatchBoardProjection.plannedStartAt)
+      .limit(pageSize)
+      .offset((page - 1) * pageSize);
+    const data = await this.enrichRows(op, rows);
+    const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
+    return { data, page, pageSize, total, totalPages, hasMore: page < totalPages };
+  }
+  // Shared per-row enrichment: given base projection rows (driver/vehicle labels
+  // already joined), resolve stops (+ proof photos), customer name/phone, and the
+  // pickup-vs-delivery weight diff, producing the canonical DispatchBoardApiRow[].
+  private async enrichRows(op: OperatorContext, rows: readonly BoardBaseRow[]): Promise<DispatchBoardApiRow[]> {
     const roadRunIds = rows.map((r) => r.roadRunId);
     const stopsByRoadRun = new Map<string, DispatchStopView[]>();
     const customerByRoadRun = new Map<string, string>();
@@ -121,9 +201,6 @@ export class DispatchController {
           inArray(roadRunTransportOrder.roadRunId, roadRunIds),
         ))
         .orderBy(stop.sequence);
-      // Proof photos: committed manifests tied to these stops, joined to their
-      // upload_session for the S3 object key. Map stopId -> ProofSource for the
-      // most recent committed manifest per stop.
       const stopIds = stopRows.map((sr) => sr.stopId);
       const proofByStopId = new Map<string, ProofSource>();
       if (stopIds.length > 0) {
@@ -153,7 +230,6 @@ export class DispatchController {
               bucket: pr.s3Bucket,
               key: pr.s3Key,
               capturedAt: (pr.committedAt ?? new Date()).toISOString(),
-              // numeric(12,3) arrives as a string from pg; contract wants number.
               extractedNetWeightKg: pr.extractedNetWeightKg === null ? null : Number(pr.extractedNetWeightKg),
               extractionStatus: pr.extractionStatus,
               extractionReason: pr.extractionReason,
@@ -221,6 +297,6 @@ export class DispatchController {
       ),
       stops: stopsByRoadRun.get(r.roadRunId) ?? [],
     }));
-    return { rows: result };
+    return result;
   }
 }

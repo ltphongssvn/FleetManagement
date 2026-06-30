@@ -8,7 +8,9 @@
 // clicks emit RSC fetches that return 200 but the router never commits the
 // navigation, retrying until ERR_INSUFFICIENT_RESOURCES. The 2026 escape hatch
 // is native browser navigation: a plain anchor with href triggers a full-page
-// load that bypasses Next.js's RSC state machine entirely.
+// load that bypasses Next.js's RSC state machine entirely. The pagination +
+// status-filter controls below use the SAME plain-anchor navigation for the
+// same reason (and because offset pagination maps onto shareable URL state).
 //
 // RE-RENDER LOOP FIX (2026): the board previously ran a useOptimistic hook IN
 // PARALLEL with a stickyRuns useState. After create, router.refresh() produced
@@ -21,6 +23,15 @@
 // the real projection row arrives. Removing the redundant useOptimistic stops
 // the loop while preserving immediate-visibility. (react.dev: effects must
 // reach a fixed point; nextjs.org prefetching: avoid churn on dynamic lists.)
+//
+// PAGINATION (2026): the board is status-partitioned + offset-paginated. When a
+// pagination prop is supplied, DispatchView renders Active/Finished filter tabs
+// (the default view is Active = pending + in-progress; Finished = completed +
+// cancelled) and a bottom pagination control: numbered page links, a
+// jump-to-page search input, and a total count. All navigation is URL-state
+// (?group=&page=) via plain <a>/full navigation, so pages are shareable and
+// RSC-rendered server-side (the offset-pagination advantage). When the prop is
+// absent the board renders unpaginated (back-compat with existing callers).
 //
 // KH column (2026): permanent business rule — the Lệnh điều xe board shows a
 // Khách hàng (customer) column in place of the Trạng thái (state) column. The
@@ -115,10 +126,81 @@ function OrderRefCell({ refs }: { refs: readonly string[] }): JSX.Element {
     <a href={href} data-testid={testId} className='font-mono text-blue-700 underline-offset-2 hover:underline cursor-pointer'>{formatOrderRef(refs)}</a>
   );
 }
+// Status group of the board view. active = pending + in-progress (planned,
+// dispatched, started); finished = completed + cancelled. Mirrors the SSOT
+// @fleet/sync-protocol RoadRunStatusGroup (string-typed here to avoid coupling
+// the client component to the contract import; the loader/api are authoritative).
+export type BoardStatusGroup = 'active' | 'finished';
+export interface DispatchBoardPagination {
+  readonly group: BoardStatusGroup;
+  readonly page: number;
+  readonly pageSize: number;
+  readonly total: number;
+  readonly totalPages: number;
+  readonly hasMore: boolean;
+}
+// Build a shareable board URL preserving the status group and target page.
+function buildBoardHref(group: BoardStatusGroup, page: number): string {
+  const qs = new URLSearchParams();
+  qs.set('group', group);
+  qs.set('page', String(page));
+  return '/?' + qs.toString();
+}
+function FilterTabs({ group }: { group: BoardStatusGroup }): JSX.Element {
+  const base = 'rounded px-3 py-1 text-sm font-medium';
+  const activeCls = base + ' bg-blue-600 text-white';
+  const idleCls = base + ' bg-slate-100 text-slate-600 hover:bg-slate-200';
+  return (
+    <div className='flex items-center gap-2' role='tablist' aria-label='Lọc theo trạng thái'>
+      <a data-testid='dispatch-board-filter-active' href={buildBoardHref('active', 1)} aria-current={group === 'active' ? 'page' : undefined} className={group === 'active' ? activeCls : idleCls}>Đang chạy</a>
+      <a data-testid='dispatch-board-filter-finished' href={buildBoardHref('finished', 1)} aria-current={group === 'finished' ? 'page' : undefined} className={group === 'finished' ? activeCls : idleCls}>Đã hoàn tất</a>
+    </div>
+  );
+}
+function PaginationBar({ pagination }: { pagination: DispatchBoardPagination }): JSX.Element {
+  const { group, page, total, totalPages } = pagination;
+  // Jump-to-page: full navigation to the typed page (clamped) on Enter, matching
+  // the plain-anchor escape hatch (no router.push -> no RSC prefetch loop).
+  const onJump = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key !== 'Enter') return;
+    const raw = Number((e.target as HTMLInputElement).value);
+    if (!Number.isFinite(raw)) return;
+    const target = Math.min(Math.max(Math.trunc(raw), 1), Math.max(totalPages, 1));
+    window.location.assign(buildBoardHref(group, target));
+  };
+  const pages: number[] = [];
+  for (let p = 1; p <= totalPages; p += 1) pages.push(p);
+  return (
+    <nav data-testid='dispatch-board-pagination' className='mt-4 flex flex-wrap items-center justify-between gap-3' aria-label='Phân trang'>
+      <span data-testid='dispatch-board-total-count' className='text-sm text-slate-500'>{'Tổng: ' + String(total) + ' lệnh'}</span>
+      <div className='flex flex-wrap items-center gap-1'>
+        {pages.map((p) => (
+          <a key={p} data-testid={'dispatch-board-page-link-' + String(p)} href={buildBoardHref(group, p)} aria-current={p === page ? 'page' : undefined} className={'rounded px-2 py-1 text-sm ' + (p === page ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}>{String(p)}</a>
+        ))}
+      </div>
+      <label className='flex items-center gap-1 text-sm text-slate-500'>
+        Đến trang
+        <input
+          data-testid='dispatch-board-page-search'
+          type='number'
+          min={1}
+          max={Math.max(totalPages, 1)}
+          defaultValue={String(page)}
+          onKeyDown={onJump}
+          aria-label='Nhập số trang để chuyển đến'
+          className='w-16 rounded border px-2 py-1'
+        />
+      </label>
+    </nav>
+  );
+}
 export interface DispatchViewProps {
   readonly initialRuns: readonly DispatchBoardRoadRun[];
   readonly refs: Omit<CreateOrderFormProps, 'locale'> & { readonly nextOrderRef?: string };
   readonly onMountForTest?: (push: (externalRef: string, op: { operatorId: string; assetId: string }) => void) => void;
+  // When present, the board is paginated + status-partitioned (offset pagination
+  // over the current page slice in initialRuns). Absent => unpaginated board.
+  readonly pagination?: DispatchBoardPagination;
 }
 function makeOptimisticRow(externalRef: string, opCtx: { operatorId: string; assetId: string }): DispatchBoardRoadRun {
   return {
@@ -149,7 +231,7 @@ function mergeRuns(serverRuns: readonly DispatchBoardRoadRun[], optimistic: read
   return additions.length === 0 ? serverRuns : [...additions, ...serverRuns];
 }
 export function DispatchView(props: DispatchViewProps): JSX.Element {
-  const { initialRuns, refs, onMountForTest } = props;
+  const { initialRuns, refs, onMountForTest, pagination } = props;
   const router = useRouter();
   // Single source of optimistic rows: plain useState. Unlike useOptimistic,
   // this does NOT re-derive on every render, so it cannot drive a re-render
@@ -220,7 +302,10 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
         <section className='p-6'>
           <header className='mb-4 flex items-center justify-between'>
             <h1 className='text-2xl font-semibold'>Lệnh điều xe</h1>
-            <div className='flex items-center gap-2'><ExportOrdersExcelButton /><LogoutButton /></div>
+            <div className='flex items-center gap-2'>
+              {pagination ? <FilterTabs group={pagination.group} /> : null}
+              <ExportOrdersExcelButton /><LogoutButton />
+            </div>
           </header>
           <table className='w-full border-collapse text-sm'>
             <thead>
@@ -253,6 +338,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
               )}
             </tbody>
           </table>
+          {pagination ? <PaginationBar pagination={pagination} /> : null}
         </section>
       </div>
     </>
