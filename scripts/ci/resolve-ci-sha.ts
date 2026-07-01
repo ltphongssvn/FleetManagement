@@ -1,36 +1,40 @@
 // scripts/ci/resolve-ci-sha.ts
-// Pure SHA-resolution logic for the railway-deploy.yml gate job. The
-// inline 'base: HEAD~1' in YAML failed under workflow_run context with
-// 'git failed exit 128' because dorny/paths-filter@v3 tried to
-// merge-base HEAD~1 develop, and develop didn't exist locally in the
-// shallow checkout. Per the upstream issue #201 resolution, pre-
-// resolving HEAD~1 to an explicit commit SHA bypasses ref resolution
-// entirely -- paths-filter then compares SHA-to-SHA.
+// Pure SHA-resolution logic for the railway-deploy.yml gate job, feeding
+// dorny/paths-filter@v4 the 'base' SHA it diffs 'current' against.
 //
-// This module is INTENTIONALLY pure: no execSync, no fs, no
-// process.exit. The git invocation lives in a separate main()
-// entrypoint composed below, so the resolution rules can be unit-
-// tested without touching the filesystem or remote.
+// Original bug: inline 'base: HEAD~1' under workflow_run context exit-128'd
+// (paths-filter merge-based HEAD~1 against develop, absent from the shallow
+// clone). Fixed by pre-resolving to a real commit SHA in this pure, unit-
+// tested module -- paths-filter then compares SHA-to-SHA.
+//
+// 2026 revision -- dependency-aware base: the parent (HEAD~1) base is a ONE-
+// COMMIT diff window. If an app change landed a promote-cycle back, or was
+// separated from the deploy trigger by an intervening CI-infra commit, the
+// parent..current diff does not contain it, paths-filter reports the service
+// unchanged, and a stale image ships (the ops-web under-build we hit). The base
+// is now the last SUCCESSFULLY-DEPLOYED SHA when one is known: diffing
+// last-deployed..current is the COMPLETE change set since that service last
+// shipped -- immune to intervening commits, and (unlike Turborepo --affected
+// --base=origin/main) it needs no full git history, so the gate keeps its
+// shallow fetch-depth. Precedence: last-deployed (known and != current) ->
+// parent -> self-fallback.
+//
+// The pure exports below are INTENTIONALLY free of I/O: no spawnSync, no fetch,
+// no process.exit. The git call and the GitHub API call live in side-effecting
+// helpers used only by main(), so the resolution rules stay unit-testable.
 
 import { z } from 'zod';
 import { spawnSync } from 'node:child_process';
 
-// 40-char lowercase hex SHA (full git sha-1). Short SHAs are not
-// accepted here because GitHub Actions always provides full SHAs in
-// GITHUB_SHA and workflow_run.head_sha; rejecting anything else
-// catches misconfigured callers early.
 const fullShaSchema = z.string().regex(/^[0-9a-f]{40}$/, 'must be 40 hex chars');
 
 export const ciEnvSchema = z.object({
   GITHUB_EVENT_NAME: z.string().min(1, 'event name required'),
   GITHUB_SHA: fullShaSchema,
   // GitHub Actions yields an EMPTY STRING (not undefined) for
-  // ${{ github.event.workflow_run.head_sha }} on non-workflow_run events
-  // (e.g. workflow_dispatch). Zod .optional() only tolerates undefined, so a
-  // raw empty string would fail the 40-hex-char check and crash the deploy.
-  // Normalize '' -> undefined at the boundary so any caller (dispatch or
-  // workflow_run) parses correctly; pickCurrentSha then falls back to
-  // GITHUB_SHA when the value is absent.
+  // \${{ github.event.workflow_run.head_sha }} on non-workflow_run events.
+  // Normalize '' -> undefined so dispatch and workflow_run both parse; then
+  // pickCurrentSha falls back to GITHUB_SHA when the value is absent.
   WORKFLOW_RUN_HEAD_SHA: z.preprocess(
     (v) => (v === '' ? undefined : v),
     fullShaSchema.optional(),
@@ -39,11 +43,9 @@ export const ciEnvSchema = z.object({
 
 export type CiEnv = z.infer<typeof ciEnvSchema>;
 
-// Pick the SHA we are resolving a base FOR. For workflow_run events,
-// the workflow itself runs from main's tip, but the SHA whose change-
-// set we want to detect is the head_sha of the upstream run that
-// triggered us (which may have moved past main's tip if a newer
-// commit landed). For everything else, GITHUB_SHA is correct.
+// Pick the SHA we are resolving a base FOR. For workflow_run events the SHA of
+// interest is the head_sha of the upstream run that triggered us (which may
+// have moved past main's tip); for everything else GITHUB_SHA is correct.
 export function pickCurrentSha(env: CiEnv): string {
   if (env.GITHUB_EVENT_NAME === 'workflow_run' && env.WORKFLOW_RUN_HEAD_SHA) {
     return env.WORKFLOW_RUN_HEAD_SHA;
@@ -51,31 +53,45 @@ export function pickCurrentSha(env: CiEnv): string {
   return env.GITHUB_SHA;
 }
 
-export type ResolveStrategy = 'parent' | 'self-fallback';
+export type ResolveStrategy = 'last-deployed' | 'parent' | 'self-fallback';
 
 export interface ResolvedBase {
   baseSha: string;
   strategy: ResolveStrategy;
 }
 
-// Pure resolution: given a current SHA and its parent (or null/empty
-// if no parent is reachable), produce the SHA to hand to paths-filter
-// as 'base'. The self-fallback path means paths-filter will compare
-// the current SHA to itself -> empty diff -> all service filters
-// report no changes -> all deploys skip. That is the correct safe
-// default for an initial commit or a shallow clone that did not
-// fetch HEAD~1.
-export function resolveBaseSha(currentSha: string, parentSha: string | null): ResolvedBase {
-  if (parentSha === null || parentSha === '') {
-    return { baseSha: currentSha, strategy: 'self-fallback' };
+// Pure resolution. Precedence:
+//   1. last-deployed -- when a prior successful deploy SHA is known AND differs
+//      from current. Diffing last-deployed..current is the complete change
+//      window since the service last shipped; this is the fix for the one-
+//      commit-window under-build.
+//   2. parent -- the previous behavior, used when there is no usable last-
+//      deployed SHA (no prior deploy, or the last deploy WAS this commit, e.g.
+//      a re-run/no-op redeploy where current..current would skip everything).
+//   3. self-fallback -- neither a last-deployed nor a parent SHA is available
+//      (initial commit, or a clone too shallow to resolve HEAD~1). paths-filter
+//      then compares current to itself -> empty diff -> all services skip, the
+//      safe default.
+// Empty strings are treated as absent for both optional inputs.
+export function resolveBaseSha(
+  currentSha: string,
+  parentSha: string | null,
+  lastDeployedSha: string | null = null,
+): ResolvedBase {
+  const deployed = lastDeployedSha === '' ? null : lastDeployedSha;
+  if (deployed !== null && deployed !== currentSha) {
+    return { baseSha: deployed, strategy: 'last-deployed' };
   }
-  return { baseSha: parentSha, strategy: 'parent' };
+  const parent = parentSha === '' ? null : parentSha;
+  if (parent !== null) {
+    return { baseSha: parent, strategy: 'parent' };
+  }
+  return { baseSha: currentSha, strategy: 'self-fallback' };
 }
 
-// Side-effecting helper used only from main(). spawnSync is fine here
-// because we never call it from the pure exports above. Returns null
-// on any failure (initial commit, shallow clone without HEAD~1,
-// missing git, etc.) so resolveBaseSha can pick the fallback path.
+// Side-effecting: resolve the current SHA's parent. Returns null on any failure
+// (initial commit, shallow clone without HEAD~1, missing git) so resolveBaseSha
+// can pick a fallback. Used only from main().
 function tryGetParentSha(currentSha: string): string | null {
   const r = spawnSync('git', ['rev-parse', '--verify', currentSha + '^'], {
     encoding: 'utf-8',
@@ -85,9 +101,77 @@ function tryGetParentSha(currentSha: string): string | null {
   return /^[0-9a-f]{40}$/.test(out) ? out : null;
 }
 
-// CLI entrypoint: read env, resolve, emit ONLY the base SHA to stdout
-// (logs go to stderr) so a GitHub Actions step can capture it via
-// BASE_SHA=$(pnpm exec tsx scripts/ci/resolve-ci-sha.ts).
+// Side-effecting: find the head_sha of the most recent SUCCESSFUL run of this
+// same deploy workflow, EXCLUDING the current run (so a re-run does not resolve
+// to itself). Queries the GitHub REST API with the Actions-provided token.
+// Returns null on any failure (no token, API error, no prior successful run,
+// malformed payload) so resolveBaseSha falls back to the parent window. Used
+// only from main().
+//
+// Env inputs (all provided by the Actions runtime):
+//   GITHUB_API_URL       e.g. https://api.github.com
+//   GITHUB_REPOSITORY    owner/repo
+//   GITHUB_TOKEN         the job token (needs actions:read)
+//   GITHUB_RUN_ID        the current run, excluded from the search
+//   DEPLOY_WORKFLOW_FILE the workflow file name to scope the query
+function tryGetLastDeployedSha(currentSha: string): string | null {
+  const apiUrl = process.env.GITHUB_API_URL;
+  const repo = process.env.GITHUB_REPOSITORY;
+  const token = process.env.GITHUB_TOKEN;
+  const runId = process.env.GITHUB_RUN_ID;
+  const workflowFile = process.env.DEPLOY_WORKFLOW_FILE;
+  if (!apiUrl || !repo || !token || !workflowFile) {
+    console.error('resolve-ci-sha: last-deployed lookup skipped (missing api/repo/token/workflow env)');
+    return null;
+  }
+  // Ask for successful runs of just this workflow, newest first. curl keeps the
+  // module dependency-free (no octokit); spawnSync stays off the pure exports.
+  const endpoint = apiUrl + '/repos/' + repo + '/actions/workflows/' +
+    encodeURIComponent(workflowFile) + '/runs?status=success&per_page=20';
+  const r = spawnSync('curl', [
+    '--silent', '--show-error', '--fail',
+    '-H', 'Accept: application/vnd.github+json',
+    '-H', 'Authorization: Bearer ' + token,
+    '-H', 'X-GitHub-Api-Version: 2022-11-28',
+    endpoint,
+  ], { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
+  if (r.status !== 0) {
+    console.error('resolve-ci-sha: last-deployed API call failed: ' + (r.stderr || '').trim());
+    return null;
+  }
+  let payload: unknown;
+  try {
+    payload = JSON.parse(r.stdout || '');
+  } catch {
+    console.error('resolve-ci-sha: last-deployed payload was not JSON');
+    return null;
+  }
+  const runsSchema = z.object({
+    workflow_runs: z.array(z.object({
+      id: z.number(),
+      head_sha: z.string(),
+      conclusion: z.string().nullable(),
+    })),
+  });
+  const parsed = runsSchema.safeParse(payload);
+  if (!parsed.success) {
+    console.error('resolve-ci-sha: last-deployed payload shape unexpected');
+    return null;
+  }
+  const currentRunId = runId ? Number(runId) : NaN;
+  for (const run of parsed.data.workflow_runs) {
+    if (run.conclusion !== 'success') continue;
+    if (!Number.isNaN(currentRunId) && run.id === currentRunId) continue;
+    if (run.head_sha === currentSha) continue;
+    if (/^[0-9a-f]{40}$/.test(run.head_sha)) return run.head_sha;
+  }
+  console.error('resolve-ci-sha: no prior successful deploy run found');
+  return null;
+}
+
+// CLI entrypoint: read env, resolve, emit ONLY the base SHA to stdout (logs to
+// stderr) so a GitHub Actions step can capture it via
+// BASE_SHA=\$(pnpm run --silent ci:resolve-sha).
 function main(): void {
   const parsed = ciEnvSchema.safeParse({
     GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME,
@@ -99,16 +183,18 @@ function main(): void {
     process.exit(1);
   }
   const currentSha = pickCurrentSha(parsed.data);
+  const lastDeployedSha = tryGetLastDeployedSha(currentSha);
   const parentSha = tryGetParentSha(currentSha);
-  const resolved = resolveBaseSha(currentSha, parentSha);
+  const resolved = resolveBaseSha(currentSha, parentSha, lastDeployedSha);
   console.error('resolve-ci-sha: event=' + parsed.data.GITHUB_EVENT_NAME +
     ' current=' + currentSha.slice(0, 7) +
+    ' lastDeployed=' + (lastDeployedSha ? lastDeployedSha.slice(0, 7) : 'none') +
+    ' parent=' + (parentSha ? parentSha.slice(0, 7) : 'none') +
     ' base=' + resolved.baseSha.slice(0, 7) +
     ' strategy=' + resolved.strategy);
   process.stdout.write(resolved.baseSha + '\n');
 }
 
-// Only run main() when invoked as a script, not when imported by tests.
 const isDirectInvocation = process.argv[1]?.endsWith('resolve-ci-sha.ts');
 if (isDirectInvocation) {
   main();

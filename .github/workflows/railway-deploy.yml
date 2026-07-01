@@ -61,6 +61,10 @@ on:
 
 permissions:
   contents: read
+  # actions: read lets the base-SHA resolver query this workflow's own run
+  # history (GitHub Actions API) to find the last successful deploy SHA per the
+  # dependency-aware change-detection strategy in scripts/ci/resolve-ci-sha.ts.
+  actions: read
 
 concurrency:
   group: deploy-railway-${{ github.ref }}
@@ -111,6 +115,17 @@ jobs:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_SHA: ${{ github.sha }}
           WORKFLOW_RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          # Inputs for the last-successfully-deployed-SHA lookup (dependency-
+          # aware change detection). The resolver queries this same workflow's
+          # run history via the Actions API and diffs last-deployed..current so
+          # an app change separated from the deploy trigger by an intervening
+          # commit is not diffed out of the window. Falls back to the parent
+          # window if any of these is absent or the API call fails.
+          GITHUB_API_URL: ${{ github.api_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          DEPLOY_WORKFLOW_FILE: railway-deploy.yml
         run: |
           BASE_SHA=$(pnpm run --silent ci:resolve-sha)
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
