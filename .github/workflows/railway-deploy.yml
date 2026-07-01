@@ -261,12 +261,23 @@ jobs:
           echo "ops-web /login -> $code"
           [ "$code" = '200' ] || { echo '::error::ops-web /login not 200'; exit 1; }
       - name: Cancel Server Action regression tripwire
-        # The exact production crash this gate exists for: an unauthenticated
-        # Server Action POST to a protected dispatch route must NOT 404 with
-        # x-nextjs-action-not-found (the proxy diverting the action to /login).
-        # The fix makes the proxy pass Server Actions through and the action
-        # self-authenticate (redirect to /login). A regression reintroducing the
-        # rewrite shows up here as a 404 + x-nextjs-action-not-found header.
+        # The review-view Cancel crash was caused by the proxy DIVERTING the
+        # Server Action POST to /login: Next.js cannot forward a rewrite for a
+        # Server Action, so the action client received the /login payload and
+        # threw. The unique on-the-wire signature of that bug is the response
+        # header x-middleware-rewrite: /login on a Server Action POST (proven
+        # live in the original incident). The fix makes the proxy pass Server
+        # Actions through, so that header MUST be absent.
+        #
+        # NOTE: we deliberately do NOT assert on x-nextjs-action-not-found.
+        # That header is Next's normal response to any unknown/ malformed action
+        # id -- including the synthetic all-zero id this probe must use (a real,
+        # valid action id cannot be forged from CI). A healthy, fixed app still
+        # returns x-nextjs-action-not-found for a bogus id, and bots routinely
+        # trip it, so it cannot distinguish fixed from broken. The full valid-
+        # action + expired-session flow is covered by the e2e spec
+        # dispatch-order-cancel-expired-session.spec.ts, which is the correct
+        # place for end-to-end Server Action verification.
         run: |
           tmp=$(mktemp)
           code=$(curl -s -o /dev/null -D "$tmp" -w '%{http_code}' \
@@ -277,9 +288,9 @@ jobs:
             --data '[]' || echo 000)
           echo "cancel Server Action POST -> HTTP $code"
           echo '--- response headers ---'; cat "$tmp"
-          if grep -qi 'x-nextjs-action-not-found' "$tmp"; then
-            echo '::error::REGRESSION: Server Action returned x-nextjs-action-not-found (proxy diverting actions to /login again). The cancel crash has returned.'
+          if grep -qi 'x-middleware-rewrite:[[:space:]]*/login' "$tmp"; then
+            echo '::error::REGRESSION: Server Action POST carries x-middleware-rewrite: /login -- the proxy is diverting Server Actions to /login again. The cancel crash has returned.'
             rm -f "$tmp"; exit 1
           fi
           rm -f "$tmp"
-          echo 'Server Action path healthy (no action-not-found rewrite).'
+          echo 'Server Action path healthy (proxy is NOT diverting actions to /login).'
