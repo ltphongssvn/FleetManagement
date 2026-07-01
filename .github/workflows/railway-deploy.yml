@@ -229,3 +229,57 @@ jobs:
           sleep 30
           railway logs --service worker --build 2>&1 | tail -50 || true
           echo 'worker deploy submitted; verify logs above show Started N workers'
+
+  post-deploy-smoke:
+    # Post-deploy smoke gate (2026 CD best practice: a fast critical-path check
+    # AFTER deploy, distinct from the per-service liveness probes above which
+    # only confirm the server answers). The review-view Cancel crash shipped
+    # precisely because /login returned 200 the whole time while the Server
+    # Action POST path was throwing -- liveness was green, the journey was
+    # broken. This job exercises the critical path itself and fails the run
+    # loudly on regression. Tolerant chaining mirrors the deploy jobs: it runs
+    # whenever the upstream deploys succeeded or were skipped (so a no-op
+    # change set still smoke-checks the already-live site).
+    name: Post-deploy smoke (critical paths)
+    needs: [gate, deploy-api, deploy-ops-web, deploy-worker]
+    if: >
+      always() &&
+      needs.gate.outputs.has_token == 'true' &&
+      (needs.deploy-api.result == 'success' || needs.deploy-api.result == 'skipped') &&
+      (needs.deploy-ops-web.result == 'success' || needs.deploy-ops-web.result == 'skipped') &&
+      (needs.deploy-worker.result == 'success' || needs.deploy-worker.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: API health is ready
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://api-production-fd42.up.railway.app/health/ready || echo 000)
+          echo "api /health/ready -> $code"
+          [ "$code" = '200' ] || { echo '::error::api /health/ready not 200'; exit 1; }
+      - name: ops-web login renders
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://xe.vominhchau.com/login || echo 000)
+          echo "ops-web /login -> $code"
+          [ "$code" = '200' ] || { echo '::error::ops-web /login not 200'; exit 1; }
+      - name: Cancel Server Action regression tripwire
+        # The exact production crash this gate exists for: an unauthenticated
+        # Server Action POST to a protected dispatch route must NOT 404 with
+        # x-nextjs-action-not-found (the proxy diverting the action to /login).
+        # The fix makes the proxy pass Server Actions through and the action
+        # self-authenticate (redirect to /login). A regression reintroducing the
+        # rewrite shows up here as a 404 + x-nextjs-action-not-found header.
+        run: |
+          tmp=$(mktemp)
+          code=$(curl -s -o /dev/null -D "$tmp" -w '%{http_code}' \
+            -X POST 'https://xe.vominhchau.com/dispatch/orders/XTT.05-002' \
+            -H 'Next-Action: 00000000000000000000000000000000000000000' \
+            -H 'Accept: text/x-component' \
+            -H 'Content-Type: text/plain;charset=UTF-8' \
+            --data '[]' || echo 000)
+          echo "cancel Server Action POST -> HTTP $code"
+          echo '--- response headers ---'; cat "$tmp"
+          if grep -qi 'x-nextjs-action-not-found' "$tmp"; then
+            echo '::error::REGRESSION: Server Action returned x-nextjs-action-not-found (proxy diverting actions to /login again). The cancel crash has returned.'
+            rm -f "$tmp"; exit 1
+          fi
+          rm -f "$tmp"
+          echo 'Server Action path healthy (no action-not-found rewrite).'
