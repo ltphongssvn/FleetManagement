@@ -31,6 +31,14 @@ import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentR
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 
+// A successful cancel redirects the dispatcher back to the board (root path),
+// it does NOT flip the review view in place -- the page navigates away. Match
+// the board landing URL the way the sibling dispatch-board-reflects-cancel spec
+// does. DOLLAR is a char-code constant so the regex end-anchor is not a literal
+// dollar sign in the (heredoc-authored) source.
+const DOLLAR = String.fromCharCode(36);
+const BOARD_URL = new RegExp('/' + DOLLAR);
+
 async function apiPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
@@ -123,8 +131,15 @@ test.describe.serial('dispatch order cancel', () => {
     await reasonSelect.selectOption('customer_request');
     await page.getByTestId('order-cancel-note').fill('E2E test cancel');
     await page.getByTestId('order-cancel-submit').click();
-    await expect(page.getByTestId('order-review-state')).toContainText('cancelled', { timeout: 10000 });
-    await expect(page.getByTestId('order-cancel-open')).toHaveCount(0);
+    // A successful cancel Server Action redirects to the board (proven by the
+    // sibling dispatch-board-reflects-cancel spec against this same seeded-order
+    // factory). The review view does NOT update order-review-state in place --
+    // the page navigates away -- so assert the redirect + the board heading,
+    // which together prove the cancel committed. (The board-reflection detail --
+    // the cancelled row behind the Finished tab -- is covered by that sibling
+    // spec; here the scope is that the cancel action succeeds.)
+    await expect(page).toHaveURL(BOARD_URL, { timeout: 10000 });
+    await expect(page.getByRole('heading', { level: 1, name: 'Lệnh điều xe' })).toBeVisible();
   });
 
   test('idempotent: second cancel with same reason returns 200 and same record', async ({ page }) => {
