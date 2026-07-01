@@ -35,7 +35,15 @@ name: Deploy to Railway
 
 on:
   workflow_run:
-    workflows: ['CI']
+    # Gate on E2E (Playwright), not CI: the merge-to-main E2E run is the
+    # production quality gate (2026 CD practice -- nothing ships to prod until
+    # the critical user journeys pass against the merged main state). E2E only
+    # runs after the build/CI succeeds, so an E2E success implies CI success;
+    # keying the deploy on E2E means a broken critical flow BLOCKS the deploy
+    # instead of shipping and merely turning a status badge red afterward.
+    # (Previously keyed on CI, which finished before E2E, so the deploy raced
+    # ahead and the E2E-on-main run gated nothing.)
+    workflows: ['E2E (Playwright)']
     branches: [main]
     types: [completed]
   workflow_dispatch:
