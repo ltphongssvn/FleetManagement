@@ -145,12 +145,12 @@
       "env": ["STRYKER_*"],
       "outputLogs": "new-only"
     },
-    "test:e2e": {
-      "description": "End-to-end tests (Playwright). Owns playwright-report/**. Never cached until migration-hash wired (ADR-001).",
-      "dependsOn": ["build", "^build"],
+    "//#test:e2e": {
+      "description": "End-to-end tests (Playwright), repo-root task. The playwright config lives at the repo root (testDir ./e2e, workers 1) and the spec-runner is the root 'test:e2e' script, so this spans packages and MUST be root-scoped (the '//#' prefix). A prior package-level 'test:e2e' task was dead: no package exposes a test:e2e script, so 'turbo run test:e2e --filter=@fleet/ops-web' ran zero tasks. env declares the vars the e2e run actually reads (E2E_* base/api URLs, OIDC_* for the IdP authorize flow, PLAYWRIGHT_* runtime) so they pass the envMode:strict boundary; the old task listed DATABASE_URL/API_BASE_URL/TESTCONTAINERS_* which the Playwright run does not consume. Owns playwright-report/**. cache:false until a migration-hash key is wired (ADR-001).",
       "cache": false,
-      "env": ["DATABASE_URL", "REDIS_URL", "API_BASE_URL", "TESTCONTAINERS_*"]
-    },
+      "env": ["E2E_*", "OIDC_*", "PLAYWRIGHT_*"]
+    }
+,
     "__ci_fast__": {
       "description": "PR gate orchestration node — lint + typecheck + test:unit + codemod drift gate. Double-underscore prevents package-script collision. Expose via root package.json script 'ci:fast' for friendly CLI. CI workflow should matrix-split (ADR-001).",
       "dependsOn": ["lint", "typecheck", "test:unit", "//#codemod:check"],
@@ -163,7 +163,7 @@
     },
     "__ci_release__": {
       "description": "Release/nightly gate orchestration node — cumulative on __ci_full__ + test:e2e.",
-      "dependsOn": ["__ci_full__", "test:e2e"],
+      "dependsOn": ["__ci_full__", "//#test:e2e"],
       "cache": false
     },
     "__ci__": {
