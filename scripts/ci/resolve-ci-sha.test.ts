@@ -1,13 +1,21 @@
 // scripts/ci/resolve-ci-sha.test.ts
-// Outside-in RED: contract for the SHA-resolution logic that the
-// railway-deploy.yml gate job needs to feed dorny/paths-filter@v3. The
-// inline 'base: HEAD~1' in YAML failed under workflow_run context with
-// 'git failed exit 128' because paths-filter tried to merge-base HEAD~1
-// against a non-existent local ref (the merge commit's source branch
-// lineage). Extracting the resolution into a pure TS function makes
-// the logic unit-testable across the git states that bit us (shallow
-// clone, workflow_run, workflow_dispatch, initial commit) without
-// pushing to remote. Imports a module that does not exist yet -> RED.
+// Contract for the SHA-resolution logic that the railway-deploy.yml gate job
+// feeds to dorny/paths-filter@v4 as its diff base.
+//
+// Original bug: inline 'base: HEAD~1' under workflow_run context exit-128'd
+// (merge-base HEAD~1 against a ref absent from the shallow clone). Fixed by
+// pre-resolving to a real commit SHA in a pure, unit-tested function.
+//
+// This revision (2026): the parent-only base is a ONE-COMMIT diff window. If an
+// app change landed a promote-cycle back, or was separated from the deploy
+// trigger by an intervening CI-infra commit, the parent..current diff misses it
+// -> paths-filter reports the service unchanged -> a stale image ships (the
+// exact ops-web under-build we hit). The fix makes the base the last
+// SUCCESSFULLY-DEPLOYED SHA when one is known: diffing last-deployed..current
+// captures the COMPLETE change set since that service last shipped, immune to
+// intervening commits, without needing full git history (so the shallow-clone
+// gate is preserved). Precedence: last-deployed (when known and != current) ->
+// parent -> self-fallback.
 
 import { describe, it, expect } from 'vitest';
 import {
@@ -19,6 +27,7 @@ import {
 const VALID_SHA = 'a'.repeat(40);
 const OTHER_SHA = 'b'.repeat(40);
 const PARENT_SHA = 'c'.repeat(40);
+const DEPLOYED_SHA = 'd'.repeat(40);
 
 describe('ciEnvSchema', () => {
   it('accepts a valid push event env', () => {
@@ -54,10 +63,6 @@ describe('ciEnvSchema', () => {
 });
 
 describe('pickCurrentSha', () => {
-  // The workflow_run event runs from main's HEAD, but the SHA we want
-  // to resolve a base FOR is the commit that triggered the upstream CI
-  // run -- which may or may not still be main's tip. Prefer
-  // workflow_run.head_sha when present; otherwise github.sha.
   it('returns workflow_run.head_sha for workflow_run events', () => {
     const env = ciEnvSchema.parse({
       GITHUB_EVENT_NAME: 'workflow_run',
@@ -81,9 +86,6 @@ describe('pickCurrentSha', () => {
     expect(pickCurrentSha(env)).toBe(VALID_SHA);
   });
   it('falls back to GITHUB_SHA when workflow_run head_sha is missing', () => {
-    // Defensive: if workflow_run fires but the head_sha env var did
-    // not propagate (e.g. an upstream workflow that did not surface
-    // it), we still need a usable SHA. github.sha is the next-best.
     const env = ciEnvSchema.parse({
       GITHUB_EVENT_NAME: 'workflow_run',
       GITHUB_SHA: VALID_SHA,
@@ -91,12 +93,6 @@ describe('pickCurrentSha', () => {
     expect(pickCurrentSha(env)).toBe(VALID_SHA);
   });
   it('falls back to GITHUB_SHA when workflow_run head_sha is an EMPTY STRING', () => {
-    // Regression: GitHub Actions yields '' (not undefined) for
-    // ${{ github.event.workflow_run.head_sha }} when the deploy workflow is
-    // invoked via workflow_dispatch (e.g. the auto-promote dispatch). The
-    // schema must normalize '' -> undefined so parsing succeeds and we fall
-    // back to GITHUB_SHA, instead of crashing on the 40-hex-char check (which
-    // failed the production deploy after a release promotion).
     const env = ciEnvSchema.parse({
       GITHUB_EVENT_NAME: 'workflow_dispatch',
       GITHUB_SHA: VALID_SHA,
@@ -108,36 +104,61 @@ describe('pickCurrentSha', () => {
 });
 
 describe('resolveBaseSha', () => {
-  // The decisive bug: paths-filter v3 'base: HEAD~1' under workflow_run
-  // context tried merge-base HEAD~1 develop and exit-128'd. The fix is
-  // to pre-resolve HEAD~1 to a real commit SHA in a step BEFORE the
-  // paths-filter step. This pure function encodes the deterministic
-  // fallback rules for the cases where no parent exists (initial
-  // commit, shallow clone too shallow, git command failure).
-  it('returns parent SHA when one is provided (normal case)', () => {
-    const r = resolveBaseSha(VALID_SHA, PARENT_SHA);
+  // Precedence: last-deployed (when known and != current) -> parent ->
+  // self-fallback. The last-deployed base is the fix for the one-commit-window
+  // under-build; parent and self-fallback are retained for the no-prior-deploy
+  // and initial-commit cases.
+
+  it('prefers the last-deployed SHA when one is known (the fix)', () => {
+    // A prior successful deploy exists -> diff last-deployed..current, the
+    // COMPLETE change window since that service last shipped. This is what
+    // catches an app change that an intervening CI-infra commit would have
+    // pushed outside the parent..current window.
+    const r = resolveBaseSha(VALID_SHA, PARENT_SHA, DEPLOYED_SHA);
+    expect(r.baseSha).toBe(DEPLOYED_SHA);
+    expect(r.strategy).toBe('last-deployed');
+  });
+  it('uses last-deployed even when there is no parent', () => {
+    const r = resolveBaseSha(VALID_SHA, null, DEPLOYED_SHA);
+    expect(r.baseSha).toBe(DEPLOYED_SHA);
+    expect(r.strategy).toBe('last-deployed');
+  });
+  it('falls through to parent when last-deployed EQUALS current (re-run/no new deploy)', () => {
+    // The current commit was itself the last successful deploy (a re-run or a
+    // no-op redeploy). Diffing current..current would skip everything; fall to
+    // the parent window instead so a genuine change is still detected.
+    const r = resolveBaseSha(VALID_SHA, PARENT_SHA, VALID_SHA);
     expect(r.baseSha).toBe(PARENT_SHA);
     expect(r.strategy).toBe('parent');
   });
-  it('falls back to current SHA when no parent exists (initial commit)', () => {
-    // No parent -> paths-filter compares current SHA to itself ->
-    // empty diff -> all service filters report no changes -> all
-    // deploys skip. Safe default for a freshly-initialized repo.
-    const r = resolveBaseSha(VALID_SHA, null);
+  it('falls through to parent when last-deployed is null (no prior deploy)', () => {
+    const r = resolveBaseSha(VALID_SHA, PARENT_SHA, null);
+    expect(r.baseSha).toBe(PARENT_SHA);
+    expect(r.strategy).toBe('parent');
+  });
+  it('returns parent SHA when one is provided and no last-deployed (normal case)', () => {
+    const r = resolveBaseSha(VALID_SHA, PARENT_SHA, null);
+    expect(r.baseSha).toBe(PARENT_SHA);
+    expect(r.strategy).toBe('parent');
+  });
+  it('falls back to current SHA when neither last-deployed nor parent exists (initial commit)', () => {
+    const r = resolveBaseSha(VALID_SHA, null, null);
     expect(r.baseSha).toBe(VALID_SHA);
     expect(r.strategy).toBe('self-fallback');
   });
-  it('falls back to current SHA when parent is empty string', () => {
-    // Defensive: git rev-parse HEAD~1 may emit empty string on
-    // shallow clones rather than failing outright; normalize that
-    // to the same fallback path as null.
-    const r = resolveBaseSha(VALID_SHA, '');
+  it('falls back to current SHA when parent is empty string and no last-deployed', () => {
+    const r = resolveBaseSha(VALID_SHA, '', null);
     expect(r.baseSha).toBe(VALID_SHA);
     expect(r.strategy).toBe('self-fallback');
+  });
+  it('treats an empty-string last-deployed as absent (falls to parent)', () => {
+    const r = resolveBaseSha(VALID_SHA, PARENT_SHA, '');
+    expect(r.baseSha).toBe(PARENT_SHA);
+    expect(r.strategy).toBe('parent');
   });
   it('is deterministic for the same input', () => {
-    const a = resolveBaseSha(VALID_SHA, PARENT_SHA);
-    const b = resolveBaseSha(VALID_SHA, PARENT_SHA);
+    const a = resolveBaseSha(VALID_SHA, PARENT_SHA, DEPLOYED_SHA);
+    const b = resolveBaseSha(VALID_SHA, PARENT_SHA, DEPLOYED_SHA);
     expect(a).toEqual(b);
   });
 });
