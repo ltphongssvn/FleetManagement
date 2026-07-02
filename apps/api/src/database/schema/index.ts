@@ -105,3 +105,8 @@ export {
   type DriverPasswordResetLog,
   type NewDriverPasswordResetLog,
 } from './driver-password-reset-log.js';
+export {
+  keycloakEventPollCursor,
+  type KeycloakEventPollCursor,
+  type NewKeycloakEventPollCursor,
+} from './keycloak-event-poll-cursor.js';
