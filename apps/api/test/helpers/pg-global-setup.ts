@@ -48,6 +48,17 @@ export default async function setup(project: TestProject): Promise<() => Promise
     .withDatabase('fleet_test_bootstrap')
     .withReuse()
     .withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/, 2))
+    // Raise max_connections above the Postgres default of 100. The single
+    // shared container serves EVERY test file in parallel under the coverage
+    // gate; each file opens an admin pool (for CREATE DATABASE ... TEMPLATE)
+    // plus a per-file app pool, so concurrent connections exceed 100 at peak
+    // load and Postgres refuses the overflow -> intermittent ECONNREFUSED on
+    // adminPool.connect() (only 3/238 files, only under full pnpm -r load,
+    // never in isolation). 200 gives comfortable headroom and stays within
+    // the 2 GB / 512 MB shm caps below. The -c flag passes through the image
+    // entrypoint (docker-entrypoint.sh runs the postgres binary with our
+    // the module's own setup are unaffected.
+    .withCommand(['postgres', '-c', 'max_connections=200'])
     // 2026 production-grade resource caps (oneuptime.com 2026-02, 2026-04):
     // explicit cgroup bounds eliminate the resource-contention OOM/exhaustion
     // that recurrently took the shared container down mid-run during long
