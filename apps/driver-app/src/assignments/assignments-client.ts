@@ -12,6 +12,8 @@
 // sequence so the driver app workflow is a 1-1 match with the form. The legacy
 // pickupName/deliveryName remain (first pickup / last drop) for backward
 // compatibility, but stops[] is the authoritative ordered list.
+import { DriverCompletedPageResponseSchema } from '@fleet/sync-protocol';
+import type { DriverCompletedPageQuery, DriverCompletedPageResponse } from '@fleet/sync-protocol';
 export type FetchFn = typeof globalThis.fetch;
 export interface StopRow {
   readonly sequence: number;
@@ -134,5 +136,20 @@ export class AssignmentsClient {
     const months = (raw as { months?: unknown }).months;
     if (!Array.isArray(months)) throw new Error('Response: months must be array');
     return months.map(parseMonth);
+  }
+
+  // Paginated + searchable archive of the driver's COMPLETED runs. Builds the
+  // query string from the SSOT query shape (page/pageSize + optional search),
+  // then parses the response envelope through DriverCompletedPageResponseSchema
+  // at the trust boundary (schema-first: ONE contract validates the wire, and
+  // the return type is z.infer of that same schema). Unlike list()/tripHistory()
+  // this read has no hand-rolled parser -- the shared contract IS the parser.
+  async completed(query: DriverCompletedPageQuery): Promise<DriverCompletedPageResponse> {
+    const params = new URLSearchParams();
+    params.set('page', String(query.page));
+    params.set('pageSize', String(query.pageSize));
+    if (query.search !== undefined) params.set('search', query.search);
+    const raw = await this.getJson('/transport-orders/completed?' + params.toString());
+    return DriverCompletedPageResponseSchema.parse(raw);
   }
 }

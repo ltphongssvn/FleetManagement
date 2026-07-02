@@ -6,6 +6,10 @@
 // projection inline before returning, so the ops-web dispatcher's board
 // reflects the new row immediately when the action settles. Mirrors the
 // pattern used by TransportOrdersCancelController (T5).
+//
+// Driver pagination (2026): the completed endpoint parses its raw query string
+// through the SSOT DriverCompletedPageQuerySchema at the trust boundary
+// (coerce + defaults + .strict()) and delegates to svc.listCompleted.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TransportOrdersController } from '../src/transport-orders/transport-orders.controller.js';
 import type { TransportOrdersService } from '../src/transport-orders/transport-orders.service.js';
@@ -15,6 +19,7 @@ const op: OperatorContext = createOperatorContext();
 describe('@fleet/api - TransportOrdersController', () => {
   let create: ReturnType<typeof vi.fn>;
   let listAssigned: ReturnType<typeof vi.fn>;
+  let listCompleted: ReturnType<typeof vi.fn>;
   let tripHistory: ReturnType<typeof vi.fn>;
   let drainOnce: ReturnType<typeof vi.fn>;
   let svc: TransportOrdersService;
@@ -23,9 +28,10 @@ describe('@fleet/api - TransportOrdersController', () => {
   beforeEach(() => {
     create = vi.fn();
     listAssigned = vi.fn();
+    listCompleted = vi.fn();
     tripHistory = vi.fn();
     drainOnce = vi.fn().mockResolvedValue({ scope: op.companyId, polled: 1, applied: 1, noops: 0, deletes: 0, newWatermark: '1' });
-    svc = { create, listAssigned, tripHistory } as unknown as TransportOrdersService;
+    svc = { create, listAssigned, listCompleted, tripHistory } as unknown as TransportOrdersService;
     runner = { drainOnce };
     ctl = new TransportOrdersController(svc, runner as never);
   });
@@ -63,6 +69,24 @@ describe('@fleet/api - TransportOrdersController', () => {
     const result = await ctl.tripHistory(op);
     expect(result).toEqual({ months });
     expect(tripHistory).toHaveBeenCalledWith(op);
+  });
+  it('listCompleted parses the raw query via the SSOT schema and delegates to the service', async () => {
+    const envelope = { data: [], page: 2, pageSize: 20, total: 0, totalPages: 0, hasMore: false };
+    listCompleted.mockResolvedValue(envelope);
+    const result = await ctl.listCompleted(op, { page: '2' });
+    expect(result).toEqual(envelope);
+    // raw string coerced + defaults applied by the schema before the service sees it
+    expect(listCompleted).toHaveBeenCalledWith(op, { page: 2, pageSize: 20 });
+  });
+  it('listCompleted preserves an optional search term through the schema', async () => {
+    const envelope = { data: [], page: 1, pageSize: 20, total: 0, totalPages: 0, hasMore: false };
+    listCompleted.mockResolvedValue(envelope);
+    await ctl.listCompleted(op, { search: 'XTT.06' });
+    expect(listCompleted).toHaveBeenCalledWith(op, { page: 1, pageSize: 20, search: 'XTT.06' });
+  });
+  it('listCompleted rejects a stray query key via .strict()', async () => {
+    await expect(ctl.listCompleted(op, { group: 'finished' })).rejects.toThrow();
+    expect(listCompleted).not.toHaveBeenCalled();
   });
   it('drains the projection runner for the caller company after a successful create so the dispatch board reflects the new row before the response returns', async () => {
     create.mockResolvedValue({ transportOrderId: 'to-1', roadRunId: 'rr-1', externalRef: 'XTT.05-001' });
