@@ -2,6 +2,7 @@
 // TDD RED: AssignmentsClient fetches GET /transport-orders/assigned with bearer token.
 import { describe, it, expect, vi } from 'vitest';
 import { AssignmentsClient } from '../src/assignments/assignments-client.js';
+import { DriverCompletedPageResponseSchema } from '@fleet/sync-protocol';
 
 describe('AssignmentsClient', () => {
   it('GETs /transport-orders/assigned with bearer token', async () => {
@@ -211,5 +212,65 @@ describe('AssignmentsClient mutation-hardening', () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ rows: 'not-array' }) });
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow(/Response: rows must be array/);
+  });
+});
+
+describe('AssignmentsClient.completed', () => {
+  const okEnvelope = (over: Record<string, unknown>): { ok: true; json: () => Promise<unknown> } => ({
+    ok: true,
+    json: () => Promise.resolve({
+      data: [{ transportOrderId: 'to-1', externalRef: 'XTT.06-008', roadRunId: 'rr-1', state: 'completed', plannedStartAt: null, createdAt: '2026-06-10T01:00:00.000Z', startedAt: null, completedAt: '2026-06-12T09:30:00.000Z', orderRef: 'XTT.06-008', plate: '62H 06209', customerName: 'ĐẠI THÀNH', cargoName: null, driverName: null, pickupName: null, deliveryName: null, stops: [] }],
+      page: 1, pageSize: 20, total: 1, totalPages: 1, hasMore: false,
+      ...over,
+    }),
+  });
+
+  it('GETs /transport-orders/completed with page + pageSize query and bearer token', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okEnvelope({}));
+    const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't0k', fetchFn: fetchFn as never });
+    const page = await client.completed({ page: 1, pageSize: 20 });
+    expect(fetchFn).toHaveBeenCalledWith('http://api/transport-orders/completed?page=1&pageSize=20', expect.objectContaining({
+      method: 'GET',
+      headers: expect.objectContaining({ Authorization: 'Bearer t0k' }),
+    }));
+    expect(page.total).toBe(1);
+    expect(page.data).toHaveLength(1);
+    expect(page.data[0]?.state).toBe('completed');
+    expect(page.hasMore).toBe(false);
+  });
+
+  it('serializes an optional search term into the query string', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okEnvelope({}));
+    const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    await client.completed({ page: 2, pageSize: 10, search: 'XTT.06' });
+    const calledUrl = fetchFn.mock.calls[0]?.[0] as string;
+    expect(calledUrl).toContain('/transport-orders/completed?');
+    expect(calledUrl).toContain('page=2');
+    expect(calledUrl).toContain('pageSize=10');
+    expect(calledUrl).toContain('search=XTT.06');
+  });
+
+  it('parses the envelope through the SSOT schema and returns typed rows', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okEnvelope({}));
+    const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    const page = await client.completed({ page: 1, pageSize: 20 });
+    // the returned shape validates against the contract
+    expect(() => DriverCompletedPageResponseSchema.parse(page)).not.toThrow();
+    expect(page.data[0]?.customerName).toBe('ĐẠI THÀNH');
+  });
+
+  it('throws on a non-ok HTTP status', async () => {
+    const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 401, statusText: 'Unauthorized' });
+    const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    await expect(client.completed({ page: 1, pageSize: 20 })).rejects.toThrow(/401/);
+  });
+
+  it('rejects a malformed envelope (missing hasMore) via the schema', async () => {
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: [{ transportOrderId: 'to-1', externalRef: 'XTT.06-008', roadRunId: 'rr-1', state: 'completed', plannedStartAt: null, createdAt: '2026-06-10T01:00:00.000Z', startedAt: null, completedAt: '2026-06-12T09:30:00.000Z', orderRef: 'XTT.06-008', plate: '62H 06209', customerName: 'ĐẠI THÀNH', cargoName: null, driverName: null, pickupName: null, deliveryName: null, stops: [] }], page: 1, pageSize: 20, total: 1, totalPages: 1 }),
+    });
+    const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    await expect(client.completed({ page: 1, pageSize: 20 })).rejects.toThrow();
   });
 });

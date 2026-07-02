@@ -3,15 +3,23 @@
 //
 // T3 (2026-Q2): after a successful create, drain the dispatch_board
 // projection inline before returning so the ops-web dispatcher's
-// Lệnh điều xe table reflects the new row immediately when the server
+// Lenh dieu xe table reflects the new row immediately when the server
 // action settles. Mirrors the pattern used by TransportOrdersCancelController
-// (T5) — the scheduler's 5s projection poll is too slow for an interactive
+// (T5) -- the scheduler's 5s projection poll is too slow for an interactive
 // create flow; without an inline drain the dispatcher must hit F5.
-import { Body, Controller, ForbiddenException, Get, Post, UseGuards } from '@nestjs/common';
+//
+// Driver reads (2026 status partition): GET /transport-orders/assigned returns
+// only ACTIVE runs (completed excluded so they stop polluting the live list);
+// GET /transport-orders/completed is the paginated + searchable archive of the
+// caller's completed runs. The completed route parses its raw query string
+// through the SSOT DriverCompletedPageQuerySchema at the trust boundary
+// (coerce + defaults + .strict()), then delegates to svc.listCompleted.
+import { Body, Controller, ForbiddenException, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import { CreateTransportOrderSchema, type CreateTransportOrderResponse, type ListAssignedResponse, type TripHistoryResponse } from './transport-orders.dto.js';
+import { DriverCompletedPageQuerySchema, type DriverCompletedPageResponse } from '@fleet/sync-protocol';
 import { TransportOrdersService } from './transport-orders.service.js';
 import { ProjectionRunnerService } from '../projections/projection-runner.service.js';
 @Controller('transport-orders')
@@ -38,6 +46,20 @@ export class TransportOrdersController {
   @Get('assigned')
   async listAssigned(@CurrentOperator() op: OperatorContext): Promise<ListAssignedResponse> {
     return this.svc.listAssigned(op);
+  }
+  // Paginated + searchable archive of the caller's COMPLETED runs. Tenancy
+  // comes from the JWT (CurrentOperator), never the query string (no IDOR),
+  // mirroring listAssigned + the dispatch board page. Raw query is parsed by
+  // the SSOT DriverCompletedPageQuerySchema (coerce, defaults, .strict()); a
+  // stray key (e.g. group) is a 400 by design -- this endpoint IS the finished
+  // partition, so there is no group toggle.
+  @Get('completed')
+  async listCompleted(
+    @CurrentOperator() op: OperatorContext,
+    @Query() query: Record<string, unknown>,
+  ): Promise<DriverCompletedPageResponse> {
+    const parsed = DriverCompletedPageQuerySchema.parse(query);
+    return this.svc.listCompleted(op, parsed);
   }
   // Completed runs grouped by VN-timezone month for the calling driver.
   @Get('trip-history')

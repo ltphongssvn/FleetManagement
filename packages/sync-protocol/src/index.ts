@@ -72,6 +72,8 @@ export {
   type DispatchBoardApiRow,
   DispatchBoardApiResponseSchema,
   type DispatchBoardApiResponse,
+  ROAD_RUN_STATES,
+  type RoadRunStateName,
 } from './dispatch-stop-view-contract.js';
 export {
   ListAssignedRowStopSchema,
@@ -122,6 +124,12 @@ export {
   DispatchBoardPageResponseSchema,
   type DispatchBoardPageResponse,
 } from './dispatch-board-pagination-contract.js';
+export {
+  DriverCompletedPageQuerySchema,
+  type DriverCompletedPageQuery,
+  DriverCompletedPageResponseSchema,
+  type DriverCompletedPageResponse,
+} from './driver-orders-pagination-contract.js';
 export {
   ExtractionJobDataWireSchema,
   EXTRACTION_STATUSES,
