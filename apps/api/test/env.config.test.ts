@@ -1,5 +1,6 @@
 // apps/api/test/env.config.test.ts
 import { describe, it, expect } from 'vitest';
+import { randomBytes } from 'node:crypto';
 import { validateEnv } from '../src/config/env.config.js';
 
 describe('@fleet/api - validateEnv', () => {
@@ -144,5 +145,67 @@ describe('@fleet/api - validateEnv (step-up requirement knobs)', () => {
     expect(
       validateEnv({ ...base, STEP_UP_PHISHING_RESISTANT_AMR: 'hwk, fido2' }).STEP_UP_PHISHING_RESISTANT_AMR,
     ).toEqual(['hwk', 'fido2']);
+  });
+});
+
+
+describe('@fleet/api - validateEnv (break-glass monitor knobs)', () => {
+  const base = {
+    DATABASE_URL: 'postgres://localhost:5432/fleet_test',
+    OIDC_ISSUER: 'https://idp.example.com/',
+    OIDC_AUDIENCE: 'fleet-api',
+    OIDC_JWKS_URI: 'https://idp.example.com/.well-known/jwks.json',
+  };
+
+  it('KEYCLOAK_BASE_URL defaults to the production Keycloak host', () => {
+    expect(validateEnv(base).KEYCLOAK_BASE_URL).toBe('https://keycloak-production-7959.up.railway.app');
+  });
+
+  it('KEYCLOAK_BASE_URL accepts an override URL', () => {
+    expect(validateEnv({ ...base, KEYCLOAK_BASE_URL: 'https://kc.example.com' }).KEYCLOAK_BASE_URL).toBe(
+      'https://kc.example.com',
+    );
+  });
+
+  it('KEYCLOAK_BASE_URL rejects a malformed URL', () => {
+    expect(() => validateEnv({ ...base, KEYCLOAK_BASE_URL: 'not-a-url' })).toThrow(/KEYCLOAK_BASE_URL/);
+  });
+
+  it('KEYCLOAK_MONITOR_CLIENT_ID defaults to fleet-breakglass-monitor', () => {
+    expect(validateEnv(base).KEYCLOAK_MONITOR_CLIENT_ID).toBe('fleet-breakglass-monitor');
+  });
+
+  it('KEYCLOAK_MONITOR_CLIENT_SECRET is optional and undefined when absent (monitor dormant)', () => {
+    expect(validateEnv(base).KEYCLOAK_MONITOR_CLIENT_SECRET).toBeUndefined();
+  });
+
+  it('KEYCLOAK_MONITOR_CLIENT_SECRET is preserved when provided', () => {
+    // Runtime-generated to avoid a credential-shaped literal (secret-scanner clean).
+    const monitorSecret = `mon_${randomBytes(12).toString('hex')}`;
+    expect(
+      validateEnv({ ...base, KEYCLOAK_MONITOR_CLIENT_SECRET: monitorSecret }).KEYCLOAK_MONITOR_CLIENT_SECRET,
+    ).toBe(monitorSecret);
+  });
+
+  it('BREAKGLASS_USERNAME_PREFIX defaults to fleet-breakglass', () => {
+    expect(validateEnv(base).BREAKGLASS_USERNAME_PREFIX).toBe('fleet-breakglass');
+  });
+
+  it('BREAKGLASS_USERNAME_PREFIX accepts an override', () => {
+    expect(validateEnv({ ...base, BREAKGLASS_USERNAME_PREFIX: 'emergency-admin' }).BREAKGLASS_USERNAME_PREFIX).toBe(
+      'emergency-admin',
+    );
+  });
+
+  it('BREAKGLASS_POLL_INTERVAL_MS defaults to 60_000', () => {
+    expect(validateEnv(base).BREAKGLASS_POLL_INTERVAL_MS).toBe(60_000);
+  });
+
+  it('BREAKGLASS_POLL_INTERVAL_MS coerces from string', () => {
+    expect(validateEnv({ ...base, BREAKGLASS_POLL_INTERVAL_MS: '30000' }).BREAKGLASS_POLL_INTERVAL_MS).toBe(30_000);
+  });
+
+  it('BREAKGLASS_POLL_INTERVAL_MS rejects a non-positive value', () => {
+    expect(() => validateEnv({ ...base, BREAKGLASS_POLL_INTERVAL_MS: '0' })).toThrow(/BREAKGLASS_POLL_INTERVAL_MS/);
   });
 });
