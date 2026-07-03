@@ -94,12 +94,20 @@ jobs:
           node-version: 22.20.0
           package-manager-cache: false
 
+        # packager: npm -- the action installs eas-cli GLOBALLY in its own
+        # isolated dir (its own PNPM_HOME, not this repo). Installing via pnpm
+        # v10 fails with ERR_PNPM_IGNORED_BUILDS on eas-cli transitive
+        # dtrace-provider build script (pnpm v10 blocks unapproved build
+        # scripts and exits nonzero in CI; the isolated dir has no
+        # pnpm-workspace.yaml to allow it). eas-cli is a standalone CLI tool,
+        # not a project dependency, so the installer package manager is
+        # irrelevant to this pnpm project -- npm installs it cleanly.
       - name: Setup Expo and EAS
         uses: expo/expo-github-action@v8
         with:
           eas-version: '>=20.0.0 <21.0.0'
           token: ${{ secrets.EXPO_TOKEN }}
-          packager: pnpm
+          packager: npm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
