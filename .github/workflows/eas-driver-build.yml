@@ -69,6 +69,14 @@ concurrency:
   cancel-in-progress: false
 permissions:
   contents: read
+# Make the Node 24 runtime explicit. GitHub forces JavaScript actions onto
+# Node 24 (Node 20 is deprecated); expo/expo-github-action@v8 still DECLARES
+# Node 20 in its metadata, so a runner bug (actions/runner#4295) prints a
+# "running on Node.js 20" warning even though it executes on Node 24. Setting
+# this opts in explicitly; the residual metadata warning clears once Expo ships
+# a Node-24 action. Cannot be suppressed from here otherwise.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 jobs:
   build:
     name: EAS build (driver app, ${{ matrix.platform }})
@@ -118,6 +126,12 @@ jobs:
           eas-version: '>=20.0.0 <21.0.0'
           token: ${{ secrets.EXPO_TOKEN }}
           packager: npm
+          # Disable the action's eas-cli/expo-cli caching: it was failing to
+          # save/restore against GitHub's cache service ("cache 400 / services
+          # unavailable" warnings) and adds ~no value (npm installs eas-cli in
+          # ~15s). Turning it off removes those warnings at the source.
+          expo-cache: false
+          eas-cache: false
 
       - name: Install dependencies
         if: steps.gate.outputs.build == 'true'
