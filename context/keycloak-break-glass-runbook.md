@@ -109,12 +109,22 @@ Temporary admins (from recovery) show a yellow "temporary admin" banner.
 - Delete any temporary admins created during the event.
 - Add a dated line to the Changelog describing what happened and why.
 
-## Monitoring (TODO - not yet wired)
+## Monitoring (implemented; activation pending)
 
-Master-realm admin logins should be rare; a `fleet-breakglass-*` login especially so. Wire
-Keycloak admin/login events for the `master` realm into the existing OTel/Sentry pipeline
-and alert on any master-realm admin sign-in - and page on any break-glass login. Until
-that exists, this is a manual review item during the quarterly drill.
+A `fleet-breakglass-*` login should be near-zero-frequency, so every one is high-signal.
+The API-side monitor is built and wired: a 60s self-scheduling tick in `SchedulerService`
+polls the master-realm login-events API as the read-only `fleet-breakglass-monitor` service
+account and emits a Sentry `fatal` event (fingerprint `keycloak-breakglass-login`, tag
+`security_event=keycloak_breakglass_login`) for any break-glass sign-in, advancing a durable
+Postgres cursor (`keycloak_event_poll_cursor`) so each login pages exactly once.
+
+The monitor is DORMANT until activated. Two steps remain to arm it in production:
+  1. Set `KEYCLOAK_MONITOR_CLIENT_SECRET` (the fleet-breakglass-monitor client secret) on the
+     Railway API service; without it the factory yields null and the tick never schedules.
+  2. Add a Sentry alert rule that pages (PagerDuty/Opsgenie/email) on the
+     `keycloak-breakglass-login` fingerprint / `security_event` tag at level fatal.
+
+Until both are done, a break-glass login is caught only by manual review during the drill.
 
 ## Naming note
 
