@@ -57,6 +57,7 @@ allowBuilds:
   "@nestjs/core": true
   "@sentry/cli": true
   cpu-features: true
+  dtrace-provider: false
   esbuild: true
   msgpackr-extract: true
   protobufjs: true

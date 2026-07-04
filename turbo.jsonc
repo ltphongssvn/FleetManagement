@@ -118,6 +118,11 @@
       "env": ["DATABASE_URL", "REDIS_URL", "S3_ENDPOINT", "TESTCONTAINERS_*"],
       "outputLogs": "new-only"
     },
+    "eas:builds": {
+      "description": "List recent EAS cloud builds (Android + iOS) for the driver app via eas-cli build:list. Read-only network query against Expo servers, so cache:false (no deterministic output) and no build dependency. passThroughEnv exposes EXPO_TOKEN (auth; set persistently via ~/.expo-env) and EAS_PROJECT_ID under strict envMode. Run: pnpm exec turbo run eas:builds --filter=@fleet/driver-app.",
+      "cache": false,
+      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
+    },
     "test:coverage": {
       "description": "Coverage-gated tests — runs unit + integration with merged coverage thresholds. Owns coverage/merged/** + coverage/unit/**. Used by CI quality gate.",
       "dependsOn": ["build", "^build"],
