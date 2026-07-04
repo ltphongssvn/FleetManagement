@@ -113,4 +113,22 @@ describe('@fleet/api - KeycloakEventsClient', () => {
       globalThis.fetch = original;
     }
   });
+
+  it('throws when the token response omits access_token', async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ token_type: 'Bearer' }) });
+    await expect(makeClient(fetchFn).fetchLoginEventsSince(0)).rejects.toThrow(/access_token/i);
+  });
+
+  it('still throws when the token error body cannot be read (catch fallback)', async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({ ok: false, status: 401, statusText: 'Unauthorized', text: () => Promise.reject(new Error('stream error')) });
+    await expect(makeClient(fetchFn).fetchLoginEventsSince(0)).rejects.toThrow(/token.*401/i);
+  });
+
+  it('still throws when the events error body cannot be read (catch fallback)', async () => {
+    const fetchFn = vi.fn()
+      .mockResolvedValueOnce(tokenRes('t'))
+      .mockResolvedValueOnce({ ok: false, status: 403, statusText: 'Forbidden', text: () => Promise.reject(new Error('stream error')) });
+    await expect(makeClient(fetchFn).fetchLoginEventsSince(0)).rejects.toThrow(/events.*403/i);
+  });
+
 });

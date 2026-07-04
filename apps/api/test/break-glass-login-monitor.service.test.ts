@@ -104,4 +104,14 @@ describe('@fleet/api - BreakGlassLoginMonitorService', () => {
     await svc.pollOnce();
     expect(mockCaptureEvent).not.toHaveBeenCalled();
   });
+
+  it('handles a break-glass event with no userId (null/empty fallbacks) and still advances', async () => {
+    const noUser = { time: 2000, type: 'LOGIN', realmId: 'master', details: { username: 'fleet-breakglass-1' } };
+    const { client, cursor, advance } = makeDeps([noUser]);
+    const svc = new BreakGlassLoginMonitorService(client, cursor, PREFIX);
+    await svc.pollOnce();
+    expect(mockCaptureEvent).toHaveBeenCalledTimes(1);
+    expect(advance).toHaveBeenCalledWith(2000, '2000:');
+  });
+
 });
