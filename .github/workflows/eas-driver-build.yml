@@ -1,43 +1,41 @@
 # ============================================================================
 # File:     FleetManagement/.github/workflows/eas-driver-build.yml
 # Purpose:  Autonomous EAS build of the driver app (Android APK + iOS IPA) when a
-#           DRIVER-RELEVANT change lands on main. Mirrors the release-centric
-#           pipeline: release.yml cuts the semver tag and Railway deploys the
-#           API/web on push to main; this workflow produces fresh installable
-#           mobile binaries for the same push -- but ONLY when the driver app (or
-#           a shared package it bundles) actually changed.
+#           DRIVER-RELEVANT change lands on main, with END-TO-END verification
+#           that both builds actually FINISH (not merely dispatch).
 #
 # Why native top-level paths: filtering (2026 monorepo best practice):
 #   GitHub itself decides whether to start this workflow based on the push diff.
 #   An ops-web-only or api-only release produces NO mobile build and burns NO
-#   metered EAS build (30/mo, 15 iOS). This is the canonical monorepo pattern
-#   (per-app workflow + paths filter) and directly enforces "driver features
-#   only, never ops-web".
+#   metered EAS build (30/mo, 15 iOS). Canonical per-app-workflow + paths filter.
+#   api/ops-web are deliberately absent from the paths list below.
 #
-# The paths list = the driver app + every workspace package it BUNDLES into the
-# native binary. sync-protocol/domain/observability ship inside the app, so a
-# change to them warrants a rebuild. api/ops-web are deliberately absent.
-#
-# One-time gotcha (by design): the very first push that ADDS this workflow file
-# runs regardless of paths; every subsequent push filters correctly.
+# Why a per-platform matrix with --wait (2026 completion-gate best practice):
+#   The Expo docs are explicit that with --no-wait, "your CI will report that the
+#   build job is passing only if triggering EAS Build is successful" -- i.e. a
+#   dispatch-only job goes green even if the build later ERRORS. To actually gate
+#   on build success, eas build must run with --wait, which blocks until the
+#   build finishes and exits NON-ZERO if it errors (failing this job). Running
+#   the two platforms as a matrix waits Android and iOS in PARALLEL (one ~10-20
+#   min window, not two back-to-back) and yields independent per-platform
+#   pass/fail. This replaces any manual eas build:list status check -- the
+#   pipeline itself is now the completion gate.
 #
 # Credentials:
 #   - EXPO_TOKEN (repo secret) authenticates the EAS CLI in CI. REQUIRED.
-#     Create at expo.dev -> Account Settings -> Access Tokens, then add under
-#     GitHub repo Settings -> Secrets and variables -> Actions.
 #   - Android keystore + iOS distribution cert/provisioning profile already live
 #     on the EAS server (remote credentials, valid to 2027-03), so
 #     --non-interactive builds BOTH platforms with no Apple/Google prompts.
-#     app.json sets ios.infoPlist.ITSAppUsesNonExemptEncryption=false so there is
-#     no App Store Connect encryption prompt.
+#     app.json sets ios.infoPlist.ITSAppUsesNonExemptEncryption=false.
 #
 # Notes:
-#   - EAS CLI pinned to the eas.json cli.version range (>=20 <21); NOT 'latest'.
-#   - Node 22.20.0 matches the eas.json build profile node field.
-#   - --no-wait: triggers the build and exits; CI is not billed for EAS build
-#     time. Progress + artifact URLs live in the Expo dashboard.
-#   - 'preview' profile: internal distribution, Android APK (sideload), pointed
-#     at the production Railway API.
+#   - packager: npm -- the action installs eas-cli GLOBALLY in its own isolated
+#     dir; pnpm v10 aborts there with ERR_PNPM_IGNORED_BUILDS on eas-cli's
+#     transitive dtrace-provider build script. eas-cli is a standalone CLI tool,
+#     not a repo dependency, so npm installs it cleanly.
+#   - EAS CLI pinned to the eas.json cli.version range (>=20 <21); Node 22.20.0.
+#   - preview profile: internal distribution, Android APK (sideload), prod API.
+#   - timeout-minutes: 40 comfortably covers a --wait build window.
 #
 # Related files:
 #   - apps/driver-app/eas.json       -- build profiles (preview used here)
@@ -73,9 +71,13 @@ permissions:
   contents: read
 jobs:
   build:
-    name: EAS build (driver app)
+    name: EAS build (driver app, ${{ matrix.platform }})
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [android, ios]
     defaults:
       run:
         shell: bash
@@ -85,24 +87,32 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Resolve whether this platform should build
+        id: gate
+        run: |
+          CHOICE="${{ github.event.inputs.platform }}"
+          CHOICE="${CHOICE:-all}"
+          if [ "$CHOICE" = "all" ] || [ "$CHOICE" = "${{ matrix.platform }}" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "Building ${{ matrix.platform }} (choice: $CHOICE)."
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping ${{ matrix.platform }} (choice: $CHOICE)."
+          fi
+
       - name: Setup pnpm
+        if: steps.gate.outputs.build == 'true'
         uses: pnpm/action-setup@v5
 
       - name: Setup Node
+        if: steps.gate.outputs.build == 'true'
         uses: actions/setup-node@v5
         with:
           node-version: 22.20.0
           package-manager-cache: false
 
-        # packager: npm -- the action installs eas-cli GLOBALLY in its own
-        # isolated dir (its own PNPM_HOME, not this repo). Installing via pnpm
-        # v10 fails with ERR_PNPM_IGNORED_BUILDS on eas-cli transitive
-        # dtrace-provider build script (pnpm v10 blocks unapproved build
-        # scripts and exits nonzero in CI; the isolated dir has no
-        # pnpm-workspace.yaml to allow it). eas-cli is a standalone CLI tool,
-        # not a project dependency, so the installer package manager is
-        # irrelevant to this pnpm project -- npm installs it cleanly.
       - name: Setup Expo and EAS
+        if: steps.gate.outputs.build == 'true'
         uses: expo/expo-github-action@v8
         with:
           eas-version: '>=20.0.0 <21.0.0'
@@ -110,16 +120,16 @@ jobs:
           packager: npm
 
       - name: Install dependencies
+        if: steps.gate.outputs.build == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Trigger EAS build (Android + iOS, preview profile)
+      - name: Build and wait (${{ matrix.platform }}, preview profile)
+        if: steps.gate.outputs.build == 'true'
         working-directory: apps/driver-app
         run: |
-          PLATFORM="${{ github.event.inputs.platform }}"
-          PLATFORM="${PLATFORM:-all}"
-          echo "Triggering EAS build for platform: $PLATFORM"
+          echo "Building ${{ matrix.platform }} and waiting for completion..."
           eas build \
-            --platform "$PLATFORM" \
+            --platform "${{ matrix.platform }}" \
             --profile preview \
             --non-interactive \
-            --no-wait
+            --wait

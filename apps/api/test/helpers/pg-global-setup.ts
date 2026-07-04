@@ -40,6 +40,22 @@ const POSTGRES_IMAGE = 'postgres:16.4-alpine3.20';
 export const TEMPLATE_DB_NAME = 'fleet_test_template';
 
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
+  // Disable Ryuk (the Testcontainers reaper) for this run. ROOT-CAUSE FIX for
+  // the intermittent "connect ECONNREFUSED 127.0.0.1:<port>" at
+  // startMigratedTestDb under the full `pnpm -r --workspace-concurrency=1`
+  // coverage gate. That gate runs each workspace package as a SEPARATE,
+  // SEQUENTIAL Vitest process. Our shared Postgres container uses .withReuse(),
+  // and Ryuk kills any labelled container ~10s after the process that owns its
+  // Ryuk-connection disconnects (testcontainers-go#2445): when one package's
+  // process ends, a stale Ryuk session reaps the STILL-IN-USE reused container
+  // out from under the NEXT package's process, which then gets ECONNREFUSED on
+  // the now-dead port. Reused containers are meant to outlive a process, so
+  // Ryuk and .withReuse() are fundamentally in conflict; the docs prescribe
+  // disabling Ryuk when reusing. Cleanup is NOT lost: global-teardown.ts does a
+  // labelled `docker rm` of every testcontainers container at run end (and is
+  // guarded by a test), so the environment is still deterministically cleaned.
+  process.env['TESTCONTAINERS_RYUK_DISABLED'] = 'true';
+
   // 1) ONE container for the whole run. The doubled "ready to accept connections"
   // wait avoids the initdb-restart race where Postgres briefly serves on a local-
   // only socket before reloading the real pg_hba.conf (FATAL: no pg_hba.conf entry
