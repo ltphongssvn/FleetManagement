@@ -118,10 +118,10 @@ minimumReleaseAgeExclude:
   - '@opentelemetry/core@2.8.0'
   - multer@2.2.0
   - undici@6.27.0 || 7.28.0
-  - '@turbo/darwin-64@2.10.2'
-  - '@turbo/darwin-arm64@2.10.2'
-  - '@turbo/linux-64@2.10.2'
-  - '@turbo/linux-arm64@2.10.2'
-  - '@turbo/windows-64@2.10.2'
-  - '@turbo/windows-arm64@2.10.2'
-  - turbo@2.10.2
+  - '@turbo/darwin-64@2.10.2 || 2.10.3'
+  - '@turbo/darwin-arm64@2.10.2 || 2.10.3'
+  - '@turbo/linux-64@2.10.2 || 2.10.3'
+  - '@turbo/linux-arm64@2.10.2 || 2.10.3'
+  - '@turbo/windows-64@2.10.2 || 2.10.3'
+  - '@turbo/windows-arm64@2.10.2 || 2.10.3'
+  - turbo@2.10.2 || 2.10.3
