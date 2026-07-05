@@ -52,6 +52,15 @@ export const EnvSchema = z.object({
     .string()
     .default('hwk')
     .transform((v) => v.split(',').map((s) => s.trim()).filter((s) => s.length > 0)),
+  // Break-glass login monitor (see context/keycloak-break-glass-runbook.md).
+  // A poller reads master-realm login events and pages via Sentry on any
+  // fleet-breakglass-* sign-in. CLIENT_SECRET is optional on purpose: unset ->
+  // the monitor stays dormant (fail-safe), mirroring the AWS_*/FLEET_API_* gating.
+  KEYCLOAK_BASE_URL: z.url().default('https://keycloak-production-7959.up.railway.app'),
+  KEYCLOAK_MONITOR_CLIENT_ID: z.string().min(1).default('fleet-breakglass-monitor'),
+  KEYCLOAK_MONITOR_CLIENT_SECRET: z.string().min(1).optional(),
+  BREAKGLASS_USERNAME_PREFIX: z.string().min(1).default('fleet-breakglass'),
+  BREAKGLASS_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
 });
 export type Env = z.infer<typeof EnvSchema>;
 export function validateEnv(raw: Record<string, unknown>): Env {
