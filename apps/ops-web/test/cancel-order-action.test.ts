@@ -134,7 +134,7 @@ describe('cancelOrder server action (T5)', () => {
     fd.set('transportOrderId', VALID_ID);
     fd.set('reason', 'customer_request');
     const r = await cancelOrder(undefined, fd);
-    expect(r).toEqual({ status: 'server_error', message: expect.stringContaining('FLEET_API_URL') });
+    expect(r).toEqual({ status: 'server_error', message: expect.stringContaining('chưa được cấu hình') });
   });
   it('redirects to /login when the auth cookie is missing (expired session)', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
@@ -201,7 +201,23 @@ describe('cancelOrder server action (T5)', () => {
     const r = defined(await cancelOrder(undefined, fd));
     expect(r.status).toBe('api_error');
     if (r.status !== 'api_error') throw new Error('not api_error');
-    expect(r.message).toContain('500');
+    // Contract change (error-presentation arc): 5xx maps to the immutable
+    // server-error Vietnamese; raw digits never reach a dispatcher.
+    expect(r.message).toBe('Hệ thống đang gặp sự cố. Vui lòng thử lại sau.');
+  });
+
+  it('returns api_error with the status-class copy even when the error body cannot be read', async () => {
+    vi.stubEnv('FLEET_API_URL', 'http://api:3000');
+    cookieGet.mockReturnValue({ value: 'jwt' });
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('not json', { status: 500 }))));
+    const { cancelOrder } = await import('@/features/dispatch/cancel-order.action');
+    const fd = new FormData();
+    fd.set('transportOrderId', VALID_ID);
+    fd.set('reason', 'customer_request');
+    const r = defined(await cancelOrder(undefined, fd));
+    expect(r.status).toBe('api_error');
+    if (r.status !== 'api_error') throw new Error('not api_error');
+    expect(r.message).toBe('Hệ thống đang gặp sự cố. Vui lòng thử lại sau.');
   });
   it('drops a stale note when it is an empty string (treats it as unset)', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');

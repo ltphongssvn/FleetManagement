@@ -8,6 +8,7 @@
 // Xóa button per row.
 'use client';
 import { useEffect, useReducer, useState, type JSX } from 'react';
+import { vnExceptionMessage } from '@/features/errors/present-problem';
 import { useRouter } from 'next/navigation';
 import { revalidateDispatch } from '../../../features/admin/revalidate-dispatch.action';
 import { AdminDriversClient } from '../../../features/admin/admin-drivers-client';
@@ -50,7 +51,7 @@ export default function AdminDriversPage(): JSX.Element {
       const rows = await client.list();
       dispatch({ type: 'loaded', rows });
     } catch (e) {
-      dispatch({ type: 'error', message: e instanceof Error ? e.message : 'load failed' });
+      dispatch({ type: 'error', message: vnExceptionMessage(e, 'load failed') });
     }
   };
   // Refetch-on-focus (2026 professional default), via the shared hook so this
@@ -94,7 +95,7 @@ export default function AdminDriversPage(): JSX.Element {
       setCreateForm((f) => ({
         ...f,
         submitting: false,
-        error: e instanceof Error ? e.message : 'tạo tài xế thất bại',
+        error: vnExceptionMessage(e, 'tạo tài xế thất bại'),
       }));
     }
   };
@@ -122,7 +123,7 @@ export default function AdminDriversPage(): JSX.Element {
       // revalidateDispatch() runs revalidatePath('/','layout') server-side.
       await revalidateDispatch();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'assign failed');
+      alert(vnExceptionMessage(e, 'assign failed'));
       return;
     }
     try {
@@ -131,7 +132,7 @@ export default function AdminDriversPage(): JSX.Element {
       router.refresh();
       await revalidateDispatch();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'device enroll failed');
+      alert(vnExceptionMessage(e, 'device enroll failed'));
     }
   };
   const handleRevoke = async (assignmentId: string): Promise<void> => {
@@ -143,7 +144,7 @@ export default function AdminDriversPage(): JSX.Element {
       router.refresh();
       await revalidateDispatch();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'revoke failed');
+      alert(vnExceptionMessage(e, 'revoke failed'));
     }
   };
   const handleDelete = async (row: DriverRow): Promise<void> => {
@@ -155,7 +156,7 @@ export default function AdminDriversPage(): JSX.Element {
       router.refresh();
       await revalidateDispatch();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'delete failed');
+      alert(vnExceptionMessage(e, 'delete failed'));
     } finally {
       setBusy(false);
     }
@@ -169,7 +170,7 @@ export default function AdminDriversPage(): JSX.Element {
       router.refresh();
       await revalidateDispatch();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'update phone failed');
+      alert(vnExceptionMessage(e, 'update phone failed'));
     } finally {
       setBusy(false);
     }
@@ -183,7 +184,7 @@ export default function AdminDriversPage(): JSX.Element {
       await client.resetPassword(row.driverId, next);
       setResetMsg((m) => ({ ...m, [row.driverId]: 'Đã đặt lại mật khẩu' }));
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'đặt lại mật khẩu thất bại');
+      alert(vnExceptionMessage(e, 'đặt lại mật khẩu thất bại'));
     } finally {
       setBusy(false);
     }
