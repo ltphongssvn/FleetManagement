@@ -169,6 +169,13 @@
       "when": 1782328277158,
       "tag": "0023_colorful_wild_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1783023305896,
+      "tag": "0024_keycloak_event_poll_cursor",
+      "breakpoints": true
     }
   ]
 }

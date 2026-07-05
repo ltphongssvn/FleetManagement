@@ -152,3 +152,10 @@ export {
   EXPORT_IDENTIFYING_HEADERS,
   LENH_DIEU_XE_EXPORT_HEADERS,
 } from './transport-order-export-headers.js';
+
+export {
+  KeycloakEventDetailsSchema,
+  type KeycloakEventDetails,
+  KeycloakLoginEventSchema,
+  type KeycloakLoginEvent,
+} from './keycloak-event-types.js';
