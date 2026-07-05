@@ -83,7 +83,26 @@ describe('createOrder server action (T3 auto-numbering)', () => {
     fd.set('deliveryAt', '2026-05-08');
     fd.set('deliveryWarehouse_1', '99999999-0002-4000-8000-000000000001');
     const r = await createOrder(undefined, fd);
-    expect(r).toEqual({ status: 'api_error', message: expect.stringContaining('400') });
+    // Contract change (error-presentation arc): non-envelope 400 body maps to
+    // the immutable client-error Vietnamese; raw digits never reach a dispatcher.
+    expect(r).toEqual({ status: 'api_error', message: 'Không thể thực hiện yêu cầu. Vui lòng kiểm tra và thử lại.' });
+  });
+
+  it('returns api_error with the status-class copy even when the error body cannot be read', async () => {
+    vi.stubEnv('FLEET_API_URL', 'http://api:3000');
+    cookieGet.mockReturnValue({ value: 'tok' });
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('not json', { status: 400 }))));
+    const { createOrder } = await import('@/features/dispatch/create-order.action');
+    const fd = new FormData();
+    fd.set('plannedStartAt', '2026-05-08');
+    fd.set('assignedOperatorId', '00000000-0000-0000-0000-000000000001');
+    fd.set('assignedAssetId', '00000000-0000-0000-0000-0000000000a2');
+    fd.set('pickupAt', '2026-05-08');
+    fd.set('pickupWarehouse_1', '99999999-0001-4000-8000-000000000001');
+    fd.set('deliveryAt', '2026-05-08');
+    fd.set('deliveryWarehouse_1', '99999999-0002-4000-8000-000000000001');
+    const r = await createOrder(undefined, fd);
+    expect(r).toEqual({ status: 'api_error', message: 'Không thể thực hiện yêu cầu. Vui lòng kiểm tra và thử lại.' });
   });
   it('promotes date-only plannedStartAt to UTC midnight ISO (T8 date-only contract)', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
@@ -122,7 +141,7 @@ describe('createOrder server action (T3 auto-numbering)', () => {
     fd.set('deliveryAt', '2026-05-08');
     fd.set('deliveryWarehouse_1', '99999999-0002-4000-8000-000000000001');
     const r = await createOrder(undefined, fd);
-    expect(r).toEqual({ status: 'server_error', message: expect.stringContaining('FLEET_API_URL') });
+    expect(r).toEqual({ status: 'server_error', message: expect.stringContaining('chưa được cấu hình') });
   });
   it('returns server_error when fleet_session cookie missing', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
@@ -137,6 +156,6 @@ describe('createOrder server action (T3 auto-numbering)', () => {
     fd.set('deliveryAt', '2026-05-08');
     fd.set('deliveryWarehouse_1', '99999999-0002-4000-8000-000000000001');
     const r = await createOrder(undefined, fd);
-    expect(r).toEqual({ status: 'server_error', message: 'Not authenticated' });
+    expect(r).toEqual({ status: 'server_error', message: 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.' });
   });
 });

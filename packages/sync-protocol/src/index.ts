@@ -152,6 +152,15 @@ export {
   EXPORT_IDENTIFYING_HEADERS,
   LENH_DIEU_XE_EXPORT_HEADERS,
 } from './transport-order-export-headers.js';
+export {
+  FLEET_ERROR_CODES,
+  FleetErrorCodeSchema,
+  type FleetErrorCode,
+  ProblemDetailsSchema,
+  parseProblemDetails,
+  PROBLEM_DETAILS_CONTENT_TYPE,
+  type ProblemDetails,
+} from './problem-details-contract.js';
 
 export {
   KeycloakEventDetailsSchema,
