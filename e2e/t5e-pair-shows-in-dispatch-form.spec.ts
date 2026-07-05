@@ -43,8 +43,10 @@ test('admin pair surfaces in dispatch Section 3 Số xe and Tài xế dropdowns'
   );
   await login(page);
   await page.goto('/admin/drivers');
-  // Find the seeded driver's row and pair via the first available select option.
-  const row = page.locator('tr').filter({ hasText: 'E2E T5E DRIVER' });
+  // Find the seeded driver's entry. A driver with no vehicle+device now renders
+  // as a Can xu ly queue entry (li), not a table row (tr) -- anchor on the
+  // container type-agnostically so the spec holds in both worlds.
+  const row = page.locator('li, tr').filter({ hasText: 'E2E T5E DRIVER' }).last();
   await expect(row).toBeVisible({ timeout: 15_000 });
   const select = row.locator('select').filter({ hasText: /Chọn số xe/ }).first();
   await select.selectOption({ label: 'E2E-T5E-001' });
