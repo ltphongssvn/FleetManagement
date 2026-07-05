@@ -27,6 +27,7 @@
 'use server';
 import { cookies } from 'next/headers';
 import { DateOnlyFormSchema } from './create-order.schema';
+import { vnApiErrorMessage } from '../errors/present-problem';
 type ErrorKey =
   | 'plannedStartAt' | 'assignedOperatorId' | 'assignedAssetId'
   | 'customer' | 'cargo' | 'vehiclePlate' | 'driverName'
@@ -75,10 +76,10 @@ export async function createOrder(_prev: CreateOrderState, formData: FormData): 
     return { status: 'invalid', errors };
   }
   const apiUrl = process.env['FLEET_API_URL'];
-  if (!apiUrl) return { status: 'server_error', message: 'FLEET_API_URL not configured' };
+  if (!apiUrl) return { status: 'server_error', message: 'Hệ thống chưa được cấu hình. Vui lòng liên hệ quản trị.' };
   const cookieStore = await cookies();
   const token = cookieStore.get('fleet_session')?.value;
-  if (!token) return { status: 'server_error', message: 'Not authenticated' };
+  if (!token) return { status: 'server_error', message: 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.' };
   const pickupPlannedAt = toIso(parsed.data.pickupAt);
   const deliveryPlannedAt = toIso(parsed.data.deliveryAt);
   const pickupStops = parsed.data.pickupWarehouses.map((yardId, idx) => ({
@@ -114,7 +115,10 @@ export async function createOrder(_prev: CreateOrderState, formData: FormData): 
     cache: 'no-store',
   });
   if (!res.ok) {
-    return { status: 'api_error', message: 'API request failed: ' + String(res.status) + ' ' + res.statusText };
+    // Read the RFC 9457 body and present dispatcher Vietnamese; raw
+    // transport text is structurally unreachable from here on.
+    const errBody: unknown = await res.json().catch(() => undefined);
+    return { status: 'api_error', message: vnApiErrorMessage(res.status, errBody) };
   }
   const json = (await res.json()) as { transportOrderId: string; roadRunId: string; externalRef: string };
   return { status: 'created', externalRef: json.externalRef, transportOrderId: json.transportOrderId };

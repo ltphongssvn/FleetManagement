@@ -4,6 +4,7 @@ import { initSentry } from './observability/sentry-bootstrap.js';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { ZodExceptionFilter } from './common/zod-exception.filter.js';
+import { ProblemDetailsExceptionFilter } from './common/problem-details-exception.filter.js';
 import { shutdownOtel } from './observability/otel.js';
 import { assertSingleInstance } from './runtime/single-instance-guard.js';
 import { selectMigrationConnectionString } from './database/migration-connection.js';
@@ -63,7 +64,10 @@ async function bootstrap(): Promise<void> {
     origin: (process.env['CORS_ORIGINS'] ?? 'http://localhost:8081,http://localhost:3001').split(','),
     credentials: true,
   });
-  app.useGlobalFilters(new ZodExceptionFilter());
+  // Catch-all problem-details filter FIRST, ZodExceptionFilter LAST: Nest
+  // evaluates filters in reverse registration order, so ZodError keeps its
+  // existing 400 validation shape and everything else emits RFC 9457.
+  app.useGlobalFilters(new ProblemDetailsExceptionFilter(), new ZodExceptionFilter());
   const port = Number(process.env['PORT'] ?? 3000);
   await app.listen(port);
 

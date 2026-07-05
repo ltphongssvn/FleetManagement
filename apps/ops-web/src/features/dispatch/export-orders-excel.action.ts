@@ -7,6 +7,7 @@
 // base64 string + suggested filename. The client component decodes and
 // triggers a browser download from memory.
 'use server';
+import { vnApiErrorMessage } from '../errors/present-problem';
 import { cookies } from 'next/headers';
 import { ExportDateRangeSchema, type ExportDateRange } from '@fleet/sync-protocol';
 export type ExportOrdersExcelResult =
@@ -22,7 +23,7 @@ function parseFilename(contentDisposition: string | null): string {
 export async function exportOrdersExcel(range?: ExportDateRange): Promise<ExportOrdersExcelResult> {
   const apiUrl = process.env['FLEET_API_URL'];
   if (apiUrl === undefined || apiUrl.length === 0) {
-    return { status: 'server_error', message: 'FLEET_API_URL not configured' };
+    return { status: 'server_error', message: 'Hệ thống chưa được cấu hình. Vui lòng liên hệ quản trị.' };
   }
   // Feature 4: optional dispatcher-selected inclusive day-range. Validate against
   // the SSOT before calling the API so an inverted/malformed range fails fast on
@@ -45,7 +46,8 @@ export async function exportOrdersExcel(range?: ExportDateRange): Promise<Export
     headers: { Authorization: 'Bearer ' + token },
   });
   if (!res.ok) {
-    return { status: 'server_error', message: 'Export failed: ' + String(res.status) };
+    const errBody: unknown = await res.json().catch(() => undefined);
+    return { status: 'server_error', message: vnApiErrorMessage(res.status, errBody) };
   }
   const buf = Buffer.from(await res.arrayBuffer());
   const filename = parseFilename(res.headers.get('content-disposition'));

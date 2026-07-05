@@ -41,6 +41,7 @@
 // unreachable because redirect() throws and never returns; it is kept in the
 // union for caller type-safety so form code checking result?.status compiles.
 'use server';
+import { vnApiErrorMessage } from '../errors/present-problem';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -77,7 +78,7 @@ export async function cancelOrder(_prev: CancelOrderState, formData: FormData): 
     return { status: 'invalid', errors };
   }
   const apiUrl = process.env['FLEET_API_URL'];
-  if (!apiUrl) return { status: 'server_error', message: 'FLEET_API_URL not configured' };
+  if (!apiUrl) return { status: 'server_error', message: 'Hệ thống chưa được cấu hình. Vui lòng liên hệ quản trị.' };
   const cookieStore = await cookies();
   const token = cookieStore.get('fleet_session')?.value;
   // Missing/expired session: the proxy passed this Server Action through (it
@@ -100,7 +101,10 @@ export async function cancelOrder(_prev: CancelOrderState, formData: FormData): 
     return { status: 'conflict', message: 'Transport order cannot be cancelled in its current state' };
   }
   if (!res.ok) {
-    return { status: 'api_error', message: 'API request failed: ' + String(res.status) + ' ' + res.statusText };
+    // Read the RFC 9457 body and present dispatcher Vietnamese; raw
+    // transport text is structurally unreachable from here on.
+    const errBody: unknown = await res.json().catch(() => undefined);
+    return { status: 'api_error', message: vnApiErrorMessage(res.status, errBody) };
   }
   // Drain the response so the server doesn't leave the socket open.
   await res.json();

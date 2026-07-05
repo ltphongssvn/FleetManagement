@@ -13,6 +13,7 @@ import type { JSX } from 'react';
 import { ActivityIndicator, SectionList, Text, View, StyleSheet } from 'react-native';
 import type { AssignmentRow, TripHistoryMonth } from '../../src/assignments/assignments-client.js';
 import { useTripHistory } from '../../src/assignments/use-trip-history.js';
+import { presentApiError } from '../../src/errors/present-api-error.js';
 import { formatVnDate } from '../../src/config/vn-locale.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
 interface MonthSection {
@@ -38,7 +39,7 @@ export default function History(): JSX.Element {
     return (
       <View style={styles.center} testID='error'>
         <Text style={styles.errorTitle}>Lỗi tải dữ liệu</Text>
-        <Text style={styles.muted}>{error instanceof Error ? error.message : 'Lỗi tải dữ liệu'}</Text>
+        <Text style={styles.muted}>{presentApiError(error, 'Lỗi tải dữ liệu')}</Text>
       </View>
     );
   }

@@ -33,11 +33,18 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as schema from '../../src/database/schema/index.js';
 import { TestPgConnectionSchema, TEST_PG_INJECT_KEY, type TestPgConnection } from './test-pg-connection-contract.js';
+import { worktreeKey, pgContainerName, WORKTREE_LABEL_KEY } from './worktree-container-identity.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsFolder = resolve(here, '../../src/database/migrations');
 const POSTGRES_IMAGE = 'postgres:16.4-alpine3.20';
 export const TEMPLATE_DB_NAME = 'fleet_test_template';
+// Per-worktree container identity (root-cause fix, 2026-07-04): parallel git
+// worktrees previously shared ONE reused container (reuse matches name+hash)
+// and any worktree's teardown could reap it host-wide. Distinct name + label
+// per worktree isolates them by construction; teardown filters on the label.
+const WORKTREE_ROOT = resolve(here, '../../../..');
+const WT_KEY = worktreeKey(WORKTREE_ROOT);
 
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
   // Disable Ryuk (the Testcontainers reaper) for this run. ROOT-CAUSE FIX for
@@ -63,6 +70,8 @@ export default async function setup(project: TestProject): Promise<() => Promise
   const container = await new PostgreSqlContainer(POSTGRES_IMAGE)
     .withDatabase('fleet_test_bootstrap')
     .withReuse()
+    .withName(pgContainerName(WT_KEY))
+    .withLabels({ [WORKTREE_LABEL_KEY]: WT_KEY })
     .withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/, 2))
     // Raise max_connections above the Postgres default of 100. The single
     // shared container serves EVERY test file in parallel under the coverage

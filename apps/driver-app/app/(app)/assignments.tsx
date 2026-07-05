@@ -26,6 +26,7 @@ import { nextDriverAction } from '../../src/assignments/assignment-action-policy
 import { useAssignments } from '../../src/assignments/use-assignments.js';
 import { presentAssignmentStops } from '../../src/assignments/assignment-stops-presenter.js';
 import { captureHrefForStop } from '../../src/assignments/capture-href.js';
+import { presentApiError } from '../../src/errors/present-api-error.js';
 import { formatVnDateUS } from '../../src/config/vn-locale.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
 // Road-run state -> badge colour. Unknown states fall back to slate.
@@ -51,7 +52,7 @@ export default function Assignments(): JSX.Element {
       <View style={styles.center} testID={'error'}>
         <Text style={styles.errorTitle}>Lỗi tải dữ liệu</Text>
         <Text style={styles.muted}>
-          {query.error instanceof Error ? query.error.message : 'Lỗi tải dữ liệu'}
+          {presentApiError(query.error, 'Lỗi tải dữ liệu')}
         </Text>
       </View>
     );
@@ -65,12 +66,12 @@ export default function Assignments(): JSX.Element {
     );
   }
   // A lifecycle transition that failed surfaces as a banner above the list.
-  const actionError: string | null =
-    lifecycle.isError && lifecycle.error instanceof Error
-      ? lifecycle.error.message
-      : lifecycle.isError
-        ? 'Lỗi cập nhật trạng thái'
-        : null;
+  // Rendered ONLY through presentApiError: the machine code (e.g.
+  // INVALID_STATE_TRANSITION on complete-before-start) maps to immutable
+  // Vietnamese guidance; raw transport text is structurally unreachable.
+  const actionError: string | null = lifecycle.isError
+    ? presentApiError(lifecycle.error, 'Lỗi cập nhật trạng thái')
+    : null;
   return (
     <View style={styles.screen}>
       {actionError !== null ? (
