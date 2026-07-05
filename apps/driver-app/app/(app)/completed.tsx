@@ -13,6 +13,7 @@ import { useState, useEffect, type JSX } from 'react';
 import { ActivityIndicator, FlatList, TextInput, Text, View, StyleSheet } from 'react-native';
 import type { ListAssignedRow } from '@fleet/sync-protocol';
 import { useCompletedOrders } from '../../src/assignments/use-completed-orders.js';
+import { presentApiError } from '../../src/errors/present-api-error.js';
 import { formatVnDate } from '../../src/config/vn-locale.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
 
@@ -67,7 +68,7 @@ export default function Completed(): JSX.Element {
         <View style={styles.center} testID={'error'}>
           <Text style={styles.errorTitle}>Lỗi tải dữ liệu</Text>
           <Text style={styles.muted}>
-            {query.error instanceof Error ? query.error.message : 'Lỗi tải dữ liệu'}
+            {presentApiError(query.error, 'Lỗi tải dữ liệu')}
           </Text>
         </View>
       </View>

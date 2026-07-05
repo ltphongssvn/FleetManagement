@@ -3,6 +3,7 @@
 // (accept/start/complete) to /driver/assignments/:roadRunId/<action>.
 import { describe, it, expect, vi } from 'vitest';
 import { DeliveryLifecycleClient } from '../src/assignments/delivery-lifecycle-client.js';
+import { ApiError } from '../src/errors/api-error.js';
 
 describe('DeliveryLifecycleClient', () => {
   it('accept() POSTs /driver/assignments/:id/accept with bearer token', async () => {
@@ -48,10 +49,68 @@ describe('DeliveryLifecycleClient', () => {
     expect(result.state).toBe('completed');
   });
 
-  it('throws on non-ok HTTP status', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 400, statusText: 'Bad Request' });
+  it('throws ApiError carrying the parsed envelope on non-ok', async () => {
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: () => Promise.resolve({
+        title: 'Conflict',
+        status: 409,
+        detail: 'Cannot complete a run that has not been started.',
+        code: 'INVALID_STATE_TRANSITION',
+      }),
+    });
     const client = new DeliveryLifecycleClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
-    await expect(client.accept('rr')).rejects.toThrow(/400/);
+    let caught: unknown = null;
+    try {
+      await client.complete('rr');
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught instanceof ApiError).toBe(true);
+    const apiErr = caught as ApiError;
+    expect(apiErr.status).toBe(409);
+    expect(apiErr.code).toBe('INVALID_STATE_TRANSITION');
+    expect(apiErr.message).toBe('Cannot complete a run that has not been started.');
+    expect(apiErr.message.includes('http')).toBe(false);
+  });
+  it('throws a URL-free ApiError when the error body is not an envelope', async () => {
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: () => Promise.resolve({ error: 'Bad Request', statusCode: 400 }),
+    });
+    const client = new DeliveryLifecycleClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    let caught: unknown = null;
+    try {
+      await client.accept('rr');
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught instanceof ApiError).toBe(true);
+    const apiErr = caught as ApiError;
+    expect(apiErr.problem).toBeNull();
+    expect(apiErr.message).toBe('HTTP 400');
+    expect(apiErr.message.includes('http://api')).toBe(false);
+  });
+  it('throws a URL-free ApiError even when the error body cannot be read', async () => {
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: () => Promise.reject(new Error('invalid json')),
+    });
+    const client = new DeliveryLifecycleClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    let caught: unknown = null;
+    try {
+      await client.start('rr');
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught instanceof ApiError).toBe(true);
+    const apiErr = caught as ApiError;
+    expect(apiErr.status).toBe(502);
+    expect(apiErr.problem).toBeNull();
+    expect(apiErr.message).toBe('HTTP 502');
   });
 
   it('throws when the response body is not an object', async () => {

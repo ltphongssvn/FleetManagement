@@ -12,6 +12,7 @@ import { presentCommands, type CommandsViewModel } from '../../src/commands/comm
 import type { CommandPayload } from '../../src/commands/command-receiver-policy.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
 import { getApiUrl } from '../../src/config/api-url.js';
+import { presentApiError } from '../../src/errors/present-api-error.js';
 export default function CommandsScreen(): JSX.Element {
   const { getAccessToken, status } = useAuth();
   const [inbox, setInbox] = useState<readonly CommandPayload[]>([]);
@@ -39,7 +40,7 @@ export default function CommandsScreen(): JSX.Element {
       .catch((err: unknown) => {
         Sentry.captureException(err);
         setConnectionState('error');
-        setErrorMsg(err instanceof Error ? err.message : String(err));
+        setErrorMsg(presentApiError(err, 'Không kết nối được tới điều phối.'));
       });
     return (): void => {
       cancelled = true;
@@ -59,7 +60,7 @@ export default function CommandsScreen(): JSX.Element {
     return (
       <View style={styles.center} testID="error">
         <Text style={styles.errorTitle}>Không kết nối được</Text>
-        <Text style={styles.muted}>{errorMsg ?? ''}</Text>
+        <Text style={styles.muted}>{errorMsg ?? presentApiError(undefined)}</Text>
       </View>
     );
   }

@@ -4,6 +4,13 @@
 // Each transition is FSM-validated server-side; the new road_run state in
 // the response is what the dispatcher's board also reads, so a successful
 // accept() is the driver's acknowledgement back to the dispatcher.
+//
+// Error path (root-cause fix): on !res.ok the response BODY is read and an
+// ApiError is thrown carrying the parsed RFC 9457 envelope (or null for
+// non-envelope bodies). The old bare Error embedded the request URL and
+// leaked it into the on-screen banner; ApiError.message is URL-free by
+// construction and screens render it only through presentApiError.
+import { ApiError } from '../errors/api-error.js';
 export type FetchFn = typeof globalThis.fetch;
 export interface DeliveryLifecycleClientConfig {
   readonly apiUrl: string;
@@ -39,7 +46,8 @@ export class DeliveryLifecycleClient {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) {
-      throw new Error(`POST ${url} HTTP ${String(res.status)} ${res.statusText}`);
+      const body: unknown = await res.json().catch(() => undefined);
+      throw ApiError.fromBody(res.status, body);
     }
     const raw = (await res.json()) as unknown;
     return parseResult(raw);
