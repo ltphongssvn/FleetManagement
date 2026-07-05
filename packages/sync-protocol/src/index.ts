@@ -168,3 +168,16 @@ export {
   KeycloakLoginEventSchema,
   type KeycloakLoginEvent,
 } from './keycloak-event-types.js';
+
+export {
+  ReferenceItemSchema,
+  type ReferenceItem,
+  ReferenceListResponseSchema,
+  type ReferenceListResponse,
+  DriverVehicleAssignmentItemSchema,
+  type DriverVehicleAssignmentItem,
+  DriverVehicleAssignmentsResponseSchema,
+  type DriverVehicleAssignmentsResponse,
+  PeekOrderRefResponseSchema,
+  type PeekOrderRefResponse,
+} from './reference-contract.js';
