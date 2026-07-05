@@ -161,3 +161,10 @@ export {
   PROBLEM_DETAILS_CONTENT_TYPE,
   type ProblemDetails,
 } from './problem-details-contract.js';
+
+export {
+  KeycloakEventDetailsSchema,
+  type KeycloakEventDetails,
+  KeycloakLoginEventSchema,
+  type KeycloakLoginEvent,
+} from './keycloak-event-types.js';
