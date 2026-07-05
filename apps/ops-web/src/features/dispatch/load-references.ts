@@ -11,11 +11,16 @@
 // identity, tenant scoping, and audit attribution end to end — the
 // service token would collapse every dispatcher into one account.
 import { cookies } from 'next/headers';
-export interface RefItem { readonly id: string; readonly label: string }
-export interface DriverVehicleAssignmentItem {
-  readonly operatorId: string;
-  readonly vehicleId: string;
-}
+import {
+  ReferenceListResponseSchema,
+  DriverVehicleAssignmentsResponseSchema,
+  PeekOrderRefResponseSchema,
+  type ReferenceItem,
+  type DriverVehicleAssignmentItem,
+} from '@fleet/sync-protocol';
+// RefItem and DriverVehicleAssignmentItem now DERIVE from the
+// @fleet/sync-protocol SSOT (RefItem was a drifted twin: meta lost).
+export type RefItem = ReferenceItem;
 export interface FormReferences {
   readonly nextOrderRef: string;
   readonly drivers: readonly RefItem[];
@@ -42,9 +47,10 @@ async function getList(apiUrl: string, token: string, path: string): Promise<rea
       console.error(`[loadReferences] ${path} -> ${String(res.status)} ${res.statusText}`);
       return [];
     }
-    const json = (await res.json()) as { items?: readonly RefItem[] };
-    console.log(`[loadReferences] ${path} -> ${String(json.items?.length ?? 0)} items`);
-    return json.items ?? [];
+    const parsed = ReferenceListResponseSchema.safeParse(await res.json());
+    const items = parsed.success ? parsed.data.items : [];
+    console.log(`[loadReferences] ${path} -> ${String(items.length)} items`);
+    return items;
   } catch (err) {
     console.error(`[loadReferences] ${path} threw:`, err);
     return [];
@@ -61,9 +67,10 @@ async function getAssignments(apiUrl: string, token: string): Promise<readonly D
       console.error(`[loadReferences] ${path} -> ${String(res.status)} ${res.statusText}`);
       return [];
     }
-    const json = (await res.json()) as { items?: readonly DriverVehicleAssignmentItem[] };
-    console.log(`[loadReferences] ${path} -> ${String(json.items?.length ?? 0)} items`);
-    return json.items ?? [];
+    const parsed = DriverVehicleAssignmentsResponseSchema.safeParse(await res.json());
+    const items = parsed.success ? parsed.data.items : [];
+    console.log(`[loadReferences] ${path} -> ${String(items.length)} items`);
+    return items;
   } catch (err) {
     console.error(`[loadReferences] ${path} threw:`, err);
     return [];
@@ -78,8 +85,8 @@ export async function loadReferences(): Promise<FormReferences> {
   const peekRes = await fetch(`${apiUrl}/reference/peek-order-ref?prefix=XTT`, {
     headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
   }).catch((e: unknown) => { console.error('[loadReferences] peek threw:', e); return null; });
-  const peekJson = peekRes?.ok ? (await peekRes.json()) as { ref?: string } : { ref: '' };
-  const nextOrderRef = peekJson.ref ?? '';
+  const peekParsed = peekRes?.ok ? PeekOrderRefResponseSchema.safeParse(await peekRes.json()) : null;
+  const nextOrderRef = peekParsed?.success === true ? peekParsed.data.ref : '';
   const [drivers, vehicles, customers, cargoTypes, pickupWarehouses, deliveryWarehouses, driverVehicleAssignments] = await Promise.all([
     getList(apiUrl, token, '/reference/drivers'),
     getList(apiUrl, token, '/reference/vehicles'),

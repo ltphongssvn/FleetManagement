@@ -18,15 +18,18 @@
 // T5c: list(role, scope) accepts an optional 'admin' scope so the
 // reference admin page can fetch ALL active rows (including unpaired
 // vehicles) instead of the dispatch-form's pair-filtered subset.
-import { parseProblemDetails } from '@fleet/sync-protocol';
+import {
+  parseProblemDetails,
+  ReferenceItemSchema,
+  ReferenceListResponseSchema,
+  type ReferenceItem,
+} from '@fleet/sync-protocol';
 import { vnApiErrorMessage } from '../errors/present-problem';
 
 export type FetchFn = typeof globalThis.fetch;
-export interface ReferenceOption {
-  readonly id: string;
-  readonly label: string;
-  readonly meta?: Record<string, string | null>;
-}
+// ReferenceOption now DERIVES from the @fleet/sync-protocol SSOT (one of
+// four consolidated hand-written twins); re-exported for existing imports.
+export type ReferenceOption = ReferenceItem;
 export type ReferenceSegment = 'customers' | 'cargo-types' | 'vehicles' | 'warehouses';
 function serverMessageFrom(body: unknown): string | null {
   const problem = parseProblemDetails(body);
@@ -57,8 +60,11 @@ export class ReferenceAdminClient {
     const url = params.length === 0 ? this.base() : this.base() + '?' + params.join('&');
     const res = await this.fetchFn(url, { method: 'GET' });
     if (!res.ok) await failWithBestMessage(res);
-    const data = (await res.json()) as { items?: ReferenceOption[] };
-    return data.items ?? [];
+    // Parse at the boundary (never cast): shape-invalid envelopes drop to
+    // [] -- the page already renders an empty state; a corrupt payload must
+    // not enter state as trusted rows (the t5b lesson).
+    const parsed = ReferenceListResponseSchema.safeParse(await res.json());
+    return parsed.success ? parsed.data.items : [];
   }
   async create(name: string, role?: string, phone?: string | null): Promise<ReferenceOption> {
     const body: { name: string; role?: string; phone?: string | null } = { name };
@@ -70,7 +76,8 @@ export class ReferenceAdminClient {
       body: JSON.stringify(body),
     });
     if (!res.ok) await failWithBestMessage(res);
-    return (await res.json()) as ReferenceOption;
+    // A create response that fails the contract is an error, not data.
+    return ReferenceItemSchema.parse(await res.json());
   }
   async update(id: string, name: string, phone?: string | null): Promise<void> {
     const body: { name: string; phone?: string | null } = { name };
