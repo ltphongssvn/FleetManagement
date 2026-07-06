@@ -20,6 +20,7 @@ import { parseProblemDetails } from '@fleet/sync-protocol';
 import { ApiError } from '../src/errors/api-error.js';
 import {
   makeForgivingLifecycleMutationFn,
+  planRecovery,
 } from '../src/assignments/forgiving-lifecycle.js';
 import type { LifecycleSource } from '../src/assignments/assignments-query.js';
 import type { TransitionResult } from '../src/assignments/delivery-lifecycle-client.js';
@@ -129,5 +130,20 @@ describe('forgiving lifecycle recovery', () => {
     });
     await expect(makeForgivingLifecycleMutationFn(client)({ roadRunId: 'rr', kind: 'complete' }))
       .rejects.toBe(second);
+  });
+});
+
+describe('planRecovery edge coverage', () => {
+  it('returns null for unknown states and disallowed first rungs', () => {
+    expect(planRecovery('complete', 'cancelled', [])).toBeNull();
+    expect(planRecovery('complete', 'weird', ['dispatched'])).toBeNull();
+    expect(planRecovery('complete', 'planned', ['cancelled'])).toBeNull();
+  });
+
+  it('plans the exact rung sequences', () => {
+    expect(planRecovery('complete', 'planned', ['dispatched', 'cancelled']))
+      .toEqual({ outcome: 'walk', steps: ['accept', 'start', 'complete'] });
+    expect(planRecovery('start', 'started', []))
+      .toEqual({ outcome: 'already-there', state: 'started' });
   });
 });
