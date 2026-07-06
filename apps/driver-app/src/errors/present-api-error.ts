@@ -20,6 +20,7 @@ export const VN_ERROR_MESSAGES: Readonly<Record<FleetErrorCode, string>> = {
   FORBIDDEN: 'Bạn không có quyền thực hiện thao tác này.',
   NOT_FOUND: 'Không tìm thấy dữ liệu. Vui lòng tải lại danh sách.',
   INVALID_STATE_TRANSITION: 'Không thể hoàn thành chuyến. Vui lòng kiểm tra trạng thái đơn.',
+  MANIFESTS_INCOMPLETE: 'Chưa thể hoàn thành chuyến: chưa chụp đủ ảnh phiếu cân. Vui lòng chụp đủ ảnh tại các điểm lấy và giao hàng.',
   INTERNAL: 'Hệ thống đang gặp sự cố. Vui lòng thử lại sau.',
 };
 

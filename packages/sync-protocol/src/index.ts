@@ -158,6 +158,12 @@ export {
   type FleetErrorCode,
   ProblemDetailsSchema,
   parseProblemDetails,
+  InvalidStateTransitionExtensionsSchema,
+  parseInvalidStateTransitionExtensions,
+  type InvalidStateTransitionExtensions,
+  ManifestsIncompleteExtensionsSchema,
+  parseManifestsIncompleteExtensions,
+  type ManifestsIncompleteExtensions,
   PROBLEM_DETAILS_CONTENT_TYPE,
   type ProblemDetails,
 } from './problem-details-contract.js';
