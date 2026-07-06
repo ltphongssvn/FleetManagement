@@ -18,7 +18,7 @@ export const FLEET_ERROR_CODES = [
   'UNAUTHORIZED',
   'FORBIDDEN',
   'NOT_FOUND',
-  'INVALID_STATE_TRANSITION',
+  'INVALID_STATE_TRANSITION', 'MANIFESTS_INCOMPLETE',
   'INTERNAL',
 ] as const;
 
@@ -46,4 +46,34 @@ export type ProblemDetails = z.infer<typeof ProblemDetailsSchema>;
 export function parseProblemDetails(raw: unknown): ProblemDetails | null {
   const parsed = ProblemDetailsSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
+}
+
+// -- FSM structured-rejection extensions (forgiving-FSM arc) ---------------
+// RFC 9457 extension members carried on 409 rejections. Wire values are
+// loose strings (two-tier rule: readers must survive future states); the
+// producer derives them from the domain FSM table. allowedActions are the
+// allowed TARGET STATES from the current state ([] for terminal states).
+// Parse helpers take the FULL problem envelope: z.object strips envelope
+// members and unknown keys, returning only the typed extensions, or null
+// when absent/invalid (legacy tolerance).
+export const InvalidStateTransitionExtensionsSchema = z.object({
+  currentState: z.string().min(1),
+  allowedActions: z.array(z.string().min(1)),
+});
+export type InvalidStateTransitionExtensions = z.infer<typeof InvalidStateTransitionExtensionsSchema>;
+
+export function parseInvalidStateTransitionExtensions(envelope: unknown): InvalidStateTransitionExtensions | null {
+  const r = InvalidStateTransitionExtensionsSchema.safeParse(envelope);
+  return r.success ? r.data : null;
+}
+
+export const ManifestsIncompleteExtensionsSchema = z.object({
+  committed: z.number().int().min(0),
+  required: z.number().int().min(0),
+});
+export type ManifestsIncompleteExtensions = z.infer<typeof ManifestsIncompleteExtensionsSchema>;
+
+export function parseManifestsIncompleteExtensions(envelope: unknown): ManifestsIncompleteExtensions | null {
+  const r = ManifestsIncompleteExtensionsSchema.safeParse(envelope);
+  return r.success ? r.data : null;
 }

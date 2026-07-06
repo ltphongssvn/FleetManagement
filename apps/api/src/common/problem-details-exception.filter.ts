@@ -42,8 +42,18 @@ function defaultCodeFor(status: number): FleetErrorCode | undefined {
   return STATUS_CODES[status];
 }
 
-/** detail + optional explicit code from an HttpException response payload. */
-function extractHttp(ex: HttpException): { detail: string; code?: string } {
+/** RFC 9457 reserved envelope members: an explicit extensions object can
+ * never overwrite these (shield against producer bugs reinstating the
+ * leak/overwrite class this filter exists to kill). */
+const RESERVED_MEMBERS: ReadonlySet<string> = new Set([
+  'type', 'title', 'status', 'detail', 'instance', 'code',
+]);
+
+/** detail + optional explicit code + optional shielded extensions from an
+ * HttpException response payload. Extensions are OPT-IN (a named object
+ * member, never a blind spread of the response) -- the seam the 409
+ * INVALID_STATE_TRANSITION / MANIFESTS_INCOMPLETE rejections use. */
+function extractHttp(ex: HttpException): { detail: string; code?: string; extensions?: Record<string, unknown> } {
   const raw: unknown = ex.getResponse();
   if (typeof raw === 'string') return { detail: raw };
   if (typeof raw === 'object' && raw !== null) {
@@ -55,7 +65,19 @@ function extractHttp(ex: HttpException): { detail: string; code?: string } {
         ? msg
         : ex.message;
     const code = typeof r['code'] === 'string' ? r['code'] : undefined;
-    return code === undefined ? { detail } : { detail, code };
+    const rawExt = r['extensions'];
+    let extensions: Record<string, unknown> | undefined;
+    if (typeof rawExt === 'object' && rawExt !== null && !Array.isArray(rawExt)) {
+      const filtered = Object.fromEntries(
+        Object.entries(rawExt as Record<string, unknown>).filter(([k]) => !RESERVED_MEMBERS.has(k)),
+      );
+      if (Object.keys(filtered).length > 0) extensions = filtered;
+    }
+    return {
+      detail,
+      ...(code === undefined ? {} : { code }),
+      ...(extensions === undefined ? {} : { extensions }),
+    };
   }
   return { detail: ex.message };
 }
@@ -71,18 +93,22 @@ export class ProblemDetailsExceptionFilter implements ExceptionFilter {
     let status = 500;
     let detail = 'An unexpected error occurred.';
     let code: string | undefined = 'INTERNAL';
+    let extensions: Record<string, unknown> | undefined;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const extracted = extractHttp(exception);
       detail = extracted.detail;
       code = extracted.code ?? defaultCodeFor(status);
+      extensions = extracted.extensions;
     } else {
       // Unknown = a real defect: page via Sentry, leak nothing to the client.
       Sentry.captureException(exception);
     }
 
     const body: Record<string, unknown> = {
+      // Shielded extensions FIRST: reserved members below always win.
+      ...(extensions ?? {}),
       title: titleFor(status),
       status,
       detail,
