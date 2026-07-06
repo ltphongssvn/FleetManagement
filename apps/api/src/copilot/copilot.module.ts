@@ -6,6 +6,7 @@
 // never a runtime surprise.
 import { Module } from '@nestjs/common';
 import { AdminModule } from '../admin/admin.module.js';
+import { AdminDriversListService } from '../admin/admin-drivers-list.service.js';
 import { AdminAssignmentService } from '../admin/admin-assignment.service.js';
 import { AdminDriversCreateService } from '../admin/admin-drivers-create.service.js';
 import { AuthModule } from '../auth/auth.module.js';
@@ -24,6 +25,11 @@ import {
   type CopilotReferencePort,
 } from './copilot-executor.service.js';
 import { CopilotPlanExecutionStoreService } from './copilot-plan-execution.store.js';
+import {
+  COPILOT_CATALOG_PORT,
+  CopilotPlannerService,
+  type CopilotCatalogPort,
+} from './copilot-planner.service.js';
 
 @Module({
   imports: [AuthModule, AdminModule, ReferenceModule],
@@ -31,6 +37,29 @@ import { CopilotPlanExecutionStoreService } from './copilot-plan-execution.store
   providers: [
     CopilotExecutorService,
     CopilotPlanExecutionStoreService,
+    CopilotPlannerService,
+    {
+      provide: COPILOT_CATALOG_PORT,
+      useFactory: (
+        driversList: AdminDriversListService,
+        reference: ReferenceService,
+      ): CopilotCatalogPort => ({
+        drivers: async (op) => {
+          const rows = await driversList.list({ companyId: op.companyId });
+          return rows.map((r) => ({
+            driverId: r.driverId,
+            operatorId: r.operatorId,
+            fullName: r.fullName,
+            phone: r.phone,
+          }));
+        },
+        vehiclesAdmin: async (op) => {
+          const res = await reference.vehiclesAdmin(op);
+          return res.items.map((i) => ({ id: i.id, label: i.label }));
+        },
+      }),
+      inject: [AdminDriversListService, ReferenceService],
+    },
     {
       provide: COPILOT_PLAN_EXECUTION_STORE,
       useFactory: (svc: CopilotPlanExecutionStoreService): CopilotPlanExecutionStore => svc,

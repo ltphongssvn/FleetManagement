@@ -5,16 +5,39 @@
 // OperatorContext. Guard parity with the admin seams (JwtGuard). Invalid
 // bodies raise ZodError -> global ZodExceptionFilter -> problem+json.
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { z } from 'zod';
 import type { OperatorContext } from '@fleet/domain';
-import { CopilotPlanSchema, type CopilotExecutionResult } from '@fleet/sync-protocol';
+import {
+  CopilotPlanSchema,
+  type CopilotExecutionResult,
+  type CopilotPlanResponse,
+} from '@fleet/sync-protocol';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { CopilotExecutorService } from './copilot-executor.service.js';
+import { CopilotPlannerService } from './copilot-planner.service.js';
+
+const PlanRequestSchema = z.strictObject({
+  text: z.string().min(1).max(500),
+});
 
 @UseGuards(JwtGuard)
 @Controller('copilot')
 export class CopilotController {
-  constructor(private readonly executor: CopilotExecutorService) {}
+  constructor(
+    private readonly executor: CopilotExecutorService,
+    private readonly planner: CopilotPlannerService,
+  ) {}
+
+  @Post('plan')
+  async plan(
+    @Body() body: unknown,
+    @CurrentOperator() op: OperatorContext,
+  ): Promise<CopilotPlanResponse> {
+    const req = PlanRequestSchema.parse(body);
+    const response = await this.planner.plan(req.text, op);
+    return response;
+  }
 
   @Post('execute')
   async execute(

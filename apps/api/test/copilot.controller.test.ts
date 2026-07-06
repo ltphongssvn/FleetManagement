@@ -9,6 +9,7 @@ import { ZodError } from 'zod';
 import type { OperatorContext } from '@fleet/domain';
 import type { CopilotExecutionResult } from '@fleet/sync-protocol';
 import { CopilotController } from '../src/copilot/copilot.controller.js';
+import type { CopilotPlannerService } from '../src/copilot/copilot-planner.service.js';
 
 const GUID_PLAN = 'a3bb189e-8bf9-4888-9912-ace4e6543002';
 const GUID_CMD = 'b4cc290f-9c0a-4999-aa23-bdf5f7654113';
@@ -36,10 +37,17 @@ const RESULT: CopilotExecutionResult = {
 function build(): {
   ctrl: CopilotController;
   execute: ReturnType<typeof vi.fn>;
+  plan: ReturnType<typeof vi.fn>;
 } {
   const execute = vi.fn(() => Promise.resolve(RESULT));
-  const ctrl = new CopilotController({ execute } as never);
-  return { ctrl, execute };
+  const plan = vi.fn(() =>
+    Promise.resolve({ kind: 'clarify', questionVi: 'Xe nào?' }),
+  );
+  const ctrl = new CopilotController(
+    { execute } as never,
+    { plan } as unknown as CopilotPlannerService,
+  );
+  return { ctrl, execute, plan };
 }
 
 describe('@fleet/api CopilotController', () => {
@@ -58,6 +66,20 @@ describe('@fleet/api CopilotController', () => {
     const { ctrl, execute } = build();
     await expect(ctrl.execute({ planId: 'not-a-guid' }, OP)).rejects.toBeInstanceOf(ZodError);
     expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('parses a plan request and delegates text + op to the planner', async () => {
+    const { ctrl, plan } = build();
+    const out = await ctrl.plan({ text: 'Thêm tên hàng Gạo' }, OP);
+    expect(out).toEqual({ kind: 'clarify', questionVi: 'Xe nào?' });
+    expect(plan).toHaveBeenCalledWith('Thêm tên hàng Gạo', OP);
+  });
+
+  it('rejects an empty or missing text with ZodError before the planner', async () => {
+    const { ctrl, plan } = build();
+    await expect(ctrl.plan({ text: '' }, OP)).rejects.toBeInstanceOf(ZodError);
+    await expect(ctrl.plan({}, OP)).rejects.toBeInstanceOf(ZodError);
+    expect(plan).not.toHaveBeenCalled();
   });
 
   it('rejects unknown keys on a command (strict producer payloads)', async () => {
