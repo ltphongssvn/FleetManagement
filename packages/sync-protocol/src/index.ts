@@ -174,6 +174,22 @@ export {
   KeycloakLoginEventSchema,
   type KeycloakLoginEvent,
 } from './keycloak-event-types.js';
+export {
+  DRIVER_ATTENTION_REASONS,
+  DriverAttentionReasonSchema,
+  AdminDriverDeviceSchema,
+  AdminDriverVehicleSchema,
+  AdminDriverRowSchema,
+  AdminDriverRowsSchema,
+  parseAdminDriverRows,
+  classifyDriverAttention,
+  needsDriverAttention,
+  type DriverAttentionReason,
+  type AdminDriverDevice,
+  type AdminDriverVehicle,
+  type AdminDriverRow,
+  type DriverAttentionFacts,
+} from './driver-attention-contract.js';
 
 export {
   ReferenceItemSchema,

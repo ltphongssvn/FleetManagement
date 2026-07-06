@@ -28,8 +28,11 @@ async function login(page: Page): Promise<void> {
 test('dispatcher resets a driver password from /admin/drivers and the new password authenticates', async ({ page, request }) => {
   await login(page);
   await page.goto('/admin/drivers');
-  // Locate the driver's row by their displayed full name.
-  const row = page.locator('tr').filter({ hasText: DRIVER_NAME }).first();
+  // Locate the driver's entry by displayed full name. The pilot driver may
+  // render as a table row (fully configured) OR a Can xu ly queue entry
+  // (missing vehicle/device) -- anchor type-agnostically on the innermost
+  // container so the reset control is found in both worlds.
+  const row = page.locator('li, tr').filter({ hasText: DRIVER_NAME }).last();
   await expect(row).toBeVisible({ timeout: 15_000 });
   // The reset control prompts for the new password (mirrors the Hủy phân công
   // window.prompt pattern). Pre-answer the dialog with the new password.
