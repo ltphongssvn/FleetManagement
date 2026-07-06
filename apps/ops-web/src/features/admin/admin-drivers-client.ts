@@ -1,5 +1,5 @@
 // apps/ops-web/src/features/admin/admin-drivers-client.ts
-import type { DriverRow } from './drivers-state.js';
+import type { AdminDriverRow as DriverRow } from '@fleet/sync-protocol';
 export type FetchFn = typeof globalThis.fetch;
 export interface AdminDriversClientConfig {
   readonly apiUrl: string;
