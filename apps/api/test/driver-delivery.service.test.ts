@@ -80,7 +80,10 @@ describe('@fleet/api - DriverDeliveryService', () => {
 
   it('rejects an illegal transition (planned -> completed)', async () => {
     const svc = new DriverDeliveryService(dbWithRoadRun('planned'));
-    await expect(svc.complete('rr-1', op)).rejects.toThrow(/transition|illegal|invalid/i);
+    // Contract change (forgiving-FSM arc): rejection is now a structured 409
+    // with Vietnamese copy; the structured shape is pinned in
+    // driver-delivery.structured-errors.test.ts.
+    await expect(svc.complete('rr-1', op)).rejects.toThrow(/Không thể/);
     expect(appendTriWriteMock).not.toHaveBeenCalled();
   });
 

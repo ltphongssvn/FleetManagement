@@ -43,7 +43,7 @@ describe('ops-web vnApiErrorMessage', () => {
     const keys = Object.keys(VN_OPS_ERROR_MESSAGES).sort();
     expect(keys).toEqual([
       'FORBIDDEN', 'INTERNAL', 'INVALID_STATE_TRANSITION',
-      'NOT_FOUND', 'UNAUTHORIZED', 'VALIDATION_FAILED',
+      'MANIFESTS_INCOMPLETE', 'NOT_FOUND', 'UNAUTHORIZED', 'VALIDATION_FAILED',
     ]);
   });
 
