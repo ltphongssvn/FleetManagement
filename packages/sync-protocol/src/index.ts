@@ -184,3 +184,16 @@ export {
   type AdminDriverRow,
   type DriverAttentionFacts,
 } from './driver-attention-contract.js';
+
+export {
+  ReferenceItemSchema,
+  type ReferenceItem,
+  ReferenceListResponseSchema,
+  type ReferenceListResponse,
+  DriverVehicleAssignmentItemSchema,
+  type DriverVehicleAssignmentItem,
+  DriverVehicleAssignmentsResponseSchema,
+  type DriverVehicleAssignmentsResponse,
+  PeekOrderRefResponseSchema,
+  type PeekOrderRefResponse,
+} from './reference-contract.js';
