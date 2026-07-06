@@ -12,11 +12,11 @@
 // read-side anti-join in ReferenceService). The guard is pure + deterministic:
 // it counts COMMITTED manifests vs stop count for the run's orders and reads
 // only already-persisted state (state-machine guard best practice).
-import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { and, eq, count, inArray } from 'drizzle-orm';
 import { OUTBOX_QUEUES } from '@fleet/sync-protocol';
-import { transitionRoadRun, type RoadRunState } from '@fleet/domain';
+import { transitionRoadRun, roadRunFsm, ROAD_RUN_STATES, type RoadRunState } from '@fleet/domain';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { roadRun, roadRunTransportOrder, stop } from '../database/schema/transport.js';
@@ -83,11 +83,17 @@ export class DriverDeliveryService {
     if (committed < stopCount) {
       // Driver-facing message in Vietnamese (the app surfaces it verbatim);
       // bracketed technical suffix keeps log/ops correlation in English.
-      throw new BadRequestException(
-        'Chưa thể hoàn thành lệnh điều xe: mới có ' + String(committed) + '/' +
-        String(stopCount) + ' phiếu cân được ghi nhận. Vui lòng chụp đủ ảnh tại các điểm lấy và giao hàng.' +
-        ' [road_run ' + roadRunId + ': ' + String(committed) + ' of ' + String(stopCount) + ' committed]',
-      );
+      // Structured 409 (forgiving-FSM arc): actionable Vietnamese counts kept;
+      // the [road_run ...] debug bracket is GONE -- internals never ride detail
+      // (the id already travels in the instance member). Machines get the code
+      // + { committed, required } extensions.
+      throw new ConflictException({
+        message:
+          'Chưa thể hoàn thành lệnh điều xe: mới có ' + String(committed) + '/' +
+          String(stopCount) + ' phiếu cân được ghi nhận. Vui lòng chụp đủ ảnh tại các điểm lấy và giao hàng.',
+        code: 'MANIFESTS_INCOMPLETE',
+        extensions: { committed, required: stopCount },
+      });
     }
   }
   private transition(
@@ -118,9 +124,17 @@ export class DriverDeliveryService {
       const current: RoadRunState = rr.state;
       const result = transitionRoadRun(current, next);
       if (!result.allowed) {
-        throw new BadRequestException(
-          'illegal road_run transition ' + current + ' -> ' + next + ' (' + result.reason + ')',
-        );
+        // Structured 409 (forgiving-FSM arc): Vietnamese detail carries NO
+        // internal state names or machine tokens (presenters shield humans;
+        // this shields the wire itself). Machines key off the code extension;
+        // the forgiving driver flow keys off currentState + allowedActions,
+        // DERIVED from the domain FSM table (terminal states -> []).
+        const allowedActions = ROAD_RUN_STATES.filter((target) => roadRunFsm.canTransition(current, target));
+        throw new ConflictException({
+          message: 'Không thể thực hiện thao tác: trạng thái chuyến đã thay đổi. Vui lòng tải lại.',
+          code: 'INVALID_STATE_TRANSITION',
+          extensions: { currentState: current, allowedActions },
+        });
       }
       // 2026 completion gate: only allow -> completed when all stop photos
       // (manifests) are committed for the run's orders.
