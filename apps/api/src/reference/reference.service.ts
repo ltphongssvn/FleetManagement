@@ -1,6 +1,6 @@
 // apps/api/src/reference/reference.service.ts
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, isNotNull, isNull, notExists } from 'drizzle-orm';
+import { and, asc, eq, exists, inArray, isNotNull, isNull, notExists } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
@@ -9,6 +9,10 @@ import { driverVehicleAssignment } from '../database/schema/driver-vehicle-assig
 import { transportOrder, roadRun, roadRunTransportOrder } from '../database/schema/transport.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import type { ReferenceListResponse } from './reference.dto.js';
+import type {
+  DriverVehicleAssignmentItem,
+  DriverVehicleAssignmentsResponse,
+} from '@fleet/sync-protocol';
 import { isPgUniqueViolation } from '../common/pg-errors.js';
 // 2026 permanent business rule: a driver/truck bound to a road_run that has
 // NOT reached a terminal state is BUSY and must disappear from the dispatch
@@ -17,13 +21,10 @@ import { isPgUniqueViolation } from '../common/pg-errors.js';
 // (all pickup+delivery manifests captured); 'cancelled' also frees the pair.
 // Non-terminal states that keep a pair BUSY:
 const ROAD_RUN_NON_TERMINAL_STATES = ['planned', 'dispatched', 'started'] as const;
-export interface DriverVehicleAssignmentItem {
-  readonly operatorId: string;
-  readonly vehicleId: string;
-}
-export interface DriverVehicleAssignmentsResponse {
-  readonly items: readonly DriverVehicleAssignmentItem[];
-}
+// Schema-first (two-axis rule, fix-trigger 2): the assignments wire shape
+// derives from the @fleet/sync-protocol SSOT; the hand-written local twins
+// are gone. Re-exported so existing importers (controller) keep working.
+export type { DriverVehicleAssignmentItem, DriverVehicleAssignmentsResponse };
 function conflictMessage(label: string, value: string): string {
   return label + ' "' + value + '" đã tồn tại';
 }
@@ -38,6 +39,20 @@ export class ReferenceService {
       depotId: op.depotId, legalEntityId: op.legalEntityId,
     };
   }
+  // Orphan guard (dispatch-pair-visibility, 2026-07-05): a road_run with
+  // ZERO linked transport_order cannot represent live work -- every
+  // legitimate run is created in the SAME transaction as its order + link
+  // (transport-orders.service). Orphans (e.g. a partial external cleanup
+  // deleting orders but not runs) must NOT pin a pair busy forever, so the
+  // busy predicates only count non-terminal runs that still HAVE a link.
+  private runHasLinkedOrder(): SQL {
+    return exists(
+      this.db
+        .select({ one: roadRunTransportOrder.roadRunId })
+        .from(roadRunTransportOrder)
+        .where(eq(roadRunTransportOrder.roadRunId, roadRun.roadRunId)),
+    );
+  }
   // Anti-join predicate: TRUE when NO non-terminal road_run binds this OPERATOR
   // in the same tenancy. Used to hide busy drivers from the Tài xế dropdown.
   private operatorNotBusy(op: OperatorContext): SQL {
@@ -49,6 +64,7 @@ export class ReferenceService {
           eq(roadRun.companyId, op.companyId),
           eq(roadRun.assignedOperatorId, driver.operatorId),
           inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
+          this.runHasLinkedOrder(),
         )),
     );
   }
@@ -63,6 +79,7 @@ export class ReferenceService {
           eq(roadRun.companyId, op.companyId),
           eq(roadRun.assignedAssetId, vehicle.vehicleId),
           inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
+          this.runHasLinkedOrder(),
         )),
     );
   }

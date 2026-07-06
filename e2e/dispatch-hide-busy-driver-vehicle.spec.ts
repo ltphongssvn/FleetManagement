@@ -16,7 +16,10 @@
 //
 // Strategy (mirrors dispatch-order-protection-chain seeding): mint a
 // dispatcher token, seed a fresh driver+vehicle+assignment pair, then
-// directly insert a road_run in a non-terminal state binding that pair.
+// directly insert a road_run in a non-terminal state binding that pair,
+// WITH a linked transport_order (2026-07-05 orphan rule: a link-less
+// road_run is an artifact and no longer counts as busy; production
+// always creates run + order + link in one transaction).
 // Assert the pair's labels are ABSENT from /reference/drivers and
 // /reference/vehicles while busy. Flip the road_run to 'completed' and
 // assert the labels REAPPEAR. All test rows use unique timestamped
@@ -77,11 +80,15 @@ async function setupPair(api: APIRequestContext, suffix: string): Promise<Seeded
 }
 function insertRoadRun(operatorId: string, assetId: string, state: string): string {
   const sq = sq39();
+  const T4 = sq + COMPANY_ID + sq + ',' + sq + COMPANY_ID + sq + ',' + sq + COMPANY_ID + sq + ',' + sq + COMPANY_ID + sq;
   const sql =
-    'INSERT INTO road_run ' +
+    'WITH rr AS (INSERT INTO road_run ' +
     '(company_id, business_unit_id, depot_id, legal_entity_id, state, assigned_operator_id, assigned_asset_id, started_at) VALUES (' +
-    sq + COMPANY_ID + sq + ',' + sq + COMPANY_ID + sq + ',' + sq + COMPANY_ID + sq + ',' + sq + COMPANY_ID + sq + ',' +
-    sq + state + sq + ',' + sq + operatorId + sq + ',' + sq + assetId + sq + ', now()) RETURNING road_run_id;';
+    T4 + ',' +
+    sq + state + sq + ',' + sq + operatorId + sq + ',' + sq + assetId + sq + ', now()) RETURNING road_run_id), ' +
+    't AS (INSERT INTO transport_order (company_id, business_unit_id, depot_id, legal_entity_id) VALUES (' + T4 + ') RETURNING transport_order_id) ' +
+    'INSERT INTO road_run_transport_order (company_id, business_unit_id, depot_id, legal_entity_id, road_run_id, transport_order_id, sequence) ' +
+    'SELECT ' + T4 + ', rr.road_run_id, t.transport_order_id, 1 FROM rr, t RETURNING road_run_id;';
   const r = dockerPsql(sql);
   if (r.failed) throw new Error('road_run insert failed: ' + r.stderr);
   // psql -tA on an INSERT ... RETURNING emits the returned value AND a status
@@ -101,7 +108,10 @@ test.describe('dispatch dropdowns hide busy (incomplete-road-run) driver + vehic
     while (seededRoadRunIds.length > 0) {
       const id = seededRoadRunIds.pop();
       if (id === undefined) continue;
-      try { dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + id + sq + ';'); } catch { /* tolerate */ }
+      try {
+        dockerPsql('DELETE FROM transport_order WHERE transport_order_id IN (SELECT transport_order_id FROM road_run_transport_order WHERE road_run_id=' + sq + id + sq + ');');
+        dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + id + sq + ';');
+      } catch { /* tolerate */ }
     }
     while (seededPairs.length > 0) {
       const pair = seededPairs.pop();
