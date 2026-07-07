@@ -452,3 +452,19 @@ describe('array redaction edge cases', () => {
     expect(first['password']).toBe('[redacted]');
   });
 });
+
+
+describe('drizzle failed-query exception values (2026-07-06 Sentry leak)', () => {
+  it('redacts bcrypt hashes in strings', () => {
+    const hash = '$2b$10$LBb70EYQ543VZVYZo8TVNOjK6TpOm9wEoksEtLM0yGwnDaO5lVXku';
+    expect(scrubString('pw=' + hash)).not.toContain(hash);
+  });
+  it('truncates the params tail of drizzle Failed query messages (names, hashes, ids)', () => {
+    const msg = 'Failed query: insert into driver (...) values (...)' + String.fromCharCode(10) + 'params: abc-123,LE VAN CHAU,0913998879,$2b$10$LBb70EYQ543VZVYZo8TVNOjK6TpOm9wEoksEtLM0yGwnDaO5lVXku,18d6a077-2fd5-489d-872c-907da68fe373,true';
+    const out = scrubString(msg);
+    expect(out).toContain('Failed query: insert into driver');
+    expect(out).not.toContain('LE VAN CHAU');
+    expect(out).not.toContain('LBb70EYQ543');
+    expect(out).not.toContain('18d6a077');
+  });
+});
