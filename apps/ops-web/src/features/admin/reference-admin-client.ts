@@ -4,34 +4,46 @@
 // warehouses); it calls the /api/reference/* BFF routes, which attach the
 // httpOnly session token server-side. fetch is injectable for tests.
 //
-// T5b error handling: when the API returns a non-ok response (409 in
-// particular), surface the localized server-provided message from the
-// JSON body (Nest ConflictException renders { statusCode, message, error }).
-// Falls back to a generic 'METHOD path HTTP <status>' string when the
-// body is empty or not JSON.
+// T5b error handling + problem-details migration: on a non-ok response,
+// surface the localized server-provided message from EITHER wire shape --
+// the RFC 9457 envelope the api emits today (detail member, loose
+// must-ignore consumption via parseProblemDetails) or the legacy Nest
+// shape { statusCode, message, error } (compat). detail/message are used
+// for DISPLAY only; machine branching stays on the code extension. When
+// neither yields a message, fall back to status-class Vietnamese via
+// vnApiErrorMessage -- the manufactured raw transport-string class is
+// eliminated (it leaked to the T5b e2e after the api migrated shapes
+// and this client still parsed only .message).
 //
 // T5c: list(role, scope) accepts an optional 'admin' scope so the
 // reference admin page can fetch ALL active rows (including unpaired
 // vehicles) instead of the dispatch-form's pair-filtered subset.
+import {
+  parseProblemDetails,
+  ReferenceItemSchema,
+  ReferenceListResponseSchema,
+  type ReferenceItem,
+} from '@fleet/sync-protocol';
+import { vnApiErrorMessage } from '../errors/present-problem';
+
 export type FetchFn = typeof globalThis.fetch;
-export interface ReferenceOption {
-  readonly id: string;
-  readonly label: string;
-  readonly meta?: Record<string, string | null>;
-}
+// ReferenceOption now DERIVES from the @fleet/sync-protocol SSOT (one of
+// four consolidated hand-written twins); re-exported for existing imports.
+export type ReferenceOption = ReferenceItem;
 export type ReferenceSegment = 'customers' | 'cargo-types' | 'vehicles' | 'warehouses';
-async function extractServerMessage(res: Response): Promise<string | null> {
-  try {
-    const data = await res.clone().json() as { message?: unknown };
-    if (typeof data.message === 'string' && data.message.length > 0) return data.message;
-    return null;
-  } catch {
-    return null;
+function serverMessageFrom(body: unknown): string | null {
+  const problem = parseProblemDetails(body);
+  if (typeof problem?.detail === 'string' && problem.detail.length > 0) return problem.detail;
+  const legacy = body as { message?: unknown } | null;
+  if (legacy !== null && typeof legacy === 'object' && typeof legacy.message === 'string' && legacy.message.length > 0) {
+    return legacy.message;
   }
+  return null;
 }
-async function failWithBestMessage(res: Response, fallback: string): Promise<never> {
-  const serverMsg = await extractServerMessage(res);
-  throw new Error(serverMsg ?? fallback);
+async function failWithBestMessage(res: Response): Promise<never> {
+  const body: unknown = await res.clone().json().catch(() => undefined);
+  const serverMsg = serverMessageFrom(body);
+  throw new Error(serverMsg ?? vnApiErrorMessage(res.status, body));
 }
 export class ReferenceAdminClient {
   private readonly fetchFn: FetchFn;
@@ -47,9 +59,12 @@ export class ReferenceAdminClient {
     if (scope !== undefined) params.push('scope=' + scope);
     const url = params.length === 0 ? this.base() : this.base() + '?' + params.join('&');
     const res = await this.fetchFn(url, { method: 'GET' });
-    if (!res.ok) await failWithBestMessage(res, 'GET ' + this.base() + ' HTTP ' + String(res.status));
-    const data = (await res.json()) as { items?: ReferenceOption[] };
-    return data.items ?? [];
+    if (!res.ok) await failWithBestMessage(res);
+    // Parse at the boundary (never cast): shape-invalid envelopes drop to
+    // [] -- the page already renders an empty state; a corrupt payload must
+    // not enter state as trusted rows (the t5b lesson).
+    const parsed = ReferenceListResponseSchema.safeParse(await res.json());
+    return parsed.success ? parsed.data.items : [];
   }
   async create(name: string, role?: string, phone?: string | null): Promise<ReferenceOption> {
     const body: { name: string; role?: string; phone?: string | null } = { name };
@@ -60,8 +75,9 @@ export class ReferenceAdminClient {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!res.ok) await failWithBestMessage(res, 'POST ' + this.base() + ' HTTP ' + String(res.status));
-    return (await res.json()) as ReferenceOption;
+    if (!res.ok) await failWithBestMessage(res);
+    // A create response that fails the contract is an error, not data.
+    return ReferenceItemSchema.parse(await res.json());
   }
   async update(id: string, name: string, phone?: string | null): Promise<void> {
     const body: { name: string; phone?: string | null } = { name };
@@ -71,10 +87,10 @@ export class ReferenceAdminClient {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!res.ok) await failWithBestMessage(res, 'PATCH ' + this.base() + '/:id HTTP ' + String(res.status));
+    if (!res.ok) await failWithBestMessage(res);
   }
   async remove(id: string): Promise<void> {
     const res = await this.fetchFn(this.base() + '/' + id, { method: 'DELETE' });
-    if (!res.ok) await failWithBestMessage(res, 'DELETE ' + this.base() + '/:id HTTP ' + String(res.status));
+    if (!res.ok) await failWithBestMessage(res);
   }
 }

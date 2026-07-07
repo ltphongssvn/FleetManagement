@@ -18,9 +18,9 @@ import { DeliveryLifecycleClient, type TransitionResult } from './delivery-lifec
 import {
   ASSIGNMENTS_QUERY_KEY,
   makeAssignmentsQueryFn,
-  makeLifecycleMutationFn,
   type LifecycleMutationInput,
 } from './assignments-query.js';
+import { makeForgivingLifecycleMutationFn } from './forgiving-lifecycle.js';
 import { getApiUrl } from '../config/api-url.js';
 import { useAuth } from '../auth/use-auth.js';
 export interface UseAssignmentsResult {
@@ -38,7 +38,10 @@ export function useAssignments(): UseAssignmentsResult {
     enabled: status === 'authenticated',
   });
   const lifecycle = useMutation<TransitionResult, Error, LifecycleMutationInput>({
-    mutationFn: makeLifecycleMutationFn(
+    // Forgiving recovery: 409 INVALID_STATE_TRANSITION with structured
+    // extensions auto-walks skipped happy-path steps or treats an already-
+    // passed target as idempotent success; everything else banners as before.
+    mutationFn: makeForgivingLifecycleMutationFn(
       new DeliveryLifecycleClient({ apiUrl: getApiUrl(), bearerToken: getAccessToken }),
     ),
     onSuccess: () => {

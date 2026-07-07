@@ -1,22 +1,35 @@
 // apps/ops-web/src/app/admin/drivers/page.tsx
-// Drivers admin CRUD UI. Pattern mirrors /admin/reference.
-//
-// T5: removed redundant 'Sửa' (inline rename) per-row control and its
-// supporting state (editId/editName/Lưu/Hủy + saveEdit/cancelEdit/
-// startEdit + client.update plumbing in this page). Xóa + re-create
-// supersedes rename safely. The Thao tác column now only renders the
-// Xóa button per row.
+// Drivers admin CRUD UI with contextual surfacing (XState v5).
+// Smart state management: instead of one giant matrix rendering every
+// control for every driver, drivers needing setup are MOVED (partitioned,
+// never copied -- names stay unique page-wide) into the Can xu ly queue
+// with reason chips + next-action hints; fully configured drivers stay in
+// the regular table. State ownership: driverAttentionMachine (useMachine)
+// replaces the old useReducer -- loading / ready.attention / ready.allClear
+// / error are explicit machine states, boolean soup is unrepresentable.
+// Rows are server data; classification truth lives in @fleet/sync-protocol;
+// Vietnamese copy lives in driver-attention.presenter (immutable contracts).
+// T5: no inline rename (Xoa + re-create supersedes). Assign and enroll stay
+// INDEPENDENT mutations (MAI HIEN DIEU bug guard): each refreshes + busts
+// the Router Cache on its own success; enroll failure never blocks the
+// assignment refresh. Cross-route: revalidateDispatch() busts route '/'.
 'use client';
-import { useEffect, useReducer, useState, type JSX } from 'react';
+import { useEffect, useState, type JSX } from 'react';
+import { useMachine } from '@xstate/react';
+import type { AdminDriverRow } from '@fleet/sync-protocol';
 import { vnExceptionMessage } from '@/features/errors/present-problem';
 import { useRouter } from 'next/navigation';
 import { revalidateDispatch } from '../../../features/admin/revalidate-dispatch.action';
 import { AdminDriversClient } from '../../../features/admin/admin-drivers-client';
 import { useRefetchOnFocus } from '../../../lib/use-refetch-on-focus';
 import {
-  reduceAdminDriversState,
-  type DriverRow,
-} from '../../../features/admin/drivers-state';
+  driverAttentionMachine,
+  type DriverAttentionEntry,
+} from '../../../features/admin/driver-attention.machine';
+import {
+  DRIVER_ATTENTION_QUEUE_HEADING,
+  presentDriverAttentionReason,
+} from '../../../features/admin/driver-attention.presenter';
 interface VehicleOption { vehicleId: string; plate: string; }
 interface CreateFormState {
   fullName: string;
@@ -33,7 +46,7 @@ const EMPTY_CREATE_FORM: CreateFormState = {
   error: null,
 };
 export default function AdminDriversPage(): JSX.Element {
-  const [state, dispatch] = useReducer(reduceAdminDriversState, { kind: 'loading' });
+  const [snapshot, send] = useMachine(driverAttentionMachine);
   const router = useRouter();
   const [vehicleSelect, setVehicleSelect] = useState<Record<string, string>>({});
   const [deviceIdInput, setDeviceIdInput] = useState<Record<string, string>>({});
@@ -49,17 +62,16 @@ export default function AdminDriversPage(): JSX.Element {
   const refresh = async (): Promise<void> => {
     try {
       const rows = await client.list();
-      dispatch({ type: 'loaded', rows });
+      send({ type: 'LOADED', rows });
     } catch (e) {
-      dispatch({ type: 'error', message: vnExceptionMessage(e, 'load failed') });
+      send({ type: 'ERROR', message: vnExceptionMessage(e, 'load failed') });
     }
   };
   // Refetch-on-focus (2026 professional default), via the shared hook so this
-  // page behaves like every other server-state surface. This page owns its
-  // rows in client state (client.list() -> useReducer), NOT via RSC props, so a
-  // bare router.refresh() would not repopulate it — re-run our own refresh() so
-  // a driver/assignment change made elsewhere (revoke/assign on another tab or
-  // device) appears here without a manual reload.
+  // page behaves like every other server-state surface. Rows live in machine
+  // context (client.list() -> LOADED event), NOT RSC props, so a bare
+  // router.refresh() would not repopulate them -- re-run refresh() so a
+  // driver/assignment change made elsewhere appears without a manual reload.
   useRefetchOnFocus(() => { void refresh(); });
   const loadVehicles = async (): Promise<void> => {
     try {
@@ -104,23 +116,11 @@ export default function AdminDriversPage(): JSX.Element {
     const deviceId = deviceIdInput[driverId];
     if (vehicleId === undefined || vehicleId.length === 0) { alert('Vui lòng chọn xe'); return; }
     if (deviceId === undefined || deviceId.length === 0) { alert('Vui lòng nhập mã thiết bị (UDID)'); return; }
-    // Assign and enroll are INDEPENDENT operations. The assignment is what feeds
-    // the dispatch form's Số xe / Tài xế dropdowns, so its cache invalidation
-    // must NOT depend on the enroll step. Previously both were chained in one
-    // try: assign committed, enrollDevice threw, the catch swallowed it, and
-    // router.refresh() never ran -> the new pair persisted but the dispatch form
-    // stayed stale until a hard reload (MAI HIEN DIEU bug). Fix: refresh right
-    // after assign succeeds; run enroll in its OWN try/catch so its failure
-    // surfaces its own error without rolling back or blocking the already-fired
-    // assignment refresh. (2026: execute independent mutations independently;
-    // each invalidates the cache on its own success.)
+    // Assign and enroll are INDEPENDENT operations (see header note).
     try {
       await client.assign({ driverId, vehicleId });
       await refresh();
       router.refresh();
-      // Cross-route cache bust: the dispatch form lives at route '/', not here,
-      // so router.refresh() (current route only) cannot refresh its dropdowns.
-      // revalidateDispatch() runs revalidatePath('/','layout') server-side.
       await revalidateDispatch();
     } catch (e) {
       alert(vnExceptionMessage(e, 'assign failed'));
@@ -147,7 +147,7 @@ export default function AdminDriversPage(): JSX.Element {
       alert(vnExceptionMessage(e, 'revoke failed'));
     }
   };
-  const handleDelete = async (row: DriverRow): Promise<void> => {
+  const handleDelete = async (row: AdminDriverRow): Promise<void> => {
     if (!window.confirm('Xóa tài xế ' + row.fullName + '?')) return;
     setBusy(true);
     try {
@@ -161,7 +161,7 @@ export default function AdminDriversPage(): JSX.Element {
       setBusy(false);
     }
   };
-  const handleSavePhone = async (row: DriverRow): Promise<void> => {
+  const handleSavePhone = async (row: AdminDriverRow): Promise<void> => {
     const next = phoneEdits[row.driverId] ?? row.phone ?? '';
     setBusy(true);
     try {
@@ -175,7 +175,7 @@ export default function AdminDriversPage(): JSX.Element {
       setBusy(false);
     }
   };
-  const handleResetPassword = async (row: DriverRow): Promise<void> => {
+  const handleResetPassword = async (row: AdminDriverRow): Promise<void> => {
     const next = window.prompt('Mật khẩu mới cho ' + row.fullName + ' (≥ 6 ký tự):', '');
     if (next === null) return;
     if (next.length < 6) { alert('Mật khẩu mới phải có ít nhất 6 ký tự'); return; }
@@ -189,14 +189,88 @@ export default function AdminDriversPage(): JSX.Element {
       setBusy(false);
     }
   };
-  if (state.kind === 'loading') return <div className='p-6'>Đang tải…</div>;
-  if (state.kind === 'error') return <div className='p-6 text-red-600'>Lỗi: {state.message}</div>;
-  // Defensive narrowing: TypeScript can prove rows exists here, but a
-  // concurrent strict-mode re-render in tests can observe the function
-  // body with state pointing at the previous 'loading' snapshot before the
-  // early returns above evaluate. Bind rows once via narrowing so the
-  // JSX below references a guaranteed array.
-  const rows: readonly DriverRow[] = state.rows;
+  const renderAssignControls = (row: AdminDriverRow): JSX.Element => (
+    row.assignmentId !== null ? (
+      <button
+        type='button'
+        onClick={() => { void handleRevoke(row.assignmentId ?? ''); }}
+        className='bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm w-fit'
+      >
+        Hủy phân công
+      </button>
+    ) : (
+      <div className='flex flex-col gap-2'>
+        <select
+          value={vehicleSelect[row.driverId] ?? ''}
+          onChange={(e) => { setVehicleSelect((m) => ({ ...m, [row.driverId]: e.target.value })); }}
+          className='border rounded px-2 py-1 text-sm w-72'
+        >
+          <option value=''>— Chọn số xe —</option>
+          {vehicles.map((v) => (
+            <option key={v.vehicleId} value={v.vehicleId}>{v.plate}</option>
+          ))}
+        </select>
+        <input
+          type='text'
+          placeholder='Mã thiết bị tài xế (UDID)'
+          value={deviceIdInput[row.driverId] ?? ''}
+          onChange={(e) => { setDeviceIdInput((m) => ({ ...m, [row.driverId]: e.target.value })); }}
+          className='border rounded px-2 py-1 text-sm w-72'
+        />
+        <button
+          type='button'
+          onClick={() => { void handleAssignAndEnroll(row.driverId); }}
+          className='bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm w-fit'
+        >
+          Phân công &amp; đăng ký
+        </button>
+      </div>
+    )
+  );
+  const renderOpsControls = (row: AdminDriverRow): JSX.Element => (
+    <div className='flex gap-2'>
+      <input
+        type='text'
+        aria-label={'Số điện thoại của ' + row.fullName}
+        value={phoneEdits[row.driverId] ?? row.phone ?? ''}
+        onChange={(e) => { setPhoneEdits((m) => ({ ...m, [row.driverId]: e.target.value })); }}
+        className='w-32 rounded border px-2 py-1 text-sm'
+      />
+      <button
+        type='button'
+        disabled={busy}
+        aria-label={'Lưu SĐT của ' + row.fullName}
+        onClick={() => { void handleSavePhone(row); }}
+        className='rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600 disabled:bg-gray-400'
+      >
+        Lưu SĐT
+      </button>
+      <button
+        type='button'
+        disabled={busy}
+        onClick={() => { void handleDelete(row); }}
+        className='rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600 disabled:bg-gray-400'
+      >
+        Xóa
+      </button>
+      <button
+        type='button'
+        disabled={busy}
+        aria-label={'Đặt lại mật khẩu của ' + row.fullName}
+        onClick={() => { void handleResetPassword(row); }}
+        className='rounded bg-amber-500 px-3 py-1 text-sm text-white hover:bg-amber-600 disabled:bg-gray-400'
+      >
+        Đặt lại mật khẩu
+      </button>
+      {resetMsg[row.driverId] !== undefined ? (
+        <span className='self-center text-sm text-green-700'>{resetMsg[row.driverId]}</span>
+      ) : null}
+    </div>
+  );
+  if (snapshot.matches('loading')) return <div className='p-6'>Đang tải…</div>;
+  if (snapshot.matches('error')) return <div className='p-6 text-red-600'>Lỗi: {snapshot.context.errorMessage}</div>;
+  const attention: readonly DriverAttentionEntry[] = snapshot.context.attention;
+  const configured: readonly AdminDriverRow[] = snapshot.context.configured;
   return (
     <div className='p-6'>
       <div className='mb-4'><a href='/' className='text-blue-600 hover:underline text-sm'>← Quay lại Bảng điều phối</a></div>
@@ -247,6 +321,43 @@ export default function AdminDriversPage(): JSX.Element {
           <div className='mt-2 text-red-600 text-sm'>{createForm.error}</div>
         ) : null}
       </section>
+      {snapshot.matches({ ready: 'attention' }) ? (
+        <section aria-label={DRIVER_ATTENTION_QUEUE_HEADING} className='mb-8 p-4 border-2 border-amber-400 rounded bg-amber-50'>
+          <h2 className='text-lg font-semibold mb-3'>{DRIVER_ATTENTION_QUEUE_HEADING}</h2>
+          <ul className='flex flex-col gap-4'>
+            {attention.map((entry) => (
+              <li key={entry.row.driverId} className='p-3 border rounded bg-white'>
+                <div className='flex flex-wrap gap-4 items-start'>
+                  <div className='w-48'>
+                    <div className='font-medium'>{entry.row.fullName}</div>
+                    <div className='text-xs text-gray-700'>{entry.row.phone}</div>
+                    {entry.row.assignedVehicle ? (
+                      <span className='inline-block mt-1 bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>
+                        {entry.row.assignedVehicle.plate}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className='w-80'>
+                    {entry.reasons.map((code) => {
+                      const p = presentDriverAttentionReason(code);
+                      return (
+                        <div key={code} className='mb-2'>
+                          <span className='inline-block bg-amber-200 text-amber-900 px-2 py-1 rounded text-sm'>{p.label}</span>
+                          <div className='text-xs text-gray-700 mt-1'>{p.hint}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className='flex flex-col gap-2'>
+                    {renderAssignControls(entry.row)}
+                    {renderOpsControls(entry.row)}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <table className='w-full border-collapse'>
         <thead>
           <tr className='border-b bg-gray-50'>
@@ -258,7 +369,7 @@ export default function AdminDriversPage(): JSX.Element {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row: DriverRow) => (
+          {configured.map((row: AdminDriverRow) => (
             <tr key={row.driverId} className='border-b'>
               <td className='p-2'>
                 <div className='font-medium'>{row.fullName}</div>
@@ -287,82 +398,10 @@ export default function AdminDriversPage(): JSX.Element {
                 )}
               </td>
               <td className='p-2'>
-                {row.assignmentId !== null ? (
-                  <button
-                    type='button'
-                    onClick={() => { void handleRevoke(row.assignmentId ?? ''); }}
-                    className='bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm'
-                  >
-                    Hủy phân công
-                  </button>
-                ) : (
-                  <div className='flex flex-col gap-2'>
-                    <select
-                      value={vehicleSelect[row.driverId] ?? ''}
-                      onChange={(e) => { setVehicleSelect((m) => ({ ...m, [row.driverId]: e.target.value })); }}
-                      className='border rounded px-2 py-1 text-sm w-72'
-                    >
-                      <option value=''>— Chọn số xe —</option>
-                      {vehicles.map((v) => (
-                        <option key={v.vehicleId} value={v.vehicleId}>{v.plate}</option>
-                      ))}
-                    </select>
-                    <input
-                      type='text'
-                      placeholder='Mã thiết bị tài xế (UDID)'
-                      value={deviceIdInput[row.driverId] ?? ''}
-                      onChange={(e) => { setDeviceIdInput((m) => ({ ...m, [row.driverId]: e.target.value })); }}
-                      className='border rounded px-2 py-1 text-sm w-72'
-                    />
-                    <button
-                      type='button'
-                      onClick={() => { void handleAssignAndEnroll(row.driverId); }}
-                      className='bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm w-fit'
-                    >
-                      Phân công &amp; đăng ký
-                    </button>
-                  </div>
-                )}
+                {renderAssignControls(row)}
               </td>
               <td className='p-2'>
-                <div className='flex gap-2'>
-                  <input
-                    type='text'
-                    aria-label={'Số điện thoại của ' + row.fullName}
-                    value={phoneEdits[row.driverId] ?? row.phone ?? ''}
-                    onChange={(e) => { setPhoneEdits((m) => ({ ...m, [row.driverId]: e.target.value })); }}
-                    className='w-32 rounded border px-2 py-1 text-sm'
-                  />
-                  <button
-                    type='button'
-                    disabled={busy}
-                    aria-label={'Lưu SĐT của ' + row.fullName}
-                    onClick={() => { void handleSavePhone(row); }}
-                    className='rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600 disabled:bg-gray-400'
-                  >
-                    Lưu SĐT
-                  </button>
-                  <button
-                    type='button'
-                    disabled={busy}
-                    onClick={() => { void handleDelete(row); }}
-                    className='rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600 disabled:bg-gray-400'
-                  >
-                    Xóa
-                  </button>
-                  <button
-                    type='button'
-                    disabled={busy}
-                    aria-label={'Đặt lại mật khẩu của ' + row.fullName}
-                    onClick={() => { void handleResetPassword(row); }}
-                    className='rounded bg-amber-500 px-3 py-1 text-sm text-white hover:bg-amber-600 disabled:bg-gray-400'
-                  >
-                    Đặt lại mật khẩu
-                  </button>
-                  {resetMsg[row.driverId] !== undefined ? (
-                    <span className='self-center text-sm text-green-700'>{resetMsg[row.driverId]}</span>
-                  ) : null}
-                </div>
+                {renderOpsControls(row)}
               </td>
             </tr>
           ))}

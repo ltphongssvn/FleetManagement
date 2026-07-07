@@ -158,6 +158,12 @@ export {
   type FleetErrorCode,
   ProblemDetailsSchema,
   parseProblemDetails,
+  InvalidStateTransitionExtensionsSchema,
+  parseInvalidStateTransitionExtensions,
+  type InvalidStateTransitionExtensions,
+  ManifestsIncompleteExtensionsSchema,
+  parseManifestsIncompleteExtensions,
+  type ManifestsIncompleteExtensions,
   PROBLEM_DETAILS_CONTENT_TYPE,
   type ProblemDetails,
 } from './problem-details-contract.js';
@@ -168,6 +174,35 @@ export {
   KeycloakLoginEventSchema,
   type KeycloakLoginEvent,
 } from './keycloak-event-types.js';
+export {
+  DRIVER_ATTENTION_REASONS,
+  DriverAttentionReasonSchema,
+  AdminDriverDeviceSchema,
+  AdminDriverVehicleSchema,
+  AdminDriverRowSchema,
+  AdminDriverRowsSchema,
+  parseAdminDriverRows,
+  classifyDriverAttention,
+  needsDriverAttention,
+  type DriverAttentionReason,
+  type AdminDriverDevice,
+  type AdminDriverVehicle,
+  type AdminDriverRow,
+  type DriverAttentionFacts,
+} from './driver-attention-contract.js';
+
+export {
+  ReferenceItemSchema,
+  type ReferenceItem,
+  ReferenceListResponseSchema,
+  type ReferenceListResponse,
+  DriverVehicleAssignmentItemSchema,
+  type DriverVehicleAssignmentItem,
+  DriverVehicleAssignmentsResponseSchema,
+  type DriverVehicleAssignmentsResponse,
+  PeekOrderRefResponseSchema,
+  type PeekOrderRefResponse,
+} from './reference-contract.js';
 
 export {
   COPILOT_COMMAND_TYPES,
