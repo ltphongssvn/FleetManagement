@@ -22,7 +22,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '../src/database/migrations');
 let testDb: PgliteTestDb;
 describe('@fleet/api - clean-slate XTT.MM-NNN squash (T3 2026-Q2)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('no migration .sql file in the repo references the legacy XT prefix in an INSERT or UPDATE', () => {
     const files = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql'));

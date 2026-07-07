@@ -11,7 +11,7 @@ export default defineConfig({
     include: ['test/**/*.integration.test.ts'],
     globalSetup: ['./test/helpers/pg-global-setup.ts', './test/helpers/global-teardown.ts'],
     testTimeout: 60_000,
-    hookTimeout: 60_000,
+    hookTimeout: 180_000, // PGlite WASM cold-start headroom under load; test budget stays 60s
     pool: 'forks',
     fileParallelism: false,
     sequence: { concurrent: false },

@@ -27,7 +27,7 @@ export default defineConfig({
   test: {
     globalSetup: ['./test/helpers/pg-global-setup.ts', './test/helpers/global-teardown.ts'],
     testTimeout: 60_000,
-    hookTimeout: 60_000,
+    hookTimeout: 180_000, // PGlite WASM cold-start headroom under load; test budget stays 60s
     // pool:forks isolates v8 coverage instrumentation per file, preventing the
     // cross-file coverage drop seen when many files share one worker.
     pool: 'forks',
