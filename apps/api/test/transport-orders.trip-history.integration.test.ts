@@ -54,7 +54,7 @@ async function completeRoadRun(tx: TestTx, operatorId: string, completedAtIso: s
     .where(eq(roadRun.roadRunId, target.id));
 }
 describe('@fleet/api - TransportOrdersService.tripHistory (integration)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('returns no months when the operator has no completed runs', async () => {
     await withTxIsolation(testDb, async (tx) => {

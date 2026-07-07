@@ -1,54 +1,95 @@
 // apps/ops-web/src/app/api/reference/_forward.ts
-// Shared BFF forwarder for reference master-data routes. Each route file is a
-// thin wrapper that names its backend path; this helper attaches the
-// fleet_session bearer token (httpOnly cookie, never exposed to the browser)
-// and proxies the request/response verbatim. Keeps the 8 reference CRUD
-// route files free of duplicated auth + fetch boilerplate.
+// Shared BFF forwarder for reference master-data + copilot routes. Attaches
+// the fleet_session bearer (httpOnly, never exposed to the browser) and
+// proxies verbatim. When the access token is missing/expired but a
+// fleet_refresh cookie survives, it SILENTLY re-mints the session at the
+// token endpoint and rides the rotated pair on the passthrough response --
+// dispatchers never see a mid-shift 401 for an expired hour-token. Only when
+// no refresh is possible does it answer 401 problem+json (code UNAUTHORIZED),
+// which the presenter maps to 'Phien dang nhap het han...'.
 //
-// T5c: forwardGet preserves the incoming request's query string so the
-// admin page can opt into ?scope=admin (returns all active rows, bypassing
-// the dispatch create-order form's pair-filtered subset).
+// T5c: forwardGet preserves the incoming query string so the admin page can
+// opt into ?scope=admin.
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
+import {
+  REFRESH_COOKIE,
+  SESSION_COOKIE,
+  refreshCookieOptions,
+  refreshEnvFromProcess,
+  refreshSession,
+  sessionCookieOptions,
+  type RefreshedTokens,
+} from '@/features/auth/session-refresh';
+
 function getApiUrl(): string {
   return process.env['FLEET_API_URL'] ?? 'http://api:3000';
 }
-async function token(): Promise<string | undefined> {
-  return (await cookies()).get('fleet_session')?.value;
+
+const UNAUTHORIZED_PROBLEM = {
+  type: 'about:blank',
+  title: 'Unauthorized',
+  status: 401,
+  code: 'UNAUTHORIZED',
+} as const;
+
+interface Bearer {
+  readonly token: string;
+  readonly rotated: RefreshedTokens | null;
 }
-function passthrough(res: Response, body: string): NextResponse {
-  return new NextResponse(body, {
+
+async function bearer(): Promise<Bearer | null> {
+  const store = await cookies();
+  const session = store.get(SESSION_COOKIE)?.value;
+  if (session !== undefined) return { token: session, rotated: null };
+  const refresh = store.get(REFRESH_COOKIE)?.value;
+  const env = refreshEnvFromProcess();
+  if (refresh === undefined || env === null) return null;
+  const rotated = await refreshSession(refresh, env);
+  if (rotated === null) return null;
+  return { token: rotated.accessToken, rotated };
+}
+
+function passthrough(res: Response, body: string, rotated: RefreshedTokens | null): NextResponse {
+  const out = new NextResponse(body, {
     status: res.status,
     headers: { 'content-type': 'application/json' },
   });
+  if (rotated !== null) {
+    out.cookies.set(SESSION_COOKIE, rotated.accessToken, sessionCookieOptions(rotated.expiresIn));
+    out.cookies.set(REFRESH_COOKIE, rotated.refreshToken, refreshCookieOptions());
+  }
+  return out;
 }
+
 export async function forwardGet(path: string, req?: NextRequest): Promise<NextResponse> {
-  const t = await token();
-  if (t === undefined) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+  const b = await bearer();
+  if (b === null) return NextResponse.json(UNAUTHORIZED_PROBLEM, { status: 401 });
   const qs = req !== undefined ? new URL(req.url).search : '';
   const res = await fetch(getApiUrl() + path + qs, {
-    headers: { Authorization: 'Bearer ' + t },
+    headers: { Authorization: 'Bearer ' + b.token },
     cache: 'no-store',
   });
-  return passthrough(res, await res.text());
+  return passthrough(res, await res.text(), b.rotated);
 }
+
 export async function forwardWrite(
   req: NextRequest,
   path: string,
   method: 'POST' | 'PATCH' | 'DELETE',
 ): Promise<NextResponse> {
-  const t = await token();
-  if (t === undefined) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+  const b = await bearer();
+  if (b === null) return NextResponse.json(UNAUTHORIZED_PROBLEM, { status: 401 });
   const hasBody = method !== 'DELETE';
   const init: RequestInit = {
     method,
     headers: {
-      Authorization: 'Bearer ' + t,
+      Authorization: 'Bearer ' + b.token,
       ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
     },
     cache: 'no-store',
   };
   if (hasBody) init.body = await req.text();
   const res = await fetch(getApiUrl() + path, init);
-  return passthrough(res, await res.text());
+  return passthrough(res, await res.text(), b.rotated);
 }

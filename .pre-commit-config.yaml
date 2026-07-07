@@ -38,6 +38,16 @@
 #   coverage-final.json so the local gate exercises exactly the same
 #   merge + threshold logic as CI. The pnpm-test-coverage-push hook does
 #   both steps in a single bash entry: vitest --coverage, then merge.
+        #
+        # Cross-worktree serialization (2026-Q3 hardening): this box runs up
+        # to 6 parallel worktree terminals; N concurrent coverage gates (each
+        # already intra-serialized via --workspace-concurrency=1) still starve
+        # an 8-core host and stretch PGlite WASM cold-starts past any sane
+        # hook budget (observed: import phase 1018s vs ~28s isolated). A
+        # machine-global flock on $HOME/.cache/fleetmanagement/gate.lock
+        # queues gates (-w 7200 waits up to 2h) instead of letting them
+        # thrash each other. Lock lives under $HOME, never repo-relative:
+        # worktrees have different paths; a repo-local lock serializes nothing.
 #
 # Related files:
 #   - .secrets.baseline                  — detect-secrets allowlist
@@ -140,7 +150,7 @@ repos:
         # CI uses across its 4 shards. Non-api packages run their own
         # test:coverage in the same -r pass so their per-package thresholds
         # are still enforced. A real failure at any step exits non-zero.
-        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm -r --workspace-concurrency=1 --if-present test:coverage && node scripts/merge-coverage.mjs apps/api/coverage/merged; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
+        entry: bash -c 'mkdir -p "$HOME/.cache/fleetmanagement"; if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then flock -w 7200 "$HOME/.cache/fleetmanagement/gate.lock" bash -c "pnpm -r --workspace-concurrency=1 --if-present test:coverage && node scripts/merge-coverage.mjs apps/api/coverage/merged"; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
         stages: [pre-push]

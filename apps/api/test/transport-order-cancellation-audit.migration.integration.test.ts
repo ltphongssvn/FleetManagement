@@ -29,7 +29,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '../src/database/migrations');
 let testDb: PgliteTestDb;
 describe('@fleet/api - transport_order_cancellation_audit migration (T5)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('ships a timestamp-named transport_order_cancellation_audit migration', () => {
     const files = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql'));
