@@ -203,3 +203,15 @@ export {
   PeekOrderRefResponseSchema,
   type PeekOrderRefResponse,
 } from './reference-contract.js';
+export {
+  DriverLoginRequestSchema,
+  type DriverLoginRequest,
+  DriverLoginResponseSchema,
+  type DriverLoginResponse,
+  RefreshRequestSchema,
+  type RefreshRequest,
+  RefreshResponseSchema,
+  type RefreshResponse,
+  parseDriverLoginResponse,
+  parseRefreshResponse,
+} from './auth-contract.js';
