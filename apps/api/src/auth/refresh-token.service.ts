@@ -85,6 +85,10 @@ export class RefreshTokenService {
     private readonly opts: RefreshTokenServiceOptions,
   ) {}
 
+  get accessTtlSeconds(): number {
+    return this.opts.accessTtlSeconds;
+  }
+
   async issueForLogin(claims: LoginClaims, nowMs: number): Promise<IssuedRefreshToken> {
     const refreshToken = mintOpaqueToken();
     const familyId = randomUUID();
