@@ -110,3 +110,8 @@ export {
   type KeycloakEventPollCursor,
   type NewKeycloakEventPollCursor,
 } from './keycloak-event-poll-cursor.js';
+export {
+  copilotPlanExecution,
+  type CopilotPlanExecution,
+  type NewCopilotPlanExecution,
+} from './copilot-plan-execution.js';
