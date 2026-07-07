@@ -56,7 +56,7 @@ async function seedOrderWithRef(tx: TestTx, externalRef: string): Promise<void> 
   });
 }
 describe('@fleet/api - OrderNumberingService monthly format XTT.MM-NNN', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('first allocation in June 2026 returns XTT.06-001', async () => {
     const captured = await withTxIsolation(testDb, async (tx) => {

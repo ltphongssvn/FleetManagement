@@ -103,7 +103,7 @@ async function completeNewest(tx: TestTx, operatorId: string, completedAtIso: st
 }
 
 describe('@fleet/api - TransportOrdersService driver pagination (RED)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
 
   it('(a) listAssigned returns only active runs — completed runs are excluded', async () => {

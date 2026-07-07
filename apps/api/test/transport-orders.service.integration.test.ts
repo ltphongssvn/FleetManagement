@@ -36,7 +36,7 @@ async function seedActivePair(tx: TestTx, op: ReturnType<typeof createOperatorCo
   return { operatorId, vehicleId: v.vehicleId };
 }
 describe('@fleet/api - TransportOrdersService (integration)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('creates transport_order + stops + road_run for a paired driver/truck', async () => {
     await withTxIsolation(testDb, async (tx) => {

@@ -21,7 +21,7 @@ const migrationsDir = resolve(here, '../src/database/migrations');
 const PILOT_COMPANY = '00000000-0000-0000-0000-000000000000';
 let testDb: PgliteTestDb;
 describe('@fleet/api - order_number_seq migration (T3, XTT.MM-NNN)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('ships a timestamp-named XTT-monthly migration', () => {
     const files = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql'));

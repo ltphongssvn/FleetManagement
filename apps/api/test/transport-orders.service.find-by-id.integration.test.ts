@@ -25,7 +25,7 @@ async function seedActivePair(tx: TestTx, op: ReturnType<typeof createOperatorCo
   return { operatorId, vehicleId: v.vehicleId };
 }
 describe('@fleet/api - TransportOrdersService.findById (integration)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('returns the enriched row for an order in the calling tenancy', async () => {
     let row: ListAssignedRow | undefined;
