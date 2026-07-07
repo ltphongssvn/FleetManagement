@@ -158,8 +158,14 @@ describe('@fleet/api CopilotPlannerService', () => {
     expect(out.kind).toBe('clarify');
   });
 
+  it('clarifies when Nest injects undefined for the absent LLM port (prod shape)', async () => {
+    const svc = new CopilotPlannerService(catalog(), undefined);
+    const out = await svc.plan('điều phối lại toàn bộ đội xe', OP);
+    expect(out.kind).toBe('clarify');
+  });
+
   it('clarifies when no LLM port is configured and no quick action matches', async () => {
-    const svc = new CopilotPlannerService(catalog(), null);
+    const svc = new CopilotPlannerService(catalog(), undefined);
     const out = await svc.plan('điều phối lại toàn bộ đội xe', OP);
     expect(out.kind).toBe('clarify');
   });

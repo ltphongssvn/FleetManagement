@@ -263,6 +263,15 @@ describe('CommandPalette', () => {
     });
   });
 
+  it('always shows the syntax guidance footer while open', () => {
+    render(<CommandPalette fetchFn={vi.fn()} />);
+    openPalette();
+    expect(screen.getByText('Cú pháp hỗ trợ:')).toBeInTheDocument();
+    expect(screen.getByText('Thêm tên hàng <tên hàng>')).toBeInTheDocument();
+    expect(screen.getByText('Thêm khách hàng <tên khách hàng>')).toBeInTheDocument();
+    expect(screen.getByText(/Esc: đóng/)).toBeInTheDocument();
+  });
+
   it('closes on Escape', () => {
     render(<CommandPalette fetchFn={vi.fn()} />);
     openPalette();
