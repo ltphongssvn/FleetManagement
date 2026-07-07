@@ -1,13 +1,13 @@
 // apps/ops-web/src/features/copilot/command-palette.tsx
-// Copilot command palette island (client). Ctrl+K opens a free-text prompt;
-// text -> POST /api/copilot/plan (BFF) -> either a plan preview card with an
+// Copilot command palette island (client). Ctrl+K opens a centered modal
+// dialog (dimmed backdrop, prominent 680px panel) with a large free-text
+// prompt; text -> POST /api/copilot/plan (BFF) -> plan preview card with an
 // explicit Xac nhan confirm (human-in-the-loop: nothing executes without it)
 // or a clarify question with candidates. Confirm -> POST /api/copilot/execute
-// with the EXACT previewed plan (planId = idempotency key). All non-ok
-// responses flow through vnApiErrorMessage, so raw transport text is
-// structurally unreachable. fetch is injectable for tests. No cmdk dep for
-// v1: this palette is free-text -> plan, not fuzzy item filtering; cmdk
-// itself documents that Ctrl+K listening is app code either way.
+// with the EXACT previewed plan (planId = idempotency key). A permanent
+// footer documents every supported syntax so dispatchers never guess. All
+// non-ok responses flow through vnApiErrorMessage; raw transport text is
+// structurally unreachable. fetch is injectable for tests.
 'use client';
 import { useEffect, useState } from 'react';
 import {
@@ -25,6 +25,58 @@ type Clarify = Extract<CopilotPlanResponse, { kind: 'clarify' }>;
 export interface CommandPaletteProps {
   readonly fetchFn?: FetchFn;
 }
+
+const OVERLAY_STYLE: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  background: 'rgba(15, 23, 42, 0.55)',
+  display: 'flex',
+  alignItems: 'flex-start',
+  justifyContent: 'center',
+  paddingTop: '12vh',
+  zIndex: 1000,
+};
+
+const PANEL_STYLE: React.CSSProperties = {
+  width: 'min(680px, 92vw)',
+  maxHeight: '76vh',
+  overflowY: 'auto',
+  background: '#ffffff',
+  color: '#0f172a',
+  borderRadius: 12,
+  boxShadow: '0 24px 60px rgba(0, 0, 0, 0.35)',
+  padding: '20px 22px',
+};
+
+const INPUT_STYLE: React.CSSProperties = {
+  width: '100%',
+  boxSizing: 'border-box',
+  fontSize: 18,
+  lineHeight: 1.4,
+  padding: '12px 14px',
+  border: '1px solid #cbd5e1',
+  borderRadius: 8,
+  outline: 'none',
+};
+
+const CONFIRM_STYLE: React.CSSProperties = {
+  marginTop: 10,
+  fontSize: 16,
+  padding: '10px 18px',
+  borderRadius: 8,
+  border: '1px solid #1d4ed8',
+  background: '#2563eb',
+  color: '#ffffff',
+  cursor: 'pointer',
+};
+
+const FOOTER_STYLE: React.CSSProperties = {
+  marginTop: 18,
+  paddingTop: 12,
+  borderTop: '1px solid #e2e8f0',
+  fontSize: 13,
+  color: '#475569',
+};
 
 async function readJson(res: Response): Promise<unknown> {
   try {
@@ -124,59 +176,96 @@ export function CommandPalette({ fetchFn }: CommandPaletteProps): React.JSX.Elem
     }
   }
 
+  function closeAll(): void {
+    setOpen(false);
+    setText('');
+    setPlan(null);
+    setClarify(null);
+    setResult(null);
+    setMessage(null);
+  }
+
   if (!open) return null;
   return (
-    <div role='dialog' aria-label='Copilot' className='copilot-palette'>
-      <form
-        aria-label='copilot'
-        onSubmit={(e): void => {
-          e.preventDefault();
-          void requestPlan();
+    <div style={OVERLAY_STYLE} onClick={closeAll} data-testid='copilot-overlay'>
+      <div
+        role='dialog'
+        aria-label='Copilot'
+        aria-modal='true'
+        className='copilot-palette'
+        style={PANEL_STYLE}
+        onClick={(e): void => {
+          e.stopPropagation();
         }}
       >
-        <input
-          placeholder='Nhập lệnh...'
-          value={text}
-          disabled={busy}
-          onChange={(e): void => {
-            setText(e.target.value);
+        <h2 style={{ margin: '0 0 10px', fontSize: 17 }}>Trợ lý điều phối (Ctrl+K)</h2>
+        <form
+          aria-label='copilot'
+          onSubmit={(e): void => {
+            e.preventDefault();
+            void requestPlan();
           }}
-        />
-      </form>
-      {message !== null ? <p>{message}</p> : null}
-      {clarify !== null ? (
-        <div>
-          <p>{clarify.questionVi}</p>
-          {(clarify.candidates ?? []).map((c) => (
-            <p key={c.id}>{c.label}</p>
-          ))}
-        </div>
-      ) : null}
-      {plan !== null ? (
-        <div>
-          <p>{plan.summaryVi}</p>
-          <button
-            type='button'
+        >
+          <input
+            placeholder='Nhập lệnh...'
+            value={text}
             disabled={busy}
-            onClick={(): void => {
-              void executePlan(plan);
+            autoFocus
+            style={INPUT_STYLE}
+            onChange={(e): void => {
+              setText(e.target.value);
             }}
-          >
-            Xác nhận
-          </button>
+          />
+        </form>
+        {message !== null ? <p style={{ color: '#b91c1c' }}>{message}</p> : null}
+        {clarify !== null ? (
+          <div>
+            <p style={{ fontSize: 16 }}>{clarify.questionVi}</p>
+            {(clarify.candidates ?? []).map((c) => (
+              <p key={c.id} style={{ margin: '4px 0' }}>
+                {c.label}
+              </p>
+            ))}
+          </div>
+        ) : null}
+        {plan !== null ? (
+          <div>
+            <p style={{ fontSize: 16, fontWeight: 600 }}>{plan.summaryVi}</p>
+            <button
+              type='button'
+              disabled={busy}
+              style={CONFIRM_STYLE}
+              onClick={(): void => {
+                void executePlan(plan);
+              }}
+            >
+              Xác nhận
+            </button>
+          </div>
+        ) : null}
+        {result !== null ? (
+          <div>
+            <p style={{ fontSize: 16, fontWeight: 600 }}>
+              {result.status === 'completed' ? 'Hoàn tất' : 'Không thể thực hiện. Vui lòng thử lại.'}
+            </p>
+            {result.results.map((r) => {
+              const cred = r.generatedPassword;
+              return typeof cred === 'string' ? (
+                <p key={r.commandId}>Mật khẩu tạm: {cred}</p>
+              ) : null;
+            })}
+          </div>
+        ) : null}
+        <div style={FOOTER_STYLE}>
+          <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Cú pháp hỗ trợ:</p>
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            <li>{'Thêm tên hàng <tên hàng>'}</li>
+            <li>{'Thêm khách hàng <tên khách hàng>'}</li>
+            <li>{'Thêm tài xế <họ tên> <SĐT> và gán vào xe <biển số> (sắp ra mắt)'}</li>
+          </ul>
+          <p style={{ margin: '8px 0 0' }}>Enter: xem trước - Xác nhận: thực hiện - Esc: đóng</p>
         </div>
-      ) : null}
-      {result !== null ? (
-        <div>
-          <p>{result.status === 'completed' ? 'Hoàn tất' : 'Không thể thực hiện. Vui lòng thử lại.'}</p>
-          {result.results.map((r) => {
-            const cred = r.generatedPassword;
-            return typeof cred === 'string' ? (
-              <p key={r.commandId}>Mật khẩu tạm: {cred}</p>
-            ) : null;
-          })}
-        </div>
-      ) : null}
+      </div>
     </div>
   );
 }
