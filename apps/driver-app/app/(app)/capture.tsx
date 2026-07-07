@@ -28,6 +28,9 @@ import { negotiateAndUploadManifest } from '../../src/manifest/manifest-capture-
 import { parseCaptureStop } from '../../src/manifest/manifest-capture-stop.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
 import { getApiUrl } from '../../src/config/api-url.js';
+import { DeliveryLifecycleClient } from '../../src/assignments/delivery-lifecycle-client.js';
+import { makeForgivingLifecycleMutationFn } from '../../src/assignments/forgiving-lifecycle.js';
+import { autoAdvanceAfterCapture } from '../../src/assignments/auto-advance-after-capture.js';
 
 function mimeFromUri(uri: string): 'image/jpeg' | 'image/png' {
   return uri.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
@@ -49,8 +52,16 @@ export default function Capture(): JSX.Element {
     stopKind?: string;
     stopIndex?: string;
     stopSequence?: string;
+    roadRunId?: string;
+    runState?: string;
+    remaining?: string;
   }>();
   const transportOrderId = strParam(params.transportOrderId) ?? null;
+  // driver-min-interaction: run context for photo-implies-progress.
+  const roadRunId = strParam(params.roadRunId) ?? null;
+  const runState = strParam(params.runState) ?? null;
+  const remainingRaw = strParam(params.remaining);
+  const remaining = remainingRaw !== undefined ? Number(remainingRaw) : null;
   const stopParse = parseCaptureStop({
     stopKind: strParam(params.stopKind),
     stopIndex: strParam(params.stopIndex),
@@ -105,6 +116,18 @@ export default function Capture(): JSX.Element {
           : {}),
       });
       dispatch({ type: 'UPLOAD_OK', manifestId: result.manifestId });
+      // Photo IS the signal: fire-and-forget lifecycle auto-advance through
+      // the forgiving factory. Never blocks or banners the photo flow; the
+      // assignments refetch shows truth and its button stays the fallback.
+      if (roadRunId !== null && runState !== null && remaining !== null) {
+        const lifecycleFn = makeForgivingLifecycleMutationFn(
+          new DeliveryLifecycleClient({ apiUrl: getApiUrl(), bearerToken: getAccessToken }),
+        );
+        void autoAdvanceAfterCapture(
+          { roadRunId, runState, remainingBeforeThisUpload: remaining },
+          lifecycleFn,
+        );
+      }
     } catch (e) {
       dispatch({ type: 'UPLOAD_FAIL', message: e instanceof Error ? e.message : 'upload error' });
     }

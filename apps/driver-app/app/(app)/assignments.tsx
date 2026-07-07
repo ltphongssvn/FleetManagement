@@ -104,7 +104,13 @@ export default function Assignments(): JSX.Element {
               {item.plate ? <Text style={styles.detail}>Số xe: {item.plate}</Text> : null}
               {/* Each stop is a capture (proof) button: tapping opens the
                   per-warehouse manifest-photo screen for that exact stop. */}
-              {presentAssignmentStops(item.stops).map((st) => {
+              {(() => {
+                const stops = presentAssignmentStops(item.stops);
+                // driver-min-interaction: photos still to capture BEFORE the one
+                // the driver is about to take; rides the href so capture can
+                // auto-advance the lifecycle (photo-implies-progress).
+                const remaining = stops.filter((s) => !s.done).length;
+                return stops.map((st) => {
                 const captureLabel =
                   st.stopKind === 'loading'
                     ? 'Chụp ảnh phiếu nhận hàng - ' + st.label
@@ -118,6 +124,9 @@ export default function Assignments(): JSX.Element {
                           sequence: st.sequence,
                           stopKind: st.stopKind,
                           stopIndex: st.stopIndex,
+                          roadRunId: item.roadRunId,
+                          runState: item.state,
+                          remaining,
                         }) as Href,
                       );
                     }}
@@ -133,7 +142,8 @@ export default function Assignments(): JSX.Element {
                     </Text>
                   </Pressable>
                 );
-              })}
+              });
+              })()}
               {item.plannedStartAt ? (
                 <Text style={styles.detail}>Khởi hành: {formatVnDateUS(item.plannedStartAt)}</Text>
               ) : null}
