@@ -67,7 +67,7 @@ async function seedActivePairAndUnpairedVehicle(tx: TestTx): Promise<{
   return { ...base, otherVehicleId: v2.vehicleId };
 }
 describe('@fleet/api - TransportOrdersService driver-vehicle pair guard', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('accepts roadRun whose operator+asset pair has an active assignment', async () => {
     await withTxIsolation(testDb, async (tx) => {

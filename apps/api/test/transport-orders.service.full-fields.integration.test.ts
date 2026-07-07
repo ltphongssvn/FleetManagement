@@ -19,7 +19,7 @@ import { withTxIsolation } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 describe('@fleet/api - TransportOrdersService (all optional fields populated)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('create populates every optional field, listAssigned returns it with mixed stops', async () => {
     await withTxIsolation(testDb, async (tx) => {

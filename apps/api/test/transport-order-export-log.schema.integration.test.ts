@@ -10,7 +10,7 @@ let testDb: PgliteTestDb;
 const CO = '00000000-0000-0000-0000-000000000aaa';
 const OP = '00000000-0000-0000-0000-000000000bbb';
 describe('@fleet/api - transport_order_export_log schema (integration)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => stopPgliteTestDb(testDb));
   it('table exists with the required audit columns', async () => {
     const r = await testDb.db.execute<{ column_name: string }>(sql.raw(

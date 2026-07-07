@@ -56,7 +56,7 @@ async function seedPair(
   return { driverId, vehicleId };
 }
 describe('@fleet/api - ReferenceService (integration)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('drivers() returns active drivers paired with active vehicles, excludes inactive', async () => {
     await withTxIsolation(testDb, async (tx) => {

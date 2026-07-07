@@ -16,7 +16,7 @@ import { withTxIsolation } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 describe('@fleet/api - ReferenceService re-add reactivates soft-deleted rows (T5c)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('createCustomer reactivates a soft-deleted row instead of throwing', async () => {
     await withTxIsolation(testDb, async (tx) => {

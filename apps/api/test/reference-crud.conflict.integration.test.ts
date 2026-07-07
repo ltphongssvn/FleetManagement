@@ -13,7 +13,7 @@ import { withTxIsolation } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 describe('@fleet/api - ReferenceService duplicate -> ConflictException (T5b)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('createCustomer duplicate name throws ConflictException', async () => {
     await withTxIsolation(testDb, async (tx) => {
