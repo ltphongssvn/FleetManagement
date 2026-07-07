@@ -118,6 +118,11 @@
       "env": ["DATABASE_URL", "REDIS_URL", "S3_ENDPOINT", "TESTCONTAINERS_*"],
       "outputLogs": "new-only"
     },
+    "db:generate": {
+      "description": "Generate Drizzle SQL migrations by diffing the schema barrel against meta/ snapshots (drizzle-kit generate). Mutates the source tree (src/database/migrations/**), so cache:false -- a cache replay could materialize stale SQL from a foreign run. No build dependency: drizzle-kit reads .ts schema sources directly. passThroughEnv DATABASE_URL under strict envMode (drizzle.config.ts references it; generate itself never connects). Run: pnpm exec turbo run db:generate --filter=@fleet/api.",
+      "cache": false,
+      "passThroughEnv": ["DATABASE_URL"]
+    },
     "eas:builds": {
       "description": "List recent EAS cloud builds (Android + iOS) for the driver app via eas-cli build:list. Read-only network query against Expo servers, so cache:false (no deterministic output) and no build dependency. passThroughEnv exposes EXPO_TOKEN (auth; set persistently via ~/.expo-env) and EAS_PROJECT_ID under strict envMode. Run: pnpm exec turbo run eas:builds --filter=@fleet/driver-app.",
       "cache": false,
