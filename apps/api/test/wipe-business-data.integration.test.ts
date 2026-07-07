@@ -87,7 +87,7 @@ async function seedFactData(): Promise<void> {
 }
 
 describe('@fleet/api - wipeBusinessData (integration)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => stopPgliteTestDb(testDb));
 
   // Each test gets a clean slate. We TRUNCATE both fact and reference

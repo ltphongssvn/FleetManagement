@@ -77,7 +77,7 @@ async function seedOrphanAndLinkedBusy(
   return { orphanOperatorId: ids.orphanOp, orphanVehicleId: vehOrphan.vehicleId };
 }
 describe('@fleet/api - ReferenceService frees pairs bound only to ORPHAN road_runs', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('drivers(op) includes the orphan-bound driver and still hides the linked-busy driver', async () => {
     const result = await withTxIsolation(testDb, async (tx) => {
