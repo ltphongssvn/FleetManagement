@@ -188,6 +188,10 @@
       "description": "Root-level task: merge origin/develop DOWN into the current feature branch (2026 conflict-prevention). Prefix //# ensures repo-root-only. Refuses on dirty tree; no-op on develop/main; on conflict exits 1 with the conflicted paths for evidence-driven resolution (rerere replays known hunks). STANDING RULE: run after every milestone push and immediately before gh pr create so every PR is born mergeable, never DIRTY. cache:false (side-effecting git operation). Run: pnpm exec turbo run sync:develop.",
       "cache": false
     },
+    "//#bump:pnpm": {
+      "description": "Root-level task: bump the corepack-pinned pnpm version for the whole repo via corepack use pnpm@<version|latest> -- resolves the version and rewrites the packageManager pin + sha512 in package.json itself (2026 canonical; never pnpm add -g, which fails on this box because the global bin dir is not on PATH and would only mutate one machine anyway). Script refuses on a dirty tree so the pin change is always an isolated, reviewable commit. Prefix //# ensures repo-root-only. cache:false (side-effecting, network-resolving). Run: pnpm exec turbo run bump:pnpm [-- <version>].",
+      "cache": false
+    },
     "//#graph": {
       "description": "Root-level task: generate pipeline DAG visualization (Mermaid for ADR/docs). Prefix '//#' ensures repo-root-only. For live operational inspection prefer 'turbo devtools' (2.7+) — browser-based package/task graph.",
       "cache": false
