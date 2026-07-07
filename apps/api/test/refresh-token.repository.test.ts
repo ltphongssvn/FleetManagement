@@ -188,4 +188,17 @@ describe('RefreshTokenRepositoryImpl (pglite)', () => {
     expect(revoked?.revokedReason).toBe('logout');
     expect(untouched?.revokedAt).toBeNull();
   });
+
+  it('fails closed (driverActive=false) when the driver row is missing under FK-bypassed corruption', async () => {
+    await repo.insert(record(driverId, 'q'.repeat(64), future()));
+    // Simulate row-level corruption the FK normally forbids: replica mode
+    // disables FK triggers so the driver row can vanish while its token
+    // survives. The projection must fail CLOSED, never assume active.
+    await pg.exec('SET session_replication_role = replica');
+    await pg.exec('DELETE FROM driver');
+    await pg.exec('SET session_replication_role = DEFAULT');
+    const claimed = await repo.claimForRotation('q'.repeat(64), 's'.repeat(64), Date.now());
+    expect(claimed).not.toBeNull();
+    expect(claimed?.driverActive).toBe(false);
+  });
 });
