@@ -39,7 +39,7 @@ async function seedActivePairForOp(
   return { operatorId: op.operatorId, vehicleId: v.vehicleId };
 }
 describe('@fleet/api - TransportOrdersService.create (optional-field branches)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('creates with roadRun but every other optional field omitted (falsy ternary side)', async () => {
     await withTxIsolation(testDb, async (tx) => {

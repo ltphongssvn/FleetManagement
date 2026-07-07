@@ -24,7 +24,7 @@ async function seedActivePair(tx: TestTx, op: ReturnType<typeof createOperatorCo
   return { operatorId: op.operatorId, vehicleId: v.vehicleId };
 }
 describe('@fleet/api - TransportOrdersService.findByCompanyIdOrRef (integration)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('resolves a UUID input to the matching row in the same company', async () => {
     let createdId: string | undefined;

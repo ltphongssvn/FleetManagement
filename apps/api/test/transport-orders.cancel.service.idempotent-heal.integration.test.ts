@@ -32,7 +32,7 @@ async function seedActivePair(tx: TestTx, op: ReturnType<typeof createOperatorCo
   return { operatorId: op.operatorId, vehicleId: v.vehicleId };
 }
 describe('@fleet/api - TransportOrdersCancelService idempotent heals stale road_runs', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('on idempotent re-cancel, ensures linked road_runs are also cancelled even if a prior partial cancel left them stale', async () => {
     let roadRunStateBeforeHeal: string | undefined;

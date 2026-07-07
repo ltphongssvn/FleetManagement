@@ -35,7 +35,7 @@ function tenancy(op: ReturnType<typeof createOperatorContext>): {
   };
 }
 describe('@fleet/api - ReferenceService hides busy (incomplete road_run) driver+vehicle', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   describe('drivers(op)', () => {
     it('excludes a driver bound to a started road_run while keeping an idle paired driver', async () => {

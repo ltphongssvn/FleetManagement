@@ -10,6 +10,12 @@ export interface CaptureStopDescriptor {
   /** 1-based DB stop.sequence — rides the href so capture can send the
    *  ManifestStopRef ({stopId: null, stopSequence}) at negotiate. */
   readonly sequence: number;
+  /** driver-min-interaction: run context for photo-implies-progress.
+   *  Optional so legacy callers/hrefs stay byte-stable. */
+  readonly roadRunId?: string;
+  readonly runState?: string;
+  /** Stops WITHOUT a committed photo before this capture. */
+  readonly remaining?: number;
 }
 export function captureHrefForStop(
   transportOrderId: string,
@@ -17,8 +23,11 @@ export function captureHrefForStop(
 ): string {
   const base = '/capture?transportOrderId=' + transportOrderId + '&stopKind=' + stop.stopKind;
   const seq = '&stopSequence=' + String(stop.sequence);
+  const run = (stop.roadRunId !== undefined ? '&roadRunId=' + stop.roadRunId : '')
+    + (stop.runState !== undefined ? '&runState=' + stop.runState : '')
+    + (stop.remaining !== undefined ? '&remaining=' + String(stop.remaining) : '');
   if (stop.stopKind === 'loading' && stop.stopIndex !== null) {
-    return base + '&stopIndex=' + String(stop.stopIndex) + seq;
+    return base + '&stopIndex=' + String(stop.stopIndex) + seq + run;
   }
-  return base + seq;
+  return base + seq + run;
 }
