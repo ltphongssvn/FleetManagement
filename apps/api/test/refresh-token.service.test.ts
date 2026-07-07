@@ -180,3 +180,67 @@ describe('RefreshTokenService', () => {
     expect(live[0]?.tokenHash).toBe(sha256(r2.refreshToken));
   });
 });
+
+describe('RefreshTokenService decideUnclaimed fallback (adapter anomalies)', () => {
+  const NOW = Date.parse('2026-07-06T12:00:00Z');
+  function liveRow(driverActive: boolean): RefreshTokenRecord {
+    return {
+      driverId: '3b241101-e2bb-4255-8caf-4136c566a962',
+      companyId: '00000000-0000-0000-0000-000000000000',
+      businessUnitId: '11111111-1111-1111-1111-111111111111',
+      depotId: '22222222-2222-2222-2222-222222222222',
+      legalEntityId: '33333333-3333-3333-3333-333333333333',
+      operatorId: '9f8b8d64-0d2a-4a6b-9c37-5a2b6f1d3e4c',
+      familyId: '44444444-4444-4444-4444-444444444444',
+      tokenHash: 'x'.repeat(64),
+      issuedAt: new Date(NOW - 1000),
+      expiresAt: new Date(NOW + 86_400_000),
+      revokedAt: null,
+      revokedReason: null,
+      replacedByTokenHash: null,
+      driverActive,
+    };
+  }
+  function stubRepo(found: RefreshTokenRecord | null): RefreshTokenRepositoryPort & { inserted: number } {
+    const repo = {
+      inserted: 0,
+      insert(): Promise<void> {
+        repo.inserted += 1;
+        return Promise.resolve();
+      },
+      claimForRotation(): Promise<RefreshTokenRecord | null> {
+        return Promise.resolve(null);
+      },
+      findByTokenHash(): Promise<RefreshTokenRecord | null> {
+        return Promise.resolve(found);
+      },
+      revokeFamily(): Promise<void> {
+        return Promise.resolve();
+      },
+      revokeByTokenHash(): Promise<void> {
+        return Promise.resolve();
+      },
+    };
+    return repo;
+  }
+
+  it('unclaimed but live row with a disabled driver resolves driver-disabled, mints nothing', async () => {
+    const repo = stubRepo(liveRow(false));
+    const signJwt = vi.fn();
+    const svc = new RefreshTokenService(repo, signJwt as never, { accessTtlSeconds: 900, refreshTtlSeconds: 3600 });
+    const out = await svc.rotate('presented-token', NOW);
+    expect(out).toEqual({ kind: 'driver-disabled' });
+    expect(repo.inserted).toBe(0);
+    expect(signJwt).not.toHaveBeenCalled();
+  });
+
+  it('unclaimed yet policy-ok row fails closed to not-found, mints nothing', async () => {
+    const repo = stubRepo(liveRow(true));
+    const signJwt = vi.fn();
+    const svc = new RefreshTokenService(repo, signJwt as never, { accessTtlSeconds: 900, refreshTtlSeconds: 3600 });
+    const out = await svc.rotate('presented-token', NOW);
+    expect(out).toEqual({ kind: 'not-found' });
+    expect(repo.inserted).toBe(0);
+    expect(signJwt).not.toHaveBeenCalled();
+  });
+});
