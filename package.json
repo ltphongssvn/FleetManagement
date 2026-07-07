@@ -39,6 +39,8 @@
     "deploy:railway": "node -e \"console.error('Production deploys run via CI only. Trigger with: gh workflow run railway-deploy.yml --ref main -f services=auto'); process.exit(1)\"",
     "ci:resolve-sha": "tsx scripts/ci/resolve-ci-sha.ts",
     "sync:worktrees": "tsx scripts/sync-worktrees.ts",
+    "compose:env": "tsx scripts/compose-identity.ts --env .env",
+    "compose:print": "tsx scripts/compose-identity.ts --print",
     "sync:develop": "tsx scripts/sync-develop.ts"
   },
   "devDependencies": {

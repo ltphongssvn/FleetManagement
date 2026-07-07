@@ -38,7 +38,11 @@ function mintDispatcherToken(): string {
     ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
     ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = dockerExecNode('fleet-pilot-api-1', script);
+  // Per-worktree Docker isolation (2026-07-06): container name derives from
+  // the compose project; hardcoding the legacy fleet-pilot name minted from
+  // the WRONG stack (different ES256 keypair) causing 401 Invalid token.
+  const apiContainer = process.env['E2E_API_CONTAINER'] ?? 'fleet-pilot-api-1';
+  const out = dockerExecNode(apiContainer, script);
   if (out.length === 0 || !out.includes('.')) throw new Error('Token mint failed: ' + out);
   return out.trim();
 }

@@ -15,8 +15,11 @@ describe('compose.yaml driver-app service', () => {
     expect(compose).toMatch(/context:\s*\.\s*\n\s*dockerfile:\s*apps\/driver-app\/Dockerfile/);
   });
 
-  it('exposes port 8081', () => {
-    expect(compose).toMatch(/8081:8081/);
+  it('publishes Metro on the per-worktree port (container target 8081)', () => {
+    // Docker-isolation arc 2026-07-06: host side interpolates from the
+    // worktree identity (.env FLEET_PORT_EXPO_METRO, default 8081) so
+    // parallel worktree stacks never collide; container port stays 8081.
+    expect(compose).toMatch(/FLEET_PORT_EXPO_METRO:-8081.:8081/);
   });
 
   it('depends on api service', () => {
