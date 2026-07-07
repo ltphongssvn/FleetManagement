@@ -71,13 +71,20 @@ function clarify(questionVi: string): CopilotPlanResponse {
 
 @Injectable()
 export class CopilotPlannerService {
+  private readonly llm: CopilotLlmPort | null;
+
   constructor(
     @Inject(COPILOT_CATALOG_PORT)
     private readonly catalog: CopilotCatalogPort,
+    // Nest injects UNDEFINED (not null) when an @Optional token is absent
+    // (house precedent: BCRYPT_HASH seam). Normalize here so every
+    // downstream check is a single === null.
     @Optional()
     @Inject(COPILOT_LLM_PORT)
-    private readonly llm: CopilotLlmPort | null,
-  ) {}
+    llm?: CopilotLlmPort,
+  ) {
+    this.llm = llm ?? null;
+  }
 
   async plan(text: string, op: OperatorContext): Promise<CopilotPlanResponse> {
     const quick = this.tryQuickAction(text);
