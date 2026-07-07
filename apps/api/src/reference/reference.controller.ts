@@ -4,16 +4,8 @@ import { JwtGuard } from '../auth/jwt.guard.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import { ReferenceService, type DriverVehicleAssignmentsResponse } from './reference.service.js';
+import { ReferenceWriteSchema } from './reference.dto.js';
 import type { ReferenceListResponse } from './reference.dto.js';
-// Body shape for create/update of dispatch-form master data. A single
-// optional 'role' lets warehouse reuse the same DTO; non-warehouse entities
-// ignore it. 'name' carries the customer name / cargo name / vehicle plate /
-// warehouse name depending on the endpoint.
-interface ReferenceWriteDto {
-  name: string;
-  role?: string;
-  phone?: string | null;
-}
 @Controller('reference')
 @UseGuards(JwtGuard)
 export class ReferenceController {
@@ -42,12 +34,14 @@ export class ReferenceController {
   }
   // --- CRUD: customers ---------------------------------------------------
   @Post('customers')
-  createCustomer(@CurrentOperator() op: OperatorContext, @Body() body: ReferenceWriteDto): Promise<{ id: string; label: string }> {
-    return this.svc.createCustomer(op, body.name, body.phone);
+  createCustomer(@CurrentOperator() op: OperatorContext, @Body() body: unknown): Promise<{ id: string; label: string }> {
+    const dto = ReferenceWriteSchema.parse(body);
+    return this.svc.createCustomer(op, dto.name, dto.phone);
   }
   @Patch('customers/:id')
-  updateCustomer(@CurrentOperator() op: OperatorContext, @Param('id') id: string, @Body() body: ReferenceWriteDto): Promise<void> {
-    return this.svc.updateCustomer(op, id, body.name, body.phone);
+  updateCustomer(@CurrentOperator() op: OperatorContext, @Param('id') id: string, @Body() body: unknown): Promise<void> {
+    const dto = ReferenceWriteSchema.parse(body);
+    return this.svc.updateCustomer(op, id, dto.name, dto.phone);
   }
   @Delete('customers/:id')
   deleteCustomer(@CurrentOperator() op: OperatorContext, @Param('id') id: string): Promise<void> {
@@ -55,12 +49,14 @@ export class ReferenceController {
   }
   // --- CRUD: cargo types -------------------------------------------------
   @Post('cargo-types')
-  createCargoType(@CurrentOperator() op: OperatorContext, @Body() body: ReferenceWriteDto): Promise<{ id: string; label: string }> {
-    return this.svc.createCargoType(op, body.name);
+  createCargoType(@CurrentOperator() op: OperatorContext, @Body() body: unknown): Promise<{ id: string; label: string }> {
+    const dto = ReferenceWriteSchema.parse(body);
+    return this.svc.createCargoType(op, dto.name);
   }
   @Patch('cargo-types/:id')
-  updateCargoType(@CurrentOperator() op: OperatorContext, @Param('id') id: string, @Body() body: ReferenceWriteDto): Promise<void> {
-    return this.svc.updateCargoType(op, id, body.name);
+  updateCargoType(@CurrentOperator() op: OperatorContext, @Param('id') id: string, @Body() body: unknown): Promise<void> {
+    const dto = ReferenceWriteSchema.parse(body);
+    return this.svc.updateCargoType(op, id, dto.name);
   }
   @Delete('cargo-types/:id')
   deleteCargoType(@CurrentOperator() op: OperatorContext, @Param('id') id: string): Promise<void> {
@@ -68,12 +64,14 @@ export class ReferenceController {
   }
   // --- CRUD: vehicles ----------------------------------------------------
   @Post('vehicles')
-  createVehicle(@CurrentOperator() op: OperatorContext, @Body() body: ReferenceWriteDto): Promise<{ id: string; label: string }> {
-    return this.svc.createVehicle(op, body.name);
+  createVehicle(@CurrentOperator() op: OperatorContext, @Body() body: unknown): Promise<{ id: string; label: string }> {
+    const dto = ReferenceWriteSchema.parse(body);
+    return this.svc.createVehicle(op, dto.name);
   }
   @Patch('vehicles/:id')
-  updateVehicle(@CurrentOperator() op: OperatorContext, @Param('id') id: string, @Body() body: ReferenceWriteDto): Promise<void> {
-    return this.svc.updateVehicle(op, id, body.name);
+  updateVehicle(@CurrentOperator() op: OperatorContext, @Param('id') id: string, @Body() body: unknown): Promise<void> {
+    const dto = ReferenceWriteSchema.parse(body);
+    return this.svc.updateVehicle(op, id, dto.name);
   }
   @Delete('vehicles/:id')
   deleteVehicle(@CurrentOperator() op: OperatorContext, @Param('id') id: string): Promise<void> {
@@ -81,13 +79,14 @@ export class ReferenceController {
   }
   // --- CRUD: warehouses --------------------------------------------------
   @Post('warehouses')
-  createWarehouse(@CurrentOperator() op: OperatorContext, @Body() body: ReferenceWriteDto): Promise<{ id: string; label: string }> {
-    const role = body.role === 'delivery' ? 'delivery' : 'pickup';
-    return this.svc.createWarehouse(op, body.name, role);
+  createWarehouse(@CurrentOperator() op: OperatorContext, @Body() body: unknown): Promise<{ id: string; label: string }> {
+    const dto = ReferenceWriteSchema.parse(body);
+    return this.svc.createWarehouse(op, dto.name, dto.role ?? 'pickup');
   }
   @Patch('warehouses/:id')
-  updateWarehouse(@CurrentOperator() op: OperatorContext, @Param('id') id: string, @Body() body: ReferenceWriteDto): Promise<void> {
-    return this.svc.updateWarehouse(op, id, body.name);
+  updateWarehouse(@CurrentOperator() op: OperatorContext, @Param('id') id: string, @Body() body: unknown): Promise<void> {
+    const dto = ReferenceWriteSchema.parse(body);
+    return this.svc.updateWarehouse(op, id, dto.name);
   }
   @Delete('warehouses/:id')
   deleteWarehouse(@CurrentOperator() op: OperatorContext, @Param('id') id: string): Promise<void> {
