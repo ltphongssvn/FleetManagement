@@ -25,6 +25,7 @@ import { MetricsModule } from './metrics/metrics.module.js';
 import { ReferenceModule } from './reference/reference.module.js';
 import { DriverModule } from './driver/driver.module.js';
 import { AdminModule } from './admin/admin.module.js';
+import { CopilotModule } from './copilot/copilot.module.js';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { AdminModule } from './admin/admin.module.js';
     ReferenceModule,
     DriverModule,
     AdminModule,
+    CopilotModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: SentryGlobalFilter }],
 })

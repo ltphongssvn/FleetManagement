@@ -3,6 +3,7 @@
 // Routing/layout only — feature logic lives in src/features.
 import type { ReactNode, JSX } from 'react';
 import './globals.css';
+import { CommandPalette } from '@/features/copilot/command-palette';
 
 export const metadata = {
   title: 'Fleet Ops',
@@ -12,7 +13,10 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }): JSX.Element {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <CommandPalette />
+      </body>
     </html>
   );
 }
