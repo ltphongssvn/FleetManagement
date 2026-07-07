@@ -43,6 +43,14 @@ export const PII_VALUE_PATTERNS: readonly RegExp[] = [
   /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
   /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
   /(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
+  // bcrypt hashes (2026-07-06 Sentry leak: driver password_hash appeared
+  // verbatim in a drizzle Failed-query alert).
+  /\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}/g,
+  // drizzle QueryPromise failure messages append the ENTIRE bound-params
+  // list (names, phones, hashes, tenant ids) after a params: line. The
+  // SQL shape above the line is diagnostic; the values are pure PII --
+  // redact everything from params: to end of string.
+  /params:[\s\S]*$/g,
 ];
 
 /**
