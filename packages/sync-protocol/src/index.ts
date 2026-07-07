@@ -203,3 +203,24 @@ export {
   PeekOrderRefResponseSchema,
   type PeekOrderRefResponse,
 } from './reference-contract.js';
+
+export {
+  COPILOT_COMMAND_TYPES,
+  type CopilotCommandType,
+  CopilotIdSpaceSchema,
+  type CopilotIdSpace,
+  CopilotEntityRefSchema,
+  type CopilotEntityRef,
+  CopilotCommandSchema,
+  type CopilotCommand,
+  CopilotPlanSchema,
+  type CopilotPlan,
+  CopilotPlanResponseSchema,
+  type CopilotPlanResponse,
+  CopilotExecutionResultSchema,
+  type CopilotExecutionResult,
+  normalizePlate,
+  parseCopilotPlan,
+  parseCopilotPlanResponse,
+  parseCopilotExecutionResult,
+} from './copilot-types.js';
