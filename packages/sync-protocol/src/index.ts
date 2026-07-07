@@ -203,3 +203,8 @@ export {
   PeekOrderRefResponseSchema,
   type PeekOrderRefResponse,
 } from './reference-contract.js';
+export {
+  OwnerAdoptionMetricsSchema,
+  type OwnerAdoptionMetrics,
+  parseOwnerAdoptionMetrics,
+} from './owner-adoption-contract.js';
