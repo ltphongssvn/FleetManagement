@@ -31,7 +31,7 @@ async function seedActivePair(tx: TestTx, op: ReturnType<typeof createOperatorCo
   return { operatorId: op.operatorId, vehicleId: v.vehicleId };
 }
 describe('@fleet/api - TransportOrdersCancelService publishes sync_change_feed event for projection', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('appends a road_run sync_change_feed event with delta.state=cancelled when a transport_order is cancelled', async () => {
     let createdRoadRunId: string | undefined;

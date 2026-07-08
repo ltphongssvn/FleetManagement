@@ -59,7 +59,7 @@ function parseMonthlyNumber(ref: string): number {
   return parseInt(m[1], 10);
 }
 describe('@fleet/api - TransportOrdersService auto-numbering (T3, XTT.MM-NNN)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('returns externalRef matching XTT.MM-NNN on the response', async () => {
     const externalRef = await withTxIsolation(testDb, async (tx) => {

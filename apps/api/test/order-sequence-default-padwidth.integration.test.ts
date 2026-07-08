@@ -12,7 +12,7 @@ import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helper
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 let testDb: PgliteTestDb;
 describe('@fleet/api - order_sequence schema-level pad_width default', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('inserts a row WITHOUT pad_width and the column default lands on 4', async () => {
     await testDb.db.insert(orderSequence).values({

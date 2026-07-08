@@ -3,6 +3,7 @@
 // delivery lifecycle transitions, JWT-guarded, operator-scoped.
 import { Controller, Param, Post, UseGuards } from '@nestjs/common';
 import { JwtGuard } from '../auth/jwt.guard.js';
+import { UuidParamSchema } from '../common/uuid-param.schema.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import { DriverDeliveryService, type DeliveryTransitionResult } from './driver-delivery.service.js';
@@ -17,7 +18,7 @@ export class DriverDeliveryController {
     @Param('roadRunId') roadRunId: string,
     @CurrentOperator() op: OperatorContext,
   ): Promise<DeliveryTransitionResult> {
-    return this.svc.accept(roadRunId, op);
+    return this.svc.accept(UuidParamSchema.parse(roadRunId), op);
   }
 
   @Post(':roadRunId/start')
@@ -25,7 +26,7 @@ export class DriverDeliveryController {
     @Param('roadRunId') roadRunId: string,
     @CurrentOperator() op: OperatorContext,
   ): Promise<DeliveryTransitionResult> {
-    return this.svc.start(roadRunId, op);
+    return this.svc.start(UuidParamSchema.parse(roadRunId), op);
   }
 
   @Post(':roadRunId/complete')
@@ -33,6 +34,6 @@ export class DriverDeliveryController {
     @Param('roadRunId') roadRunId: string,
     @CurrentOperator() op: OperatorContext,
   ): Promise<DeliveryTransitionResult> {
-    return this.svc.complete(roadRunId, op);
+    return this.svc.complete(UuidParamSchema.parse(roadRunId), op);
   }
 }

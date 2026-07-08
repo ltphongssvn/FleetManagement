@@ -18,12 +18,13 @@ interface ActionDef {
   readonly label: string;
   readonly href: string;
 }
+// Bare-minimum in-transit menu: only the two essentials a driver needs on
+// the road. Standalone capture is unnecessary (photos are taken from each
+// assignment stop), and direct-command / change-password are removed to cut
+// non-critical taps in a stressful driving environment.
 const ACTIONS: readonly ActionDef[] = [
   { label: 'Xem lệnh điều xe', href: '/assignments' },
   { label: 'Lịch sử chuyến (theo tháng)', href: '/history' },
-  { label: 'Lệnh điều phối (trực tiếp)', href: '/commands' },
-  { label: 'Chụp ảnh phiếu giao hàng', href: '/capture' },
-  { label: 'Đổi mật khẩu', href: '/change-password' },
 ];
 export default function Home(): JSX.Element {
   const view = presentSyncStatus(PLACEHOLDER_STATE, Date.now());
@@ -49,7 +50,7 @@ export default function Home(): JSX.Element {
           ))}
         </View>
       </View>
-      <Text style={styles.version}>Fleet Driver v{APP_VERSION}</Text>
+      <Text style={styles.version}>Ứng dụng Tài xế v{APP_VERSION}</Text>
     </View>
   );
 }

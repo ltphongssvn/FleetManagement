@@ -39,7 +39,7 @@ async function seedActivePair(tx: TestTx, op: ReturnType<typeof createOperatorCo
   return { operatorId, vehicleId: v.vehicleId };
 }
 describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('returns empty rows when operator has no assigned road runs', async () => {
     await withTxIsolation(testDb, async (tx) => {

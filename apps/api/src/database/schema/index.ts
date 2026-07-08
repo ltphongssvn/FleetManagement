@@ -115,3 +115,8 @@ export {
   type DriverRefreshToken,
   type NewDriverRefreshToken,
 } from './driver-refresh-token.js';
+export {
+  copilotPlanExecution,
+  type CopilotPlanExecution,
+  type NewCopilotPlanExecution,
+} from './copilot-plan-execution.js';

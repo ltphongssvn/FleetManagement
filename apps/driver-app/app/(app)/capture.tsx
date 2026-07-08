@@ -12,6 +12,7 @@
 // no capture button - the screen cannot be used to take a photo that
 // would violate the invariant.
 import { useReducer, useState, type JSX } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams } from 'expo-router';
@@ -28,6 +29,10 @@ import { negotiateAndUploadManifest } from '../../src/manifest/manifest-capture-
 import { parseCaptureStop } from '../../src/manifest/manifest-capture-stop.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
 import { getApiUrl } from '../../src/config/api-url.js';
+import { DeliveryLifecycleClient } from '../../src/assignments/delivery-lifecycle-client.js';
+import { makeForgivingLifecycleMutationFn } from '../../src/assignments/forgiving-lifecycle.js';
+import { autoAdvanceAfterCapture } from '../../src/assignments/auto-advance-after-capture.js';
+import { ASSIGNMENTS_QUERY_KEY } from '../../src/assignments/assignments-query.js';
 
 function mimeFromUri(uri: string): 'image/jpeg' | 'image/png' {
   return uri.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
@@ -49,8 +54,16 @@ export default function Capture(): JSX.Element {
     stopKind?: string;
     stopIndex?: string;
     stopSequence?: string;
+    roadRunId?: string;
+    runState?: string;
+    remaining?: string;
   }>();
   const transportOrderId = strParam(params.transportOrderId) ?? null;
+  // driver-min-interaction: run context for photo-implies-progress.
+  const roadRunId = strParam(params.roadRunId) ?? null;
+  const runState = strParam(params.runState) ?? null;
+  const remainingRaw = strParam(params.remaining);
+  const remaining = remainingRaw !== undefined ? Number(remainingRaw) : null;
   const stopParse = parseCaptureStop({
     stopKind: strParam(params.stopKind),
     stopIndex: strParam(params.stopIndex),
@@ -63,6 +76,7 @@ export default function Capture(): JSX.Element {
     initialCaptureStateForStop,
   );
   const { getAccessToken } = useAuth();
+  const queryClient = useQueryClient();
 
   const [picked, setPicked] = useState<{ uri: string; bytes: Uint8Array; mime: 'image/jpeg' | 'image/png' } | null>(null);
 
@@ -105,6 +119,26 @@ export default function Capture(): JSX.Element {
           : {}),
       });
       dispatch({ type: 'UPLOAD_OK', manifestId: result.manifestId });
+      // Photo IS the signal: fire-and-forget lifecycle auto-advance through
+      // the forgiving factory. Never blocks or banners the photo flow; the
+      // assignments refetch shows truth and its button stays the fallback.
+      if (roadRunId !== null && runState !== null && remaining !== null) {
+        const lifecycleFn = makeForgivingLifecycleMutationFn(
+          new DeliveryLifecycleClient({ apiUrl: getApiUrl(), bearerToken: getAccessToken }),
+        );
+        // Await the advance, then invalidate the assignments query so the
+        // list badge reflects the new state on return (the mutation runs on a
+        // separate client here, so without this the list stays stale even on
+        // a successful advance). Errors are still swallowed inside the bridge.
+        void autoAdvanceAfterCapture(
+          { roadRunId, runState, remainingBeforeThisUpload: remaining },
+          lifecycleFn,
+        ).then((fired) => {
+          if (fired !== null) {
+            void queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_QUERY_KEY });
+          }
+        });
+      }
     } catch (e) {
       dispatch({ type: 'UPLOAD_FAIL', message: e instanceof Error ? e.message : 'upload error' });
     }
@@ -168,20 +202,6 @@ export default function Capture(): JSX.Element {
               accessibilityLabel={vm.uploadButton.label}
             >
               <Text style={styles.buttonText}>{vm.uploadButton.label}</Text>
-            </Pressable>
-          ) : null}
-          {vm.resetButton.visible ? (
-            <Pressable
-              style={({ pressed }) => [
-                styles.button,
-                styles.resetButton,
-                pressed && styles.pressed,
-              ]}
-              onPress={() => { setPicked(null); dispatch({ type: 'RESET' }); }}
-              accessibilityRole={'button'}
-              accessibilityLabel={vm.resetButton.label}
-            >
-              <Text style={styles.resetButtonText}>{vm.resetButton.label}</Text>
             </Pressable>
           ) : null}
         </View>

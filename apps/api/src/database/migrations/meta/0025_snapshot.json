@@ -1,5 +1,5 @@
 {
-  "id": "28f6e842-aa97-4877-95df-2d8df27661e8",
+  "id": "d43c3fc4-7395-4037-8878-e8618e052503",
   "prevId": "87066602-e214-44ef-a7e4-16787aef9787",
   "version": "7",
   "dialect": "postgresql",
@@ -91,6 +91,60 @@
       },
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.copilot_plan_execution": {
+      "name": "copilot_plan_execution",
+      "schema": "",
+      "columns": {
+        "plan_id": {
+          "name": "plan_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'started'"
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "cpe_status_enum": {
+          "name": "cpe_status_enum",
+          "value": "status in ('started', 'completed', 'failed')"
+        },
+        "cpe_completed_at_consistency": {
+          "name": "cpe_completed_at_consistency",
+          "value": "(status = 'started') = (completed_at is null)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.customer": {
@@ -922,180 +976,6 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.driver_refresh_token": {
-      "name": "driver_refresh_token",
-      "schema": "",
-      "columns": {
-        "driver_refresh_token_id": {
-          "name": "driver_refresh_token_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "business_unit_id": {
-          "name": "business_unit_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "depot_id": {
-          "name": "depot_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "legal_entity_id": {
-          "name": "legal_entity_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "driver_id": {
-          "name": "driver_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "operator_id": {
-          "name": "operator_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "family_id": {
-          "name": "family_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "token_hash": {
-          "name": "token_hash",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "issued_at": {
-          "name": "issued_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revoked_at": {
-          "name": "revoked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "revoked_reason": {
-          "name": "revoked_reason",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "replaced_by_token_hash": {
-          "name": "replaced_by_token_hash",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "driver_refresh_token_hash_uq": {
-          "name": "driver_refresh_token_hash_uq",
-          "columns": [
-            {
-              "expression": "token_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "driver_refresh_token_family_idx": {
-          "name": "driver_refresh_token_family_idx",
-          "columns": [
-            {
-              "expression": "family_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "driver_refresh_token_driver_idx": {
-          "name": "driver_refresh_token_driver_idx",
-          "columns": [
-            {
-              "expression": "driver_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "driver_refresh_token_company_idx": {
-          "name": "driver_refresh_token_company_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "driver_refresh_token_driver_id_driver_driver_id_fk": {
-          "name": "driver_refresh_token_driver_id_driver_driver_id_fk",
-          "tableFrom": "driver_refresh_token",
-          "tableTo": "driver",
-          "columnsFrom": [
-            "driver_id"
-          ],
-          "columnsTo": [
-            "driver_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

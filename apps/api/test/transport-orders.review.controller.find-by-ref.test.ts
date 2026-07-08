@@ -13,10 +13,10 @@ import { TransportOrderNotFoundError } from '../src/transport-orders/transport-o
 import { createOperatorContext } from '@fleet/test-fixtures';
 import type { ListAssignedRow } from '../src/transport-orders/transport-orders.dto.js';
 const sampleRow: ListAssignedRow = {
-  transportOrderId: '11111111-1111-1111-1111-111111111111',
+  transportOrderId: '11111111-1111-4111-8111-111111111111',
   externalRef: 'XT.001',
   orderRef: 'XT.001',
-  roadRunId: 'rr-1',
+  roadRunId: 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',
   state: 'planned',
   plannedStartAt: null,
   createdAt: null,
@@ -35,9 +35,9 @@ describe('@fleet/api - TransportOrdersReviewController.findOne (T5 ref-or-id)', 
     const op = createOperatorContext();
     const svc = { findByCompanyIdOrRef: vi.fn().mockResolvedValue(sampleRow) };
     const ctl = new TransportOrdersReviewController(svc as never);
-    const result = await ctl.findOne('11111111-1111-1111-1111-111111111111', op);
+    const result = await ctl.findOne('11111111-1111-4111-8111-111111111111', op);
     expect(result).toBe(sampleRow);
-    expect(svc.findByCompanyIdOrRef).toHaveBeenCalledWith('11111111-1111-1111-1111-111111111111', op);
+    expect(svc.findByCompanyIdOrRef).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111', op);
   });
   it('passes an XTT.MM-NNN external_ref through to findByCompanyIdOrRef', async () => {
     const op = createOperatorContext();
@@ -59,7 +59,7 @@ describe('@fleet/api - TransportOrdersReviewController.findOne (T5 ref-or-id)', 
     const op = createOperatorContext();
     const svc = { findByCompanyIdOrRef: vi.fn().mockRejectedValue(new TransportOrderNotFoundError()) };
     const ctl = new TransportOrdersReviewController(svc as never);
-    await expect(ctl.findOne('11111111-1111-1111-1111-111111111111', op))
+    await expect(ctl.findOne('11111111-1111-4111-8111-111111111111', op))
       .rejects.toBeInstanceOf(NotFoundException);
   });
 });

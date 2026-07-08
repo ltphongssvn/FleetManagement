@@ -8,7 +8,7 @@ import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helper
 import { withTxIsolation } from './helpers/with-tx-isolation.js';
 let testDb: PgliteTestDb;
 describe('withTxIsolation error propagation', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('propagates a generic Error thrown in body', async () => {
     await expect(withTxIsolation(testDb, () => {
