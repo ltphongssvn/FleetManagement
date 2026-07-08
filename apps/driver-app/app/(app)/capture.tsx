@@ -12,6 +12,7 @@
 // no capture button - the screen cannot be used to take a photo that
 // would violate the invariant.
 import { useReducer, useState, type JSX } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams } from 'expo-router';
@@ -31,6 +32,7 @@ import { getApiUrl } from '../../src/config/api-url.js';
 import { DeliveryLifecycleClient } from '../../src/assignments/delivery-lifecycle-client.js';
 import { makeForgivingLifecycleMutationFn } from '../../src/assignments/forgiving-lifecycle.js';
 import { autoAdvanceAfterCapture } from '../../src/assignments/auto-advance-after-capture.js';
+import { ASSIGNMENTS_QUERY_KEY } from '../../src/assignments/assignments-query.js';
 
 function mimeFromUri(uri: string): 'image/jpeg' | 'image/png' {
   return uri.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
@@ -74,6 +76,7 @@ export default function Capture(): JSX.Element {
     initialCaptureStateForStop,
   );
   const { getAccessToken } = useAuth();
+  const queryClient = useQueryClient();
 
   const [picked, setPicked] = useState<{ uri: string; bytes: Uint8Array; mime: 'image/jpeg' | 'image/png' } | null>(null);
 
@@ -123,10 +126,18 @@ export default function Capture(): JSX.Element {
         const lifecycleFn = makeForgivingLifecycleMutationFn(
           new DeliveryLifecycleClient({ apiUrl: getApiUrl(), bearerToken: getAccessToken }),
         );
+        // Await the advance, then invalidate the assignments query so the
+        // list badge reflects the new state on return (the mutation runs on a
+        // separate client here, so without this the list stays stale even on
+        // a successful advance). Errors are still swallowed inside the bridge.
         void autoAdvanceAfterCapture(
           { roadRunId, runState, remainingBeforeThisUpload: remaining },
           lifecycleFn,
-        );
+        ).then((fired) => {
+          if (fired !== null) {
+            void queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_QUERY_KEY });
+          }
+        });
       }
     } catch (e) {
       dispatch({ type: 'UPLOAD_FAIL', message: e instanceof Error ? e.message : 'upload error' });
