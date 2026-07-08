@@ -11,6 +11,7 @@ import { z } from 'zod';
 import type { OperatorContext } from '@fleet/domain';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import { JwtGuard } from '../auth/jwt.guard.js';
+import { UuidParamSchema } from '../common/uuid-param.schema.js';
 import { AdminDriversResetPasswordService } from './admin-drivers-reset-password.service.js';
 const ResetSchema = z.object({
   newPassword: z.string().min(6).max(128),
@@ -26,9 +27,10 @@ export class AdminDriversResetPasswordController {
     @Param('id') driverId: string,
     @Body() body: z.input<typeof ResetSchema>,
   ): Promise<void> {
+    const parsedDriverId = UuidParamSchema.parse(driverId);
     const parsed = ResetSchema.parse(body);
     await this.service.resetPassword({
-      driverId,
+      driverId: parsedDriverId,
       companyId: op.companyId,
       businessUnitId: op.businessUnitId,
       depotId: op.depotId,
