@@ -106,6 +106,22 @@ describe('SessionManager.getAccessToken', () => {
     await expect(sm.getAccessToken({ forceRefresh: true })).resolves.toBe('new.jwt');
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
+
+  it('refresh HTTP 500 (non-401/403) throws SessionExpiredError but KEEPS storage (retryable)', async () => {
+    const storage = memStorage(NEAR_EXPIRY);
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse(500, { title: 'boom', status: 500 }));
+    const sm = new SessionManager({ apiUrl: API, fetchFn: fetchFn as never, storage, nowMs: () => NOW_MS });
+    await expect(sm.getAccessToken()).rejects.toBeInstanceOf(SessionExpiredError);
+    expect(storage.current).toEqual(NEAR_EXPIRY);
+  });
+
+  it('refresh 200 with a non-SSOT body fails CLOSED: clears storage and throws SessionExpiredError', async () => {
+    const storage = memStorage(NEAR_EXPIRY);
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse(200, { accessToken: 'x', expiresIn: 900 }));
+    const sm = new SessionManager({ apiUrl: API, fetchFn: fetchFn as never, storage, nowMs: () => NOW_MS });
+    await expect(sm.getAccessToken()).rejects.toBeInstanceOf(SessionExpiredError);
+    expect(storage.current).toBeNull();
+  });
 });
 
 describe('SessionManager.login', () => {
