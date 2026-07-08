@@ -138,8 +138,34 @@ jobs:
       - name: Install dependencies
         if: steps.gate.outputs.build == 'true'
         run: pnpm install --frozen-lockfile
-      - name: Dispatch build (${{ matrix.platform }}, preview profile, no-wait)
+      # Fingerprint short-circuit (2026 redundant-build elimination): compute the
+      # runtime fingerprint (eas fingerprint:generate -> .hash) and ask EAS whether
+      # a FINISHED build already exists for that exact hash
+      # (build:list --fingerprint-hash filters on EAS's OWN stored fingerprint, so
+      # this compares against the server value, never a re-derivation -- avoids the
+      # local-vs-EAS fingerprint-drift false-miss class). If one exists the native
+      # layer is byte-identical to a prior build, so we skip the metered EAS build
+      # (30/mo, 15 iOS; each ~3h) and log the reusable artifact. Only a real native
+      # change (new hash, no match) falls through to Dispatch.
+      - name: Fingerprint short-circuit (${{ matrix.platform }})
+        id: fp
         if: steps.gate.outputs.build == 'true'
+        working-directory: apps/driver-app
+        run: |
+          FP=$(eas fingerprint:generate --platform "${{ matrix.platform }}" --json --non-interactive 2>/dev/null | jq -r .hash)
+          echo "Runtime fingerprint: $FP"
+          MATCH=$(eas build:list --platform "${{ matrix.platform }}" --status finished --fingerprint-hash "$FP" --limit 1 --json --non-interactive 2>/dev/null)
+          COUNT=$(printf "%s" "$MATCH" | jq length)
+          if [ "$COUNT" -gt 0 ]; then
+            BUILD_ID=$(printf "%s" "$MATCH" | jq -r ".[0].id")
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Reusing existing ${{ matrix.platform }} build $BUILD_ID (fingerprint $FP unchanged) -- skipping native build."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "No finished build for fingerprint $FP -- native change detected, dispatching."
+          fi
+      - name: Dispatch build (${{ matrix.platform }}, preview profile, no-wait)
+        if: steps.gate.outputs.build == 'true' && steps.fp.outputs.skip != 'true'
         working-directory: apps/driver-app
         run: |
           echo "Dispatching ${{ matrix.platform }} build (completion gated by the EAS BUILD webhook -> api -> Sentry)..."
