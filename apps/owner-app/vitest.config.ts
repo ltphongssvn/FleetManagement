@@ -6,6 +6,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
+    // token-storage.test.ts and api-url-web-origin.test.ts each mutate shared
+    // globals (globalThis.localStorage / window). With few files they land in
+    // the same parallel batch and leak into each other (driver-app carries the
+    // identical tests but its larger suite schedules them apart). Serialize
+    // file execution - the repo's sanctioned lever for racy specs - so each
+    // file gets a clean global scope. Cheap here: this package is tiny.
+    fileParallelism: false,
     coverage: {
       provider: 'v8',
       include: [resolve(__dirname, 'src/**/*.ts')],

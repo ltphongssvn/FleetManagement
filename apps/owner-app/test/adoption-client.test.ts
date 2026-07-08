@@ -75,4 +75,20 @@ describe('fetchAdoptionMetrics', () => {
       fetchFn,
     })).rejects.toThrow(/invalid/i);
   });
+
+  it('falls back to globalThis.fetch when no fetchFn is injected', async () => {
+    const original = globalThis.fetch;
+    const stub = vi.fn().mockResolvedValue(jsonResponse(valid));
+    globalThis.fetch = stub as unknown as typeof globalThis.fetch;
+    try {
+      const res = await fetchAdoptionMetrics({
+        apiUrl: 'https://api.example.com',
+        bearerToken: () => 'tok',
+      });
+      expect(res).toEqual(valid);
+      expect(stub).toHaveBeenCalledOnce();
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
 });
