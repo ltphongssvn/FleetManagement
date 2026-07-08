@@ -14,6 +14,7 @@
 // (single-company deployment per Frozen Stack).
 import { Controller, Get, NotFoundException, Param, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
+import { UuidParamSchema } from '../common/uuid-param.schema.js';
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
@@ -23,7 +24,7 @@ import { TransportOrderNotFoundError } from './transport-orders.errors.js';
 // Accept either a UUID or an XTT.MM-NNN-style external_ref. The external_ref
 // pattern is intentionally narrow (uppercase letters + '.' + digits/letters)
 // to refuse arbitrary strings as the URL :id param.
-const UuidSchema = z.guid();
+const UuidSchema = UuidParamSchema; // Axis-2 SSOT (2026-07-07): was local z.guid()
 const ExternalRefSchema = z.string().regex(/^[A-Z][A-Z0-9]*\.[A-Za-z0-9_-]+$/);
 const IdOrRefSchema = z.union([UuidSchema, ExternalRefSchema]);
 @Controller('transport-orders')
