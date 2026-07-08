@@ -29,8 +29,9 @@ describe('driver change-password screen automation testIDs', () => {
   it('screen wires the existing PasswordChangeClient', () => {
     expect(screenSrc.includes('PasswordChangeClient')).toBe(true);
   });
-  it('home screen exposes a Đổi mật khẩu action linking to /change-password', () => {
-    expect(homeSrc.includes('Đổi mật khẩu')).toBe(true);
-    expect(homeSrc.includes('/change-password')).toBe(true);
+  it('home screen no longer exposes the change-password entry (bare-minimum)', () => {
+    const dq = String.fromCharCode(0x110, 0x1ed5, 0x69);
+    expect(homeSrc.includes(dq)).toBe(false);
+    expect(homeSrc.includes('/change-password')).toBe(false);
   });
 });

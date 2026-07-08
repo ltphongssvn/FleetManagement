@@ -22,9 +22,9 @@
 import type { JSX } from 'react';
 import { useRouter, type Href } from 'expo-router';
 import { ActivityIndicator, FlatList, Pressable, Text, View, StyleSheet } from 'react-native';
-import { nextDriverAction } from '../../src/assignments/assignment-action-policy.js';
 import { useAssignments } from '../../src/assignments/use-assignments.js';
 import { presentAssignmentStops } from '../../src/assignments/assignment-stops-presenter.js';
+import { roadRunStateLabelVi } from '../../src/assignments/road-run-state-label.js';
 import { captureHrefForStop } from '../../src/assignments/capture-href.js';
 import { presentApiError } from '../../src/errors/present-api-error.js';
 import { formatVnDateUS } from '../../src/config/vn-locale.js';
@@ -37,7 +37,9 @@ const STATE_COLOR: Record<string, string> = {
   completed: colors.green600,
 };
 export default function Assignments(): JSX.Element {
-  const { query, lifecycle } = useAssignments();
+  // Lifecycle transitions are photo-driven now (no manual buttons); the
+  // list only reads server state and refetches after each capture.
+  const { query } = useAssignments();
   const router = useRouter();
   if (query.isPending) {
     return (
@@ -65,39 +67,21 @@ export default function Assignments(): JSX.Element {
       </View>
     );
   }
-  // A lifecycle transition that failed surfaces as a banner above the list.
-  // Rendered ONLY through presentApiError: the machine code (e.g.
-  // INVALID_STATE_TRANSITION on complete-before-start) maps to immutable
-  // Vietnamese guidance; raw transport text is structurally unreachable.
-  const actionError: string | null = lifecycle.isError
-    ? presentApiError(lifecycle.error, 'Lỗi cập nhật trạng thái')
-    : null;
   return (
     <View style={styles.screen}>
-      {actionError !== null ? (
-        <View style={styles.errorBanner}>
-          <Text style={styles.errorBannerText}>{actionError}</Text>
-        </View>
-      ) : null}
       <FlatList
         data={query.data}
         keyExtractor={(item) => item.roadRunId}
         contentContainerStyle={styles.listContent}
         renderItem={({ item }) => {
           const badgeColor = STATE_COLOR[item.state.toLowerCase()] ?? colors.slate500;
-          const action = nextDriverAction(item.state);
-          // Narrow once: actionKind is the non-terminal kind or null.
-          const actionKind: 'accept' | 'start' | 'complete' | null =
-            action.kind === 'none' ? null : action.kind;
           // This card is transitioning when the in-flight mutation targets it.
-          const isPending =
-            lifecycle.isPending && lifecycle.variables.roadRunId === item.roadRunId;
           return (
             <View style={styles.card}>
               <View style={styles.cardTopRow}>
                 <Text style={styles.rowTitle}>{item.orderRef ?? item.roadRunId.slice(0, 8)}</Text>
                 <View style={[styles.badge, { backgroundColor: badgeColor }]}>
-                  <Text style={styles.badgeText}>{item.state}</Text>
+                  <Text style={styles.badgeText}>{roadRunStateLabelVi(item.state)}</Text>
                 </View>
               </View>
               {item.customerName ? <Text style={styles.detail}>Khách hàng: {item.customerName}</Text> : null}
@@ -147,25 +131,6 @@ export default function Assignments(): JSX.Element {
               {item.plannedStartAt ? (
                 <Text style={styles.detail}>Khởi hành: {formatVnDateUS(item.plannedStartAt)}</Text>
               ) : null}
-              {actionKind !== null ? (
-                <Pressable
-                  onPress={() => { lifecycle.mutate({ roadRunId: item.roadRunId, kind: actionKind }); }}
-                  disabled={isPending}
-                  accessibilityRole={'button'}
-                  accessibilityLabel={action.label}
-                  style={({ pressed }) => [
-                    styles.actionBtn,
-                    pressed && styles.actionBtnPressed,
-                    isPending && styles.actionBtnDisabled,
-                  ]}
-                >
-                  {isPending ? (
-                    <ActivityIndicator size={'small'} color={colors.white} />
-                  ) : (
-                    <Text style={styles.actionText}>{action.label}</Text>
-                  )}
-                </Pressable>
-              ) : null}
             </View>
           );
         }}
@@ -186,14 +151,6 @@ const styles = StyleSheet.create({
   muted: { ...typography.caption, color: colors.slate300, marginTop: spacing.sm, textAlign: 'center' },
   errorTitle: { ...typography.heading, color: colors.red600 },
   emptyTitle: { ...typography.heading, color: colors.white },
-  errorBanner: {
-    backgroundColor: colors.red50,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.red200,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  errorBannerText: { color: colors.red700, fontSize: 13, textAlign: 'center' },
   card: {
     backgroundColor: colors.white,
     borderRadius: radius.lg,
