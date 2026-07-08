@@ -33,6 +33,13 @@ describe('capture auto-advance wiring', () => {
     expect(href).toContain('remaining=2');
   });
 
+  it('capture screen invalidates the assignments query after auto-advance', () => {
+    const s = src('app/(app)/capture.tsx');
+    expect(s.includes('useQueryClient')).toBe(true);
+    expect(s.includes('ASSIGNMENTS_QUERY_KEY')).toBe(true);
+    expect(s.includes('invalidateQueries')).toBe(true);
+  });
+
   it('capture screen fires autoAdvanceAfterCapture after UPLOAD_OK', () => {
     const s = src('app/(app)/capture.tsx');
     expect(s.includes('autoAdvanceAfterCapture')).toBe(true);
