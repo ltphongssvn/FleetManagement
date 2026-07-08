@@ -76,7 +76,7 @@ export default function AppLayout(): JSX.Element {
         headerRight: () => <HeaderLogout />,
       }}
     >
-      <Stack.Screen name="index" options={{ title: 'Fleet Driver' }} />
+      <Stack.Screen name="index" options={{ title: 'Ứng dụng Tài xế' }} />
       <Stack.Screen name="assignments" options={{ title: 'Lệnh điều xe' }} />
       <Stack.Screen name="history" options={{ title: 'Lịch sử chuyến' }} />
       <Stack.Screen name="completed" options={{ title: 'Lệnh đã hoàn thành' }} />
