@@ -1,6 +1,7 @@
 // apps/api/src/admin/admin-assignment.controller.ts
 import { Body, Controller, Delete, Param, Post, UseGuards } from '@nestjs/common';
 import { JwtGuard } from '../auth/jwt.guard.js';
+import { UuidParamSchema } from '../common/uuid-param.schema.js';
 import { z } from 'zod';
 import type { OperatorContext } from '@fleet/domain';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
@@ -42,7 +43,8 @@ export class AdminAssignmentController {
     @Param('id') id: string,
     @Body() body: z.infer<typeof RevokeSchema>,
   ): Promise<DriverVehicleAssignment> {
+    const assignmentId = UuidParamSchema.parse(id);
     const parsed = RevokeSchema.parse(body);
-    return this.service.revoke({ assignmentId: id, reason: parsed.reason });
+    return this.service.revoke({ assignmentId, reason: parsed.reason });
   }
 }
