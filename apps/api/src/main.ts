@@ -59,7 +59,7 @@ async function maybeSeed(): Promise<void> {
 async function bootstrap(): Promise<void> {
   await maybeMigrate();
   await maybeSeed();
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   app.enableCors({
     origin: (process.env['CORS_ORIGINS'] ?? 'http://localhost:8081,http://localhost:3001').split(','),
     credentials: true,
