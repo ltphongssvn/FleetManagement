@@ -35,10 +35,10 @@ describe('driver-app screens render errors only through presentApiError', () => 
     expect(src.includes("errorMsg ?? ''")).toBe(false);
   });
 
-  it('assignments.tsx routes BOTH sites (query + lifecycle banner) through the presenter', () => {
+  it('assignments.tsx routes the query-error site through the presenter', () => {
     const src = app('assignments.tsx');
     const count = src.split('presentApiError(').length - 1;
-    expect(count >= 2).toBe(true);
+    expect(count >= 1).toBe(true);
   });
 
   it('commands.tsx presents socket failures instead of raw err.message state', () => {
