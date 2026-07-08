@@ -224,3 +224,6 @@ export {
   parseCopilotPlanResponse,
   parseCopilotExecutionResult,
 } from './copilot-types.js';
+
+// Device binding (installation identity + TOFU binding lifecycle).
+export * from './device-binding-contract.js';
