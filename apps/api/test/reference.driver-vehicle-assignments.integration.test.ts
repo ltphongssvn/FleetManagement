@@ -34,7 +34,7 @@ function tenancy(op: ReturnType<typeof createOperatorContext>): {
   };
 }
 describe('@fleet/api - ReferenceService.driverVehicleAssignments (integration)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('returns active pairs as { operatorId, vehicleId }', async () => {
     await withTxIsolation(testDb, async (tx) => {

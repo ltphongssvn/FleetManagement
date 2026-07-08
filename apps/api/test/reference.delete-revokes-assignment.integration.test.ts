@@ -44,7 +44,7 @@ async function seedPair(tx: TestTx, suffix: string): Promise<{ driverId: string;
   return { driverId: d.driverId, vehicleId: v.vehicleId, assignmentId: a.assignmentId };
 }
 describe('@fleet/api - soft-delete cascades revocation onto active driver_vehicle_assignment', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('deleteVehicle() revokes the active assignment referencing that vehicle', async () => {
     const captured = await withTxIsolation(testDb, async (tx) => {

@@ -45,7 +45,7 @@ function requireDefined<T>(v: T | undefined | null, label: string): T {
   return v;
 }
 describe('@fleet/api - OrderNumberingService legacy-data collision (T3 hardening)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('legacy XT.NNNN rows live in a different namespace and do not affect XTT.MM-NNN allocation', async () => {
     let allocated: string | undefined;

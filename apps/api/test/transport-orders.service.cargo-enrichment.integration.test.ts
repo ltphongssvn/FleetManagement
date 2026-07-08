@@ -23,7 +23,7 @@ async function seedPair(tx: TestTx, op: ReturnType<typeof createOperatorContext>
   return { operatorId: op.operatorId, vehicleId: v.vehicleId, driverFullName };
 }
 describe('@fleet/api - cargo/customer/driver enrichment on review query (T7)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('persists cargoTypeId and returns cargoName on the review row', async () => {
     let cargoName: string | null | undefined;

@@ -18,7 +18,9 @@ interface DriverInsertCapture {
 
 function makeDb(): { db: unknown; inserts: DriverInsertCapture[] } {
   const inserts: DriverInsertCapture[] = [];
-  const db = {
+  interface TxLike { insert: unknown; transaction: unknown }
+  const db: Record<string, unknown> = {
+    transaction: (fn: (tx: TxLike) => Promise<unknown>): Promise<unknown> => fn(db as never),
     insert: (): { values: (v: DriverInsertCapture) => { returning: () => Promise<DriverInsertCapture[]> } } => ({
       values: (v: DriverInsertCapture) => ({
         returning: (): Promise<DriverInsertCapture[]> => {
@@ -83,7 +85,8 @@ describe("AdminDriversCreateService", () => {
     expect(mock.inserts[0]?.passwordHash).not.toBe(mock.inserts[1]?.passwordHash);
   });
   it("throws when the DB returns no row (line 49 branch)", async () => {
-    const emptyDb = {
+    const emptyDb: Record<string, unknown> = {
+      transaction: (fn: (tx: unknown) => Promise<unknown>): Promise<unknown> => fn(emptyDb as never),
       insert: (): { values: (v: unknown) => { returning: () => Promise<unknown[]> } } => ({
         values: () => ({ returning: (): Promise<unknown[]> => Promise.resolve([]) }),
       }),

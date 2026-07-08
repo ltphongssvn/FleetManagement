@@ -5,6 +5,9 @@
 //   ReferenceService.drivers(op) and .vehicles(op) (the dispatch form
 //   dropdowns Tài xế / Số xe). Only when the road_run reaches a TERMINAL
 //   state (completed|cancelled) does the pair become selectable again.
+// 2026-07-05 (dispatch-pair-visibility): busy additionally requires the
+// run to have a LINKED transport_order (orphan runs never mark busy), so
+// busy seeds below create the order + rrto link like production does.
 //
 // Discriminating shape (mirrors reference.paired-only): each test seeds
 // BOTH an idle paired pair (must REMAIN) and a busy paired pair (bound to
@@ -18,7 +21,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ReferenceService } from '../src/reference/reference.service.js';
 import { driver, vehicle } from '../src/database/schema/reference.js';
 import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
-import { roadRun } from '../src/database/schema/transport.js';
+import { roadRun, transportOrder, roadRunTransportOrder } from '../src/database/schema/transport.js';
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
 import { withTxIsolation } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
@@ -32,7 +35,7 @@ function tenancy(op: ReturnType<typeof createOperatorContext>): {
   };
 }
 describe('@fleet/api - ReferenceService hides busy (incomplete road_run) driver+vehicle', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   describe('drivers(op)', () => {
     it('excludes a driver bound to a started road_run while keeping an idle paired driver', async () => {
@@ -59,10 +62,18 @@ describe('@fleet/api - ReferenceService hides busy (incomplete road_run) driver+
           { ...tenancy(op), driverId: drvBusy.driverId, vehicleId: vehBusy.vehicleId },
         ]);
         // Busy pair: a started (non-terminal) road_run binds opBusy + vehBusy.
-        await tx.insert(roadRun).values({
+        const [rrBusy] = await tx.insert(roadRun).values({
           ...tenancy(op), state: 'started',
           assignedOperatorId: opBusy, assignedAssetId: vehBusy.vehicleId,
           startedAt: new Date(),
+        }).returning();
+        const [orderBusy] = await tx.insert(transportOrder).values({
+          ...tenancy(op),
+        }).returning();
+        if (rrBusy === undefined || orderBusy === undefined) throw new Error('busy seed failed');
+        await tx.insert(roadRunTransportOrder).values({
+          ...tenancy(op), roadRunId: rrBusy.roadRunId,
+          transportOrderId: orderBusy.transportOrderId, sequence: 1,
         });
         return (await svc.drivers(op)).items;
       });
@@ -117,10 +128,18 @@ describe('@fleet/api - ReferenceService hides busy (incomplete road_run) driver+
           { ...tenancy(op), driverId: drvIdle.driverId, vehicleId: vehIdle.vehicleId },
           { ...tenancy(op), driverId: drvBusy.driverId, vehicleId: vehBusy.vehicleId },
         ]);
-        await tx.insert(roadRun).values({
+        const [rrBusy] = await tx.insert(roadRun).values({
           ...tenancy(op), state: 'started',
           assignedOperatorId: opBusy, assignedAssetId: vehBusy.vehicleId,
           startedAt: new Date(),
+        }).returning();
+        const [orderBusy] = await tx.insert(transportOrder).values({
+          ...tenancy(op),
+        }).returning();
+        if (rrBusy === undefined || orderBusy === undefined) throw new Error('busy seed failed');
+        await tx.insert(roadRunTransportOrder).values({
+          ...tenancy(op), roadRunId: rrBusy.roadRunId,
+          transportOrderId: orderBusy.transportOrderId, sequence: 1,
         });
         return { items: (await svc.vehicles(op)).items, expectedId: vehIdle.vehicleId };
       });

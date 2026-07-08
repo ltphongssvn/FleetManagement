@@ -2,7 +2,7 @@
 # Root docker-compose for end-to-end verification of the Fleet pilot stack.
 # Services: postgres (PostGIS), redis, api (NestJS), worker (BullMQ), ops-web (Next.js).
 # Day-one pilot scope per Frozen Stack PDF Day-One #10.
-name: fleet-pilot
+name: ${FLEET_COMPOSE_PROJECT:-fleet-pilot}
 services:
   postgres:
     image: postgis/postgis:18-3.6-alpine
@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: fleet  # pragma: allowlist secret
       POSTGRES_DB: fleet
     ports:
-      - "5432:5432"
+      - "${FLEET_PORT_POSTGRES:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql
     healthcheck:
@@ -22,7 +22,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${FLEET_PORT_REDIS:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -33,16 +33,16 @@ services:
     hostname: mock-oauth2
     environment:
       SERVER_HOSTNAME: mock-oauth2
-      JSON_CONFIG: '{"tokenProvider":{"keyProvider":{"algorithm":"ES256"}},"interactiveLogin":false,"tokenCallbacks":[{"issuerId":"fleet","tokenExpiry":86400,"requestMappings":[{"requestParam":"username","match":"dispatcher","claims":{"sub":"00000000-0000-0000-0000-0000000000aa","operator_id":"00000000-0000-0000-0000-0000000000aa","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"dispatcher","acr":"aal2","amr":["pwd","hwk"]}},{"requestParam":"username","match":"dieuxe","claims":{"sub":"00000000-0000-0000-0000-0000000000bb","operator_id":"00000000-0000-0000-0000-0000000000bb","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"dieuxe"}},{"requestParam":"username","match":"driver1","claims":{"sub":"00000000-0000-0000-0000-000000000001","operator_id":"00000000-0000-0000-0000-000000000001","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver1"}},{"requestParam":"username","match":"driver2","claims":{"sub":"00000000-0000-0000-0000-000000000002","operator_id":"00000000-0000-0000-0000-000000000002","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver2"}},{"requestParam":"username","match":"driver3","claims":{"sub":"00000000-0000-0000-0000-000000000003","operator_id":"00000000-0000-0000-0000-000000000003","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver3"}},{"requestParam":"username","match":"driver4","claims":{"sub":"00000000-0000-0000-0000-000000000004","operator_id":"00000000-0000-0000-0000-000000000004","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver4"}},{"requestParam":"username","match":"driver5","claims":{"sub":"00000000-0000-0000-0000-000000000005","operator_id":"00000000-0000-0000-0000-000000000005","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver5"}}]},{"issuerId":"wrong-aud","tokenExpiry":86400,"requestMappings":[{"requestParam":"scope","match":"*","claims":{"sub":"00000000-0000-0000-0000-0000000000aa","operator_id":"00000000-0000-0000-0000-0000000000aa","company_id":"00000000-0000-0000-0000-000000000000","aud":"some-other-app"}}]}]}'
+      JSON_CONFIG: '{"tokenProvider":{"keyProvider":{"algorithm":"ES256"}},"interactiveLogin":false,"tokenCallbacks":[{"issuerId":"fleet","tokenExpiry":86400,"requestMappings":[{"requestParam":"username","match":"dispatcher","claims":{"sub":"00000000-0000-0000-0000-0000000000aa","operator_id":"00000000-0000-0000-0000-0000000000aa","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"dispatcher","acr":"aal2","amr":["pwd","hwk"]}},{"requestParam":"username","match":"dieuxe","claims":{"sub":"00000000-0000-0000-0000-0000000000bb","operator_id":"00000000-0000-0000-0000-0000000000bb","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"dieuxe"}},{"requestParam":"username","match":"driver1","claims":{"sub":"00000000-0000-0000-0000-000000000001","operator_id":"00000000-0000-0000-0000-000000000001","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver1"}},{"requestParam":"username","match":"driver2","claims":{"sub":"00000000-0000-0000-0000-000000000002","operator_id":"00000000-0000-0000-0000-000000000002","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver2"}},{"requestParam":"username","match":"driver3","claims":{"sub":"00000000-0000-0000-0000-000000000003","operator_id":"00000000-0000-0000-0000-000000000003","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver3"}},{"requestParam":"username","match":"driver4","claims":{"sub":"00000000-0000-0000-0000-000000000004","operator_id":"00000000-0000-0000-0000-000000000004","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver4"}},{"requestParam":"username","match":"driver5","claims":{"sub":"00000000-0000-0000-0000-000000000005","operator_id":"00000000-0000-0000-0000-000000000005","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver5"}},{"requestParam":"client_id","match":"ops-web","claims":{"sub":"00000000-0000-0000-0000-0000000000aa","operator_id":"00000000-0000-0000-0000-0000000000aa","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"dispatcher","acr":"aal3","idp":"google","amr":["hwk"]}}]},{"issuerId":"wrong-aud","tokenExpiry":86400,"requestMappings":[{"requestParam":"scope","match":"*","claims":{"sub":"00000000-0000-0000-0000-0000000000aa","operator_id":"00000000-0000-0000-0000-0000000000aa","company_id":"00000000-0000-0000-0000-000000000000","aud":"some-other-app"}}]}]}'
     ports:
-      - "8080:8080"
+      - "${FLEET_PORT_OAUTH:-8080}:8080"
   localstack:
     image: localstack/localstack:3.8
     environment:
       SERVICES: s3
       DEBUG: "0"
     ports:
-      - "4566:4566"
+      - "${FLEET_PORT_S3:-4566}:4566"
     healthcheck:
       test: ["CMD-SHELL", "awslocal s3 ls || exit 1"]
       interval: 5s
@@ -88,13 +88,13 @@ services:
       # Browser-reachable S3 origin for presigned PUT URLs. The driver-app web
       # bundle runs in the host browser and cannot resolve the internal
       # "localstack" hostname, so presigned URLs are rewritten to this origin.
-      S3_PUBLIC_URL: http://localhost:4566
+      S3_PUBLIC_URL: http://localhost:${FLEET_PORT_S3:-4566}
       AWS_ACCESS_KEY_ID: test  # pragma: allowlist secret
       AWS_SECRET_ACCESS_KEY: test  # pragma: allowlist secret
       OTEL_ENABLED: "false"
       FLEET_PILOT_SCOPE: "00000000-0000-0000-0000-000000000000"
     ports:
-      - "3000:3000"
+      - "${FLEET_PORT_API:-3000}:3000"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 5s
@@ -156,16 +156,16 @@ services:
       # HOST_LAN_IP is the dev host's LAN IP (set in repo-root .env).
       # The phone running Expo Go fetches the JS bundle and hits this API,
       # so both URLs must resolve from the phone's perspective on the LAN.
-      EXPO_PUBLIC_API_URL: http://${HOST_LAN_IP}:3000
+      EXPO_PUBLIC_API_URL: http://${HOST_LAN_IP}:${FLEET_PORT_API:-3000}
       # Tells Metro which hostname to advertise in the QR code / bundle URL.
       # Without this, Metro picks the container's internal Docker IP, which
       # the phone cannot reach, so the JS bundle never downloads and the
       # app (including the login screen) never mounts.
       REACT_NATIVE_PACKAGER_HOSTNAME: ${HOST_LAN_IP}
     ports:
-      - "8081:8081"
-      - "19000:19000"
-      - "19001:19001"
+      - "${FLEET_PORT_EXPO_METRO:-8081}:8081"
+      - "${FLEET_PORT_EXPO_DEV:-19000}:19000"
+      - "${FLEET_PORT_EXPO_DEV2:-19001}:19001"
   ops-web:
     build:
       context: .
@@ -180,9 +180,9 @@ services:
       HOSTNAME: "0.0.0.0"
       FLEET_API_URL: http://api:3000
       OIDC_TOKEN_ENDPOINT: http://mock-oauth2:8080/fleet/token
-      OIDC_AUTHORIZATION_ENDPOINT: http://localhost:8080/fleet/authorize
+      OIDC_AUTHORIZATION_ENDPOINT: http://localhost:${FLEET_PORT_OAUTH:-8080}/fleet/authorize
       OIDC_CLIENT_ID: ops-web
-      OIDC_REDIRECT_URI: http://localhost:3001/api/auth/callback
+      OIDC_REDIRECT_URI: http://localhost:${FLEET_PORT_OPS_WEB:-3001}/api/auth/callback
       # Server-action auth for assign-run: a dispatcher-scope JWT minted from
       # the local mock-oauth2 (/fleet/token, 1-day exp). The VALUE lives in the
       # gitignored repo-root .env as OPS_WEB_FLEET_API_TOKEN (compose ${}
@@ -191,6 +191,6 @@ services:
       # context/proof-pipeline-env-and-url-horizons.md).
       FLEET_API_TOKEN: ${OPS_WEB_FLEET_API_TOKEN}
     ports:
-      - "3001:3001"
+      - "${FLEET_PORT_OPS_WEB:-3001}:3001"
 volumes:
   pgdata:

@@ -40,10 +40,20 @@ export default function globalTeardown(): void {
       ' OR assigned_operator_id IN (SELECT operator_id FROM driver WHERE full_name LIKE ' + sq + 'E2E%' + sq + ')' +
       '));',
     // transport_orders linked to E2E road_runs (capture refs first for projection cleanup).
+    // ROOT-CAUSE FIX (dispatch-pair-visibility, 2026-07-05): this DELETE
+    // used to match EVERY transport_order in the company (only company_id
+    // scoped), while the road_run DELETE below matches only E2E-named
+    // pairs. Result: real orders vanished but their road_runs survived as
+    // link-less ORPHANS in non-terminal states, permanently tripping the
+    // busy filter and hiding idle pairs from So xe / Tai xe. Now scoped to
+    // E2E-named vehicles/drivers exactly like every sibling statement.
     'DELETE FROM transport_order WHERE transport_order_id IN (' +
       'SELECT DISTINCT rrto.transport_order_id FROM road_run_transport_order rrto ' +
       'JOIN road_run r ON r.road_run_id = rrto.road_run_id ' +
-      'WHERE r.company_id=' + sq + COMPANY_ID + sq + ');',
+      'WHERE r.company_id=' + sq + COMPANY_ID + sq + ' AND (' +
+      ' r.assigned_asset_id IN (SELECT vehicle_id FROM vehicle WHERE plate LIKE ' + sq + 'E2E-%' + sq + ')' +
+      ' OR r.assigned_operator_id IN (SELECT operator_id FROM driver WHERE full_name LIKE ' + sq + 'E2E%' + sq + ')' +
+      '));',
     // E2E road_runs themselves.
     'DELETE FROM road_run WHERE company_id=' + sq + COMPANY_ID + sq + ' AND (' +
       ' assigned_asset_id IN (SELECT vehicle_id FROM vehicle WHERE plate LIKE ' + sq + 'E2E-%' + sq + ')' +

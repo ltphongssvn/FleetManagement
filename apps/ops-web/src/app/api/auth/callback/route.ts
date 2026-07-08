@@ -17,6 +17,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { TokenResponseSchema } from '@/features/auth/oidc-authorization.schema';
 import {
+  REFRESH_COOKIE,
+  SESSION_COOKIE,
+  refreshCookieOptions,
+  sessionCookieOptions,
+} from '@/features/auth/session-refresh';
+import {
   decodeAccessTokenClaims,
   evaluatePasswordlessLogin,
   DISPATCHER_PASSWORDLESS_POLICY,
@@ -132,12 +138,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // Success: set fleet_session and clear the transient cookies, all on the
   // OUTGOING redirect response so the Set-Cookie headers reach the browser.
   const res = NextResponse.redirect(new URL('/', publicOrigin(req)));
-  res.cookies.set('fleet_session', parsed.data.access_token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    path: '/',
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: parsed.data.expires_in ?? 3600,
-  });
+  res.cookies.set(
+    SESSION_COOKIE,
+    parsed.data.access_token,
+    sessionCookieOptions(parsed.data.expires_in ?? 3600),
+  );
+  // Root cause of mid-shift /login bounces: Keycloak returned a refresh_token
+  // here and we DISCARDED it, so nothing could ever silently re-mint the
+  // session. Store it (httpOnly) so proxy/_forward/refresh-route can.
+  if (parsed.data.refresh_token !== undefined) {
+    res.cookies.set(REFRESH_COOKIE, parsed.data.refresh_token, refreshCookieOptions());
+  }
   return clearTransient(res);
 }

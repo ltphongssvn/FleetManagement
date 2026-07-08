@@ -21,7 +21,7 @@ import { withTxIsolation } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 describe('AdminAssignmentService.assign backfills operator_id (T5e)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
   it('sets driver.operator_id when the driver was created without one', async () => {
     await withTxIsolation(testDb, async (tx) => {

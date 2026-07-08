@@ -20,11 +20,13 @@ import { SchedulerModule } from './scheduler/scheduler.module.js';
 import { TransportOrdersModule } from './transport-orders/transport-orders.module.js';
 import { ConfigClientModule } from './config-client/config-client.module.js';
 import { ErpInboundModule } from './erp-inbound/erp-inbound.module.js';
+import { EasInboundModule } from './eas-inbound/eas-inbound.module.js';
 import { MetricsModule } from './metrics/metrics.module.js';
 import { OwnerModule } from './owner/owner.module.js';
 import { ReferenceModule } from './reference/reference.module.js';
 import { DriverModule } from './driver/driver.module.js';
 import { AdminModule } from './admin/admin.module.js';
+import { CopilotModule } from './copilot/copilot.module.js';
 
 @Module({
   imports: [
@@ -45,11 +47,13 @@ import { AdminModule } from './admin/admin.module.js';
     TransportOrdersModule,
     ConfigClientModule,
     ErpInboundModule,
+    EasInboundModule,
     MetricsModule,
     OwnerModule,
     ReferenceModule,
     DriverModule,
     AdminModule,
+    CopilotModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: SentryGlobalFilter }],
 })

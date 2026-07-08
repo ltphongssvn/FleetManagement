@@ -21,7 +21,7 @@ import {
   TransportOrderNotFoundError,
 } from '../src/transport-orders/transport-orders.errors.js';
 const op: OperatorContext = createOperatorContext();
-const validId = '11111111-1111-1111-1111-111111111111';
+const validId = '11111111-1111-4111-8111-111111111111';
 const validBody = { reason: 'customer_request', note: 'unit test' };
 describe('@fleet/api - TransportOrdersCancelController', () => {
   let cancel: ReturnType<typeof vi.fn>;

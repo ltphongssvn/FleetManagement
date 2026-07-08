@@ -16,6 +16,11 @@ const EnvSchema = z.object({
   // Optional acr to request at login so the dispatcher role is forced through
   // MFA up front, matching the API's RFC 9470 step-up enforcement.
   OIDC_DISPATCH_ACR_VALUES: z.string().min(1).optional(),
+  // Public Cloudflare Web Analytics beacon token. Optional: when set, the root
+  // layout renders the beacon in <head> (server-side) so hydration matches;
+  // when unset (dev/CI) nothing is injected. Public by nature (ships to the
+  // browser), hence NEXT_PUBLIC_.
+  NEXT_PUBLIC_CF_BEACON_TOKEN: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
