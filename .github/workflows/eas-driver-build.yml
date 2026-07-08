@@ -22,13 +22,15 @@
 #   Sentry fatal on any errored build -- same alerting pattern as the
 #   break-glass login monitor. Runner cost: ~2 min dispatch per platform.
 #
-# Why --refresh-ad-hoc-provisioning-profile (iOS only):
-#   Ad Hoc installs are UDID-allowlisted at build time. Driver iPhones
-#   self-register via the QR link (see
-#   context/ios-driver-iphone-onboarding-playbook.md); this flag makes every
-#   CI build regenerate the profile to INCLUDE devices registered since the
-#   last build, so a new driver only needs: register -> wait for next release
-#   (or workflow_dispatch ios) -> install. No manual device selection.
+# iOS device inclusion (NO --refresh-ad-hoc-provisioning-profile):
+#   Ad Hoc installs are UDID-allowlisted at build time. That flag was tried
+#   and REVERTED: in --non-interactive CI it requires an App Store Connect
+#   API Key ("No App Store Connect API Key found for ad-hoc provisioning
+#   profile refresh"), which this cert-only remote-credentials setup does
+#   not have. New driver iPhones are instead added via the interactive
+#   eas device:create QR flow (context/ios-driver-iphone-onboarding-
+#   playbook.md): register the device, then trigger a rebuild -- the profile
+#   already includes it server-side, no ASC API Key needed.
 #
 # Credentials:
 #   - EXPO_TOKEN (repo secret) authenticates the EAS CLI in CI. REQUIRED.
@@ -140,14 +142,9 @@ jobs:
         if: steps.gate.outputs.build == 'true'
         working-directory: apps/driver-app
         run: |
-          EXTRA=""
-          if [ "${{ matrix.platform }}" = "ios" ]; then
-            EXTRA="--refresh-ad-hoc-provisioning-profile"
-          fi
           echo "Dispatching ${{ matrix.platform }} build (completion gated by the EAS BUILD webhook -> api -> Sentry)..."
           eas build \
             --platform "${{ matrix.platform }}" \
             --profile preview \
             --non-interactive \
-            --no-wait \
-            $EXTRA
+            --no-wait
