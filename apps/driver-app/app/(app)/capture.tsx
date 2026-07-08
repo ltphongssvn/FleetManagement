@@ -204,20 +204,6 @@ export default function Capture(): JSX.Element {
               <Text style={styles.buttonText}>{vm.uploadButton.label}</Text>
             </Pressable>
           ) : null}
-          {vm.resetButton.visible ? (
-            <Pressable
-              style={({ pressed }) => [
-                styles.button,
-                styles.resetButton,
-                pressed && styles.pressed,
-              ]}
-              onPress={() => { setPicked(null); dispatch({ type: 'RESET' }); }}
-              accessibilityRole={'button'}
-              accessibilityLabel={vm.resetButton.label}
-            >
-              <Text style={styles.resetButtonText}>{vm.resetButton.label}</Text>
-            </Pressable>
-          ) : null}
         </View>
       </View>
     </View>
