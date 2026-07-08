@@ -23,6 +23,10 @@ import type { FetchFn } from '@/features/admin/reference-admin-client';
 type Clarify = Extract<CopilotPlanResponse, { kind: 'clarify' }>;
 
 export interface CommandPaletteProps {
+  // Server-provided (root layout reads the session/refresh cookie). Renders
+  // the SAME tree on server and client -> no hydration mismatch. When false
+  // (e.g. the /login page) Ctrl+K is inert and nothing mounts.
+  readonly authed?: boolean;
   readonly fetchFn?: FetchFn;
 }
 
@@ -86,7 +90,10 @@ async function readJson(res: Response): Promise<unknown> {
   }
 }
 
-export function CommandPalette({ fetchFn }: CommandPaletteProps): React.JSX.Element | null {
+export function CommandPalette({
+  authed = true,
+  fetchFn,
+}: CommandPaletteProps): React.JSX.Element | null {
   const doFetch: FetchFn = fetchFn ?? globalThis.fetch.bind(globalThis);
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -99,6 +106,7 @@ export function CommandPalette({ fetchFn }: CommandPaletteProps): React.JSX.Elem
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'k' && (e.ctrlKey || e.metaKey)) {
+        if (!authed) return;
         e.preventDefault();
         setOpen(true);
       }
@@ -115,7 +123,7 @@ export function CommandPalette({ fetchFn }: CommandPaletteProps): React.JSX.Elem
     return (): void => {
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, []);
+  }, [authed]);
 
   async function requestPlan(): Promise<void> {
     setBusy(true);
@@ -185,6 +193,7 @@ export function CommandPalette({ fetchFn }: CommandPaletteProps): React.JSX.Elem
     setMessage(null);
   }
 
+  if (!authed) return null;
   if (!open) return null;
   return (
     <div style={OVERLAY_STYLE} onClick={closeAll} data-testid='copilot-overlay'>
