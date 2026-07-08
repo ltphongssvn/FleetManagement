@@ -1,46 +1,58 @@
 # ============================================================================
 # File:     FleetManagement/.github/workflows/eas-driver-build.yml
-# Purpose:  Autonomous EAS build of the driver app (Android APK + iOS IPA) when a
-#           DRIVER-RELEVANT change lands on main, with END-TO-END verification
-#           that both builds actually FINISH (not merely dispatch).
+# Purpose:  Autonomous EAS build of the driver app (Android APK + iOS IPA) when
+#           a DRIVER-RELEVANT change lands on main -- dispatch-only on the
+#           runner, completion-gated OFF the runner via the EAS BUILD webhook.
 #
 # Why native top-level paths: filtering (2026 monorepo best practice):
-#   GitHub itself decides whether to start this workflow based on the push diff.
-#   An ops-web-only or api-only release produces NO mobile build and burns NO
-#   metered EAS build (30/mo, 15 iOS). Canonical per-app-workflow + paths filter.
-#   api/ops-web are deliberately absent from the paths list below.
+#   GitHub decides from the push diff whether to start this workflow. An
+#   ops-web-only or api-only release produces NO mobile build and burns NO
+#   metered EAS build (30/mo, 15 iOS). api/ops-web are deliberately absent.
 #
-# Why a per-platform matrix with --wait (2026 completion-gate best practice):
-#   The Expo docs are explicit that with --no-wait, "your CI will report that the
-#   build job is passing only if triggering EAS Build is successful" -- i.e. a
-#   dispatch-only job goes green even if the build later ERRORS. To actually gate
-#   on build success, eas build must run with --wait, which blocks until the
-#   build finishes and exits NON-ZERO if it errors (failing this job). Running
-#   the two platforms as a matrix waits Android and iOS in PARALLEL (one ~10-20
-#   min window, not two back-to-back) and yields independent per-platform
-#   pass/fail. This replaces any manual eas build:list status check -- the
-#   pipeline itself is now the completion gate.
+# Why --no-wait (root cause fixed 2026-07-06, replaces the old --wait gate):
+#   v2.16.0 evidence: iOS finished in 5 min but Android took 43 min elapsed
+#   (EAS queue + build) while the runner idled inside --wait; the job's
+#   40-minute window expired -> GH reported a FALSE RED on a build that
+#   FINISHED server-side, and every release burned ~2x40 runner-minutes doing
+#   nothing. Expo docs: with --no-wait you are not billed for CI execution
+#   time while EAS performs the build. The old header feared the inverse
+#   failure (dispatch-green hiding a later ERROR); that gate now lives OFF
+#   the runner: an EAS BUILD webhook posts the terminal status to the api
+#   (/integrations/eas/build-status), which HMAC-verifies and raises a
+#   Sentry fatal on any errored build -- same alerting pattern as the
+#   break-glass login monitor. Runner cost: ~2 min dispatch per platform.
+#
+# Why --refresh-ad-hoc-provisioning-profile (iOS only):
+#   Ad Hoc installs are UDID-allowlisted at build time. Driver iPhones
+#   self-register via the QR link (see
+#   context/ios-driver-iphone-onboarding-playbook.md); this flag makes every
+#   CI build regenerate the profile to INCLUDE devices registered since the
+#   last build, so a new driver only needs: register -> wait for next release
+#   (or workflow_dispatch ios) -> install. No manual device selection.
 #
 # Credentials:
 #   - EXPO_TOKEN (repo secret) authenticates the EAS CLI in CI. REQUIRED.
-#   - Android keystore + iOS distribution cert/provisioning profile already live
-#     on the EAS server (remote credentials, valid to 2027-03), so
+#   - Android keystore + iOS distribution cert/provisioning profile live on
+#     the EAS server (remote credentials, valid to 2027-03), so
 #     --non-interactive builds BOTH platforms with no Apple/Google prompts.
 #     app.json sets ios.infoPlist.ITSAppUsesNonExemptEncryption=false.
 #
 # Notes:
-#   - packager: npm -- the action installs eas-cli GLOBALLY in its own isolated
-#     dir; pnpm v10 aborts there with ERR_PNPM_IGNORED_BUILDS on eas-cli's
-#     transitive dtrace-provider build script. eas-cli is a standalone CLI tool,
+#   - packager: npm -- the action installs eas-cli GLOBALLY in its own
+#     isolated dir; pnpm aborts there (ERR_PNPM_IGNORED_BUILDS on eas-cli's
+#     transitive dtrace-provider build script). eas-cli is a standalone tool,
 #     not a repo dependency, so npm installs it cleanly.
-#   - EAS CLI pinned to the eas.json cli.version range (>=20 <21); Node 22.20.0.
-#   - preview profile: internal distribution, Android APK (sideload), prod API.
-#   - timeout-minutes: 40 comfortably covers a --wait build window.
+#   - EAS CLI pinned to the eas.json cli.version range (>=20 <21); Node 22.
+#   - preview profile: internal distribution, Android APK (sideload), prod
+#     API URL baked via eas.json env.
+#   - timeout-minutes: 10 covers checkout + install + dispatch with margin;
+#     the build itself no longer runs inside this job.
 #
 # Related files:
 #   - apps/driver-app/eas.json       -- build profiles (preview used here)
-#   - apps/driver-app/app.json       -- identifiers, projectId, encryption flag
-#   - .github/workflows/release.yml  -- semantic-release on the same push to main
+#   - apps/driver-app/app.json       -- identifiers, projectId, encryption
+#   - apps/api/src/integrations/eas-build-status.controller.ts -- webhook gate
+#   - context/ios-driver-iphone-onboarding-playbook.md -- device registration
 # ============================================================================
 name: EAS Driver Build
 on:
@@ -70,18 +82,15 @@ concurrency:
 permissions:
   contents: read
 # Make the Node 24 runtime explicit. GitHub forces JavaScript actions onto
-# Node 24 (Node 20 is deprecated); expo/expo-github-action@v8 still DECLARES
-# Node 20 in its metadata, so a runner bug (actions/runner#4295) prints a
-# "running on Node.js 20" warning even though it executes on Node 24. Setting
-# this opts in explicitly; the residual metadata warning clears once Expo ships
-# a Node-24 action. Cannot be suppressed from here otherwise.
+# Node 24; expo/expo-github-action@v8 still declares Node 20 in metadata, so
+# the runner prints a residual warning until Expo ships a Node-24 action.
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 jobs:
   build:
-    name: EAS build (driver app, ${{ matrix.platform }})
+    name: EAS dispatch (driver app, ${{ matrix.platform }})
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -94,7 +103,6 @@ jobs:
         uses: actions/checkout@v5
         with:
           persist-credentials: false
-
       - name: Resolve whether this platform should build
         id: gate
         run: |
@@ -107,18 +115,15 @@ jobs:
             echo "build=false" >> "$GITHUB_OUTPUT"
             echo "Skipping ${{ matrix.platform }} (choice: $CHOICE)."
           fi
-
       - name: Setup pnpm
         if: steps.gate.outputs.build == 'true'
         uses: pnpm/action-setup@v5
-
       - name: Setup Node
         if: steps.gate.outputs.build == 'true'
         uses: actions/setup-node@v5
         with:
           node-version: 22.20.0
           package-manager-cache: false
-
       - name: Setup Expo and EAS
         if: steps.gate.outputs.build == 'true'
         uses: expo/expo-github-action@v8
@@ -126,24 +131,23 @@ jobs:
           eas-version: '>=20.0.0 <21.0.0'
           token: ${{ secrets.EXPO_TOKEN }}
           packager: npm
-          # Disable the action's eas-cli/expo-cli caching: it was failing to
-          # save/restore against GitHub's cache service ("cache 400 / services
-          # unavailable" warnings) and adds ~no value (npm installs eas-cli in
-          # ~15s). Turning it off removes those warnings at the source.
           expo-cache: false
           eas-cache: false
-
       - name: Install dependencies
         if: steps.gate.outputs.build == 'true'
         run: pnpm install --frozen-lockfile
-
-      - name: Build and wait (${{ matrix.platform }}, preview profile)
+      - name: Dispatch build (${{ matrix.platform }}, preview profile, no-wait)
         if: steps.gate.outputs.build == 'true'
         working-directory: apps/driver-app
         run: |
-          echo "Building ${{ matrix.platform }} and waiting for completion..."
+          EXTRA=""
+          if [ "${{ matrix.platform }}" = "ios" ]; then
+            EXTRA="--refresh-ad-hoc-provisioning-profile"
+          fi
+          echo "Dispatching ${{ matrix.platform }} build (completion gated by the EAS BUILD webhook -> api -> Sentry)..."
           eas build \
             --platform "${{ matrix.platform }}" \
             --profile preview \
             --non-interactive \
-            --wait
+            --no-wait \
+            $EXTRA
