@@ -33,7 +33,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { z } from 'zod';
+import { UuidParamSchema } from '../common/uuid-param.schema.js';
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
@@ -44,7 +44,9 @@ import {
   TransportOrderCannotBeCancelledError,
   TransportOrderNotFoundError,
 } from './transport-orders.errors.js';
-const IdParamSchema = z.guid();
+// Axis-2 SSOT (2026-07-07): shared UuidParamSchema replaces local z.guid()
+// (guid accepted any hex layout; uuid enforces RFC version/variant).
+const IdParamSchema = UuidParamSchema;
 @Controller('transport-orders')
 @UseGuards(JwtGuard)
 export class TransportOrdersCancelController {

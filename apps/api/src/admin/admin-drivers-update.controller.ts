@@ -9,6 +9,7 @@ import { z } from 'zod';
 import type { OperatorContext } from '@fleet/domain';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import { JwtGuard } from '../auth/jwt.guard.js';
+import { UuidParamSchema } from '../common/uuid-param.schema.js';
 import { AdminDriversUpdateService } from './admin-drivers-update.service.js';
 const UpdateSchema = z.object({
   fullName: z.string().min(1).max(200),
@@ -24,9 +25,10 @@ export class AdminDriversUpdateController {
     @Param('id') driverId: string,
     @Body() body: z.input<typeof UpdateSchema>,
   ): Promise<{ ok: true }> {
+    const parsedDriverId = UuidParamSchema.parse(driverId);
     const parsed = UpdateSchema.parse(body);
     await this.service.update({
-      driverId,
+      driverId: parsedDriverId,
       companyId: op.companyId,
       fullName: parsed.fullName,
       ...(parsed.phone !== undefined ? { phone: parsed.phone } : {}),
@@ -39,7 +41,7 @@ export class AdminDriversUpdateController {
     @CurrentOperator() op: OperatorContext,
     @Param('id') driverId: string,
   ): Promise<{ ok: true }> {
-    await this.service.softDelete({ driverId, companyId: op.companyId });
+    await this.service.softDelete({ driverId: UuidParamSchema.parse(driverId), companyId: op.companyId });
     return { ok: true };
   }
 }

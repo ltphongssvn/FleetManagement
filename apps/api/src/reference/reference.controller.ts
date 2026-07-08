@@ -1,6 +1,7 @@
 // apps/api/src/reference/reference.controller.ts
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtGuard } from '../auth/jwt.guard.js';
+import { UuidParamSchema } from '../common/uuid-param.schema.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import { ReferenceService, type DriverVehicleAssignmentsResponse } from './reference.service.js';
@@ -41,11 +42,11 @@ export class ReferenceController {
   @Patch('customers/:id')
   updateCustomer(@CurrentOperator() op: OperatorContext, @Param('id') id: string, @Body() body: unknown): Promise<void> {
     const dto = ReferenceWriteSchema.parse(body);
-    return this.svc.updateCustomer(op, id, dto.name, dto.phone);
+    return this.svc.updateCustomer(op, UuidParamSchema.parse(id), dto.name, dto.phone);
   }
   @Delete('customers/:id')
   deleteCustomer(@CurrentOperator() op: OperatorContext, @Param('id') id: string): Promise<void> {
-    return this.svc.deleteCustomer(op, id);
+    return this.svc.deleteCustomer(op, UuidParamSchema.parse(id));
   }
   // --- CRUD: cargo types -------------------------------------------------
   @Post('cargo-types')
@@ -56,11 +57,11 @@ export class ReferenceController {
   @Patch('cargo-types/:id')
   updateCargoType(@CurrentOperator() op: OperatorContext, @Param('id') id: string, @Body() body: unknown): Promise<void> {
     const dto = ReferenceWriteSchema.parse(body);
-    return this.svc.updateCargoType(op, id, dto.name);
+    return this.svc.updateCargoType(op, UuidParamSchema.parse(id), dto.name);
   }
   @Delete('cargo-types/:id')
   deleteCargoType(@CurrentOperator() op: OperatorContext, @Param('id') id: string): Promise<void> {
-    return this.svc.deleteCargoType(op, id);
+    return this.svc.deleteCargoType(op, UuidParamSchema.parse(id));
   }
   // --- CRUD: vehicles ----------------------------------------------------
   @Post('vehicles')
@@ -71,11 +72,11 @@ export class ReferenceController {
   @Patch('vehicles/:id')
   updateVehicle(@CurrentOperator() op: OperatorContext, @Param('id') id: string, @Body() body: unknown): Promise<void> {
     const dto = ReferenceWriteSchema.parse(body);
-    return this.svc.updateVehicle(op, id, dto.name);
+    return this.svc.updateVehicle(op, UuidParamSchema.parse(id), dto.name);
   }
   @Delete('vehicles/:id')
   deleteVehicle(@CurrentOperator() op: OperatorContext, @Param('id') id: string): Promise<void> {
-    return this.svc.deleteVehicle(op, id);
+    return this.svc.deleteVehicle(op, UuidParamSchema.parse(id));
   }
   // --- CRUD: warehouses --------------------------------------------------
   @Post('warehouses')
@@ -86,10 +87,10 @@ export class ReferenceController {
   @Patch('warehouses/:id')
   updateWarehouse(@CurrentOperator() op: OperatorContext, @Param('id') id: string, @Body() body: unknown): Promise<void> {
     const dto = ReferenceWriteSchema.parse(body);
-    return this.svc.updateWarehouse(op, id, dto.name);
+    return this.svc.updateWarehouse(op, UuidParamSchema.parse(id), dto.name);
   }
   @Delete('warehouses/:id')
   deleteWarehouse(@CurrentOperator() op: OperatorContext, @Param('id') id: string): Promise<void> {
-    return this.svc.deleteWarehouse(op, id);
+    return this.svc.deleteWarehouse(op, UuidParamSchema.parse(id));
   }
 }

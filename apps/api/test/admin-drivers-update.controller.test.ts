@@ -13,7 +13,7 @@ const op: OperatorContext = {
   depotId: '33333333-3333-3333-3333-333333333333',
   legalEntityId: '44444444-4444-4444-4444-444444444444',
 };
-const DRIVER_ID = '55555555-5555-5555-5555-555555555555';
+const DRIVER_ID = '0d0d0d0d-1111-4111-8111-0d0d0d0d0d0d';
 describe('AdminDriversUpdateController', () => {
   let updateFn: ReturnType<typeof vi.fn>;
   let softDeleteFn: ReturnType<typeof vi.fn>;
