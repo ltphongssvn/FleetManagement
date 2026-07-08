@@ -19,7 +19,13 @@ const input = readFileSync(resolve(fxDir, 'input.ts'), 'utf8');
 const expected = readFileSync(resolve(fxDir, 'output.ts'), 'utf8');
 
 describe('parse-one-number codemod', () => {
-  it('promotes the private parseOneNumber to an exported declaration', () => {
+  // 90s timeout (raised from the 30s default): under the pre-push gate all
+  // packages run vitest --coverage in parallel on this WSL2 box, and the
+  // ts-morph in-memory Project here is CPU-heavy -- observed 34s purely from
+  // contention while passing in ~1s isolated. Same class + remedy as the
+  // documented ops-web jsdom testTimeout raise; prevents flaky gate REDs
+  // without masking real hangs.
+  it('promotes the private parseOneNumber to an exported declaration', { timeout: 90_000 }, () => {
     const project = new Project({ useInMemoryFileSystem: true });
     const sf = project.createSourceFile('extraction-policy.ts', input);
     const outcome = transformParseOneNumber(sf);
