@@ -263,6 +263,13 @@ describe('CommandPalette', () => {
     });
   });
 
+  it('is completely inert when authed is false (no palette on /login)', () => {
+    render(<CommandPalette authed={false} fetchFn={vi.fn()} />);
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    expect(screen.queryByPlaceholderText('Nhập lệnh...')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cú pháp hỗ trợ:')).not.toBeInTheDocument();
+  });
+
   it('always shows the syntax guidance footer while open', () => {
     render(<CommandPalette fetchFn={vi.fn()} />);
     openPalette();
