@@ -19,6 +19,9 @@ import { OperatorContextFactory } from './operator-context.factory.js';
 import { IDENTITY_PROVIDER } from './identity-provider.interface.js';
 import { AuthLoginService } from './auth-login.service.js';
 import { AuthLoginController } from './auth-login.controller.js';
+import { AuthRefreshController } from './auth-refresh.controller.js';
+import { RefreshTokenService } from './refresh-token.service.js';
+import { RefreshTokenRepositoryImpl } from './refresh-token.repository.js';
 import { PasskeyController, SIGN_JWT_TOKEN } from './passkey.controller.js';
 import { PasskeyCredentialRepository } from './passkey-credential.repository.js';
 import {
@@ -40,6 +43,10 @@ import { driver } from '../database/schema/reference.js';
 import { passkeyCredential } from '../database/schema/passkey-credential.js';
 
 const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000000';
+// Driver access tokens are short-lived (RFC 9700); the rotating refresh
+// token carries the session. 15m access / 30d refresh.
+export const ACCESS_TOKEN_TTL_SECONDS = 900;
+const REFRESH_TOKEN_TTL_SECONDS = 2_592_000;
 
 // Redis-backed challenge store token. Replaces the former in-process Map (which
 // broke across replicas and lost challenges on restart). The provider builds a
@@ -50,7 +57,7 @@ export const CHALLENGE_STORE = Symbol('CHALLENGE_STORE');
 const CHALLENGE_TTL_SECONDS = 60;
 
 @Module({
-  controllers: [AuthLoginController, PasskeyController],
+  controllers: [AuthLoginController, AuthRefreshController, PasskeyController],
   providers: [
     { provide: IDENTITY_PROVIDER, useClass: JoseIdentityProvider },
     JwtGuard,
@@ -80,17 +87,26 @@ const CHALLENGE_TTL_SECONDS = 60;
             .setIssuer(issuer)
             .setAudience(audience)
             .setSubject(claims.sub)
-            .setExpirationTime('24h')
+            .setExpirationTime('15m')
             .sign(privateKey);
         };
       },
     },
     {
-      provide: AuthLoginService,
+      provide: RefreshTokenService,
       inject: [DRIZZLE_DB, SIGN_JWT_TOKEN],
-      useFactory: (db: FleetDb, signJwt: (c: LoginClaims) => Promise<string>): AuthLoginService => {
+      useFactory: (db: FleetDb, signJwt: (c: LoginClaims) => Promise<string>): RefreshTokenService =>
+        new RefreshTokenService(new RefreshTokenRepositoryImpl(db), signJwt, {
+          accessTtlSeconds: ACCESS_TOKEN_TTL_SECONDS,
+          refreshTtlSeconds: REFRESH_TOKEN_TTL_SECONDS,
+        }),
+    },
+    {
+      provide: AuthLoginService,
+      inject: [DRIZZLE_DB, SIGN_JWT_TOKEN, RefreshTokenService],
+      useFactory: (db: FleetDb, signJwt: (c: LoginClaims) => Promise<string>, refreshTokens: RefreshTokenService): AuthLoginService => {
         const bcryptCompare = (plain: string, hash: string): Promise<boolean> => bcrypt.compare(plain, hash);
-        return new AuthLoginService(db, bcryptCompare, signJwt, DEFAULT_COMPANY_ID);
+        return new AuthLoginService(db, bcryptCompare, signJwt, DEFAULT_COMPANY_ID, refreshTokens, ACCESS_TOKEN_TTL_SECONDS);
       },
     },
     {
