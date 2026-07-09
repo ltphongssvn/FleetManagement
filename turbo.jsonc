@@ -128,6 +128,11 @@
       "cache": false,
       "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
     },
+    "verify:owner-adoption": {
+      "description": "Manual verification harness: fetch GET /owner/metrics/adoption from a running API with a fleet-owner bearer token, validate the response against the OwnerAdoptionMetricsSchema SSOT, and print the adoption funnel. Read-only network query, so cache:false. passThroughEnv exposes API_URL (base URL of the deployed API) and OWNER_BEARER_TOKEN (a Keycloak access token carrying the fleet-owner role) under strict envMode. Run: API_URL=... OWNER_BEARER_TOKEN=... pnpm exec turbo run verify:owner-adoption --filter=@fleet/api.",
+      "cache": false,
+      "passThroughEnv": ["API_URL", "OWNER_BEARER_TOKEN"]
+    },
     "test:coverage": {
       "description": "Coverage-gated tests — runs unit + integration with merged coverage thresholds. Owns coverage/merged/** + coverage/unit/**. Used by CI quality gate.",
       "dependsOn": ["build", "^build"],

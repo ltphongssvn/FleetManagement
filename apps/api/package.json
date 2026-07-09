@@ -27,7 +27,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
     "test:changed": "vitest run --changed HEAD~1",
-    "test:mutation": "stryker run"
+    "test:mutation": "stryker run",
+    "verify:owner-adoption": "tsx scripts/verify-owner-adoption.ts"
   },
   "engines": {
     "node": ">=22.0.0 <25.0.0"
