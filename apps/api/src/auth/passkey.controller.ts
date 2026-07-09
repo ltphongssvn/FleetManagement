@@ -11,6 +11,7 @@ import { JwtGuard } from './jwt.guard.js';
 import { PasskeyRegistrationService } from './passkey-registration.service.js';
 import { PasskeyAuthenticationService } from './passkey-authentication.service.js';
 import type { SignJwtFn, LoginResult } from './auth-login.service.js';
+import { RefreshTokenService } from './refresh-token.service.js';
 import type { OperatorContext } from '@fleet/domain';
 
 export const SIGN_JWT_TOKEN = Symbol.for('SignJwtFn');
@@ -27,6 +28,7 @@ export class PasskeyController {
     private readonly regSvc: PasskeyRegistrationService,
     private readonly authSvc: PasskeyAuthenticationService,
     @Inject(SIGN_JWT_TOKEN) private readonly signJwt: SignJwtFn,
+    private readonly refreshTokens: RefreshTokenService,
   ) {}
 
   @UseGuards(JwtGuard)
@@ -51,8 +53,11 @@ export class PasskeyController {
     const parsed = FinishAuthSchema.parse(body);
     const { claims } = await this.authSvc.finishAuthentication(parsed, parsed.challenge);
     const accessToken = await this.signJwt(claims);
+    const issued = await this.refreshTokens.issueForLogin(claims, Date.now());
     return {
       accessToken,
+      refreshToken: issued.refreshToken,
+      expiresIn: this.refreshTokens.accessTtlSeconds,
       driver: { driverId: claims.driverId, operatorId: claims.sub },
     };
   }
