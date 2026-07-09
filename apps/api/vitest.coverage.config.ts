@@ -56,6 +56,11 @@ export default defineConfig({
       exclude: [
         '**/index.ts',
         '**/main.ts',
+        // CLI entrypoints (process.argv/exit + NestFactory bootstrap) are not
+        // unit-testable, same class as main.ts; their logic lives in the
+        // services they invoke, which ARE covered. e.g. projection-rebuild.ts
+        // delegates entirely to ProjectionRebuildService (6 integration tests).
+        'src/scripts/**',
         '**/*.module.ts',
         '**/*.controller.ts',
         '**/*.config.ts',
