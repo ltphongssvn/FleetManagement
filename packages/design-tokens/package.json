@@ -10,6 +10,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./emit-ops-web": {
+      "types": "./dist/emit-ops-web.d.ts",
+      "import": "./dist/emit-ops-web.js"
     }
   },
   "scripts": {

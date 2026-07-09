@@ -460,6 +460,9 @@ importers:
         specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
+      '@fleet/design-tokens':
+        specifier: workspace:*
+        version: link:../../packages/design-tokens
       '@stryker-mutator/core':
         specifier: ^9.6.1
         version: 9.6.1(@types/node@25.9.3)
