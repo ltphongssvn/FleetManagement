@@ -15,6 +15,7 @@ export default tseslint.config(
   {
     ignores: [
       "apps/driver-app/metro.config.js",
+      "apps/owner-app/metro.config.js",
       "**/node_modules/**",
       "**/dist/**",
       "**/build/**",
