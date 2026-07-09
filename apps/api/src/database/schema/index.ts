@@ -111,6 +111,11 @@ export {
   type NewKeycloakEventPollCursor,
 } from './keycloak-event-poll-cursor.js';
 export {
+  driverRefreshToken,
+  type DriverRefreshToken,
+  type NewDriverRefreshToken,
+} from './driver-refresh-token.js';
+export {
   copilotPlanExecution,
   type CopilotPlanExecution,
   type NewCopilotPlanExecution,

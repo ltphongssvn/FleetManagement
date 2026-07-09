@@ -210,6 +210,18 @@ export {
 } from './owner-adoption-contract.js';
 
 export {
+  DriverLoginRequestSchema,
+  type DriverLoginRequest,
+  DriverLoginResponseSchema,
+  type DriverLoginResponse,
+  RefreshRequestSchema,
+  type RefreshRequest,
+  RefreshResponseSchema,
+  type RefreshResponse,
+  parseDriverLoginResponse,
+  parseRefreshResponse,
+} from './auth-contract.js';
+export {
   COPILOT_COMMAND_TYPES,
   type CopilotCommandType,
   CopilotIdSpaceSchema,

@@ -13,6 +13,7 @@ import { PasskeyController } from '../src/auth/passkey.controller.js';
 import type { PasskeyRegistrationService } from '../src/auth/passkey-registration.service.js';
 import type { PasskeyAuthenticationService } from '../src/auth/passkey-authentication.service.js';
 import type { SignJwtFn } from '../src/auth/auth-login.service.js';
+import type { RefreshTokenService } from '../src/auth/refresh-token.service.js';
 import type { OperatorContext } from '@fleet/domain';
 
 const OPERATOR: OperatorContext = {
@@ -36,6 +37,8 @@ describe('PasskeyController', () => {
   let regSvc: PasskeyRegistrationService;
   let authSvc: PasskeyAuthenticationService;
   let signJwt: SignJwtFn;
+  let issueForLogin: ReturnType<typeof vi.fn>;
+  let refreshTokens: RefreshTokenService;
   let ctrl: PasskeyController;
 
   beforeEach(() => {
@@ -48,7 +51,9 @@ describe('PasskeyController', () => {
       finishAuthentication: vi.fn().mockResolvedValue({ claims: CLAIMS }),
     } as unknown as PasskeyAuthenticationService;
     signJwt = vi.fn().mockResolvedValue('signed.jwt.token');
-    ctrl = new PasskeyController(regSvc, authSvc, signJwt);
+    issueForLogin = vi.fn().mockResolvedValue({ refreshToken: 'r'.repeat(64), familyId: 'fam-1' });
+    refreshTokens = { issueForLogin, accessTtlSeconds: 900 } as unknown as RefreshTokenService;
+    ctrl = new PasskeyController(regSvc, authSvc, signJwt, refreshTokens);
   });
 
   describe('register/options', () => {
@@ -84,8 +89,11 @@ describe('PasskeyController', () => {
       expect(signJwt).toHaveBeenCalledWith(CLAIMS);
       expect(r).toEqual({
         accessToken: 'signed.jwt.token',
+        refreshToken: 'r'.repeat(64),
+        expiresIn: 900,
         driver: { driverId: CLAIMS.driverId, operatorId: CLAIMS.sub },
       });
+      expect(issueForLogin).toHaveBeenCalledWith(CLAIMS, expect.any(Number));
     });
 
     it('rejects body missing challenge field via zod', async () => {
