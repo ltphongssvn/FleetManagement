@@ -1,27 +1,31 @@
 // apps/driver-app/src/auth/use-auth.tsx
-// Phone + password auth — now a React Context so a single auth state is
-// shared by every screen. Previously useAuth() was a plain hook: each
-// caller (home screen, (app) layout, login screen) got its own isolated
-// useState, so logout() in one component never updated the auth gate in
-// another and the redirect-to-login never fired. AuthProvider holds the
-// one source of truth; useAuth() consumes it.
+// Phone + password auth as a React Context: one shared auth state for every
+// screen. All token logic (rotated-pair persistence, skew-aware single-flight
+// refresh, fail-closed expiry, best-effort logout revoke) lives in the
+// framework-free SessionManager; this file is thin wiring. getAccessToken now
+// delegates to the manager, so any screen's next API call transparently
+// refreshes a near-expired token -- and a server-side reuse/expiry (401)
+// clears storage and flips the gate to unauthenticated exactly once.
 //
 // The API base URL resolves through the single source of truth getApiUrl()
-// (api-url.ts) so web (RN-Web E2E) and native share one resolution path —
-// including the web rewrite of the emulator-only 10.0.2.2 host to the page
-// origin. Previously this module read EXPO_PUBLIC_API_URL directly, which on
-// web pointed the login POST at 10.0.2.2 (unreachable from a host browser).
+// (api-url.ts) so web (RN-Web E2E) and native share one resolution path.
 import {
   createContext,
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
   type JSX,
 } from 'react';
-import { loadToken, saveToken, clearToken, type StoredToken } from './token-storage.js';
+import { loadToken, saveToken, clearToken } from './token-storage.js';
+import {
+  SessionManager,
+  NotAuthenticatedError,
+  SessionExpiredError,
+} from './session-manager.js';
 import { getApiUrl } from '../config/api-url.js';
 export interface AuthState {
   readonly status: 'loading' | 'authenticated' | 'unauthenticated';
@@ -33,63 +37,76 @@ export interface UseAuthResult extends AuthState {
   readonly getAccessToken: () => Promise<string>;
 }
 const AuthContext = createContext<UseAuthResult | null>(null);
-// Internal: the single auth-state engine. Used once, inside AuthProvider.
 function useAuthEngine(): UseAuthResult {
   const [state, setState] = useState<AuthState>({
     status: 'loading',
     error: null,
   });
+  // One SessionManager for the provider's lifetime. The storage port adapts
+  // the platform-aware token-storage module; fetch is the platform global.
+  const managerRef = useRef<SessionManager | null>(null);
+  managerRef.current ??= new SessionManager({
+    apiUrl: getApiUrl(),
+    fetchFn: (input, init) => fetch(input, init),
+    storage: { load: loadToken, save: saveToken, clear: clearToken },
+  });
+  const manager = managerRef.current;
   useEffect(() => {
     void (async () => {
       try {
         const t = await loadToken();
         setState({ status: t === null ? 'unauthenticated' : 'authenticated', error: null });
       } catch {
-        // Defensive: any storage failure must not pin status to 'loading'.
         setState({ status: 'unauthenticated', error: null });
       }
     })();
   }, []);
   const login = useCallback(async (phone: string, password: string): Promise<void> => {
     try {
-      const res = await fetch(getApiUrl() + '/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, password }),
-      });
-      if (!res.ok) {
-        const msg = res.status === 401 ? 'Sai số điện thoại hoặc mật khẩu' : 'Lỗi đăng nhập (HTTP ' + String(res.status) + ')';
-        setState({ status: 'unauthenticated', error: msg });
-        return;
+      const result = await manager.login(phone, password);
+      switch (result.kind) {
+        case 'ok':
+          setState({ status: 'authenticated', error: null });
+          return;
+        case 'invalid-credentials':
+          setState({ status: 'unauthenticated', error: 'Sai số điện thoại hoặc mật khẩu' });
+          return;
+        case 'protocol-error':
+          setState({ status: 'unauthenticated', error: 'Lỗi máy chủ: phản hồi không hợp lệ' });
+          return;
+        case 'http-error':
+          setState({ status: 'unauthenticated', error: 'Lỗi đăng nhập (HTTP ' + String(result.status) + ')' });
+          return;
       }
-      const json = (await res.json()) as { accessToken: string };
-      const stored: StoredToken = { accessToken: json.accessToken, issuedAt: Math.floor(Date.now() / 1000) };
-      await saveToken(stored);
-      setState({ status: 'authenticated', error: null });
     } catch (e) {
       setState({ status: 'unauthenticated', error: e instanceof Error ? e.message : 'login error' });
     }
-  }, []);
+  }, [manager]);
   const logout = useCallback(async (): Promise<void> => {
-    await clearToken();
+    await manager.logout();
     setState({ status: 'unauthenticated', error: null });
-  }, []);
+  }, [manager]);
   const getAccessToken = useCallback(async (): Promise<string> => {
-    const t = await loadToken();
-    if (t === null) throw new Error('Not authenticated');
-    return t.accessToken;
-  }, []);
+    try {
+      return await manager.getAccessToken();
+    } catch (e) {
+      // A dead session (nothing stored, or refresh rejected server-side) must
+      // flip the shared gate so the app redirects to login.
+      if (e instanceof NotAuthenticatedError || e instanceof SessionExpiredError) {
+        setState({ status: 'unauthenticated', error: null });
+      }
+      throw e;
+    }
+  }, [manager]);
   return useMemo(
     () => ({ ...state, login, logout, getAccessToken }),
     [state, login, logout, getAccessToken],
   );
 }
-// Provider — mount once at the app root so all screens share one auth state.
 export function AuthProvider({ children }: { children: ReactNode }): JSX.Element {
   const value = useAuthEngine();
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
-// Consumer hook — every screen calls this; all read the same shared state.
 export function useAuth(): UseAuthResult {
   const ctx = useContext(AuthContext);
   if (ctx === null) {
