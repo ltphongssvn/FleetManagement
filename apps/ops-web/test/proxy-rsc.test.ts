@@ -19,7 +19,7 @@ import { describe, it, expect, vi } from 'vitest';
 import type { NextRequest } from 'next/server';
 vi.mock('next/server', () => ({
   NextResponse: {
-    next: vi.fn(() => ({ type: 'next' })),
+    next: vi.fn(() => ({ type: 'next', headers: new Headers() })),
     redirect: vi.fn((url) => ({ type: 'redirect', url: url.toString() })),
     rewrite: vi.fn((url) => ({ type: 'rewrite', url: url.toString() })),
   },
@@ -52,6 +52,6 @@ describe('auth middleware — RSC prefetch loop guard', () => {
   it('lets an authenticated RSC request through', async () => {
     const { proxy } = await import('@/proxy');
     const r = proxy(makeReq('/dispatch/orders/XTT.05-001', { cookie: 'jwt', accept: 'text/x-component' }));
-    expect(r).toEqual({ type: 'next' });
+    expect(r.type).toBe('next');
   });
 });
