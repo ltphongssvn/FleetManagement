@@ -12,6 +12,9 @@ export interface VerifiedIdentity {
   // carry no authentication-context claims (e.g. self-issued driver tokens).
   readonly acr?: string;
   readonly amr?: readonly string[];
+  // Keycloak realm roles (realm_access.roles). Present on OIDC tokens;
+  // absent on self-issued driver tokens. Authorizes owner-only routes.
+  readonly roles?: readonly string[];
 }
 
 export interface IIdentityProvider {
