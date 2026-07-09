@@ -40,15 +40,38 @@ function isRscRequest(req: NextRequest): boolean {
 function isServerAction(req: NextRequest): boolean {
   return req.headers.get('next-action') !== null;
 }
+// Cloudflare Web Analytics RUM auto-injects beacon.min.js as the final <body>
+// child at the edge, for browser requests only. React 19 then sees a client
+// DOM (with beacon) that differs from the server-rendered tree (no body
+// beacon) and throws a hard hydration error (#418). The beacon is rendered
+// server-side in the root layout <head> instead. To stop the edge transform,
+// the HTML document response must carry Cache-Control: no-transform (per
+// Cloudflare: a no-transform response is never modified by the proxy). The
+// root layout calls cookies(), so every page is dynamic and Next stamps its
+// own private/no-store Cache-Control, which OVERRIDES next.config headers()
+// (vercel/next.js #89439). proxy.ts response headers are honored, so we merge
+// no-transform into the pass-through here -- the one layer that reliably wins.
+function passThroughNoTransform(): NextResponse {
+  const res = NextResponse.next();
+  const existing = res.headers.get('cache-control');
+  res.headers.set(
+    'Cache-Control',
+    existing !== null && existing.length > 0
+      ? existing + ', no-transform'
+      : 'no-transform',
+  );
+  return res;
+}
+
 export function proxy(req: NextRequest): NextResponse {
   const { pathname } = req.nextUrl;
-  if (PUBLIC_PATHS.has(pathname)) return NextResponse.next();
+  if (PUBLIC_PATHS.has(pathname)) return passThroughNoTransform();
   // Never divert a Server Action POST to /login (see file header): Next.js cannot
   // forward a rewrite/redirect for an action response. The action authenticates
   // itself and redirects unauthenticated callers to /login.
   if (isServerAction(req)) return NextResponse.next();
   const session = req.cookies.get('fleet_session')?.value;
-  if (session !== undefined) return NextResponse.next();
+  if (session !== undefined) return passThroughNoTransform();
   const refresh = req.cookies.get('fleet_refresh')?.value;
   if (pathname.startsWith(API_PREFIX)) {
     // Route handlers silently refresh when fleet_refresh exists; without it

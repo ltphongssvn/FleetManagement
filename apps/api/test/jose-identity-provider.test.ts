@@ -145,4 +145,22 @@ describe('@fleet/api - JoseIdentityProvider (dual-issuer)', () => {
     expect(result.acr).toBeUndefined();
     expect(result.amr).toBeUndefined();
   });
+  it('surfaces realm_access.roles from the verified token', async () => {
+    mockDecodeJwt.mockReturnValueOnce({ iss: OIDC_ISSUER });
+    mockJwtVerify.mockResolvedValueOnce({
+      payload: { sub: 'op-6', operator_id: 'op-6', company_id: 'co-6', iat: 1700000000, exp: 1700003600, realm_access: { roles: ['fleet-owner', 'offline_access'] } },
+    });
+    const provider = new JoseIdentityProvider(makeConfig());
+    await provider.onModuleInit();
+    const result = await provider.verifyToken('eyJroles');
+    expect(result.roles).toEqual(['fleet-owner', 'offline_access']);
+  });
+  it('leaves roles undefined when realm_access is absent', async () => {
+    mockDecodeJwt.mockReturnValueOnce({ iss: SELF_ISSUER });
+    mockJwtVerify.mockResolvedValueOnce({ payload: VALID });
+    const provider = new JoseIdentityProvider(makeConfig());
+    await provider.onModuleInit();
+    const result = await provider.verifyToken('eyJnoroles');
+    expect(result.roles).toBeUndefined();
+  });
 });
