@@ -63,6 +63,28 @@ export const EnvSchema = z.object({
   BREAKGLASS_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
 });
 export type Env = z.infer<typeof EnvSchema>;
+// Rebuild-CLI-scoped validator (follow-up #5). Derives from the SAME EnvSchema
+// SSOT via .pick() so it can never drift from the canonical contract, but
+// validates ONLY the keys the projection-rebuild standalone context needs
+// (DB connection + pilot scope) — NOT OIDC/S3/JWT, which are irrelevant to a
+// read-model rebuild and would otherwise force unrelated config to be present.
+export const RebuildEnvSchema = EnvSchema.pick({
+  NODE_ENV: true,
+  DATABASE_URL: true,
+  DB_POOL_MAX: true,
+  DB_IDLE_TIMEOUT_MS: true,
+  FLEET_PILOT_SCOPE: true,
+});
+export type RebuildEnv = z.infer<typeof RebuildEnvSchema>;
+export function validateRebuildEnv(raw: Record<string, unknown>): RebuildEnv {
+  const result = RebuildEnvSchema.safeParse(raw);
+  if (!result.success) {
+    const paths = result.error.issues.map((i) => i.path.join('.')).join(', ');
+    throw new Error(`Invalid rebuild environment at: ${paths}`);
+  }
+  return result.data;
+}
+
 export function validateEnv(raw: Record<string, unknown>): Env {
   const result = EnvSchema.safeParse(raw);
   if (!result.success) {
