@@ -47,20 +47,22 @@ const WORKTREE_ROOT = resolve(here, '../../../..');
 const WT_KEY = worktreeKey(WORKTREE_ROOT);
 
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
-  // Disable Ryuk (the Testcontainers reaper) for this run. ROOT-CAUSE FIX for
-  // the intermittent "connect ECONNREFUSED 127.0.0.1:<port>" at
-  // startMigratedTestDb under the full `pnpm -r --workspace-concurrency=1`
-  // coverage gate. That gate runs each workspace package as a SEPARATE,
-  // SEQUENTIAL Vitest process. Our shared Postgres container uses .withReuse(),
-  // and Ryuk kills any labelled container ~10s after the process that owns its
-  // Ryuk-connection disconnects (testcontainers-go#2445): when one package's
-  // process ends, a stale Ryuk session reaps the STILL-IN-USE reused container
-  // out from under the NEXT package's process, which then gets ECONNREFUSED on
-  // the now-dead port. Reused containers are meant to outlive a process, so
-  // Ryuk and .withReuse() are fundamentally in conflict; the docs prescribe
-  // disabling Ryuk when reusing. Cleanup is NOT lost: global-teardown.ts does a
-  // labelled `docker rm` of every testcontainers container at run end (and is
-  // guarded by a test), so the environment is still deterministically cleaned.
+  // Disable Ryuk (the Testcontainers reaper) for this run. ROOT-CAUSE history:
+  // under the full pnpm -r --workspace-concurrency=1 coverage gate, each
+  // workspace package runs as a SEPARATE, SEQUENTIAL Vitest process. Ryuk kills
+  // labelled containers shortly after the process owning its Ryuk-connection
+  // disconnects (testcontainers-go#2445): when one package process ends, a stale
+  // Ryuk session could reap a container still needed by the NEXT package process,
+  // yielding ECONNREFUSED on the now-dead port. Ryuk is therefore disabled and
+  // container REMOVAL is delegated to a single owner: global-teardown.ts does a
+  // labelled docker rm of every testcontainers container at run end (guarded by a
+  // test), so cleanup stays deterministic. NOTE (2026-07-08): .withReuse() was
+  // removed. It was used only as a per-worktree singleton, but reuse was never
+  // enabled in the environment (no TESTCONTAINERS_REUSE_ENABLE); combined with
+  // Ryuk-disabled, an aborted run stranded an unhashed, PORT-UNPUBLISHED orphan
+  // that the next run waited on until the startup timeout. Per-worktree identity
+  // is already guaranteed by .withName() + .withLabels() below, so reuse added
+  // only the orphan failure mode.
   process.env['TESTCONTAINERS_RYUK_DISABLED'] = 'true';
 
   // 1) ONE container for the whole run. The doubled "ready to accept connections"
@@ -69,10 +71,14 @@ export default async function setup(project: TestProject): Promise<() => Promise
   // for host "172.17.0.1").
   const container = await new PostgreSqlContainer(POSTGRES_IMAGE)
     .withDatabase('fleet_test_bootstrap')
-    .withReuse()
     .withName(pgContainerName(WT_KEY))
     .withLabels({ [WORKTREE_LABEL_KEY]: WT_KEY })
     .withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/, 2))
+    // Generous startup timeout (root-cause fix 2026-07-08). Default host-port
+    // bind wait is tight; under the full-workspace pnpm -r coverage gate the
+    // container starts while every other package coverage job is running, so
+    // give ample headroom for the port to publish before failing.
+    .withStartupTimeout(120_000)
     // Raise max_connections above the Postgres default of 100. The single
     // shared container serves EVERY test file in parallel under the coverage
     // gate; each file opens an admin pool (for CREATE DATABASE ... TEMPLATE)
@@ -126,8 +132,8 @@ export default async function setup(project: TestProject): Promise<() => Promise
     'postgres://' + user + ':' + password + '@' + host + ':' + String(port) + '/' + bootstrapDb;
   const adminPool = new Pool({ connectionString: adminUri, connectionTimeoutMillis: 10_000 });
   try {
-    // CREATE DATABASE is not transactional and has no IF NOT EXISTS; under
-    // .withReuse() a prior run may have left the template, so drop-if-exists first
+    // CREATE DATABASE is not transactional and has no IF NOT EXISTS; a prior
+    // aborted run may have left the template behind, so drop-if-exists first
     // (terminate any stragglers, then drop) to guarantee a clean migrated template.
     await adminPool.query(
       'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -167,8 +173,8 @@ export default async function setup(project: TestProject): Promise<() => Promise
     // Container REMOVAL has a single owner: global-teardown.ts, which docker-rm -f
     // removes every testcontainers-labeled container at run end. We deliberately do
     // NOT stop the container here: stop() defaults to removing it, which would race
-    // global-teardown docker rm and 404. With .withReuse() the container is meant to
-    // outlive this setup and be reaped by the labeled cleanup pass.
+    // global-teardown docker rm and 404. The per-run container is reaped by the
+    // labeled cleanup pass in global-teardown.ts (the single removal owner).
   };
 }
 

@@ -24,7 +24,7 @@ import { describe, it, expect, vi } from 'vitest';
 import type { NextRequest } from 'next/server';
 vi.mock('next/server', () => ({
   NextResponse: {
-    next: vi.fn(() => ({ type: 'next' })),
+    next: vi.fn(() => ({ type: 'next', headers: new Headers() })),
     redirect: vi.fn((url) => ({ type: 'redirect', url: url.toString() })),
     rewrite: vi.fn((url) => ({ type: 'rewrite', url: url.toString() })),
   },
@@ -54,12 +54,12 @@ describe('auth proxy — Server Action requests are never diverted to /login', (
   it('lets an UNauthenticated Server Action POST through (next, not rewrite/redirect)', async () => {
     const { proxy } = await import('@/proxy');
     const r = proxy(makeReq('/dispatch/orders/XTT.05-002', { accept: 'text/x-component', nextAction: 'deadbeef' }));
-    expect(r).toEqual({ type: 'next' });
+    expect(r.type).toBe('next');
   });
   it('lets an authenticated Server Action POST through as well', async () => {
     const { proxy } = await import('@/proxy');
     const r = proxy(makeReq('/dispatch/orders/XTT.05-002', { cookie: 'jwt', accept: 'text/x-component', nextAction: 'deadbeef' }));
-    expect(r).toEqual({ type: 'next' });
+    expect(r.type).toBe('next');
   });
   it('still rewrites an unauthenticated RSC navigation (no Next-Action) to /login', async () => {
     const { proxy } = await import('@/proxy');
