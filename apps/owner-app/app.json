@@ -42,7 +42,10 @@
       "policy": "appVersion"
     },
     "extra": {
-      "router": {}
+      "router": {},
+      "eas": {
+        "projectId": "056462bd-9fca-46da-8720-36fe5049a684"
+      }
     },
     "owner": "ltphongssvn"
   }
