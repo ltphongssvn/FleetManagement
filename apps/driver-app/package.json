@@ -21,7 +21,9 @@
     "test:watch": "vitest --watch",
     "typecheck": "tsc -p tsconfig.json",
     "web": "expo start --web",
-    "eas:builds": "pnpm dlx eas-cli@20.5.1 build:list --platform all --limit 10 --non-interactive"
+    "eas:builds": "pnpm dlx eas-cli@20.5.1 build:list --platform all --limit 10 --non-interactive",
+    "eas:build:ios": "pnpm dlx eas-cli@20.5.1 build --platform ios --profile preview --non-interactive",
+    "eas:build:android": "pnpm dlx eas-cli@20.5.1 build --platform android --profile preview --non-interactive"
   },
   "engines": {
     "node": ">=22.0.0 <25.0.0"
