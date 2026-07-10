@@ -135,6 +135,16 @@
       "cache": false,
       "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
     },
+    "eas:build:ios": {
+      "description": "Dispatch an iOS Ad Hoc (preview profile) EAS cloud build of the driver app via eas-cli build. --non-interactive auto-includes every device already registered on the ad hoc provisioning profile server-side (no App Store Connect API Key, no device-selection prompt), so a driver iPhone registered via the eas device:create QR flow is baked into the new .ipa. Waits for the build (no --no-wait) so the operator gets the install link; CI uses --no-wait for fire-and-forget. Remote build + Apple credential network mutation: cache:false, no build dependency (EAS builds remotely). passThroughEnv exposes EXPO_TOKEN (auth; set persistently via ~/.expo-env) and EAS_PROJECT_ID under strict envMode. Run: pnpm exec turbo run eas:build:ios --filter=@fleet/driver-app.",
+      "cache": false,
+      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
+    },
+    "eas:build:android": {
+      "description": "Dispatch an Android (preview profile) EAS cloud build of the driver app via eas-cli build, producing an installable APK. --non-interactive requires no prompts (Android internal distribution is not device-UDID-scoped, unlike iOS Ad Hoc). Waits for the build (no --no-wait) so the operator gets the install link; CI uses --no-wait for fire-and-forget. Remote build network operation: cache:false, no build dependency (EAS builds remotely). passThroughEnv exposes EXPO_TOKEN (auth; set persistently via ~/.expo-env) and EAS_PROJECT_ID under strict envMode. Run: pnpm exec turbo run eas:build:android --filter=@fleet/driver-app.",
+      "cache": false,
+      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
+    },
     "test:coverage": {
       "description": "Coverage-gated tests — runs unit + integration with merged coverage thresholds. Owns coverage/merged/** + coverage/unit/**. Used by CI quality gate.",
       "dependsOn": ["build", "^build"],
