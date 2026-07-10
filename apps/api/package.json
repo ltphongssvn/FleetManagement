@@ -25,6 +25,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "projection:rebuild": "tsx src/scripts/projection-rebuild.ts",
     "db:check": "drizzle-kit check",
     "test:changed": "vitest run --changed HEAD~1",
     "test:mutation": "stryker run"

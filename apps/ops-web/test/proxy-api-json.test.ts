@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/server', () => ({
   NextResponse: {
-    next: vi.fn(() => ({ type: 'next' })),
+    next: vi.fn(() => ({ type: 'next', headers: new Headers() })),
     redirect: vi.fn((url: URL) => ({ type: 'redirect', url: url.toString() })),
     rewrite: vi.fn((url: URL) => ({ type: 'rewrite', url: url.toString() })),
     json: vi.fn((body: unknown, init?: { status?: number }) => ({
