@@ -36,6 +36,8 @@
     "release:promote": "tsx scripts/e2e/release-promote.ts",
     "guard:railway-references": "tsx scripts/railway-reference-guard.ts",
     "stack:restart": "tsx scripts/e2e/stack-restart.ts",
+    "stack:stop": "tsx scripts/e2e/stack-stop.ts",
+    "test:scripts": "vitest run scripts",
     "deploy:railway": "node -e \"console.error('Production deploys run via CI only. Trigger with: gh workflow run railway-deploy.yml --ref main -f services=auto'); process.exit(1)\"",
     "ci:resolve-sha": "tsx scripts/ci/resolve-ci-sha.ts",
     "sync:worktrees": "tsx scripts/sync-worktrees.ts",
