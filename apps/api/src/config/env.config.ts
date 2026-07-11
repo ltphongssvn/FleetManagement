@@ -61,6 +61,11 @@ export const EnvSchema = z.object({
   KEYCLOAK_MONITOR_CLIENT_SECRET: z.string().min(1).optional(),
   BREAKGLASS_USERNAME_PREFIX: z.string().min(1).default('fleet-breakglass'),
   BREAKGLASS_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
+  // Intake-lag regression guard (Jun-24 incident class): pages via Sentry
+  // fatal when the OLDEST verifying manifest exceeds this age -- any break in
+  // the intake loop (auth, queue, worker, relay) becomes loud within one
+  // threshold window instead of silently stranding uploads for weeks.
+  INTAKE_LAG_ALERT_MINUTES: z.coerce.number().int().positive().default(30),
 });
 export type Env = z.infer<typeof EnvSchema>;
 // Rebuild-CLI-scoped validator (follow-up #5). Derives from the SAME EnvSchema
