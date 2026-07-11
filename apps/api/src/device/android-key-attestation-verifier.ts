@@ -64,6 +64,7 @@ export async function verifyAndroidKeyAttestation(
   for (let i = 0; i < certs.length - 1; i += 1) {
     const cert = certs[i];
     const issuer = certs[i + 1];
+    /* v8 ignore next -- loop bound i < length-1 guarantees both indices exist */
     if (cert === undefined || issuer === undefined) return { kind: 'chain-signature-invalid' };
     let linkOk = false;
     try {
@@ -75,12 +76,14 @@ export async function verifyAndroidKeyAttestation(
   }
 
   const root = certs[certs.length - 1];
+  /* v8 ignore next -- chain proven non-empty at entry, so root exists */
   if (root === undefined) return { kind: 'empty-chain' };
   if (!params.isTrustedRoot(new Uint8Array(root.rawData))) {
     return { kind: 'untrusted-root' };
   }
 
   const leaf = certs[0];
+  /* v8 ignore next -- chain proven non-empty at entry, so leaf exists */
   if (leaf === undefined) return { kind: 'empty-chain' };
   const ext = leaf.getExtension(KEY_DESCRIPTION_OID);
   if (ext === null) return { kind: 'key-description-missing' };

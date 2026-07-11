@@ -203,6 +203,93 @@ describe('verifyIosAppAttest', () => {
     expect(out.kind).toBe('rp-id-mismatch');
   });
 
+  it('rejects an object whose attStmt has no x5c', async () => {
+    const attStmt = new Map<string, CBORType>([['receipt', new Uint8Array(0)]]);
+    const obj = new Map<string, CBORType>([['fmt', 'apple-appattest'], ['attStmt', attStmt as unknown as CBORType], ['authData', new Uint8Array(60)]]);
+    const bytes = cborEncode(obj);
+    const out = await verifyIosAppAttest(bytes, { keyId: new Uint8Array(32), clientDataHash: new Uint8Array(32), expectedTeamId: TEAM_ID, expectedBundleId: BUNDLE_ID, now: NOW, isTrustedRoot: trustOnly(appleRootCert) });
+    expect(out.kind).toBe('malformed-object');
+  });
+
+  it('rejects an x5c entry that is not bytes', async () => {
+    const attStmt = new Map<string, CBORType>([['x5c', ['not-bytes'] as unknown as CBORType], ['receipt', new Uint8Array(0)]]);
+    const obj = new Map<string, CBORType>([['fmt', 'apple-appattest'], ['attStmt', attStmt as unknown as CBORType], ['authData', new Uint8Array(60)]]);
+    const bytes = cborEncode(obj);
+    const out = await verifyIosAppAttest(bytes, { keyId: new Uint8Array(32), clientDataHash: new Uint8Array(32), expectedTeamId: TEAM_ID, expectedBundleId: BUNDLE_ID, now: NOW, isTrustedRoot: trustOnly(appleRootCert) });
+    expect(out.kind).toBe('malformed-object');
+  });
+
+  it('rejects a credCert extension whose CBOR is not an octet string', async () => {
+    const credKeys = await webcrypto.subtle.generateKey(ALG, true, ['sign', 'verify']);
+    const authData = buildAuthData(0, PROD_AAGUID, new Uint8Array(32));
+    const nonNumberCbor = cborEncode(42 as unknown as CBORType);
+    const credCert = await x509.X509CertificateGenerator.create({ serialNumber: '02', subject: 'CN=Cred', issuer: appleRootCert.subject, notBefore: new Date('2024-06-01T00:00:00Z'), notAfter: new Date('2035-01-01T00:00:00Z'), signingAlgorithm: ALG, publicKey: credKeys.publicKey, signingKey: appleRootKeys.privateKey, extensions: [new x509.Extension(APP_ATTEST_OID, false, nonNumberCbor)] });
+    const x5c = [new Uint8Array(credCert.rawData), new Uint8Array(appleRootCert.rawData)];
+    const attStmt = new Map<string, CBORType>([['x5c', x5c as unknown as CBORType], ['receipt', new Uint8Array(0)]]);
+    const obj = new Map<string, CBORType>([['fmt', 'apple-appattest'], ['attStmt', attStmt as unknown as CBORType], ['authData', authData]]);
+    const bytes = cborEncode(obj);
+    const spki = new Uint8Array(await webcrypto.subtle.exportKey('spki', credKeys.publicKey));
+    const out = await verifyIosAppAttest(bytes, { keyId: sha256(spki), clientDataHash: sha256(new TextEncoder().encode('x')), expectedTeamId: TEAM_ID, expectedBundleId: BUNDLE_ID, now: NOW, isTrustedRoot: trustOnly(appleRootCert) });
+    expect(out.kind).toBe('nonce-mismatch');
+  });
+
+  it('rejects an x5c entry that is bytes but not a valid certificate', async () => {
+    const bogusCert = new Uint8Array(64).fill(7);
+    const attStmt = new Map<string, CBORType>([['x5c', [bogusCert] as unknown as CBORType], ['receipt', new Uint8Array(0)]]);
+    const obj = new Map<string, CBORType>([['fmt', 'apple-appattest'], ['attStmt', attStmt as unknown as CBORType], ['authData', new Uint8Array(60)]]);
+    const out = await verifyIosAppAttest(cborEncode(obj), { keyId: new Uint8Array(32), clientDataHash: new Uint8Array(32), expectedTeamId: TEAM_ID, expectedBundleId: BUNDLE_ID, now: NOW, isTrustedRoot: trustOnly(appleRootCert) });
+    expect(out.kind).toBe('malformed-object');
+  });
+
+  it('rejects an expired certificate in the chain', async () => {
+    const a = await buildAttestation({ challenge: 'n', counter: 0, aaguidSeed: PROD_AAGUID, root: appleRootCert, rootKeys: appleRootKeys, tamperNonce: false, wrongKeyId: false });
+    const future = new Date('2050-01-01T00:00:00Z');
+    const out = await verifyIosAppAttest(a.attestationObject, { keyId: a.keyId, clientDataHash: a.clientDataHash, expectedTeamId: TEAM_ID, expectedBundleId: BUNDLE_ID, now: future, isTrustedRoot: trustOnly(appleRootCert) });
+    expect(out.kind).toBe('certificate-expired');
+  });
+
+  it('rejects a credCert extension whose bytes are not decodable CBOR', async () => {
+    const credKeys = await webcrypto.subtle.generateKey(ALG, true, ['sign', 'verify']);
+    const authData = buildAuthData(0, PROD_AAGUID, new Uint8Array(32));
+    const undecodable = new Uint8Array([0xff, 0xff, 0xff]);
+    const credCert = await x509.X509CertificateGenerator.create({ serialNumber: '02', subject: 'CN=Cred', issuer: appleRootCert.subject, notBefore: new Date('2024-06-01T00:00:00Z'), notAfter: new Date('2035-01-01T00:00:00Z'), signingAlgorithm: ALG, publicKey: credKeys.publicKey, signingKey: appleRootKeys.privateKey, extensions: [new x509.Extension(APP_ATTEST_OID, false, undecodable)] });
+    const x5c = [new Uint8Array(credCert.rawData), new Uint8Array(appleRootCert.rawData)];
+    const attStmt = new Map<string, CBORType>([['x5c', x5c as unknown as CBORType], ['receipt', new Uint8Array(0)]]);
+    const obj = new Map<string, CBORType>([['fmt', 'apple-appattest'], ['attStmt', attStmt as unknown as CBORType], ['authData', authData]]);
+    const spki = new Uint8Array(await webcrypto.subtle.exportKey('spki', credKeys.publicKey));
+    const out = await verifyIosAppAttest(cborEncode(obj), { keyId: sha256(spki), clientDataHash: sha256(new TextEncoder().encode('x')), expectedTeamId: TEAM_ID, expectedBundleId: BUNDLE_ID, now: NOW, isTrustedRoot: trustOnly(appleRootCert) });
+    expect(out.kind).toBe('nonce-mismatch');
+  });
+
+  it('rejects a chain whose leaf signature does not verify against the issuer', async () => {
+    const credKeys = await webcrypto.subtle.generateKey(ALG, true, ['sign', 'verify']);
+    const authData = buildAuthData(0, PROD_AAGUID, new Uint8Array(32));
+    const clientDataHash = sha256(new TextEncoder().encode('n'));
+    const nonceInput = new Uint8Array(authData.length + clientDataHash.length);
+    nonceInput.set(authData, 0);
+    nonceInput.set(clientDataHash, authData.length);
+    const nonce = sha256(nonceInput);
+    const credCert = await x509.X509CertificateGenerator.create({ serialNumber: '02', subject: 'CN=Cred', issuer: appleRootCert.subject, notBefore: new Date('2024-06-01T00:00:00Z'), notAfter: new Date('2035-01-01T00:00:00Z'), signingAlgorithm: ALG, publicKey: credKeys.publicKey, signingKey: wrongRootKeys.privateKey, extensions: [new x509.Extension(APP_ATTEST_OID, false, cborEncode(nonce as unknown as CBORType))] });
+    const x5c = [new Uint8Array(credCert.rawData), new Uint8Array(appleRootCert.rawData)];
+    const attStmt = new Map<string, CBORType>([['x5c', x5c as unknown as CBORType], ['receipt', new Uint8Array(0)]]);
+    const obj = new Map<string, CBORType>([['fmt', 'apple-appattest'], ['attStmt', attStmt as unknown as CBORType], ['authData', authData]]);
+    const spki = new Uint8Array(await webcrypto.subtle.exportKey('spki', credKeys.publicKey));
+    const out = await verifyIosAppAttest(cborEncode(obj), { keyId: sha256(spki), clientDataHash, expectedTeamId: TEAM_ID, expectedBundleId: BUNDLE_ID, now: NOW, isTrustedRoot: trustOnly(appleRootCert) });
+    expect(out.kind).toBe('chain-signature-invalid');
+  });
+
+  it('rejects a credCert that has no App Attest extension', async () => {
+    const credKeys = await webcrypto.subtle.generateKey(ALG, true, ['sign', 'verify']);
+    const authData = buildAuthData(0, PROD_AAGUID, new Uint8Array(32));
+    const credCert = await x509.X509CertificateGenerator.create({ serialNumber: '02', subject: 'CN=NoExt', issuer: appleRootCert.subject, notBefore: new Date('2024-06-01T00:00:00Z'), notAfter: new Date('2035-01-01T00:00:00Z'), signingAlgorithm: ALG, publicKey: credKeys.publicKey, signingKey: appleRootKeys.privateKey, extensions: [] });
+    const x5c = [new Uint8Array(credCert.rawData), new Uint8Array(appleRootCert.rawData)];
+    const attStmt = new Map<string, CBORType>([['x5c', x5c as unknown as CBORType], ['receipt', new Uint8Array(0)]]);
+    const obj = new Map<string, CBORType>([['fmt', 'apple-appattest'], ['attStmt', attStmt as unknown as CBORType], ['authData', authData]]);
+    const spki = new Uint8Array(await webcrypto.subtle.exportKey('spki', credKeys.publicKey));
+    const out = await verifyIosAppAttest(cborEncode(obj), { keyId: sha256(spki), clientDataHash: sha256(new TextEncoder().encode('x')), expectedTeamId: TEAM_ID, expectedBundleId: BUNDLE_ID, now: NOW, isTrustedRoot: trustOnly(appleRootCert) });
+    expect(out.kind).toBe('nonce-mismatch');
+  });
+
   it('rejects malformed cbor', async () => {
     const out = await verifyIosAppAttest(new Uint8Array([0xff, 0x00, 0x13]), { keyId: new Uint8Array(32), clientDataHash: new Uint8Array(32), expectedTeamId: TEAM_ID, expectedBundleId: BUNDLE_ID, now: NOW, isTrustedRoot: trustOnly(appleRootCert) });
     expect(out.kind).toBe('malformed-object');

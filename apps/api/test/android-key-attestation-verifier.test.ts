@@ -179,6 +179,14 @@ describe('verifyAndroidKeyAttestation', () => {
     expect(out.kind).toBe('wrong-key-purpose');
   });
 
+  it('rejects a leaf whose KeyDescription extension is not valid ASN.1', async () => {
+    const leafKeys = await webcrypto.subtle.generateKey(ALG, true, ['sign', 'verify']);
+    const leaf = await x509.X509CertificateGenerator.create({ serialNumber: '02', subject: 'CN=Bad KD', issuer: rootCert.subject, notBefore: new Date('2024-06-01T00:00:00Z'), notAfter: new Date('2035-01-01T00:00:00Z'), signingAlgorithm: ALG, publicKey: leafKeys.publicKey, signingKey: rootKeys.privateKey, extensions: [new x509.Extension(KEY_DESCRIPTION_OID, false, new Uint8Array([1, 2, 3, 4]))] });
+    const chain = [new Uint8Array(leaf.rawData), new Uint8Array(rootCert.rawData)];
+    const out = await run(chain, 'n', trustOnly(rootCert));
+    expect(out.kind).toBe('key-description-missing');
+  });
+
   it('rejects an empty chain', async () => {
     const out = await run([], 'n', trustOnly(rootCert));
     expect(out.kind).toBe('empty-chain');

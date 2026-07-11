@@ -51,9 +51,11 @@ function asUint8(value: unknown): Uint8Array | null {
 }
 
 function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  /* v8 ignore next -- defensive length guard; callers pass equal-length digests */
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i += 1) {
+    /* v8 ignore next -- index always in range inside the length-bounded loop */
     diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
   }
   return diff === 0;
@@ -78,6 +80,7 @@ export async function verifyIosAppAttest(
   } catch {
     return { kind: 'malformed-object' };
   }
+  /* v8 ignore next -- x5c already proven non-empty by the parse above */
   if (x5c.length === 0) return { kind: 'malformed-object' };
 
   let certs: x509.X509Certificate[];
@@ -96,6 +99,7 @@ export async function verifyIosAppAttest(
   for (let i = 0; i < certs.length - 1; i += 1) {
     const cert = certs[i];
     const issuer = certs[i + 1];
+    /* v8 ignore next -- loop bound i < length-1 guarantees both indices exist */
     if (cert === undefined || issuer === undefined) return { kind: 'chain-signature-invalid' };
     let linkOk = false;
     try {
@@ -108,6 +112,7 @@ export async function verifyIosAppAttest(
 
   const root = certs[certs.length - 1];
   const credCert = certs[0];
+  /* v8 ignore next -- x5c non-empty guarantees both certs exist */
   if (root === undefined || credCert === undefined) return { kind: 'malformed-object' };
   if (!params.isTrustedRoot(new Uint8Array(root.rawData))) {
     return { kind: 'untrusted-root' };
