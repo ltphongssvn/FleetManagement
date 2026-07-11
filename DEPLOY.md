@@ -117,9 +117,17 @@ cleaned up (namespaced, FK-ordered) leaving zero residue.
 
 ## Notes / gotchas
 
-- **WORKER_FLEET_API_TOKEN / OPS_WEB_FLEET_API_TOKEN** are service-account ES256 JWTs
-  minted from mock-oauth2; they live only in the gitignored repo-root `.env` (compose
-  interpolates them locally). Re-mint when expired — never commit token literals.
+- **Worker auth is OAuth2 client-credentials** (RFC 6749 s4.4): the worker mints
+  short-lived tokens on demand via **WORKER_OIDC_TOKEN_URL / WORKER_OIDC_CLIENT_ID /
+  WORKER_OIDC_CLIENT_SECRET** (Railway service vars in prod; compose -> mock-oauth2
+  locally). WORKER_OIDC_TOKEN_URL must point at the SAME issuer the api trusts
+  (its OIDC_ISSUER), or every callback 401s. This replaced the static
+  WORKER_FLEET_API_TOKEN whose silent decay stalled 65 manifests in verifying
+  (Jun-24 incident) -- static service JWTs are banned on the worker.
+- **OPS_WEB_FLEET_API_TOKEN** (ops-web assign-run server action) is still a static
+  service-account JWT in the gitignored repo-root .env -- SAME decay class, queued
+  for the identical client-credentials migration (follow-ups ledger #8). Re-mint on
+  expiry until that lands -- never commit token literals.
 - A branch-protection bypass warning when pushing the back-merge to `develop` is a
   benign artifact of the admin promote, not an error.
 - If `railway status` shows the wrong service, re-run `railway link` and reselect
