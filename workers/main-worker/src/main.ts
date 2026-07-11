@@ -15,6 +15,7 @@ import { QUEUE_NAMES, QUEUE_CONCURRENCY } from './queues.js';
 import { loadConfig } from './config.js';
 import { routeJob, createBullDeadLetterSink } from './queue-router.js';
 import { FetchIntakeCallback, type IntakeCallback } from './intake/intake-callback.js';
+import { KeycloakClientCredentialsTokenProvider } from './auth/keycloak-token-provider.js';
 import { FetchErpClient } from './erp/fetch-erp-client.js';
 import { S3IntakeObjectStore, type IntakeObjectStore } from './intake/intake-object-store.js';
 import type { ErpClientPort } from './erp/erp-send-flow.js';
@@ -33,16 +34,28 @@ function bootstrap(): void {
   const deadLetterQueue = new Queue('outbox-dead-letter', { connection });
   const deadLetters = createBullDeadLetterSink(deadLetterQueue);
 
-  // Intake callback: only constructed if FLEET_API_URL + FLEET_API_TOKEN provided.
-  // Pilot scope: token is a static service-account JWT loaded from env. Production
-  // would mint a short-lived service-token via the IIdentityProvider seam.
+  // Callbacks authenticate via OAuth2 client-credentials (RFC 6749 s4.4):
+  // the provider mints short-lived tokens on demand (cached, single-flight,
+  // 60s pre-expiry buffer) -- replacing the static FLEET_API_TOKEN whose
+  // silent expiry stalled 65 manifests in verifying (Jun-24 incident).
+  // Gating stays pilot-safe: any var absent -> callbacks skip.
+  let tokenProvider: KeycloakClientCredentialsTokenProvider | undefined;
+  if (config.WORKER_OIDC_TOKEN_URL && config.WORKER_OIDC_CLIENT_ID && config.WORKER_OIDC_CLIENT_SECRET) {
+    tokenProvider = new KeycloakClientCredentialsTokenProvider({
+      tokenUrl: config.WORKER_OIDC_TOKEN_URL,
+      clientId: config.WORKER_OIDC_CLIENT_ID,
+      clientSecret: config.WORKER_OIDC_CLIENT_SECRET,
+    });
+  }
   let intakeCallback: IntakeCallback | undefined;
-  if (config.FLEET_API_URL && config.FLEET_API_TOKEN) {
-    const apiUrl = config.FLEET_API_URL;
-    const apiToken = config.FLEET_API_TOKEN;
+  if (config.FLEET_API_URL && tokenProvider) {
+    const provider = tokenProvider;
     intakeCallback = new FetchIntakeCallback({
-      apiUrl,
-      bearerToken: () => apiToken,
+      apiUrl: config.FLEET_API_URL,
+      bearerToken: () => provider.getToken(),
+      onUnauthorized: () => {
+        provider.invalidate();
+      },
     });
   }
 
@@ -64,14 +77,19 @@ function bootstrap(): void {
   }
 
   // Extraction ports (phieu-can net weight): callback mirrors intake (same
-  // FLEET_API_URL/TOKEN gating); store mirrors the intake S3 gating; the VLM
+  // FLEET_API_URL + OIDC client-credentials gating); store mirrors the intake S3 gating; the VLM
   // adapter only exists when GEMINI_API_KEY is set. Any port absent -> the
   // router completes jobs with a 'ports not configured' skip (pilot-safe).
   let extractionCallback: ExtractionCallback | undefined;
-  if (config.FLEET_API_URL && config.FLEET_API_TOKEN) {
-    const apiUrl = config.FLEET_API_URL;
-    const apiToken = config.FLEET_API_TOKEN;
-    extractionCallback = new FetchExtractionCallback({ apiUrl, bearerToken: () => apiToken });
+  if (config.FLEET_API_URL && tokenProvider) {
+    const provider = tokenProvider;
+    extractionCallback = new FetchExtractionCallback({
+      apiUrl: config.FLEET_API_URL,
+      bearerToken: () => provider.getToken(),
+      onUnauthorized: () => {
+        provider.invalidate();
+      },
+    });
   }
   let extractionStore: ExtractionObjectStore | undefined;
   if (config.AWS_REGION) {
