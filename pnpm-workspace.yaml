@@ -34,6 +34,18 @@
 #   - .github/workflows/ci.yml  — runs \`pnpm install --frozen-lockfile\`
 #   - .gitignore                — excludes node_modules, .pnpm-store
 # ============================================================================
+# --- pnpm 11 run/exec behavior (root-cause fix: networked auto-install treadmill) ---
+# verifyDepsBeforeRun defaults to install in pnpm 11: it re-verifies deps and
+# auto-runs a NETWORKED pnpm install before every pnpm run / pnpm exec (even with a
+# full node_modules), which dirties pnpm-lock.yaml and blocks git merge --ff-only in
+# the sync:worktrees task. Value warn keeps the staleness signal without auto-install.
+# enableGlobalVirtualStore is pinned so pnpm install records the key in the workspace
+# state file, eliminating the pnpm issue 12337 spurious setting-changed full reinstall
+# on every CI / non-CI switch. NOTE: pnpm 11 reads these two keys ONLY from
+# pnpm-workspace.yaml; the same keys placed in .npmrc are ignored.
+verifyDepsBeforeRun: warn
+enableGlobalVirtualStore: false
+
 packages:
   - "apps/*"
   - "workers/*"
