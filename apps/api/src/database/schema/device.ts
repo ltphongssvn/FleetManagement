@@ -6,7 +6,7 @@
 // enforced at policy layer (attestation-verification-policy.ts) against
 // attestation_verified_at + maxAgeMs.
 import { sql } from 'drizzle-orm';
-import { pgTable, uuid, varchar, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, timestamp, index, uniqueIndex, text, integer } from 'drizzle-orm/pg-core';
 import { tenancyColumns } from './tenancy.js';
 export const deviceRegistry = pgTable(
   'device_registry',
@@ -23,11 +23,33 @@ export const deviceRegistry = pgTable(
     attestationPlatform: varchar('attestation_platform', { length: 16 }),
     attestationVerifiedAt: timestamp('attestation_verified_at', { withTimezone: true, mode: 'date' }),
     attestationTokenHash: varchar('attestation_token_hash', { length: 64 }),
+    // Hardware device binding (device-binding arc, Phase 3). installation_id is
+    // the per-platform stable installation identity (Android SSAID / iOS IDFV);
+    // a CORRELATION key only, never proof. Trust comes from the attested
+    // hardware key below. binding_status is the TOFU lifecycle:
+    // pending -> active (ops-web admin) -> revoked (recorded, never deleted).
+    installationId: varchar('installation_id', { length: 128 }),
+    bindingStatus: varchar('binding_status', { length: 16 }).notNull().default('pending'),
+    bindingRevokedAt: timestamp('binding_revoked_at', { withTimezone: true, mode: 'date' }),
+    bindingRevokedReason: varchar('binding_revoked_reason', { length: 64 }),
+    // Attested hardware key material (public only; the private key never
+    // leaves the device secure element). counter = iOS App Attest signCount
+    // for assertion monotonicity; environment = production vs development
+    // (App Attest sandbox aaguid on Ad Hoc builds).
+    attestationKeyId: varchar('attestation_key_id', { length: 128 }),
+    attestationPublicKeySpki: text('attestation_public_key_spki'),
+    attestationSecurityLevel: varchar('attestation_security_level', { length: 32 }),
+    attestationEnvironment: varchar('attestation_environment', { length: 32 }),
+    attestationCounter: integer('attestation_counter'),
   },
   (t) => [
     index('device_registry_operator_idx').on(t.operatorId),
     index('device_registry_company_idx').on(t.companyId),
     uniqueIndex('device_registry_operator_platform_uq').on(t.operatorId, t.platform),
+    // One binding per hardware identity per platform per company. Partial-free:
+    // Postgres treats NULL installation_id rows as distinct, so legacy rows
+    // enrolled before the binding arc coexist until first identity-bearing enroll.
+    uniqueIndex('device_registry_company_platform_installation_uq').on(t.companyId, t.platform, t.installationId),
   ],
 );
 export const deviceSession = pgTable(
