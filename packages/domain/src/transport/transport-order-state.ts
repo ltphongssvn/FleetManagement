@@ -34,6 +34,12 @@ export const transportOrderFsm: FiniteStateMachine<TransportOrderState> = create
   ]),
 });
 
+// Derived non-terminal subset. SSOT is the FSM terminal declaration above;
+// consumers (e.g. reference.service busy predicates) import this and must
+// never hand-write the subset (two-axis rule, fix-trigger 2).
+export const TRANSPORT_ORDER_NON_TERMINAL_STATES: readonly TransportOrderState[] = Object.freeze(
+  TRANSPORT_ORDER_STATES.filter((s) => !transportOrderFsm.isTerminal(s)),
+);
 // Convenience re-exports for ergonomic call sites.
 export const isTerminal = transportOrderFsm.isTerminal;
 export const canTransition = transportOrderFsm.canTransition;

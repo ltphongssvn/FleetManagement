@@ -32,6 +32,12 @@ export const roadRunFsm: FiniteStateMachine<RoadRunState> = createStateMachine({
   ]),
 });
 
+// Derived non-terminal subset. SSOT is the FSM terminal declaration above;
+// consumers (e.g. reference.service busy predicates) import this and must
+// never hand-write the subset (two-axis rule, fix-trigger 2).
+export const ROAD_RUN_NON_TERMINAL_STATES: readonly RoadRunState[] = Object.freeze(
+  ROAD_RUN_STATES.filter((s) => !roadRunFsm.isTerminal(s)),
+);
 export const isRoadRunTerminal = roadRunFsm.isTerminal;
 export const canTransitionRoadRun = roadRunFsm.canTransition;
 export const transitionRoadRun = roadRunFsm.transition;
