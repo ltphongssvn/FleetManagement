@@ -59,6 +59,7 @@ describe('attestation trust store (pinned roots)', () => {
     }
     const appleDer = new X509Certificate(APPLE_APP_ATTEST_ROOT_PEM).rawData;
     expect(isTrustedAttestationRoot(appleDer, 'ios')).toBe(true);
+    expect(isTrustedAttestationRoot(new Uint8Array(appleDer), 'ios')).toBe(true);
     expect(isTrustedAttestationRoot(appleDer, 'android')).toBe(false);
   });
 
