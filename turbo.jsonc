@@ -128,6 +128,11 @@
       "cache": false,
       "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
     },
+    "eas:build:ios": {
+      "description": "Dispatch an iOS Ad Hoc (preview profile) EAS cloud build via eas-cli build. --non-interactive auto-includes every device already registered on the ad hoc provisioning profile server-side, so a device registered via eas:device is baked into the new .ipa. Waits for the build so the operator gets the install link. Remote build + Apple credential network mutation: cache:false, no build dependency. passThroughEnv exposes EXPO_TOKEN and EAS_PROJECT_ID under strict envMode. Run: pnpm exec turbo run eas:build:ios --filter=@fleet/owner-app.",
+      "cache": false,
+      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
+    },
     "verify:owner-adoption": {
       "description": "Manual verification harness: fetch GET /owner/metrics/adoption from a running API with a fleet-owner bearer token, validate the response against the OwnerAdoptionMetricsSchema SSOT, and print the adoption funnel. Read-only network query, so cache:false. passThroughEnv exposes API_URL (base URL of the deployed API) and OWNER_BEARER_TOKEN (a Keycloak access token carrying the fleet-owner role) under strict envMode. Run: API_URL=... OWNER_BEARER_TOKEN=... pnpm exec turbo run verify:owner-adoption --filter=@fleet/api.",
       "cache": false,
