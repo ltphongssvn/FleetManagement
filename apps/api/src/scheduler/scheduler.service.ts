@@ -14,15 +14,18 @@ import { OutboxRelayService } from '../outbox/outbox-relay.service.js';
 import { ProjectionRunnerService } from '../projections/projection-runner.service.js';
 import { CommandsGateway } from '../commands/commands.gateway.js';
 import type { BreakGlassLoginMonitorService } from '../security/break-glass-login-monitor.service.js';
+import type { IntakeLagMonitorService } from '../manifest/intake-lag-monitor.service.js';
 import type { Env } from '../config/env.config.js';
 
 export const BREAKGLASS_MONITOR = 'BREAKGLASS_MONITOR' as const;
+export const INTAKE_LAG_MONITOR = 'INTAKE_LAG_MONITOR' as const;
 
 const DRAIN_INTERVAL_MS = 5_000;
 const RECONCILE_INTERVAL_MS = 2_000;
 const BREAKGLASS_INTERVAL_MS = 60_000;
+const INTAKE_LAG_INTERVAL_MS = 300_000;
 
-type SchedulerKind = 'outbox' | 'projection' | 'reconciler' | 'breakglass';
+type SchedulerKind = 'outbox' | 'projection' | 'reconciler' | 'breakglass' | 'intakeLag';
 
 @Injectable()
 export class SchedulerService implements OnModuleInit, OnModuleDestroy {
@@ -32,6 +35,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   private projectionTimer: NodeJS.Timeout | null = null;
   private reconcilerTimer: NodeJS.Timeout | null = null;
   private breakglassTimer: NodeJS.Timeout | null = null;
+  private intakeLagTimer: NodeJS.Timeout | null = null;
   private stopped = false;
   constructor(
     private readonly outboxRelay: OutboxRelayService,
@@ -41,6 +45,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     @Optional()
     @Inject(BREAKGLASS_MONITOR)
     private readonly breakGlassMonitor: BreakGlassLoginMonitorService | null = null,
+    @Optional()
+    @Inject(INTAKE_LAG_MONITOR)
+    private readonly intakeLagMonitor: IntakeLagMonitorService | null = null,
   ) {
     this.pilotScope = config.getOrThrow('FLEET_PILOT_SCOPE', { infer: true });
   }
@@ -49,6 +56,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     this.scheduleNext('projection');
     this.scheduleNext('reconciler');
     if (this.breakGlassMonitor !== null) this.scheduleNext('breakglass');
+    if (this.intakeLagMonitor !== null) this.scheduleNext('intakeLag');
   }
   onModuleDestroy(): void {
     if (this.outboxTimer !== null) {
@@ -66,6 +74,10 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     if (this.breakglassTimer !== null) {
       clearTimeout(this.breakglassTimer);
       this.breakglassTimer = null;
+    }
+    if (this.intakeLagTimer !== null) {
+      clearTimeout(this.intakeLagTimer);
+      this.intakeLagTimer = null;
     }
     this.stopped = true;
   }
@@ -86,6 +98,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       case 'breakglass':
         this.breakglassTimer = setTimeout(tick, BREAKGLASS_INTERVAL_MS);
         return;
+      case 'intakeLag':
+        this.intakeLagTimer = setTimeout(tick, INTAKE_LAG_INTERVAL_MS);
+        return;
       default: {
         const _exhaustive: never = kind;
         throw new Error(`unknown scheduler kind: ${String(_exhaustive)}`);
@@ -99,6 +114,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       case 'projection': return 'projection-drain';
       case 'reconciler': return 'commands-reconciler';
       case 'breakglass': return 'breakglass-scan';
+      case 'intakeLag': return 'intake-lag-check';
       default: {
         const _exhaustive: never = kind;
         throw new Error(`unknown scheduler kind: ${String(_exhaustive)}`);
@@ -111,6 +127,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       case 'projection': return 'Projection drain failed: ';
       case 'reconciler': return 'Reconciler tick failed: ';
       case 'breakglass': return 'Break-glass poll failed: ';
+      case 'intakeLag': return 'Intake-lag check failed: ';
       default: {
         const _exhaustive: never = kind;
         throw new Error(`unknown scheduler kind: ${String(_exhaustive)}`);
@@ -130,6 +147,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
         return;
       case 'breakglass':
         if (this.breakGlassMonitor !== null) await this.breakGlassMonitor.pollOnce();
+        return;
+      case 'intakeLag':
+        if (this.intakeLagMonitor !== null) await this.intakeLagMonitor.checkOnce();
         return;
       default: {
         const _exhaustive: never = kind;
@@ -163,4 +183,5 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   async drainOutbox(): Promise<void> { await this.runDrain('outbox'); }
   async drainProjections(): Promise<void> { await this.runDrain('projection'); }
   async drainBreakglass(): Promise<void> { await this.runDrain('breakglass'); }
+  async drainIntakeLag(): Promise<void> { await this.runDrain('intakeLag'); }
 }

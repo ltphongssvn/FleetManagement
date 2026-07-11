@@ -108,6 +108,20 @@
       "persistent": false,
       "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
     },
+    "intake:redrive": {
+      "description": "Emit compensating manifest_intake.requested outbox events for manifests stranded in verifying (Jun-24 expired-worker-token incident repair). Event-sourcing repair protocol: events flow THROUGH outbox -> relay -> BullMQ -> worker -> finalizeIntake; manifest state is never hand-patched. DRY-RUN by default; mutation needs --execute AND FLEET_ALLOW_INTAKE_REDRIVE=true (wipe-business-data speed-bump pattern). Live DB access: cache:false. Run: pnpm exec turbo run intake:redrive --filter=@fleet/api [-- --execute].",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_ALLOW_INTAKE_REDRIVE"]
+    },
+    "repair:ghost-runs": {
+      "description": "Event-sourced ghost-run repair: cancel every non-terminal road_run whose linked transport_orders are all terminal (or that has zero links) by appending road_run.cancelled through appendTriWrite, letting the projection runner heal dispatch_board. DRY-RUN by default; pass -- --execute to mutate. Live DB mutation: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run repair:ghost-runs --filter=@fleet/api [-- --execute].",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
     "test:integration": {
       "description": "Integration tests — need own + upstream builds + Testcontainers. Owns coverage/integration/** + test-results/integration/**.",
       "dependsOn": ["build", "^build"],

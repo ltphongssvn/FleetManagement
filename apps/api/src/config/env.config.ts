@@ -73,6 +73,11 @@ export const EnvSchema = z.object({
     z.string().min(1).optional(),
   ),
   COPILOT_LLM_MODEL: z.string().min(1).default('claude-haiku-4-5'),
+  // Intake-lag regression guard (Jun-24 incident class): pages via Sentry
+  // fatal when the OLDEST verifying manifest exceeds this age -- any break in
+  // the intake loop (auth, queue, worker, relay) becomes loud within one
+  // threshold window instead of silently stranding uploads for weeks.
+  INTAKE_LAG_ALERT_MINUTES: z.coerce.number().int().positive().default(30),
 });
 export type Env = z.infer<typeof EnvSchema>;
 // Rebuild-CLI-scoped validator (follow-up #5). Derives from the SAME EnvSchema
