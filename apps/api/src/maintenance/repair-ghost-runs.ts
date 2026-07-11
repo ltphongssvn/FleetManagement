@@ -62,22 +62,25 @@ export async function repairGhostRuns(
   if (!execute) {
     return { found: ghosts.length, repaired: 0, dryRun: true, roadRunIds };
   }
+  if (roadRunIds.length === 0) {
+    return { found: 0, repaired: 0, dryRun: false, roadRunIds };
+  }
   let repaired = 0;
   await db.transaction(async (tx) => {
-    for (const id of roadRunIds) {
-      // Guarded flip: only a still-non-terminal row moves (protects
-      // against concurrent legitimate completion/cancellation between
-      // the find and the flip).
-      const moved = await tx
-        .update(roadRun)
-        .set({ state: 'cancelled' })
-        .where(and(
-          eq(roadRun.roadRunId, id),
-          eq(roadRun.companyId, op.companyId),
-          inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
-        ))
-        .returning({ roadRunId: roadRun.roadRunId });
-      if (moved.length === 0) continue;
+    // Guarded set-based flip: only still-non-terminal rows move
+    // (protects against concurrent legitimate completion/cancellation
+    // between the find and the flip); events are appended only for
+    // rows that ACTUALLY moved (mirrors cascadeCancelLinkedRoadRuns).
+    const moved = await tx
+      .update(roadRun)
+      .set({ state: 'cancelled' })
+      .where(and(
+        inArray(roadRun.roadRunId, [...roadRunIds]),
+        eq(roadRun.companyId, op.companyId),
+        inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
+      ))
+      .returning({ roadRunId: roadRun.roadRunId });
+    for (const { roadRunId: id } of moved) {
       const serverSeq = await allocateServerSeq(tx);
       await appendTriWrite(tx, {
         serverSeq,
