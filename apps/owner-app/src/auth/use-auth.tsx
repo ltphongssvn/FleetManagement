@@ -22,7 +22,6 @@ import {
 } from 'react';
 import { useAuthRequest, exchangeCodeAsync } from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
-import Constants from 'expo-constants';
 import { loadToken, saveToken, clearToken, type StoredToken } from './token-storage.js';
 import { buildOwnerOidcConfig } from './oidc-config.js';
 
@@ -39,24 +38,23 @@ export interface UseAuthResult extends AuthState {
 }
 const AuthContext = createContext<UseAuthResult | null>(null);
 
-// Read env through an unknown boundary + typeof narrowing: in a pnpm monorepo
-// projectService can type process.env as any in a clean CI program, so a direct
-// read trips no-unsafe-assignment. Assigning any to unknown is safe and typeof
-// narrows to string (matches sentry-bootstrap.ts readEnv).
-function readEnv(name: string): string | undefined {
-  const raw: unknown = process.env[name];
-  return typeof raw === 'string' ? raw : undefined;
-}
+// EXPO_PUBLIC_* env vars MUST be read as STATIC literal expressions
+// (process.env['EXPO_PUBLIC_X']): Expo's inlining transform cannot see a
+// dynamic process.env[name] access, so the value is undefined in the
+// production bundle - which made buildOwnerOidcConfig throw during the first
+// render of AuthProvider and crash the app at launch (the exact bug
+// driver-app fixed in api-url.ts). Bracket-with-literal is a static member
+// expression (inlinable) and TS4111-safe; the unknown boundary + typeof
+// narrowing keeps it type-safe in the CI-parity lint program.
 function readOidcConfig(): ReturnType<typeof buildOwnerOidcConfig> {
-  const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>;
-  const extraStr = (key: string): string | undefined => {
-    const v = extra[key];
-    return typeof v === 'string' ? v : undefined;
-  };
+  const issuerRaw: unknown = process.env['EXPO_PUBLIC_OIDC_ISSUER'];
+  const clientIdRaw: unknown = process.env['EXPO_PUBLIC_OIDC_CLIENT_ID'];
+  const schemeRaw: unknown = process.env['EXPO_PUBLIC_OWNER_APP_SCHEME'];
   return buildOwnerOidcConfig({
-    EXPO_PUBLIC_OIDC_ISSUER: readEnv('EXPO_PUBLIC_OIDC_ISSUER') ?? extraStr('oidcIssuer'),
-    EXPO_PUBLIC_OIDC_CLIENT_ID: readEnv('EXPO_PUBLIC_OIDC_CLIENT_ID') ?? extraStr('oidcClientId'),
-    EXPO_PUBLIC_OWNER_APP_SCHEME: readEnv('EXPO_PUBLIC_OWNER_APP_SCHEME') ?? 'fleetowner',
+    EXPO_PUBLIC_OIDC_ISSUER: typeof issuerRaw === 'string' ? issuerRaw : undefined,
+    EXPO_PUBLIC_OIDC_CLIENT_ID: typeof clientIdRaw === 'string' ? clientIdRaw : undefined,
+    EXPO_PUBLIC_OWNER_APP_SCHEME:
+      typeof schemeRaw === 'string' && schemeRaw.length > 0 ? schemeRaw : 'fleetowner',
   });
 }
 

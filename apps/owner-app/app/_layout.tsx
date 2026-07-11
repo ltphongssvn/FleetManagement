@@ -1,4 +1,9 @@
 // apps/owner-app/app/_layout.tsx
+// IMPORTANT: install the expo/fetch polyfill FIRST, before any other import,
+// so the global fetch is replaced before any module that performs (or captures)
+// a network request loads. Fixes the RN 0.83 / SDK 55 Bridgeless whatwg-fetch
+// "Network request failed" regression. See install-fetch-polyfill.ts.
+import '../src/polyfills/install-fetch-polyfill.js';
 import { useEffect, useRef, type JSX } from 'react';
 import { Slot } from 'expo-router';
 import * as Sentry from '@sentry/react-native';

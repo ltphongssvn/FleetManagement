@@ -16,7 +16,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: [resolve(__dirname, 'src/**/*.ts')],
-      exclude: ['**/index.ts', '**/*.config.ts', '**/test/**', 'src/observability/sentry-bootstrap.ts', 'src/auth/use-auth.tsx', 'src/dashboard/use-adoption.tsx', 'src/theme/tokens.ts'],
+      exclude: ['**/index.ts', '**/*.config.ts', '**/test/**', 'src/observability/sentry-bootstrap.ts', 'src/polyfills/install-fetch-polyfill.ts', 'src/auth/use-auth.tsx', 'src/dashboard/use-adoption.tsx', 'src/theme/tokens.ts'],
       thresholds: {
         statements: 90,
         branches: 90,
