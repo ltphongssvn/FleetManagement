@@ -30,6 +30,27 @@ export type DeviceIdentity = z.infer<typeof DeviceIdentitySchema>;
 export const DeviceBindingStatusSchema = z.enum(['pending', 'active', 'revoked']);
 export type DeviceBindingStatus = z.infer<typeof DeviceBindingStatusSchema>;
 
+// Hardware security level reported by Android Key Attestation. iOS App Attest
+// has no equivalent tier (Secure Enclave is implied), so the API stores null
+// for iOS. This vocabulary crosses API -> persistence (device_registry) and
+// API -> admin/audit responses, so it is a shared contract, derived once here.
+export const ATTESTATION_SECURITY_LEVELS = [
+  'trusted-environment',
+  'strongbox',
+] as const;
+export const AttestationSecurityLevelSchema = z.enum(ATTESTATION_SECURITY_LEVELS);
+export type AttestationSecurityLevel = z.infer<typeof AttestationSecurityLevelSchema>;
+
+// Attestation environment: production keys vs the App Attest development
+// sandbox / Android debug-provisioned keys. Persisted on the device row and
+// surfaced to admins so a dev-build device is never mistaken for production.
+export const ATTESTATION_ENVIRONMENTS = [
+  'production',
+  'development',
+] as const;
+export const AttestationEnvironmentSchema = z.enum(ATTESTATION_ENVIRONMENTS);
+export type AttestationEnvironment = z.infer<typeof AttestationEnvironmentSchema>;
+
 export const DeviceEnrollRequestSchema = z.object({
   platform: DeviceBindingPlatformSchema,
   appVersion: z.string().min(1).max(32),

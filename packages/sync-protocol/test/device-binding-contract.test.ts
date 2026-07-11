@@ -7,6 +7,10 @@
 // only active devices pass driver endpoints; revoked is terminal-rejected.
 import { describe, expect, it } from 'vitest';
 import {
+  ATTESTATION_ENVIRONMENTS,
+  ATTESTATION_SECURITY_LEVELS,
+  AttestationEnvironmentSchema,
+  AttestationSecurityLevelSchema,
   DEVICE_BINDING_PROBLEM_CODES,
   DeviceBindingStatusSchema,
   DeviceEnrollRequestSchema,
@@ -83,6 +87,29 @@ describe('DeviceBindingStatusSchema', () => {
   });
   it('rejects unknown status values', () => {
     expect(DeviceBindingStatusSchema.safeParse('approved').success).toBe(false);
+  });
+});
+
+describe('AttestationSecurityLevelSchema', () => {
+  it('accepts trusted-environment and strongbox', () => {
+    for (const s of ATTESTATION_SECURITY_LEVELS) {
+      expect(AttestationSecurityLevelSchema.safeParse(s).success).toBe(true);
+    }
+  });
+  it('rejects software and unknown levels (Software fails closed)', () => {
+    expect(AttestationSecurityLevelSchema.safeParse('software').success).toBe(false);
+    expect(AttestationSecurityLevelSchema.safeParse('tee').success).toBe(false);
+  });
+});
+
+describe('AttestationEnvironmentSchema', () => {
+  it('accepts production and development', () => {
+    for (const e of ATTESTATION_ENVIRONMENTS) {
+      expect(AttestationEnvironmentSchema.safeParse(e).success).toBe(true);
+    }
+  });
+  it('rejects unknown environments', () => {
+    expect(AttestationEnvironmentSchema.safeParse('sandbox').success).toBe(false);
   });
 });
 
