@@ -241,3 +241,12 @@ export {
   parseCopilotPlanResponse,
   parseCopilotExecutionResult,
 } from './copilot-types.js';
+export {
+  DRIVER_ALERT_KINDS,
+  DriverAlertKindSchema,
+  type DriverAlertKind,
+  DriverAlertJobSchema,
+  type DriverAlertJob,
+  DriverAlertPushDataSchema,
+  type DriverAlertPushData,
+} from './driver-alert-contract.js';
