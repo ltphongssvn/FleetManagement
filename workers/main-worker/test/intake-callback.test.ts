@@ -41,6 +41,20 @@ describe('@fleet/main-worker - FetchIntakeCallback', () => {
     const cb = new FetchIntakeCallback({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
     await expect(cb.finalize({ uploadSessionId: 'us-3', accepted: true })).rejects.toThrow(/HTTP 503/);
   });
+  it('invokes onUnauthorized exactly once on 401, then still throws (BullMQ outer retry)', async () => {
+    const onUnauthorized = vi.fn();
+    const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 401, statusText: 'Unauthorized' });
+    const cb = new FetchIntakeCallback({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never, onUnauthorized });
+    await expect(cb.finalize({ uploadSessionId: 'us-5', accepted: true })).rejects.toThrow(/HTTP 401/);
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+  });
+  it('does NOT invoke onUnauthorized on other non-2xx statuses', async () => {
+    const onUnauthorized = vi.fn();
+    const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 503, statusText: 'unavail' });
+    const cb = new FetchIntakeCallback({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never, onUnauthorized });
+    await expect(cb.finalize({ uploadSessionId: 'us-6', accepted: true })).rejects.toThrow(/HTTP 503/);
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
   it('falls back to globalThis.fetch when fetchFn omitted', async () => {
     const origFetch = globalThis.fetch;
     const spy = vi.fn().mockResolvedValue({ ok: true });
