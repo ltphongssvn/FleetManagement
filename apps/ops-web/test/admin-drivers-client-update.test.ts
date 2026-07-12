@@ -10,7 +10,7 @@ describe('AdminDriversClient.update', () => {
     await client.update('d1', { fullName: 'NEW', phone: '+84999999999' });
     expect(fetchFn).toHaveBeenCalledWith('/api/admin/drivers/d1', expect.objectContaining({
       method: 'PATCH',
-      headers: expect.objectContaining({ Authorization: 'Bearer tok', 'Content-Type': 'application/json' }),
+      headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ fullName: 'NEW', phone: '+84999999999' }),
     }));
   });
@@ -48,7 +48,6 @@ describe('AdminDriversClient.remove', () => {
     await client.remove('d1');
     expect(fetchFn).toHaveBeenCalledWith('/api/admin/drivers/d1', expect.objectContaining({
       method: 'DELETE',
-      headers: expect.objectContaining({ Authorization: 'Bearer tok' }),
     }));
   });
   it('throws on non-ok HTTP status', async () => {

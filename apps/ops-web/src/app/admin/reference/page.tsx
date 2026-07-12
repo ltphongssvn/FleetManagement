@@ -34,6 +34,10 @@ import {
   type ReferenceSegment,
 } from '../../../features/admin/reference-admin-client';
 import { useRefetchOnFocus } from '../../../lib/use-refetch-on-focus';
+import {
+  isSessionExpired,
+  navigateToSessionRefresh,
+} from '@/features/auth/session-refresh-navigation';
 interface SectionDef {
   segment: ReferenceSegment;
   title: string;
@@ -69,6 +73,18 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPhone, setEditPhone] = useState('');
   const conflictRowRef = useRef<HTMLLIElement | null>(null);
+  // One error seam per section: an idle-expired 401 (refresh impossible via
+  // the BFF) hands the browser to /api/auth/refresh?next=<here> instead of
+  // painting a dead-end banner; everything else keeps the friendly copy the
+  // client already composed (detail > legacy > status-class Vietnamese).
+  const fail = (e: unknown, fallback: string): boolean => {
+    if (isSessionExpired(e)) {
+      navigateToSessionRefresh();
+      return true;
+    }
+    setError(e instanceof Error ? e.message : fallback);
+    return false;
+  };
   const refresh = async (preserveError = false): Promise<void> => {
     setLoading(true);
     try {
@@ -79,7 +95,7 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
         setConflictName(null);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'load failed');
+      if (fail(e, 'load failed')) return;
     } finally {
       setLoading(false);
     }
@@ -110,8 +126,8 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
       setNewPhone('');
       await refresh();
     } catch (e) {
+      if (fail(e, 'create failed')) return;
       const msg = e instanceof Error ? e.message : 'create failed';
-      setError(msg);
       setConflictName(extractConflictName(msg) ?? newName.trim());
       await refresh(true);
     } finally {
@@ -125,7 +141,7 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
       await client.remove(id);
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'delete failed');
+      if (fail(e, 'delete failed')) return;
       await refresh(true);
     } finally {
       setBusy(false);
@@ -143,7 +159,7 @@ function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
       setEditPhone('');
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'update failed');
+      if (fail(e, 'update failed')) return;
       await refresh(true);
     } finally {
       setBusy(false);

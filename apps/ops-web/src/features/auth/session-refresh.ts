@@ -7,6 +7,8 @@
 // /login redirect (page navigations). Cookie names + options are the single
 // contract shared by the OIDC callback, the /api/auth/refresh route, and the
 // BFF forwarder.
+import { z } from 'zod';
+import { type NextRequest } from 'next/server';
 import { TokenResponseSchema } from './oidc-authorization.schema';
 
 export const SESSION_COOKIE = 'fleet_session';
@@ -39,10 +41,14 @@ export function refreshCookieOptions(): SessionCookieOptions {
   };
 }
 
-export interface RefreshEnv {
-  readonly tokenEndpoint: string;
-  readonly clientId: string;
-}
+// Env vars are a TRUST BOUNDARY (two-axis Zod rule, Axis 1): validate the
+// shape at the edge instead of presence-checking strings by hand. The type
+// derives from the schema (Axis 2 SSOT) -- no hand-written parallel interface.
+export const RefreshEnvSchema = z.object({
+  tokenEndpoint: z.url(),
+  clientId: z.string().min(1),
+});
+export type RefreshEnv = z.infer<typeof RefreshEnvSchema>;
 
 export interface RefreshedTokens {
   readonly accessToken: string;
@@ -80,8 +86,34 @@ export async function refreshSession(
 }
 
 export function refreshEnvFromProcess(): RefreshEnv | null {
-  const tokenEndpoint = process.env['OIDC_TOKEN_ENDPOINT'];
-  const clientId = process.env['OIDC_CLIENT_ID'];
-  if (tokenEndpoint === undefined || clientId === undefined) return null;
-  return { tokenEndpoint, clientId };
+  const parsed = RefreshEnvSchema.safeParse({
+    tokenEndpoint: process.env['OIDC_TOKEN_ENDPOINT'],
+    clientId: process.env['OIDC_CLIENT_ID'],
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+// Resolve the PUBLIC origin for same-site redirect URLs. Behind Railway's
+// edge proxy, req.url's host is the container's internal bind (0.0.0.0:3001),
+// so new URL(path, req.url) would send the browser to https://0.0.0.0:3001/...
+// (ERR_ADDRESS_INVALID -- prod evidence 2026-07-11 on the session_expired
+// path). Order: x-forwarded-host/proto set by the proxy; else the origin of
+// OIDC_REDIRECT_URI (already the public callback URL); else req.url for
+// local/dev. SSOT for the OIDC callback AND the /api/auth/refresh route --
+// hoisted from the callback so no route can drift back to req.url.
+export function publicOrigin(req: NextRequest): string {
+  const forwardedHost = req.headers.get('x-forwarded-host');
+  if (forwardedHost !== null && forwardedHost.length > 0) {
+    const proto = req.headers.get('x-forwarded-proto') ?? 'https';
+    return proto + '://' + forwardedHost;
+  }
+  const redirectUri = process.env['OIDC_REDIRECT_URI'];
+  if (redirectUri !== undefined && redirectUri.length > 0) {
+    try {
+      return new URL(redirectUri).origin;
+    } catch {
+      // fall through to req.url
+    }
+  }
+  return new URL(req.url).origin;
 }

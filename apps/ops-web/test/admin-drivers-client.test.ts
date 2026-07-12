@@ -30,7 +30,6 @@ describe("AdminDriversClient.create", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
-          Authorization: "Bearer tok",
           "Content-Type": "application/json",
         }),
         body: JSON.stringify({
@@ -68,7 +67,6 @@ describe("AdminDriversClient.list", () => {
     expect(rows).toHaveLength(1);
     expect(fetchFn).toHaveBeenCalledWith("/api/admin/drivers", expect.objectContaining({
       method: "GET",
-      headers: expect.objectContaining({ Authorization: "Bearer tok" }),
     }));
   });
 
@@ -78,7 +76,7 @@ describe("AdminDriversClient.list", () => {
     await expect(client.list()).rejects.toThrow(/500/);
   });
 
-  it("awaits async bearerToken provider", async () => {
+  it("sends NO Authorization header (BFF authenticates via the httpOnly cookie)", async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
     const client = new AdminDriversClient({
       apiUrl: "",
@@ -86,9 +84,8 @@ describe("AdminDriversClient.list", () => {
       fetchFn: fetchFn as never,
     });
     await client.list();
-    expect(fetchFn).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      headers: expect.objectContaining({ Authorization: "Bearer async-tok" }),
-    }));
+    const init = (fetchFn.mock.calls[0] as unknown[])[1] as RequestInit;
+    expect(Object.keys(init.headers ?? {})).not.toContain("Authorization");
   });
 
   it("uses globalThis.fetch when fetchFn is not provided", async () => {
