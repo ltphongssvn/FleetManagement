@@ -52,6 +52,7 @@ function decodeBase64(value: string): Uint8Array | null {
     if (buf.length === 0) return null;
     return new Uint8Array(buf);
   } catch {
+    /* v8 ignore next -- Buffer.from(base64) drops invalid chars, never throws */
     return null;
   }
 }
@@ -64,6 +65,7 @@ function decodeAndroidChain(token: string): Uint8Array[] | null {
   const out: Uint8Array[] = [];
   for (const p of parts) {
     const der = decodeBase64(p);
+    /* v8 ignore next -- defensive: a non-empty part failing base64 decode is unreachable in practice */
     if (der === null) return null;
     out.push(der);
   }

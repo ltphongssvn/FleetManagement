@@ -119,11 +119,32 @@ describe('AttestationService (hardware attestation dispatch)', () => {
     expect((await svc.verify({ platform: 'ios', token: IOS_OBJECT_B64, expectedNonce: 'n', keyId: KEY_ID_B64 })).kind).toBe('device-untrusted');
   });
 
+  it('maps iOS malformed-object to invalid-platform-data', async () => {
+    const verifyIos = vi.fn().mockResolvedValue({ kind: 'malformed-object' } satisfies IosAppAttestOutcome);
+    const svc = new AttestationService(makeDeps({ verifyIos }));
+    expect((await svc.verify({ platform: 'ios', token: IOS_OBJECT_B64, expectedNonce: 'n', keyId: KEY_ID_B64 })).kind).toBe('invalid-platform-data');
+  });
+
   it('returns invalid-platform-data for an iOS request missing keyId', async () => {
     const verifyIos = vi.fn();
     const svc = new AttestationService(makeDeps({ verifyIos }));
     expect((await svc.verify({ platform: 'ios', token: IOS_OBJECT_B64, expectedNonce: 'n' })).kind).toBe('invalid-platform-data');
     expect(verifyIos).not.toHaveBeenCalled();
+  });
+
+  it('returns invalid-platform-data for an iOS token that decodes to empty bytes', async () => {
+    const verifyIos = vi.fn();
+    const svc = new AttestationService(makeDeps({ verifyIos }));
+    expect((await svc.verify({ platform: 'ios', token: ' ', expectedNonce: 'n', keyId: KEY_ID_B64 })).kind).toBe('invalid-platform-data');
+    expect(verifyIos).not.toHaveBeenCalled();
+  });
+
+  it('uses an empty expectedBundleId when no iOS bundle is configured', async () => {
+    const verifyIos = vi.fn().mockResolvedValue({ kind: 'ok', environment: 'production', publicKeySpkiBase64: 'DDDD' } satisfies IosAppAttestOutcome);
+    const svc = new AttestationService(makeDeps({ verifyIos, iosBundles: [] }));
+    await svc.verify({ platform: 'ios', token: IOS_OBJECT_B64, expectedNonce: 'n', keyId: KEY_ID_B64 });
+    const arg = verifyIos.mock.calls[0]?.[1] as { expectedBundleId: string };
+    expect(arg.expectedBundleId).toBe('');
   });
 
   it('returns invalid-platform-data when the token is not valid base64 bytes', async () => {
