@@ -160,6 +160,55 @@ describe('@fleet/sync-protocol copilot contract', () => {
     });
   });
 
+  describe('create_transport_order (voice dispatch, T17)', () => {
+    const order = {
+      type: 'create_transport_order',
+      commandId: GUID_A,
+      operator: { kind: 'id', idSpace: 'operatorId', id: GUID_B },
+      vehicle: { kind: 'id', idSpace: 'vehicleId', id: GUID_C },
+      customer: null,
+      cargoType: null,
+      pickupWarehouses: [{ kind: 'id', idSpace: 'warehouseId', id: GUID_B }],
+      deliveryWarehouses: [{ kind: 'id', idSpace: 'warehouseId', id: GUID_C }],
+      plannedStartDate: '2026-07-15',
+      pickupDate: '2026-07-15',
+      deliveryDate: '2026-07-15',
+    };
+    it('is in the command-type union constant', () => {
+      expect(COPILOT_COMMAND_TYPES).toContain('create_transport_order');
+    });
+    it('parses the flagship voice dispatch command', () => {
+      expect(CopilotCommandSchema.safeParse(order).success).toBe(true);
+    });
+    it('rejects a driverId ref where operatorId is required (roadRun space guard)', () => {
+      const bad = { ...order, operator: { kind: 'id', idSpace: 'driverId', id: GUID_B } };
+      expect(CopilotCommandSchema.safeParse(bad).success).toBe(false);
+    });
+    it('requires at least one pickup and one delivery warehouse', () => {
+      expect(CopilotCommandSchema.safeParse({ ...order, pickupWarehouses: [] }).success).toBe(false);
+      expect(CopilotCommandSchema.safeParse({ ...order, deliveryWarehouses: [] }).success).toBe(false);
+    });
+    it('caps pickup warehouses at 4 (board contract Diem nhan hang 1-4)', () => {
+      const w = { kind: 'id', idSpace: 'warehouseId', id: GUID_A };
+      expect(CopilotCommandSchema.safeParse({
+        ...order, pickupWarehouses: [w, w, w, w, w],
+      }).success).toBe(false);
+    });
+    it('rejects datetime where date-only is required, and unknown keys (strict)', () => {
+      expect(CopilotCommandSchema.safeParse({
+        ...order, plannedStartDate: '2026-07-15T08:00:00Z',
+      }).success).toBe(false);
+      expect(CopilotCommandSchema.safeParse({ ...order, tenantId: 'evil' }).success).toBe(false);
+    });
+    it('parses inside a full plan with Vietnamese summary', () => {
+      const plan = {
+        planId: GUID_A,
+        summaryVi: 'Sẽ tạo lệnh điều xe 62H-05194 cho tài xế Nguyễn Văn A',
+        commands: [order],
+      };
+      expect(CopilotPlanSchema.safeParse(plan).success).toBe(true);
+    });
+  });
   describe('CopilotPlanSchema', () => {
     const flagship = {
       planId: GUID_A,

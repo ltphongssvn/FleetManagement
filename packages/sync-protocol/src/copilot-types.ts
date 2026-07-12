@@ -24,6 +24,7 @@ export const COPILOT_COMMAND_TYPES = Object.freeze([
   'create_warehouse',
   'create_driver',
   'assign_driver_to_vehicle',
+  'create_transport_order',
 ] as const);
 export type CopilotCommandType = (typeof COPILOT_COMMAND_TYPES)[number];
 
@@ -146,6 +147,87 @@ const AssignDriverToVehicleSchema = z
   })
   .describe('Assign a driver to a vehicle (Chua giao -> assigned)');
 
+// Narrowed refs for create_transport_order: roadRun consumes operatorId
+// (NOT driverId) plus assetId (vehicleId space); stops/customer/cargo consume
+// their own spaces. Wrong-space refs fail at parse time.
+const OperatorIdRefSchema = z.strictObject({
+  kind: z.literal('id'),
+  idSpace: z.literal('operatorId'),
+  id: guid(),
+});
+const OperatorStepOutputRefSchema = z.strictObject({
+  kind: z.literal('stepOutput'),
+  fromCommandId: guid(),
+  output: z.literal('operatorId'),
+});
+const CustomerIdRefSchema = z.strictObject({
+  kind: z.literal('id'),
+  idSpace: z.literal('customerId'),
+  id: guid(),
+});
+const CustomerStepOutputRefSchema = z.strictObject({
+  kind: z.literal('stepOutput'),
+  fromCommandId: guid(),
+  output: z.literal('customerId'),
+});
+const CargoTypeIdRefSchema = z.strictObject({
+  kind: z.literal('id'),
+  idSpace: z.literal('cargoTypeId'),
+  id: guid(),
+});
+const CargoTypeStepOutputRefSchema = z.strictObject({
+  kind: z.literal('stepOutput'),
+  fromCommandId: guid(),
+  output: z.literal('cargoTypeId'),
+});
+const WarehouseIdRefSchema = z.strictObject({
+  kind: z.literal('id'),
+  idSpace: z.literal('warehouseId'),
+  id: guid(),
+});
+const WarehouseStepOutputRefSchema = z.strictObject({
+  kind: z.literal('stepOutput'),
+  fromCommandId: guid(),
+  output: z.literal('warehouseId'),
+});
+const WarehouseRefSchema = z.discriminatedUnion('kind', [
+  WarehouseIdRefSchema,
+  WarehouseStepOutputRefSchema,
+]);
+const DateOnly = z.iso.date();
+const CreateTransportOrderCmdSchema = z
+  .strictObject({
+    type: z.literal('create_transport_order'),
+    commandId: guid(),
+    operator: z
+      .discriminatedUnion('kind', [OperatorIdRefSchema, OperatorStepOutputRefSchema])
+      .describe('Driver reference in the operatorId space only (roadRun.assignedOperatorId)'),
+    vehicle: z
+      .discriminatedUnion('kind', [VehicleIdRefSchema, VehicleStepOutputRefSchema])
+      .describe('Vehicle reference in the vehicleId space only (roadRun.assignedAssetId)'),
+    customer: z
+      .discriminatedUnion('kind', [CustomerIdRefSchema, CustomerStepOutputRefSchema])
+      .nullable()
+      .describe('Customer ref or null (form allows empty)'),
+    cargoType: z
+      .discriminatedUnion('kind', [CargoTypeIdRefSchema, CargoTypeStepOutputRefSchema])
+      .nullable()
+      .describe('Cargo type ref or null (form allows empty)'),
+    pickupWarehouses: z
+      .array(WarehouseRefSchema)
+      .min(1)
+      .max(4)
+      .describe('Diem nhan hang 1-4: pickup warehouse refs in order'),
+    deliveryWarehouses: z
+      .array(WarehouseRefSchema)
+      .min(1)
+      .max(4)
+      .describe('Kho giao hang: delivery warehouse refs in order'),
+    plannedStartDate: DateOnly.describe('Ngay dieu xe, YYYY-MM-DD (T8 date-only)'),
+    pickupDate: DateOnly.describe('Ngay nhan hang, YYYY-MM-DD'),
+    deliveryDate: DateOnly.describe('Ngay giao hang, YYYY-MM-DD'),
+  })
+  .describe('Create a transport order (Lenh dieu xe - Tai thung) via voice dispatch');
 export const CopilotCommandSchema = z
   .discriminatedUnion('type', [
     CreateCustomerSchema,
@@ -154,6 +236,7 @@ export const CopilotCommandSchema = z
     CreateWarehouseSchema,
     CreateDriverSchema,
     AssignDriverToVehicleSchema,
+    CreateTransportOrderCmdSchema,
   ])
   .describe('One executable dispatcher command');
 export type CopilotCommand = z.infer<typeof CopilotCommandSchema>;
