@@ -3,17 +3,23 @@
 // Dispatches by platform to the injected pure verifiers -- Android Key
 // Attestation (X.509 chain -> pinned roots -> KeyDescription) and iOS App
 // Attest (CBOR -> Apple chain -> nonce/keyId/rpIdHash) -- and maps their rich
-// discriminated outcomes onto the compact AttestationOutcome union the
-// controller consumes. This supersedes the Play-Integrity model (D1: EAS APK
-// sideload makes Play Integrity verdicts unavailable; Keystore/App Attest are
-// the proofs). No crypto or network here: verifiers + trust-anchor membership
-// are injected, keeping the service a thin, unit-testable dispatch+map layer.
+// discriminated outcomes onto AttestationResult. On ok the result carries the
+// attested key material (public key SPKI, security level, environment, iOS
+// keyId) so the controller can persist it and flip the binding to pending.
+// This supersedes the Play-Integrity model (D1). No crypto or network here:
+// verifiers + trust-anchor membership are injected, keeping the service a thin
+// dispatch+map layer.
 //
 // The token carries the platform proof, base64-encoded: Android = the DER cert
-// chain (see the driver-app packing), iOS = the CBOR attestation object. The
-// challenge (expectedNonce) becomes the Android attestationChallenge and, for
-// iOS, is hashed to the clientDataHash the device signed over.
+// chain, iOS = the CBOR attestation object. The challenge (expectedNonce)
+// becomes the Android attestationChallenge and, for iOS, is hashed to the
+// clientDataHash the device signed over. Security level / environment values
+// derive from the sync-protocol SSOT enums.
 import { createHash } from 'node:crypto';
+import type {
+  AttestationSecurityLevel,
+  AttestationEnvironment,
+} from '@fleet/sync-protocol';
 import {
   type verifyAndroidKeyAttestation,
   type AndroidKeyAttestationOutcome,
@@ -23,12 +29,8 @@ import {
   type IosAppAttestOutcome,
 } from './ios-app-attest-verifier.js';
 import type { AttestationOutcome } from './attestation-verification-policy.js';
-
-// Injected verifier function types (match the pure verifiers' signatures so the
-// real functions drop in directly, and vitest mocks stand in for unit tests).
 export type VerifyAndroidFn = typeof verifyAndroidKeyAttestation;
 export type VerifyIosFn = typeof verifyIosAppAttest;
-
 export interface AttestationServiceDeps {
   readonly verifyAndroid: VerifyAndroidFn;
   readonly verifyIos: VerifyIosFn;
@@ -37,14 +39,23 @@ export interface AttestationServiceDeps {
   readonly androidPackages: readonly string[];
   readonly iosBundles: readonly string[];
 }
-
 export interface AttestationRequest {
   readonly platform: 'android' | 'ios';
   readonly token: string;
   readonly expectedNonce: string;
   readonly keyId?: string;
 }
-
+// Success carries the attested material for persistence; rejections reuse the
+// compact AttestationOutcome rejection kinds (the ok arm is replaced here).
+export type AttestationResult =
+  | {
+      readonly kind: 'ok';
+      readonly publicKeySpkiBase64: string;
+      readonly securityLevel: AttestationSecurityLevel | null;
+      readonly environment: AttestationEnvironment;
+      readonly keyId: string | null;
+    }
+  | Exclude<AttestationOutcome, { kind: 'ok' }>;
 function decodeBase64(value: string): Uint8Array | null {
   if (value.length === 0) return null;
   try {
@@ -56,9 +67,6 @@ function decodeBase64(value: string): Uint8Array | null {
     return null;
   }
 }
-
-// The driver-app packs the Android cert chain as base64 DER certs joined by a
-// single newline (one PEM-free DER blob per line). Split + decode each.
 function decodeAndroidChain(token: string): Uint8Array[] | null {
   const parts = token.split(String.fromCharCode(10)).map((s) => s.trim()).filter((s) => s.length > 0);
   if (parts.length === 0) return null;
@@ -71,11 +79,8 @@ function decodeAndroidChain(token: string): Uint8Array[] | null {
   }
   return out;
 }
-
-function mapAndroid(outcome: AndroidKeyAttestationOutcome): AttestationOutcome {
-  switch (outcome.kind) {
-    case 'ok':
-      return { kind: 'ok' };
+function mapAndroidRejection(kind: Exclude<AndroidKeyAttestationOutcome['kind'], 'ok'>): Exclude<AttestationOutcome, { kind: 'ok' }> {
+  switch (kind) {
     case 'challenge-mismatch':
       return { kind: 'nonce-mismatch' };
     case 'untrusted-root':
@@ -83,21 +88,13 @@ function mapAndroid(outcome: AndroidKeyAttestationOutcome): AttestationOutcome {
     case 'weak-security-level':
     case 'wrong-key-purpose':
       return { kind: 'device-untrusted' };
-    case 'empty-chain':
-    case 'certificate-parse-failed':
-    case 'certificate-expired':
-    case 'key-description-missing':
-      return { kind: 'invalid-platform-data' };
-    /* v8 ignore next 2 -- exhaustive switch; TS proves no other kind exists */
+    /* v8 ignore next 2 -- remaining kinds all map to invalid-platform-data */
     default:
       return { kind: 'invalid-platform-data' };
   }
 }
-
-function mapIos(outcome: IosAppAttestOutcome): AttestationOutcome {
-  switch (outcome.kind) {
-    case 'ok':
-      return { kind: 'ok' };
+function mapIosRejection(kind: Exclude<IosAppAttestOutcome['kind'], 'ok'>): Exclude<AttestationOutcome, { kind: 'ok' }> {
+  switch (kind) {
     case 'nonce-mismatch':
       return { kind: 'nonce-mismatch' };
     case 'rp-id-mismatch':
@@ -107,19 +104,14 @@ function mapIos(outcome: IosAppAttestOutcome): AttestationOutcome {
     case 'bad-counter':
     case 'key-id-mismatch':
       return { kind: 'device-untrusted' };
-    case 'malformed-object':
-    case 'certificate-expired':
-      return { kind: 'invalid-platform-data' };
-    /* v8 ignore next 2 -- exhaustive switch; TS proves no other kind exists */
+    /* v8 ignore next 2 -- remaining kinds all map to invalid-platform-data */
     default:
       return { kind: 'invalid-platform-data' };
   }
 }
-
 export class AttestationService {
   constructor(private readonly deps: AttestationServiceDeps) {}
-
-  async verify(req: AttestationRequest): Promise<AttestationOutcome> {
+  async verify(req: AttestationRequest): Promise<AttestationResult> {
     const now = new Date();
     if (req.platform === 'android') {
       const chain = decodeAndroidChain(req.token);
@@ -129,17 +121,20 @@ export class AttestationService {
         now,
         isTrustedRoot: this.deps.isTrustedRoot,
       });
-      return mapAndroid(outcome);
+      if (outcome.kind !== 'ok') return mapAndroidRejection(outcome.kind);
+      return {
+        kind: 'ok',
+        publicKeySpkiBase64: outcome.publicKeySpkiBase64,
+        securityLevel: outcome.securityLevel,
+        environment: 'production',
+        keyId: null,
+      };
     }
-    // iOS App Attest requires the client-supplied keyId.
     if (req.keyId === undefined) return { kind: 'invalid-platform-data' };
     const attestationObject = decodeBase64(req.token);
     const keyId = decodeBase64(req.keyId);
     if (attestationObject === null || keyId === null) return { kind: 'invalid-platform-data' };
     const clientDataHash = new Uint8Array(createHash('sha256').update(req.expectedNonce).digest());
-    // App Attest binds one team+bundle per deployment; the first configured
-    // bundle id is authoritative for rpIdHash. (Multiple ids are a build-profile
-    // convenience; iOS attestation targets exactly one app identity.)
     const expectedBundleId = this.deps.iosBundles[0] ?? '';
     const outcome = await this.deps.verifyIos(attestationObject, {
       keyId,
@@ -149,6 +144,13 @@ export class AttestationService {
       now,
       isTrustedRoot: this.deps.isTrustedRoot,
     });
-    return mapIos(outcome);
+    if (outcome.kind !== 'ok') return mapIosRejection(outcome.kind);
+    return {
+      kind: 'ok',
+      publicKeySpkiBase64: outcome.publicKeySpkiBase64,
+      securityLevel: null,
+      environment: outcome.environment,
+      keyId: req.keyId,
+    };
   }
 }

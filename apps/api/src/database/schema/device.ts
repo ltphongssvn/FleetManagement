@@ -1,10 +1,10 @@
 // apps/api/src/database/schema/device.ts
 // Device registry + session tables per Frozen Stack PDF "Session/revocation".
 // device_session.revoked_at is authoritative for session lifecycle.
-// Attestation columns (added Phase 4): per-device record of last accepted Play
-// Integrity / App Attest verification. Nullable until first attest; staleness is
-// enforced at policy layer (attestation-verification-policy.ts) against
-// attestation_verified_at + maxAgeMs.
+// Attestation columns: per-device record of last accepted hardware attestation
+// (Android Key Attestation / iOS App Attest). Nullable until first attest.
+// AttestationService verifies the proof and persists the attested key material
+// + flips binding_status to pending for admin activation.
 import { sql } from 'drizzle-orm';
 import { pgTable, uuid, varchar, timestamp, index, uniqueIndex, text, integer } from 'drizzle-orm/pg-core';
 import { tenancyColumns } from './tenancy.js';

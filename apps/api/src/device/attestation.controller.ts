@@ -24,7 +24,7 @@ export interface AttestationNonceStore {
   consume(operatorId: string): Promise<string | null>;
 }
 export interface AttestationRepository {
-  markAttestationVerified(input: { deviceId: string; platform: AttestationPlatform; tokenHashHex: string }): Promise<void>;
+  markAttestationVerified(input: { deviceId: string; platform: AttestationPlatform; tokenHashHex: string; publicKeySpkiBase64: string; securityLevel: string | null; environment: string; keyId: string | null }): Promise<void>;
 }
 
 // iOS App Attest additionally carries the client-generated keyId (SHA-256 of
@@ -62,7 +62,15 @@ export class AttestationController {
     const outcome = await this.svc.verify({ platform: parsed.platform, token: parsed.token, expectedNonce, ...(parsed.keyId === undefined ? {} : { keyId: parsed.keyId }) });
     if (outcome.kind !== 'ok') throw new ForbiddenException(`attestation rejected: ${outcome.kind}`);
     const tokenHashHex = createHash('sha256').update(parsed.token).digest('hex');
-    await this.repo.markAttestationVerified({ deviceId: parsed.deviceId, platform: parsed.platform, tokenHashHex });
+    await this.repo.markAttestationVerified({
+      deviceId: parsed.deviceId,
+      platform: parsed.platform,
+      tokenHashHex,
+      publicKeySpkiBase64: outcome.publicKeySpkiBase64,
+      securityLevel: outcome.securityLevel,
+      environment: outcome.environment,
+      keyId: outcome.keyId,
+    });
     return { verified: true };
   }
 }
