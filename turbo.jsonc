@@ -122,6 +122,20 @@
       "persistent": false,
       "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
     },
+    "inspect:order-state": {
+      "description": "Read-only diagnostic: print a transport order actual server-side state (transport_order row, linked road_run states + started_at/completed_at, last 20 fleet_audit_log events) resolved by --ref. Boots the standalone ProjectionRebuildModule (config + database). MUTATES NOTHING. Live DB read: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run inspect:order-state --filter=@fleet/api -- --ref XTT.07-020.",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
+    "repair:complete-delivered-runs": {
+      "description": "Event-sourced completion reconciler: drive every non-terminal road_run whose linked transport_orders are ALL fully photo-committed (committed manifests >= stop count, the same predicate the live completion gate enforces) to completed by appending road_run.completed through appendTriWrite, letting the projection runner heal dispatch_board. Heals runs stranded when intake lagged or the old departedAt-proxy made completion unreachable. DRY-RUN by default; pass -- --execute to mutate. Live DB mutation: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run repair:complete-delivered-runs --filter=@fleet/api [-- --execute].",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
     "test:integration": {
       "description": "Integration tests — need own + upstream builds + Testcontainers. Owns coverage/integration/** + test-results/integration/**.",
       "dependsOn": ["build", "^build"],
