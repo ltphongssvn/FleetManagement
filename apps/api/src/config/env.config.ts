@@ -68,11 +68,11 @@ export const EnvSchema = z.object({
   // rpIdHash check SHA256(teamId.bundleId). CSV envs -> trimmed string arrays.
   ATTESTATION_ANDROID_PACKAGE_NAMES: z
     .string()
-    .min(1)
+    .default('')
     .transform((v) => v.split(',').map((x) => x.trim()).filter((x) => x.length > 0)),
   ATTESTATION_IOS_BUNDLE_IDS: z
     .string()
-    .min(1)
+    .default('')
     .transform((v) => v.split(',').map((x) => x.trim()).filter((x) => x.length > 0)),
   ATTESTATION_APPLE_TEAM_ID: z.string().min(1).default('0000000000'),
 });
