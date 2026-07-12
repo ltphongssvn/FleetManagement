@@ -11,16 +11,14 @@ import {
   ATTESTATION_REPO,
   type AttestationNonceStore,
 } from './attestation.controller.js';
-import {
-  AttestationService,
-  type VerifyPlayIntegrityFn,
-  type VerifyAppAttestFn,
-} from './attestation.service.js';
+import { AttestationService } from './attestation.service.js';
+import { verifyAndroidKeyAttestation } from './android-key-attestation-verifier.js';
+import { verifyIosAppAttest } from './ios-app-attest-verifier.js';
+import { isTrustedAttestationRoot } from './attestation-trust-store.js';
 import { AttestationRepositoryImpl } from './attestation.repository.js';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { randomBytes } from 'node:crypto';
-
 // In-memory nonce store, operator-scoped, 5-minute TTL. Acceptable on a single
 // Railway replica; multi-replica deployments need Redis with the same contract.
 class InMemoryAttestationNonceStore implements AttestationNonceStore {
@@ -37,14 +35,6 @@ class InMemoryAttestationNonceStore implements AttestationNonceStore {
     return Promise.resolve(entry.value);
   }
 }
-
-// Placeholder verifiers. Real implementations bind google-auth-library JWS
-// verification (Play Integrity) + apple App Attest assertion verification.
-// They MUST throw on any signature or schema failure; the service maps thrown
-// errors to invalid-platform-data.
-const stubVerifyPlay: VerifyPlayIntegrityFn = (): Promise<never> => Promise.reject(new Error('Play Integrity verifier not yet configured'));
-const stubVerifyApple: VerifyAppAttestFn = (): Promise<never> => Promise.reject(new Error('App Attest verifier not yet configured'));
-
 @Module({
   imports: [AuthModule],
   controllers: [DeviceEnrollmentController, AttestationController],
@@ -63,14 +53,15 @@ const stubVerifyApple: VerifyAppAttestFn = (): Promise<never> => Promise.reject(
     {
       provide: AttestationService,
       inject: [ConfigService],
-      useFactory: (config: ConfigService): AttestationService => {
-        const androidPackages = (config.get<string>('ATTESTATION_ANDROID_PACKAGE_NAMES') ?? '').split(',').map((s) => s.trim()).filter((s) => s.length > 0);
-        const iosBundles = (config.get<string>('ATTESTATION_IOS_BUNDLE_IDS') ?? '').split(',').map((s) => s.trim()).filter((s) => s.length > 0);
-        return new AttestationService(stubVerifyPlay, stubVerifyApple, {
-          allowed: { android: androidPackages, ios: iosBundles },
-          maxAgeMs: 5 * 60 * 1000,
-        });
-      },
+      useFactory: (config: ConfigService): AttestationService =>
+        new AttestationService({
+          verifyAndroid: verifyAndroidKeyAttestation,
+          verifyIos: verifyIosAppAttest,
+          isTrustedRoot: (der) => isTrustedAttestationRoot(der, 'android') || isTrustedAttestationRoot(der, 'ios'),
+          appleTeamId: config.get<string>('ATTESTATION_APPLE_TEAM_ID') ?? '',
+          androidPackages: config.get<readonly string[]>('ATTESTATION_ANDROID_PACKAGE_NAMES') ?? [],
+          iosBundles: config.get<readonly string[]>('ATTESTATION_IOS_BUNDLE_IDS') ?? [],
+        }),
     },
   ],
   exports: [DeviceService, DeviceEnrollmentService],

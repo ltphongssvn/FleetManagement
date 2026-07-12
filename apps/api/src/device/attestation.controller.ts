@@ -27,10 +27,14 @@ export interface AttestationRepository {
   markAttestationVerified(input: { deviceId: string; platform: AttestationPlatform; tokenHashHex: string }): Promise<void>;
 }
 
+// iOS App Attest additionally carries the client-generated keyId (SHA-256 of
+// the Secure Enclave public key); Android Key Attestation has no keyId, so it
+// is optional and dispatched only for the iOS path.
 const VerifyBodySchema = z.object({
   platform: AttestationPlatformSchema,
   token: z.string().min(1),
   deviceId: z.guid(),
+  keyId: z.string().min(1).optional(),
 });
 type VerifyBody = z.infer<typeof VerifyBodySchema>;
 
@@ -55,7 +59,7 @@ export class AttestationController {
     const parsed = VerifyBodySchema.parse(body);
     const expectedNonce = await this.nonceStore.consume(op.operatorId);
     if (expectedNonce === null) throw new UnauthorizedException('no nonce issued for this operator');
-    const outcome = await this.svc.verify({ platform: parsed.platform, token: parsed.token, expectedNonce });
+    const outcome = await this.svc.verify({ platform: parsed.platform, token: parsed.token, expectedNonce, ...(parsed.keyId === undefined ? {} : { keyId: parsed.keyId }) });
     if (outcome.kind !== 'ok') throw new ForbiddenException(`attestation rejected: ${outcome.kind}`);
     const tokenHashHex = createHash('sha256').update(parsed.token).digest('hex');
     await this.repo.markAttestationVerified({ deviceId: parsed.deviceId, platform: parsed.platform, tokenHashHex });

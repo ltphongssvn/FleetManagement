@@ -61,6 +61,20 @@ export const EnvSchema = z.object({
   KEYCLOAK_MONITOR_CLIENT_SECRET: z.string().min(1).optional(),
   BREAKGLASS_USERNAME_PREFIX: z.string().min(1).default('fleet-breakglass'),
   BREAKGLASS_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
+  // Device attestation (arc: feature/device-binding). Server-side deployment
+  // constants for hardware attestation verification. The two CSV lists are the
+  // accepted app identities (an app can ship under more than one id across
+  // build profiles); ATTESTATION_APPLE_TEAM_ID feeds the iOS App Attest
+  // rpIdHash check SHA256(teamId.bundleId). CSV envs -> trimmed string arrays.
+  ATTESTATION_ANDROID_PACKAGE_NAMES: z
+    .string()
+    .min(1)
+    .transform((v) => v.split(',').map((x) => x.trim()).filter((x) => x.length > 0)),
+  ATTESTATION_IOS_BUNDLE_IDS: z
+    .string()
+    .min(1)
+    .transform((v) => v.split(',').map((x) => x.trim()).filter((x) => x.length > 0)),
+  ATTESTATION_APPLE_TEAM_ID: z.string().min(1).default('0000000000'),
 });
 export type Env = z.infer<typeof EnvSchema>;
 // Rebuild-CLI-scoped validator (follow-up #5). Derives from the SAME EnvSchema
