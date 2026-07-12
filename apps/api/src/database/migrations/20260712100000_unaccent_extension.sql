@@ -1,0 +1,11 @@
+-- apps/api/src/database/migrations/20260712100000_unaccent_extension.sql
+-- EXPAND-only, additive, idempotent: install the trusted unaccent contrib
+-- extension so diacritic-insensitive search over Vietnamese text (driver
+-- names, customer names, warehouse names) can be done purely in SQL via
+-- unaccent(col) ILIKE unaccent(term). unaccent is a TRUSTED extension (no
+-- superuser required, only CREATE on the database -- which the migration
+-- role holds), and is part of the standard postgresql-contrib package on
+-- Railway managed Postgres. IF NOT EXISTS makes re-run safe. No table
+-- rewrite, no data change. In PGLite test the unaccent contrib module is
+-- registered on the client so this same statement applies there too.
+CREATE EXTENSION IF NOT EXISTS unaccent;
