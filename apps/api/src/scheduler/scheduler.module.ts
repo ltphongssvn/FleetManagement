@@ -4,12 +4,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { OutboxModule } from '../outbox/outbox.module.js';
 import { ProjectionsModule } from '../projections/projections.module.js';
 import { CommandsModule } from '../commands/commands.module.js';
-import { SchedulerService, BREAKGLASS_MONITOR, INTAKE_LAG_MONITOR } from './scheduler.service.js';
+import { SchedulerService, BREAKGLASS_MONITOR, INTAKE_LAG_MONITOR, INTAKE_RECONCILER } from './scheduler.service.js';
 import { KeycloakEventPollCursorService } from '../security/keycloak-event-poll-cursor.service.js';
 import { KeycloakEventsClient } from '../security/keycloak-events-client.js';
 import { BreakGlassLoginMonitorService } from '../security/break-glass-login-monitor.service.js';
 import { IntakeLagMonitorService } from '../manifest/intake-lag-monitor.service.js';
 import { DrizzleIntakeLagRepo } from '../manifest/intake-lag.repo.js';
+import { IntakeReconcilerService } from '../manifest/intake-reconciler.service.js';
+import { DrizzleIntakeReconcileRepo } from '../manifest/intake-reconcile.repo.js';
 import type { Env } from '../config/env.config.js';
 
 // The break-glass monitor is provided lazily and is DORMANT unless
@@ -23,6 +25,7 @@ import type { Env } from '../config/env.config.js';
     SchedulerService,
     KeycloakEventPollCursorService,
     DrizzleIntakeLagRepo,
+    DrizzleIntakeReconcileRepo,
     {
       // Intake-lag guard (Jun-24 incident class) is ALWAYS ON: it needs only
       // the DB + Sentry (both unconditionally present), so unlike the
@@ -35,6 +38,26 @@ import type { Env } from '../config/env.config.js';
         repo: DrizzleIntakeLagRepo,
       ): IntakeLagMonitorService =>
         new IntakeLagMonitorService(repo, config.getOrThrow('INTAKE_LAG_ALERT_MINUTES', { infer: true })),
+    },
+    {
+      // Intake self-healing reconciler. ALWAYS provided but tick-gated:
+      // the factory returns null when INTAKE_RECONCILE_ENABLED is false,
+      // so SchedulerService skips the tick entirely (mirrors the
+      // break-glass dormancy pattern). Enabled is the production default.
+      provide: INTAKE_RECONCILER,
+      inject: [ConfigService, DrizzleIntakeReconcileRepo],
+      useFactory: (
+        config: ConfigService<Env, true>,
+        repo: DrizzleIntakeReconcileRepo,
+      ): IntakeReconcilerService | null => {
+        if (!config.getOrThrow('INTAKE_RECONCILE_ENABLED', { infer: true })) return null;
+        return new IntakeReconcilerService(
+          repo,
+          config.getOrThrow('INTAKE_RECONCILE_AFTER_MINUTES', { infer: true }),
+          config.getOrThrow('INTAKE_RECONCILE_MAX_ATTEMPTS', { infer: true }),
+          config.getOrThrow('INTAKE_RECONCILE_BATCH_SIZE', { infer: true }),
+        );
+      },
     },
     {
       provide: BREAKGLASS_MONITOR,
