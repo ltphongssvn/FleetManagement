@@ -23,6 +23,7 @@ export class DeviceBindingStatusAdapter implements DeviceBindingStatusPort {
     const row = rows[0];
     if (row === undefined) return null;
     const parsed = DeviceBindingStatusSchema.safeParse(row.bindingStatus);
+    /* v8 ignore next -- defensive: binding_status is written only through the schema, so an invalid enum in the column is unreachable */
     return parsed.success ? parsed.data : null;
   }
 }
