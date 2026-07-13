@@ -44,16 +44,38 @@ export type AlertsJobProcessor = (job: { readonly id?: string | null; readonly d
 export type AlertsWorkerFactory = (queueName: string, processor: AlertsJobProcessor) => WorkerLike;
 export const ALERTS_WORKER_FACTORY = 'ALERTS_WORKER_FACTORY' as const;
 
+/** Normalize a raw BullMQ job into the processor contract shape. Extracted as a
+ *  named, side-effect-free function so the id-nullish-coalescing branch is
+ *  directly unit-testable without booting a real Worker (which needs Redis).
+ *  Leaves new Worker(...) below as the only broker-coupled line. */
+export function toProcessorJob(rawJob: { readonly id?: string | null; readonly data: unknown }): { readonly id: string | null; readonly data: unknown } {
+  return { id: rawJob.id ?? null, data: rawJob.data };
+}
+/** Default factory: real BullMQ Worker on the shared connection options.
+ *  concurrency 1: alert volume is one job per created order (pilot scale);
+ *  ordered, simple, and the loud-failure semantics stay easy to reason about. */
+/** The Worker processor-arrow body, extracted as a named async function so its
+ *  delegation is directly unit-testable with a spy (the inline arrow is only
+ *  ever invoked by a live BullMQ job event, which needs Redis). Normalizes the
+ *  raw job then forwards to the injected processor. */
+export async function runAlertsJob(
+  processor: AlertsJobProcessor,
+  rawJob: { readonly id?: string | null; readonly data: unknown },
+): Promise<void> {
+  await processor(toProcessorJob(rawJob));
+}
 /** Default factory: real BullMQ Worker on the shared connection options.
  *  concurrency 1: alert volume is one job per created order (pilot scale);
  *  ordered, simple, and the loud-failure semantics stay easy to reason about. */
 export function defaultAlertsWorkerFactory(connection: ConnectionOptions): AlertsWorkerFactory {
   return (queueName, processor) =>
-    new Worker(
-      queueName,
-      async (job) => { await processor({ id: job.id ?? null, data: job.data }); },
-      { connection, concurrency: 1 },
-    );
+    new Worker(queueName, (job) => runAlertsJob(processor, job), { connection, concurrency: 1 });
+}
+/** Human-safe job label for error messages: a BullMQ job id, or 'unknown' when
+ *  absent. Extracted so the id-nullish branch is covered in ONE place rather
+ *  than duplicated across every throw site. */
+export function jobLabel(id: string | null | undefined): string {
+  return id ?? 'unknown';
 }
 
 @Injectable()
@@ -83,7 +105,8 @@ export class AlertsConsumerService implements OnModuleInit, OnModuleDestroy {
       // Poison: retries cannot fix a schema failure. UnrecoverableError makes
       // BullMQ fail the job immediately (no backoff loop).
       throw new UnrecoverableError(
-        'driver_alert job ' + (job.id ?? 'unknown') + ' schema_validation_failed: '
+        'driver_alert job ' + jobLabel(job.id) + ' schema_validation_failed: '
+        /* c8 ignore next -- a ZodError always carries >=1 issue; the ?? fallback is unreachable defensive code */
         + (parsed.error.issues[0]?.message ?? 'unknown'),
       );
     }
@@ -99,7 +122,7 @@ export class AlertsConsumerService implements OnModuleInit, OnModuleDestroy {
     });
     if (result.accepted === 0) {
       throw new Error(
-        'driver_alert job ' + (job.id ?? 'unknown') + ' accepted 0 (rejected '
+        'driver_alert job ' + jobLabel(job.id) + ' accepted 0 (rejected '
         + String(result.rejected) + ') for operator ' + assignedOperatorId,
       );
     }
