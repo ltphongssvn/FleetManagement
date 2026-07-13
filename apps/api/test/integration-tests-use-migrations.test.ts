@@ -13,7 +13,12 @@ const testDir = here;
 // Files that don't touch DB schema (commands gateway, otel) are excluded.
 // migrations.integration.test.ts is the only file allowed to import the
 // drizzle migrator directly — it tests the migrator itself.
+// app.module.integration.test.ts is the whole-graph DI smoke (lane move,
+// T17 2026-07-12): it dynamically imports AppModule and asserts definedness
+// only -- no database, no schema source, so the migrate-helper rule does
+// not apply (same class as the commands gateway and otel exemptions).
 const EXEMPT = new Set([
+  'app.module.integration.test.ts',
   'commands.gateway.integration.test.ts',
   'otel.integration.test.ts',
   'migrations.integration.test.ts',

@@ -1,4 +1,14 @@
-// apps/api/test/app.module.test.ts
+// apps/api/test/app.module.integration.test.ts
+// LANE MOVE (root-cause fix, T17 2026-07-12): this smoke dynamically imports
+// the ENTIRE Nest AppModule graph -- the single heaviest import in the repo.
+// In the unit lane it recurrently starved past its 60s budget whenever broad
+// gates or neighbor-worktree containers loaded the 9.7GiB box (2026-05-17,
+// 06-27, 07-11, 07-12), and per 2026 practice unit lanes never boot the full
+// application graph. The integration lane runs files serially
+// (fileParallelism:false) with 180s hooks -- the correct budget class for a
+// whole-graph DI smoke. The guard itself is UNCHANGED: it still catches
+// top-level module misconfiguration (e.g. a provider token added to a module
+// without its factory) on every test:integration / __ci_full__ run.
 import { describe, it, expect, beforeAll } from 'vitest';
 describe('@fleet/api - AppModule', () => {
   beforeAll(() => {
