@@ -11,6 +11,8 @@ import { AdminAssignmentService } from '../admin/admin-assignment.service.js';
 import { AdminDriversCreateService } from '../admin/admin-drivers-create.service.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { ReferenceModule } from '../reference/reference.module.js';
+import { TransportOrdersModule } from '../transport-orders/transport-orders.module.js';
+import { TransportOrdersService } from '../transport-orders/transport-orders.service.js';
 import { ReferenceService } from '../reference/reference.service.js';
 import { CopilotController } from './copilot.controller.js';
 import {
@@ -18,11 +20,13 @@ import {
   COPILOT_DRIVERS_CREATE_PORT,
   COPILOT_PLAN_EXECUTION_STORE,
   COPILOT_REFERENCE_PORT,
+  COPILOT_TRANSPORT_ORDER_PORT,
   CopilotExecutorService,
   type CopilotAssignmentPort,
   type CopilotDriversCreatePort,
   type CopilotPlanExecutionStore,
   type CopilotReferencePort,
+  type CopilotTransportOrderPort,
 } from './copilot-executor.service.js';
 import { CopilotPlanExecutionStoreService } from './copilot-plan-execution.store.js';
 import {
@@ -32,7 +36,7 @@ import {
 } from './copilot-planner.service.js';
 
 @Module({
-  imports: [AuthModule, AdminModule, ReferenceModule],
+  imports: [AuthModule, AdminModule, ReferenceModule, TransportOrdersModule],
   controllers: [CopilotController],
   providers: [
     CopilotExecutorService,
@@ -79,6 +83,11 @@ import {
       provide: COPILOT_REFERENCE_PORT,
       useFactory: (svc: ReferenceService): CopilotReferencePort => svc,
       inject: [ReferenceService],
+    },
+    {
+      provide: COPILOT_TRANSPORT_ORDER_PORT,
+      useFactory: (svc: TransportOrdersService): CopilotTransportOrderPort => svc,
+      inject: [TransportOrdersService],
     },
   ],
 })

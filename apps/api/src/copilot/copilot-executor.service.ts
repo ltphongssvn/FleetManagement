@@ -16,12 +16,17 @@ import type {
   CopilotPlan,
   FleetErrorCode,
 } from '@fleet/sync-protocol';
+import type {
+  CreateTransportOrderInput,
+  CreateTransportOrderResponse,
+} from '../transport-orders/transport-orders.dto.js';
 import { tagActiveSpan } from '../observability/otel.js';
 
 export const COPILOT_PLAN_EXECUTION_STORE = 'COPILOT_PLAN_EXECUTION_STORE';
 export const COPILOT_DRIVERS_CREATE_PORT = 'COPILOT_DRIVERS_CREATE_PORT';
 export const COPILOT_ASSIGNMENT_PORT = 'COPILOT_ASSIGNMENT_PORT';
 export const COPILOT_REFERENCE_PORT = 'COPILOT_REFERENCE_PORT';
+export const COPILOT_TRANSPORT_ORDER_PORT = 'COPILOT_TRANSPORT_ORDER_PORT';
 
 type Tenancy = Pick<OperatorContext, 'companyId' | 'businessUnitId' | 'depotId' | 'legalEntityId'>;
 
@@ -61,6 +66,16 @@ export interface CopilotReferencePort {
   ) => Promise<{ id: string; label: string }>;
 }
 
+/** Narrow surface of TransportOrdersService the executor uses. The full
+ *  create pipeline (pair guard, So Lenh numbering, tri-write, driver alert)
+ *  stays in that service; the executor only resolves refs and promotes the
+ *  T8 date-only fields to UTC-midnight datetimes like create-order.action. */
+export interface CopilotTransportOrderPort {
+  create: (
+    input: CreateTransportOrderInput,
+    op: OperatorContext,
+  ) => Promise<CreateTransportOrderResponse>;
+}
 type CommandOutcome = CopilotExecutionResult['results'][number];
 type StepOutputs = Map<string, Partial<Record<CopilotIdSpace, string>>>;
 
@@ -87,6 +102,8 @@ export class CopilotExecutorService {
     private readonly assignment: CopilotAssignmentPort,
     @Inject(COPILOT_REFERENCE_PORT)
     private readonly reference: CopilotReferencePort,
+    @Inject(COPILOT_TRANSPORT_ORDER_PORT)
+    private readonly transportOrder: CopilotTransportOrderPort,
   ) {}
 
   async execute(plan: CopilotPlan, op: OperatorContext): Promise<CopilotExecutionResult> {
@@ -199,6 +216,60 @@ export class CopilotExecutorService {
         }
         await this.assignment.assign({ driverId, vehicleId, ...tenancy });
         return { commandId: cmd.commandId, outcome: 'ok' };
+      }
+      case 'create_transport_order': {
+        const fail: CommandOutcome = {
+          commandId: cmd.commandId,
+          outcome: 'failed',
+          errorCode: 'VALIDATION_FAILED',
+        };
+        const operatorId = this.resolveId(cmd.operator, outputs);
+        const vehicleId = this.resolveId(cmd.vehicle, outputs);
+        if (operatorId === null || vehicleId === null) return fail;
+        const customerId = cmd.customer === null ? undefined : this.resolveId(cmd.customer, outputs);
+        const cargoTypeId = cmd.cargoType === null ? undefined : this.resolveId(cmd.cargoType, outputs);
+        if (customerId === null || cargoTypeId === null) return fail;
+        const pickupIds: string[] = [];
+        for (const w of cmd.pickupWarehouses) {
+          const id = this.resolveId(w, outputs);
+          if (id === null) return fail;
+          pickupIds.push(id);
+        }
+        const deliveryIds: string[] = [];
+        for (const w of cmd.deliveryWarehouses) {
+          const id = this.resolveId(w, outputs);
+          if (id === null) return fail;
+          deliveryIds.push(id);
+        }
+        const midnight = (d: string): string => d + 'T00:00:00.000Z';
+        const stops: CreateTransportOrderInput['stops'] = [
+          ...pickupIds.map((yardId, i) => ({
+            sequence: i + 1,
+            stopType: 'pickup',
+            yardId,
+            plannedAt: midnight(cmd.pickupDate),
+          })),
+          ...deliveryIds.map((yardId, i) => ({
+            sequence: pickupIds.length + i + 1,
+            stopType: 'delivery',
+            yardId,
+            plannedAt: midnight(cmd.deliveryDate),
+          })),
+        ];
+        const res = await this.transportOrder.create(
+          {
+            stops,
+            roadRun: {
+              plannedStartAt: midnight(cmd.plannedStartDate),
+              assignedOperatorId: operatorId,
+              assignedAssetId: vehicleId,
+            },
+            ...(customerId !== undefined ? { customerId } : {}),
+            ...(cargoTypeId !== undefined ? { cargoTypeId } : {}),
+          },
+          op,
+        );
+        return { commandId: cmd.commandId, outcome: 'ok', createdId: res.transportOrderId };
       }
     }
   }
