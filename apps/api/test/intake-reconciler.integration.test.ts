@@ -137,6 +137,23 @@ describe('@fleet/api - IntakeReconcilerService self-healing loop', () => {
     const attempts = await Promise.all(ids.map(async (id) => (await manifestRow(id)).attempts));
     expect(attempts).toEqual([1, 1, 1]);
   }, 60_000);
+  it('redriveOnce loses the optimistic race (attempts bumped between find and claim): no emission', async () => {
+    const id = await seedVerifyingManifest();
+    await ageManifest(id, AFTER + 5);
+    const repo = new DrizzleIntakeReconcileRepo(testDb.db);
+    const now = new Date();
+    const [candidate] = await repo.findEligible(now, AFTER, MAX, 25);
+    if (!candidate) throw new Error('expected one eligible candidate');
+    // Simulate a concurrent tick winning first: bump attempts in the DB so the
+    // optimistic guard (attempts === candidate.attempts) no longer matches.
+    await testDb.db.update(manifest)
+      .set({ intakeReconcileAttempts: candidate.attempts + 1 })
+      .where(eq(manifest.manifestId, id));
+    const baseline = (await intakeOutboxBodies()).length;
+    const claimed = await repo.redriveOnce(candidate, now);
+    expect(claimed).toBe(false);
+    expect((await intakeOutboxBodies()).length).toBe(baseline);
+  }, 60_000);
   it('max attempts quarantines in place: no emission, one fatal per episode, state untouched', async () => {
     const id = await seedVerifyingManifest();
     await ageManifest(id, AFTER + 30);

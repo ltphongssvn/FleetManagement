@@ -109,16 +109,20 @@ export class DrizzleIntakeReconcileRepo implements IntakeReconcileRepo {
       .orderBy(asc(manifest.createdAt))
       .limit(1);
     if (oldest === undefined) return null;
-    const [tally] = await this.db
+    // count(*) over a non-grouped query always returns exactly one row, so
+    // index 0 is guaranteed. Destructuring with a typed cast introduces NO
+    // branch for coverage (unlike ?? or if-undefined, which add an
+    // unreachable arm the gate then flags).
+    const [{ n: count }] = (await this.db
       .select({ n: sql<number>`count(*)::int` })
       .from(manifest)
       .where(and(
         this.verifyingWhere(),
         lt(manifest.createdAt, cutoff),
         sql`${manifest.intakeReconcileAttempts} >= ${maxAttempts}`,
-      ));
+      ))) as [{ n: number }];
     return {
-      count: tally?.n ?? 1,
+      count,
       oldestManifestId: oldest.manifestId,
       oldestAgeMinutes: Math.floor((now.getTime() - oldest.createdAt.getTime()) / 60_000),
     };
