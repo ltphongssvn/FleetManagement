@@ -73,6 +73,42 @@ export const DEVICE_BINDING_PROBLEM_CODES = [
 ] as const;
 export type DeviceBindingProblemCode = (typeof DEVICE_BINDING_PROBLEM_CODES)[number];
 
+
+// Admin binding lifecycle actions (ops-web devices approval UI -> API).
+// Cross-boundary vocabulary (admin client + API + audit), derived once here
+// via the canonical frozen-array pattern. activate: pending -> active;
+// revoke: active|pending -> revoked (terminal, recorded not deleted).
+export const DEVICE_BINDING_ACTIONS = [
+  'activate',
+  'revoke',
+] as const;
+export const DeviceBindingActionSchema = z.enum(DEVICE_BINDING_ACTIONS);
+export type DeviceBindingAction = (typeof DEVICE_BINDING_ACTIONS)[number];
+
+// PATCH /admin/devices/:deviceId/binding request body. revokedReason is
+// required when action is revoke (audit trail), rejected otherwise.
+export const DeviceBindingPatchRequestSchema = z
+  .object({
+    action: DeviceBindingActionSchema,
+    revokedReason: z.string().min(1).max(64).optional(),
+  })
+  .strict();
+export type DeviceBindingPatchRequest = z.infer<typeof DeviceBindingPatchRequestSchema>;
+
+// Admin device-list row (GET /admin/devices). Surfaces the binding lifecycle
+// + attestation provenance so a dispatcher can vet a device before activating.
+export const AdminDeviceRowSchema = z.object({
+  deviceId: z.guid(),
+  operatorId: z.guid(),
+  platform: z.string(),
+  bindingStatus: DeviceBindingStatusSchema,
+  attestationSecurityLevel: AttestationSecurityLevelSchema.nullable(),
+  attestationEnvironment: AttestationEnvironmentSchema.nullable(),
+  attestationVerifiedAt: z.string().nullable(),
+  bindingRevokedReason: z.string().nullable(),
+});
+export type AdminDeviceRow = z.infer<typeof AdminDeviceRowSchema>;
+
 // Null-never-throw parse helpers (house pattern): callers branch on null,
 // exceptions never cross the boundary.
 export function parseDeviceEnrollRequest(input: unknown): DeviceEnrollRequest | null {
