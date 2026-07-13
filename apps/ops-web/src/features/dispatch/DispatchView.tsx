@@ -176,12 +176,25 @@ function SearchBox({ group, search }: { group: BoardStatusGroup; search: string 
     const term = (e.target as HTMLInputElement).value.trim();
     window.location.assign(buildBoardHref(group, 1, term));
   };
+  // Native clear (the X on type=search) fires a change event with an empty
+  // value and NO Enter keydown, so onKeyDown never runs. Detect the field
+  // becoming empty here and return to the unfiltered board -- but only when a
+  // search was actually active, so an empty-input event on an already-
+  // unfiltered board does not trigger a redundant navigation. Typing a
+  // non-empty value does nothing here (submission stays on Enter).
+  const onChangeInput = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const value = (e.target as HTMLInputElement).value;
+    if (value === '' && search !== '') {
+      window.location.assign(buildBoardHref(group, 1, ''));
+    }
+  };
   return (
     <input
       data-testid='dispatch-board-search'
       type='search'
       defaultValue={search}
       onKeyDown={onKey}
+      onChange={onChangeInput}
       placeholder='Tìm lệnh điều xe...'
       aria-label='Tìm kiếm lệnh điều xe theo bất kỳ thông tin nào'
       className='w-56 rounded border px-2 py-1 text-sm'
