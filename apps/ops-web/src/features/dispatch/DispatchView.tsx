@@ -87,7 +87,14 @@ function formatCustomer(name: string | null): string {
 // so a partial reconciliation never shows a misleading number.
 const WEIGHT_DIFF_FORMATTER = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
 function formatWeightDiff(kg: number | null): string {
-  return kg === null ? DASH : WEIGHT_DIFF_FORMATTER.format(kg) + ' kg';
+  if (kg === null) return DASH;
+  // Collapse negative zero (a float-subtraction artifact) to a bare zero so the
+  // dispatcher never sees a misleading minus on an effectively-balanced load.
+  // signDisplay: 'negative' would do this natively, but the toolchain TS lib
+  // predates that literal (spec-late addition), so normalize in code and keep the
+  // lib-typed 'auto' semantics: negatives show a minus, positive and zero show none.
+  const normalized = Object.is(kg, -0) ? 0 : kg;
+  return WEIGHT_DIFF_FORMATTER.format(normalized) + ' kg';
 }
 // Tài xế / Xe label resolution: prefer the SERVER-resolved label (authoritative,
 // independent of the pair-filtered dropdowns). Fall back to the client lookup
@@ -316,7 +323,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                 <th className='px-3 py-2'>Xe</th>
                 <th className='px-3 py-2'>Ngày dự kiến</th>
                 <th className='px-3 py-2'>Số điểm</th>
-                <th className='px-3 py-2'>Chênh lệch</th>
+                <th className='px-3 py-2'>Chênh lệch (Số nhận - Số giao)</th>
                 <StopSlotHeaders />
               </tr>
             </thead>
