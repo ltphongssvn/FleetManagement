@@ -1,0 +1,51 @@
+{
+  "name": "@fleet/dispatcher-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Expo native dispatcher app (voice dispatch, T17): mic -> copilot plan -> TTS confirm -> visual review -> tap-only Tao lenh",
+  "main": "expo-router/entry",
+  "scripts": {
+    "android": "expo run:android",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "clean": "rimraf .expo dist .turbo coverage",
+    "ios": "expo run:ios",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix",
+    "start": "expo start",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=22.0.0 <25.0.0"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "^55.0.11",
+    "@fleet/sync-protocol": "workspace:*",
+    "expo": "^55.0.26",
+    "expo-auth-session": "~55.0.16",
+    "expo-constants": "~55.0.16",
+    "expo-crypto": "~55.0.15",
+    "expo-linking": "^55.0.15",
+    "expo-router": "~55.0.16",
+    "expo-secure-store": "~55.0.14",
+    "expo-speech": "~55.0.7",
+    "expo-speech-recognition": "3.1.3",
+    "expo-status-bar": "~55.0.6",
+    "expo-web-browser": "~55.0.16",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native": "0.83.6",
+    "react-native-safe-area-context": "5.6.2",
+    "react-native-screens": "~4.23.0",
+    "react-native-web": "^0.21.2",
+    "xstate": "^5.0.0",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.14",
+    "rimraf": "^6.0.1"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Fleet Dispatcher",
+    "slug": "fleet-dispatcher-app",
+    "version": "0.1.0",
+    "scheme": "fleet-dispatcher",
+    "orientation": "portrait",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.vominhchau.fleetdispatcher",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Ứng dụng cần micrô để nhận lệnh điều xe bằng giọng nói.",
+        "NSSpeechRecognitionUsageDescription": "Ứng dụng cần nhận dạng giọng nói để tạo lệnh điều xe."
+      }
+    },
+    "android": {
+      "package": "com.vominhchau.fleetdispatcher",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Ứng dụng cần micrô để nhận lệnh điều xe bằng giọng nói.",
+          "speechRecognitionPermission": "Ứng dụng cần nhận dạng giọng nói để tạo lệnh điều xe.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
+      ]
+    ]
+  }
+}
