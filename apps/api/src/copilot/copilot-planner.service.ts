@@ -34,6 +34,12 @@ export interface CopilotCatalogDriver {
 
 /** Read-only tenant catalog the planner resolves names/plates against. */
 export interface CopilotCatalogPort {
+  customers: (op: OperatorContext) => Promise<readonly { id: string; label: string }[]>;
+  cargoTypes: (op: OperatorContext) => Promise<readonly { id: string; label: string }[]>;
+  warehouses: (
+    op: OperatorContext,
+    role: 'pickup' | 'delivery',
+  ) => Promise<readonly { id: string; label: string }[]>;
   drivers: (op: OperatorContext) => Promise<readonly CopilotCatalogDriver[]>;
   vehiclesAdmin: (op: OperatorContext) => Promise<readonly { id: string; label: string }[]>;
 }
@@ -53,10 +59,22 @@ const DraftAssignSchema = z.strictObject({
   driverName: z.string().min(1).max(200),
   vehiclePlate: z.string().min(1).max(32),
 });
+const DraftCreateTransportOrderSchema = z.strictObject({
+  type: z.literal('create_transport_order'),
+  driverName: z.string().min(1).max(200),
+  vehiclePlate: z.string().min(1).max(32),
+  customerName: z.string().min(1).max(200).nullable(),
+  cargoName: z.string().min(1).max(200).nullable(),
+  pickupWarehouseNames: z.array(z.string().min(1).max(200)).min(1).max(4),
+  deliveryWarehouseNames: z.array(z.string().min(1).max(200)).min(1).max(4),
+  plannedStartDate: z.iso.date(),
+  pickupDate: z.iso.date(),
+  deliveryDate: z.iso.date(),
+});
 const DraftSchema = z.strictObject({
   summaryVi: z.string().min(1),
   commands: z
-    .array(z.discriminatedUnion('type', [DraftCreateDriverSchema, DraftAssignSchema]))
+    .array(z.discriminatedUnion('type', [DraftCreateDriverSchema, DraftAssignSchema, DraftCreateTransportOrderSchema]))
     .min(1),
 });
 type Draft = z.infer<typeof DraftSchema>;
@@ -123,12 +141,102 @@ export class CopilotPlannerService {
     return { kind: 'plan', plan };
   }
 
+  private async resolveTransportOrder(
+    cmd: Draft['commands'][number] & { type: 'create_transport_order' },
+    op: OperatorContext,
+    drivers: readonly CopilotCatalogDriver[],
+    vehicles: readonly { id: string; label: string }[],
+  ): Promise<CopilotCommand | CopilotPlanResponse> {
+    const plateKey = normalizePlate(cmd.vehiclePlate);
+    const vehicle = vehicles.find((v) => normalizePlate(v.label) === plateKey);
+    if (vehicle === undefined) {
+      return clarify('Không tìm thấy xe ' + plateKey + '. Vui lòng kiểm tra biển số.');
+    }
+    const matches = drivers.filter((d) => d.fullName === cmd.driverName);
+    if (matches.length !== 1) {
+      return {
+        kind: 'clarify',
+        questionVi: 'Có ' + String(matches.length) + ' tài xế tên ' + cmd.driverName + '. Bạn muốn chọn ai?',
+        candidates: matches.map((d) => ({ idSpace: 'driverId' as const, id: d.driverId, label: d.fullName })),
+      };
+    }
+    const only = matches[0];
+    if (only?.operatorId == null) {
+      return clarify('Tài xế ' + cmd.driverName + ' chưa có tài khoản điều hành. Vui lòng kiểm tra lại.');
+    }
+    const resolveByLabel = (
+      name: string,
+      list: readonly { id: string; label: string }[],
+      space: 'customerId' | 'cargoTypeId' | 'warehouseId',
+      missingVi: string,
+    ): { id: string } | CopilotPlanResponse => {
+      const found = list.filter((x) => x.label === name);
+      const head = found[0];
+      if (found.length === 1 && head !== undefined) return { id: head.id };
+      return {
+        kind: 'clarify',
+        questionVi: missingVi,
+        candidates: list.map((x) => ({ idSpace: space, id: x.id, label: x.label })),
+      };
+    };
+    const idRef = <S extends 'customerId' | 'cargoTypeId' | 'warehouseId'>(space: S, id: string): { kind: 'id'; idSpace: S; id: string } =>
+      ({ kind: 'id' as const, idSpace: space, id });
+    let customer: { kind: 'id'; idSpace: 'customerId'; id: string } | null = null;
+    if (cmd.customerName !== null) {
+      const r = resolveByLabel(cmd.customerName, await this.catalog.customers(op), 'customerId',
+        'Không tìm thấy khách hàng ' + cmd.customerName + '. Bạn muốn chọn ai?');
+      if ('kind' in r) return r;
+      customer = { kind: 'id', idSpace: 'customerId', id: r.id };
+    }
+    let cargoType: { kind: 'id'; idSpace: 'cargoTypeId'; id: string } | null = null;
+    if (cmd.cargoName !== null) {
+      const r = resolveByLabel(cmd.cargoName, await this.catalog.cargoTypes(op), 'cargoTypeId',
+        'Không tìm thấy tên hàng ' + cmd.cargoName + '. Bạn muốn chọn loại nào?');
+      if ('kind' in r) return r;
+      cargoType = { kind: 'id', idSpace: 'cargoTypeId', id: r.id };
+    }
+    const pickupList = await this.catalog.warehouses(op, 'pickup');
+    const pickupRefs: { kind: 'id'; idSpace: 'warehouseId'; id: string }[] = [];
+    for (const name of cmd.pickupWarehouseNames) {
+      const r = resolveByLabel(name, pickupList, 'warehouseId',
+        'Không tìm thấy kho nhận ' + name + '. Bạn muốn chọn kho nào?');
+      if ('kind' in r) return r;
+      pickupRefs.push(idRef('warehouseId', r.id));
+    }
+    const deliveryList = await this.catalog.warehouses(op, 'delivery');
+    const deliveryRefs: { kind: 'id'; idSpace: 'warehouseId'; id: string }[] = [];
+    for (const name of cmd.deliveryWarehouseNames) {
+      const r = resolveByLabel(name, deliveryList, 'warehouseId',
+        'Không tìm thấy kho giao ' + name + '. Bạn muốn chọn kho nào?');
+      if ('kind' in r) return r;
+      deliveryRefs.push(idRef('warehouseId', r.id));
+    }
+    return {
+      type: 'create_transport_order',
+      commandId: randomUUID(),
+      operator: { kind: 'id', idSpace: 'operatorId', id: only.operatorId },
+      vehicle: { kind: 'id', idSpace: 'vehicleId', id: vehicle.id },
+      customer,
+      cargoType,
+      pickupWarehouses: pickupRefs,
+      deliveryWarehouses: deliveryRefs,
+      plannedStartDate: cmd.plannedStartDate,
+      pickupDate: cmd.pickupDate,
+      deliveryDate: cmd.deliveryDate,
+    };
+  }
   private async resolveDraft(draft: Draft, op: OperatorContext): Promise<CopilotPlanResponse> {
     const drivers = await this.catalog.drivers(op);
     const vehicles = await this.catalog.vehiclesAdmin(op);
     const commands: CopilotCommand[] = [];
     const pendingDriverIds = new Map<string, string>();
     for (const cmd of draft.commands) {
+      if (cmd.type === 'create_transport_order') {
+        const resolved = await this.resolveTransportOrder(cmd, op, drivers, vehicles);
+        if ('kind' in resolved) return resolved;
+        commands.push(resolved);
+        continue;
+      }
       if (cmd.type === 'create_driver') {
         const commandId = randomUUID();
         pendingDriverIds.set(cmd.fullName, commandId);

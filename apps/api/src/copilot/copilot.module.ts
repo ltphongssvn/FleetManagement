@@ -57,6 +57,18 @@ import {
             phone: r.phone,
           }));
         },
+        customers: async (op) => {
+          const res = await reference.customers(op);
+          return res.items.map((i) => ({ id: i.id, label: i.label }));
+        },
+        cargoTypes: async (op) => {
+          const res = await reference.cargoTypes(op);
+          return res.items.map((i) => ({ id: i.id, label: i.label }));
+        },
+        warehouses: async (op, role) => {
+          const res = await reference.warehouses(op, role);
+          return res.items.map((i) => ({ id: i.id, label: i.label }));
+        },
         vehiclesAdmin: async (op) => {
           const res = await reference.vehiclesAdmin(op);
           return res.items.map((i) => ({ id: i.id, label: i.label }));

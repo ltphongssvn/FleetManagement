@@ -30,6 +30,9 @@ function catalog(): CopilotCatalogPort {
       ]),
     ),
     vehiclesAdmin: vi.fn(() => Promise.resolve([{ id: V1, label: '62H05194' }])),
+    customers: vi.fn(() => Promise.resolve([])),
+    cargoTypes: vi.fn(() => Promise.resolve([])),
+    warehouses: vi.fn(() => Promise.resolve([])),
   };
 }
 
@@ -37,6 +40,49 @@ function llmReturning(payload: unknown): CopilotLlmPort {
   return { proposeDraft: vi.fn(() => Promise.resolve(payload)) };
 }
 
+const C1 = 'd6ee4b21-be2c-4bbb-8c45-df17a9876335';
+const G1 = 'e7ff5c32-cf3d-4ccc-8d56-e028ba987446';
+const W1 = '11aa2b3c-4d5e-4f6a-8b9c-0d1e2f3a4b5c';
+const W2 = '22bb3c4d-5e6f-4a7b-9c8d-1e2f3a4b5c6d';
+const W3 = '33cc4d5e-6f7a-4b8c-9d0e-2f3a4b5c6d7e';
+function catalogVoice(): CopilotCatalogPort {
+  return {
+    ...catalog(),
+    customers: vi.fn(() => Promise.resolve([{ id: C1, label: 'Cty Minh Châu' }])),
+    cargoTypes: vi.fn(() => Promise.resolve([{ id: G1, label: 'Gạo' }])),
+    warehouses: vi.fn((_op: OperatorContext, role: 'pickup' | 'delivery') =>
+      Promise.resolve(
+        role === 'pickup'
+          ? [{ id: W1, label: 'Kho Long An' }]
+          : [{ id: W2, label: 'Kho Bến Lức' }],
+      ),
+    ),
+  };
+}
+function voiceDraft(): Record<string, unknown> {
+  return {
+    summaryVi: 'Sẽ tạo lệnh điều xe 62H-05194 cho Nguyễn Văn A',
+    commands: [{
+      type: 'create_transport_order',
+      driverName: 'Nguyễn Văn A',
+      vehiclePlate: '62H 05194',
+      customerName: 'Cty Minh Châu',
+      cargoName: 'Gạo',
+      pickupWarehouseNames: ['Kho Long An'],
+      deliveryWarehouseNames: ['Kho Bến Lức'],
+      plannedStartDate: '2026-07-15',
+      pickupDate: '2026-07-15',
+      deliveryDate: '2026-07-16',
+    }],
+  };
+}
+function mutateFirstCommand(d: Record<string, unknown>, patch: Record<string, unknown>): Record<string, unknown> {
+  const commands = d['commands'] as Record<string, unknown>[];
+  const head = commands[0];
+  if (head === undefined) throw new Error('draft has no commands');
+  Object.assign(head, patch);
+  return d;
+}
 describe('@fleet/api CopilotPlannerService', () => {
   it('handles the quick action without touching the LLM (Thêm tên hàng)', async () => {
     const llm = llmReturning({});
@@ -114,6 +160,7 @@ describe('@fleet/api CopilotPlannerService', () => {
 
   it('clarifies on ambiguous driver names with candidates', async () => {
     const cat: CopilotCatalogPort = {
+      ...catalogVoice(),
       drivers: vi.fn(() =>
         Promise.resolve([
           { driverId: D1, operatorId: null, fullName: 'Nguyễn Văn A', phone: '0900000123' },
@@ -164,6 +211,64 @@ describe('@fleet/api CopilotPlannerService', () => {
     expect(out.kind).toBe('clarify');
   });
 
+  describe('create_transport_order draft resolution (voice dispatch, T17)', () => {
+    it('resolves names to refs across all five catalogs', async () => {
+      const svc = new CopilotPlannerService(catalogVoice(), llmReturning(voiceDraft()));
+      const out = await svc.plan('Điều xe 62H 05194 cho Nguyễn Văn A chở Gạo', OP);
+      expect(out.kind).toBe('plan');
+      if (out.kind !== 'plan') return;
+      const cmd = out.plan.commands[0];
+      if (cmd?.type !== 'create_transport_order') throw new Error('expected order command');
+      expect(cmd.operator).toEqual({ kind: 'id', idSpace: 'operatorId', id: OP.operatorId });
+      expect(cmd.vehicle).toEqual({ kind: 'id', idSpace: 'vehicleId', id: V1 });
+      expect(cmd.customer).toEqual({ kind: 'id', idSpace: 'customerId', id: C1 });
+      expect(cmd.cargoType).toEqual({ kind: 'id', idSpace: 'cargoTypeId', id: G1 });
+      expect(cmd.pickupWarehouses).toEqual([{ kind: 'id', idSpace: 'warehouseId', id: W1 }]);
+      expect(cmd.deliveryWarehouses).toEqual([{ kind: 'id', idSpace: 'warehouseId', id: W2 }]);
+      expect(cmd.plannedStartDate).toBe('2026-07-15');
+    });
+    it('passes null customer and cargo through unresolved', async () => {
+      const d = mutateFirstCommand(voiceDraft(), { customerName: null, cargoName: null });
+      const svc = new CopilotPlannerService(catalogVoice(), llmReturning(d));
+      const out = await svc.plan('Điều xe', OP);
+      expect(out.kind).toBe('plan');
+      if (out.kind !== 'plan') return;
+      const cmd = out.plan.commands[0];
+      if (cmd?.type !== 'create_transport_order') throw new Error('expected order command');
+      expect(cmd.customer).toBeNull();
+      expect(cmd.cargoType).toBeNull();
+    });
+    it('clarifies when the named driver has no operator account', async () => {
+      const cat = catalogVoice();
+      cat.drivers = vi.fn(() => Promise.resolve([
+        { driverId: D1, operatorId: null, fullName: 'Nguyễn Văn A', phone: '0900000123' },
+      ]));
+      const svc = new CopilotPlannerService(cat, llmReturning(voiceDraft()));
+      const out = await svc.plan('Điều xe', OP);
+      expect(out.kind).toBe('clarify');
+      if (out.kind === 'clarify') expect(out.questionVi).toContain('Nguyễn Văn A');
+    });
+    it('clarifies an unknown warehouse with role-scoped candidates', async () => {
+      const d = mutateFirstCommand(voiceDraft(), { pickupWarehouseNames: ['Kho Không Tồn Tại'] });
+      const svc = new CopilotPlannerService(catalogVoice(), llmReturning(d));
+      const out = await svc.plan('Điều xe', OP);
+      expect(out.kind).toBe('clarify');
+      if (out.kind !== 'clarify') return;
+      expect(out.questionVi).toContain('Kho Không Tồn Tại');
+      expect(out.candidates?.[0]).toEqual(expect.objectContaining({ idSpace: 'warehouseId', id: W1 }));
+    });
+    it('clarifies an ambiguous customer name with candidates', async () => {
+      const cat = catalogVoice();
+      cat.customers = vi.fn(() => Promise.resolve([
+        { id: C1, label: 'Cty Minh Châu' },
+        { id: W3, label: 'Cty Minh Châu' },
+      ]));
+      const svc = new CopilotPlannerService(cat, llmReturning(voiceDraft()));
+      const out = await svc.plan('Điều xe', OP);
+      expect(out.kind).toBe('clarify');
+      if (out.kind === 'clarify') expect(out.candidates).toHaveLength(2);
+    });
+  });
   it('clarifies when no LLM port is configured and no quick action matches', async () => {
     const svc = new CopilotPlannerService(catalog(), undefined);
     const out = await svc.plan('điều phối lại toàn bộ đội xe', OP);
