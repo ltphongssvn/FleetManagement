@@ -52,6 +52,14 @@ function parsePage(raw: string | string[] | undefined): number {
   const n = Number(v);
   return Number.isFinite(n) && n >= 1 ? Math.trunc(n) : 1;
 }
+// Parse ?search= to a trimmed non-empty term, or undefined. The dispatcher
+// free-text search (any column); the API applies unaccent ILIKE. Empty/whitespace
+// => undefined so a blank box behaves exactly like no search (full board).
+function parseSearch(raw: string | string[] | undefined): string | undefined {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  const t = (v ?? '').trim();
+  return t === '' ? undefined : t;
+}
 
 export default async function HomePage(
   { searchParams }: { searchParams?: Promise<SearchParams> },
@@ -61,9 +69,10 @@ export default async function HomePage(
   const sp: SearchParams = searchParams ? await searchParams : {};
   const group = parseGroup(sp['group']);
   const page = parsePage(sp['page']);
+  const search = parseSearch(sp['search']);
   const [refs, boardPage] = await Promise.all([
     loadReferences(),
-    loadDispatchBoardPage({ group, page }),
+    loadDispatchBoardPage({ group, page, ...(search === undefined ? {} : { search }) }),
   ]);
   return (
     <AppShell {...(username ? { username } : {})}>
@@ -74,6 +83,7 @@ export default async function HomePage(
         </div>
         <DispatchView
           initialRuns={boardPage.data}
+          searchTerm={search ?? ''}
           pagination={{
             group,
             page: boardPage.page,
