@@ -33,7 +33,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as schema from '../../src/database/schema/index.js';
 import { TestPgConnectionSchema, TEST_PG_INJECT_KEY, type TestPgConnection } from './test-pg-connection-contract.js';
-import { worktreeKey, pgContainerName, WORKTREE_LABEL_KEY } from './worktree-container-identity.js';
+import { worktreeKey, pgContainerName, removeStaleWorktreeContainers, WORKTREE_LABEL_KEY } from './worktree-container-identity.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsFolder = resolve(here, '../../src/database/migrations');
@@ -63,6 +63,16 @@ export default async function setup(project: TestProject): Promise<() => Promise
   // that the next run waited on until the startup timeout. Per-worktree identity
   // is already guaranteed by .withName() + .withLabels() below, so reuse added
   // only the orphan failure mode.
+  // Start-of-run self-heal (root-cause fix, T17): an ABORTED prior run (turbo
+  // cascade-cancel, Ctrl-C, killed setup) strands the fixed-name container
+  // before the teardown owner ever registers, and the next .start() 409s on
+  // the name conflict. Removing THIS worktree''s labeled leftovers up front
+  // makes setup idempotent; global-teardown.ts remains the single removal
+  // owner at run END, this is its exact label-scoped mirror at run START.
+  const healed = removeStaleWorktreeContainers(WT_KEY);
+  if (healed > 0) {
+    process.stderr.write('[vitest globalSetup] self-healed ' + String(healed) + ' stale container(s) for worktree ' + WT_KEY + String.fromCharCode(10));
+  }
   process.env['TESTCONTAINERS_RYUK_DISABLED'] = 'true';
 
   // 1) ONE container for the whole run. The doubled "ready to accept connections"

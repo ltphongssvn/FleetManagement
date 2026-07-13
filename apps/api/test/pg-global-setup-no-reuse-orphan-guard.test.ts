@@ -52,4 +52,11 @@ describe('pg-global-setup orphan-container regression guard', () => {
     expect(codeOnly.includes('.withName(')).toBe(true);
     expect(codeOnly.includes('.withLabels(')).toBe(true);
   });
+  it('self-heals stale worktree containers BEFORE constructing the container (409 orphan cure, T17)', () => {
+    const healAt = codeOnly.indexOf('removeStaleWorktreeContainers(');
+    const startAt = codeOnly.indexOf('.start()');
+    expect(healAt).toBeGreaterThan(-1);
+    expect(startAt).toBeGreaterThan(-1);
+    expect(healAt).toBeLessThan(startAt);
+  });
 });

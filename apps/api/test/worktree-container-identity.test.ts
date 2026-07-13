@@ -14,6 +14,7 @@ import {
   worktreeKey,
   pgContainerName,
   WORKTREE_LABEL_KEY,
+  removeStaleWorktreeContainers,
 } from './helpers/worktree-container-identity.js';
 
 describe('@fleet/api worktree container identity', () => {
@@ -41,5 +42,53 @@ describe('@fleet/api worktree container identity', () => {
 
   it('exposes the label key that scopes teardown to this worktree', () => {
     expect(WORKTREE_LABEL_KEY).toBe('fleet.test.worktree');
+  });
+  // Self-heal (root-cause fix, T17): an aborted run (turbo cascade-cancel,
+  // Ctrl-C, killed setup) strands the named container BEFORE teardown
+  // ownership registers; the next .start() then 409s on the fixed name.
+  // The cure is an idempotent, label-scoped pre-clean at run START -- the
+  // exact mirror of global-teardown''s label-scoped removal at run END.
+  // Scoping invariant (2026-07-04 incident): BOTH filters must AND so no
+  // other worktree''s live container can ever be reaped.
+  describe('removeStaleWorktreeContainers (start-of-run self-heal)', () => {
+    const KEY = 'abc123def456';  // pragma: allowlist secret -- 12-hex worktree-key fixture, not a credential
+    function fakeExec(psOutput: string): {
+      calls: { cmd: string; args: readonly string[] }[];
+      exec: (cmd: string, args: readonly string[]) => string;
+    } {
+      const calls: { cmd: string; args: readonly string[] }[] = [];
+      return {
+        calls,
+        exec: (cmd: string, args: readonly string[]): string => {
+          calls.push({ cmd, args });
+          return calls.length === 1 ? psOutput : '';
+        },
+      };
+    }
+    it('lists candidates with BOTH testcontainers and worktree label filters ANDed', () => {
+      const f = fakeExec('');
+      removeStaleWorktreeContainers(KEY, f.exec);
+      expect(f.calls[0]).toEqual({
+        cmd: 'docker',
+        args: [
+          'ps', '-aq',
+          '--filter', 'label=org.testcontainers=true',
+          '--filter', 'label=' + WORKTREE_LABEL_KEY + '=' + KEY,
+        ],
+      });
+    });
+    it('force-removes exactly the listed ids and reports the count', () => {
+      const f = fakeExec('aaa' + String.fromCharCode(10) + 'bbb' + String.fromCharCode(10));
+      const removed = removeStaleWorktreeContainers(KEY, f.exec);
+      expect(removed).toBe(2);
+      expect(f.calls).toHaveLength(2);
+      expect(f.calls[1]).toEqual({ cmd: 'docker', args: ['rm', '-f', 'aaa', 'bbb'] });
+    });
+    it('is a no-op returning 0 when nothing is stale (no rm call issued)', () => {
+      const f = fakeExec('  ' + String.fromCharCode(10));
+      const removed = removeStaleWorktreeContainers(KEY, f.exec);
+      expect(removed).toBe(0);
+      expect(f.calls).toHaveLength(1);
+    });
   });
 });

@@ -13,6 +13,7 @@
 // remove its own worktree''s containers. Isolation by construction; warm
 // .withReuse() start preserved per worktree.
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 /** Docker label key scoping every test container to its owning worktree. */
 export const WORKTREE_LABEL_KEY = 'fleet.test.worktree';
@@ -26,4 +27,30 @@ export function worktreeKey(rootPath: string): string {
 /** Deterministic, docker-safe container name for this worktree''s Postgres. */
 export function pgContainerName(key: string): string {
   return 'fleet-pg-test-' + key;
+}
+
+/** Exec seam for tests: docker CLI runner returning stdout as a string. */
+export type DockerExec = (cmd: string, args: readonly string[]) => string;
+const defaultExec: DockerExec = (cmd, args) =>
+  execFileSync(cmd, [...args], { stdio: ['ignore', 'pipe', 'pipe'] }).toString();
+/** Start-of-run self-heal (root-cause fix, T17): force-remove containers left
+ *  behind by an ABORTED prior run (turbo cascade-cancel, Ctrl-C, killed
+ *  globalSetup) so the fixed-name .start() never 409s. Scoping invariant
+ *  (2026-07-04 incident): BOTH label filters AND together, so only THIS
+ *  worktree''s testcontainers can ever be reaped. Mirror of the label-scoped
+ *  removal global-teardown.ts performs at run END. Returns removed count. */
+export function removeStaleWorktreeContainers(
+  key: string,
+  exec: DockerExec = defaultExec,
+): number {
+  const raw = exec('docker', [
+    'ps', '-aq',
+    '--filter', 'label=org.testcontainers=true',
+    '--filter', 'label=' + WORKTREE_LABEL_KEY + '=' + key,
+  ]).trim();
+  if (raw.length === 0) return 0;
+  const ids = raw.split(/\s+/).filter((id) => id.length > 0);
+  if (ids.length === 0) return 0;
+  exec('docker', ['rm', '-f', ...ids]);
+  return ids.length;
 }
