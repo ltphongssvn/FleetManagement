@@ -8,8 +8,10 @@
 // contract shared by the OIDC callback, the /api/auth/refresh route, and the
 // BFF forwarder.
 import { z } from 'zod';
-import { type NextRequest } from 'next/server';
 import { TokenResponseSchema } from './oidc-authorization.schema';
+// publicOrigin now lives in its own edge-safe module (no zod) so the middleware
+// can import it; re-exported here for the callback + refresh-route call sites.
+export { publicOrigin } from './public-origin';
 
 export const SESSION_COOKIE = 'fleet_session';
 export const REFRESH_COOKIE = 'fleet_refresh';
@@ -91,29 +93,4 @@ export function refreshEnvFromProcess(): RefreshEnv | null {
     clientId: process.env['OIDC_CLIENT_ID'],
   });
   return parsed.success ? parsed.data : null;
-}
-
-// Resolve the PUBLIC origin for same-site redirect URLs. Behind Railway's
-// edge proxy, req.url's host is the container's internal bind (0.0.0.0:3001),
-// so new URL(path, req.url) would send the browser to https://0.0.0.0:3001/...
-// (ERR_ADDRESS_INVALID -- prod evidence 2026-07-11 on the session_expired
-// path). Order: x-forwarded-host/proto set by the proxy; else the origin of
-// OIDC_REDIRECT_URI (already the public callback URL); else req.url for
-// local/dev. SSOT for the OIDC callback AND the /api/auth/refresh route --
-// hoisted from the callback so no route can drift back to req.url.
-export function publicOrigin(req: NextRequest): string {
-  const forwardedHost = req.headers.get('x-forwarded-host');
-  if (forwardedHost !== null && forwardedHost.length > 0) {
-    const proto = req.headers.get('x-forwarded-proto') ?? 'https';
-    return proto + '://' + forwardedHost;
-  }
-  const redirectUri = process.env['OIDC_REDIRECT_URI'];
-  if (redirectUri !== undefined && redirectUri.length > 0) {
-    try {
-      return new URL(redirectUri).origin;
-    } catch {
-      // fall through to req.url
-    }
-  }
-  return new URL(req.url).origin;
 }
