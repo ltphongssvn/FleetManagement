@@ -33,7 +33,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as schema from '../../src/database/schema/index.js';
 import { TestPgConnectionSchema, TEST_PG_INJECT_KEY, type TestPgConnection } from './test-pg-connection-contract.js';
-import { worktreeKey, pgContainerName, WORKTREE_LABEL_KEY } from './worktree-container-identity.js';
+import { worktreeKey, pgContainerName, WORKTREE_LABEL_KEY, reapOrphanedWorktreeContainers } from './worktree-container-identity.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsFolder = resolve(here, '../../src/database/migrations');
@@ -64,6 +64,11 @@ export default async function setup(project: TestProject): Promise<() => Promise
   // is already guaranteed by .withName() + .withLabels() below, so reuse added
   // only the orphan failure mode.
   process.env['TESTCONTAINERS_RYUK_DISABLED'] = 'true';
+  // Pre-start reap: with Ryuk off, a cancelled/killed prior run leaves this
+  // worktree deterministically-named container RUNNING, and the start()
+  // below would 409 on the name conflict. Remove any such orphan first,
+  // scoped to this worktree label so parallel worktrees are untouched.
+  reapOrphanedWorktreeContainers(WT_KEY);
 
   // 1) ONE container for the whole run. The doubled "ready to accept connections"
   // wait avoids the initdb-restart race where Postgres briefly serves on a local-
