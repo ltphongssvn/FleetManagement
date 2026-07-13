@@ -55,6 +55,24 @@ describe('AdminDeviceBindingService (pglite)', () => {
     expect(rows[0]?.bindingRevokedReason).toBe('lost device');
     expect(rows[0]?.bindingRevokedAt).toBeInstanceOf(Date);
   });
+  it('list serializes attestationVerifiedAt to an ISO string when set', async () => {
+    const when = new Date();
+    await testDb.db
+      .update(deviceRegistry)
+      .set({ attestationVerifiedAt: when, attestationSecurityLevel: 'strongbox', attestationEnvironment: 'production' })
+      .where(eq(deviceRegistry.deviceId, deviceId));
+    const rows = await service.list(COMPANY);
+    expect(rows[0]?.attestationVerifiedAt).toBe(when.toISOString());
+    expect(rows[0]?.attestationSecurityLevel).toBe('strongbox');
+  });
+
+  it('revoke without a reason stores null', async () => {
+    await service.setBinding(COMPANY, deviceId, { action: 'revoke' });
+    const rows = await testDb.db.select().from(deviceRegistry).where(eq(deviceRegistry.deviceId, deviceId));
+    expect(rows[0]?.bindingStatus).toBe('revoked');
+    expect(rows[0]?.bindingRevokedReason).toBeNull();
+  });
+
   it('setBinding on another company device throws not-found', async () => {
     const otherId = await seed(OTHER_COMPANY, 'pending', '00000000-0000-0000-0000-0000000000c3');
     await expect(service.setBinding(COMPANY, otherId, { action: 'activate' })).rejects.toThrow(/not found/i);
