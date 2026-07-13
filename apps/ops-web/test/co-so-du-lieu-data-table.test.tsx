@@ -58,4 +58,24 @@ describe('DataTable', () => {
     expect(screen.getByTestId('datatable-empty')).toHaveTextContent('Không có dữ liệu');
     expect(screen.queryByText('LÊ VĂN CHÂU')).not.toBeInTheDocument();
   });
+  it('renders grouped column headers (placeholder header cells)', () => {
+    // Asymmetric depth: one ungrouped leaf (name) beside a group (plate).
+    // The lone leaf spans both header rows, so TanStack emits a PLACEHOLDER
+    // header cell for it in the second row -> exercises the isPlaceholder branch.
+    const grouped: ColumnDef<Row>[] = [
+      { accessorKey: 'name', header: 'Tài xế' },
+      {
+        id: 'nhom-xe',
+        header: 'Thông tin xe',
+        columns: [
+          { accessorKey: 'plate', header: 'Số xe' },
+        ],
+      },
+    ];
+    render(<DataTable columns={grouped} data={rows} />);
+    expect(screen.getByText('Thông tin xe')).toBeInTheDocument();
+    expect(screen.getByText('Tài xế')).toBeInTheDocument();
+    expect(screen.getByText('Số xe')).toBeInTheDocument();
+    expect(screen.getByText('LÊ VĂN CHÂU')).toBeInTheDocument();
+  });
 });
