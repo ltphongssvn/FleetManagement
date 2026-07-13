@@ -76,6 +76,14 @@ export const manifest = pgTable(
      *  survives stop edits. */
     stopId: uuid('stop_id').references(() => stop.stopId, { onDelete: 'set null' }),
     state: manifestStateEnum('state').notNull().default('pending'),
+    // Intake reconciler (T9, 2026-07-11): persisted retry bookkeeping for the
+    // self-healing loop. Attempts NEVER reset on restart (anti-pattern); the
+    // reconciler gates re-emission by exponential backoff off
+    // lastIntakeReconcileAt and quarantines in place at max attempts (rows
+    // stay verifying; manual intake:redrive is the deliberate post-fix replay
+    // and ignores this gate).
+    intakeReconcileAttempts: integer('intake_reconcile_attempts').notNull().default(0),
+    lastIntakeReconcileAt: timestamp('last_intake_reconcile_at', { withTimezone: true, mode: 'date' }),
     capturedByOperatorId: uuid('captured_by_operator_id'),
     capturedAt: timestamp('captured_at', { withTimezone: true, mode: 'date' }),
     committedAt: timestamp('committed_at', { withTimezone: true, mode: 'date' }),
