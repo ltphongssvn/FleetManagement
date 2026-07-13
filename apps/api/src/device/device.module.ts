@@ -16,6 +16,8 @@ import { verifyAndroidKeyAttestation } from './android-key-attestation-verifier.
 import { verifyIosAppAttest } from './ios-app-attest-verifier.js';
 import { isTrustedAttestationRoot } from './attestation-trust-store.js';
 import { AttestationRepositoryImpl } from './attestation.repository.js';
+import { DeviceBindingGuard, DEVICE_BINDING_STATUS_PORT } from './device-binding.guard.js';
+import { DeviceBindingStatusAdapter } from './device-binding-status.adapter.js';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { randomBytes } from 'node:crypto';
@@ -63,8 +65,14 @@ class InMemoryAttestationNonceStore implements AttestationNonceStore {
           iosBundles: config.get<readonly string[]>('ATTESTATION_IOS_BUNDLE_IDS') ?? [],
         }),
     },
+    {
+      provide: DEVICE_BINDING_STATUS_PORT,
+      inject: [DRIZZLE_DB],
+      useFactory: (db: FleetDb): DeviceBindingStatusAdapter => new DeviceBindingStatusAdapter(db),
+    },
+    DeviceBindingGuard,
   ],
-  exports: [DeviceService, DeviceEnrollmentService],
+  exports: [DeviceService, DeviceEnrollmentService, DeviceBindingGuard],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class DeviceModule {}
