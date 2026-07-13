@@ -24,6 +24,7 @@
 // The container itself is reaped by the existing global-teardown.ts (docker rm
 // of testcontainers-labeled containers), which remains wired after this setup.
 import type { TestProject } from 'vitest/node';
+import { execFileSync } from 'node:child_process';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { Wait } from 'testcontainers';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -33,7 +34,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as schema from '../../src/database/schema/index.js';
 import { TestPgConnectionSchema, TEST_PG_INJECT_KEY, type TestPgConnection } from './test-pg-connection-contract.js';
-import { worktreeKey, pgContainerName, WORKTREE_LABEL_KEY, reapOrphanedWorktreeContainers } from './worktree-container-identity.js';
+import { worktreeKey, pgContainerName, WORKTREE_LABEL_KEY } from './worktree-container-identity.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsFolder = resolve(here, '../../src/database/migrations');
@@ -45,6 +46,38 @@ export const TEMPLATE_DB_NAME = 'fleet_test_template';
 // per worktree isolates them by construction; teardown filters on the label.
 const WORKTREE_ROOT = resolve(here, '../../../..');
 const WT_KEY = worktreeKey(WORKTREE_ROOT);
+
+
+// Pre-start reap (root-cause fix 2026-07-11, SECOND orphan class, distinct
+// from the .withReuse() one): a CANCELLED run -- e.g. turbo cascade-cancel
+// killing vitest mid-flight when a sibling task of the check aggregate fails
+// -- dies BEFORE global-teardown.ts (the single removal owner) runs, and Ryuk
+// is deliberately disabled, so the deterministically-named container survives
+// RUNNING; the next start() then fails with docker 409 name-conflict. Remove
+// any leftover scoped by the SAME two labels global-teardown.ts filters on
+// (org.testcontainers=true AND this worktree label) -- never host-wide.
+// Best-effort: a docker-cli failure here is non-fatal by design; .start()
+// below remains the authoritative error surface.
+function reapOrphanedWorktreeContainers(wtKey: string): void {
+  try {
+    const raw = execFileSync(
+      'docker',
+      [
+        'ps', '-aq',
+        '--filter', 'label=org.testcontainers=true',
+        '--filter', 'label=' + WORKTREE_LABEL_KEY + '=' + wtKey,
+      ],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    ).toString().trim();
+    const ids = raw.length === 0 ? [] : raw.split(/\s+/);
+    if (ids.length === 0) return;
+    execFileSync('docker', ['rm', '-f', ...ids], { stdio: ['ignore', 'pipe', 'pipe'] });
+    process.stderr.write('[pg-global-setup] pre-start reap removed ' + String(ids.length) + ' orphaned container(s) for worktree ' + wtKey + '\n');
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stderr.write('[pg-global-setup] pre-start reap failed (non-fatal): ' + msg + '\n');
+  }
+}
 
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
   // Disable Ryuk (the Testcontainers reaper) for this run. ROOT-CAUSE history:
@@ -64,10 +97,9 @@ export default async function setup(project: TestProject): Promise<() => Promise
   // is already guaranteed by .withName() + .withLabels() below, so reuse added
   // only the orphan failure mode.
   process.env['TESTCONTAINERS_RYUK_DISABLED'] = 'true';
-  // Pre-start reap: with Ryuk off, a cancelled/killed prior run leaves this
-  // worktree deterministically-named container RUNNING, and the start()
-  // below would 409 on the name conflict. Remove any such orphan first,
-  // scoped to this worktree label so parallel worktrees are untouched.
+
+  // Self-heal any orphan from a previous cancelled/killed run BEFORE building
+  // the container -- the deterministic name makes 409 inevitable otherwise.
   reapOrphanedWorktreeContainers(WT_KEY);
 
   // 1) ONE container for the whole run. The doubled "ready to accept connections"

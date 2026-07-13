@@ -27,37 +27,3 @@ export function worktreeKey(rootPath: string): string {
 export function pgContainerName(key: string): string {
   return 'fleet-pg-test-' + key;
 }
-
-// Pre-start reap (root-cause fix, 2026-07-12): Ryuk is deliberately disabled
-// (see pg-global-setup), so a run that dies BEFORE global-teardown -- turbo
-// cascade-cancel, Ctrl-C, OOM-kill, power loss -- strands a RUNNING container
-// under this worktree's deterministic name. The next start() then fails with
-// docker 409 (container name already in use). 2026 practice with Ryuk off is a
-// label-scoped prune BEFORE construction, so however the previous run died the
-// next starts clean (self-healing by construction). Scoped by BOTH the
-// testcontainers label AND this worktree's label, exactly like teardown, so a
-// parallel worktree's live container can never be reaped. Best-effort: any
-// docker-cli failure is swallowed and .start() remains the authoritative error
-// surface (never mask a real Docker problem as a reap failure).
-import { execFileSync } from 'node:child_process';
-
-export function reapOrphanedWorktreeContainers(key: string): void {
-  try {
-    const ids = execFileSync(
-      'docker',
-      [
-        'ps', '-aq',
-        '--filter', 'label=org.testcontainers=true',
-        '--filter', 'label=' + WORKTREE_LABEL_KEY + '=' + key,
-      ],
-      { encoding: 'utf8' },
-    )
-      .split('\n')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-    if (ids.length === 0) return;
-    execFileSync('docker', ['rm', '-f', ...ids], { stdio: 'ignore' });
-  } catch {
-    // Best-effort: docker missing / cli error -> let .start() surface the truth.
-  }
-}
