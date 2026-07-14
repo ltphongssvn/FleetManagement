@@ -133,9 +133,11 @@ export {
 export {
   ExtractionJobDataWireSchema,
   EXTRACTION_STATUSES,
+  EXTRACTION_FAILURE_REASONS,
   ExtractionResultWireSchema,
   type ExtractionJobDataWire,
   type ExtractionStatus,
+  type ExtractionFailureReason,
   type ExtractionResultWire,
 } from './extraction-types.js';
 export {
