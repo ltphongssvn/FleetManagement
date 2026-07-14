@@ -35,3 +35,26 @@ export type DriverAlertJob = z.infer<typeof DriverAlertJobSchema>;
 /** Device-facing notification data payload: the job body minus the server-side address. */
 export const DriverAlertPushDataSchema = DriverAlertJobSchema.omit({ assignedOperatorId: true }).strict();
 export type DriverAlertPushData = z.infer<typeof DriverAlertPushDataSchema>;
+
+// --- Android notification-channel contract (shared SSOT) --------------------
+// Delivery-mechanics constants for the transport-order alert. Consumed by BOTH
+// the api sender (apps/api/src/push/expo-push-provider.ts stamps channelId +
+// sound on every ExpoPushMessage) AND the driver-app channel setup
+// (setNotificationChannelAsync registers the matching channel). One definition,
+// two consumers -- the same two-axis no-re-declaration rule as the schemas
+// above. These are PRESENTATION/delivery config, not wire-body fields, so they
+// live beside (not inside) the job/push-data schemas.
+/** Android channel id for transport-order alerts. VERSIONED because an Android
+ *  channel's config (sound, importance, vibration) is immutable once created
+ *  on-device: changing any of it requires a NEW id, else the old config sticks. */
+export const DRIVER_ALERT_ANDROID_CHANNEL_ID = 'transport-orders-v1' as const;
+/** Bundled custom alert sound, base filename only (Android reads it from
+ *  res/raw, iOS from the app bundle). The driver-app ships this asset and the
+ *  channel registers it; the api sender sets the same value on each message. */
+export const DRIVER_ALERT_SOUND = 'transport_alert.wav' as const;
+/** Android channel vibration pattern [wait, buzz, wait, buzz, ...] in ms. An
+ *  assertive triple-600ms buzz (vs a light [0,250,250,250] notification) so a
+ *  4AM driver feels it even pocketed / on a seat with sound suppressed --
+ *  vibration is an INDEPENDENT delivery channel from sound. The driver-app
+ *  registers this exact pattern with enableVibrate on the transport channel. */
+export const DRIVER_ALERT_VIBRATION_PATTERN: readonly number[] = [0, 600, 300, 600, 300, 600] as const;

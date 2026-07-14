@@ -11,6 +11,9 @@ import {
   DriverAlertKindSchema,
   DriverAlertJobSchema,
   DriverAlertPushDataSchema,
+  DRIVER_ALERT_ANDROID_CHANNEL_ID,
+  DRIVER_ALERT_SOUND,
+  DRIVER_ALERT_VIBRATION_PATTERN,
   type DriverAlertKind,
   type DriverAlertJob,
   type DriverAlertPushData,
@@ -92,5 +95,20 @@ describe('@fleet/sync-protocol - DriverAlertPushDataSchema (notification data wi
       assignedOperatorId: OPERATOR_ID,
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("@fleet/sync-protocol - driver alert Android channel contract (shared SSOT for api sender + driver-app channel setup)", () => {
+  it("versioned channel id is stable (channel config is immutable once created on-device)", () => {
+    expect(DRIVER_ALERT_ANDROID_CHANNEL_ID).toBe("transport-orders-v1");
+  });
+  it("custom sound is the bundled base filename (no path, no extension assumptions beyond .wav)", () => {
+    expect(DRIVER_ALERT_SOUND).toBe("transport_alert.wav");
+  });
+  it("vibration pattern is an assertive [wait, buzz, ...] ms sequence, distinct from a light notification buzz", () => {
+    expect(Array.isArray(DRIVER_ALERT_VIBRATION_PATTERN)).toBe(true);
+    expect(DRIVER_ALERT_VIBRATION_PATTERN.length).toBeGreaterThanOrEqual(4);
+    expect(DRIVER_ALERT_VIBRATION_PATTERN.every((n) => Number.isInteger(n) && n >= 0)).toBe(true);
+    expect(Math.max(...DRIVER_ALERT_VIBRATION_PATTERN)).toBeGreaterThanOrEqual(400);
   });
 });

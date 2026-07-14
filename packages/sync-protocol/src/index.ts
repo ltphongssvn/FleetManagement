@@ -249,4 +249,7 @@ export {
   type DriverAlertJob,
   DriverAlertPushDataSchema,
   type DriverAlertPushData,
+  DRIVER_ALERT_ANDROID_CHANNEL_ID,
+  DRIVER_ALERT_SOUND,
+  DRIVER_ALERT_VIBRATION_PATTERN,
 } from './driver-alert-contract.js';

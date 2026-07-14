@@ -6,23 +6,12 @@ import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { deviceRegistry } from '../database/schema/device.js';
 import type { IPushProvider, PushBody, PushSendResult } from './push-provider.interface.js';
+import { DRIVER_ALERT_ANDROID_CHANNEL_ID, DRIVER_ALERT_SOUND, DRIVER_ALERT_VIBRATION_PATTERN } from '@fleet/sync-protocol';
 
-/** Android notification channel id for transport-order alerts. Immutable contract:
- *  the driver-app registers a channel with THIS exact id + high importance + a
- *  custom sound on the ALARM audio stream. Versioned because channel config is
- *  immutable once created on-device (a config change needs a new id). */
-export const DRIVER_ALERT_ANDROID_CHANNEL_ID = 'transport-orders-v1' as const;
-/** Bundled custom alert sound filename. Must match the asset the driver-app
- *  ships and the channel registers (Android plays the channel sound; iOS plays
- *  this file). Immutable contract value. */
-export const DRIVER_ALERT_SOUND = 'transport_alert.wav' as const;
-/** Android channel vibration pattern for transport-order alerts: [wait, buzz,
- *  wait, buzz, ...] in ms. An assertive triple-600ms buzz (vs a typical light
- *  [0,250,250,250] notification) so a 4AM driver feels it even pocketed/on a
- *  seat with sound suppressed -- vibration is an INDEPENDENT delivery channel
- *  from sound. Immutable contract; the driver-app registers this exact pattern
- *  with enableVibrate on the transport-orders channel. */
-export const DRIVER_ALERT_VIBRATION_PATTERN: readonly number[] = [0, 600, 300, 600, 300, 600] as const;
+// Channel-contract constants now live in @fleet/sync-protocol (shared SSOT for
+// this api sender AND the driver-app channel setup). Re-exported so existing
+// importers of this module (its test) keep working from one place.
+export { DRIVER_ALERT_ANDROID_CHANNEL_ID, DRIVER_ALERT_SOUND, DRIVER_ALERT_VIBRATION_PATTERN };
 /** Subset of Expo client API used by the adapter. Allows injection of a fake in tests. */
 export interface ExpoLike {
   isExpoPushToken(token: unknown): boolean;
