@@ -78,4 +78,42 @@ describe('@fleet/dispatcher-app voiceDialogMachine', () => {
     expect(snap.value).toBe('idle');
     expect(snap.context.plan).toBeNull();
   });
+  it('STT error returns to idle carrying the Vietnamese message', () => {
+    const actor = startActor();
+    actor.send({ type: 'START_LISTENING' });
+    actor.send({ type: 'STT_ERROR', messageVi: 'Không nghe rõ' });
+    expect(actor.getSnapshot().value).toBe('idle');
+  });
+  it('planner error returns to idle with the message', () => {
+    const actor = startActor();
+    actor.send({ type: 'START_LISTENING' });
+    actor.send({ type: 'TRANSCRIPT', text: 'Điều xe' });
+    actor.send({ type: 'PLAN_ERROR', messageVi: 'Lỗi máy chủ' });
+    expect(actor.getSnapshot().value).toBe('idle');
+  });
+  it('submit error returns to reviewing with the plan retained for retry', () => {
+    const actor = driveToReviewing();
+    actor.send({ type: 'TAP_TAO_LENH' });
+    actor.send({ type: 'SUBMIT_ERROR', messageVi: 'Mạng lỗi' });
+    const snap = actor.getSnapshot();
+    expect(snap.value).toBe('reviewing');
+    expect(snap.context.plan?.planId).toBe(GUID_A);
+    expect(snap.context.errorVi).toBe('Mạng lỗi');
+  });
+  it('submit success reaches done and the mic restarts a fresh session', () => {
+    const actor = driveToReviewing();
+    actor.send({ type: 'TAP_TAO_LENH' });
+    actor.send({ type: 'SUBMIT_OK' });
+    expect(actor.getSnapshot().value).toBe('done');
+    actor.send({ type: 'START_LISTENING' });
+    expect(actor.getSnapshot().value).toBe('listening');
+  });
+  it('cancel while the summary is being spoken aborts to idle', () => {
+    const actor = startActor();
+    actor.send({ type: 'START_LISTENING' });
+    actor.send({ type: 'TRANSCRIPT', text: 'Điều xe' });
+    actor.send({ type: 'PLAN_OK', plan: PLAN });
+    actor.send({ type: 'TAP_CANCEL' });
+    expect(actor.getSnapshot().value).toBe('idle');
+  });
 });
