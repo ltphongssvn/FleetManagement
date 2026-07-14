@@ -5,8 +5,10 @@ import { describe, it, expect, vi } from 'vitest';
 import type { NextRequest } from 'next/server';
 vi.mock('next/server', () => ({
   NextResponse: {
-    next: vi.fn(() => ({ type: 'next' })),
+    next: vi.fn(() => ({ type: 'next', headers: new Headers() })),
     redirect: vi.fn((url) => ({ type: 'redirect', url: url.toString() })),
+    json: vi.fn((body, init) => ({ type: 'json', body, status: init?.status })),
+    rewrite: vi.fn((url) => ({ type: 'rewrite', url: url.toString() })),
   },
 }));
 function makeReq(pathname: string, cookieValue?: string): NextRequest {
@@ -23,15 +25,22 @@ describe('auth middleware', () => {
     const r = proxy(makeReq('/'));
     expect(r).toEqual({ type: 'redirect', url: 'http://localhost:3001/login' });
   });
-  it('allows /login through unauthenticated', async () => {
+  it('allows /login through unauthenticated with Cache-Control: no-transform', async () => {
+    // /login is a public HTML document; the edge would inject the beacon here
+    // too, so it also carries no-transform to prevent the #418 mismatch.
     const { proxy } = await import('@/proxy');
     const r = proxy(makeReq('/login'));
-    expect(r).toEqual({ type: 'next' });
+    expect(r.type).toBe('next');
+    expect(r.headers.get('cache-control')).toContain('no-transform');
   });
-  it('allows authenticated request through', async () => {
+  it('allows an authenticated request through with Cache-Control: no-transform', async () => {
+    // no-transform stops the Cloudflare edge from injecting its Web Analytics
+    // beacon into the HTML <body> (root cause of React #418). The authed page
+    // pass-through is the HTML document response the edge would mutate.
     const { proxy } = await import('@/proxy');
     const r = proxy(makeReq('/', 'jwt-token'));
-    expect(r).toEqual({ type: 'next' });
+    expect(r.type).toBe('next');
+    expect(r.headers.get('cache-control')).toContain('no-transform');
   });
 });
 

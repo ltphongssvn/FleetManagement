@@ -97,7 +97,7 @@ function rowValues(ws: ExcelJS.Worksheet, rowIdx: number): unknown[] {
   beforeAll(async () => {
     testDb = await startPgliteTestDb();
     svc = new TransportOrdersExportService(testDb.db as never);
-  }, 60_000);
+  });
   afterAll(async () => stopPgliteTestDb(testDb));
   beforeEach(async () => {
     await testDb.db.execute(sql.raw('TRUNCATE TABLE dispatch_board_projection CASCADE'));
@@ -303,8 +303,8 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     await wb.xlsx.load(r.buffer as unknown as ArrayBuffer);
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
     const headers = headerOf(ws);
-    expect(headers).toContain('Chênh lệch');
-    const diffCol = headers.indexOf('Chênh lệch');
+    expect(headers).toContain('Chênh lệch (Số nhận - Số giao)');
+    const diffCol = headers.indexOf('Chênh lệch (Số nhận - Số giao)');
     // Chênh lệch sits right after Số điểm (col index 5), before the stop pairs.
     expect(diffCol).toBe(6);
     const cell = ws.getRow(2).getCell(diffCol + 1).value;

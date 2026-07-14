@@ -61,8 +61,47 @@ export const EnvSchema = z.object({
   KEYCLOAK_MONITOR_CLIENT_SECRET: z.string().min(1).optional(),
   BREAKGLASS_USERNAME_PREFIX: z.string().min(1).default('fleet-breakglass'),
   BREAKGLASS_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
+  // Intake-lag regression guard (Jun-24 incident class): pages via Sentry
+  // fatal when the OLDEST verifying manifest exceeds this age -- any break in
+  // the intake loop (auth, queue, worker, relay) becomes loud within one
+  // threshold window instead of silently stranding uploads for weeks.
+  INTAKE_LAG_ALERT_MINUTES: z.coerce.number().int().positive().default(30),
+  // Intake self-healing reconciler (2026 level-based recovery loop). Every
+  // tick it re-emits the compensating intake job for verifying manifests
+  // older than AFTER_MINUTES (set below the lag ALERT threshold so auto-heal
+  // races the page), gated by exponential backoff off lastIntakeReconcileAt,
+  // bounded by MAX_ATTEMPTS and BATCH_SIZE (the per-tick retry budget). At
+  // max attempts a manifest is quarantined in place (state untouched) and a
+  // distinct Sentry fatal fires. ENABLED gates the scheduler tick; unset ->
+  // ON (self-healing is the safe default for production).
+  INTAKE_RECONCILE_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  INTAKE_RECONCILE_AFTER_MINUTES: z.coerce.number().int().positive().default(15),
+  INTAKE_RECONCILE_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
+  INTAKE_RECONCILE_BATCH_SIZE: z.coerce.number().int().positive().default(25),
 });
 export type Env = z.infer<typeof EnvSchema>;
+// Rebuild-CLI-scoped validator (follow-up #5). Derives from the SAME EnvSchema
+// SSOT via .pick() so it can never drift from the canonical contract, but
+// validates ONLY the keys the projection-rebuild standalone context needs
+// (DB connection + pilot scope) — NOT OIDC/S3/JWT, which are irrelevant to a
+// read-model rebuild and would otherwise force unrelated config to be present.
+export const RebuildEnvSchema = EnvSchema.pick({
+  NODE_ENV: true,
+  DATABASE_URL: true,
+  DB_POOL_MAX: true,
+  DB_IDLE_TIMEOUT_MS: true,
+  FLEET_PILOT_SCOPE: true,
+});
+export type RebuildEnv = z.infer<typeof RebuildEnvSchema>;
+export function validateRebuildEnv(raw: Record<string, unknown>): RebuildEnv {
+  const result = RebuildEnvSchema.safeParse(raw);
+  if (!result.success) {
+    const paths = result.error.issues.map((i) => i.path.join('.')).join(', ');
+    throw new Error(`Invalid rebuild environment at: ${paths}`);
+  }
+  return result.data;
+}
+
 export function validateEnv(raw: Record<string, unknown>): Env {
   const result = EnvSchema.safeParse(raw);
   if (!result.success) {

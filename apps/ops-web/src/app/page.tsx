@@ -44,13 +44,23 @@ type SearchParams = Record<string, string | string[] | undefined>;
 // (the default view), so a hand-edited/garbage URL never 400s the page.
 function parseGroup(raw: string | string[] | undefined): BoardStatusGroup {
   const v = Array.isArray(raw) ? raw[0] : raw;
-  return v === 'finished' ? 'finished' : 'active';
+  if (v === 'finished') return 'finished';
+  if (v === 'cancelled') return 'cancelled';
+  return 'active';
 }
 // Parse ?page= to a positive integer; default 1. The API re-validates/caps.
 function parsePage(raw: string | string[] | undefined): number {
   const v = Array.isArray(raw) ? raw[0] : raw;
   const n = Number(v);
   return Number.isFinite(n) && n >= 1 ? Math.trunc(n) : 1;
+}
+// Parse ?search= to a trimmed non-empty term, or undefined. The dispatcher
+// free-text search (any column); the API applies unaccent ILIKE. Empty/whitespace
+// => undefined so a blank box behaves exactly like no search (full board).
+function parseSearch(raw: string | string[] | undefined): string | undefined {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  const t = (v ?? '').trim();
+  return t === '' ? undefined : t;
 }
 
 export default async function HomePage(
@@ -61,9 +71,10 @@ export default async function HomePage(
   const sp: SearchParams = searchParams ? await searchParams : {};
   const group = parseGroup(sp['group']);
   const page = parsePage(sp['page']);
+  const search = parseSearch(sp['search']);
   const [refs, boardPage] = await Promise.all([
     loadReferences(),
-    loadDispatchBoardPage({ group, page }),
+    loadDispatchBoardPage({ group, page, ...(search === undefined ? {} : { search }) }),
   ]);
   return (
     <AppShell {...(username ? { username } : {})}>
@@ -74,6 +85,7 @@ export default async function HomePage(
         </div>
         <DispatchView
           initialRuns={boardPage.data}
+          searchTerm={search ?? ''}
           pagination={{
             group,
             page: boardPage.page,

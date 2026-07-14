@@ -87,7 +87,14 @@ function formatCustomer(name: string | null): string {
 // so a partial reconciliation never shows a misleading number.
 const WEIGHT_DIFF_FORMATTER = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
 function formatWeightDiff(kg: number | null): string {
-  return kg === null ? DASH : WEIGHT_DIFF_FORMATTER.format(kg) + ' kg';
+  if (kg === null) return DASH;
+  // Collapse negative zero (a float-subtraction artifact) to a bare zero so the
+  // dispatcher never sees a misleading minus on an effectively-balanced load.
+  // signDisplay: 'negative' would do this natively, but the toolchain TS lib
+  // predates that literal (spec-late addition), so normalize in code and keep the
+  // lib-typed 'auto' semantics: negatives show a minus, positive and zero show none.
+  const normalized = Object.is(kg, -0) ? 0 : kg;
+  return WEIGHT_DIFF_FORMATTER.format(normalized) + ' kg';
 }
 // Tài xế / Xe label resolution: prefer the SERVER-resolved label (authoritative,
 // independent of the pair-filtered dropdowns). Fall back to the client lookup
@@ -130,7 +137,7 @@ function OrderRefCell({ refs }: { refs: readonly string[] }): JSX.Element {
 // dispatched, started); finished = completed + cancelled. Mirrors the SSOT
 // @fleet/sync-protocol RoadRunStatusGroup (string-typed here to avoid coupling
 // the client component to the contract import; the loader/api are authoritative).
-export type BoardStatusGroup = 'active' | 'finished';
+export type BoardStatusGroup = 'active' | 'finished' | 'cancelled';
 export interface DispatchBoardPagination {
   readonly group: BoardStatusGroup;
   readonly page: number;
@@ -139,25 +146,63 @@ export interface DispatchBoardPagination {
   readonly totalPages: number;
   readonly hasMore: boolean;
 }
-// Build a shareable board URL preserving the status group and target page.
-function buildBoardHref(group: BoardStatusGroup, page: number): string {
+// Build a shareable board URL preserving status group, target page, AND the
+// active search term, so paging/tab-switching never drops the dispatcher search.
+function buildBoardHref(group: BoardStatusGroup, page: number, search: string): string {
   const qs = new URLSearchParams();
   qs.set('group', group);
   qs.set('page', String(page));
+  if (search !== '') qs.set('search', search);
   return '/?' + qs.toString();
 }
-function FilterTabs({ group }: { group: BoardStatusGroup }): JSX.Element {
+function FilterTabs({ group, search }: { group: BoardStatusGroup; search: string }): JSX.Element {
   const base = 'rounded px-3 py-1 text-sm font-medium';
   const activeCls = base + ' bg-blue-600 text-white';
   const idleCls = base + ' bg-slate-100 text-slate-600 hover:bg-slate-200';
   return (
     <div className='flex items-center gap-2' role='tablist' aria-label='Lọc theo trạng thái'>
-      <a data-testid='dispatch-board-filter-active' href={buildBoardHref('active', 1)} aria-current={group === 'active' ? 'page' : undefined} className={group === 'active' ? activeCls : idleCls}>Đang chạy</a>
-      <a data-testid='dispatch-board-filter-finished' href={buildBoardHref('finished', 1)} aria-current={group === 'finished' ? 'page' : undefined} className={group === 'finished' ? activeCls : idleCls}>Đã hoàn tất</a>
+      <a data-testid='dispatch-board-filter-active' href={buildBoardHref('active', 1, search)} aria-current={group === 'active' ? 'page' : undefined} className={group === 'active' ? activeCls : idleCls}>Đang chạy</a>
+      <a data-testid='dispatch-board-filter-finished' href={buildBoardHref('finished', 1, search)} aria-current={group === 'finished' ? 'page' : undefined} className={group === 'finished' ? activeCls : idleCls}>Đã hoàn tất</a>
+      <a data-testid='dispatch-board-filter-cancelled' href={buildBoardHref('cancelled', 1, search)} aria-current={group === 'cancelled' ? 'page' : undefined} className={group === 'cancelled' ? activeCls : idleCls}>Lệnh Hủy</a>
     </div>
   );
 }
-function PaginationBar({ pagination }: { pagination: DispatchBoardPagination }): JSX.Element {
+// Free-text search box: plain input, full-navigation on Enter to ?search= (the
+// same plain-anchor escape hatch the tabs/pagination use -> no router.push -> no
+// RSC prefetch loop). Submitting resets to page 1 of the current group. Empty
+// term navigates without the search param (full board).
+function SearchBox({ group, search }: { group: BoardStatusGroup; search: string }): JSX.Element {
+  const onKey = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key !== 'Enter') return;
+    const term = (e.target as HTMLInputElement).value.trim();
+    window.location.assign(buildBoardHref(group, 1, term));
+  };
+  // Native clear (the X on type=search) fires a change event with an empty
+  // value and NO Enter keydown, so onKeyDown never runs. Detect the field
+  // becoming empty here and return to the unfiltered board -- but only when a
+  // search was actually active, so an empty-input event on an already-
+  // unfiltered board does not trigger a redundant navigation. Typing a
+  // non-empty value does nothing here (submission stays on Enter).
+  const onChangeInput = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const value = (e.target as HTMLInputElement).value;
+    if (value === '' && search !== '') {
+      window.location.assign(buildBoardHref(group, 1, ''));
+    }
+  };
+  return (
+    <input
+      data-testid='dispatch-board-search'
+      type='search'
+      defaultValue={search}
+      onKeyDown={onKey}
+      onChange={onChangeInput}
+      placeholder='Tìm lệnh điều xe...'
+      aria-label='Tìm kiếm lệnh điều xe theo bất kỳ thông tin nào'
+      className='w-56 rounded border px-2 py-1 text-sm'
+    />
+  );
+}
+function PaginationBar({ pagination, search }: { pagination: DispatchBoardPagination; search: string }): JSX.Element {
   const { group, page, total, totalPages } = pagination;
   // Jump-to-page: full navigation to the typed page (clamped) on Enter, matching
   // the plain-anchor escape hatch (no router.push -> no RSC prefetch loop).
@@ -166,7 +211,7 @@ function PaginationBar({ pagination }: { pagination: DispatchBoardPagination }):
     const raw = Number((e.target as HTMLInputElement).value);
     if (!Number.isFinite(raw)) return;
     const target = Math.min(Math.max(Math.trunc(raw), 1), Math.max(totalPages, 1));
-    window.location.assign(buildBoardHref(group, target));
+    window.location.assign(buildBoardHref(group, target, search));
   };
   const pages: number[] = [];
   for (let p = 1; p <= totalPages; p += 1) pages.push(p);
@@ -175,7 +220,7 @@ function PaginationBar({ pagination }: { pagination: DispatchBoardPagination }):
       <span data-testid='dispatch-board-total-count' className='text-sm text-slate-500'>{'Tổng: ' + String(total) + ' lệnh'}</span>
       <div className='flex flex-wrap items-center gap-1'>
         {pages.map((p) => (
-          <a key={p} data-testid={'dispatch-board-page-link-' + String(p)} href={buildBoardHref(group, p)} aria-current={p === page ? 'page' : undefined} className={'rounded px-2 py-1 text-sm ' + (p === page ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}>{String(p)}</a>
+          <a key={p} data-testid={'dispatch-board-page-link-' + String(p)} href={buildBoardHref(group, p, search)} aria-current={p === page ? 'page' : undefined} className={'rounded px-2 py-1 text-sm ' + (p === page ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}>{String(p)}</a>
         ))}
       </div>
       <label className='flex items-center gap-1 text-sm text-slate-500'>
@@ -197,6 +242,9 @@ function PaginationBar({ pagination }: { pagination: DispatchBoardPagination }):
 export interface DispatchViewProps {
   readonly initialRuns: readonly DispatchBoardRoadRun[];
   readonly refs: Omit<CreateOrderFormProps, 'locale'> & { readonly nextOrderRef?: string };
+  // Current free-text search term (from ?search=), echoed into the search box
+  // and preserved across tab/page navigation. Empty string => no active search.
+  readonly searchTerm?: string;
   readonly onMountForTest?: (push: (externalRef: string, op: { operatorId: string; assetId: string }) => void) => void;
   // When present, the board is paginated + status-partitioned (offset pagination
   // over the current page slice in initialRuns). Absent => unpaginated board.
@@ -231,7 +279,8 @@ function mergeRuns(serverRuns: readonly DispatchBoardRoadRun[], optimistic: read
   return additions.length === 0 ? serverRuns : [...additions, ...serverRuns];
 }
 export function DispatchView(props: DispatchViewProps): JSX.Element {
-  const { initialRuns, refs, onMountForTest, pagination } = props;
+  const { initialRuns, refs, onMountForTest, pagination, searchTerm } = props;
+  const search = searchTerm ?? '';
   const router = useRouter();
   // Single source of optimistic rows: plain useState. Unlike useOptimistic,
   // this does NOT re-derive on every render, so it cannot drive a re-render
@@ -303,7 +352,8 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
           <header className='mb-4 flex items-center justify-between'>
             <h1 className='text-2xl font-semibold'>Lệnh điều xe</h1>
             <div className='flex items-center gap-2'>
-              {pagination ? <FilterTabs group={pagination.group} /> : null}
+              {pagination ? <SearchBox group={pagination.group} search={search} /> : null}
+              {pagination ? <FilterTabs group={pagination.group} search={search} /> : null}
               <ExportOrdersExcelButton /><LogoutButton />
             </div>
           </header>
@@ -316,7 +366,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                 <th className='px-3 py-2'>Xe</th>
                 <th className='px-3 py-2'>Ngày dự kiến</th>
                 <th className='px-3 py-2'>Số điểm</th>
-                <th className='px-3 py-2'>Chênh lệch</th>
+                <th className='px-3 py-2'>Chênh lệch (Số nhận - Số giao)</th>
                 <StopSlotHeaders />
               </tr>
             </thead>
@@ -338,7 +388,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
               )}
             </tbody>
           </table>
-          {pagination ? <PaginationBar pagination={pagination} /> : null}
+          {pagination ? <PaginationBar pagination={pagination} search={search} /> : null}
         </section>
       </div>
     </>
