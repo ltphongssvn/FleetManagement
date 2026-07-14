@@ -18,6 +18,7 @@ export class DeviceEnrollClient {
   constructor(private readonly config: DeviceEnrollClientConfig) {}
   async enroll(): Promise<string> {
     const token = await this.config.bearerToken();
+    /* v8 ignore next -- default-fetch fallback; tests inject fetchFn, real fetch is device-only */
     const fetchFn: FetchFn = this.config.fetchFn ?? globalThis.fetch;
     const payload: Record<string, unknown> = {
       platform: this.config.platform,
