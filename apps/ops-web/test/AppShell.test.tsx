@@ -1,30 +1,31 @@
 // apps/ops-web/test/AppShell.test.tsx
 // TDD: AppShell renders nav, brand, logout, and children.
-// T5 update: the placeholder 'Đơn hàng' and 'Báo cáo' nav links are
-// redundant href='#' dead-ends and must be removed. Tests now assert
-// their absence in addition to the still-required Điều phối / Đội xe /
-// Dữ liệu nav links.
+// Consolidation: the Doi xe (/admin/drivers) and Du lieu (/admin/reference)
+// nav links are replaced by ONE Co so du lieu link (/admin/co-so-du-lieu).
+// Tests assert the new link + href and the absence of the two old links,
+// alongside the still-required Dieu phoi link, brand, children, badge, logout.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
 vi.mock('@/features/auth/logout.action', () => ({ logout: vi.fn() }));
 describe('AppShell', () => {
-  it('renders brand and remaining nav links', async () => {
+  it('renders brand, Dieu phoi, and the consolidated Co so du lieu link', async () => {
     const { AppShell } = await import('@/features/shell/AppShell');
     render(<AppShell><div>child</div></AppShell>);
     expect(screen.getByText(/Điều phối xe/i)).toBeDefined();
     expect(screen.getByText('Điều phối')).toBeDefined();
-    expect(screen.getByText('Đội xe')).toBeDefined();
-    expect(screen.getByText('Dữ liệu')).toBeDefined();
+    const db = screen.getByRole('link', { name: 'Cơ sở dữ liệu' });
+    expect(db).toHaveAttribute('href', '/admin/co-so-du-lieu');
   });
-  it('does NOT render the redundant Đơn hàng placeholder link (T5)', async () => {
+  it('does NOT render the old Doi xe link', async () => {
     const { AppShell } = await import('@/features/shell/AppShell');
     render(<AppShell><div /></AppShell>);
-    expect(screen.queryByRole('link', { name: /^Đơn hàng$/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /^Đội xe$/ })).toBeNull();
   });
-  it('does NOT render the redundant Báo cáo placeholder link (T5)', async () => {
+  it('does NOT render the old Du lieu link', async () => {
     const { AppShell } = await import('@/features/shell/AppShell');
     render(<AppShell><div /></AppShell>);
-    expect(screen.queryByRole('link', { name: /^Báo cáo$/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /^Dữ liệu$/ })).toBeNull();
   });
   it('renders children inside main', async () => {
     const { AppShell } = await import('@/features/shell/AppShell');
