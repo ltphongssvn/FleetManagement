@@ -44,7 +44,9 @@ type SearchParams = Record<string, string | string[] | undefined>;
 // (the default view), so a hand-edited/garbage URL never 400s the page.
 function parseGroup(raw: string | string[] | undefined): BoardStatusGroup {
   const v = Array.isArray(raw) ? raw[0] : raw;
-  return v === 'finished' ? 'finished' : 'active';
+  if (v === 'finished') return 'finished';
+  if (v === 'cancelled') return 'cancelled';
+  return 'active';
 }
 // Parse ?page= to a positive integer; default 1. The API re-validates/caps.
 function parsePage(raw: string | string[] | undefined): number {

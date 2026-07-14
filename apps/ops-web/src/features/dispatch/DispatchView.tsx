@@ -137,7 +137,7 @@ function OrderRefCell({ refs }: { refs: readonly string[] }): JSX.Element {
 // dispatched, started); finished = completed + cancelled. Mirrors the SSOT
 // @fleet/sync-protocol RoadRunStatusGroup (string-typed here to avoid coupling
 // the client component to the contract import; the loader/api are authoritative).
-export type BoardStatusGroup = 'active' | 'finished';
+export type BoardStatusGroup = 'active' | 'finished' | 'cancelled';
 export interface DispatchBoardPagination {
   readonly group: BoardStatusGroup;
   readonly page: number;
@@ -163,6 +163,7 @@ function FilterTabs({ group, search }: { group: BoardStatusGroup; search: string
     <div className='flex items-center gap-2' role='tablist' aria-label='Lọc theo trạng thái'>
       <a data-testid='dispatch-board-filter-active' href={buildBoardHref('active', 1, search)} aria-current={group === 'active' ? 'page' : undefined} className={group === 'active' ? activeCls : idleCls}>Đang chạy</a>
       <a data-testid='dispatch-board-filter-finished' href={buildBoardHref('finished', 1, search)} aria-current={group === 'finished' ? 'page' : undefined} className={group === 'finished' ? activeCls : idleCls}>Đã hoàn tất</a>
+      <a data-testid='dispatch-board-filter-cancelled' href={buildBoardHref('cancelled', 1, search)} aria-current={group === 'cancelled' ? 'page' : undefined} className={group === 'cancelled' ? activeCls : idleCls}>Lệnh Hủy</a>
     </div>
   );
 }
@@ -176,12 +177,25 @@ function SearchBox({ group, search }: { group: BoardStatusGroup; search: string 
     const term = (e.target as HTMLInputElement).value.trim();
     window.location.assign(buildBoardHref(group, 1, term));
   };
+  // Native clear (the X on type=search) fires a change event with an empty
+  // value and NO Enter keydown, so onKeyDown never runs. Detect the field
+  // becoming empty here and return to the unfiltered board -- but only when a
+  // search was actually active, so an empty-input event on an already-
+  // unfiltered board does not trigger a redundant navigation. Typing a
+  // non-empty value does nothing here (submission stays on Enter).
+  const onChangeInput = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const value = (e.target as HTMLInputElement).value;
+    if (value === '' && search !== '') {
+      window.location.assign(buildBoardHref(group, 1, ''));
+    }
+  };
   return (
     <input
       data-testid='dispatch-board-search'
       type='search'
       defaultValue={search}
       onKeyDown={onKey}
+      onChange={onChangeInput}
       placeholder='Tìm lệnh điều xe...'
       aria-label='Tìm kiếm lệnh điều xe theo bất kỳ thông tin nào'
       className='w-56 rounded border px-2 py-1 text-sm'
