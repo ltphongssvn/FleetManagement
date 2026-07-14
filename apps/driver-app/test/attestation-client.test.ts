@@ -94,7 +94,57 @@ describe('AttestationClient', () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
+  it('throws when the nonce endpoint returns non-ok', async () => {
+    const integrity: AppIntegrityPort = {
+      isAvailable: vi.fn(() => Promise.resolve(true)),
+      platform: 'android',
+      prepareKey: vi.fn(),
+      attestKey: vi.fn(),
+      getCertificateChain: vi.fn(),
+    };
+    const fetchFn = vi.fn(() => Promise.resolve(jsonResponse({}, false, 401))) as unknown as typeof globalThis.fetch;
+    const client = new AttestationClient({
+      apiUrl: 'https://api.test', bearerToken: () => 'tok', integrity,
+      deviceId: '00000000-0000-0000-0000-0000000000d1', fetchFn,
+    });
+    await expect(client.attest()).rejects.toThrow(/nonce HTTP/i);
+  });
+
+  it('throws when the nonce response is missing the nonce field', async () => {
+
+    const integrity: AppIntegrityPort = {
+      isAvailable: vi.fn(() => Promise.resolve(true)),
+      platform: 'android',
+      prepareKey: vi.fn(() => Promise.resolve('k')),
+      attestKey: vi.fn(),
+      getCertificateChain: vi.fn(() => Promise.resolve(['Y2VydA=='])),
+    };
+    const fetchFn = vi.fn(() => Promise.resolve(jsonResponse({}))) as unknown as typeof globalThis.fetch;
+    const client = new AttestationClient({
+      apiUrl: 'https://api.test', bearerToken: () => 'tok', integrity,
+      deviceId: '00000000-0000-0000-0000-0000000000d1', fetchFn,
+    });
+    await expect(client.attest()).rejects.toThrow(/nonce/i);
+  });
+
+  it('throws when iOS attestation produces no object', async () => {
+    const integrity: AppIntegrityPort = {
+      isAvailable: vi.fn(() => Promise.resolve(true)),
+      platform: 'ios',
+      prepareKey: vi.fn(() => Promise.resolve('k')),
+      attestKey: vi.fn(() => Promise.resolve(undefined)),
+      getCertificateChain: vi.fn(() => Promise.resolve([])),
+    };
+    const fetchFn = makeFetch({ nonce: NONCE }, { verified: true });
+    const client = new AttestationClient({
+      apiUrl: 'https://api.test', bearerToken: () => 'tok', integrity,
+      deviceId: '00000000-0000-0000-0000-0000000000d1', fetchFn,
+    });
+    await expect(client.attest()).rejects.toThrow(/no object/i);
+  });
+
   it('throws when the verify endpoint rejects the attestation', async () => {
+
     const integrity: AppIntegrityPort = {
       isAvailable: vi.fn(() => Promise.resolve(true)),
       platform: 'android',
