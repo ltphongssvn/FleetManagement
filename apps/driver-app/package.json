@@ -27,6 +27,7 @@
     "node": ">=22.0.0 <25.0.0"
   },
   "dependencies": {
+    "@expo/app-integrity": "^57.0.0",
     "@expo/metro-runtime": "^55.0.11",
     "@fleet/observability": "workspace:*",
     "@fleet/sync-protocol": "workspace:*",
