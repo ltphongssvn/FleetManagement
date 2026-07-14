@@ -19,13 +19,15 @@ describe('@fleet/api - AppModule', () => {
     process.env['AWS_REGION'] = 'us-west-2';
     process.env['S3_ARTIFACTS_BUCKET'] = 'fleet-test';
   });
-  // No per-test timeout override: importing the full Nest AppModule graph
-  // takes ~15s isolated but can exceed 30s under the 8-package parallel
-  // turbo run (CPU contention from pglite-smoke / expo-push-provider).
-  // A hardcoded 30_000 here shadowed vitest.config.ts testTimeout:60_000
-  // and caused non-deterministic failures. Inherit the 60s config budget.
+  // Budget = the integration lane class (180s, matching this config's
+  // hookTimeout rationale: whole-graph cold-start headroom under load).
+  // History: a hardcoded 30s SHADOWED the unit config's 60s (May); the
+  // inherited 60s then outgrew the merged coverage gate (1623 tests,
+  // instrumented V8, 2026-07-13). An EXPLICIT budget in the lane's own
+  // class is the classification completed, not a contention band-aid --
+  // the unit lane stays free of this import entirely.
   it('should be defined', async () => {
     const { AppModule } = await import('../src/app.module.js');
     expect(AppModule).toBeDefined();
-  });
+  }, 180_000);
 });
