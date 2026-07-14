@@ -137,7 +137,7 @@ function OrderRefCell({ refs }: { refs: readonly string[] }): JSX.Element {
 // dispatched, started); finished = completed + cancelled. Mirrors the SSOT
 // @fleet/sync-protocol RoadRunStatusGroup (string-typed here to avoid coupling
 // the client component to the contract import; the loader/api are authoritative).
-export type BoardStatusGroup = 'active' | 'finished';
+export type BoardStatusGroup = 'active' | 'finished' | 'cancelled';
 export interface DispatchBoardPagination {
   readonly group: BoardStatusGroup;
   readonly page: number;
@@ -163,6 +163,7 @@ function FilterTabs({ group, search }: { group: BoardStatusGroup; search: string
     <div className='flex items-center gap-2' role='tablist' aria-label='Lọc theo trạng thái'>
       <a data-testid='dispatch-board-filter-active' href={buildBoardHref('active', 1, search)} aria-current={group === 'active' ? 'page' : undefined} className={group === 'active' ? activeCls : idleCls}>Đang chạy</a>
       <a data-testid='dispatch-board-filter-finished' href={buildBoardHref('finished', 1, search)} aria-current={group === 'finished' ? 'page' : undefined} className={group === 'finished' ? activeCls : idleCls}>Đã hoàn tất</a>
+      <a data-testid='dispatch-board-filter-cancelled' href={buildBoardHref('cancelled', 1, search)} aria-current={group === 'cancelled' ? 'page' : undefined} className={group === 'cancelled' ? activeCls : idleCls}>Lệnh Hủy</a>
     </div>
   );
 }
