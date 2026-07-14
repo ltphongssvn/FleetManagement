@@ -3,7 +3,7 @@
 // difference. computeWeightDiffKg + its schema-first WeightDiffStop input live
 // in @fleet/sync-protocol so the dispatch board AND the Excel export share ONE
 // computation and can never diverge. Semantics (Feature 3): sum(pickup weights)
-// minus delivery weight; null UNLESS every contributing weight is known.
+// Semantics (T18 reversal): delivery weight minus sum(pickup weights); null
 import { describe, it, expect } from 'vitest';
 import {
   WeightDiffStopSchema,
@@ -27,10 +27,10 @@ describe('WeightDiffStopSchema', () => {
 });
 
 describe('computeWeightDiffKg', () => {
-  it('returns sum(pickups) - delivery when ALL weights are known', () => {
-    // 7920 + 35080 + 48780 - 99920 === -8140-style reconciliation; use the
-    // dispatch integration fixture: pickups 1000+1860, delivery 10000 => -7140.
-    expect(computeWeightDiffKg([pickup(1000), pickup(1860), delivery(10000)])).toBe(-7140);
+  it('returns delivery - sum(pickups) when ALL weights are known', () => {
+    // delivery minus sum(pickups): use the
+    // dispatch integration fixture: delivery 10000, pickups 1000+1860 => 7140.
+    expect(computeWeightDiffKg([pickup(1000), pickup(1860), delivery(10000)])).toBe(7140);
   });
   it('returns null when a pickup weight is missing', () => {
     expect(computeWeightDiffKg([pickup(1000), pickup(null), delivery(10000)])).toBeNull();

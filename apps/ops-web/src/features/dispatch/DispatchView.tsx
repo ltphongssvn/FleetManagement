@@ -83,7 +83,7 @@ function formatCustomer(name: string | null): string {
 }
 // Chenh lech (Feature 3): the SERVER-computed pickup-vs-delivery net-weight
 // difference (kg), vi-VN grouped (12500 => 12.500 kg); sign preserved
-// (negative => delivery exceeded pickup). null => weights incomplete => em-dash,
+// (negative => pickup exceeded delivery). null => weights incomplete => em-dash,
 // so a partial reconciliation never shows a misleading number.
 const WEIGHT_DIFF_FORMATTER = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
 function formatWeightDiff(kg: number | null): string {
@@ -262,6 +262,7 @@ function makeOptimisticRow(externalRef: string, opCtx: { operatorId: string; ass
     transportOrderRefs: [externalRef],
     customerName: null,
     customerPhone: null,
+    cargoName: null,
     weightDiffKg: null,
     stops: [],
   };
@@ -361,11 +362,12 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
               <tr className='border-b text-left'>
                 <th className='px-3 py-2'>Số lệnh</th>
                 <th className='px-3 py-2'>Khách hàng</th>
+                <th className='px-3 py-2'>Tên hàng</th>
                 <th className='px-3 py-2'>Tài xế</th>
                 <th className='px-3 py-2'>Xe</th>
                 <th className='px-3 py-2'>Ngày dự kiến</th>
                 <th className='px-3 py-2'>Số điểm</th>
-                <th className='px-3 py-2'>Chênh lệch (Số nhận - Số giao)</th>
+                <th className='px-3 py-2'>Chênh lệch (Số giao - Số nhận)</th>
                 <StopSlotHeaders />
               </tr>
             </thead>
@@ -374,6 +376,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                 <tr key={r.roadRunId} data-testid={'dispatch-board-rr-' + r.roadRunId} className='border-b'>
                   <td className='px-3 py-2'><OrderRefCell refs={r.transportOrderRefs} /></td>
                   <td className='px-3 py-2'><CustomerCell name={r.customerName} phone={r.customerPhone} state={r.state} primaryRef={formatOrderRef(r.transportOrderRefs)} /></td>
+                  <td className='px-3 py-2' data-testid={'dispatch-board-cargo-' + formatOrderRef(r.transportOrderRefs)}>{formatCustomer(r.cargoName)}</td>
                   <td className='px-3 py-2'>{resolveLabel(r.driverName, r.assignedOperatorId, driverLookup)}</td>
                   <td className='px-3 py-2'>{resolveLabel(r.vehiclePlate, r.assignedAssetId, vehicleLookup)}</td>
                   <td className='px-3 py-2'>{formatPlannedStart(r.plannedStartAt)}</td>
@@ -383,7 +386,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                 </tr>
               ))}
               {merged.length === 0 && (
-                <tr><td colSpan={7 + STOP_SLOT_COL_COUNT} className='px-3 py-6 text-center text-slate-500'>Chưa có lệnh điều xe nào.</td></tr>
+                <tr><td colSpan={8 + STOP_SLOT_COL_COUNT} className='px-3 py-6 text-center text-slate-500'>Chưa có lệnh điều xe nào.</td></tr>
               )}
             </tbody>
           </table>
