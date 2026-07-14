@@ -62,7 +62,12 @@ describe('@fleet/api - single-shared-container structural guard', () => {
       // The single owner + this guard file itself (which names the class in prose)
       // are exempt.
       .filter((rel) => !rel.endsWith(ALLOWED_CONTAINER_OWNER))
-      .filter((rel) => !rel.endsWith('testcontainer-single-shared-container.guard.test.ts'));
+      .filter((rel) => !rel.endsWith('testcontainer-single-shared-container.guard.test.ts'))
+      // The pre-start reap guard asserts on indexOf('new PostgreSqlContainer')
+      // to pin the reap-before-construct ordering; it references the class
+      // name in an assertion string, not a constructor call. Same class of
+      // exemption as this guard file itself.
+      .filter((rel) => !rel.endsWith('pg-global-setup-preflight-reap-guard.test.ts'));
     expect(offenders).toEqual([]);
   });
 });
