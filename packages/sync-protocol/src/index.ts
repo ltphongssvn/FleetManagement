@@ -241,3 +241,11 @@ export {
   parseCopilotPlanResponse,
   parseCopilotExecutionResult,
 } from './copilot-types.js';
+export {
+  DRIVER_DB_STATUSES,
+  driverDbStatusSchema,
+  type DriverDbStatus,
+  DRIVER_DB_STATUS_PLACEHOLDER_APP_VERSION,
+  type DriverDbStatusFacts,
+  classifyDriverDbStatus,
+} from './co-so-du-lieu-contract.js';
