@@ -16,11 +16,13 @@ import { CommandsGateway } from '../commands/commands.gateway.js';
 import type { BreakGlassLoginMonitorService } from '../security/break-glass-login-monitor.service.js';
 import type { IntakeLagMonitorService } from '../manifest/intake-lag-monitor.service.js';
 import type { IntakeReconcilerService } from '../manifest/intake-reconciler.service.js';
+import type { CompletionReconcilerMonitorService } from '../maintenance/completion-reconciler-monitor.service.js';
 import type { Env } from '../config/env.config.js';
 
 export const BREAKGLASS_MONITOR = 'BREAKGLASS_MONITOR' as const;
 export const INTAKE_LAG_MONITOR = 'INTAKE_LAG_MONITOR' as const;
 export const INTAKE_RECONCILER = 'INTAKE_RECONCILER' as const;
+export const COMPLETION_RECONCILER_MONITOR = 'COMPLETION_RECONCILER_MONITOR' as const;
 
 const DRAIN_INTERVAL_MS = 5_000;
 const RECONCILE_INTERVAL_MS = 2_000;
@@ -29,8 +31,11 @@ const INTAKE_LAG_INTERVAL_MS = 300_000;
 // Reconciler tick: same 5-min cadence as the lag monitor. Backoff gating
 // lives in the query, so a frequent tick is cheap and shortens recovery.
 const INTAKE_RECONCILE_INTERVAL_MS = 300_000;
+// Completion-stranded monitor tick: same 5-min cadence as the lag monitor.
+// Threshold gating lives in the query/service, so a frequent tick is cheap.
+const COMPLETION_MONITOR_INTERVAL_MS = 300_000;
 
-type SchedulerKind = 'outbox' | 'projection' | 'reconciler' | 'breakglass' | 'intakeLag' | 'intakeReconcile';
+type SchedulerKind = 'outbox' | 'projection' | 'reconciler' | 'breakglass' | 'intakeLag' | 'intakeReconcile' | 'completionMonitor';
 
 @Injectable()
 export class SchedulerService implements OnModuleInit, OnModuleDestroy {
@@ -42,6 +47,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   private breakglassTimer: NodeJS.Timeout | null = null;
   private intakeLagTimer: NodeJS.Timeout | null = null;
   private intakeReconcileTimer: NodeJS.Timeout | null = null;
+  private completionMonitorTimer: NodeJS.Timeout | null = null;
   private stopped = false;
   constructor(
     private readonly outboxRelay: OutboxRelayService,
@@ -57,6 +63,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     @Optional()
     @Inject(INTAKE_RECONCILER)
     private readonly intakeReconciler: IntakeReconcilerService | null = null,
+    @Optional()
+    @Inject(COMPLETION_RECONCILER_MONITOR)
+    private readonly completionMonitor: CompletionReconcilerMonitorService | null = null,
   ) {
     this.pilotScope = config.getOrThrow('FLEET_PILOT_SCOPE', { infer: true });
   }
@@ -67,6 +76,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     if (this.breakGlassMonitor !== null) this.scheduleNext('breakglass');
     if (this.intakeLagMonitor !== null) this.scheduleNext('intakeLag');
     if (this.intakeReconciler !== null) this.scheduleNext('intakeReconcile');
+    if (this.completionMonitor !== null) this.scheduleNext('completionMonitor');
   }
   onModuleDestroy(): void {
     if (this.outboxTimer !== null) {
@@ -93,6 +103,10 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       clearTimeout(this.intakeReconcileTimer);
       this.intakeReconcileTimer = null;
     }
+    if (this.completionMonitorTimer !== null) {
+      clearTimeout(this.completionMonitorTimer);
+      this.completionMonitorTimer = null;
+    }
     this.stopped = true;
   }
 
@@ -118,6 +132,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       case 'intakeReconcile':
         this.intakeReconcileTimer = setTimeout(tick, INTAKE_RECONCILE_INTERVAL_MS);
         return;
+      case 'completionMonitor':
+        this.completionMonitorTimer = setTimeout(tick, COMPLETION_MONITOR_INTERVAL_MS);
+        return;
       default: {
         const _exhaustive: never = kind;
         throw new Error(`unknown scheduler kind: ${String(_exhaustive)}`);
@@ -133,6 +150,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       case 'breakglass': return 'breakglass-scan';
       case 'intakeLag': return 'intake-lag-check';
       case 'intakeReconcile': return 'intake-reconcile';
+      case 'completionMonitor': return 'completion-monitor-check';
       default: {
         const _exhaustive: never = kind;
         throw new Error(`unknown scheduler kind: ${String(_exhaustive)}`);
@@ -147,6 +165,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       case 'breakglass': return 'Break-glass poll failed: ';
       case 'intakeLag': return 'Intake-lag check failed: ';
       case 'intakeReconcile': return 'Intake reconcile failed: ';
+      case 'completionMonitor': return 'Completion monitor check failed: ';
       default: {
         const _exhaustive: never = kind;
         throw new Error(`unknown scheduler kind: ${String(_exhaustive)}`);
@@ -172,6 +191,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
         return;
       case 'intakeReconcile':
         if (this.intakeReconciler !== null) await this.intakeReconciler.reconcileOnce();
+        return;
+      case 'completionMonitor':
+        if (this.completionMonitor !== null) await this.completionMonitor.checkOnce();
         return;
       default: {
         const _exhaustive: never = kind;
@@ -207,4 +229,5 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   async drainBreakglass(): Promise<void> { await this.runDrain('breakglass'); }
   async drainIntakeLag(): Promise<void> { await this.runDrain('intakeLag'); }
   async drainIntakeReconcile(): Promise<void> { await this.runDrain('intakeReconcile'); }
+  async drainCompletionMonitor(): Promise<void> { await this.runDrain('completionMonitor'); }
 }

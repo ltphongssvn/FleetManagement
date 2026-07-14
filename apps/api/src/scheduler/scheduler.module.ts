@@ -4,7 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { OutboxModule } from '../outbox/outbox.module.js';
 import { ProjectionsModule } from '../projections/projections.module.js';
 import { CommandsModule } from '../commands/commands.module.js';
-import { SchedulerService, BREAKGLASS_MONITOR, INTAKE_LAG_MONITOR, INTAKE_RECONCILER } from './scheduler.service.js';
+import { SchedulerService, BREAKGLASS_MONITOR, INTAKE_LAG_MONITOR, INTAKE_RECONCILER, COMPLETION_RECONCILER_MONITOR } from './scheduler.service.js';
 import { KeycloakEventPollCursorService } from '../security/keycloak-event-poll-cursor.service.js';
 import { KeycloakEventsClient } from '../security/keycloak-events-client.js';
 import { BreakGlassLoginMonitorService } from '../security/break-glass-login-monitor.service.js';
@@ -12,6 +12,8 @@ import { IntakeLagMonitorService } from '../manifest/intake-lag-monitor.service.
 import { DrizzleIntakeLagRepo } from '../manifest/intake-lag.repo.js';
 import { IntakeReconcilerService } from '../manifest/intake-reconciler.service.js';
 import { DrizzleIntakeReconcileRepo } from '../manifest/intake-reconcile.repo.js';
+import { CompletionReconcilerMonitorService } from '../maintenance/completion-reconciler-monitor.service.js';
+import { DrizzleCompletionStrandedRepo, COMPLETION_STRANDED_PILOT_SCOPE } from '../maintenance/completion-stranded.repo.js';
 import type { Env } from '../config/env.config.js';
 
 // The break-glass monitor is provided lazily and is DORMANT unless
@@ -26,6 +28,16 @@ import type { Env } from '../config/env.config.js';
     KeycloakEventPollCursorService,
     DrizzleIntakeLagRepo,
     DrizzleIntakeReconcileRepo,
+    {
+      // The completion-stranded repo is company-scoped (the finder filters by
+      // companyId); supply the pilot scope from config so the monitor reads the
+      // same tenant the projection runner drains.
+      provide: COMPLETION_STRANDED_PILOT_SCOPE,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<Env, true>): string =>
+        config.getOrThrow('FLEET_PILOT_SCOPE', { infer: true }),
+    },
+    DrizzleCompletionStrandedRepo,
     {
       // Intake-lag guard (Jun-24 incident class) is ALWAYS ON: it needs only
       // the DB + Sentry (both unconditionally present), so unlike the
@@ -56,6 +68,25 @@ import type { Env } from '../config/env.config.js';
           config.getOrThrow('INTAKE_RECONCILE_AFTER_MINUTES', { infer: true }),
           config.getOrThrow('INTAKE_RECONCILE_MAX_ATTEMPTS', { infer: true }),
           config.getOrThrow('INTAKE_RECONCILE_BATCH_SIZE', { infer: true }),
+        );
+      },
+    },
+    {
+      // Completion-stranded proactive monitor (T16 guard). ALWAYS provided but
+      // tick-gated: the factory returns null when COMPLETION_MONITOR_ENABLED is
+      // false, so SchedulerService skips the tick (mirrors the intake-reconciler
+      // dormancy pattern). Loud-by-default is the production posture. Needs only
+      // the DB (via the scoped repo) + Sentry, both unconditionally present.
+      provide: COMPLETION_RECONCILER_MONITOR,
+      inject: [ConfigService, DrizzleCompletionStrandedRepo],
+      useFactory: (
+        config: ConfigService<Env, true>,
+        repo: DrizzleCompletionStrandedRepo,
+      ): CompletionReconcilerMonitorService | null => {
+        if (!config.getOrThrow('COMPLETION_MONITOR_ENABLED', { infer: true })) return null;
+        return new CompletionReconcilerMonitorService(
+          repo,
+          config.getOrThrow('COMPLETION_STRANDED_ALERT_MINUTES', { infer: true }),
         );
       },
     },
