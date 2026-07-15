@@ -1,9 +1,8 @@
-// apps/ops-web/test/dispatch-view-khachhang-column.test.tsx
-// L2 (2026): permanent business rule — the Lệnh điều xe board shows a Khách
-// hàng (customer) column in place of the Trạng thái (state) column.
-//
-// Business invariant: the board renders a Khách hàng columnheader showing the
-// row's customerName, and renders NO Trạng thái columnheader.
+// apps/ops-web/test/dispatch-view-tenhang-column.test.tsx
+// T18 (2026): permanent business rule - the Lenh dieu xe board shows a Ten
+// hang (cargo type name) column. The value is the SERVER-resolved cargoName
+// (road_run_transport_order -> transport_order -> cargo_type); null renders
+// an em-dash (no cargo type on the order, or weights unresolved).
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, within, cleanup } from '@testing-library/react';
 import { DispatchView } from '@/features/dispatch/DispatchView';
@@ -13,7 +12,7 @@ const DRIVER_ID = '00000000-0000-0000-0000-0000000000bb';
 const VEHICLE_ID = '22222222-2222-4222-8222-222222222222';
 const RUN_ID = '33333333-3333-4333-8333-333333333333';
 const refs = {
-  drivers: [{ id: DRIVER_ID, label: 'Nguyễn Văn A' }],
+  drivers: [{ id: DRIVER_ID, label: 'Nguyen Van A' }],
   vehicles: [{ id: VEHICLE_ID, label: '51C-12345' }],
   customers: [], cargoTypes: [], pickupWarehouses: [], deliveryWarehouses: [],
   driverVehicleAssignments: [],
@@ -34,34 +33,27 @@ const run: DispatchBoardRoadRun = {
   plannedStartAt: '2026-04-28T09:00:00.000Z',
   stopCount: 2,
   transportOrderRefs: ['XT.0067'],
-  customerName: 'Công ty Vận Tải Số 1',
+  customerName: null,
   customerPhone: null,
-  cargoName: null,
+  cargoName: 'Gạo',
   weightDiffKg: null,
   stops: [],
 };
-describe('DispatchView - Khách hàng column replaces Trạng thái', () => {
-  it('renders a Khách hàng column header', () => {
+describe('DispatchView - Ten hang column', () => {
+  it('renders a Ten hang column header', () => {
     render(<DispatchView initialRuns={[run]} refs={refs} />);
     const headers = screen.getAllByRole('columnheader').map((h) => h.textContent);
-    expect(headers).toContain('Khách hàng');
+    expect(headers).toContain('Tên hàng');
   });
-  it('does NOT render a Trạng thái column header', () => {
-    render(<DispatchView initialRuns={[run]} refs={refs} />);
-    const headers = screen.getAllByRole('columnheader').map((h) => h.textContent);
-    expect(headers).not.toContain('Trạng thái');
-  });
-  it('renders the row customer name in the board', () => {
+  it('renders the row cargo name in the board', () => {
     render(<DispatchView initialRuns={[run]} refs={refs} />);
     const row = dataRow();
-    expect(within(row).getByText('Công ty Vận Tải Số 1')).toBeInTheDocument();
+    expect(within(row).getByText('Gạo')).toBeInTheDocument();
   });
-  it('renders em-dash when customerName is null (no leak)', () => {
-    const r2: DispatchBoardRoadRun = { ...run, customerName: null, transportOrderRefs: ['XT.0099'] };
+  it('renders em-dash when cargoName is null', () => {
+    const r2: DispatchBoardRoadRun = { ...run, cargoName: null, transportOrderRefs: ['XT.0099'] };
     render(<DispatchView initialRuns={[r2]} refs={refs} />);
-    const cells = within(dataRow()).getAllByRole('cell');
-    const customerCell = cells[1];
-    if (customerCell === undefined) throw new Error('expected a customer cell');
-    expect(customerCell.textContent).toBe('—');
+    const cell = screen.getByTestId('dispatch-board-cargo-XT.0099');
+    expect(cell.textContent).toBe('—');
   });
 });

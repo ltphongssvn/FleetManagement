@@ -34,6 +34,7 @@ function run(ref: string, state: DispatchBoardRoadRun['state']): DispatchBoardRo
     transportOrderRefs: [ref],
     customerName: null,
     customerPhone: null,
+    cargoName: null,
     weightDiffKg: null,
     stops: [],
   };
