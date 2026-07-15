@@ -26,6 +26,7 @@ const run: DispatchBoardRoadRun = {
   transportOrderRefs: [],
   customerName: null,
   customerPhone: null,
+  cargoName: null,
   weightDiffKg: null,
   stops: [],
 };

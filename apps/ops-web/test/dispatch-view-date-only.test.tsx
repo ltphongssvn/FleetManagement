@@ -23,6 +23,7 @@ const run: DispatchBoardRoadRun = {
   transportOrderRefs: ['XTT.05-001'],
   customerName: null,
   customerPhone: null,
+  cargoName: null,
   weightDiffKg: null,
   stops: [],
 };
@@ -36,7 +37,7 @@ describe('DispatchView date-only Ngày dự kiến', () => {
   it('renders the planned-start cell as date only (no time)', () => {
     render(<DispatchView initialRuns={[run]} refs={refs} />);
     const cells = within(dataRow()).getAllByRole('cell');
-    const plannedCell = cells[4];
+    const plannedCell = cells[5];
     if (plannedCell === undefined) throw new Error('expected a planned-start cell');
     expect(plannedCell.textContent).toContain('May 30, 2026');
     expect(plannedCell.textContent).not.toMatch(/\\d{1,2}:\\d{2}/);
