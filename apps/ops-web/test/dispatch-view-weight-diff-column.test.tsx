@@ -1,7 +1,7 @@
 // apps/ops-web/test/dispatch-view-weight-diff-column.test.tsx
 // outside-in strict TDD RED (Feature 3, signed-display revision): the Lenh dieu
-// xe board Chenh lech column = server weightDiffKg = sum(Diem nhan hang) minus
-// Kho giao hang. Sign contract: negative shows a minus sign; positive and zero
+// xe board Chenh lech column = server weightDiffKg = Kho giao hang minus
+// sum(Diem nhan hang). Sign contract: negative shows a minus sign; positive and zero
 // show NO sign (no plus); negative-zero from float subtraction collapses to a
 // bare zero; null (weights incomplete) shows em-dash. Header is relabelled to
 // name the operands explicitly so the dispatcher reads the direction.
@@ -34,6 +34,7 @@ function row(over: Partial<DispatchBoardRoadRun>): DispatchBoardRoadRun {
     transportOrderRefs: ['XTT.05-001'],
     customerName: null,
     customerPhone: null,
+    cargoName: null,
     weightDiffKg: null,
     stops: [],
     ...over,
@@ -41,10 +42,10 @@ function row(over: Partial<DispatchBoardRoadRun>): DispatchBoardRoadRun {
 }
 
 describe('@fleet/ops-web - DispatchView weight-diff column (Feature 3)', () => {
-  it('renders the relabelled Chênh lệch (Số nhận - Số giao) column header', () => {
+  it('renders the relabelled Chênh lệch (Số giao - Số nhận) column header', () => {
     render(<DispatchView initialRuns={[row({})]} refs={refs} />);
     const headers = screen.getAllByRole('columnheader').map((h) => h.textContent);
-    expect(headers).toEqual(expect.arrayContaining(['Chênh lệch (Số nhận - Số giao)']));
+    expect(headers).toEqual(expect.arrayContaining(['Chênh lệch (Số giao - Số nhận)']));
   });
 
   it('shows a NEGATIVE difference with a minus sign (delivery exceeded pickup)', () => {
