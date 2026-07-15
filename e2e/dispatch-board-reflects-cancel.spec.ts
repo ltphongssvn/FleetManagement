@@ -128,13 +128,19 @@ test.describe('dispatch board reflects cancellation (T5)', () => {
     // badge. (The API drains the projection synchronously on cancel, so the
     // Finished view's SSR fetch already reflects state='cancelled'.)
     //
-    // First confirm the cancelled order is NOT on the default Active board
-    // (the partition is doing its job), then navigate to Finished and assert it
-    // appears there with the badge. The Finished tab is a plain <a> (full
-    // navigation), so Playwright auto-waits for the fresh SSR render.
+    // T16 board split: cancelled orders now live in their OWN dispatcher tab
+    // (Lenh Huy / group=cancelled), carved OUT of Finished. A cancelled order is
+    // absent from BOTH Active and Finished, and present only under Cancelled.
+    // Assert all three halves of the 3-way partition contract: absent on Active,
+    // absent on Finished, present (with the localized badge) under Cancelled.
+    // Each tab is a plain <a> (full navigation), so Playwright auto-waits for the
+    // fresh SSR render.
     await expect(page.getByTestId('dispatch-board-row-cancelled-' + order.externalRef)).toHaveCount(0);
     await page.getByTestId('dispatch-board-filter-finished').click();
     await expect(page).toHaveURL(/group=finished/, { timeout: 10000 });
+    await expect(page.getByTestId('dispatch-board-row-cancelled-' + order.externalRef)).toHaveCount(0);
+    await page.getByTestId('dispatch-board-filter-cancelled').click();
+    await expect(page).toHaveURL(/group=cancelled/, { timeout: 10000 });
     const cancelledMarker = page.getByTestId('dispatch-board-row-cancelled-' + order.externalRef);
     await expect(cancelledMarker).toBeVisible({ timeout: 15000 });
     await expect(cancelledMarker).toContainText('Đã hủy');
