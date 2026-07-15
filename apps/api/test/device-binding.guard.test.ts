@@ -24,8 +24,10 @@ function ctxFor(identity: unknown): ExecutionContext {
   } as unknown as ExecutionContext;
 }
 
+// Enforce mode: this suite pins the terminal rejection behavior. The staged
+// off/monitor rollout is covered in device-binding-guard-modes.test.ts.
 function makeGuard(port: DeviceBindingStatusPort): DeviceBindingGuard {
-  return new DeviceBindingGuard(port);
+  return new DeviceBindingGuard(port, { mode: 'enforce', exemptOperatorIds: new Set<string>() });
 }
 
 const CLAIMS = { operatorId: OPERATOR_ID };

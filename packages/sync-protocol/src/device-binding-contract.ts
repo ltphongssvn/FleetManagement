@@ -85,6 +85,24 @@ export const DEVICE_BINDING_ACTIONS = [
 export const DeviceBindingActionSchema = z.enum(DEVICE_BINDING_ACTIONS);
 export type DeviceBindingAction = (typeof DEVICE_BINDING_ACTIONS)[number];
 
+
+// Guard enforcement mode (safe-rollout). Sourced from the
+// DEVICE_BINDING_ENFORCEMENT env var (a trust boundary, validated where env
+// is parsed) and consumed by the DeviceBindingGuard, so the vocabulary is a
+// cross-boundary contract derived once here. off: guard inert (fail-safe
+// default, no driver is ever blocked). monitor: evaluate and log a
+// would-reject event but ALLOW (Conditional-Access-style observation before
+// enforcement). enforce: reject non-active devices. The staged path
+// off -> monitor -> enforce makes a production driver lockout impossible by
+// construction: enforcement only turns on after monitor logs prove the real
+// blast radius is empty.
+export const DEVICE_BINDING_ENFORCEMENT_MODES = [
+  'off',
+  'monitor',
+  'enforce',
+] as const;
+export const DeviceBindingEnforcementModeSchema = z.enum(DEVICE_BINDING_ENFORCEMENT_MODES);
+export type DeviceBindingEnforcementMode = (typeof DEVICE_BINDING_ENFORCEMENT_MODES)[number];
 // PATCH /admin/devices/:deviceId/binding request body. revokedReason is
 // required when action is revoke (audit trail), rejected otherwise.
 export const DeviceBindingPatchRequestSchema = z
