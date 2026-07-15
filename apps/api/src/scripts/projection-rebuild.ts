@@ -10,20 +10,14 @@
 //   pnpm exec turbo run projection:rebuild --filter=@fleet/api -- --scope <companyId>
 // Scope defaults to FLEET_PILOT_SCOPE when --scope/positional is omitted.
 import { NestFactory } from '@nestjs/core';
-import { z } from 'zod';
 import { ProjectionRebuildModule } from '../projections/projection-rebuild.module.js';
 import { ProjectionRebuildService } from '../projections/projection-rebuild.service.js';
+import { resolveCliScope } from './resolve-cli-scope.js';
 
-const ScopeSchema = z.uuid();
 
-function resolveScope(argv: readonly string[]): string {
-  const flagIdx = argv.indexOf('--scope');
-  const raw = flagIdx >= 0 ? argv[flagIdx + 1] : (argv[0] ?? process.env['FLEET_PILOT_SCOPE']);
-  return ScopeSchema.parse(raw);
-}
 
 async function main(): Promise<void> {
-  const scope = resolveScope(process.argv.slice(2));
+  const scope = resolveCliScope(process.argv.slice(2), process.env, { allowPositional: true });
   const app = await NestFactory.createApplicationContext(ProjectionRebuildModule, {
     logger: ['error', 'warn', 'log'],
   });

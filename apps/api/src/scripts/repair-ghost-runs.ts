@@ -13,23 +13,17 @@
 //   pnpm exec turbo run repair:ghost-runs --filter=@fleet/api -- --execute
 // Scope defaults to FLEET_PILOT_SCOPE when --scope is omitted.
 import { NestFactory } from '@nestjs/core';
-import { z } from 'zod';
 import { ProjectionRebuildModule } from '../projections/projection-rebuild.module.js';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { repairGhostRuns } from '../maintenance/repair-ghost-runs.js';
-const ScopeSchema = z.uuid();
+import { resolveCliScope } from './resolve-cli-scope.js';
 // Fixed repair operator (same convention as the orphan-8ff951c9 repair
 // script): a recognizable synthetic operator id in the audit trail.
 const REPAIR_OPERATOR_ID = '00000000-0000-0000-0000-0000000000aa';
-function resolveScope(argv: readonly string[]): string {
-  const flagIdx = argv.indexOf('--scope');
-  const raw = flagIdx >= 0 ? argv[flagIdx + 1] : process.env['FLEET_PILOT_SCOPE'];
-  return ScopeSchema.parse(raw);
-}
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  const scope = resolveScope(argv);
+  const scope = resolveCliScope(argv, process.env);
   const execute = argv.includes('--execute');
   const app = await NestFactory.createApplicationContext(ProjectionRebuildModule, {
     logger: ['error', 'warn', 'log'],

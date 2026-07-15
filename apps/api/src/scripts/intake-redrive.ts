@@ -22,14 +22,15 @@ import { manifest, uploadSession } from '../database/schema/manifest.js';
 import { outbox } from '../database/schema/append-paths.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { buildIntakeRedriveOutboxValues } from '../manifest/intake-redrive.builder.js';
+import { validateRebuildEnv } from '../config/env.config.js';
 
 async function main(): Promise<void> {
   const execute = process.argv.includes('--execute');
-  const url = process.env['DATABASE_URL'];
-  if (url === undefined || url.length === 0) {
-    console.error('REFUSED: DATABASE_URL must be set');
-    process.exit(2);
-  }
+  // Factor XII: admin scripts read config through the same validated loader as
+  // the app. validateRebuildEnv derives from the EnvSchema SSOT via .pick, so a
+  // missing/malformed DATABASE_URL fails fast here with the boundary error
+  // rather than a bespoke undefined check.
+  const url = validateRebuildEnv(process.env).DATABASE_URL;
   if (execute && process.env['FLEET_ALLOW_INTAKE_REDRIVE'] !== 'true') {
     console.error('REFUSED: --execute requires FLEET_ALLOW_INTAKE_REDRIVE=true');
     process.exit(2);
