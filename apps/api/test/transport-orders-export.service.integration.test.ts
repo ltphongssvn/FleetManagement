@@ -258,8 +258,8 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
   // Feature 3 export parity: the board shows a Chenh lech (pickup-vs-delivery
   // net-weight difference) column; the export MUST carry the same value, computed
   // by the shared @fleet/sync-protocol computeWeightDiffKg SSOT. Here pickup
-  // 7920 - delivery 5000 = 2920, emitted as a NUMBER in the Chenh lech column.
-  it('emits a Chênh lệch column with the numeric pickup-minus-delivery weight diff', async () => {
+  // 5000 - pickup 7920 = -2920, emitted as a NUMBER in the Chenh lech column.
+  it('emits a Chênh lệch column with the numeric delivery-minus-pickup weight diff', async () => {
     const roadRunId = 'aaaaaaaa-8888-4888-8888-888888888888';
     const toId = '00000000-0000-4000-8000-000000088001';
     await seedProjection(roadRunId, ['XT.DIFF']);
@@ -303,13 +303,13 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     await wb.xlsx.load(r.buffer as unknown as ArrayBuffer);
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
     const headers = headerOf(ws);
-    expect(headers).toContain('Chênh lệch (Số nhận - Số giao)');
-    const diffCol = headers.indexOf('Chênh lệch (Số nhận - Số giao)');
+    expect(headers).toContain('Chênh lệch (Số giao - Số nhận)');
+    const diffCol = headers.indexOf('Chênh lệch (Số giao - Số nhận)');
     // Chênh lệch sits right after Số điểm (col index 5), before the stop pairs.
     expect(diffCol).toBe(6);
     const cell = ws.getRow(2).getCell(diffCol + 1).value;
     expect(typeof cell).toBe('number');
-    expect(cell).toBe(2920);
+    expect(cell).toBe(-2920);
   });
 });
 
