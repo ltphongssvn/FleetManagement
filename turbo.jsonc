@@ -108,6 +108,34 @@
       "persistent": false,
       "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
     },
+    "intake:redrive": {
+      "description": "Emit compensating manifest_intake.requested outbox events for manifests stranded in verifying (Jun-24 expired-worker-token incident repair). Event-sourcing repair protocol: events flow THROUGH outbox -> relay -> BullMQ -> worker -> finalizeIntake; manifest state is never hand-patched. DRY-RUN by default; mutation needs --execute AND FLEET_ALLOW_INTAKE_REDRIVE=true (wipe-business-data speed-bump pattern). Live DB access: cache:false. Run: pnpm exec turbo run intake:redrive --filter=@fleet/api [-- --execute].",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_ALLOW_INTAKE_REDRIVE"]
+    },
+    "repair:ghost-runs": {
+      "description": "Event-sourced ghost-run repair: cancel every non-terminal road_run whose linked transport_orders are all terminal (or that has zero links) by appending road_run.cancelled through appendTriWrite, letting the projection runner heal dispatch_board. DRY-RUN by default; pass -- --execute to mutate. Live DB mutation: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run repair:ghost-runs --filter=@fleet/api [-- --execute].",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
+    "inspect:order-state": {
+      "description": "Read-only diagnostic: print a transport order actual server-side state (transport_order row, linked road_run states + started_at/completed_at, last 20 fleet_audit_log events) resolved by --ref. Boots the standalone ProjectionRebuildModule (config + database). MUTATES NOTHING. Live DB read: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run inspect:order-state --filter=@fleet/api -- --ref XTT.07-020.",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
+    "repair:complete-delivered-runs": {
+      "description": "Event-sourced completion reconciler: drive every non-terminal road_run whose linked transport_orders are ALL fully photo-committed (committed manifests >= stop count, the same predicate the live completion gate enforces) to completed by appending road_run.completed through appendTriWrite, letting the projection runner heal dispatch_board. Heals runs stranded when intake lagged or the old departedAt-proxy made completion unreachable. DRY-RUN by default; pass -- --execute to mutate. Live DB mutation: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run repair:complete-delivered-runs --filter=@fleet/api [-- --execute].",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
     "test:integration": {
       "description": "Integration tests — need own + upstream builds + Testcontainers. Owns coverage/integration/** + test-results/integration/**.",
       "dependsOn": ["build", "^build"],
@@ -132,6 +160,16 @@
     },
     "eas:builds": {
       "description": "List recent EAS cloud builds (Android + iOS) for the driver app via eas-cli build:list. Read-only network query against Expo servers, so cache:false (no deterministic output) and no build dependency. passThroughEnv exposes EXPO_TOKEN (auth; set persistently via ~/.expo-env) and EAS_PROJECT_ID under strict envMode. Run: pnpm exec turbo run eas:builds --filter=@fleet/driver-app.",
+      "cache": false,
+      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
+    },
+    "eas:build:ios": {
+      "description": "Dispatch an iOS Ad Hoc (preview profile) EAS cloud build of the driver app via eas-cli build. --non-interactive auto-includes every device already registered on the ad hoc provisioning profile server-side (no App Store Connect API Key, no device-selection prompt), so a driver iPhone registered via the eas device:create QR flow is baked into the new .ipa. Waits for the build (no --no-wait) so the operator gets the install link; CI uses --no-wait for fire-and-forget. Remote build + Apple credential network mutation: cache:false, no build dependency (EAS builds remotely). passThroughEnv exposes EXPO_TOKEN (auth; set persistently via ~/.expo-env) and EAS_PROJECT_ID under strict envMode. Run: pnpm exec turbo run eas:build:ios --filter=@fleet/driver-app.",
+      "cache": false,
+      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
+    },
+    "eas:build:android": {
+      "description": "Dispatch an Android (preview profile) EAS cloud build of the driver app via eas-cli build, producing an installable APK. --non-interactive requires no prompts (Android internal distribution is not device-UDID-scoped, unlike iOS Ad Hoc). Waits for the build (no --no-wait) so the operator gets the install link; CI uses --no-wait for fire-and-forget. Remote build network operation: cache:false, no build dependency (EAS builds remotely). passThroughEnv exposes EXPO_TOKEN (auth; set persistently via ~/.expo-env) and EAS_PROJECT_ID under strict envMode. Run: pnpm exec turbo run eas:build:android --filter=@fleet/driver-app.",
       "cache": false,
       "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
     },

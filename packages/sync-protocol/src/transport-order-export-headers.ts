@@ -23,7 +23,7 @@ export const EXPORT_KG_SUFFIX = ' - KL (kg)';
 
 /** The 6 fixed identifying columns + Chênh lệch, before the per-slot pairs. */
 export const EXPORT_IDENTIFYING_HEADERS = [
-  'Số lệnh', 'Khách hàng', 'Tài xế', 'Xe', 'Ngày dự kiến', 'Số điểm', 'Chênh lệch',
+  'Số lệnh', 'Khách hàng', 'Tài xế', 'Xe', 'Ngày dự kiến', 'Số điểm', 'Chênh lệch (Số giao - Số nhận)',
 ] as const;
 
 /** SSOT: the complete export header row, in order. Derived so a slot-count change

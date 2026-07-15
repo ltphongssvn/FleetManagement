@@ -25,7 +25,11 @@
     "typecheck": "tsc -p tsconfig.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "intake:redrive": "tsx src/scripts/intake-redrive.ts",
     "projection:rebuild": "tsx src/scripts/projection-rebuild.ts",
+    "inspect:order-state": "tsx src/scripts/inspect-order-state.ts",
+    "repair:complete-delivered-runs": "tsx src/scripts/repair-complete-delivered-runs.ts",
+    "repair:ghost-runs": "tsx src/scripts/repair-ghost-runs.ts",
     "db:check": "drizzle-kit check",
     "test:changed": "vitest run --changed HEAD~1",
     "test:mutation": "stryker run"
