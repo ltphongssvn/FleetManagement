@@ -21,7 +21,7 @@
 // the other is filtered OUT. Stable testid locators + Playwright auto-waits.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { randomBytes } from 'node:crypto';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, CreateTransportOrderResponseSchema } from './helpers/contracts';
 
@@ -80,6 +80,15 @@ test.describe('dispatch board free-text search (Lenh dieu xe)', () => {
   });
 
   test('search box filters the board by driver name, diacritic-insensitive', async ({ page, request }) => {
+    // Seed-heavy E2E: four authenticated admin writes (driver+vehicle+assignment
+    // +order) x2 orders against a freshly no-cache-built api whose first request
+    // pays cold-start warmup (DB pool + JWKS) on top of WSL2 build-residual load.
+    // The api health probe (/health/ready) goes green before the first heavy write
+    // can complete, so the default 30s per-test budget is legitimately too tight
+    // for this setup (proven: same spec passes ~16s on a warm api). test.slow()
+    // triples the budget for this genuinely-slow setup -- Playwright guidance --
+    // rather than masking (there is no defect; run-to-run it is warmup timing).
+    test.slow();
     // Two active orders, driver names differing by a distinctive accented token.
     const chau = await seedNamedActiveOrder(request, 'LE VAN CHAU-DIACRITIC'); seeded.push(chau);
     const binh = await seedNamedActiveOrder(request, 'TRAN VAN BINH-DIACRITIC'); seeded.push(binh);
