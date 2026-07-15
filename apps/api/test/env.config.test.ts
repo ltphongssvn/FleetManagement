@@ -209,3 +209,51 @@ describe('@fleet/api - validateEnv (break-glass monitor knobs)', () => {
     expect(() => validateEnv({ ...base, BREAKGLASS_POLL_INTERVAL_MS: '0' })).toThrow(/BREAKGLASS_POLL_INTERVAL_MS/);
   });
 });
+
+describe('@fleet/api - validateEnv (Factor III: webhook secrets + integration config)', () => {
+  const base = {
+    DATABASE_URL: 'postgres://localhost:5432/fleet_test',
+    OIDC_ISSUER: 'https://idp.example.com/',
+    OIDC_AUDIENCE: 'fleet-api',
+    OIDC_JWKS_URI: 'https://idp.example.com/.well-known/jwks.json',
+  };
+  // Per-provider distinct secrets (2026 practice: never a shared WEBHOOK_SECRET).
+  // Optional + fail-safe dormant, mirroring KEYCLOAK_MONITOR_CLIENT_SECRET: unset
+  // -> undefined so a deploy that does not wire the integration boots, while the
+  // request-time verifier stays fail-closed.
+  it('EAS_WEBHOOK_SECRET is optional and undefined when absent', () => {
+    expect(validateEnv(base).EAS_WEBHOOK_SECRET).toBeUndefined();
+  });
+  it('EAS_WEBHOOK_SECRET is preserved when provided', () => {
+    const secret = `eas_${randomBytes(12).toString('hex')}`;
+    expect(validateEnv({ ...base, EAS_WEBHOOK_SECRET: secret }).EAS_WEBHOOK_SECRET).toBe(secret);
+  });
+  it('EAS_WEBHOOK_SECRET rejects an empty string', () => {
+    expect(() => validateEnv({ ...base, EAS_WEBHOOK_SECRET: '' })).toThrow(/EAS_WEBHOOK_SECRET/);
+  });
+  it('ERP_WEBHOOK_SECRET is optional and undefined when absent', () => {
+    expect(validateEnv(base).ERP_WEBHOOK_SECRET).toBeUndefined();
+  });
+  it('ERP_WEBHOOK_SECRET is preserved when provided', () => {
+    const secret = `erp_${randomBytes(12).toString('hex')}`;
+    expect(validateEnv({ ...base, ERP_WEBHOOK_SECRET: secret }).ERP_WEBHOOK_SECRET).toBe(secret);
+  });
+  it('ERP_WEBHOOK_SECRET rejects an empty string', () => {
+    expect(() => validateEnv({ ...base, ERP_WEBHOOK_SECRET: '' })).toThrow(/ERP_WEBHOOK_SECRET/);
+  });
+  it('CORS_ORIGINS defaults to the local ops-web + driver-app origins', () => {
+    expect(validateEnv(base).CORS_ORIGINS).toEqual(['http://localhost:8081', 'http://localhost:3001']);
+  });
+  it('CORS_ORIGINS parses a comma-separated override and trims', () => {
+    expect(validateEnv({ ...base, CORS_ORIGINS: ' https://a.example.com , https://b.example.com ' }).CORS_ORIGINS).toEqual([
+      'https://a.example.com',
+      'https://b.example.com',
+    ]);
+  });
+  it('FLEET_PILOT_SEED_ENABLED defaults to true', () => {
+    expect(validateEnv(base).FLEET_PILOT_SEED_ENABLED).toBe(true);
+  });
+  it('FLEET_PILOT_SEED_ENABLED coerces the string false to boolean false', () => {
+    expect(validateEnv({ ...base, FLEET_PILOT_SEED_ENABLED: 'false' }).FLEET_PILOT_SEED_ENABLED).toBe(false);
+  });
+});
