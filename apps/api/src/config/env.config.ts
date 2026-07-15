@@ -88,6 +88,25 @@ export const EnvSchema = z.object({
   // is the safe production posture, mirroring INTAKE_RECONCILE_ENABLED).
   COMPLETION_MONITOR_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
   COMPLETION_STRANDED_ALERT_MINUTES: z.coerce.number().int().positive().default(30),
+  // Inbound webhook HMAC secrets (Factor III: declared at the validated
+  // boundary, not read raw in the request path). Per-provider distinct
+  // secrets -- never a shared WEBHOOK_SECRET (2026 practice). Optional +
+  // fail-safe dormant, mirroring KEYCLOAK_MONITOR_CLIENT_SECRET: an
+  // environment that does not wire the integration boots, while the
+  // request-time verifier stays fail-closed (rejects unsigned/missigned).
+  EAS_WEBHOOK_SECRET: z.string().min(1).optional(),
+  ERP_WEBHOOK_SECRET: z.string().min(1).optional(),
+  // Browser origins allowed by CORS. CSV env -> trimmed string array (same
+  // idiom as STEP_UP_ACR_LADDER). Default = local ops-web + driver-app dev
+  // origins; production supplies the real origins via this var.
+  CORS_ORIGINS: z
+    .string()
+    .default('http://localhost:8081,http://localhost:3001')
+    .transform((v) => v.split(',').map((s) => s.trim()).filter((s) => s.length > 0)),
+  // Guards the seed endpoint (POST /transport-orders). Default ON; a deploy
+  // sets this false to disable the seed path. Boolean-coerced like the
+  // OTEL_ENABLED / INTAKE_RECONCILE_ENABLED flags.
+  FLEET_PILOT_SEED_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
 });
 export type Env = z.infer<typeof EnvSchema>;
 // Rebuild-CLI-scoped validator (follow-up #5). Derives from the SAME EnvSchema

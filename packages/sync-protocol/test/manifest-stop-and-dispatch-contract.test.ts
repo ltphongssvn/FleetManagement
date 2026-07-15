@@ -114,6 +114,7 @@ const validRow = {
   transportOrderRefs: ['XTT.06-005'],
   customerName: null,
   customerPhone: null,
+  cargoName: null,
   weightDiffKg: null,
   stops: [],
 };
@@ -127,6 +128,13 @@ describe('DispatchBoardRowSchema', () => {
   });
   it('rejects a non-uuid roadRunId', () => {
     expect(() => DispatchBoardRowSchema.parse({ ...validRow, roadRunId: 'nope' })).toThrow();
+  });
+  it('carries cargoName (Ten hang), null-defaulted when omitted (EXPAND)', () => {
+    const withCargo = { ...validRow, cargoName: 'Gao' };
+    expect(DispatchBoardRowSchema.parse(withCargo).cargoName).toBe('Gao');
+    const noCargo = { ...validRow };
+    delete (noCargo as { cargoName?: unknown }).cargoName;
+    expect(DispatchBoardRowSchema.parse(noCargo).cargoName).toBeNull();
   });
   it('rejects a negative stopCount (kills .nonnegative() removal)', () => {
     expect(() => DispatchBoardRowSchema.parse({ ...validRow, stopCount: -1 })).toThrow();
@@ -143,6 +151,7 @@ describe('DispatchBoardRowSchema', () => {
     expect(parsed.vehiclePlate).toBeNull();
     expect(parsed.customerName).toBeNull();
     expect(parsed.customerPhone).toBeNull();
+    expect(parsed.cargoName).toBeNull();
     expect(parsed.stops).toEqual([]);
   });
 });
