@@ -59,10 +59,7 @@ export default function AdminDriversPage(): JSX.Element {
   const [vehicles, setVehicles] = useState<readonly VehicleOption[]>([]);
   const [createForm, setCreateForm] = useState<CreateFormState>(EMPTY_CREATE_FORM);
   const [busy, setBusy] = useState(false);
-  const client = new AdminDriversClient({
-    apiUrl: '',
-    bearerToken: (): string => '',
-  });
+  const client = new AdminDriversClient({});
   const refresh = async (): Promise<void> => {
     try {
       const rows = await client.list();

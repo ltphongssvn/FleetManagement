@@ -13,11 +13,7 @@ describe("AdminDriversClient.create", () => {
         operatorId: "66666666-6666-6666-6666-666666666666",
       }),
     });
-    const client = new AdminDriversClient({
-      apiUrl: "",
-      bearerToken: () => "tok",
-      fetchFn: fetchFn as never,
-    });
+    const client = new AdminDriversClient({ fetchFn: fetchFn as never });
     const r = await client.create({
       fullName: "Nguyễn Văn A",
       phone: "+84901000001",
@@ -43,11 +39,7 @@ describe("AdminDriversClient.create", () => {
 
   it("throws on non-ok HTTP status", async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 400, statusText: "Bad Request" });
-    const client = new AdminDriversClient({
-      apiUrl: "",
-      bearerToken: () => "tok",
-      fetchFn: fetchFn as never,
-    });
+    const client = new AdminDriversClient({ fetchFn: fetchFn as never });
     await expect(
       client.create({ fullName: "A", phone: "+84901000001", password: "p1" }), // pragma: allowlist secret
     ).rejects.toThrow(/400/);
@@ -62,7 +54,7 @@ describe("AdminDriversClient.list", () => {
         { driverId: "d1", fullName: "A", operatorId: null, assignedVehicle: null, assignmentId: null, devices: [] },
       ]),
     });
-    const client = new AdminDriversClient({ apiUrl: "", bearerToken: () => "tok", fetchFn: fetchFn as never });
+    const client = new AdminDriversClient({ fetchFn: fetchFn as never });
     const rows = await client.list();
     expect(rows).toHaveLength(1);
     expect(fetchFn).toHaveBeenCalledWith("/api/admin/drivers", expect.objectContaining({
@@ -72,17 +64,13 @@ describe("AdminDriversClient.list", () => {
 
   it("throws on non-ok HTTP status", async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 500, statusText: "err" });
-    const client = new AdminDriversClient({ apiUrl: "", bearerToken: () => "tok", fetchFn: fetchFn as never });
+    const client = new AdminDriversClient({ fetchFn: fetchFn as never });
     await expect(client.list()).rejects.toThrow(/500/);
   });
 
   it("sends NO Authorization header (BFF authenticates via the httpOnly cookie)", async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
-    const client = new AdminDriversClient({
-      apiUrl: "",
-      bearerToken: () => Promise.resolve("async-tok"),
-      fetchFn: fetchFn as never,
-    });
+    const client = new AdminDriversClient({ fetchFn: fetchFn as never });
     await client.list();
     const init = (fetchFn.mock.calls[0] as unknown[])[1] as RequestInit;
     expect(Object.keys(init.headers ?? {})).not.toContain("Authorization");
@@ -93,7 +81,7 @@ describe("AdminDriversClient.list", () => {
     const spy = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
     globalThis.fetch = spy as never;
     try {
-      const client = new AdminDriversClient({ apiUrl: "", bearerToken: () => "tok" });
+      const client = new AdminDriversClient({});
       await client.list();
       expect(spy).toHaveBeenCalled();
     } finally {
@@ -108,7 +96,7 @@ describe("AdminDriversClient.assign", () => {
       ok: true,
       json: () => Promise.resolve({ assignmentId: "aaaa-bbbb" }),
     });
-    const client = new AdminDriversClient({ apiUrl: "", bearerToken: () => "tok", fetchFn: fetchFn as never });
+    const client = new AdminDriversClient({ fetchFn: fetchFn as never });
     const r = await client.assign({ driverId: "d1", vehicleId: "v1" });
     expect(r.assignmentId).toBe("aaaa-bbbb");
     expect(fetchFn).toHaveBeenCalledWith("/api/admin/driver-vehicle-assignments", expect.objectContaining({
@@ -119,7 +107,7 @@ describe("AdminDriversClient.assign", () => {
 
   it("throws on non-ok HTTP status", async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 409, statusText: "Conflict" });
-    const client = new AdminDriversClient({ apiUrl: "", bearerToken: () => "tok", fetchFn: fetchFn as never });
+    const client = new AdminDriversClient({ fetchFn: fetchFn as never });
     await expect(client.assign({ driverId: "d1", vehicleId: "v1" })).rejects.toThrow(/409/);
   });
 
@@ -128,7 +116,7 @@ describe("AdminDriversClient.assign", () => {
     const spy = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ assignmentId: "x" }) });
     globalThis.fetch = spy as never;
     try {
-      const client = new AdminDriversClient({ apiUrl: "", bearerToken: () => "tok" });
+      const client = new AdminDriversClient({});
       await client.assign({ driverId: "d1", vehicleId: "v1" });
       expect(spy).toHaveBeenCalled();
     } finally {
@@ -143,7 +131,7 @@ describe("AdminDriversClient.enrollDevice", () => {
       ok: true,
       json: () => Promise.resolve({ deviceId: "dev-123" }),
     });
-    const client = new AdminDriversClient({ apiUrl: "", bearerToken: () => "tok", fetchFn: fetchFn as never });
+    const client = new AdminDriversClient({ fetchFn: fetchFn as never });
     const r = await client.enrollDevice({ driverId: "d1", udid: "UDID-A", platform: "ios" });
     expect(r.deviceId).toBe("dev-123");
     expect(fetchFn).toHaveBeenCalledWith("/api/admin/devices", expect.objectContaining({
@@ -157,7 +145,7 @@ describe("AdminDriversClient.enrollDevice", () => {
     const spy = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ deviceId: "x" }) });
     globalThis.fetch = spy as never;
     try {
-      const client = new AdminDriversClient({ apiUrl: "", bearerToken: () => "tok" });
+      const client = new AdminDriversClient({});
       await client.enrollDevice({ driverId: "d1", udid: "u", platform: "ios" });
       expect(spy).toHaveBeenCalled();
     } finally {
@@ -172,7 +160,7 @@ describe("AdminDriversClient.revoke", () => {
       ok: true,
       json: () => Promise.resolve({ assignmentId: "a1", revokedAt: "2026-05-13T00:00:00Z" }),
     });
-    const client = new AdminDriversClient({ apiUrl: "", bearerToken: () => "tok", fetchFn: fetchFn as never });
+    const client = new AdminDriversClient({ fetchFn: fetchFn as never });
     const r = await client.revoke("a1", "driver-quit");
     expect(r.assignmentId).toBe("a1");
     expect(r.revokedAt).toBe("2026-05-13T00:00:00Z");
@@ -184,7 +172,7 @@ describe("AdminDriversClient.revoke", () => {
 
   it("throws on non-ok HTTP status", async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 404, statusText: "Not Found" });
-    const client = new AdminDriversClient({ apiUrl: "", bearerToken: () => "tok", fetchFn: fetchFn as never });
+    const client = new AdminDriversClient({ fetchFn: fetchFn as never });
     await expect(client.revoke("missing", "x")).rejects.toThrow(/404/);
   });
 
@@ -193,7 +181,7 @@ describe("AdminDriversClient.revoke", () => {
     const spy = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ assignmentId: "x", revokedAt: "" }) });
     globalThis.fetch = spy as never;
     try {
-      const client = new AdminDriversClient({ apiUrl: "", bearerToken: () => "tok" });
+      const client = new AdminDriversClient({});
       await client.revoke("a", "r");
       expect(spy).toHaveBeenCalled();
     } finally {
@@ -208,7 +196,7 @@ describe("AdminDriversClient.create — additional branches", () => {
     const spy = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ driverId: "x", operatorId: "y" }) });
     globalThis.fetch = spy as never;
     try {
-      const client = new AdminDriversClient({ apiUrl: "", bearerToken: () => "tok" });
+      const client = new AdminDriversClient({});
       const r = await client.create({ fullName: "A", phone: "+84901000001", password: "p1" }); // pragma: allowlist secret
       expect(r.driverId).toBe("x");
       expect(spy).toHaveBeenCalled();

@@ -32,7 +32,7 @@ function problemResponse(status: number, code: string): Response {
 }
 
 function makeClient(fetchFn: typeof globalThis.fetch): AdminDriversClient {
-  return new AdminDriversClient({ apiUrl: '', bearerToken: (): string => '', fetchFn });
+  return new AdminDriversClient({ fetchFn });
 }
 
 describe('AdminDriversClient throws ApiProblemError the presenter can map', () => {

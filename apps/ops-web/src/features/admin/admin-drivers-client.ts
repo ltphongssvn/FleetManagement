@@ -3,16 +3,14 @@
 // through the ensureOk seam as ApiProblemError (status-leading message +
 // Zod-parsed problem code), so the presenter maps friendly Vietnamese copy
 // and the page can branch on UNAUTHORIZED for the silent-refresh navigation.
-// Legacy note: bearerToken/apiUrl config and Authorization headers are
-// vestigial (the BFF authenticates via the httpOnly fleet_session cookie);
-// kept this slice to avoid churning the page constructor -- recorded as an
-// Axis-2 cleanup follow-up.
+// The BFF authenticates via the httpOnly fleet_session cookie, so this client
+// carries no Authorization header. The former apiUrl/bearerToken config was
+// vestigial (never read by any method) and has been removed as dead code; the
+// only remaining injectable seam is fetchFn, which tests use to stub responses.
 import type { AdminDriverRow as DriverRow } from '@fleet/sync-protocol';
 import { ensureOk } from '@/features/errors/api-problem-error';
 export type FetchFn = typeof globalThis.fetch;
 export interface AdminDriversClientConfig {
-  readonly apiUrl: string;
-  readonly bearerToken: () => string | Promise<string>;
   readonly fetchFn?: FetchFn;
 }
 export interface AssignResult {

@@ -10,11 +10,7 @@ import { AdminDriversClient } from "../src/features/admin/admin-drivers-client";
 describe("AdminDriversClient.resetPassword", () => {
   it("POSTs /api/admin/drivers/:id/reset-password with {newPassword} and resolves on 204", async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: true, status: 204 });
-    const client = new AdminDriversClient({
-      apiUrl: "",
-      bearerToken: () => "tok",
-      fetchFn: fetchFn as never,
-    });
+    const client = new AdminDriversClient({ fetchFn: fetchFn as never });
     await client.resetPassword("d1", "newpass1"); // pragma: allowlist secret
     expect(fetchFn).toHaveBeenCalledWith(
       "/api/admin/drivers/d1/reset-password",
@@ -30,17 +26,13 @@ describe("AdminDriversClient.resetPassword", () => {
 
   it("throws on non-ok HTTP status", async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 400, statusText: "Bad Request" });
-    const client = new AdminDriversClient({ apiUrl: "", bearerToken: () => "tok", fetchFn: fetchFn as never });
+    const client = new AdminDriversClient({ fetchFn: fetchFn as never });
     await expect(client.resetPassword("d1", "short")).rejects.toThrow(/400/); // pragma: allowlist secret
   });
 
   it("sends NO Authorization header (BFF authenticates via the httpOnly cookie)", async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: true, status: 204 });
-    const client = new AdminDriversClient({
-      apiUrl: "",
-      bearerToken: () => Promise.resolve("async-tok"),
-      fetchFn: fetchFn as never,
-    });
+    const client = new AdminDriversClient({ fetchFn: fetchFn as never });
     await client.resetPassword("d1", "newpass1"); // pragma: allowlist secret
     const init = (fetchFn.mock.calls[0] as unknown[])[1] as RequestInit;
     expect(Object.keys(init.headers ?? {})).not.toContain("Authorization");
@@ -52,7 +44,7 @@ describe("AdminDriversClient.resetPassword", () => {
     const spy = vi.fn().mockResolvedValue({ ok: true, status: 204 });
     globalThis.fetch = spy as never;
     try {
-      const client = new AdminDriversClient({ apiUrl: "", bearerToken: () => "tok" });
+      const client = new AdminDriversClient({});
       await client.resetPassword("d1", "newpass1"); // pragma: allowlist secret
       expect(spy).toHaveBeenCalled();
     } finally {
