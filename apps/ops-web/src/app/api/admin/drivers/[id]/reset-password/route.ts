@@ -5,9 +5,7 @@
 // (204 on success). Mirrors the sibling [id]/route.ts proxy.
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
-function getApiUrl(): string {
-  return process.env['FLEET_API_URL'] ?? 'http://api:3000';
-}
+import { getApiUrl } from '@/lib/api-url';
 interface Ctx { params: Promise<{ id: string }> }
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id } = await ctx.params;

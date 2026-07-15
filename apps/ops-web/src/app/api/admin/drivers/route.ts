@@ -3,10 +3,8 @@
 // with token from httpOnly cookie.
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
+import { getApiUrl } from '@/lib/api-url';
 
-function getApiUrl(): string {
-  return process.env['FLEET_API_URL'] ?? 'http://api:3000';
-}
 
 export async function GET(): Promise<NextResponse> {
   const token = (await cookies()).get('fleet_session')?.value;

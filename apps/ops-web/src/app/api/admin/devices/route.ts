@@ -1,7 +1,7 @@
 // apps/ops-web/src/app/api/admin/devices/route.ts
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
-function getApiUrl(): string { return process.env['FLEET_API_URL'] ?? 'http://api:3000'; }
+import { getApiUrl } from '@/lib/api-url';
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const token = (await cookies()).get('fleet_session')?.value;
   if (token === undefined) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });

@@ -4,9 +4,7 @@
 // the browser. Body and status are forwarded verbatim from the API.
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
-function getApiUrl(): string {
-  return process.env['FLEET_API_URL'] ?? 'http://api:3000';
-}
+import { getApiUrl } from '@/lib/api-url';
 interface Ctx { params: Promise<{ id: string }> }
 async function forward(req: NextRequest, id: string, method: 'PATCH' | 'DELETE'): Promise<NextResponse> {
   const token = (await cookies()).get('fleet_session')?.value;
