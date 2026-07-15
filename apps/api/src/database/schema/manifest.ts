@@ -1,65 +1,36 @@
 // apps/api/src/database/schema/manifest.ts
 // Manifest + upload_session tables per Frozen Stack PDF "Manifest" + "Uploads".
+// Enum vocabularies are imported from their @fleet/domain and
+// @fleet/sync-protocol SSOTs (schema-first, fix-trigger 2: the state and
+// reason arrays were previously hand-duplicated here). pgEnum accepts the
+// as-const tuples directly and emits identical SQL, so this is a pure
+// source-dedup with zero migration.
 import { pgTable, uuid, varchar, timestamp, index, integer, jsonb, numeric, pgEnum, check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import {
+  UPLOAD_SESSION_STATES,
+  MANIFEST_STATES,
+  MANIFEST_REJECTION_REASONS,
+  MANIFEST_EXTRACTION_STATUSES,
+} from '@fleet/domain';
+import { EXTRACTION_FAILURE_REASONS } from '@fleet/sync-protocol';
 import { tenancyColumns } from './tenancy.js';
 import { transportOrder, stop } from './transport.js';
-
-export const uploadSessionStateEnum = pgEnum('upload_session_state', [
-  'initiated',
-  'uploading',
-  'verifying',
-  'committed',
-  'rejected',
-  'aborted',
-]);
-
-export const manifestRejectionReasonEnum = pgEnum('manifest_rejection_reason', [
-  'blurred_image',
-  'wrong_manifest',
-  'missing_page',
-  'oversized_file',
-  'unsupported_format',
-  'duplicate_upload',
-  'hash_mismatch',
-  'virus_detected',
-  'other',
-]);
-
-export const manifestStateEnum = pgEnum('manifest_state', [
-  'pending',
-  'verifying',
-  'captured',
-  'committed',
-  'rejected',
-]);
-
-// Phieu-can net-weight extraction status (SSOT vocabulary in
-// @fleet/domain manifestExtractionStatusSchema). Persisted on EVERY worker
-// outcome (incl. not_found/unreadable) so the board can tell "processing"
-// (pending) from "needs entry" (not_found/unreadable) from a value
-// (extracted/manual) — closes the silent-failure gap. Expand-only: default
-// 'pending' backfills existing rows.
-export const manifestExtractionStatusEnum = pgEnum('manifest_extraction_status', [
-  'pending',
-  'extracted',
-  'not_found',
-  'unreadable',
-  'manual',
-]);
-// Deterministic cause of a non-extracted outcome (SSOT vocabulary in
-// @fleet/sync-protocol EXTRACTION_FAILURE_REASONS). Nullable: only set for
-// not_found/unreadable rows so a parse refusal ('unparseable') is queryably
-// distinct from an illegible photo ('object_missing') for the review queue.
-// Expand-only; null for pending/extracted/manual.
-export const manifestExtractionReasonEnum = pgEnum('manifest_extraction_reason', [
-  'unparseable',
-  'below_sanity_min',
-  'above_sanity_max',
-  'no_field',
-  'object_missing',
-]);
-
+export const uploadSessionStateEnum = pgEnum('upload_session_state', UPLOAD_SESSION_STATES);
+export const manifestRejectionReasonEnum = pgEnum('manifest_rejection_reason', MANIFEST_REJECTION_REASONS);
+export const manifestStateEnum = pgEnum('manifest_state', MANIFEST_STATES);
+// Phieu-can net-weight extraction status (SSOT @fleet/domain
+// MANIFEST_EXTRACTION_STATUSES). Persisted on EVERY worker outcome (incl.
+// not_found/unreadable) so the board can tell processing (pending) from
+// needs-entry (not_found/unreadable) from a value (extracted/manual).
+// Expand-only: default pending backfills existing rows.
+export const manifestExtractionStatusEnum = pgEnum('manifest_extraction_status', MANIFEST_EXTRACTION_STATUSES);
+// Deterministic cause of a non-extracted outcome (SSOT @fleet/sync-protocol
+// EXTRACTION_FAILURE_REASONS). Nullable: only set for not_found/unreadable
+// rows so a parse refusal (unparseable) is queryably distinct from an
+// illegible photo (object_missing). Expand-only; null for
+// pending/extracted/manual.
+export const manifestExtractionReasonEnum = pgEnum('manifest_extraction_reason', EXTRACTION_FAILURE_REASONS);
 export const manifest = pgTable(
   'manifest',
   {
@@ -94,8 +65,8 @@ export const manifest = pgTable(
      *  extraction succeeds. numeric(12,3) via VLM, never trusted unvalidated. */
     extractedNetWeightKg: numeric('extracted_net_weight_kg', { precision: 12, scale: 3 }),
     /** Extraction lifecycle status (see manifestExtractionStatusEnum). Default
-     *  'pending'; the worker callback sets extracted/not_found/unreadable, a
-     *  dispatcher's manual edit sets 'manual'. */
+     *  pending; the worker callback sets extracted/not_found/unreadable, a
+     *  dispatcher manual edit sets manual. */
     extractionStatus: manifestExtractionStatusEnum('extraction_status').notNull().default('pending'),
     /** EXPAND-only: deterministic failure cause for not_found/unreadable rows
      *  (see manifestExtractionReasonEnum). Null for pending/extracted/manual. */
@@ -109,7 +80,6 @@ export const manifest = pgTable(
     index('manifest_stop_idx').on(t.stopId),
   ],
 );
-
 export const uploadSession = pgTable(
   'upload_session',
   {
@@ -135,7 +105,6 @@ export const uploadSession = pgTable(
     check('upload_session_size_positive', sql`${t.expectedSizeBytes} IS NULL OR ${t.expectedSizeBytes} > 0`),
   ],
 );
-
 export type Manifest = typeof manifest.$inferSelect;
 export type NewManifest = typeof manifest.$inferInsert;
 export type UploadSession = typeof uploadSession.$inferSelect;
