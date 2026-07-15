@@ -16,8 +16,10 @@ const TENANCY = {
 };
 
 // Minimal fake FleetDb: update() resolves (the operator_id backfill), insert()
-// rejects at .returning() with a generic (non-23505) error.
-function makeThrowingDb(err: unknown): unknown {
+// rejects at .returning() with a generic (non-23505) error. The reason is typed
+// Error so @typescript-eslint/prefer-promise-reject-errors is satisfied
+// statically; the test still asserts identity, not shape.
+function makeThrowingDb(err: Error): unknown {
   return {
     update() {
       return { set() { return { where() { return Promise.resolve(); } }; } };
