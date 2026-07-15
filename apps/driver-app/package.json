@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "^55.0.11",
+    "@fleet/design-tokens": "workspace:*",
     "@fleet/observability": "workspace:*",
     "@fleet/sync-protocol": "workspace:*",
     "@sentry/react-native": "~7.11.0",

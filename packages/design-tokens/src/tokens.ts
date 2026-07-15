@@ -114,3 +114,42 @@ export const typography = {
   label: { fontSize: 12, fontWeight: '600', letterSpacing: 0.6 },
   caption: { fontSize: 12, fontWeight: '400' },
 } as const;
+
+// Numeric font-size scale (React Native reads raw sizes directly, e.g. a hero
+// number or button label). Canonical superset covering the app display sizes;
+// the composite typography styles above pair sizes with weights, this is the
+// bare scale for RN inline text styles. Strictly ascending.
+export const FontSizeSchema = z.object({
+  sm: z.number().positive(),
+  base: z.number().positive(),
+  lg: z.number().positive(),
+  xl: z.number().positive(),
+  xxl: z.number().positive(),
+  huge: z.number().positive(),
+});
+export type FontSize = z.infer<typeof FontSizeSchema>;
+export const fontSize = { sm: 13, base: 15, lg: 18, xl: 24, xxl: 34, huge: 56 } as const;
+
+// Elevation primitive for React Native raised surfaces. shadowColor references
+// the palette so it cannot drift from the ramp; offset/opacity/radius/elevation
+// are the RN Platform shadow fields. One canonical card elevation shared by
+// every raised RN surface.
+export const ShadowSchema = z.object({
+  card: z.object({
+    shadowColor: HexColorSchema,
+    shadowOffset: z.object({ width: z.number(), height: z.number() }),
+    shadowOpacity: z.number().min(0).max(1),
+    shadowRadius: z.number().nonnegative(),
+    elevation: z.number().nonnegative(),
+  }),
+});
+export type Shadow = z.infer<typeof ShadowSchema>;
+export const shadow = {
+  card: {
+    shadowColor: palette.slate[900],
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+} as const;
