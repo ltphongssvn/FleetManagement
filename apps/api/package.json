@@ -30,6 +30,7 @@
     "inspect:order-state": "tsx src/scripts/inspect-order-state.ts",
     "repair:complete-delivered-runs": "tsx src/scripts/repair-complete-delivered-runs.ts",
     "repair:ghost-runs": "tsx src/scripts/repair-ghost-runs.ts",
+    "audit:assignment-uniqueness": "tsx src/scripts/audit-assignment-uniqueness.ts",
     "db:check": "drizzle-kit check",
     "test:changed": "vitest run --changed HEAD~1",
     "test:mutation": "stryker run"
