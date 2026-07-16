@@ -122,6 +122,13 @@
       "persistent": false,
       "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
     },
+    "audit:device-registry": {
+      "description": "READ-ONLY audit of device_registry fabrication from the manual pre-enroll path. Runs the unit-tested auditDeviceRegistry classifier against live rows and prints duplicate-udid groups, platform monoculture, placeholder-version count, and active device_session blast-radius. No mutation, no --execute. Live DB read: cache:false. passThroughEnv DATABASE_URL under strict envMode. Run: pnpm exec turbo run audit:device-registry --filter=@fleet/api.",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL"]
+    },
     "audit:assignment-uniqueness": {
       "description": "READ-ONLY audit of driver-vehicle assignment-pair uniqueness. Runs the unit-tested auditAssignmentUniqueness classifier against live ACTIVE assignment rows and prints any duplicate driver/vehicle/pair groups (violations of the 1:1 partial-unique-index invariant). --introspect mode instead prints whether the two dva_one_active_* partial-unique indexes exist and are VALID in prod (drift check). No mutation. Live DB read: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run audit:assignment-uniqueness --filter=@fleet/api [-- --introspect].",
       "dependsOn": ["build"],

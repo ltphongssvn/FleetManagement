@@ -30,11 +30,11 @@ const PRESENTATIONS: Record<DriverAttentionReason, DriverAttentionPresentation> 
   Object.freeze({
     VEHICLE_UNASSIGNED: Object.freeze({
       label: 'Chưa giao',
-      hint: 'Chọn số xe và bấm Phân công & đăng ký.',
+      hint: 'Chọn số xe và bấm Phân công.',
     }),
     DEVICE_UNREGISTERED: Object.freeze({
       label: 'Chưa đăng ký',
-      hint: 'Nhập mã thiết bị (UDID) và bấm Phân công & đăng ký.',
+      hint: 'Thiết bị sẽ tự đăng ký khi tài xế đăng nhập ứng dụng.',
     }),
   });
 
