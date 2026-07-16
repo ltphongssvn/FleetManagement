@@ -15,7 +15,13 @@ import { TransportOrdersController } from '../src/transport-orders/transport-ord
 import type { TransportOrdersService } from '../src/transport-orders/transport-orders.service.js';
 import type { OperatorContext } from '../src/auth/operator-context.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
+import type { ConfigService } from '@nestjs/config';
 const op: OperatorContext = createOperatorContext();
+// ConfigService stub for the coerced seed flag (Factor III). Default true so
+// the create path is enabled; pass false to model a seed-disabled deploy.
+function makeConfig(seedEnabled = true): ConfigService {
+  return { get: (k: string): unknown => (k === 'FLEET_PILOT_SEED_ENABLED' ? seedEnabled : undefined) } as ConfigService;
+}
 describe('@fleet/api - TransportOrdersController', () => {
   let create: ReturnType<typeof vi.fn>;
   let listAssigned: ReturnType<typeof vi.fn>;
@@ -33,7 +39,7 @@ describe('@fleet/api - TransportOrdersController', () => {
     drainOnce = vi.fn().mockResolvedValue({ scope: op.companyId, polled: 1, applied: 1, noops: 0, deletes: 0, newWatermark: '1' });
     svc = { create, listAssigned, listCompleted, tripHistory } as unknown as TransportOrdersService;
     runner = { drainOnce };
-    ctl = new TransportOrdersController(svc, runner as never);
+    ctl = new TransportOrdersController(svc, runner as never, makeConfig());
   });
   it('parses valid input and delegates to service', async () => {
     create.mockResolvedValue({ transportOrderId: 'to-1', roadRunId: 'rr-1' });
@@ -52,10 +58,9 @@ describe('@fleet/api - TransportOrdersController', () => {
     await expect(ctl.create({ stops: [] }, op)).rejects.toThrow();
   });
   it('rejects when seed flag disabled', async () => {
-    process.env['FLEET_PILOT_SEED_ENABLED'] = 'false';
-    await expect(ctl.create({ stops: [{ sequence: 1, stopType: 'pickup' }] }, op))
+    const disabledCtl = new TransportOrdersController(svc, runner as never, makeConfig(false));
+    await expect(disabledCtl.create({ stops: [{ sequence: 1, stopType: 'pickup' }] }, op))
       .rejects.toThrow(/seed/i);
-    delete process.env['FLEET_PILOT_SEED_ENABLED'];
   });
   it('listAssigned delegates to the service with the operator context', async () => {
     listAssigned.mockResolvedValue({ rows: [] });

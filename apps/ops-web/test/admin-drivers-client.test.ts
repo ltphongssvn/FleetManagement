@@ -125,35 +125,6 @@ describe("AdminDriversClient.assign", () => {
   });
 });
 
-describe("AdminDriversClient.enrollDevice", () => {
-  it("POSTs /api/admin/devices with body and returns deviceId", async () => {
-    const fetchFn = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ deviceId: "dev-123" }),
-    });
-    const client = new AdminDriversClient({ fetchFn: fetchFn as never });
-    const r = await client.enrollDevice({ driverId: "d1", udid: "UDID-A", platform: "ios" });
-    expect(r.deviceId).toBe("dev-123");
-    expect(fetchFn).toHaveBeenCalledWith("/api/admin/devices", expect.objectContaining({
-      method: "POST",
-      body: JSON.stringify({ driverId: "d1", udid: "UDID-A", platform: "ios" }),
-    }));
-  });
-
-  it("uses globalThis.fetch when fetchFn is not provided", async () => {
-    const originalFetch = globalThis.fetch;
-    const spy = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ deviceId: "x" }) });
-    globalThis.fetch = spy as never;
-    try {
-      const client = new AdminDriversClient({});
-      await client.enrollDevice({ driverId: "d1", udid: "u", platform: "ios" });
-      expect(spy).toHaveBeenCalled();
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-  });
-});
-
 describe("AdminDriversClient.revoke", () => {
   it("DELETEs /api/admin/driver-vehicle-assignments/:id with reason in body", async () => {
     const fetchFn = vi.fn().mockResolvedValue({

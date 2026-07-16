@@ -22,16 +22,19 @@ import { CreateTransportOrderSchema, type CreateTransportOrderResponse, type Lis
 import { DriverCompletedPageQuerySchema, type DriverCompletedPageResponse } from '@fleet/sync-protocol';
 import { TransportOrdersService } from './transport-orders.service.js';
 import { ProjectionRunnerService } from '../projections/projection-runner.service.js';
+import { ConfigService } from '@nestjs/config';
 @Controller('transport-orders')
 @UseGuards(JwtGuard)
 export class TransportOrdersController {
   constructor(
     private readonly svc: TransportOrdersService,
     private readonly projectionRunner: ProjectionRunnerService,
+    private readonly config: ConfigService,
   ) {}
   @Post()
   async create(@Body() body: unknown, @CurrentOperator() op: OperatorContext): Promise<CreateTransportOrderResponse> {
-    if (process.env['FLEET_PILOT_SEED_ENABLED'] === 'false') {
+    // Factor III: read the coerced boolean flag from the validated boundary.
+    if (!this.config.get<boolean>('FLEET_PILOT_SEED_ENABLED')) {
       throw new ForbiddenException('seed endpoint disabled');
     }
     const input = CreateTransportOrderSchema.parse(body);

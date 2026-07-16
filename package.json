@@ -32,6 +32,7 @@
     "ci:fast": "turbo run __ci_fast__",
     "sync:main": "tsx scripts/sync-main.ts",
     "stack:up": "tsx scripts/e2e/stack-up.ts",
+    "stack:e2e:isolated": "tsx scripts/e2e/stack-e2e-isolated.ts",
     "release:closeout": "tsx scripts/e2e/release-closeout.ts",
     "release:promote": "tsx scripts/e2e/release-promote.ts",
     "guard:railway-references": "tsx scripts/railway-reference-guard.ts",

@@ -7,6 +7,16 @@
 // carries no Authorization header. The former apiUrl/bearerToken config was
 // vestigial (never read by any method) and has been removed as dead code; the
 // only remaining injectable seam is fetchFn, which tests use to stub responses.
+//
+// Merge resolution (origin/develop into fix/ops-web-idle-timeout):
+// HEAD wins on transport -- the cookie + ensureOk seam IS this PR; develop
+// still threaded a bearerToken through every method, which this branch deleted
+// as dead code.
+// enrollDevice is DROPPED (not refactored): origin/develop removed the manual
+// device-UDID pre-enroll path at the root (PR #302, superseded by T7
+// self-enroll), taking the /api/admin/devices BFF route with it. Porting the
+// method onto the new seam would resurrect a call to an endpoint that no
+// longer exists.
 import type { AdminDriverRow as DriverRow } from '@fleet/sync-protocol';
 import { ensureOk } from '@/features/errors/api-problem-error';
 export type FetchFn = typeof globalThis.fetch;
@@ -86,15 +96,6 @@ export class AdminDriversClient {
     });
     await ensureOk(res, 'POST /admin/driver-vehicle-assignments');
     return (await res.json()) as AssignResult;
-  }
-  async enrollDevice(input: { driverId: string; udid: string; platform: string }): Promise<{ deviceId: string }> {
-    const res = await this.fetchFn()('/api/admin/devices', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    });
-    await ensureOk(res, 'POST /admin/devices');
-    return (await res.json()) as { deviceId: string };
   }
   async revoke(assignmentId: string, reason: string): Promise<RevokeResult> {
     const res = await this.fetchFn()('/api/admin/driver-vehicle-assignments/' + assignmentId, {
