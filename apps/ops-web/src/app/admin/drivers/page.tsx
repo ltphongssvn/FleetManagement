@@ -9,10 +9,10 @@
 // / error are explicit machine states, boolean soup is unrepresentable.
 // Rows are server data; classification truth lives in @fleet/sync-protocol;
 // Vietnamese copy lives in driver-attention.presenter (immutable contracts).
-// T5: no inline rename (Xoa + re-create supersedes). Assign and enroll stay
-// INDEPENDENT mutations (MAI HIEN DIEU bug guard): each refreshes + busts
-// the Router Cache on its own success; enroll failure never blocks the
-// assignment refresh. Cross-route: revalidateDispatch() busts route '/'.
+// T5: no inline rename (Xoa + re-create supersedes). Device enrollment removed
+// (T7 arc): devices self-enroll via the app; the dispatcher only assigns a
+// vehicle and never hand-mints device identity. Assignment busts the Router
+// Cache on success. Cross-route: revalidateDispatch() busts route '/'.
 'use client';
 import { useEffect, useState, type JSX } from 'react';
 import { useMachine } from '@xstate/react';
@@ -49,7 +49,6 @@ export default function AdminDriversPage(): JSX.Element {
   const [snapshot, send] = useMachine(driverAttentionMachine);
   const router = useRouter();
   const [vehicleSelect, setVehicleSelect] = useState<Record<string, string>>({});
-  const [deviceIdInput, setDeviceIdInput] = useState<Record<string, string>>({});
   const [phoneEdits, setPhoneEdits] = useState<Record<string, string>>({});
   const [resetMsg, setResetMsg] = useState<Record<string, string>>({});
   const [vehicles, setVehicles] = useState<readonly VehicleOption[]>([]);
@@ -111,12 +110,11 @@ export default function AdminDriversPage(): JSX.Element {
       }));
     }
   };
-  const handleAssignAndEnroll = async (driverId: string): Promise<void> => {
+  // Device enrollment removed: devices self-enroll via the app (T7 arc). The
+  // dispatcher only assigns a vehicle; device identity is never hand-minted.
+  const handleAssign = async (driverId: string): Promise<void> => {
     const vehicleId = vehicleSelect[driverId];
-    const deviceId = deviceIdInput[driverId];
     if (vehicleId === undefined || vehicleId.length === 0) { alert('Vui lòng chọn xe'); return; }
-    if (deviceId === undefined || deviceId.length === 0) { alert('Vui lòng nhập mã thiết bị (UDID)'); return; }
-    // Assign and enroll are INDEPENDENT operations (see header note).
     try {
       await client.assign({ driverId, vehicleId });
       await refresh();
@@ -124,15 +122,6 @@ export default function AdminDriversPage(): JSX.Element {
       await revalidateDispatch();
     } catch (e) {
       alert(vnExceptionMessage(e, 'assign failed'));
-      return;
-    }
-    try {
-      await client.enrollDevice({ driverId, udid: deviceId, platform: 'ios' });
-      await refresh();
-      router.refresh();
-      await revalidateDispatch();
-    } catch (e) {
-      alert(vnExceptionMessage(e, 'device enroll failed'));
     }
   };
   const handleRevoke = async (assignmentId: string): Promise<void> => {
@@ -210,19 +199,12 @@ export default function AdminDriversPage(): JSX.Element {
             <option key={v.vehicleId} value={v.vehicleId}>{v.plate}</option>
           ))}
         </select>
-        <input
-          type='text'
-          placeholder='Mã thiết bị tài xế (UDID)'
-          value={deviceIdInput[row.driverId] ?? ''}
-          onChange={(e) => { setDeviceIdInput((m) => ({ ...m, [row.driverId]: e.target.value })); }}
-          className='border rounded px-2 py-1 text-sm w-72'
-        />
         <button
           type='button'
-          onClick={() => { void handleAssignAndEnroll(row.driverId); }}
+          onClick={() => { void handleAssign(row.driverId); }}
           className='bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm w-fit'
         >
-          Phân công &amp; đăng ký
+          Phân công
         </button>
       </div>
     )
@@ -391,7 +373,7 @@ export default function AdminDriversPage(): JSX.Element {
                   <ul className='text-sm'>
                     {row.devices.map((d) => (
                       <li key={d.deviceId}>
-                        {d.udid ?? d.deviceId}
+                        {d.deviceId}
                       </li>
                     ))}
                   </ul>

@@ -24,13 +24,13 @@ describe('driver-attention presenter', () => {
   it('VEHICLE_UNASSIGNED presents the existing table label + assign hint', () => {
     const p = presentDriverAttentionReason('VEHICLE_UNASSIGNED');
     expect(p.label).toBe('Chưa giao');
-    expect(p.hint).toBe('Chọn số xe và bấm Phân công & đăng ký.');
+    expect(p.hint).toBe('Chọn số xe và bấm Phân công.');
   });
 
-  it('DEVICE_UNREGISTERED presents the existing table label + enroll hint', () => {
+  it('DEVICE_UNREGISTERED presents the existing table label + self-enroll hint', () => {
     const p = presentDriverAttentionReason('DEVICE_UNREGISTERED');
     expect(p.label).toBe('Chưa đăng ký');
-    expect(p.hint).toBe('Nhập mã thiết bị (UDID) và bấm Phân công & đăng ký.');
+    expect(p.hint).toBe('Thiết bị sẽ tự đăng ký khi tài xế đăng nhập ứng dụng.');
   });
 
   it('unknown codes fall back generically and never throw', () => {

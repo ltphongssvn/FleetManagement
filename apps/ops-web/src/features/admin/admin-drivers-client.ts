@@ -95,15 +95,6 @@ export class AdminDriversClient {
     if (!res.ok) throw new Error(`POST /admin/driver-vehicle-assignments HTTP ${String(res.status)}`);
     return (await res.json()) as AssignResult;
   }
-  async enrollDevice(input: { driverId: string; udid: string; platform: string }): Promise<{ deviceId: string }> {
-    const fetchFn = this.config.fetchFn ?? globalThis.fetch;
-    const res = await fetchFn('/api/admin/devices', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    });
-    return (await res.json()) as { deviceId: string };
-  }
   async revoke(assignmentId: string, reason: string): Promise<RevokeResult> {
     const token = await this.config.bearerToken();
     const fetchFn = this.config.fetchFn ?? globalThis.fetch;

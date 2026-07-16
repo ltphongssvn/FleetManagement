@@ -29,7 +29,6 @@ export const AdminDriverDeviceSchema = z.looseObject({
   platform: z.string(),
   appVersion: z.string(),
   lastSeenAt: z.string().nullable(),
-  udid: z.string().nullable(),
 });
 export type AdminDriverDevice = z.infer<typeof AdminDriverDeviceSchema>;
 
