@@ -9,15 +9,22 @@ import { createStateMachine, type FiniteStateMachine } from '../state-machines/f
  *
  * @see Frozen Stack PDF section "Domain model"
  */
-export const RoadRunStateSchema = z.enum([
+// Tuple-first SSOT (2026 canonical for Drizzle + Zod) -- see the fuller
+// rationale in transport-order-state.ts. The vocabulary is declared ONCE as a
+// frozen as-const tuple; both the Zod schema and the drizzle pgEnum derive
+// from it. The previous shape (STATES = Object.freeze(Schema.options),
+// annotated readonly RoadRunState[]) erased the tuple type that pgEnum
+// requires, which is why apps/api database/schema/transport.ts hand-copied
+// these values instead of importing them.
+export const ROAD_RUN_STATES = Object.freeze([
   'planned',
   'dispatched',
   'started',
   'completed',
   'cancelled',
-]);
+] as const);
+export const RoadRunStateSchema = z.enum(ROAD_RUN_STATES);
 export type RoadRunState = z.infer<typeof RoadRunStateSchema>;
-export const ROAD_RUN_STATES: readonly RoadRunState[] = Object.freeze(RoadRunStateSchema.options);
 
 export const roadRunFsm: FiniteStateMachine<RoadRunState> = createStateMachine({
   version: 1,
