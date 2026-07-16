@@ -69,3 +69,10 @@ export {
   RolloutVerdictSchema,
   type RolloutVerdict,
 } from './delivery/rollout-verdict.js';
+export {
+  DEFAULT_ROLLOUT_LADDER,
+  RolloutStageSchema,
+  RolloutLadderSchema,
+  type RolloutStage,
+  type RolloutLadder,
+} from './delivery/rollout-stage.js';
