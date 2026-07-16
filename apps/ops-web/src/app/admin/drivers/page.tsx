@@ -7,6 +7,11 @@
 // the regular table. State ownership: driverAttentionMachine (useMachine)
 // replaces the old useReducer -- loading / ready.attention / ready.allClear
 // / error are explicit machine states, boolean soup is unrepresentable.
+// data-testid hooks keyed by driverId are the contract consumed by the
+// Playwright acceptance specs -- assign/revoke controls are addressed by
+// testid, never by Vietnamese copy, so a copy edit cannot silently break
+// the gate (this page shipped with no testids and #302's removal of the
+// device step turned develop red for exactly that reason).
 // Rows are server data; classification truth lives in @fleet/sync-protocol;
 // Vietnamese copy lives in driver-attention.presenter (immutable contracts).
 // T5: no inline rename (Xoa + re-create supersedes). Device enrollment removed
@@ -182,6 +187,7 @@ export default function AdminDriversPage(): JSX.Element {
     row.assignmentId !== null ? (
       <button
         type='button'
+        data-testid={'driver-revoke-' + row.driverId}
         onClick={() => { void handleRevoke(row.assignmentId ?? ''); }}
         className='bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm w-fit'
       >
@@ -190,6 +196,7 @@ export default function AdminDriversPage(): JSX.Element {
     ) : (
       <div className='flex flex-col gap-2'>
         <select
+          data-testid={'driver-assign-vehicle-' + row.driverId}
           value={vehicleSelect[row.driverId] ?? ''}
           onChange={(e) => { setVehicleSelect((m) => ({ ...m, [row.driverId]: e.target.value })); }}
           className='border rounded px-2 py-1 text-sm w-72'
@@ -201,6 +208,7 @@ export default function AdminDriversPage(): JSX.Element {
         </select>
         <button
           type='button'
+          data-testid={'driver-assign-submit-' + row.driverId}
           onClick={() => { void handleAssign(row.driverId); }}
           className='bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm w-fit'
         >
@@ -314,7 +322,7 @@ export default function AdminDriversPage(): JSX.Element {
                     <div className='font-medium'>{entry.row.fullName}</div>
                     <div className='text-xs text-gray-700'>{entry.row.phone}</div>
                     {entry.row.assignedVehicle ? (
-                      <span className='inline-block mt-1 bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>
+                      <span data-testid={'driver-assigned-plate-' + entry.row.driverId} className='inline-block mt-1 bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>
                         {entry.row.assignedVehicle.plate}
                       </span>
                     ) : null}
@@ -359,7 +367,7 @@ export default function AdminDriversPage(): JSX.Element {
               </td>
               <td className='p-2'>
                 {row.assignedVehicle ? (
-                  <span className='inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>
+                  <span data-testid={'driver-assigned-plate-' + row.driverId} className='inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>
                     {row.assignedVehicle.plate}
                   </span>
                 ) : (
