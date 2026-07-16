@@ -29,7 +29,8 @@
 import type { JSX } from 'react';
 import Link from 'next/link';
 import { cookies, headers } from 'next/headers';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
+import { sessionRefreshUrl } from '@/features/auth/session-refresh-navigation';
 import { ListAssignedRowSchema } from '@fleet/sync-protocol';
 import { OrderReview } from '@/features/dispatch/OrderReview';
 import { CancelOrderForm } from '@/features/dispatch/CancelOrderForm';
@@ -69,6 +70,12 @@ export default async function OrderReviewPage({ params }: PageProps): Promise<JS
     cache: 'no-store',
   });
   if (res.status === 404) notFound();
+  // Idle-expired session: the RSC forwarded no/expired fleet_session and the
+  // BFF answered 401. redirect() to the silent-refresh route (loadDispatchBoard
+  // house pattern) -- a TOP-LEVEL navigation lets the rotated cookie pair ride
+  // back to the browser legitimately; minting inside this internal fetch would
+  // strand the pair and trip RFC 9700 refresh-token reuse detection.
+  if (res.status === 401) redirect(sessionRefreshUrl('/dispatch/orders/' + idOrRef));
   if (!res.ok) throw new Error('Failed to load order: ' + String(res.status));
   // Trust boundary: validate the untrusted BFF response against the shared
   // contract instead of casting. Throws a descriptive ZodError on drift.

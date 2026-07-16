@@ -1,20 +1,13 @@
 // apps/ops-web/src/app/api/admin/driver-vehicle-assignments/[id]/route.ts
-import { cookies } from 'next/headers';
-import { NextResponse, type NextRequest } from 'next/server';
+// BFF: revoke one driver-vehicle assignment (DELETE with {reason} JSON body
+// for the audit trail), riding the app-wide forwarder -- which preserves
+// DELETE bodies because body presence is decided by the actual payload.
+import { type NextRequest, type NextResponse } from 'next/server';
+import { forwardWrite } from '@/app/api/_forward';
 
-function getApiUrl(): string { return process.env['FLEET_API_URL'] ?? 'http://api:3000'; }
+interface Ctx { params: Promise<{ id: string }> }
 
-export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
-  const token = (await cookies()).get('fleet_session')?.value;
-  if (token === undefined) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+export async function DELETE(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id } = await ctx.params;
-  const body = await req.text();
-  const res = await fetch(`${getApiUrl()}/admin/driver-vehicle-assignments/${id}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body,
-    cache: 'no-store',
-  });
-  const respBody = await res.text();
-  return new NextResponse(respBody, { status: res.status, headers: { 'content-type': 'application/json' } });
+  return forwardWrite(req, '/admin/driver-vehicle-assignments/' + id, 'DELETE');
 }

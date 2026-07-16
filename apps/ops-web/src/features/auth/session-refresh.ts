@@ -7,7 +7,11 @@
 // /login redirect (page navigations). Cookie names + options are the single
 // contract shared by the OIDC callback, the /api/auth/refresh route, and the
 // BFF forwarder.
+import { z } from 'zod';
 import { TokenResponseSchema } from './oidc-authorization.schema';
+// publicOrigin now lives in its own edge-safe module (no zod) so the middleware
+// can import it; re-exported here for the callback + refresh-route call sites.
+export { publicOrigin } from './public-origin';
 
 export const SESSION_COOKIE = 'fleet_session';
 export const REFRESH_COOKIE = 'fleet_refresh';
@@ -39,10 +43,14 @@ export function refreshCookieOptions(): SessionCookieOptions {
   };
 }
 
-export interface RefreshEnv {
-  readonly tokenEndpoint: string;
-  readonly clientId: string;
-}
+// Env vars are a TRUST BOUNDARY (two-axis Zod rule, Axis 1): validate the
+// shape at the edge instead of presence-checking strings by hand. The type
+// derives from the schema (Axis 2 SSOT) -- no hand-written parallel interface.
+export const RefreshEnvSchema = z.object({
+  tokenEndpoint: z.url(),
+  clientId: z.string().min(1),
+});
+export type RefreshEnv = z.infer<typeof RefreshEnvSchema>;
 
 export interface RefreshedTokens {
   readonly accessToken: string;
@@ -80,8 +88,9 @@ export async function refreshSession(
 }
 
 export function refreshEnvFromProcess(): RefreshEnv | null {
-  const tokenEndpoint = process.env['OIDC_TOKEN_ENDPOINT'];
-  const clientId = process.env['OIDC_CLIENT_ID'];
-  if (tokenEndpoint === undefined || clientId === undefined) return null;
-  return { tokenEndpoint, clientId };
+  const parsed = RefreshEnvSchema.safeParse({
+    tokenEndpoint: process.env['OIDC_TOKEN_ENDPOINT'],
+    clientId: process.env['OIDC_CLIENT_ID'],
+  });
+  return parsed.success ? parsed.data : null;
 }

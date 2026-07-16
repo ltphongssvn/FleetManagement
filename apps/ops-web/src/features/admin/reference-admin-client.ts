@@ -25,6 +25,7 @@ import {
   type ReferenceItem,
 } from '@fleet/sync-protocol';
 import { vnApiErrorMessage } from '../errors/present-problem';
+import { ApiProblemError } from '../errors/api-problem-error';
 
 export type FetchFn = typeof globalThis.fetch;
 // ReferenceOption now DERIVES from the @fleet/sync-protocol SSOT (one of
@@ -43,7 +44,12 @@ function serverMessageFrom(body: unknown): string | null {
 async function failWithBestMessage(res: Response): Promise<never> {
   const body: unknown = await res.clone().json().catch(() => undefined);
   const serverMsg = serverMessageFrom(body);
-  throw new Error(serverMsg ?? vnApiErrorMessage(res.status, body));
+  // ApiProblemError adds machine members (status + Zod-parsed code) while
+  // .message keeps the SAME display copy as before (detail > legacy message >
+  // status-class Vietnamese): conflict-name extraction on .message is
+  // untouched, and pages can now branch on isSessionExpired (401).
+  const problem = parseProblemDetails(body);
+  throw new ApiProblemError(res.status, problem?.code, serverMsg ?? vnApiErrorMessage(res.status, body));
 }
 export class ReferenceAdminClient {
   private readonly fetchFn: FetchFn;

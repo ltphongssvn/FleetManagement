@@ -23,6 +23,10 @@ import { useEffect, useState, type JSX } from 'react';
 import { useMachine } from '@xstate/react';
 import type { AdminDriverRow } from '@fleet/sync-protocol';
 import { vnExceptionMessage } from '@/features/errors/present-problem';
+import {
+  isSessionExpired,
+  navigateToSessionRefresh,
+} from '@/features/auth/session-refresh-navigation';
 import { useRouter } from 'next/navigation';
 import { revalidateDispatch } from '../../../features/admin/revalidate-dispatch.action';
 import { AdminDriversClient } from '../../../features/admin/admin-drivers-client';
@@ -59,15 +63,20 @@ export default function AdminDriversPage(): JSX.Element {
   const [vehicles, setVehicles] = useState<readonly VehicleOption[]>([]);
   const [createForm, setCreateForm] = useState<CreateFormState>(EMPTY_CREATE_FORM);
   const [busy, setBusy] = useState(false);
-  const client = new AdminDriversClient({
-    apiUrl: '',
-    bearerToken: (): string => '',
-  });
+  const client = new AdminDriversClient({});
   const refresh = async (): Promise<void> => {
     try {
       const rows = await client.list();
       send({ type: 'LOADED', rows });
     } catch (e) {
+      // Idle-expired session (401, refresh impossible via the BFF seam):
+      // hand the browser to /api/auth/refresh?next=<here> -- the server
+      // re-mints silently or lands on public-origin /login?error=session_expired.
+      // Rendering an error here was the prod dead-end (Loi: load failed).
+      if (isSessionExpired(e)) {
+        navigateToSessionRefresh();
+        return;
+      }
       send({ type: 'ERROR', message: vnExceptionMessage(e, 'load failed') });
     }
   };

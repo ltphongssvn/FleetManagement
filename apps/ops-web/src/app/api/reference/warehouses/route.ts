@@ -4,7 +4,7 @@
 // warehouses can be listed separately.
 import type { NextRequest } from 'next/server';
 import type { NextResponse } from 'next/server';
-import { forwardGet, forwardWrite } from '../_forward';
+import { forwardGet, forwardWrite } from '@/app/api/_forward';
 export function GET(req: NextRequest): Promise<NextResponse> {
   const role = req.nextUrl.searchParams.get('role');
   const path = role === null ? '/reference/warehouses' : '/reference/warehouses?role=' + role;
