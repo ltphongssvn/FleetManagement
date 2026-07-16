@@ -64,3 +64,8 @@ export {
 } from './manifest/manifest-rejection-reason.js';
 export * from "./number-format/parse-one-number.js";
 export * from './manifest/manifest-extraction-status.js';
+export {
+  ROLLOUT_VERDICTS,
+  RolloutVerdictSchema,
+  type RolloutVerdict,
+} from './delivery/rollout-verdict.js';
