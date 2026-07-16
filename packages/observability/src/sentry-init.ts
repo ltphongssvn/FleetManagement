@@ -8,6 +8,7 @@
 // bundle the consumer passes to its SDK's init().
 import { scrubEvent, scrubString, createScrubber, PII_HEADERS, REDACTED, DEFAULT_DEPTH_LIMIT, type ScrubbableEvent } from './sentry-scrub.js';
 import { parseDsn } from './dsn.js';
+import { scrubberConfigSchema } from './scrubber-config.js';
 
 export interface SentryInitInput {
   /** Raw DSN from env. parseDsn validates it. */
@@ -77,7 +78,12 @@ export interface CreateBeforeSendOptions {
 }
 
 const ENV_DEPTH_VAR = 'FLEET_SCRUB_DEPTH';
-const MAX_ENV_DEPTH = 50;
+
+// The depth bound is owned by scrubberConfigSchema. Re-deriving it here as a
+// hand-rolled range check duplicated the contract in two files, free to drift:
+// change .max(50) there and nothing fails here. Unwrapping the optional yields
+// the same int/min/max rule as the single source of truth.
+const depthLimitSchema = scrubberConfigSchema.shape.depthLimit.unwrap();
 
 /**
  * Read scrub depth limit from an env-like record. Returns DEFAULT_DEPTH_LIMIT
@@ -85,10 +91,9 @@ const MAX_ENV_DEPTH = 50;
  */
 export function readDepthLimitFromEnv(env: Record<string, string | undefined>): number {
   const raw = env[ENV_DEPTH_VAR];
-  if (raw === undefined) return DEFAULT_DEPTH_LIMIT;
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < 0 || n > MAX_ENV_DEPTH) return DEFAULT_DEPTH_LIMIT;
-  return n;
+  if (raw === undefined || raw.trim() === '') return DEFAULT_DEPTH_LIMIT;
+  const parsed = depthLimitSchema.safeParse(Number(raw));
+  return parsed.success ? parsed.data : DEFAULT_DEPTH_LIMIT;
 }
 
 /**

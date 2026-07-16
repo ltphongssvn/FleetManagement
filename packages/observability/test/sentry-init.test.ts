@@ -142,6 +142,20 @@ describe('createBeforeSend with audit metadata', () => {
 });
 
 describe('readDepthLimitFromEnv', () => {
+  // Number('') is 0, and '' is not undefined, so a nullish default cannot
+  // fire. An empty or whitespace-only FLEET_SCRUB_DEPTH is routine in a .env
+  // file or an uninterpolated docker-compose variable, and it means unset, not
+  // zero. Depth 0 would redact only top-level keys and pass every nested value
+  // through raw. The bound belongs to scrubberConfigSchema, so the env reader
+  // must derive from it rather than re-deriving the range by hand.
+  it('falls back to the default for an empty env var, which Number reads as 0', () => {
+    expect(readDepthLimitFromEnv({ FLEET_SCRUB_DEPTH: '' })).toBe(6);
+  });
+
+  it('falls back to the default for a whitespace-only env var', () => {
+    expect(readDepthLimitFromEnv({ FLEET_SCRUB_DEPTH: '   ' })).toBe(6);
+  });
+
   it('returns env value when valid number', () => {
     expect(readDepthLimitFromEnv({ FLEET_SCRUB_DEPTH: '4' })).toBe(4);
   });
