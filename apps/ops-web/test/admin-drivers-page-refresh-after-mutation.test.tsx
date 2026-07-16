@@ -65,6 +65,13 @@ describe('AdminDriversPage refreshes Router Cache after a mutation', () => {
     const user = userEvent.setup();
     render(<AdminDriversPage />);
     await screen.findByText('Driver Alpha');
+    // The driver list and the vehicle reference list are two INDEPENDENT async
+    // loads. findByText above only settles the driver one, so at that instant the
+    // select still holds just the placeholder option and selectOptions throws
+    // 'Value v1 not found in options'. Await the option itself -- the narrowest
+    // precondition the interaction actually depends on -- rather than an
+    // arbitrary sleep or a waitFor around the click.
+    await screen.findByRole('option', { name: '62H 99999' });
     await user.selectOptions(screen.getByRole('combobox'), 'v1');
     await user.click(screen.getByRole('button', { name: /Phân công/i }));
     await waitFor(() => { expect(assignMock).toHaveBeenCalledTimes(1); });
