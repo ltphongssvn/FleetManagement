@@ -1,12 +1,17 @@
 // packages/domain/test/rollout-stage.test.ts
-// RED-first contract test for the progressive-delivery rollout ladder SSOT.
+// Contract test for the progressive-delivery rollout ladder SSOT.
 // A rollout ladder is the ordered sequence of exposure stages a release climbs:
-// internal users first, then a small traffic slice, widening only while the
-// automated analysis keeps returning promote. The schema exists to make an
-// unsafe ladder unrepresentable rather than caught at deploy time:
-//   - it must start at 0 percent, internal-only (deploy is not release)
-//   - exposure must strictly ascend (a ladder may never narrow mid-climb)
-//   - it must end at 100 percent (a rollout must be able to finish)
+// internal users first, then a small slice of production traffic, widening only
+// while the automated analysis keeps returning promote.
+//
+// A stage has no id. Argo Rollouts and Flagger both identify a stage by its
+// position and its weight (Step: 1/8, SetWeight: 20; analysis binds via
+// startingStep), never by a name. A name field would force an impossible choice:
+// a fixed vocabulary cannot cover an arbitrary weight (5, 25, 30, 75...), and a
+// free-form string re-runs the cancel-reason failure where a typo parses clean.
+// Deleting the field removes the choice: identity is index plus weight, and a
+// typo is unrepresentable because there is no string to mistype.
+//
 // Schema-first: RolloutStage and RolloutLadder are z.infer of their schemas, so
 // this file never re-declares the shape. Only field-level narrowing is asserted,
 // which catches a widening regression without becoming a second definition.
@@ -19,7 +24,7 @@ import {
   type RolloutLadder,
 } from '../src/delivery/rollout-stage.js';
 
-const internal = { id: 'internal', exposurePercent: 0, internalOnly: true };
+const internal = { exposurePercent: 0, internalOnly: true };
 
 describe('rollout ladder: default is the canonical staged exposure', () => {
   it('climbs internal, 1, 10, 50, 100', () => {
@@ -45,11 +50,21 @@ describe('rollout ladder: default is the canonical staged exposure', () => {
   });
 });
 
-describe('rollout stage: schema guards the exposure percentage', () => {
+describe('rollout stage: a stage is a weight, not a name', () => {
   it('accepts a well-formed stage', () => {
     expect(RolloutStageSchema.parse(internal)).toEqual(internal);
   });
 
+  it('rejects an id, because a stage is identified by position and weight', () => {
+    expect(() => RolloutStageSchema.parse({ ...internal, id: 'internal' })).toThrow();
+  });
+
+  it('rejects any other unknown key rather than silently ignoring it', () => {
+    expect(() => RolloutStageSchema.parse({ ...internal, weight: 50 })).toThrow();
+  });
+});
+
+describe('rollout stage: schema guards the exposure percentage', () => {
   it('rejects exposure below 0 or above 100', () => {
     expect(() => RolloutStageSchema.parse({ ...internal, exposurePercent: -1 })).toThrow();
     expect(() => RolloutStageSchema.parse({ ...internal, exposurePercent: 101 })).toThrow();
@@ -63,12 +78,8 @@ describe('rollout stage: schema guards the exposure percentage', () => {
     expect(() => RolloutStageSchema.parse({ ...internal, exposurePercent: NaN })).toThrow();
   });
 
-  it('rejects an empty stage id', () => {
-    expect(() => RolloutStageSchema.parse({ ...internal, id: '' })).toThrow();
-  });
-
-  it('rejects unknown keys rather than silently ignoring them', () => {
-    expect(() => RolloutStageSchema.parse({ ...internal, weight: 50 })).toThrow();
+  it('rejects a missing exposure percentage', () => {
+    expect(() => RolloutStageSchema.parse({ internalOnly: true })).toThrow();
   });
 });
 
@@ -80,9 +91,9 @@ describe('rollout ladder: schema makes an unsafe ladder unrepresentable', () => 
   it('rejects a ladder whose exposure narrows mid-climb', () => {
     const narrowing = [
       internal,
-      { id: 'ramp_50', exposurePercent: 50, internalOnly: false },
-      { id: 'ramp_10', exposurePercent: 10, internalOnly: false },
-      { id: 'full', exposurePercent: 100, internalOnly: false },
+      { exposurePercent: 50, internalOnly: false },
+      { exposurePercent: 10, internalOnly: false },
+      { exposurePercent: 100, internalOnly: false },
     ];
     expect(() => RolloutLadderSchema.parse(narrowing)).toThrow();
   });
@@ -90,34 +101,58 @@ describe('rollout ladder: schema makes an unsafe ladder unrepresentable', () => 
   it('rejects a ladder that repeats an exposure percentage', () => {
     const repeated = [
       internal,
-      { id: 'ramp_10', exposurePercent: 10, internalOnly: false },
-      { id: 'ramp_10_again', exposurePercent: 10, internalOnly: false },
-      { id: 'full', exposurePercent: 100, internalOnly: false },
+      { exposurePercent: 10, internalOnly: false },
+      { exposurePercent: 10, internalOnly: false },
+      { exposurePercent: 100, internalOnly: false },
     ];
     expect(() => RolloutLadderSchema.parse(repeated)).toThrow();
   });
 
   it('rejects a ladder that never reaches 100 percent', () => {
-    const unfinishable = [internal, { id: 'ramp_50', exposurePercent: 50, internalOnly: false }];
+    const unfinishable = [internal, { exposurePercent: 50, internalOnly: false }];
     expect(() => RolloutLadderSchema.parse(unfinishable)).toThrow();
   });
 
-  it('rejects a ladder that does not start at 0 percent internal', () => {
+  it('rejects a ladder that does not start at 0 percent', () => {
     const noInternal = [
-      { id: 'canary', exposurePercent: 5, internalOnly: false },
-      { id: 'full', exposurePercent: 100, internalOnly: false },
+      { exposurePercent: 5, internalOnly: false },
+      { exposurePercent: 100, internalOnly: false },
     ];
     expect(() => RolloutLadderSchema.parse(noInternal)).toThrow();
   });
 
-  it('accepts a custom 5 then 25 ladder, so the stages stay configurable', () => {
+  it('rejects a ladder whose first stage is 0 percent but not internal-only', () => {
+    const notInternal = [
+      { exposurePercent: 0, internalOnly: false },
+      { exposurePercent: 100, internalOnly: false },
+    ];
+    expect(() => RolloutLadderSchema.parse(notInternal)).toThrow();
+  });
+});
+
+describe('rollout ladder: any ascending weights are expressible', () => {
+  it('accepts a 5 then 25 climb, the weights Argo and Flagger docs use', () => {
     const custom = [
       internal,
-      { id: 'canary_5', exposurePercent: 5, internalOnly: false },
-      { id: 'ramp_25', exposurePercent: 25, internalOnly: false },
-      { id: 'full', exposurePercent: 100, internalOnly: false },
+      { exposurePercent: 5, internalOnly: false },
+      { exposurePercent: 25, internalOnly: false },
+      { exposurePercent: 100, internalOnly: false },
     ];
     expect(RolloutLadderSchema.parse(custom)).toHaveLength(4);
+  });
+
+  it('accepts an arbitrary weight no fixed vocabulary would have enumerated', () => {
+    const arbitrary = [
+      internal,
+      { exposurePercent: 3, internalOnly: false },
+      { exposurePercent: 37, internalOnly: false },
+      { exposurePercent: 100, internalOnly: false },
+    ];
+    expect(RolloutLadderSchema.parse(arbitrary)).toHaveLength(4);
+  });
+
+  it('accepts the shortest legal ladder: internal then full', () => {
+    expect(RolloutLadderSchema.parse([internal, { exposurePercent: 100, internalOnly: false }])).toHaveLength(2);
   });
 });
 
