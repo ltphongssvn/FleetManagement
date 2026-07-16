@@ -21,7 +21,7 @@ export interface DriversDataClient {
 }
 
 function makeDefaultClient(): DriversDataClient {
-  return new AdminDriversClient({ apiUrl: '', bearerToken: () => '' });
+  return new AdminDriversClient({});
 }
 
 type LoadState =
