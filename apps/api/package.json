@@ -31,6 +31,7 @@
     "repair:complete-delivered-runs": "tsx src/scripts/repair-complete-delivered-runs.ts",
     "repair:ghost-runs": "tsx src/scripts/repair-ghost-runs.ts",
     "audit:device-registry": "tsx src/scripts/audit-device-registry.ts",
+    "audit:assignment-uniqueness": "tsx src/scripts/audit-assignment-uniqueness.ts",
     "db:check": "drizzle-kit check",
     "test:changed": "vitest run --changed HEAD~1",
     "test:mutation": "stryker run"

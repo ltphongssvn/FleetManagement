@@ -18,6 +18,7 @@ vi.mock('@sentry/nestjs', () => ({
   captureMessage: (...args: unknown[]) => { captureMessage(...args); },
 }));
 import { EasInboundController } from '../src/eas-inbound/eas-inbound.controller.js';
+import type { ConfigService } from '@nestjs/config';
 const SECRET = 'test-eas-secret'; // pragma: allowlist secret
 function sign(raw: Buffer): string {
   return 'sha1=' + createHmac('sha1', SECRET).update(raw).digest('hex');
@@ -46,6 +47,16 @@ function makeDedup(): EasBuildDedupPort & { calls: string[] } {
 function alwaysFresh(): EasBuildDedupPort {
   return { markSeen: (): Promise<boolean> => Promise.resolve(true) };
 }
+// ConfigService stub: returns the validated EAS_WEBHOOK_SECRET (Factor III).
+// makeConfigWith(undefined) models an environment that never wired the secret;
+// makeConfig() is the default (secret present). A separate no-arg wrapper avoids
+// the default-parameter trap where passing undefined would re-apply the default.
+function makeConfigWith(secret: string | undefined): ConfigService {
+  return { get: (key: string): unknown => (key === 'EAS_WEBHOOK_SECRET' ? secret : undefined) } as ConfigService;
+}
+function makeConfig(): ConfigService {
+  return makeConfigWith(SECRET);
+}
 const ERRORED = {
   id: 'build-err-1',
   appId: 'app-1',
@@ -60,17 +71,16 @@ describe('@fleet/api - EasInboundController', () => {
   let ctl: EasInboundController;
   beforeEach(() => {
     captureMessage.mockClear();
-    process.env['EAS_WEBHOOK_SECRET'] = SECRET;
-    ctl = new EasInboundController(alwaysFresh());
+    ctl = new EasInboundController(alwaysFresh(), makeConfig());
   });
   it('rejects when signature header is missing', async () => {
     const req = makeReq(FINISHED);
     await expect(ctl.buildStatus(req as never, undefined)).rejects.toThrow(/signature/i);
   });
-  it('rejects when EAS_WEBHOOK_SECRET is unset', async () => {
-    delete process.env['EAS_WEBHOOK_SECRET'];
+  it('rejects (fail-closed) when EAS_WEBHOOK_SECRET is unset in config', async () => {
+    const noSecretCtl = new EasInboundController(alwaysFresh(), makeConfigWith(undefined));
     const req = makeReq(FINISHED);
-    await expect(ctl.buildStatus(req as never, sign(req.rawBody))).rejects.toThrow(/signature/i);
+    await expect(noSecretCtl.buildStatus(req as never, sign(req.rawBody))).rejects.toThrow(/signature/i);
   });
   it('rejects a bad signature', async () => {
     const req = makeReq(FINISHED);
@@ -109,7 +119,7 @@ describe('@fleet/api - EasInboundController', () => {
     expect(captureMessage).not.toHaveBeenCalled();
   });
   it('idempotency: a repeated errored build id fires Sentry only ONCE', async () => {
-    const dedupCtl = new EasInboundController(makeDedup());
+    const dedupCtl = new EasInboundController(makeDedup(), makeConfig());
     const req = makeReq(ERRORED);
     const sig = sign(req.rawBody);
     const first = await dedupCtl.buildStatus(req as never, sig);
@@ -122,7 +132,7 @@ describe('@fleet/api - EasInboundController', () => {
   });
   it('idempotency: signature is verified BEFORE dedup (bad sig on a repeat still rejects)', async () => {
     const dedup = makeDedup();
-    const dedupCtl = new EasInboundController(dedup);
+    const dedupCtl = new EasInboundController(dedup, makeConfig());
     const req = makeReq(ERRORED);
     await dedupCtl.buildStatus(req as never, sign(req.rawBody));
     await expect(dedupCtl.buildStatus(req as never, 'sha1=' + 'cd'.repeat(20))).rejects.toThrow(/signature/i);

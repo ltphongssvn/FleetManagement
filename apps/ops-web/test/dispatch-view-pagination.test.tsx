@@ -34,6 +34,7 @@ function run(ref: string, state: DispatchBoardRoadRun['state']): DispatchBoardRo
     transportOrderRefs: [ref],
     customerName: null,
     customerPhone: null,
+    cargoName: null,
     weightDiffKg: null,
     stops: [],
   };
@@ -54,6 +55,10 @@ describe('@fleet/ops-web - DispatchView pagination + status filter (L1)', () => 
     expect(active.getAttribute('aria-current')).toBe('page');
     // Finished tab links to the finished group via URL state.
     expect(finished.getAttribute('href')).toContain('group=finished');
+    // Cancelled tab (Lenh Huy) exists and links to the cancelled group via URL state.
+    const cancelled = screen.getByTestId('dispatch-board-filter-cancelled');
+    expect(cancelled).toBeTruthy();
+    expect(cancelled.getAttribute('href')).toContain('group=cancelled');
   });
 
   it('renders a bottom pagination control with a total count and a jump-to-page search input', () => {
@@ -83,6 +88,18 @@ describe('@fleet/ops-web - DispatchView pagination + status filter (L1)', () => 
     expect(screen.getByTestId('dispatch-board-filter-finished').getAttribute('aria-current')).toBe('page');
     const p2 = screen.getByTestId('dispatch-board-page-link-2');
     expect(p2.getAttribute('href')).toContain('group=finished');
+    expect(p2.getAttribute('href')).toContain('page=2');
+  });
+
+  it('marks the Lenh Huy (cancelled) tab current and preserves group in page links when group=cancelled', () => {
+    render(<DispatchView
+      initialRuns={[run('XTT.05-002', 'cancelled')]}
+      refs={refs}
+      pagination={{ group: 'cancelled', page: 1, pageSize: 2, total: 3, totalPages: 2, hasMore: true }}
+    />);
+    expect(screen.getByTestId('dispatch-board-filter-cancelled').getAttribute('aria-current')).toBe('page');
+    const p2 = screen.getByTestId('dispatch-board-page-link-2');
+    expect(p2.getAttribute('href')).toContain('group=cancelled');
     expect(p2.getAttribute('href')).toContain('page=2');
   });
 });

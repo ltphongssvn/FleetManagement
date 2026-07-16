@@ -83,7 +83,7 @@ function formatCustomer(name: string | null): string {
 }
 // Chenh lech (Feature 3): the SERVER-computed pickup-vs-delivery net-weight
 // difference (kg), vi-VN grouped (12500 => 12.500 kg); sign preserved
-// (negative => delivery exceeded pickup). null => weights incomplete => em-dash,
+// (negative => pickup exceeded delivery). null => weights incomplete => em-dash,
 // so a partial reconciliation never shows a misleading number.
 const WEIGHT_DIFF_FORMATTER = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
 function formatWeightDiff(kg: number | null): string {
@@ -137,7 +137,7 @@ function OrderRefCell({ refs }: { refs: readonly string[] }): JSX.Element {
 // dispatched, started); finished = completed + cancelled. Mirrors the SSOT
 // @fleet/sync-protocol RoadRunStatusGroup (string-typed here to avoid coupling
 // the client component to the contract import; the loader/api are authoritative).
-export type BoardStatusGroup = 'active' | 'finished';
+export type BoardStatusGroup = 'active' | 'finished' | 'cancelled';
 export interface DispatchBoardPagination {
   readonly group: BoardStatusGroup;
   readonly page: number;
@@ -163,6 +163,7 @@ function FilterTabs({ group, search }: { group: BoardStatusGroup; search: string
     <div className='flex items-center gap-2' role='tablist' aria-label='Lọc theo trạng thái'>
       <a data-testid='dispatch-board-filter-active' href={buildBoardHref('active', 1, search)} aria-current={group === 'active' ? 'page' : undefined} className={group === 'active' ? activeCls : idleCls}>Đang chạy</a>
       <a data-testid='dispatch-board-filter-finished' href={buildBoardHref('finished', 1, search)} aria-current={group === 'finished' ? 'page' : undefined} className={group === 'finished' ? activeCls : idleCls}>Đã hoàn tất</a>
+      <a data-testid='dispatch-board-filter-cancelled' href={buildBoardHref('cancelled', 1, search)} aria-current={group === 'cancelled' ? 'page' : undefined} className={group === 'cancelled' ? activeCls : idleCls}>Lệnh Hủy</a>
     </div>
   );
 }
@@ -176,12 +177,25 @@ function SearchBox({ group, search }: { group: BoardStatusGroup; search: string 
     const term = (e.target as HTMLInputElement).value.trim();
     window.location.assign(buildBoardHref(group, 1, term));
   };
+  // Native clear (the X on type=search) fires a change event with an empty
+  // value and NO Enter keydown, so onKeyDown never runs. Detect the field
+  // becoming empty here and return to the unfiltered board -- but only when a
+  // search was actually active, so an empty-input event on an already-
+  // unfiltered board does not trigger a redundant navigation. Typing a
+  // non-empty value does nothing here (submission stays on Enter).
+  const onChangeInput = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const value = (e.target as HTMLInputElement).value;
+    if (value === '' && search !== '') {
+      window.location.assign(buildBoardHref(group, 1, ''));
+    }
+  };
   return (
     <input
       data-testid='dispatch-board-search'
       type='search'
       defaultValue={search}
       onKeyDown={onKey}
+      onChange={onChangeInput}
       placeholder='Tìm lệnh điều xe...'
       aria-label='Tìm kiếm lệnh điều xe theo bất kỳ thông tin nào'
       className='w-56 rounded border px-2 py-1 text-sm'
@@ -249,6 +263,7 @@ function makeOptimisticRow(externalRef: string, opCtx: { operatorId: string; ass
     transportOrderRefs: [externalRef],
     customerName: null,
     customerPhone: null,
+    cargoName: null,
     weightDiffKg: null,
     stops: [],
   };
@@ -348,11 +363,12 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
               <tr className='border-b text-left'>
                 <th className='px-3 py-2'>Số lệnh</th>
                 <th className='px-3 py-2'>Khách hàng</th>
+                <th className='px-3 py-2'>Tên hàng</th>
                 <th className='px-3 py-2'>Tài xế</th>
                 <th className='px-3 py-2'>Xe</th>
                 <th className='px-3 py-2'>Ngày dự kiến</th>
                 <th className='px-3 py-2'>Số điểm</th>
-                <th className='px-3 py-2'>Chênh lệch (Số nhận - Số giao)</th>
+                <th className='px-3 py-2'>Chênh lệch (Số giao - Số nhận)</th>
                 <StopSlotHeaders />
               </tr>
             </thead>
@@ -361,6 +377,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                 <tr key={r.roadRunId} data-testid={'dispatch-board-rr-' + r.roadRunId} className='border-b'>
                   <td className='px-3 py-2'><OrderRefCell refs={r.transportOrderRefs} /></td>
                   <td className='px-3 py-2'><CustomerCell name={r.customerName} phone={r.customerPhone} state={r.state} primaryRef={formatOrderRef(r.transportOrderRefs)} /></td>
+                  <td className='px-3 py-2' data-testid={'dispatch-board-cargo-' + formatOrderRef(r.transportOrderRefs)}>{formatCustomer(r.cargoName)}</td>
                   <td className='px-3 py-2'>{resolveLabel(r.driverName, r.assignedOperatorId, driverLookup)}</td>
                   <td className='px-3 py-2'>{resolveLabel(r.vehiclePlate, r.assignedAssetId, vehicleLookup)}</td>
                   <td className='px-3 py-2'>{formatPlannedStart(r.plannedStartAt)}</td>
@@ -370,7 +387,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                 </tr>
               ))}
               {merged.length === 0 && (
-                <tr><td colSpan={7 + STOP_SLOT_COL_COUNT} className='px-3 py-6 text-center text-slate-500'>Chưa có lệnh điều xe nào.</td></tr>
+                <tr><td colSpan={8 + STOP_SLOT_COL_COUNT} className='px-3 py-6 text-center text-slate-500'>Chưa có lệnh điều xe nào.</td></tr>
               )}
             </tbody>
           </table>

@@ -34,6 +34,7 @@ import type { DispatchBoardApiResponse, DispatchBoardApiRow, DispatchBoardPageAp
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import {
+  cargoType,
   customer,
   dispatchBoardProjection,
   driver,
@@ -95,8 +96,8 @@ export class DispatchController {
   // changing row cardinality. Columns covered: So lenh (transport_order_refs
   // jsonb), Tai xe (driver.full_name), Xe (vehicle.plate), Ngay du kien
   // (planned_start_at text), So diem (stop_count text), Khach hang (customer
-  // name/phone), Diem/Kho (warehouse name). Chenh lech is JS-computed, not a
-  // column, so it is intentionally not searchable. Returns undefined when no
+  // name/phone), Ten hang (cargo_type name), Diem/Kho (warehouse name). Chenh
+  // lech is JS-computed, not a column, so it is not searchable. Returns undefined when no
   // term is given so the caller keeps the base predicate untouched (back-compat).
   private buildSearchClause(op: OperatorContext, search: string | undefined): ReturnType<typeof or> | undefined {
     if (search === undefined || search === '') return undefined;
@@ -111,6 +112,7 @@ export class DispatchController {
       sql`CAST(${p.stopCount} AS text) ILIKE ${like}`,
       sql`EXISTS (SELECT 1 FROM road_run_transport_order rto JOIN transport_order t ON t.transport_order_id = rto.transport_order_id JOIN customer c ON c.customer_id = t.customer_id WHERE rto.road_run_id = ${p.roadRunId} AND rto.company_id = ${co} AND (unaccent(c.name) ILIKE unaccent(${like}) OR c.phone ILIKE ${like}))`,
       sql`EXISTS (SELECT 1 FROM road_run_transport_order rto JOIN stop st ON st.transport_order_id = rto.transport_order_id JOIN warehouse w ON w.warehouse_id = st.yard_id WHERE rto.road_run_id = ${p.roadRunId} AND rto.company_id = ${co} AND unaccent(w.name) ILIKE unaccent(${like}))`,
+      sql`EXISTS (SELECT 1 FROM road_run_transport_order rto JOIN transport_order t ON t.transport_order_id = rto.transport_order_id JOIN cargo_type ct ON ct.cargo_type_id = t.cargo_type_id WHERE rto.road_run_id = ${p.roadRunId} AND rto.company_id = ${co} AND unaccent(ct.name) ILIKE unaccent(${like}))`,
     );
   }
 
@@ -214,6 +216,7 @@ export class DispatchController {
     const stopsByRoadRun = new Map<string, DispatchStopView[]>();
     const customerByRoadRun = new Map<string, string>();
     const customerPhoneByRoadRun = new Map<string, string | null>();
+    const cargoByRoadRun = new Map<string, string | null>();
     if (roadRunIds.length > 0) {
       const stopRows = await this.db
         .select({
@@ -308,6 +311,24 @@ export class DispatchController {
           customerPhoneByRoadRun.set(cr.roadRunId, cr.customerPhone);
         }
       }
+      const cargoRows = await this.db
+        .select({
+          roadRunId: roadRunTransportOrder.roadRunId,
+          cargoName: cargoType.name,
+        })
+        .from(roadRunTransportOrder)
+        .innerJoin(transportOrder, eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId))
+        .leftJoin(cargoType, eq(cargoType.cargoTypeId, transportOrder.cargoTypeId))
+        .where(and(
+          eq(roadRunTransportOrder.companyId, op.companyId),
+          inArray(roadRunTransportOrder.roadRunId, roadRunIds),
+        ))
+        .orderBy(roadRunTransportOrder.sequence);
+      for (const gr of cargoRows) {
+        if (!cargoByRoadRun.has(gr.roadRunId)) {
+          cargoByRoadRun.set(gr.roadRunId, gr.cargoName);
+        }
+      }
     }
     const result: DispatchBoardApiRow[] = rows.map((r) => ({
       roadRunId: r.roadRunId,
@@ -321,6 +342,7 @@ export class DispatchController {
       transportOrderRefs: r.transportOrderRefs,
       customerName: customerByRoadRun.get(r.roadRunId) ?? null,
       customerPhone: customerPhoneByRoadRun.get(r.roadRunId) ?? null,
+      cargoName: cargoByRoadRun.get(r.roadRunId) ?? null,
       weightDiffKg: computeWeightDiffKg(
         (stopsByRoadRun.get(r.roadRunId) ?? []).map((s): WeightDiffStop => ({
           stopType: s.stopType,

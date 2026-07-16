@@ -1,15 +1,26 @@
 // apps/ops-web/test/admin-drivers-page-refresh-after-mutation.test.tsx
-// outside-in strict TDD (L0): a new driver-vehicle assignment created in
-// Quan ly tai xe & xe must make the dispatch form dropdowns fresh WITHOUT a
-// manual hard reload. The Next.js client Router Cache holds the dispatch
-// route RSC payload; the admin page must call router.refresh() after a
-// successful assignment (busts the CURRENT route cache) AND the
-// revalidateDispatch server action (busts route / cross-route). Device
-// enrollment has been removed (T7 self-enroll): the dispatcher only assigns,
-// so the former chained assign+enroll MAI HIEN DIEU scenario no longer
-// exists and its obsolete test case was deleted with the enroll UI.
+// outside-in strict TDD (L0): a new driver-vehicle assignment (and any admin
+// CRUD: create/assign/revoke/delete) created in Quan ly tai xe & xe must make
+// the dispatch form Number-plate / Driver dropdowns fresh WITHOUT a manual hard
+// reload. Business invariant: admin mutations are immediately effective across
+// related pages. Root cause guarded: the Next.js client Router Cache holds the
+// dispatch route RSC payload; loadReferences() uses no-store, so the only stale
+// layer is the client Router Cache, cleared by router.refresh() (busts the
+// CURRENT route cache), plus the cross-route revalidateDispatch server action.
+//
+// Merge resolution (origin/develop into fix/remove-manual-device-udid):
+// WHAT is tested comes from HEAD -- device enrollment has been removed (T7
+// self-enroll), so the dispatcher only assigns; the former chained
+// assign+enroll scenario no longer exists and its obsolete test case was
+// deleted together with the enroll UI.
+// HOW it is driven comes from develop -- userEvent with setup() (2026):
+// fireEvent dispatches one synthetic event synchronously and does NOT flush
+// React 19 async-transition act() work, so under CPU contention the waitFor
+// poll can race the commit; user.* awaits the act-wrapped async work, removing
+// the latent race independent of host load.
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 const listMock = vi.fn();
 const assignMock = vi.fn();
 const revokeMock = vi.fn();
@@ -51,11 +62,11 @@ beforeEach(() => {
 });
 describe('AdminDriversPage refreshes Router Cache after a mutation', () => {
   it('busts both caches after a successful driver-vehicle assignment', async () => {
+    const user = userEvent.setup();
     render(<AdminDriversPage />);
     await screen.findByText('Driver Alpha');
-    const select = screen.getByRole('combobox');
-    fireEvent.change(select, { target: { value: 'v1' } });
-    fireEvent.click(screen.getByRole('button', { name: /Phân công/i }));
+    await user.selectOptions(screen.getByRole('combobox'), 'v1');
+    await user.click(screen.getByRole('button', { name: /Phân công/i }));
     await waitFor(() => { expect(assignMock).toHaveBeenCalledTimes(1); });
     await waitFor(() => { expect(refreshMock).toHaveBeenCalled(); });
     await waitFor(() => { expect(revalidateDispatchMock).toHaveBeenCalled(); });

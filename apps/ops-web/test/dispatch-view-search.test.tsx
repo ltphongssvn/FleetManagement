@@ -36,6 +36,7 @@ function run(ref: string, state: DispatchBoardRoadRun['state']): DispatchBoardRo
     transportOrderRefs: [ref],
     customerName: null,
     customerPhone: null,
+    cargoName: null,
     weightDiffKg: null,
     stops: [],
   };
@@ -99,6 +100,30 @@ describe('@fleet/ops-web - DispatchView search box (L1)', () => {
     const emptyCall = assign.mock.calls[0];
     expect(emptyCall).toBeDefined();
     expect(String(emptyCall?.[0])).not.toContain('search=');
+  });
+
+  it('clearing the box (native clear -> empty change event) navigates without search when a term was active', () => {
+    const assign = spyAssign();
+    render(<DispatchView initialRuns={[run('XTT.06-001', 'planned')]} refs={refs} pagination={PAG} searchTerm={'chau'} />);
+    const box = screen.getByTestId('dispatch-board-search');
+    // The native X clear fires an input event with an empty value and NO Enter
+    // keydown. The board must return to the unfiltered view.
+    fireEvent.change(box, { target: { value: '' } });
+    expect(assign).toHaveBeenCalledTimes(1);
+    const cleared = assign.mock.calls[0];
+    expect(cleared).toBeDefined();
+    const url = String(cleared?.[0]);
+    expect(url).not.toContain('search=');
+    expect(url).toContain('group=active');
+    expect(url).toContain('page=1');
+  });
+
+  it('a non-empty change event does not navigate (typing does not trigger navigation)', () => {
+    const assign = spyAssign();
+    render(<DispatchView initialRuns={[run('XTT.06-001', 'planned')]} refs={refs} pagination={PAG} searchTerm={'chau'} />);
+    const box = screen.getByTestId('dispatch-board-search');
+    fireEvent.change(box, { target: { value: 'cha' } });
+    expect(assign).not.toHaveBeenCalled();
   });
 
   it('tab and page links preserve the active search term', () => {

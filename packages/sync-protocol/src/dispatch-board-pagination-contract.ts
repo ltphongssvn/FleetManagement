@@ -21,7 +21,7 @@ import { DispatchBoardApiRowSchema, DispatchBoardRowSchema } from './dispatch-st
 // The two dispatcher-facing slices of the board. 'active' is the default view
 // (pending + in-progress); 'finished' is the archived view (completed +
 // cancelled), reached via the status filter.
-export const ROAD_RUN_STATUS_GROUPS = ['active', 'finished'] as const;
+export const ROAD_RUN_STATUS_GROUPS = ['active', 'finished', 'cancelled'] as const;
 export const roadRunStatusGroupSchema = z.enum(ROAD_RUN_STATUS_GROUPS);
 export type RoadRunStatusGroup = z.infer<typeof roadRunStatusGroupSchema>;
 
@@ -34,11 +34,20 @@ const ROAD_RUN_TERMINAL_STATES: readonly RoadRunStateName[] = ['completed', 'can
 // from the single inlined state list so the partition is exhaustive + disjoint
 // by construction (every state lands in exactly one group). Frozen so callers
 // cannot mutate the shared arrays.
-const FINISHED_STATES: readonly RoadRunStateName[] = Object.freeze(ROAD_RUN_STATES.filter((s) => ROAD_RUN_TERMINAL_STATES.includes(s)));
+// T16 board split: cancelled is surfaced as its OWN dispatcher tab (Lenh Huy),
+// so it leaves the finished group. finished now holds only 'completed'; both
+// remain terminal (the FSM terminal set is unchanged), but the board presents
+// them separately so dispatchers can distinguish delivered from cancelled runs.
+const CANCELLED_STATES: readonly RoadRunStateName[] = Object.freeze(['cancelled']);
+const FINISHED_STATES: readonly RoadRunStateName[] = Object.freeze(
+  ROAD_RUN_STATES.filter((s) => ROAD_RUN_TERMINAL_STATES.includes(s) && !CANCELLED_STATES.includes(s)),
+);
 const ACTIVE_STATES: readonly RoadRunStateName[] = Object.freeze(ROAD_RUN_STATES.filter((s) => !ROAD_RUN_TERMINAL_STATES.includes(s)));
 
 export function statesForStatusGroup(group: RoadRunStatusGroup): readonly RoadRunStateName[] {
-  return group === 'finished' ? FINISHED_STATES : ACTIVE_STATES;
+  if (group === 'finished') return FINISHED_STATES;
+  if (group === 'cancelled') return CANCELLED_STATES;
+  return ACTIVE_STATES;
 }
 
 // Server-side cap on page size: a hard upper bound so a client can never request

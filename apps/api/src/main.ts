@@ -8,6 +8,7 @@ import { ProblemDetailsExceptionFilter } from './common/problem-details-exceptio
 import { shutdownOtel } from './observability/otel.js';
 import { assertSingleInstance } from './runtime/single-instance-guard.js';
 import { selectMigrationConnectionString } from './database/migration-connection.js';
+import { validateEnv } from './config/env.config.js';
 
 assertSingleInstance(process.env);
 initSentry();
@@ -59,16 +60,19 @@ async function maybeSeed(): Promise<void> {
 async function bootstrap(): Promise<void> {
   await maybeMigrate();
   await maybeSeed();
+  // Factor III: read deploy-varying config from the single validated
+  // boundary (validateEnv), never raw process.env in the request path.
+  const env = validateEnv(process.env);
   const app = await NestFactory.create(AppModule, { rawBody: true });
   app.enableCors({
-    origin: (process.env['CORS_ORIGINS'] ?? 'http://localhost:8081,http://localhost:3001').split(','),
+    origin: env.CORS_ORIGINS,
     credentials: true,
   });
   // Catch-all problem-details filter FIRST, ZodExceptionFilter LAST: Nest
   // evaluates filters in reverse registration order, so ZodError keeps its
   // existing 400 validation shape and everything else emits RFC 9457.
   app.useGlobalFilters(new ProblemDetailsExceptionFilter(), new ZodExceptionFilter());
-  const port = Number(process.env['PORT'] ?? 3000);
+  const port = env.PORT;
   await app.listen(port);
 
   const shutdown = async (signal: string): Promise<void> => {

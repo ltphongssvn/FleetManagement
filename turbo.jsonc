@@ -129,6 +129,13 @@
       "persistent": false,
       "passThroughEnv": ["DATABASE_URL"]
     },
+    "audit:assignment-uniqueness": {
+      "description": "READ-ONLY audit of driver-vehicle assignment-pair uniqueness. Runs the unit-tested auditAssignmentUniqueness classifier against live ACTIVE assignment rows and prints any duplicate driver/vehicle/pair groups (violations of the 1:1 partial-unique-index invariant). --introspect mode instead prints whether the two dva_one_active_* partial-unique indexes exist and are VALID in prod (drift check). No mutation. Live DB read: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run audit:assignment-uniqueness --filter=@fleet/api [-- --introspect].",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
     "inspect:order-state": {
       "description": "Read-only diagnostic: print a transport order actual server-side state (transport_order row, linked road_run states + started_at/completed_at, last 20 fleet_audit_log events) resolved by --ref. Boots the standalone ProjectionRebuildModule (config + database). MUTATES NOTHING. Live DB read: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run inspect:order-state --filter=@fleet/api -- --ref XTT.07-020.",
       "dependsOn": ["build"],
@@ -211,6 +218,11 @@
       "description": "End-to-end tests (Playwright), repo-root task. The playwright config lives at the repo root (testDir ./e2e, workers 1) and the spec-runner is the root 'test:e2e' script, so this spans packages and MUST be root-scoped (the '//#' prefix). A prior package-level 'test:e2e' task was dead: no package exposes a test:e2e script, so 'turbo run test:e2e --filter=@fleet/ops-web' ran zero tasks. env declares the vars the e2e run actually reads (E2E_* base/api URLs, OIDC_* for the IdP authorize flow, PLAYWRIGHT_* runtime) so they pass the envMode:strict boundary; the old task listed DATABASE_URL/API_BASE_URL/TESTCONTAINERS_* which the Playwright run does not consume. Owns playwright-report/**. cache:false until a migration-hash key is wired (ADR-001).",
       "cache": false,
       "env": ["E2E_*", "OIDC_*", "PLAYWRIGHT_*"]
+    },
+    "//#stack:e2e:isolated": {
+      "description": "Root-level task: raise the ISOLATED per-worktree browser-E2E stack (infra + api + ops-web, NO driver/expo/android) on this worktree deterministic compose ports (compose-identity), health-gated (docker compose up --wait), run Playwright via the existing ops-web-runner with identity-derived E2E_BASE_URL/E2E_API_URL, then tear the stack down (down -v). Prefix //# ensures repo-root-only (spans packages + the whole compose stack, not a per-package task). Replaces the ad-hoc docker compose + inline E2E_* env pattern with one rediscoverable op. env declares the vars the run reads so they pass envMode:strict. cache:false (side-effecting: docker + network). Run: pnpm exec turbo run stack:e2e:isolated -- e2e/dispatch-board-search.spec.ts.",
+      "cache": false,
+      "env": ["E2E_*", "OIDC_*", "PLAYWRIGHT_*", "FLEET_*"]
     }
 ,
     "__ci_fast__": {
