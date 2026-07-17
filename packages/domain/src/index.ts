@@ -90,3 +90,7 @@ export {
   type MetricSample,
   type RolloutMetrics,
 } from './delivery/rollout-metrics.js';
+export {
+  RolloutAllocationSchema,
+  type RolloutAllocation,
+} from './delivery/rollout-allocation.js';
