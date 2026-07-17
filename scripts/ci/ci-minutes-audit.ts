@@ -26,6 +26,9 @@ export const JobSchema = z.object({
   conclusion: z.string().nullable(),
   started_at: z.string().nullable(),
   completed_at: z.string().nullable(),
+  // null when no runner was ever assigned -- the wire stating that execution
+  // never began. Optional because older payloads omit it entirely.
+  runner_name: z.string().nullable().optional(),
 });
 export type Job = z.infer<typeof JobSchema>;
 
@@ -73,15 +76,22 @@ export function billableMinutesForJob(job: Job): number {
   }
   const ms = end - start;
   if (ms < 0) {
-    // A SKIPPED job never reached a runner (runner_name null), so it executed
-    // for no time and billed nothing -- GitHub meters job EXECUTION. Its
-    // timestamps come from bookkeeping, not a runner clock, and are observed
-    // up to a second out of order (job 87772384101, "Dispatch promote
-    // (develop, on success)": started 00:11:45Z, completed 00:11:44Z). That is
-    // the observed ABSENCE of work, not absent data, so 0 is honest here and
-    // is not a confident zero. Note this sits BELOW the null checks on
-    // purpose: skipped excuses an INVERTED timestamp, never a MISSING one.
-    if (job.conclusion === 'skipped') return 0;
+    // A job that never reached a runner executed for no time and billed
+    // nothing -- GitHub meters job EXECUTION. runner_name === null IS the wire
+    // saying no runner was ever assigned; such a job gets its timestamps from
+    // bookkeeping rather than a runner clock, and they are observed up to a
+    // second out of order. Two live examples, both "Dispatch promote (develop,
+    // on success)" in CI:
+    //   87772384101 conclusion=skipped   started 00:11:45Z completed 00:11:44Z
+    //   87196802555 conclusion=cancelled started 20:27:22Z completed 20:27:21Z
+    // Keying on conclusion===skipped fixed the first and missed the second
+    // (cancel-in-progress kills a job BEFORE dispatch); runner_name is the
+    // invariant behind both, so it fixes the CLASS rather than the instances.
+    // This is measured absence of work, not absent data -- 0 is honest, and it
+    // is not a confident zero. Placed BELOW the null checks and INSIDE the
+    // ms<0 branch on purpose: no runner excuses an INVERTED timestamp, never a
+    // MISSING one, and a job that DID run still throws on inversion.
+    if (job.runner_name === null || job.runner_name === undefined) return 0;
     throw new Error('job ' + String(job.id) + ': completed_at precedes started_at');
   }
   // A skipped job has zero execution time and costs nothing: the round-up must

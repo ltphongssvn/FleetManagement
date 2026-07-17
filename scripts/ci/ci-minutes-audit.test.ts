@@ -80,13 +80,41 @@ describe('billableMinutesForJob -- skipped jobs (observed wire behaviour)', () =
     conclusion: 'skipped',
     started_at: '2026-07-17T00:11:45Z',
     completed_at: '2026-07-17T00:11:44Z',
+    runner_name: null,
   };
   it('scores a skipped job 0 even when completed_at precedes started_at', () => {
     expect(billableMinutesForJob(skipped)).toBe(0);
   });
   it('still THROWS on inverted timestamps for a job that actually ran', () => {
-    const ran = { ...skipped, id: 1, conclusion: 'success' };
+    const ran = { ...skipped, id: 1, conclusion: 'success', runner_name: 'GitHub Actions 2' };
     expect(() => billableMinutesForJob(ran)).toThrow(/precedes/);
+  });
+  // The class is not 'skipped' -- it is 'never reached a runner'. Job
+  // 87196802555, same name, same one-second inversion, conclusion CANCELLED
+  // (cancel-in-progress killed it before dispatch), runner_name null. Keying on
+  // conclusion caught the instance and missed the class; runner_name IS the
+  // wire stating whether execution ever began, and billing meters execution.
+  it('scores a CANCELLED-before-dispatch job 0 (runner_name null)', () => {
+    const cancelled = {
+      id: 87196802555,
+      name: 'Dispatch promote (develop, on success)',
+      conclusion: 'cancelled',
+      runner_name: null,
+      started_at: '2026-07-14T20:27:22Z',
+      completed_at: '2026-07-14T20:27:21Z',
+    };
+    expect(billableMinutesForJob(cancelled)).toBe(0);
+  });
+  it('THROWS on inversion when a runner WAS assigned, whatever the conclusion', () => {
+    const onRunner = {
+      id: 2,
+      name: 'build',
+      conclusion: 'cancelled',
+      runner_name: 'GitHub Actions 7',
+      started_at: '2026-07-14T20:27:22Z',
+      completed_at: '2026-07-14T20:27:21Z',
+    };
+    expect(() => billableMinutesForJob(onRunner)).toThrow(/precedes/);
   });
   it('still THROWS when a skipped job has no started_at at all', () => {
     const noStart = { ...skipped, started_at: null };

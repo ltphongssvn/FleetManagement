@@ -203,6 +203,15 @@ function main(): void {
   process.stdout.write('-'.repeat(72) + '\n');
   process.stdout.write('COMPUTED TOTAL'.padEnd(38) + String(report.totalBillableMinutes).padStart(8) + ' min\n');
 
+  // --no-reconcile: this window is one slice of a month, so comparing it to the
+  // month total would always fail. Slices are summed by the caller and
+  // reconciled once. Needed because /actions/runs caps at 1000 and July has
+  // 1353 runs, so a whole month cannot be fetched in a single window.
+  if (process.argv.includes('--no-reconcile')) {
+    process.stdout.write('WINDOW_TOTAL ' + created + ' ' +
+      String(report.totalBillableMinutes) + '\\n');
+    return;
+  }
   const billed = fetchBilledMinutes(apiUrl, owner, repoName, year, month, token);
   const rec = reconcile(report.totalBillableMinutes, billed, 0.05);
   process.stdout.write('BILLED (enhanced billing)'.padEnd(38) + String(billed).padStart(8) + ' min\n');
