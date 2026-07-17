@@ -35,7 +35,7 @@ async function seedVehicle(): Promise<string> {
 }
 
 describe('@fleet/api - AdminAssignmentService conflict (409)', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_adminassign_conflict'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_adminassign_conflict'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => { await truncateAllTables(testDb.db); });
   function svc(): AdminAssignmentService { return new AdminAssignmentService(testDb.db as never); }
@@ -47,7 +47,7 @@ describe('@fleet/api - AdminAssignmentService conflict (409)', () => {
     await svc().assign({ ...TENANCY, driverId, vehicleId: v1 });
     await expect(svc().assign({ ...TENANCY, driverId, vehicleId: v2 }))
       .rejects.toBeInstanceOf(ConflictException);
-  }, 30_000);
+  });
 
   it('throws ConflictException when the same vehicle is assigned a second active driver', async () => {
     const vehicleId = await seedVehicle();

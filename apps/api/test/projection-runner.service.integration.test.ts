@@ -15,7 +15,7 @@ const ACTION_1 = '00000000-0000-0000-0000-0000000000a1';
 const ACTION_2 = '00000000-0000-0000-0000-0000000000a2';
 
 describe('@fleet/api - ProjectionRunnerService (integration)', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_proj_runner_int'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_proj_runner_int'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     await testDb.db.execute(sql`TRUNCATE TABLE sync_change_feed, dispatch_board_projection, projection_status CASCADE`);
