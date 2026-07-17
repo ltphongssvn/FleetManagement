@@ -249,6 +249,12 @@
       "description": "Root-level task: run the @fleet/codemods drift gate (extract-parse-one-number --check) across the worker tsconfig spanned with @fleet/domain source. Prefix '//#' ensures repo-root-only (it spans packages, so it is not a per-package task). Fails when source still has an un-migrated parseOneNumber outside @fleet/domain. Wired into __ci_fast__ so PRs fail on drift. cache:false — it is a fast in-memory AST pass with no cacheable output.",
       "cache": false
     },
+    "//#audit:ci-minutes": {
+      "description": "Root-level task: READ-ONLY audit attributing BILLABLE GitHub Actions minutes to the workflow that spent them, then reconciling the total against the enhanced billing platform. Prefix //# ensures repo-root-only (it spans no package; it reads the repo CI ledger). Computed from /actions/runs/{id}/jobs records, never /actions/workflows/{id}/timing -- that endpoint is closing down and returns 0ms while billing shows five figures. Billing meters JOB execution rounded UP per job, so a 4-way shard matrix cuts wall clock but not minutes, and a 12-second gate job still bills one. Absent data throws rather than scoring 0 (three confident-zero hazards observed in this domain, including GitHub docs saying product=Actions while the wire sends product=actions). Exits 2 when computed-vs-billed drift exceeds 5%: the instrument is wrong and no cut may be sized on it. cache:false (live network read, no cacheable output). passThroughEnv exposes the API token under strict envMode. Run: pnpm exec turbo run audit:ci-minutes [-- --year 2026 --month 7].",
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_URL", "GITHUB_REPOSITORY"]
+    },
     "//#sync:worktrees": {
       "description": "Root-level task: fast-forward every git worktree local branch to its remote tracking branch, SAFELY. Prefix //# ensures repo-root-only (it spans all worktrees, not a per-package task). Fast-forwards only when a branch is purely behind (behind>0, ahead=0); REFUSES and warns on true divergence (ahead>0 AND behind>0), never force-merging/resetting, so unpushed local commits can never be lost. The autonomous pipeline converges the REMOTE branches but git never auto-updates LOCAL worktree branches, so this closes that gap. cache:false (side-effecting git operation, no cacheable output). Run: pnpm exec turbo run sync:worktrees.",
       "cache": false
