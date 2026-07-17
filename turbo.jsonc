@@ -267,6 +267,10 @@
       "description": "Root-level task: bump the corepack-pinned pnpm version for the whole repo via corepack use pnpm@<version|latest> -- resolves the version and rewrites the packageManager pin + sha512 in package.json itself (2026 canonical; never pnpm add -g, which fails on this box because the global bin dir is not on PATH and would only mutate one machine anyway). Script refuses on a dirty tree so the pin change is always an isolated, reviewable commit. Prefix //# ensures repo-root-only. cache:false (side-effecting, network-resolving). Run: pnpm exec turbo run bump:pnpm [-- <version>].",
       "cache": false
     },
+    "//#worktree:close": {
+      "description": "Root-level task: close a git worktree SAFELY -- remove the worktree and delete its local branch, but ONLY when nothing can be lost. Prefix //# ensures repo-root-only (it spans all worktrees, not a per-package task). REFUSES on any loss risk and reports every reason at once: primary-clone, no-upstream, unpushed (ahead>0), dirty (any modified or untracked file), unmerged (commits not contained in origin/develop). Never passes --force, -D or -f, so git own merged-check is the last line of defence. Complements sync:worktrees, which fast-forwards but has no removal path -- closing a worktree was previously a hand-rolled git idiom, not a captured op. Decision core (scripts/close-worktree.ts) and parsers (scripts/worktree-close.ts) are pure and unit-tested; only the driver touches git. cache:false (side-effecting git mutation, no cacheable output). Run: pnpm exec turbo run worktree:close -- <worktree-path>.",
+      "cache": false
+    },
     "//#graph": {
       "description": "Root-level task: generate pipeline DAG visualization (Mermaid for ADR/docs). Prefix '//#' ensures repo-root-only. For live operational inspection prefer 'turbo devtools' (2.7+) — browser-based package/task graph.",
       "cache": false
