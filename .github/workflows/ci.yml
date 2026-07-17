@@ -166,6 +166,18 @@ jobs:
       # Omit the key and the hit rate is 0% while every log still looks healthy.
       - name: Turborepo remote cache (GitHub Actions cache backend)
         uses: rharkor/caching-for-turbo@v2.5.0
+        with:
+          # REQUIRED for cross-job hits, and the reason the first two attempts
+          # missed 100% while logging 'Remote caching enabled'. GitHub's cache
+          # service versions an entry by the PATH of the saved blob as well as
+          # its key. The blob lives in RUNNER_TEMP, and every job gets a fresh
+          # runner with a different RUNNER_TEMP, so setup saved under one
+          # path-derived version and api-tests looked up another: key matched,
+          # version did not, miss. Upstream documents this exactly -- set it
+          # 'when jobs may save and restore the same cache from runners with
+          # different temporary directories'. Relative path => versions match
+          # across runners.
+          use-relative-cache-path: true
       - name: Security audit
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm audit --audit-level=high
@@ -248,6 +260,18 @@ jobs:
       # built by setup, and this matrix rebuilds them four more times.
       - name: Turborepo remote cache (GitHub Actions cache backend)
         uses: rharkor/caching-for-turbo@v2.5.0
+        with:
+          # REQUIRED for cross-job hits, and the reason the first two attempts
+          # missed 100% while logging 'Remote caching enabled'. GitHub's cache
+          # service versions an entry by the PATH of the saved blob as well as
+          # its key. The blob lives in RUNNER_TEMP, and every job gets a fresh
+          # runner with a different RUNNER_TEMP, so setup saved under one
+          # path-derived version and api-tests looked up another: key matched,
+          # version did not, miss. Upstream documents this exactly -- set it
+          # 'when jobs may save and restore the same cache from runners with
+          # different temporary directories'. Relative path => versions match
+          # across runners.
+          use-relative-cache-path: true
       - name: Build workspace package deps
         run: pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures --filter=@fleet/main-worker
       - name: Pre-pull Postgres image (testcontainers warm cache)
@@ -349,6 +373,18 @@ jobs:
       # api-tests shards.
       - name: Turborepo remote cache (GitHub Actions cache backend)
         uses: rharkor/caching-for-turbo@v2.5.0
+        with:
+          # REQUIRED for cross-job hits, and the reason the first two attempts
+          # missed 100% while logging 'Remote caching enabled'. GitHub's cache
+          # service versions an entry by the PATH of the saved blob as well as
+          # its key. The blob lives in RUNNER_TEMP, and every job gets a fresh
+          # runner with a different RUNNER_TEMP, so setup saved under one
+          # path-derived version and api-tests looked up another: key matched,
+          # version did not, miss. Upstream documents this exactly -- set it
+          # 'when jobs may save and restore the same cache from runners with
+          # different temporary directories'. Relative path => versions match
+          # across runners.
+          use-relative-cache-path: true
       - name: Build workspace package deps
         run: pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures --filter=@fleet/main-worker
       - name: Test non-api packages (with coverage)
