@@ -76,3 +76,11 @@ export {
   type RolloutStage,
   type RolloutLadder,
 } from './delivery/rollout-stage.js';
+export {
+  DEFAULT_GUARDRAILS,
+  DEFAULT_FAILURE_LIMIT,
+  GuardrailSchema,
+  GuardrailSetSchema,
+  type Guardrail,
+  type GuardrailSet,
+} from './delivery/rollout-guardrail.js';
