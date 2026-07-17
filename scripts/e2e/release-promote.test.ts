@@ -12,6 +12,7 @@ import {
   promotePhases,
   releaseMergeArgs,
   selectReleaseRunForSha,
+  parsePrNumber,
 } from './release-promote.ts';
 
 const base = { baseBranch: 'main', developBranch: 'develop' };
@@ -75,5 +76,52 @@ describe('selectReleaseRunForSha', () => {
     const r = selectReleaseRunForSha(runs, sha);
     expect(r?.databaseId).toBe(9);
     expect(r?.status).toBe('queued');
+  });
+});
+
+// The PR number arrives from gh pr list --jq .[0].number: third-party command
+// output, a trust boundary. main() guarded it with an ad-hoc /^\\d+$/ regex and
+// then called Number(pr), while the same file parses gh run list JSON through
+// releaseRunArraySchema.safeParse. Same file, same boundary, two disciplines --
+// Axis-1 fix-trigger (1) per context/schema-first-zod-contracts.md. The regex is
+// also weaker than the real contract: it admits 0 and 007, which are not PR
+// numbers, and gh returns the empty string or null when no PR matches.
+describe('parsePrNumber', () => {
+  it('parses a PR number from gh stdout', () => {
+    expect(parsePrNumber('325')).toBe(325);
+  });
+
+  it('tolerates the trailing newline gh emits', () => {
+    expect(parsePrNumber('325' + String.fromCharCode(10))).toBe(325);
+  });
+
+  it('returns null when no open PR matches, which gh reports as empty stdout', () => {
+    expect(parsePrNumber('')).toBeNull();
+  });
+
+  it('returns null for the literal null jq emits for a missing field', () => {
+    expect(parsePrNumber('null')).toBeNull();
+  });
+
+  it('returns null for a gh error message rather than coercing it', () => {
+    expect(parsePrNumber('gh: command not found')).toBeNull();
+  });
+
+  it('rejects 0, which the regex admitted but is never a PR number', () => {
+    expect(parsePrNumber('0')).toBeNull();
+  });
+
+  it('rejects a negative number', () => {
+    expect(parsePrNumber('-5')).toBeNull();
+  });
+
+  it('rejects a fractional number', () => {
+    expect(parsePrNumber('32.5')).toBeNull();
+  });
+
+  it('never returns NaN, so releaseMergeArgs cannot merge PR NaN', () => {
+    for (const raw of ['', 'null', 'abc', '  ']) {
+      expect(parsePrNumber(raw)).toBeNull();
+    }
   });
 });

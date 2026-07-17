@@ -59,6 +59,22 @@ export function selectReleaseRunForSha(
   return m ?? null;
 }
 
+// The PR number arrives from gh pr list --jq .[0].number: third-party command
+// output, a trust boundary. main() used an ad-hoc /^\d+$/ regex and then Number(pr),
+// while gh run list JSON goes through releaseRunArraySchema.safeParse ten lines
+// later -- same file, same boundary, two disciplines. The regex was also weaker
+// than the contract: it admitted 0 and 007, and gh emits the empty string or the
+// literal null when no PR matches. One schema states the real rule (a PR number
+// is a positive integer) and coercion happens once, inside it. Pure; main() acts.
+const prNumberSchema = z.coerce.number().int().positive();
+
+export function parsePrNumber(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === '' || trimmed === 'null') return null;
+  const parsed = prNumberSchema.safeParse(trimmed);
+  return parsed.success ? parsed.data : null;
+}
+
 function main(): void {
   const cfg = promoteConfigSchema.parse({});
   run('git', ['fetch', 'origin', '--prune', '--tags', '--quiet'], { allowFail: true });
@@ -73,7 +89,8 @@ function main(): void {
     run('gh', ['pr', 'create', '--base', cfg.baseBranch, '--head', cfg.developBranch, '--title', cfg.title, '--body', 'Automated GitFlow promote (release:promote). See commits above.']);
     pr = run('gh', ['pr', 'list', '--base', cfg.baseBranch, '--head', cfg.developBranch, '--state', 'open', '--json', 'number', '--jq', '.[0].number']).trim();
   }
-  if (!/^\d+$/.test(pr)) { console.error('\u274c could not resolve release PR number'); process.exit(1); }
+  const prNumber = parsePrNumber(pr);
+  if (prNumber === null) { console.error('\u274c could not resolve release PR number'); process.exit(1); }
   console.log('\ud83d\udd17 release PR #' + pr);
 
   // watch_ci
@@ -84,7 +101,7 @@ function main(): void {
 
   // admin_merge (merge commit, no delete)
   console.log('\ud83d\udd00 admin-merge develop -> main ...');
-  run('gh', releaseMergeArgs(Number(pr)));
+  run('gh', releaseMergeArgs(prNumber));
 
   // wait_release: the Release workflow runs on the main push from the admin-merge.
   // Correlate by the merge commit SHA (not most-recent) and poll until THAT run
