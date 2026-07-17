@@ -1,26 +1,29 @@
 // apps/ops-web/src/features/admin/reference-sections.tsx
 // Shared master-data CRUD sections, extracted from the old /admin/reference
 // page so BOTH that page and the new Co so du lieu page render the SAME five
-// sections (Khach hang / Ten hang / So xe / Kho nhan hang / Kho giao hang)
-// with add + inline rename (customer phone) + soft-delete, with no code
-// duplication. Delete routes through client.remove -> server soft-delete
-// (active=false); the row is retained for the Delete Item audit view.
+// sections (Khach hang / Ten hang / So xe / Kho nhan hang / Kho giao hang).
+// Rendering goes through the shared DataTable (TanStack v8) for visual
+// consistency with the Tai xe & xe table: bordered/searchable/paginated, with
+// columns Ten (+ So dien thoai for customers) + Thao tac (Sua SDT / Xoa).
+// CRUD (add / inline rename / soft-delete / 409-conflict / refetch) is
+// unchanged; delete routes through client.remove -> server soft-delete
+// (active=false), retained for the Delete Item audit view, behind a confirm.
 //
-// ROW LABEL DOM CONTRACT (regression fix): the customer NAME is the outer
-// label-span own text and the phone a sibling <small> -- NOT a nested <span>.
-// E2E specs read a row name via 'li span'.first(); keep the name the
-// unambiguous first text node.
+// 409 conflict: the rejected row is highlighted and scrolled into view via
+// the DataTable rowAttrs seam -- the mark lands on the <tr> (row identity),
+// not on a cell span, so the whole row reads as rejected.
 //
-// 409 conflict: on a failed write (most commonly 'đã tồn tại') the section
-// refreshes so the rejected item is visible, highlights the conflicting row
-// (amber ring + testid) and scrolls it into view.
+// Selectors are semantic (getByRole cell/columnheader/button, data-testid) so
+// they survive markup changes (2026 resilient-selector standard).
 'use client';
-import { useEffect, useRef, useState, type JSX } from 'react';
+import { useEffect, useMemo, useState, type JSX } from 'react';
+import type { ColumnDef } from '@tanstack/react-table';
 import {
   ReferenceAdminClient,
   type ReferenceOption,
   type ReferenceSegment,
 } from '@/features/admin/reference-admin-client';
+import { DataTable, type DataTableRowAttrs } from '@/features/admin/DataTable';
 import { useRefetchOnFocus } from '@/lib/use-refetch-on-focus';
 export interface SectionDef {
   segment: ReferenceSegment;
@@ -47,10 +50,6 @@ function rowPhone(row: ReferenceOption): string {
 function quote(s: string): string {
   return String.fromCharCode(34) + s + String.fromCharCode(34);
 }
-// 2026 standard: centralize catch-narrowing in one getErrorMessage helper
-// (useUnknownInCatchVariables types catch vars as unknown). Handles Error,
-// string, and a fallback -- so the four write handlers stay branch-free and
-// the narrowing has a single coverage point.
 function getErrorMessage(e: unknown, fallback: string): string {
   if (e instanceof Error) return e.message;
   if (typeof e === 'string') return e;
@@ -68,7 +67,6 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPhone, setEditPhone] = useState('');
-  const conflictRowRef = useRef<HTMLLIElement | null>(null);
   const refresh = async (preserveError = false): Promise<void> => {
     setLoading(true);
     try {
@@ -86,14 +84,6 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
   };
   useEffect(() => { void refresh(); }, []);
   useRefetchOnFocus(() => { void refresh(); });
-  useEffect(() => {
-    if (conflictName !== null && conflictRowRef.current !== null) {
-      const el = conflictRowRef.current;
-      if (typeof el.scrollIntoView === 'function') {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }
-  }, [conflictName, rows]);
   const add = async (): Promise<void> => {
     if (newName.trim().length === 0) return;
     setBusy(true);
@@ -143,6 +133,89 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
       setBusy(false);
     }
   };
+  const columns = useMemo<ColumnDef<ReferenceOption>[]>(() => {
+    const cols: ColumnDef<ReferenceOption>[] = [];
+    cols.push({
+      id: 'name',
+      header: 'Tên',
+      accessorFn: (row) => row.label,
+      cell: (ctx) => <span>{ctx.row.original.label}</span>,
+    });
+    if (isCustomers) {
+      cols.push({
+        id: 'phone',
+        header: 'Số điện thoại',
+        accessorFn: (row) => rowPhone(row),
+        cell: (ctx) => {
+          const row = ctx.row.original;
+          const phone = rowPhone(row);
+          if (editingId === row.id) {
+            return (
+              <input
+                type='tel'
+                value={editPhone}
+                onChange={(e) => { setEditPhone(e.target.value); }}
+                aria-label='Số điện thoại'
+                className='w-40 rounded border px-2 py-1 text-sm'
+              />
+            );
+          }
+          return <span className='text-slate-500'>{phone}</span>;
+        },
+      });
+    }
+    cols.push({
+      id: 'actions',
+      header: 'Thao tác',
+      enableGlobalFilter: false,
+      cell: (ctx) => {
+        const row = ctx.row.original;
+        const phone = rowPhone(row);
+        const isEditing = editingId === row.id;
+        return (
+          <span className='flex gap-2'>
+            {isCustomers && !isEditing ? (
+              <button
+                type='button'
+                disabled={busy}
+                onClick={() => { startEdit(row.id, phone); }}
+                className='rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600'
+              >
+                Sửa SĐT
+              </button>
+            ) : null}
+            {isCustomers && isEditing ? (
+              <button
+                type='button'
+                disabled={busy}
+                onClick={() => { void saveEdit(row.id, row.label); }}
+                className='rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700'
+              >
+                Lưu
+              </button>
+            ) : null}
+            <button
+              type='button'
+              disabled={busy}
+              onClick={() => { void del(row.id, row.label); }}
+              className='rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600'
+            >
+              Xóa
+            </button>
+          </span>
+        );
+      },
+    });
+    return cols;
+  }, [isCustomers, editingId, editPhone, busy]);
+  const rowAttrs = (row: ReferenceOption): DataTableRowAttrs => {
+    if (conflictName === null || row.label !== conflictName) return {};
+    return {
+      testId: 'reference-row-conflict',
+      className: 'bg-yellow-50 ring-2 ring-amber-300',
+      scrollIntoView: true,
+    };
+  };
   return (
     <section className='mb-8 rounded border bg-white p-4'>
       <h2 className='mb-3 text-lg font-semibold'>{def.title}</h2>
@@ -161,7 +234,7 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
             value={newPhone}
             onChange={(e) => { setNewPhone(e.target.value); }}
             placeholder='Số điện thoại'
-            aria-label='Số điện thoại'
+            aria-label='Số điện thoại mới'
             className='w-48 rounded border px-2 py-1 text-sm'
           />
         ) : null}
@@ -177,73 +250,7 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
       {loading ? (
         <div className='text-sm text-gray-500'>Đang tải…</div>
       ) : (
-        <ul className='divide-y'>
-          {rows.length === 0 ? (
-            <li className='py-2 text-sm text-gray-400'>Chưa có dữ liệu</li>
-          ) : null}
-          {rows.map((row) => {
-            const isConflict = conflictName !== null && row.label === conflictName;
-            const phone = rowPhone(row);
-            const isEditing = editingId === row.id;
-            const showPhoneText = isCustomers && !isEditing && phone !== '';
-            const showPhoneEdit = isCustomers && isEditing;
-            return (
-              <li
-                key={row.id}
-                ref={isConflict ? conflictRowRef : null}
-                data-testid={isConflict ? 'reference-row-conflict' : undefined}
-                className={
-                  'flex items-center justify-between py-2'
-                  + (isConflict ? ' bg-yellow-50 ring-2 ring-amber-300 rounded px-2' : '')
-                }
-              >
-                <div className='flex items-center gap-3 text-sm'>
-                  <span>{row.label}</span>
-                  {showPhoneText ? <small className='text-gray-500'>{phone}</small> : null}
-                  {showPhoneEdit ? (
-                    <input
-                      type='tel'
-                      value={editPhone}
-                      onChange={(e) => { setEditPhone(e.target.value); }}
-                      aria-label='Số điện thoại'
-                      className='w-44 rounded border px-2 py-1 text-sm'
-                    />
-                  ) : null}
-                </div>
-                <span className='flex gap-2'>
-                  {isCustomers && !isEditing ? (
-                    <button
-                      type='button'
-                      disabled={busy}
-                      onClick={() => { startEdit(row.id, phone); }}
-                      className='rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600'
-                    >
-                      Sửa SĐT
-                    </button>
-                  ) : null}
-                  {showPhoneEdit ? (
-                    <button
-                      type='button'
-                      disabled={busy}
-                      onClick={() => { void saveEdit(row.id, row.label); }}
-                      className='rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700'
-                    >
-                      Lưu
-                    </button>
-                  ) : null}
-                  <button
-                    type='button'
-                    disabled={busy}
-                    onClick={() => { void del(row.id, row.label); }}
-                    className='rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600'
-                  >
-                    Xóa
-                  </button>
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+        <DataTable columns={columns} data={rows} emptyLabel='Chưa có dữ liệu' rowAttrs={rowAttrs} />
       )}
     </section>
   );
