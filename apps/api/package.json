@@ -23,7 +23,7 @@
     "test:unit": "vitest run",
     "test:watch": "vitest --watch",
     "typecheck": "tsc -p tsconfig.json",
-    "db:generate": "drizzle-kit generate",
+    "db:generate": "tsx ../../scripts/db-generate.ts",
     "db:migrate": "drizzle-kit migrate",
     "intake:redrive": "tsx src/scripts/intake-redrive.ts",
     "projection:rebuild": "tsx src/scripts/projection-rebuild.ts",
