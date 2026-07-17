@@ -84,3 +84,9 @@ export {
   type Guardrail,
   type GuardrailSet,
 } from './delivery/rollout-guardrail.js';
+export {
+  MetricSampleSchema,
+  RolloutMetricsSchema,
+  type MetricSample,
+  type RolloutMetrics,
+} from './delivery/rollout-metrics.js';
