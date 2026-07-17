@@ -52,6 +52,14 @@ export interface BillableReport {
 /** Billable minutes for ONE job: ceil(execution seconds / 60).
  * Throws on any absent or unparseable timestamp -- see module header. */
 export function billableMinutesForJob(job: Job): number {
+  // A SKIPPED job never reached a runner (runner_name is null) so it executed
+  // for no time and billed nothing -- GitHub meters job EXECUTION. Its
+  // timestamps are stamped from bookkeeping rather than a runner clock, and
+  // are observed to land up to a second out of order (job 87772384101:
+  // started 00:11:45Z, completed 00:11:44Z). That is not corrupt data and it
+  // is not a confident zero -- it is the observed ABSENCE of work, so 0 is the
+  // honest answer. The inverted-timestamp guard below still applies to every
+  // job that actually ran, where inversion would be real corruption.
   if (job.started_at === null) {
     throw new Error('job ' + String(job.id) + ': missing started_at -- refusing to score it 0');
   }
@@ -65,6 +73,15 @@ export function billableMinutesForJob(job: Job): number {
   }
   const ms = end - start;
   if (ms < 0) {
+    // A SKIPPED job never reached a runner (runner_name null), so it executed
+    // for no time and billed nothing -- GitHub meters job EXECUTION. Its
+    // timestamps come from bookkeeping, not a runner clock, and are observed
+    // up to a second out of order (job 87772384101, "Dispatch promote
+    // (develop, on success)": started 00:11:45Z, completed 00:11:44Z). That is
+    // the observed ABSENCE of work, not absent data, so 0 is honest here and
+    // is not a confident zero. Note this sits BELOW the null checks on
+    // purpose: skipped excuses an INVERTED timestamp, never a MISSING one.
+    if (job.conclusion === 'skipped') return 0;
     throw new Error('job ' + String(job.id) + ': completed_at precedes started_at');
   }
   // A skipped job has zero execution time and costs nothing: the round-up must

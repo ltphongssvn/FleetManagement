@@ -65,6 +65,35 @@ describe('billableMinutesForJob', () => {
   });
 });
 
+describe('billableMinutesForJob -- skipped jobs (observed wire behaviour)', () => {
+  // GitHub stamps a SKIPPED job from bookkeeping, not execution: no runner is
+  // ever assigned (runner_name null) and completed_at can precede started_at
+  // by a second. Real datum, job 87772384101, "Dispatch promote (develop, on
+  // success)" in CI: started 00:11:45Z, completed 00:11:44Z. A job that never
+  // touched a runner cannot have billed a minute -- billing meters execution.
+  // Scoring it 0 is CORRECT here and is not a confident-zero: it is the
+  // observed absence of work, not absent data. Throwing instead would abort a
+  // whole month audit over a job that cost nothing.
+  const skipped = {
+    id: 87772384101,
+    name: 'Dispatch promote (develop, on success)',
+    conclusion: 'skipped',
+    started_at: '2026-07-17T00:11:45Z',
+    completed_at: '2026-07-17T00:11:44Z',
+  };
+  it('scores a skipped job 0 even when completed_at precedes started_at', () => {
+    expect(billableMinutesForJob(skipped)).toBe(0);
+  });
+  it('still THROWS on inverted timestamps for a job that actually ran', () => {
+    const ran = { ...skipped, id: 1, conclusion: 'success' };
+    expect(() => billableMinutesForJob(ran)).toThrow(/precedes/);
+  });
+  it('still THROWS when a skipped job has no started_at at all', () => {
+    const noStart = { ...skipped, started_at: null };
+    expect(() => billableMinutesForJob(noStart)).toThrow(/started_at/);
+  });
+});
+
 describe('summarizeBillableMinutes', () => {
   it('groups by workflow, sums billable minutes, and sorts costliest first', () => {
     const entries = [
