@@ -194,6 +194,9 @@ export {
 } from './driver-attention-contract.js';
 
 export {
+  REFERENCE_SEGMENTS,
+  ReferenceSegmentSchema,
+  type ReferenceSegment,
   ReferenceItemSchema,
   type ReferenceItem,
   ReferenceListResponseSchema,

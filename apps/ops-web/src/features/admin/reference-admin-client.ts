@@ -23,6 +23,7 @@ import {
   ReferenceItemSchema,
   ReferenceListResponseSchema,
   type ReferenceItem,
+  type ReferenceSegment,
 } from '@fleet/sync-protocol';
 import { vnApiErrorMessage } from '../errors/present-problem';
 
@@ -30,7 +31,10 @@ export type FetchFn = typeof globalThis.fetch;
 // ReferenceOption now DERIVES from the @fleet/sync-protocol SSOT (one of
 // four consolidated hand-written twins); re-exported for existing imports.
 export type ReferenceOption = ReferenceItem;
-export type ReferenceSegment = 'customers' | 'cargo-types' | 'vehicles' | 'warehouses';
+// ReferenceSegment likewise DERIVES from the sync-protocol SSOT: each member
+// IS the api URL path segment, so the vocabulary is a wire contract, not a
+// local convenience union. Re-exported for existing importers.
+export type { ReferenceSegment };
 function serverMessageFrom(body: unknown): string | null {
   const problem = parseProblemDetails(body);
   if (typeof problem?.detail === 'string' && problem.detail.length > 0) return problem.detail;

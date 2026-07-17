@@ -9,30 +9,40 @@
 // at the boundary. z.object strips unknown keys on parse (must-ignore
 // forward compatibility): producers can extend without breaking readers.
 import { z } from 'zod';
-
+// The segment vocabulary is a CONTRACT, not an internal enum: each member IS
+// the URL path segment the api binds (@Get(customers), @Get(cargo-types), ...)
+// and ops-web builds its request path from. It crossed the ops-web -> BFF ->
+// api boundary as a bare hand-written TS union, which could neither validate
+// an untrusted segment nor be iterated to drive the UI sections. Canonical
+// pattern: ONE frozen as-const array -> type via indexed access -> schema via
+// z.enum. Kebab-case is the wire spelling; never rename without the api route.
+export const REFERENCE_SEGMENTS = Object.freeze([
+  'customers',
+  'cargo-types',
+  'vehicles',
+  'warehouses',
+] as const);
+export type ReferenceSegment = (typeof REFERENCE_SEGMENTS)[number];
+export const ReferenceSegmentSchema = z.enum(REFERENCE_SEGMENTS);
 export const ReferenceItemSchema = z.object({
   id: z.string().min(1),
   label: z.string(),
   meta: z.record(z.string(), z.string().nullable()).optional(),
 });
 export type ReferenceItem = z.infer<typeof ReferenceItemSchema>;
-
 export const ReferenceListResponseSchema = z.object({
   items: z.array(ReferenceItemSchema),
 });
 export type ReferenceListResponse = z.infer<typeof ReferenceListResponseSchema>;
-
 export const DriverVehicleAssignmentItemSchema = z.object({
   operatorId: z.string().min(1),
   vehicleId: z.string().min(1),
 });
 export type DriverVehicleAssignmentItem = z.infer<typeof DriverVehicleAssignmentItemSchema>;
-
 export const DriverVehicleAssignmentsResponseSchema = z.object({
   items: z.array(DriverVehicleAssignmentItemSchema),
 });
 export type DriverVehicleAssignmentsResponse = z.infer<typeof DriverVehicleAssignmentsResponseSchema>;
-
 export const PeekOrderRefResponseSchema = z.object({
   ref: z.string(),
 });
