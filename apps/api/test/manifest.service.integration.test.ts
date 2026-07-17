@@ -47,7 +47,7 @@ describe('@fleet/api - ManifestService (integration)', () => {
   beforeAll(async () => {
     testDb = await startMigratedTestDb('fleet_test');
     service = new ManifestService(testDb.db, fakeBlobStore(), fakeConfig());
-  }, 90_000);
+  });
 
   afterAll(async () => {
     await stopMigratedTestDb(testDb);

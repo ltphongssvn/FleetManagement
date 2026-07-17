@@ -18,7 +18,7 @@ describe('@fleet/api - export workbook fallbacks for empty refs and null planned
   beforeAll(async () => {
     testDb = await startPgliteTestDb();
     svc = new TransportOrdersExportService(testDb.db as never);
-  }, 60_000);
+  });
   afterAll(async () => stopPgliteTestDb(testDb));
   it('renders em-dash in cells A and E when refs is empty and plannedStartAt is null', async () => {
     const co = OP.companyId;
