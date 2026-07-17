@@ -130,6 +130,26 @@ jobs:
       - name: Install dependencies
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm install --frozen-lockfile
+      # Turborepo remote cache, backed by GitHub Actions own cache -- no Vercel
+      # account and no external service; any HTTP server implementing the Turbo
+      # Remote Cache API would do. Stands up that server on localhost and
+      # exports TURBO_API / TURBO_TOKEN / TURBO_TEAM to every later step in THIS
+      # job. Runners are ephemeral and jobs share nothing, so each turbo-running
+      # job needs its own copy of this step (setup, api-tests x4, other-tests --
+      # six jobs per run rebuilding the same five packages today).
+      #
+      # Without this step, remoteCache.enabled:true in turbo.jsonc is INERT:
+      # turbo logs 'Remote caching disabled' and falls back to a local cache the
+      # ephemeral runner throws away. Verified locally via turbo --dry.
+      #
+      # TURBO_REMOTE_CACHE_SIGNATURE_KEY is REQUIRED, not optional hardening:
+      # turbo.jsonc sets signature:true, so artifacts are HMAC-SHA256 signed and
+      # any artifact failing verification is SILENTLY TREATED AS A CACHE MISS.
+      # Omit the key and the hit rate is 0% while every log still looks healthy.
+      - name: Turborepo remote cache (GitHub Actions cache backend)
+        uses: rharkor/caching-for-turbo@v2.5.0
+        env:
+          TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
       - name: Security audit
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm audit --audit-level=high
@@ -194,6 +214,14 @@ jobs:
           restore-keys: ${{ runner.os }}-pnpm-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # See the setup job for why this step exists and why the signature key is
+      # mandatory. Repeated per job because runners share nothing. This job is
+      # the clearest case for it: the five packages rebuilt below were ALREADY
+      # built by setup, and this matrix rebuilds them four more times.
+      - name: Turborepo remote cache (GitHub Actions cache backend)
+        uses: rharkor/caching-for-turbo@v2.5.0
+        env:
+          TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
       - name: Build workspace package deps
         run: pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures --filter=@fleet/main-worker
       - name: Pre-pull Postgres image (testcontainers warm cache)
@@ -289,6 +317,14 @@ jobs:
           restore-keys: ${{ runner.os }}-pnpm-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # See the setup job for why this step exists and why the signature key is
+      # mandatory. Sixth and last turbo-running job in this workflow; the five
+      # packages rebuilt below were already built by setup and by all four
+      # api-tests shards.
+      - name: Turborepo remote cache (GitHub Actions cache backend)
+        uses: rharkor/caching-for-turbo@v2.5.0
+        env:
+          TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
       - name: Build workspace package deps
         run: pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures --filter=@fleet/main-worker
       - name: Test non-api packages (with coverage)
