@@ -6,6 +6,7 @@ import { TransportOrdersController } from '../src/transport-orders/transport-ord
 import { TransportOrdersService } from '../src/transport-orders/transport-orders.service.js';
 import { ProjectionRunnerService } from '../src/projections/projection-runner.service.js';
 import { JwtGuard } from '../src/auth/jwt.guard.js';
+import { ConfigService } from '@nestjs/config';
 import type { OperatorContext } from '../src/auth/operator-context.js';
 describe('GET /transport-orders/assigned', () => {
   let controller: TransportOrdersController;
@@ -21,6 +22,7 @@ describe('GET /transport-orders/assigned', () => {
       providers: [
         { provide: TransportOrdersService, useValue: svc },
         { provide: ProjectionRunnerService, useValue: projectionRunner },
+        { provide: ConfigService, useValue: { get: () => true } },
       ],
     })
       .overrideGuard(JwtGuard)

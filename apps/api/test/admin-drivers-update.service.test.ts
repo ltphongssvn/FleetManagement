@@ -23,7 +23,7 @@ const OTHER_TENANCY = {
   legalEntityId: '66666666-6666-6666-6666-666666666666',
 };
 describe('@fleet/api - AdminDriversUpdateService', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_adminupd'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_adminupd'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => { await truncateAllTables(testDb.db); });
   function svc(): AdminDriversUpdateService {
@@ -43,7 +43,7 @@ describe('@fleet/api - AdminDriversUpdateService', () => {
     expect(row?.fullName).toBe('NEW NAME');
     expect(row?.phone).toBe('+84900000001');
     expect(row?.active).toBe(true);
-  }, 30_000);
+  });
   it('update applies phone when provided', async () => {
     const id = await seedDriver(TENANCY, 'A', '+84900000001');
     await svc().update({ driverId: id, companyId: COMPANY, fullName: 'A', phone: '+84999999999' });

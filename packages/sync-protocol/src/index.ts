@@ -133,9 +133,11 @@ export {
 export {
   ExtractionJobDataWireSchema,
   EXTRACTION_STATUSES,
+  EXTRACTION_FAILURE_REASONS,
   ExtractionResultWireSchema,
   type ExtractionJobDataWire,
   type ExtractionStatus,
+  type ExtractionFailureReason,
   type ExtractionResultWire,
 } from './extraction-types.js';
 export {
@@ -244,3 +246,11 @@ export {
 
 // Device binding (installation identity + TOFU binding lifecycle).
 export * from './device-binding-contract.js';
+export {
+  DRIVER_DB_STATUSES,
+  driverDbStatusSchema,
+  type DriverDbStatus,
+  DRIVER_DB_STATUS_PLACEHOLDER_APP_VERSION,
+  type DriverDbStatusFacts,
+  classifyDriverDbStatus,
+} from './co-so-du-lieu-contract.js';

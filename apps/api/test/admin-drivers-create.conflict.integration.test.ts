@@ -39,7 +39,7 @@ function inputFor(op: ReturnType<typeof createOperatorContext>, fullName: string
 }
 
 describe('@fleet/api - AdminDriversCreateService conflict + reactivate', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); }, 60_000);
+  beforeAll(async () => { testDb = await startPgliteTestDb(); });
   afterAll(async () => { await stopPgliteTestDb(testDb); });
 
   it('ACTIVE duplicate full name throws Vietnamese ConflictException naming the driver', async () => {

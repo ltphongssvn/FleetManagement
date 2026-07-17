@@ -37,7 +37,7 @@ async function feed(seq: number, rr: string, action: string, state: string, stop
 }
 
 describe('@fleet/api - ProjectionRebuildService (integration)', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_proj_rebuild_int'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_proj_rebuild_int'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     await testDb.db.execute(sql`TRUNCATE TABLE sync_change_feed, dispatch_board_projection, projection_status CASCADE`);

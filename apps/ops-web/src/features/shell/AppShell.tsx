@@ -1,11 +1,10 @@
 // apps/ops-web/src/features/shell/AppShell.tsx
 // Professional app shell with vivid gradient backdrop, animated color blobs, dark glass nav.
-// T5: removed redundant href='#' placeholder nav links 'Đơn hàng' and
-// 'Báo cáo' (dead-ends that confused dispatchers). Remaining nav: Điều
-// phối / Đội xe / Dữ liệu — each linked to a real route.
+// Consolidation: the Doi xe (/admin/drivers) + Du lieu (/admin/reference) nav
+// links are replaced by ONE Co so du lieu link (/admin/co-so-du-lieu).
+// Remaining nav: Dieu phoi (/) + Co so du lieu -- each linked to a real route.
 import type { ReactNode, JSX } from 'react';
 import { LogoutButton } from '@/features/auth/LogoutButton';
-
 export function AppShell({ children, username }: { children: ReactNode; username?: string }): JSX.Element {
   return (
     <div className='relative min-h-screen overflow-hidden bg-slate-950 text-slate-900'>
@@ -17,7 +16,6 @@ export function AppShell({ children, username }: { children: ReactNode; username
         <div className='absolute bottom-0 left-1/3 h-[32rem] w-[32rem] rounded-full bg-cyan-400/25 blur-3xl' />
         <div className='absolute inset-0 [background-image:linear-gradient(to_right,rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:48px_48px] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]' />
       </div>
-
       <header className='sticky top-0 z-40 border-b border-white/10 bg-slate-950/60 backdrop-blur-xl'>
         <div className='mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8'>
           <div className='flex items-center gap-8'>
@@ -31,8 +29,7 @@ export function AppShell({ children, username }: { children: ReactNode; username
             </div>
             <nav className='hidden items-center gap-1 md:flex'>
               <a href='/' className='rounded-md bg-white/10 px-3 py-1.5 text-sm font-medium text-white ring-1 ring-inset ring-white/15'>Điều phối</a>
-              <a href='/admin/drivers' className='rounded-md px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white'>Đội xe</a>
-              <a href='/admin/reference' className='rounded-md px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white'>Dữ liệu</a>
+              <a href='/admin/co-so-du-lieu' className='rounded-md px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white'>Cơ sở dữ liệu</a>
             </nav>
           </div>
           <div className='flex items-center gap-3'>

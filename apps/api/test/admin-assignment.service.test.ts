@@ -26,7 +26,7 @@ async function seedDriverVehicle(): Promise<{ driverId: string; vehicleId: strin
 }
 
 describe('@fleet/api - AdminAssignmentService', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_adminassign'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_adminassign'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     await truncateAllTables(testDb.db);
@@ -42,7 +42,7 @@ describe('@fleet/api - AdminAssignmentService', () => {
     expect(row.driverId).toBe(driverId);
     expect(row.vehicleId).toBe(vehicleId);
     expect(row.revokedAt).toBeNull();
-  }, 30_000);
+  });
 
   it('revoke() soft-revokes an active assignment with a reason', async () => {
     const { driverId, vehicleId } = await seedDriverVehicle();

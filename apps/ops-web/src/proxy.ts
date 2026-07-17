@@ -20,6 +20,7 @@
 // Next-Action requests pass untouched and the action enforces auth (cancelOrder
 // redirects an unauthenticated caller to /login).
 import { NextResponse, type NextRequest } from 'next/server';
+import { publicOrigin } from '@/features/auth/public-origin';
 const PUBLIC_PATHS = new Set(['/login']);
 const API_PREFIX = '/api/';
 // problem+json body for unauthenticated API calls: /api/* is a JSON boundary;
@@ -84,11 +85,14 @@ export function proxy(req: NextRequest): NextResponse {
     // Page navigation with an expired access token but a live refresh token:
     // bounce through the refresh route, which re-mints fleet_session and
     // returns the dispatcher to where they were -- no /login mid-shift.
-    const refreshUrl = new URL('/api/auth/refresh', req.url);
+    // Build against the PUBLIC origin, not req.url: behind Railway req.url is the
+    // container internal bind, so redirecting there yields https://0.0.0.0:3001/...
+    // (ERR_ADDRESS_INVALID) and every relative link on the landed page inherits it.
+    const refreshUrl = new URL('/api/auth/refresh', publicOrigin(req));
     refreshUrl.searchParams.set('next', pathname + req.nextUrl.search);
     return NextResponse.redirect(refreshUrl);
   }
-  const loginUrl = new URL('/login', req.url);
+  const loginUrl = new URL('/login', publicOrigin(req));
   return isRscRequest(req)
     ? NextResponse.rewrite(loginUrl)
     : NextResponse.redirect(loginUrl);
