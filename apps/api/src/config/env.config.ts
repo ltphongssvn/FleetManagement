@@ -121,6 +121,36 @@ export function validateRebuildEnv(raw: Record<string, unknown>): RebuildEnv {
   return result.data;
 }
 
+// Bootstrap-scoped validator for otel-bootstrap.ts, which loads via
+// node --import BEFORE any application module and therefore cannot take the
+// full app config. Same shape as RebuildEnvSchema above: derive from the SAME
+// EnvSchema SSOT via .pick() so the OTEL rules can never drift, but validate
+// ONLY the keys the tracing bootstrap needs -- not DATABASE_URL/OIDC/S3, which
+// a tracer has no business requiring.
+//
+// Without this the bootstrap read five raw process.env values and validated
+// none: Number(process.env.OTEL_SAMPLE_RATIO) sent NaN straight into
+// TraceIdRatioBasedSampler, an empty var coerced to 0 and silently disabled
+// tracing, and a 5 meant a 500 percent ratio. Factor III: config is declared at
+// the validated boundary, never read raw.
+export const OtelEnvSchema = EnvSchema.pick({
+  OTEL_ENABLED: true,
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: true,
+  OTEL_SERVICE_NAME: true,
+  OTEL_SAMPLE_RATIO: true,
+});
+
+export type OtelEnv = z.infer<typeof OtelEnvSchema>;
+
+export function validateOtelEnv(raw: Record<string, unknown>): OtelEnv {
+  const result = OtelEnvSchema.safeParse(raw);
+  if (!result.success) {
+    const paths = result.error.issues.map((i) => i.path.join('.')).join(', ');
+    throw new Error('Invalid OTel environment at: ' + paths);
+  }
+  return result.data;
+}
+
 export function validateEnv(raw: Record<string, unknown>): Env {
   const result = EnvSchema.safeParse(raw);
   if (!result.success) {
