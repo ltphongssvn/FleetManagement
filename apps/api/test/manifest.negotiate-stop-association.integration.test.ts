@@ -71,7 +71,7 @@ describe('@fleet/api - negotiateUpload persists manifest.stop_id from stop ref',
   beforeAll(async () => {
     testDb = await startMigratedTestDb('fleet_test');
     service = new ManifestService(testDb.db, fakeBlobStore(), fakeConfig());
-  }, 90_000);
+  });
 
   afterAll(async () => {
     await stopMigratedTestDb(testDb);

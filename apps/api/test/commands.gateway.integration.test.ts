@@ -55,7 +55,7 @@ describe('@fleet/api - CommandsGateway (e2e)', () => {
     const addr = app.getHttpServer().address() as AddressInfo;
     port = addr.port;
     gateway = moduleRef.get(CommandsGateway);
-  }, 30_000);
+  });
 
   afterAll(async () => {
     await app.close();
