@@ -55,7 +55,7 @@ describe('@fleet/api - drizzle migrations apply to fresh Postgres', () => {
     }
     pool = new Pool({ connectionString: uriFor(MIGRATE_TEST_DB), connectionTimeoutMillis: 10_000 });
     db = drizzle(pool);
-  }, 60_000);
+  });
 
   afterAll(async () => {
     if (pool !== undefined) await pool.end();

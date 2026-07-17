@@ -105,7 +105,7 @@ describe('@fleet/api - fleet_app runtime role privilege contract (integration)',
       database: testDb.databaseName,
       connectionTimeoutMillis: 10_000,
     });
-  }, 120_000);
+  });
 
   afterAll(async () => {
     if (appPool !== undefined) await appPool.end();

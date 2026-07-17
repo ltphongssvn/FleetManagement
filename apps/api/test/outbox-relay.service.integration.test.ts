@@ -52,7 +52,7 @@ function makeRelay(): RelayHarness {
 }
 
 describe('@fleet/api - OutboxRelayService (integration)', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_outbox_relay_int'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_outbox_relay_int'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => { await testDb.db.execute(sql`TRUNCATE TABLE outbox CASCADE`); });
 

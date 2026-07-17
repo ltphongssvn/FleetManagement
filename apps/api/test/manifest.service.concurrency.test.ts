@@ -36,7 +36,7 @@ describe('@fleet/api - ManifestService concurrent finalizeIntake (RED)', () => {
   beforeAll(async () => {
     testDb = await startMigratedTestDb('fleet_test');
     service = new ManifestService(testDb.db, fakeBlobStore(), fakeConfig());
-  }, 90_000);
+  });
 
   afterAll(async () => {
     await stopMigratedTestDb(testDb);
@@ -80,5 +80,5 @@ describe('@fleet/api - ManifestService concurrent finalizeIntake (RED)', () => {
     expect(result.rows[0]?.total).toBe(String(PARALLELISM));
     // RED expectation: this is what should hold but currently fails under MAX+1.
     expect(result.rows[0]?.distinct).toBe(String(PARALLELISM));
-  }, 60_000);
+  });
 });

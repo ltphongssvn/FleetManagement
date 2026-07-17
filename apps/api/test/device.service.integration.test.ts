@@ -24,7 +24,7 @@ describe('@fleet/api - DeviceService (integration)', () => {
   beforeAll(async () => {
     testDb = await startMigratedTestDb('fleet_test');
     service = new DeviceService(testDb.db);
-  }, 90_000);
+  });
 
   afterAll(async () => {
     await stopMigratedTestDb(testDb);
