@@ -58,7 +58,21 @@
 #     store is cached explicitly via actions/cache.
 #   - pnpm/action-setup@v5 uses NO explicit version: the root package.json
 #     packageManager field is the single source of truth.
-#   - fetch-depth: 0 required for Turborepo --affected filtering and tagging.
+#   - Checkouts are SHALLOW (fetch-depth: 1, fetch-tags: false). This note
+#     previously claimed fetch-depth: 0 was required for Turborepo --affected
+#     filtering and tagging. Both halves were false, and the claim is what kept
+#     six jobs per run cloning full history plus every branch and tag:
+#       * --affected is invoked NOWHERE in this repo. resolve-ci-sha.ts:17-18
+#         records that it was deliberately rejected in favour of API base-SHA
+#         resolution, specifically so clones could stay shallow.
+#       * Nothing in this workflow reads a tag or any history. version.ts:5
+#         reads NEXT_PUBLIC_APP_VERSION, injected from package.json via
+#         next.config.ts; version-drift.test.ts pins package.json as the source
+#         of truth. Every rev-list / git-tag caller is local dev tooling under
+#         scripts/, or lives in release.yml / promote.yml, which keep their own
+#         checkout config and are unaffected by this file.
+#     If a future job here needs history (e.g. a diff-based path filter), give
+#     THAT job the depth it needs rather than restoring depth 0 for all of them.
 #
 # Related files:
 #   - turbo.jsonc                        — task definitions
@@ -122,7 +136,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          # Shallow. fetch-depth: 0 was here for --affected filtering and
+          # tagging; BOTH claims are false in this workflow. --affected is
+          # invoked nowhere in the repo -- resolve-ci-sha.ts:17-18 records that
+          # this repo DELIBERATELY rejected it in favour of API base-SHA
+          # resolution precisely to keep clones shallow. And nothing here reads
+          # git history or tags: version.ts:5 reads NEXT_PUBLIC_APP_VERSION,
+          # injected from package.json via next.config.ts (version-drift.test.ts
+          # guards that package.json stays the source of truth), and every
+          # rev-list / git-tag caller is either local dev tooling in scripts/ or
+          # lives in release.yml / promote.yml, which keep their own checkout.
+          #
+          # So six jobs per run were cloning full history plus every branch and
+          # tag to satisfy a requirement that does not exist.
+          fetch-depth: 1
+          # Tags are pure overhead here for the same reason: this workflow never
+          # reads one. Skipping them avoids transferring every tag in the repo
+          # on all six jobs.
+          fetch-tags: false
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
       - name: Setup Node
@@ -235,7 +266,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          # Shallow. fetch-depth: 0 was here for --affected filtering and
+          # tagging; BOTH claims are false in this workflow. --affected is
+          # invoked nowhere in the repo -- resolve-ci-sha.ts:17-18 records that
+          # this repo DELIBERATELY rejected it in favour of API base-SHA
+          # resolution precisely to keep clones shallow. And nothing here reads
+          # git history or tags: version.ts:5 reads NEXT_PUBLIC_APP_VERSION,
+          # injected from package.json via next.config.ts (version-drift.test.ts
+          # guards that package.json stays the source of truth), and every
+          # rev-list / git-tag caller is either local dev tooling in scripts/ or
+          # lives in release.yml / promote.yml, which keep their own checkout.
+          #
+          # So six jobs per run were cloning full history plus every branch and
+          # tag to satisfy a requirement that does not exist.
+          fetch-depth: 1
+          # Tags are pure overhead here for the same reason: this workflow never
+          # reads one. Skipping them avoids transferring every tag in the repo
+          # on all six jobs.
+          fetch-tags: false
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
       - name: Setup Node
@@ -348,7 +396,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          # Shallow. fetch-depth: 0 was here for --affected filtering and
+          # tagging; BOTH claims are false in this workflow. --affected is
+          # invoked nowhere in the repo -- resolve-ci-sha.ts:17-18 records that
+          # this repo DELIBERATELY rejected it in favour of API base-SHA
+          # resolution precisely to keep clones shallow. And nothing here reads
+          # git history or tags: version.ts:5 reads NEXT_PUBLIC_APP_VERSION,
+          # injected from package.json via next.config.ts (version-drift.test.ts
+          # guards that package.json stays the source of truth), and every
+          # rev-list / git-tag caller is either local dev tooling in scripts/ or
+          # lives in release.yml / promote.yml, which keep their own checkout.
+          #
+          # So six jobs per run were cloning full history plus every branch and
+          # tag to satisfy a requirement that does not exist.
+          fetch-depth: 1
+          # Tags are pure overhead here for the same reason: this workflow never
+          # reads one. Skipping them avoids transferring every tag in the repo
+          # on all six jobs.
+          fetch-tags: false
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
       - name: Setup Node
