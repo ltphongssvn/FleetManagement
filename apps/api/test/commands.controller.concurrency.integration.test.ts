@@ -58,7 +58,7 @@ function cmd(commandId: string): unknown {
 }
 
 describe('@fleet/api - CommandsController concurrency (integration, RED)', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_cmd_concurrency'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_cmd_concurrency'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     await testDb.db.execute(sql`TRUNCATE TABLE sync_change_feed, fleet_audit_log, outbox, device_registry, road_run CASCADE`);

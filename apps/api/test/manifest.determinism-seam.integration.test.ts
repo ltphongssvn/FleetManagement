@@ -55,7 +55,7 @@ async function negotiateCommitFinalize(): Promise<void> {
 }
 
 describe('@fleet/api - ManifestService determinism seam (integration)', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_determinism_seam'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_determinism_seam'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     // 4th/5th args = the injected ports; 3-arg callers elsewhere still default to System*.
@@ -71,7 +71,7 @@ describe('@fleet/api - ManifestService determinism seam (integration)', () => {
     const committedAt = rows.rows[0]?.committed_at;
     if (committedAt === undefined) throw new Error('no committed manifest row');
     expect(new Date(committedAt).toISOString()).toBe(FIXED_AT.toISOString());
-  }, 60_000);
+  });
 
   it('tri-write action_id (sync_change_feed + audit) comes from the injected IdGenerator', async () => {
     await negotiateCommitFinalize();

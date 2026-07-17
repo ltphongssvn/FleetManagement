@@ -56,7 +56,7 @@ describe('@fleet/api - AdminOrderTimelineController (integration)', () => {
   beforeAll(async () => {
     testDb = await startPgliteTestDb();
     ctrl = new AdminOrderTimelineController(new AdminOrderTimelineService(testDb.db as never));
-  }, 60_000);
+  });
   afterAll(async () => stopPgliteTestDb(testDb));
   beforeEach(async () => {
     for (const t of ['manifest', 'stop', 'road_run_transport_order', 'road_run', 'transport_order']) {

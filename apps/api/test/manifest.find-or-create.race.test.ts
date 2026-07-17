@@ -33,7 +33,7 @@ describe('@fleet/api - findOrCreateManifest concurrent first-write', () => {
   beforeAll(async () => {
     testDb = await startMigratedTestDb('fleet_test_foc');
     service = new ManifestService(testDb.db, fakeBlobStore(), fakeConfig());
-  }, 90_000);
+  });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
 
   beforeEach(async () => {
@@ -59,5 +59,5 @@ describe('@fleet/api - findOrCreateManifest concurrent first-write', () => {
 
     const cnt = await testDb.db.execute<{ count: string }>(sql`SELECT COUNT(*)::text AS count FROM manifest`);
     expect(cnt.rows[0]?.count).toBe('1');
-  }, 60_000);
+  });
 });
