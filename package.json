@@ -45,7 +45,8 @@
     "compose:env": "tsx scripts/compose-identity.ts --env .env",
     "compose:print": "tsx scripts/compose-identity.ts --print",
     "sync:develop": "tsx scripts/sync-develop.ts",
-    "bump:pnpm": "tsx scripts/bump-pnpm.ts"
+    "bump:pnpm": "tsx scripts/bump-pnpm.ts",
+    "worktree:close": "tsx scripts/worktree-close-cli.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
