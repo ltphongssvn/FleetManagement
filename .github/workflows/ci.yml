@@ -158,8 +158,20 @@ jobs:
         # tsbuildinfo, which the type-aware lint/typecheck steps below depend
         # on to resolve cross-package types. --concurrency=1 keeps peak memory
         # bounded on the 2-core runner; turbo's ^build ordering still applies.
+        #
+        # --force was REMOVED here. It means 'ignore the cache and execute
+        # anyway', so with it this step would reach the remote cache wired up
+        # above and then decline to use it -- the cache would be populated but
+        # never read, and the whole change would show as a no-op. Cache
+        # correctness is not --force's job: turbo hashes task inputs, and the
+        # build task already declares its inputs and outputs precisely
+        # (turbo.jsonc), so a hit means the inputs are byte-identical. If a hit
+        # were ever wrong, the fix is the input declaration, not blanket
+        # re-execution. Restoring dist/ + .d.ts + tsbuildinfo from cache is
+        # exactly what the lint/typecheck steps below need, and turbo's build
+        # task owns tsbuildinfo atomically with dist/ (see the header note).
         if: hashFiles('pnpm-lock.yaml') != ''
-        run: pnpm exec turbo run build --force --concurrency=1
+        run: pnpm exec turbo run build --concurrency=1
       - name: Lint
         # pnpm -r runs each package's eslint directly (not via turbo), so it
         # relies on the Build step above having emitted all @fleet/* .d.ts.
