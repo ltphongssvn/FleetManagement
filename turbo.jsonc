@@ -23,8 +23,34 @@
     "affectedUsingTaskInputs": true,
     "watchUsingTaskInputs": true
   },
+  // Remote caching is the single largest lever on this repo CI bill. Measured
+  // (//#audit:ci-minutes, Jul 1-4, 244 runs): ci.yml burned 1440 billable
+  // minutes over 63 runs -- 22.9 min/run against ~9 min of wall clock, ~67% of
+  // the whole account. The cause is that caching was disabled at BOTH layers at
+  // once: enabled:false here, plus --force in ci.yml, plus a fresh runner per
+  // job. So all 8 jobs in a run re-install and rebuild the same five packages
+  // from zero, every run. Locally the same 37-task gate finishes in 24s off the
+  // shared worktree cache; a fresh worktree restores a full build in 6s with
+  // FULL TURBO. Identical work, identical tool -- CI was simply forbidden to
+  // remember anything. enabled:false carried no description in a file where
+  // every task documents its rationale: it was an unrevisited default, not a
+  // decision.
+  //
+  // No Vercel account is involved: rharkor/caching-for-turbo backs the Turbo
+  // Remote Cache API with GitHub Actions own cache and injects TURBO_API /
+  // TURBO_TOKEN / TURBO_TEAM per job. Any HTTP server implementing the API
+  // works, so this stays portable.
+  //
+  // signature:true is KEPT, and it is a live trap worth stating plainly: Turbo
+  // HMAC-SHA256-signs artifacts with TURBO_REMOTE_CACHE_SIGNATURE_KEY, and any
+  // artifact that fails verification is silently TREATED AS A CACHE MISS. It
+  // was set here while remote caching was off, so it had never been exercised
+  // and no key existed. Flipping enabled:true alone would have produced a 100%
+  // miss rate that looks exactly like a working cache -- the same shape as the
+  // confident zeros the audit tool exists to refuse. The key is now a repo
+  // secret and every job that runs turbo must export it.
   "remoteCache": {
-    "enabled": false,
+    "enabled": true,
     "signature": true
   },
   "tasks": {
