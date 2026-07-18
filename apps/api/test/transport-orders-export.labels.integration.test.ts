@@ -49,23 +49,23 @@ describe('@fleet/api - export worksheet shows labels, not UUIDs', () => {
     await exec('TRUNCATE TABLE driver CASCADE');
     await exec('TRUNCATE TABLE vehicle CASCADE');
   });
-  it('renders driver full_name (not operator_id UUID) in column C', async () => {
+  it('renders driver full_name (not operator_id UUID) in column D', async () => {
     await seed();
     const r = await svc.exportAndLog(OP, 'manual');
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(r.buffer as unknown as ArrayBuffer);
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
-    const driverCell = ws.getRow(2).getCell(3).value;
+    const driverCell = ws.getRow(2).getCell(4).value;
     expect(driverCell).toBe('NGUYỄN VĂN A');
     expect(driverCell as string).not.toContain(DRIVER_OP_ID);
   });
-  it('renders vehicle plate (not vehicle_id UUID) in column D', async () => {
+  it('renders vehicle plate (not vehicle_id UUID) in column E', async () => {
     await seed();
     const r = await svc.exportAndLog(OP, 'manual');
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(r.buffer as unknown as ArrayBuffer);
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
-    const vehicleCell = ws.getRow(2).getCell(4).value;
+    const vehicleCell = ws.getRow(2).getCell(5).value;
     expect(vehicleCell).toBe('51C 12345');
     expect(vehicleCell as string).not.toContain(VEHICLE_ID);
   });
@@ -83,8 +83,8 @@ describe('@fleet/api - export worksheet shows labels, not UUIDs', () => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(r.buffer as unknown as ArrayBuffer);
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
-    expect(ws.getRow(2).getCell(3).value).toBe('—');
-    expect(ws.getRow(2).getCell(4).value).toBe('51C 99999');
+    expect(ws.getRow(2).getCell(4).value).toBe('—');
+    expect(ws.getRow(2).getCell(5).value).toBe('51C 99999');
   });
   it('falls back to em-dash for null assigned_operator_id and assigned_asset_id', async () => {
     const co = OP.companyId;
@@ -96,7 +96,7 @@ describe('@fleet/api - export worksheet shows labels, not UUIDs', () => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(r.buffer as unknown as ArrayBuffer);
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
-    expect(ws.getRow(2).getCell(3).value).toBe('—');
     expect(ws.getRow(2).getCell(4).value).toBe('—');
+    expect(ws.getRow(2).getCell(5).value).toBe('—');
   });
 });
