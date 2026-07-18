@@ -8,7 +8,7 @@
 // duplication. Back-link returns to the dispatch board. VN copy is immutable.
 'use client';
 import type { JSX } from 'react';
-import { DriversSection } from '@/features/admin/DriversSection';
+import { DriversAdminSection } from '@/features/admin/DriversAdminSection';
 import { SECTIONS, ReferenceSection } from '@/features/admin/reference-sections';
 
 export default function CoSoDuLieuPage(): JSX.Element {
@@ -31,7 +31,7 @@ export default function CoSoDuLieuPage(): JSX.Element {
       </div>
       <div className='rounded-xl bg-white/95 p-4 shadow-lg ring-1 ring-black/5'>
         <h2 className='mb-3 text-lg font-semibold text-slate-900'>Tài xế &amp; xe</h2>
-        <DriversSection />
+        <DriversAdminSection />
       </div>
       <div className='rounded-xl bg-white/95 p-4 shadow-lg ring-1 ring-black/5'>
         {SECTIONS.map((def) => (
