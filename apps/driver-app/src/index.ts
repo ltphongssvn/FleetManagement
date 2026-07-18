@@ -44,6 +44,16 @@ export {
   type SweepDecision,
 } from './manifest/capture-spool-policy.js';
 export {
+  buildTransportAlertChannelConfig,
+  runNotificationSetup,
+  type ChannelAudioUsage,
+  type ChannelImportance,
+  type NotificationPlatformPort,
+  type NotificationSetupResult,
+  type PermissionStatus,
+  type TransportAlertChannelConfig,
+} from './push/notification-setup-policy.js';
+export {
   PUSH_REGISTRATION_POLICY_VERSION,
   PUSH_TOKEN_TTL_MS,
   isValidExpoPushToken,
