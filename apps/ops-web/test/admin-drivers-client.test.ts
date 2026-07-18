@@ -60,7 +60,10 @@ describe("AdminDriversClient.list", () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve([
-        { driverId: "d1", fullName: "A", operatorId: null, assignedVehicle: null, assignmentId: null, devices: [] },
+        // Wire-truthful: GET /admin/drivers always serializes phone (null
+        // when unset). The old fixture omitted it and only passed because
+        // list() cast instead of parsing -- the boundary now rejects it.
+        { driverId: "d1", fullName: "A", phone: null, operatorId: null, assignedVehicle: null, assignmentId: null, devices: [] },
       ]),
     });
     const client = new AdminDriversClient({ apiUrl: "", bearerToken: () => "tok", fetchFn: fetchFn as never });
