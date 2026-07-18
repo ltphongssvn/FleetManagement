@@ -40,6 +40,8 @@ const row: ListAssignedRow = {
   driverName: null,
   pickupName: 'Chơn Chính',
   deliveryName: 'HIỀN NGUYỄN',
+  canCancel: true,
+  cancelBlockedReason: null,
   stops: [
     {
       sequence: 1,

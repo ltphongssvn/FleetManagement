@@ -47,12 +47,38 @@ const NON_CANCELLABLE_STATES: ReadonlySet<string> = new Set(['cancelled', 'compl
 export interface CancelOrderFormProps {
   readonly transportOrderId: string;
   readonly state: string;
+  // Server-computed cancel affordance (single source of truth). When the API
+  // reports the order is no longer cancellable (e.g. weigh-slip photos received),
+  // canCancel is false and cancelBlockedReason carries the reason code. The form
+  // renders an explanatory blocked notice instead of the open button -- it never
+  // re-derives the rule. Optional with cancellable defaults for back-compat with
+  // call sites that predate the flag; the API stays the ultimate authority.
+  readonly canCancel?: boolean;
+  readonly cancelBlockedReason?: string | null;
 }
-export function CancelOrderForm({ transportOrderId, state }: CancelOrderFormProps): JSX.Element | null {
+export function CancelOrderForm({ transportOrderId, state, canCancel = true, cancelBlockedReason = null }: CancelOrderFormProps): JSX.Element | null {
   const [open, setOpen] = useState(false);
   const [result, formAction, pending] = useActionState<CancelOrderState, FormData>(cancelOrder, undefined);
   if (NON_CANCELLABLE_STATES.has(state)) {
     return null;
+  }
+  // Server says this order can no longer be cancelled. Show WHY instead of the
+  // open button. The reason code -> Vietnamese message map lives here (labels
+  // are presentation); the rule itself is server-authored.
+  if (!canCancel) {
+    const blockedMessage = cancelBlockedReason === 'photos_received'
+      ? 'Không thể hủy đơn: đã nhận phiếu cân. Đơn đã bắt đầu vận chuyển.'
+      : 'Không thể hủy đơn ở trạng thái hiện tại.';
+    return (
+      <div className='mt-4'>
+        <p
+          data-testid='order-cancel-blocked'
+          className='rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600'
+        >
+          {blockedMessage}
+        </p>
+      </div>
+    );
   }
   if (!open) {
     return (
