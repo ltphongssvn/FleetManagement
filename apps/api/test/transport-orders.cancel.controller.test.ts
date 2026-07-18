@@ -18,6 +18,7 @@ import type { OperatorContext } from '../src/auth/operator-context.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 import {
   TransportOrderCannotBeCancelledError,
+  TransportOrderCannotBeCancelledWithReceivedPhotosError,
   TransportOrderNotFoundError,
 } from '../src/transport-orders/transport-orders.errors.js';
 const op: OperatorContext = createOperatorContext();
@@ -69,6 +70,10 @@ describe('@fleet/api - TransportOrdersCancelController', () => {
   });
   it('translates TransportOrderCannotBeCancelledError into ConflictException (409)', async () => {
     cancel.mockRejectedValue(new TransportOrderCannotBeCancelledError('completed'));
+    await expect(ctl.cancel(validId, validBody, op)).rejects.toBeInstanceOf(ConflictException);
+  });
+  it('translates TransportOrderCannotBeCancelledWithReceivedPhotosError into ConflictException (409)', async () => {
+    cancel.mockRejectedValue(new TransportOrderCannotBeCancelledWithReceivedPhotosError(2));
     await expect(ctl.cancel(validId, validBody, op)).rejects.toBeInstanceOf(ConflictException);
   });
   it('propagates unrelated errors unchanged (500 at framework level)', async () => {

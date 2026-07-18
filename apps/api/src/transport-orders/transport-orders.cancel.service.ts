@@ -41,18 +41,20 @@
 // other tenants' orders.
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { eq, and, inArray, ne } from 'drizzle-orm';
+import { eq, and, inArray, ne, count } from 'drizzle-orm';
 import { OUTBOX_QUEUES } from '@fleet/sync-protocol';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { transportOrder, roadRun, roadRunTransportOrder } from '../database/schema/transport.js';
-import { canTransition } from '@fleet/domain';
+import { manifest } from '../database/schema/manifest.js';
+import { canTransition, MANIFEST_PHOTO_RECEIVED_STATES } from '@fleet/domain';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { appendTriWrite } from '../database/append-tri-write.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import {
   TransportOrderNotFoundError,
   TransportOrderCannotBeCancelledError,
+  TransportOrderCannotBeCancelledWithReceivedPhotosError,
 } from './transport-orders.errors.js';
 import type { CancelOrderInput, CancelOrderResult } from './transport-orders.cancel.dto.js';
 @Injectable()
@@ -80,6 +82,26 @@ export class TransportOrdersCancelService {
         throw new TransportOrderNotFoundError();
       }
       const currentState = existing.state;
+      // URGENT production invariant (2026): block cancellation once a weigh-slip
+      // photo (phieu can / manifest) has been RECEIVED for this order. A received
+      // photo means the run physically started and goods were handled, so the
+      // order is no longer safely cancellable -- regardless of the coarse FSM
+      // state. Received = manifest state in (verifying, captured, committed); a
+      // pending row (no photo yet) or a rejected row does NOT count. This guard
+      // runs BEFORE the already-cancelled + FSM checks so it also refuses an
+      // idempotent re-cancel of an order that meanwhile received a photo.
+      const [received] = await tx
+        .select({ n: count() })
+        .from(manifest)
+        .where(and(
+          eq(manifest.transportOrderId, id),
+          eq(manifest.companyId, op.companyId),
+          inArray(manifest.state, [...MANIFEST_PHOTO_RECEIVED_STATES]),
+        ));
+      const receivedCount = received?.n ?? 0;
+      if (receivedCount > 0 && currentState !== 'cancelled') {
+        throw new TransportOrderCannotBeCancelledWithReceivedPhotosError(receivedCount);
+      }
       if (currentState === 'cancelled') {
         const auditCancelledAt = existing.cancelledAt;
         const auditCancelledBy = existing.cancelledBy;
