@@ -94,3 +94,4 @@ export {
   RolloutAllocationSchema,
   type RolloutAllocation,
 } from './delivery/rollout-allocation.js';
+export { bucketFor, isTenantExposed } from './delivery/rollout-bucket.js';
