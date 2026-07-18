@@ -11,6 +11,14 @@
 // and does NOT flush React 19 async-transition act() work, so under CPU
 // contention the waitFor poll can race the commit; user.* awaits the act-wrapped
 // async work, removing the latent race independent of host load.
+//
+// SECOND race (this hardening): the number-plate <select> is populated by a
+// SEPARATE global-fetch vehicle-list promise, not by listMock. findByText(
+// Driver Alpha) only awaits the driver list, so under coverage-gate CPU
+// contention selectOptions(v1) could fire before the option committed --
+// TestingLibraryElementError: Value v1 not found. Await the OPTION itself
+// (findByRole option, name 62H 99999) so the wait matches what a real user
+// sees: a populated dropdown. Deterministic, host-load independent.
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -61,6 +69,8 @@ describe('AdminDriversPage refreshes Router Cache after a mutation', () => {
     const user = userEvent.setup();
     render(<AdminDriversPage />);
     await screen.findByText('Driver Alpha');
+    // Wait for the vehicle option to load (separate fetch) before selecting.
+    await screen.findByRole('option', { name: '62H 99999' });
     await user.selectOptions(screen.getByRole('combobox'), 'v1');
     await user.type(screen.getByPlaceholderText(/UDID|thiết bị/i), 'UDID-123');
     await user.click(screen.getByRole('button', { name: /Phân công & đăng ký/i }));
@@ -73,6 +83,8 @@ describe('AdminDriversPage refreshes Router Cache after a mutation', () => {
     enrollMock.mockRejectedValue(new Error('enroll endpoint 500'));
     render(<AdminDriversPage />);
     await screen.findByText('Driver Alpha');
+    // Wait for the vehicle option to load (separate fetch) before selecting.
+    await screen.findByRole('option', { name: '62H 99999' });
     await user.selectOptions(screen.getByRole('combobox'), 'v1');
     await user.type(screen.getByPlaceholderText(/UDID|thiết bị/i), 'UDID-123');
     await user.click(screen.getByRole('button', { name: /Phân công & đăng ký/i }));
