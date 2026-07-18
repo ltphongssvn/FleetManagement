@@ -54,6 +54,7 @@ export {
   MANIFEST_STATES,
   MANIFEST_VERIFIABLE_STATES,
   MANIFEST_FINALIZABLE_STATES,
+  MANIFEST_PHOTO_RECEIVED_STATES,
   type UploadSessionState,
   type ManifestState,
 } from './manifest/manifest-state.js';

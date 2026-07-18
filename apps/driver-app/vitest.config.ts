@@ -8,6 +8,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
+    // pool 'forks' (the stable default since v2) plus an explicit worker cap.
+    // driver-app is node-env and cheap PER worker, but with no cap it still
+    // opens host-core forks; under parallel-worktree load (~21 workers on an
+    // 8-core box) that oversubscription starved token-storage and the SYNC
+    // vn-locale-date-us Intl call into the 5000ms default (observed 2026-07-17,
+    // green 9/9 in 1.66s isolated). 2 matches apps/api and packages/codemods --
+    // the repo's established value, not one invented here. testTimeout is left
+    // at the vitest default deliberately: raising a budget is the treadmill
+    // 9710dd8 locked as an anti-pattern; bounding the pool is the fix.
+    // vitest-maxworkers-ssot.guard.test.ts keeps this from drifting back.
+    pool: 'forks',
+    maxWorkers: 2,
     coverage: {
       provider: 'v8',
       include: [resolve(__dirname, 'src/**/*.ts')],
