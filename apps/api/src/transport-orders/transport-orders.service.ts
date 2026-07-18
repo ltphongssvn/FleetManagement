@@ -291,10 +291,11 @@ export class TransportOrdersService {
         inArray(manifest.state, [...MANIFEST_PHOTO_RECEIVED_STATES]),
       ))
       .groupBy(manifest.transportOrderId);
+    // Every returned row is a group that MATCHED the received-state filter, so
+    // its count is >= 1 by construction (no defensive n > 0 branch needed --
+    // that branch would be unreachable and uncoverable).
     for (const r of rows) {
-      if (r.n > 0) {
-        result.set(r.transportOrderId, { canCancel: false, cancelBlockedReason: 'photos_received' });
-      }
+      result.set(r.transportOrderId, { canCancel: false, cancelBlockedReason: 'photos_received' });
     }
     return result;
   }
