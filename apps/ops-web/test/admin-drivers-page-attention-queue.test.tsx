@@ -24,7 +24,7 @@ vi.mock('@/features/admin/admin-drivers-client', () => ({
 }));
 import AdminDriversPage from '@/app/admin/drivers/page';
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
-const DEVICE = { deviceId: 'dev-1', platform: 'ios', appVersion: '1.0.0', lastSeenAt: null, udid: 'UDID-9' };
+const DEVICE = { deviceId: 'dev-1', platform: 'ios', appVersion: '1.0.0', lastSeenAt: null };
 const ALPHA_NO_VEHICLE = { driverId: 'd1', fullName: 'Driver Alpha', phone: '0900000001', operatorId: 'op-a', assignedVehicle: null, assignmentId: null, devices: [DEVICE] };
 const BETA_NO_DEVICE = { driverId: 'd2', fullName: 'Driver Beta', phone: '0900000002', operatorId: 'op-b', assignedVehicle: { vehicleId: 'v9', plate: '51C-999.99' }, assignmentId: 'asg-9', devices: [] };
 const GAMMA_COMPLETE = { driverId: 'd3', fullName: 'Driver Gamma', phone: '0900000003', operatorId: 'op-c', assignedVehicle: { vehicleId: 'v1', plate: '51C-111.11' }, assignmentId: 'asg-1', devices: [DEVICE] };
@@ -59,8 +59,8 @@ describe('AdminDriversPage attention queue (contextual surfacing)', () => {
     render(<AdminDriversPage />);
     await screen.findByText('Driver Alpha');
     const q = queueSection();
-    expect(within(q).getByText('Chọn số xe và bấm Phân công & đăng ký.')).toBeTruthy();
-    expect(within(q).getByText('Nhập mã thiết bị (UDID) và bấm Phân công & đăng ký.')).toBeTruthy();
+    expect(within(q).getByText('Chọn số xe và bấm Phân công.')).toBeTruthy();
+    expect(within(q).getByText('Thiết bị sẽ tự đăng ký khi tài xế đăng nhập ứng dụng.')).toBeTruthy();
   });
   it('moves (never copies): each driver name renders exactly once page-wide', async () => {
     render(<AdminDriversPage />);

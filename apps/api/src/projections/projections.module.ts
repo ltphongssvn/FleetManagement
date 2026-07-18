@@ -2,11 +2,12 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module.js';
 import { ProjectionRunnerService } from './projection-runner.service.js';
+import { ProjectionRebuildService } from './projection-rebuild.service.js';
 
 @Module({
   imports: [DatabaseModule],
-  providers: [ProjectionRunnerService],
-  exports: [ProjectionRunnerService],
+  providers: [ProjectionRunnerService, ProjectionRebuildService],
+  exports: [ProjectionRunnerService, ProjectionRebuildService],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class ProjectionsModule {}

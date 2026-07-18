@@ -22,6 +22,7 @@ import { ConfigClientModule } from './config-client/config-client.module.js';
 import { ErpInboundModule } from './erp-inbound/erp-inbound.module.js';
 import { EasInboundModule } from './eas-inbound/eas-inbound.module.js';
 import { MetricsModule } from './metrics/metrics.module.js';
+import { OwnerModule } from './owner/owner.module.js';
 import { ReferenceModule } from './reference/reference.module.js';
 import { DriverModule } from './driver/driver.module.js';
 import { AdminModule } from './admin/admin.module.js';
@@ -48,6 +49,7 @@ import { CopilotModule } from './copilot/copilot.module.js';
     ErpInboundModule,
     EasInboundModule,
     MetricsModule,
+    OwnerModule,
     ReferenceModule,
     DriverModule,
     AdminModule,

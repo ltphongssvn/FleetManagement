@@ -23,3 +23,10 @@ export const MANIFEST_VERIFIABLE_STATES = ['pending', 'verifying'] as const;
 
 /** States from which manifest may transition to committed/rejected. */
 export const MANIFEST_FINALIZABLE_STATES = ['verifying'] as const;
+/** States that prove a weigh-slip photo (phieu can) has been RECEIVED into the
+ *  pipeline for its transport order: the upload was accepted and is at or past
+ *  verification. Used by the cancel guard -- once any manifest for an order is
+ *  in one of these states the run physically started and the order can no
+ *  longer be cancelled. Excludes pending (row created, no photo yet) and
+ *  rejected (photo refused -- not a valid received proof). */
+export const MANIFEST_PHOTO_RECEIVED_STATES = ['verifying', 'captured', 'committed'] as const;

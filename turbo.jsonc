@@ -23,8 +23,34 @@
     "affectedUsingTaskInputs": true,
     "watchUsingTaskInputs": true
   },
+  // Remote caching is the single largest lever on this repo CI bill. Measured
+  // (//#audit:ci-minutes, Jul 1-4, 244 runs): ci.yml burned 1440 billable
+  // minutes over 63 runs -- 22.9 min/run against ~9 min of wall clock, ~67% of
+  // the whole account. The cause is that caching was disabled at BOTH layers at
+  // once: enabled:false here, plus --force in ci.yml, plus a fresh runner per
+  // job. So all 8 jobs in a run re-install and rebuild the same five packages
+  // from zero, every run. Locally the same 37-task gate finishes in 24s off the
+  // shared worktree cache; a fresh worktree restores a full build in 6s with
+  // FULL TURBO. Identical work, identical tool -- CI was simply forbidden to
+  // remember anything. enabled:false carried no description in a file where
+  // every task documents its rationale: it was an unrevisited default, not a
+  // decision.
+  //
+  // No Vercel account is involved: rharkor/caching-for-turbo backs the Turbo
+  // Remote Cache API with GitHub Actions own cache and injects TURBO_API /
+  // TURBO_TOKEN / TURBO_TEAM per job. Any HTTP server implementing the API
+  // works, so this stays portable.
+  //
+  // signature:true is KEPT, and it is a live trap worth stating plainly: Turbo
+  // HMAC-SHA256-signs artifacts with TURBO_REMOTE_CACHE_SIGNATURE_KEY, and any
+  // artifact that fails verification is silently TREATED AS A CACHE MISS. It
+  // was set here while remote caching was off, so it had never been exercised
+  // and no key existed. Flipping enabled:true alone would have produced a 100%
+  // miss rate that looks exactly like a working cache -- the same shape as the
+  // confident zeros the audit tool exists to refuse. The key is now a repo
+  // secret and every job that runs turbo must export it.
   "remoteCache": {
-    "enabled": false,
+    "enabled": true,
     "signature": true
   },
   "tasks": {
@@ -101,6 +127,55 @@
       "persistent": true,
       "interruptible": true
     },
+    "projection:rebuild": {
+      "description": "Rebuild dispatch_board_projection for one scope from the event feed (sanctioned rebuild path). Boots a minimal standalone Nest context (ProjectionRebuildModule). Live DB mutation: cache:false. passThroughEnv exposes DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run projection:rebuild --filter=@fleet/api -- --scope <companyId>.",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
+    "intake:redrive": {
+      "description": "Emit compensating manifest_intake.requested outbox events for manifests stranded in verifying (Jun-24 expired-worker-token incident repair). Event-sourcing repair protocol: events flow THROUGH outbox -> relay -> BullMQ -> worker -> finalizeIntake; manifest state is never hand-patched. DRY-RUN by default; mutation needs --execute AND FLEET_ALLOW_INTAKE_REDRIVE=true (wipe-business-data speed-bump pattern). Live DB access: cache:false. Run: pnpm exec turbo run intake:redrive --filter=@fleet/api [-- --execute].",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_ALLOW_INTAKE_REDRIVE"]
+    },
+    "repair:ghost-runs": {
+      "description": "Event-sourced ghost-run repair: cancel every non-terminal road_run whose linked transport_orders are all terminal (or that has zero links) by appending road_run.cancelled through appendTriWrite, letting the projection runner heal dispatch_board. DRY-RUN by default; pass -- --execute to mutate. Live DB mutation: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run repair:ghost-runs --filter=@fleet/api [-- --execute].",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
+    "audit:device-registry": {
+      "description": "READ-ONLY audit of device_registry fabrication from the manual pre-enroll path. Runs the unit-tested auditDeviceRegistry classifier against live rows and prints duplicate-udid groups, platform monoculture, placeholder-version count, and active device_session blast-radius. No mutation, no --execute. Live DB read: cache:false. passThroughEnv DATABASE_URL under strict envMode. Run: pnpm exec turbo run audit:device-registry --filter=@fleet/api.",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL"]
+    },
+    "audit:assignment-uniqueness": {
+      "description": "READ-ONLY audit of driver-vehicle assignment-pair uniqueness. Runs the unit-tested auditAssignmentUniqueness classifier against live ACTIVE assignment rows and prints any duplicate driver/vehicle/pair groups (violations of the 1:1 partial-unique-index invariant). --introspect mode instead prints whether the two dva_one_active_* partial-unique indexes exist and are VALID in prod (drift check). No mutation. Live DB read: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run audit:assignment-uniqueness --filter=@fleet/api [-- --introspect].",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
+    "inspect:order-state": {
+      "description": "Read-only diagnostic: print a transport order actual server-side state (transport_order row, linked road_run states + started_at/completed_at, last 20 fleet_audit_log events) resolved by --ref. Boots the standalone ProjectionRebuildModule (config + database). MUTATES NOTHING. Live DB read: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run inspect:order-state --filter=@fleet/api -- --ref XTT.07-020.",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
+    "repair:complete-delivered-runs": {
+      "description": "Event-sourced completion reconciler: drive every non-terminal road_run whose linked transport_orders are ALL fully photo-committed (committed manifests >= stop count, the same predicate the live completion gate enforces) to completed by appending road_run.completed through appendTriWrite, letting the projection runner heal dispatch_board. Heals runs stranded when intake lagged or the old departedAt-proxy made completion unreachable. DRY-RUN by default; pass -- --execute to mutate. Live DB mutation: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run repair:complete-delivered-runs --filter=@fleet/api [-- --execute].",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
     "test:integration": {
       "description": "Integration tests — need own + upstream builds + Testcontainers. Owns coverage/integration/** + test-results/integration/**.",
       "dependsOn": ["build", "^build"],
@@ -125,6 +200,16 @@
     },
     "eas:builds": {
       "description": "List recent EAS cloud builds (Android + iOS) for the driver app via eas-cli build:list. Read-only network query against Expo servers, so cache:false (no deterministic output) and no build dependency. passThroughEnv exposes EXPO_TOKEN (auth; set persistently via ~/.expo-env) and EAS_PROJECT_ID under strict envMode. Run: pnpm exec turbo run eas:builds --filter=@fleet/driver-app.",
+      "cache": false,
+      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
+    },
+    "eas:build:ios": {
+      "description": "Dispatch an iOS Ad Hoc (preview profile) EAS cloud build of the driver app via eas-cli build. --non-interactive auto-includes every device already registered on the ad hoc provisioning profile server-side (no App Store Connect API Key, no device-selection prompt), so a driver iPhone registered via the eas device:create QR flow is baked into the new .ipa. Waits for the build (no --no-wait) so the operator gets the install link; CI uses --no-wait for fire-and-forget. Remote build + Apple credential network mutation: cache:false, no build dependency (EAS builds remotely). passThroughEnv exposes EXPO_TOKEN (auth; set persistently via ~/.expo-env) and EAS_PROJECT_ID under strict envMode. Run: pnpm exec turbo run eas:build:ios --filter=@fleet/driver-app.",
+      "cache": false,
+      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
+    },
+    "eas:build:android": {
+      "description": "Dispatch an Android (preview profile) EAS cloud build of the driver app via eas-cli build, producing an installable APK. --non-interactive requires no prompts (Android internal distribution is not device-UDID-scoped, unlike iOS Ad Hoc). Waits for the build (no --no-wait) so the operator gets the install link; CI uses --no-wait for fire-and-forget. Remote build network operation: cache:false, no build dependency (EAS builds remotely). passThroughEnv exposes EXPO_TOKEN (auth; set persistently via ~/.expo-env) and EAS_PROJECT_ID under strict envMode. Run: pnpm exec turbo run eas:build:android --filter=@fleet/driver-app.",
       "cache": false,
       "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
     },
@@ -159,6 +244,11 @@
       "description": "End-to-end tests (Playwright), repo-root task. The playwright config lives at the repo root (testDir ./e2e, workers 1) and the spec-runner is the root 'test:e2e' script, so this spans packages and MUST be root-scoped (the '//#' prefix). A prior package-level 'test:e2e' task was dead: no package exposes a test:e2e script, so 'turbo run test:e2e --filter=@fleet/ops-web' ran zero tasks. env declares the vars the e2e run actually reads (E2E_* base/api URLs, OIDC_* for the IdP authorize flow, PLAYWRIGHT_* runtime) so they pass the envMode:strict boundary; the old task listed DATABASE_URL/API_BASE_URL/TESTCONTAINERS_* which the Playwright run does not consume. Owns playwright-report/**. cache:false until a migration-hash key is wired (ADR-001).",
       "cache": false,
       "env": ["E2E_*", "OIDC_*", "PLAYWRIGHT_*"]
+    },
+    "//#stack:e2e:isolated": {
+      "description": "Root-level task: raise the ISOLATED per-worktree browser-E2E stack (infra + api + ops-web, NO driver/expo/android) on this worktree deterministic compose ports (compose-identity), health-gated (docker compose up --wait), run Playwright via the existing ops-web-runner with identity-derived E2E_BASE_URL/E2E_API_URL, then tear the stack down (down -v). Prefix //# ensures repo-root-only (spans packages + the whole compose stack, not a per-package task). Replaces the ad-hoc docker compose + inline E2E_* env pattern with one rediscoverable op. env declares the vars the run reads so they pass envMode:strict. cache:false (side-effecting: docker + network). Run: pnpm exec turbo run stack:e2e:isolated -- e2e/dispatch-board-search.spec.ts.",
+      "cache": false,
+      "env": ["E2E_*", "OIDC_*", "PLAYWRIGHT_*", "FLEET_*"]
     }
 ,
     "__ci_fast__": {
@@ -185,6 +275,12 @@
       "description": "Root-level task: run the @fleet/codemods drift gate (extract-parse-one-number --check) across the worker tsconfig spanned with @fleet/domain source. Prefix '//#' ensures repo-root-only (it spans packages, so it is not a per-package task). Fails when source still has an un-migrated parseOneNumber outside @fleet/domain. Wired into __ci_fast__ so PRs fail on drift. cache:false — it is a fast in-memory AST pass with no cacheable output.",
       "cache": false
     },
+    "//#audit:ci-minutes": {
+      "description": "Root-level task: READ-ONLY audit attributing BILLABLE GitHub Actions minutes to the workflow that spent them, then reconciling the total against the enhanced billing platform. Prefix //# ensures repo-root-only (it spans no package; it reads the repo CI ledger). Computed from /actions/runs/{id}/jobs records, never /actions/workflows/{id}/timing -- that endpoint is closing down and returns 0ms while billing shows five figures. Billing meters JOB execution rounded UP per job, so a 4-way shard matrix cuts wall clock but not minutes, and a 12-second gate job still bills one. Absent data throws rather than scoring 0 (three confident-zero hazards observed in this domain, including GitHub docs saying product=Actions while the wire sends product=actions). Exits 2 when computed-vs-billed drift exceeds 5%: the instrument is wrong and no cut may be sized on it. cache:false (live network read, no cacheable output). passThroughEnv exposes the API token under strict envMode. Run: pnpm exec turbo run audit:ci-minutes [-- --year 2026 --month 7].",
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_URL", "GITHUB_REPOSITORY"]
+    },
     "//#sync:worktrees": {
       "description": "Root-level task: fast-forward every git worktree local branch to its remote tracking branch, SAFELY. Prefix //# ensures repo-root-only (it spans all worktrees, not a per-package task). Fast-forwards only when a branch is purely behind (behind>0, ahead=0); REFUSES and warns on true divergence (ahead>0 AND behind>0), never force-merging/resetting, so unpushed local commits can never be lost. The autonomous pipeline converges the REMOTE branches but git never auto-updates LOCAL worktree branches, so this closes that gap. cache:false (side-effecting git operation, no cacheable output). Run: pnpm exec turbo run sync:worktrees.",
       "cache": false
@@ -195,6 +291,10 @@
     },
     "//#bump:pnpm": {
       "description": "Root-level task: bump the corepack-pinned pnpm version for the whole repo via corepack use pnpm@<version|latest> -- resolves the version and rewrites the packageManager pin + sha512 in package.json itself (2026 canonical; never pnpm add -g, which fails on this box because the global bin dir is not on PATH and would only mutate one machine anyway). Script refuses on a dirty tree so the pin change is always an isolated, reviewable commit. Prefix //# ensures repo-root-only. cache:false (side-effecting, network-resolving). Run: pnpm exec turbo run bump:pnpm [-- <version>].",
+      "cache": false
+    },
+    "//#worktree:close": {
+      "description": "Root-level task: close a git worktree SAFELY -- remove the worktree and delete its local branch, but ONLY when nothing can be lost. Prefix //# ensures repo-root-only (it spans all worktrees, not a per-package task). REFUSES on any loss risk and reports every reason at once: primary-clone, no-upstream, unpushed (ahead>0), dirty (any modified or untracked file), unmerged (commits not contained in origin/develop). Never passes --force, -D or -f, so git own merged-check is the last line of defence. Complements sync:worktrees, which fast-forwards but has no removal path -- closing a worktree was previously a hand-rolled git idiom, not a captured op. Decision core (scripts/close-worktree.ts) and parsers (scripts/worktree-close.ts) are pure and unit-tested; only the driver touches git. cache:false (side-effecting git mutation, no cacheable output). Run: pnpm exec turbo run worktree:close -- <worktree-path>.",
       "cache": false
     },
     "//#graph": {

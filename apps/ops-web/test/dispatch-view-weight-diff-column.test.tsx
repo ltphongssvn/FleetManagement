@@ -1,8 +1,10 @@
 // apps/ops-web/test/dispatch-view-weight-diff-column.test.tsx
-// outside-in strict TDD RED (Feature 3): the Lệnh điều xe board shows a
-// "Chênh lệch" (pickup-vs-delivery net-weight difference) column. The value is
-// the SERVER-computed weightDiffKg (positive => more picked up than delivered),
-// formatted vi-VN as "<n> kg"; a null diff (weights incomplete) shows em-dash.
+// outside-in strict TDD RED (Feature 3, signed-display revision): the Lenh dieu
+// xe board Chenh lech column = server weightDiffKg = Kho giao hang minus
+// sum(Diem nhan hang). Sign contract: negative shows a minus sign; positive and zero
+// show NO sign (no plus); negative-zero from float subtraction collapses to a
+// bare zero; null (weights incomplete) shows em-dash. Header is relabelled to
+// name the operands explicitly so the dispatcher reads the direction.
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { DispatchView } from '@/features/dispatch/DispatchView';
@@ -10,7 +12,7 @@ import type { DispatchBoardRoadRun } from '@/features/dispatch/types';
 afterEach(cleanup);
 
 const refs = {
-  drivers: [{ id: 'op-1', label: 'NGUYỄN THANH PHONG' }],
+  drivers: [{ id: 'op-1', label: 'NGUYEN THANH PHONG' }],
   vehicles: [{ id: 'truck-7', label: '62H 05194' }],
   customers: [],
   cargoTypes: [],
@@ -32,6 +34,7 @@ function row(over: Partial<DispatchBoardRoadRun>): DispatchBoardRoadRun {
     transportOrderRefs: ['XTT.05-001'],
     customerName: null,
     customerPhone: null,
+    cargoName: null,
     weightDiffKg: null,
     stops: [],
     ...over,
@@ -39,22 +42,34 @@ function row(over: Partial<DispatchBoardRoadRun>): DispatchBoardRoadRun {
 }
 
 describe('@fleet/ops-web - DispatchView weight-diff column (Feature 3)', () => {
-  it('renders a "Chênh lệch" column header', () => {
+  it('renders the relabelled Chênh lệch (Số giao - Số nhận) column header', () => {
     render(<DispatchView initialRuns={[row({})]} refs={refs} />);
     const headers = screen.getAllByRole('columnheader').map((h) => h.textContent);
-    expect(headers).toEqual(expect.arrayContaining(['Chênh lệch']));
+    expect(headers).toEqual(expect.arrayContaining(['Chênh lệch (Số giao - Số nhận)']));
   });
 
-  it('shows the vi-VN formatted kg difference for a row with a numeric weightDiffKg', () => {
+  it('shows a NEGATIVE difference with a minus sign (delivery exceeded pickup)', () => {
     render(<DispatchView initialRuns={[row({ weightDiffKg: -7140 })]} refs={refs} />);
     const cell = screen.getByTestId('dispatch-board-weightdiff-XTT.05-001');
     expect(cell.textContent).toBe('-7.140 kg');
   });
 
-  it('shows a positive difference with grouping', () => {
+  it('shows a POSITIVE difference with grouping and NO plus sign', () => {
     render(<DispatchView initialRuns={[row({ weightDiffKg: 12500 })]} refs={refs} />);
     const cell = screen.getByTestId('dispatch-board-weightdiff-XTT.05-001');
     expect(cell.textContent).toBe('12.500 kg');
+  });
+
+  it('shows a bare zero when pickup equals delivery', () => {
+    render(<DispatchView initialRuns={[row({ weightDiffKg: 0 })]} refs={refs} />);
+    const cell = screen.getByTestId('dispatch-board-weightdiff-XTT.05-001');
+    expect(cell.textContent).toBe('0 kg');
+  });
+
+  it('collapses negative zero from float subtraction to a bare zero (no minus)', () => {
+    render(<DispatchView initialRuns={[row({ weightDiffKg: -0 })]} refs={refs} />);
+    const cell = screen.getByTestId('dispatch-board-weightdiff-XTT.05-001');
+    expect(cell.textContent).toBe('0 kg');
   });
 
   it('shows em-dash when weightDiffKg is null (weights incomplete)', () => {

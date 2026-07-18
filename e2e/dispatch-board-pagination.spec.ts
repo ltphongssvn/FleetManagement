@@ -117,8 +117,18 @@ test.describe('dispatch board pagination + active/finished partition (Lệnh đi
     await expect(page.getByTestId('dispatch-board-row-' + a3.externalRef)).toBeVisible();
     await expect(page.getByTestId('dispatch-board-row-' + f1.externalRef)).toHaveCount(0);
 
-    // (4) Switch to Finished: cancelled row shows; an active row does not.
+    // (4) T16 board split: a cancelled order is NO LONGER in Finished -- it lives
+    // under its own Cancelled tab (Lenh Huy / group=cancelled). Finished now holds
+    // only completed runs. So switching to Finished must NOT show the cancelled
+    // row; switching to Cancelled must show it, and an active row appears in
+    // neither.
     await finishedTab.click();
+    await expect(page).toHaveURL(/group=finished/, { timeout: 10000 });
+    await expect(page.getByTestId('dispatch-board-row-' + f1.externalRef)).toHaveCount(0);
+    const cancelledTab = page.getByTestId('dispatch-board-filter-cancelled');
+    await expect(cancelledTab).toBeVisible();
+    await cancelledTab.click();
+    await expect(page).toHaveURL(/group=cancelled/, { timeout: 10000 });
     await expect(page.getByTestId('dispatch-board-row-' + f1.externalRef)).toBeVisible();
     await expect(page.getByTestId('dispatch-board-row-' + a1.externalRef)).toHaveCount(0);
   });

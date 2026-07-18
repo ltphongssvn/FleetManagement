@@ -77,7 +77,7 @@ async function kgOf(manifestId: string): Promise<string | null> {
 }
 
 describe('@fleet/api - manifest extraction_status persistence + manual edit', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_extstatus'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_extstatus'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     service = new ManifestService(testDb.db, fakeBlobStore(), fakeConfig());

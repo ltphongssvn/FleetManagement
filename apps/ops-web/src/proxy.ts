@@ -20,6 +20,7 @@
 // Next-Action requests pass untouched and the action enforces auth (cancelOrder
 // redirects an unauthenticated caller to /login).
 import { NextResponse, type NextRequest } from 'next/server';
+import { publicOrigin } from '@/features/auth/public-origin';
 const PUBLIC_PATHS = new Set(['/login']);
 const API_PREFIX = '/api/';
 // problem+json body for unauthenticated API calls: /api/* is a JSON boundary;
@@ -40,15 +41,38 @@ function isRscRequest(req: NextRequest): boolean {
 function isServerAction(req: NextRequest): boolean {
   return req.headers.get('next-action') !== null;
 }
+// Cloudflare Web Analytics RUM auto-injects beacon.min.js as the final <body>
+// child at the edge, for browser requests only. React 19 then sees a client
+// DOM (with beacon) that differs from the server-rendered tree (no body
+// beacon) and throws a hard hydration error (#418). The beacon is rendered
+// server-side in the root layout <head> instead. To stop the edge transform,
+// the HTML document response must carry Cache-Control: no-transform (per
+// Cloudflare: a no-transform response is never modified by the proxy). The
+// root layout calls cookies(), so every page is dynamic and Next stamps its
+// own private/no-store Cache-Control, which OVERRIDES next.config headers()
+// (vercel/next.js #89439). proxy.ts response headers are honored, so we merge
+// no-transform into the pass-through here -- the one layer that reliably wins.
+function passThroughNoTransform(): NextResponse {
+  const res = NextResponse.next();
+  const existing = res.headers.get('cache-control');
+  res.headers.set(
+    'Cache-Control',
+    existing !== null && existing.length > 0
+      ? existing + ', no-transform'
+      : 'no-transform',
+  );
+  return res;
+}
+
 export function proxy(req: NextRequest): NextResponse {
   const { pathname } = req.nextUrl;
-  if (PUBLIC_PATHS.has(pathname)) return NextResponse.next();
+  if (PUBLIC_PATHS.has(pathname)) return passThroughNoTransform();
   // Never divert a Server Action POST to /login (see file header): Next.js cannot
   // forward a rewrite/redirect for an action response. The action authenticates
   // itself and redirects unauthenticated callers to /login.
   if (isServerAction(req)) return NextResponse.next();
   const session = req.cookies.get('fleet_session')?.value;
-  if (session !== undefined) return NextResponse.next();
+  if (session !== undefined) return passThroughNoTransform();
   const refresh = req.cookies.get('fleet_refresh')?.value;
   if (pathname.startsWith(API_PREFIX)) {
     // Route handlers silently refresh when fleet_refresh exists; without it
@@ -61,11 +85,14 @@ export function proxy(req: NextRequest): NextResponse {
     // Page navigation with an expired access token but a live refresh token:
     // bounce through the refresh route, which re-mints fleet_session and
     // returns the dispatcher to where they were -- no /login mid-shift.
-    const refreshUrl = new URL('/api/auth/refresh', req.url);
+    // Build against the PUBLIC origin, not req.url: behind Railway req.url is the
+    // container internal bind, so redirecting there yields https://0.0.0.0:3001/...
+    // (ERR_ADDRESS_INVALID) and every relative link on the landed page inherits it.
+    const refreshUrl = new URL('/api/auth/refresh', publicOrigin(req));
     refreshUrl.searchParams.set('next', pathname + req.nextUrl.search);
     return NextResponse.redirect(refreshUrl);
   }
-  const loginUrl = new URL('/login', req.url);
+  const loginUrl = new URL('/login', publicOrigin(req));
   return isRscRequest(req)
     ? NextResponse.rewrite(loginUrl)
     : NextResponse.redirect(loginUrl);

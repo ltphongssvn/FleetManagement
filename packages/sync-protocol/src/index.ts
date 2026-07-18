@@ -133,9 +133,11 @@ export {
 export {
   ExtractionJobDataWireSchema,
   EXTRACTION_STATUSES,
+  EXTRACTION_FAILURE_REASONS,
   ExtractionResultWireSchema,
   type ExtractionJobDataWire,
   type ExtractionStatus,
+  type ExtractionFailureReason,
   type ExtractionResultWire,
 } from './extraction-types.js';
 export {
@@ -204,6 +206,12 @@ export {
   type PeekOrderRefResponse,
 } from './reference-contract.js';
 export {
+  OwnerAdoptionMetricsSchema,
+  type OwnerAdoptionMetrics,
+  parseOwnerAdoptionMetrics,
+} from './owner-adoption-contract.js';
+
+export {
   DriverLoginRequestSchema,
   type DriverLoginRequest,
   DriverLoginResponseSchema,
@@ -235,3 +243,11 @@ export {
   parseCopilotPlanResponse,
   parseCopilotExecutionResult,
 } from './copilot-types.js';
+export {
+  DRIVER_DB_STATUSES,
+  driverDbStatusSchema,
+  type DriverDbStatus,
+  DRIVER_DB_STATUS_PLACEHOLDER_APP_VERSION,
+  type DriverDbStatusFacts,
+  classifyDriverDbStatus,
+} from './co-so-du-lieu-contract.js';

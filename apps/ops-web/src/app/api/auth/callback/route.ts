@@ -19,6 +19,7 @@ import { TokenResponseSchema } from '@/features/auth/oidc-authorization.schema';
 import {
   REFRESH_COOKIE,
   SESSION_COOKIE,
+  publicOrigin,
   refreshCookieOptions,
   sessionCookieOptions,
 } from '@/features/auth/session-refresh';
@@ -35,30 +36,6 @@ function clearTransient(res: NextResponse): NextResponse {
     res.cookies.delete(name);
   }
   return res;
-}
-// Resolve the PUBLIC origin to build same-site redirect URLs against. Behind
-// Railway's edge proxy, req.url's host is the container's internal bind
-// (0.0.0.0:3001), so `new URL('/', req.url)` would redirect the browser to
-// https://0.0.0.0:3001/ (ERR_ADDRESS_INVALID) -- Railway runs the app as-is and
-// does not rewrite localhost/0.0.0.0 to the public domain. Prefer the forwarded
-// host/proto the proxy sets; otherwise fall back to the origin of
-// OIDC_REDIRECT_URI (already configured to the public callback URL, e.g.
-// https://xe.vominhchau.com/...); finally fall back to req.url for local/dev.
-function publicOrigin(req: NextRequest): string {
-  const forwardedHost = req.headers.get('x-forwarded-host');
-  if (forwardedHost !== null && forwardedHost.length > 0) {
-    const proto = req.headers.get('x-forwarded-proto') ?? 'https';
-    return `${proto}://${forwardedHost}`;
-  }
-  const redirectUri = process.env['OIDC_REDIRECT_URI'];
-  if (redirectUri !== undefined && redirectUri.length > 0) {
-    try {
-      return new URL(redirectUri).origin;
-    } catch {
-      // fall through to req.url
-    }
-  }
-  return new URL(req.url).origin;
 }
 function loginRedirect(req: NextRequest, reason: string): NextResponse {
   const url = new URL('/login', publicOrigin(req));

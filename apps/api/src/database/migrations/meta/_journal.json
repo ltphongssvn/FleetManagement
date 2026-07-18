@@ -190,6 +190,20 @@
       "when": 1783537191382,
       "tag": "0026_white_winter_soldier",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1783537191383,
+      "tag": "20260712100000_unaccent_extension",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1783978370244,
+      "tag": "0028_free_the_order",
+      "breakpoints": true
     }
   ]
 }

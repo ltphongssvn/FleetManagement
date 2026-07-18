@@ -8,7 +8,7 @@ import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './
 let testDb: MigratedTestDb;
 
 describe('@fleet/api - allocateServerSeq', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_seq'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_seq'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     await testDb.db.execute(sql`SELECT setval('fleet_server_seq', 1, false)`);
@@ -35,5 +35,5 @@ describe('@fleet/api - allocateServerSeq', () => {
     );
     const distinct = new Set(results.map(String));
     expect(distinct.size).toBe(N);
-  }, 30_000);
+  });
 });

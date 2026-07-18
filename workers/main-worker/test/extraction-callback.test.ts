@@ -39,6 +39,20 @@ describe('FetchExtractionCallback', () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
+  it('invokes onUnauthorized exactly once on 401, then still throws (BullMQ outer retry)', async () => {
+    const onUnauthorized = vi.fn();
+    const fetchFn = vi.fn().mockResolvedValue(new Response('x', { status: 401, statusText: 'Unauthorized' }));
+    const cb = new FetchExtractionCallback({ apiUrl: 'http://api:3000', bearerToken: () => 'tok', fetchFn, onUnauthorized });
+    await expect(cb.finalize(RESULT)).rejects.toThrow('extraction-result HTTP 401');
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+  });
+  it('does NOT invoke onUnauthorized on other non-2xx statuses', async () => {
+    const onUnauthorized = vi.fn();
+    const fetchFn = vi.fn().mockResolvedValue(new Response('x', { status: 503, statusText: 'unavail' }));
+    const cb = new FetchExtractionCallback({ apiUrl: 'http://api:3000', bearerToken: () => 'tok', fetchFn, onUnauthorized });
+    await expect(cb.finalize(RESULT)).rejects.toThrow('extraction-result HTTP 503');
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
   it('uses globalThis.fetch when no fetchFn injected (default path)', async () => {
     const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
     const cb = new FetchExtractionCallback({ apiUrl: 'http://api:3000', bearerToken: () => 'tok' });

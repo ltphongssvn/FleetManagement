@@ -1,0 +1,121 @@
+// scripts/worktree-close-cli.ts
+// GREEN (worktree-close arc slice 3, 2026-07-15): git argv planners, target
+// selection, operator report, and the side-effecting driver for worktree:close.
+// Slice 1 (close-worktree.ts) owns the verdict; slice 2 (worktree-close.ts)
+// owns the parsers; this composes them into one registered, rediscoverable op.
+// Pure planners are unit-tested; main() runs ONLY as entrypoint so the contract
+// test imports the pure parts without spawning git.
+// Precedent: scripts/e2e/stack-e2e-isolated.ts.
+
+import { execFileSync } from 'node:child_process';
+import { decideClose, closePlan, type CloseVerdict, type WorktreeCloseInput } from './close-worktree.js';
+import {
+  parseWorktreePorcelain,
+  parseAheadBehind,
+  countDirtyFiles,
+  resolveCloseInput,
+  type WorktreeEntry,
+} from './worktree-close.js';
+
+const NL = String.fromCharCode(10);
+const INTEGRATION_REF = 'origin/develop';
+
+// ---- pure argv planners ----
+
+export function listWorktreesArgs(): string[] {
+  return ['worktree', 'list', '--porcelain'];
+}
+
+export function upstreamArgs(): string[] {
+  return ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'];
+}
+
+export function aheadBehindArgs(upstream: string): string[] {
+  return ['rev-list', '--left-right', '--count', 'HEAD...' + upstream];
+}
+
+export function dirtyArgs(): string[] {
+  return ['status', '--porcelain=v1', '--untracked-files=all'];
+}
+
+export function containmentArgs(integrationRef: string): string[] {
+  return ['rev-list', '--count', integrationRef + '..HEAD'];
+}
+
+// ---- pure selection + report ----
+
+export function selectTarget(entries: readonly WorktreeEntry[], path: string): WorktreeEntry {
+  const hit = entries.find((e) => e.path === path);
+  if (hit === undefined) {
+    throw new Error('not a worktree root: ' + path + NL + 'known roots:' + NL +
+      entries.map((e) => '  ' + e.path).join(NL));
+  }
+  return hit;
+}
+
+export function formatCloseReport(verdict: CloseVerdict, input: WorktreeCloseInput): string {
+  const lines = [
+    'worktree: ' + input.path,
+    'branch:   ' + input.branch,
+    'verdict:  ' + verdict.action,
+  ];
+  if (verdict.action === 'refuse') {
+    lines.push('refused because:');
+    for (const r of verdict.reasons) lines.push('  - ' + r);
+    lines.push('state: ahead=' + String(input.aheadOfRemote) +
+      ' dirty=' + String(input.dirtyFileCount) +
+      ' upstream=' + String(input.hasUpstream) +
+      ' contained=' + String(input.containedInIntegration));
+  }
+  return lines.join(NL);
+}
+
+/* v8 ignore start -- side-effecting entrypoint; pure planners above are unit-tested */
+function git(args: readonly string[], cwd?: string): string {
+  return execFileSync('git', [...args], { cwd, encoding: 'utf8' }).trim();
+}
+
+function gitAllowFail(args: readonly string[], cwd?: string): string {
+  try {
+    return git(args, cwd);
+  } catch {
+    return '';
+  }
+}
+
+function mainWorktreeClose(): number {
+  const target = process.argv[2];
+  if (target === undefined || target.length === 0) {
+    process.stderr.write('usage: turbo run worktree:close -- <worktree-path>' + NL);
+    return 2;
+  }
+  const entries = parseWorktreePorcelain(git(listWorktreesArgs()));
+  const entry = selectTarget(entries, target);
+  const upstream = gitAllowFail(upstreamArgs(), entry.path);
+  const ahead = upstream.length > 0
+    ? parseAheadBehind(git(aheadBehindArgs(upstream), entry.path)).ahead
+    : 0;
+  const input = resolveCloseInput({
+    path: entry.path,
+    branch: entry.branch,
+    primaryPath: entries[0]?.path ?? '',
+    upstream,
+    ahead,
+    dirtyFileCount: countDirtyFiles(git(dirtyArgs(), entry.path)),
+    containedInIntegration: Number(git(containmentArgs(INTEGRATION_REF), entry.path)) === 0,
+  });
+  const verdict = decideClose(input);
+  process.stdout.write(formatCloseReport(verdict, input) + NL);
+  if (verdict.action === 'refuse') return 1;
+  for (const cmd of closePlan(verdict, input)) {
+    process.stderr.write('[worktree:close] ' + cmd.join(' ') + NL);
+    git(cmd.slice(1));
+  }
+  return 0;
+}
+
+const isMain = process.argv[1]?.endsWith('worktree-close-cli.ts') ?? false;
+if (isMain) {
+  process.exit(mainWorktreeClose());
+}
+/* v8 ignore stop */

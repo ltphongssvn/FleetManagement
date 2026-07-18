@@ -27,13 +27,19 @@ async function seedStopChain(roadRunId: string, transportOrderId: string): Promi
   const wid = '11111111-aaaa-4aaa-8aaa-111111111111';
   const sid = '22222222-aaaa-4aaa-8aaa-222222222222';
   const cid = '33333333-aaaa-4aaa-8aaa-333333333333';
+  const gaoId = '77777777-aaaa-4aaa-8aaa-777777777777';
+  const gaoName = 'Gao';
   await testDb.db.execute(sql.raw(
     'INSERT INTO customer (customer_id, company_id, business_unit_id, depot_id, legal_entity_id, name, phone) ' +
     'VALUES (' + q(cid) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q('Công ty Vận Tải Số 1') + ', ' + q('0901234567') + ')'
   ));
   await testDb.db.execute(sql.raw(
-    'INSERT INTO transport_order (transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, external_ref, customer_id, created_at, updated_at) ' +
-    'VALUES (' + q(transportOrderId) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q('XTT.05-001') + ', ' + q(cid) + ', now(), now())'
+    'INSERT INTO cargo_type (cargo_type_id, company_id, business_unit_id, depot_id, legal_entity_id, name) ' +
+    'VALUES (' + q(gaoId) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(gaoName) + ')'
+  ));
+  await testDb.db.execute(sql.raw(
+    'INSERT INTO transport_order (transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, external_ref, customer_id, cargo_type_id, created_at, updated_at) ' +
+    'VALUES (' + q(transportOrderId) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q('XTT.05-001') + ', ' + q(cid) + ', ' + q(gaoId) + ', now(), now())'
   ));
   await testDb.db.execute(sql.raw(
     'INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, assigned_operator_id, assigned_asset_id) ' +
@@ -55,7 +61,7 @@ async function seedStopChain(roadRunId: string, transportOrderId: string): Promi
   beforeAll(async () => {
     testDb = await startPgliteTestDb();
     ctrl = new DispatchController(testDb.db as never);
-  }, 60_000);
+  });
   afterAll(async () => stopPgliteTestDb(testDb));
   beforeEach(async () => {
     await testDb.db.execute(sql.raw('TRUNCATE TABLE dispatch_board_projection CASCADE'));
@@ -64,6 +70,7 @@ async function seedStopChain(roadRunId: string, transportOrderId: string): Promi
     await testDb.db.execute(sql.raw('TRUNCATE TABLE transport_order CASCADE'));
     await testDb.db.execute(sql.raw('TRUNCATE TABLE warehouse CASCADE'));
     await testDb.db.execute(sql.raw('TRUNCATE TABLE customer CASCADE'));
+    await testDb.db.execute(sql.raw('TRUNCATE TABLE cargo_type CASCADE'));
     await testDb.db.execute(sql.raw('TRUNCATE TABLE upload_session CASCADE'));
     await testDb.db.execute(sql.raw('TRUNCATE TABLE manifest CASCADE'));
     await testDb.db.execute(sql.raw('TRUNCATE TABLE road_run CASCADE'));
@@ -140,6 +147,20 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
     const row = result.rows.find((r) => r.roadRunId === rr);
     if (row === undefined) throw new Error('expected board row');
     expect(row.customerPhone).toBe('0901234567');
+  });
+
+  // Ten hang (T18): the board must expose the order cargo type name so the
+  // Lenh dieu xe table can show a Ten hang column. Enriched at read time via
+  // road_run_transport_order -> transport_order -> cargo_type, scoped by
+  // company_id (mirrors the customer-name join).
+  it('attaches the cargo type name to the row (Ten hang column source)', async () => {
+    const rr = 'e5e5e5e5-1111-4111-8111-111111111111';
+    await insertProjection(rr, '2026-05-30T08:00:00.000Z');
+    await seedStopChain(rr, 'f6f6f6f6-1111-4111-8111-111111111111');
+    const result = await ctrl.getBoard(OP);
+    const row = result.rows.find((r) => r.roadRunId === rr);
+    if (row === undefined) throw new Error('expected board row');
+    expect(row.cargoName).toBe('Gao');
   });
 
   const RR = 'cccccccc-1111-4111-8111-111111111111';
@@ -345,7 +366,7 @@ describe('@fleet/api - DispatchController weightDiffKg (Feature 3)', () => {
     const result = await ctrlS.getBoard(OP);
     const row = result.rows.find((r) => r.roadRunId === rr);
     if (row === undefined) throw new Error('expected row');
-    expect(row.weightDiffKg).toBe(-7140);
+    expect(row.weightDiffKg).toBe(7140);
   });
 
   it('is null when ANY pickup weight is missing (no misleading partial)', async () => {

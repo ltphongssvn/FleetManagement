@@ -41,7 +41,7 @@ describe('@fleet/api - export worksheet shows labels, not UUIDs', () => {
   beforeAll(async () => {
     testDb = await startPgliteTestDb();
     svc = new TransportOrdersExportService(testDb.db as never);
-  }, 60_000);
+  });
   afterAll(async () => stopPgliteTestDb(testDb));
   beforeEach(async () => {
     await exec('TRUNCATE TABLE dispatch_board_projection CASCADE');

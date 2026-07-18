@@ -4,7 +4,7 @@
 // SSOT; it attaches the httpOnly fleet_session bearer and proxies verbatim).
 import type { NextRequest } from 'next/server';
 import type { NextResponse } from 'next/server';
-import { forwardWrite } from '../../reference/_forward';
+import { forwardWrite } from '@/app/api/_forward';
 
 export function POST(req: NextRequest): Promise<NextResponse> {
   return forwardWrite(req, '/copilot/plan', 'POST');

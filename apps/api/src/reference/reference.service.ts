@@ -14,13 +14,15 @@ import type {
   DriverVehicleAssignmentsResponse,
 } from '@fleet/sync-protocol';
 import { isPgUniqueViolation } from '../common/pg-errors.js';
+import { ROAD_RUN_NON_TERMINAL_STATES, TRANSPORT_ORDER_NON_TERMINAL_STATES } from '@fleet/domain';
 // 2026 permanent business rule: a driver/truck bound to a road_run that has
 // NOT reached a terminal state is BUSY and must disappear from the dispatch
 // form dropdowns (Tài xế / Số xe) so a dispatcher cannot double-book it onto a
 // second simultaneous job. Completion = the road_run reaches state='completed'
 // (all pickup+delivery manifests captured); 'cancelled' also frees the pair.
-// Non-terminal states that keep a pair BUSY:
-const ROAD_RUN_NON_TERMINAL_STATES = ['planned', 'dispatched', 'started'] as const;
+// Non-terminal subsets derive from @fleet/domain FSMs (two-axis rule):
+// ROAD_RUN_NON_TERMINAL_STATES + TRANSPORT_ORDER_NON_TERMINAL_STATES are
+// imported above -- never hand-written here again (T9 ghost-run fix).
 // Schema-first (two-axis rule, fix-trigger 2): the assignments wire shape
 // derives from the @fleet/sync-protocol SSOT; the hand-written local twins
 // are gone. Re-exported so existing importers (controller) keep working.
@@ -39,18 +41,26 @@ export class ReferenceService {
       depotId: op.depotId, legalEntityId: op.legalEntityId,
     };
   }
-  // Orphan guard (dispatch-pair-visibility, 2026-07-05): a road_run with
-  // ZERO linked transport_order cannot represent live work -- every
-  // legitimate run is created in the SAME transaction as its order + link
-  // (transport-orders.service). Orphans (e.g. a partial external cleanup
-  // deleting orders but not runs) must NOT pin a pair busy forever, so the
-  // busy predicates only count non-terminal runs that still HAVE a link.
-  private runHasLinkedOrder(): SQL {
+  // Orphan guard (dispatch-pair-visibility, 2026-07-05) extended by the
+  // ghost-run guard (T9, 2026-07-10): a road_run pins its pair busy ONLY
+  // while it has at least one linked transport_order in a NON-terminal
+  // state. Two prod incident classes are excluded by this predicate:
+  // (a) orphan runs with ZERO links (E2E teardown artifact, Jul-05), and
+  // (b) GHOST runs whose every linked order is cancelled/completed while
+  //     the run itself was never terminated (road_run dd964ecd pinning
+  //     62H 05817 / LE VAN CHAU + NGUYEN HUU TAM, order XTT.06-002
+  //     cancelled outside the event pipeline). State subsets derive from
+  //     the @fleet/domain FSMs -- never hand-written.
+  private runHasLiveLinkedOrder(): SQL {
     return exists(
       this.db
         .select({ one: roadRunTransportOrder.roadRunId })
         .from(roadRunTransportOrder)
-        .where(eq(roadRunTransportOrder.roadRunId, roadRun.roadRunId)),
+        .innerJoin(transportOrder, eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId))
+        .where(and(
+          eq(roadRunTransportOrder.roadRunId, roadRun.roadRunId),
+          inArray(transportOrder.state, TRANSPORT_ORDER_NON_TERMINAL_STATES),
+        )),
     );
   }
   // Anti-join predicate: TRUE when NO non-terminal road_run binds this OPERATOR
@@ -64,7 +74,7 @@ export class ReferenceService {
           eq(roadRun.companyId, op.companyId),
           eq(roadRun.assignedOperatorId, driver.operatorId),
           inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
-          this.runHasLinkedOrder(),
+          this.runHasLiveLinkedOrder(),
         )),
     );
   }
@@ -79,7 +89,7 @@ export class ReferenceService {
           eq(roadRun.companyId, op.companyId),
           eq(roadRun.assignedAssetId, vehicle.vehicleId),
           inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
-          this.runHasLinkedOrder(),
+          this.runHasLiveLinkedOrder(),
         )),
     );
   }
