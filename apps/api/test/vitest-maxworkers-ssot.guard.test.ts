@@ -46,15 +46,25 @@ const codeOnly = (src: string): string =>
 
 // Configs that run a pool and therefore must bound it. Node-environment
 // configs for pure-function packages (domain, observability, sync-protocol,
-// test-fixtures, main-worker, driver-app) are cheap and unbounded by design;
-// they are listed here as EXEMPT rather than omitted so the exemption is a
-// decision on the record instead of an oversight.
+// test-fixtures, main-worker) are cheap and unbounded by design; they are
+// listed as EXEMPT rather than omitted so the exemption is on the record.
+//
+// driver-app was initially placed in that exempt set as a node-env package,
+// but it is NEITHER pure-function NOR cheap: 643 tests across 60 files
+// exercise web/native dual-environment code (token-storage localStorage
+// round-trips, Intl locale formatting), and with NO cap it opens host-core
+// forks like any other pool. Cheapness lowers per-worker cost; it does not
+// stop fork oversubscription. Observed 2026-07-17: token-storage and
+// vn-locale-date-us -- a SYNCHRONOUS Intl call -- died at the 5000ms default
+// under ~21-worker neighbour thrash while passing 9/9 in 1.66s isolated. A
+// cheap pool starved is still starved, so it must bound like the rest.
 const MUST_BOUND = [
   'apps/api/vitest.config.ts',
   'apps/api/vitest.coverage.config.ts',
   'apps/api/vitest.integration.config.ts',
   'apps/ops-web/vitest.config.ts',
   'apps/owner-app/vitest.config.ts',
+  'apps/driver-app/vitest.config.ts',
   'packages/codemods/vitest.config.ts',
   'vitest.e2e.config.ts',
 ] as const;
