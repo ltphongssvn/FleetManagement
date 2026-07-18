@@ -201,4 +201,48 @@ describe('DriversAdminSection mutations', () => {
     expect(await screen.findByText('62H 07777')).toBeInTheDocument();
     expect(screen.getByText('dev-abc')).toBeInTheDocument();
   });
+
+  it('renders a configured driver in the regular table with revoke + device', async () => {
+    vi.spyOn(window, 'prompt').mockReturnValue('driver_left');
+    const DEVICE = { deviceId: 'dev-1', platform: 'ios', appVersion: '1.0.0', lastSeenAt: null };
+    const gamma = {
+      driverId: 'd3', fullName: 'Driver Gamma', phone: '0900000003',
+      operatorId: 'op-c', assignedVehicle: { vehicleId: 'v1', plate: '51C-111.11' },
+      assignmentId: 'asg-1', devices: [DEVICE],
+    } as unknown as AdminDriverRow;
+    const client = mkClient({}, [gamma]);
+    render(<DriversAdminSection client={client} />);
+    const user = userEvent.setup();
+    // configured driver -> renders in the regular table (not the attention queue):
+    expect(await screen.findByText('51C-111.11')).toBeInTheDocument();
+    expect(screen.getByText('dev-1')).toBeInTheDocument();
+    // the table revoke button carries assignmentId (covers the ?? fallback arm):
+    await user.click(screen.getByTestId('driver-revoke-d3'));
+    await waitFor(() => { expect(client.revoke).toHaveBeenCalledWith('asg-1', 'driver_left'); });
+  });
+
+  it('does not reset password when the prompt is cancelled', async () => {
+    vi.spyOn(window, 'prompt').mockReturnValue(null);
+    const client = mkClient({}, [unassigned]);
+    render(<DriversAdminSection client={client} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByLabelText('Đặt lại mật khẩu của NGUYEN VAN A'));
+    expect(client.resetPassword).not.toHaveBeenCalled();
+  });
+
+  it('tolerates a non-ok vehicles fetch (no vehicle options)', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: () => Promise.resolve({}) }) as never;
+    const client = mkClient({}, [unassigned]);
+    render(<DriversAdminSection client={client} />);
+    // still renders the assign control; the select simply has no plate options
+    expect(await screen.findByTestId('driver-assign-vehicle-dr1')).toBeInTheDocument();
+  });
+  it('saves the existing phone when the field is not edited', async () => {
+    const client = mkClient({}, [unassigned]);
+    render(<DriversAdminSection client={client} />);
+    const user = userEvent.setup();
+    // click Luu SDT without typing -> falls back to row.phone (covers the ?? arm)
+    await user.click(await screen.findByLabelText('Lưu SĐT của NGUYEN VAN A'));
+    await waitFor(() => { expect(client.update).toHaveBeenCalledWith('dr1', { fullName: 'NGUYEN VAN A', phone: '0900000001' }); });
+  });
 });
