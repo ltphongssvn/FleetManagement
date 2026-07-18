@@ -32,12 +32,13 @@ import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { transportOrder, stop, roadRun, roadRunTransportOrder } from '../database/schema/transport.js';
 import { vehicle, customer, cargoType, warehouse, driver } from '../database/schema/reference.js';
 import { driverVehicleAssignment } from '../database/schema/driver-vehicle-assignment.js';
+import { manifest } from '../database/schema/manifest.js';
 import { appendTriWrite } from '../database/append-tri-write.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import type { CreateTransportOrderInput, CreateTransportOrderResponse, ListAssignedResponse, ListAssignedRow, TripHistoryResponse } from './transport-orders.dto.js';
 import { DriverVehicleAssignmentRequiredError, TransportOrderNotFoundError } from './transport-orders.errors.js';
 import { OrderNumberingService } from './order-numbering.service.js';
-import { groupCompletedTripsByMonth } from '@fleet/domain';
+import { groupCompletedTripsByMonth, MANIFEST_PHOTO_RECEIVED_STATES } from '@fleet/domain';
 import { OUTBOX_QUEUES, statesForStatusGroup } from '@fleet/sync-protocol';
 import type { DriverCompletedPageQuery, DriverCompletedPageResponse, RoadRunStateName } from '@fleet/sync-protocol';
 
@@ -245,6 +246,8 @@ export class TransportOrdersService {
       return t === 'delivery' || t === 'dropoff';
     });
     const deliveryName = drops[drops.length - 1]?.warehouseName ?? null;
+    const cancelMap = await this.computeCancelEligibility(op, [head.transportOrderId]);
+    const cancelInfo = cancelMap.get(head.transportOrderId) ?? { canCancel: true, cancelBlockedReason: null };
     return {
       transportOrderId: head.transportOrderId,
       externalRef: head.externalRef,
@@ -261,10 +264,40 @@ export class TransportOrdersService {
       driverName: head.driverName,
       pickupName,
       deliveryName,
+      canCancel: cancelInfo.canCancel,
+      cancelBlockedReason: cancelInfo.cancelBlockedReason,
       stops,
     };
   }
 
+  // Single source of truth for the cancel affordance surfaced on read models.
+  // Mirrors the TransportOrdersCancelService guard: an order whose manifest set
+  // includes any RECEIVED photo (state in MANIFEST_PHOTO_RECEIVED_STATES) can no
+  // longer be cancelled. Returns a map orderId -> { canCancel, cancelBlockedReason }
+  // so a caller enriching N rows issues ONE grouped query, not N. Orders with no
+  // received photo are absent from the map and default to cancellable.
+  private async computeCancelEligibility(
+    op: OperatorContext,
+    transportOrderIds: readonly string[],
+  ): Promise<Map<string, { canCancel: boolean; cancelBlockedReason: string | null }>> {
+    const result = new Map<string, { canCancel: boolean; cancelBlockedReason: string | null }>();
+    if (transportOrderIds.length === 0) return result;
+    const rows = await this.db
+      .select({ transportOrderId: manifest.transportOrderId, n: count() })
+      .from(manifest)
+      .where(and(
+        eq(manifest.companyId, op.companyId),
+        inArray(manifest.transportOrderId, [...transportOrderIds]),
+        inArray(manifest.state, [...MANIFEST_PHOTO_RECEIVED_STATES]),
+      ))
+      .groupBy(manifest.transportOrderId);
+    for (const r of rows) {
+      if (r.n > 0) {
+        result.set(r.transportOrderId, { canCancel: false, cancelBlockedReason: 'photos_received' });
+      }
+    }
+    return result;
+  }
   // Shared driver-row builder: the ONE query + enrichment behind listAssigned,
   // listCompleted, findById and tripHistory. Always operator-scoped +
   // company-scoped; the caller narrows by state / single-id / search, chooses
@@ -354,6 +387,7 @@ export class TransportOrdersService {
       const last = drops[drops.length - 1];
       return last?.warehouseName ?? null;
     };
+    const cancelMap = await this.computeCancelEligibility(op, transportOrderIds);
     return rows.map((r) => {
       const stops = stopsByOrder.get(r.transportOrderId) ?? [];
       return {
@@ -372,6 +406,8 @@ export class TransportOrdersService {
         driverName: null,
         pickupName: pickupNameOf(stops),
         deliveryName: deliveryNameOf(stops),
+        canCancel: (cancelMap.get(r.transportOrderId) ?? { canCancel: true }).canCancel,
+        cancelBlockedReason: (cancelMap.get(r.transportOrderId) ?? { cancelBlockedReason: null }).cancelBlockedReason,
         stops: stops.map((s) => ({
           sequence: s.sequence,
           stopType: s.stopType,
