@@ -67,7 +67,9 @@ describe('DriversAdminSection mutations', () => {
     const client = mkClient({}, [unassigned]);
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
-    await user.selectOptions(await screen.findByTestId('driver-assign-vehicle-dr1'), 'v9');
+    const sel = await screen.findByTestId('driver-assign-vehicle-dr1');
+    await screen.findByRole('option', { name: '62H 05194' });
+    await user.selectOptions(sel, 'v9');
     await user.click(screen.getByTestId('driver-assign-submit-dr1'));
     await waitFor(() => { expect(client.assign).toHaveBeenCalledWith({ driverId: 'dr1', vehicleId: 'v9' }); });
   });
@@ -140,7 +142,9 @@ describe('DriversAdminSection mutations', () => {
     const client = mkClient({ assign: vi.fn().mockRejectedValue(new Error('boom')) }, [unassigned]);
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
-    await user.selectOptions(await screen.findByTestId('driver-assign-vehicle-dr1'), 'v9');
+    const sel = await screen.findByTestId('driver-assign-vehicle-dr1');
+    await screen.findByRole('option', { name: '62H 05194' });
+    await user.selectOptions(sel, 'v9');
     await user.click(screen.getByTestId('driver-assign-submit-dr1'));
     await waitFor(() => { expect(alertSpy).toHaveBeenCalled(); });
   });
