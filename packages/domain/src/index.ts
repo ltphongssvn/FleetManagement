@@ -46,6 +46,8 @@ export {
   type CancelReason,
   CancelReasonSchema,
   CANCEL_REASONS,
+  type CancelOrderInput,
+  CancelOrderInputSchema,
 } from './transport/index.js';
 export {
   UPLOAD_SESSION_STATES,

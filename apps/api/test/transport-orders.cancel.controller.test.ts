@@ -63,6 +63,29 @@ describe('@fleet/api - TransportOrdersCancelController', () => {
     await expect(ctl.cancel(validId, {}, op)).rejects.toThrow();
     expect(cancel).not.toHaveBeenCalled();
   });
+  it('rejects reason=other with NO note via Zod (recorded-why invariant)', async () => {
+    await expect(ctl.cancel(validId, { reason: 'other' }, op)).rejects.toThrow();
+    expect(cancel).not.toHaveBeenCalled();
+  });
+  it('rejects reason=other with a whitespace-only note via Zod', async () => {
+    await expect(ctl.cancel(validId, { reason: 'other', note: '   ' }, op)).rejects.toThrow();
+    expect(cancel).not.toHaveBeenCalled();
+  });
+  it('accepts reason=other WITH a non-empty note', async () => {
+    const out = {
+      transportOrderId: validId,
+      state: 'cancelled' as const,
+      cancelledAt: '2026-05-23T12:00:00.000Z',
+      cancelledBy: op.operatorId,
+      cancellationReason: 'other',
+      cancellationNote: 'khách đổi lịch',
+      idempotent: false,
+    };
+    cancel.mockResolvedValue(out);
+    const result = await ctl.cancel(validId, { reason: 'other', note: 'khách đổi lịch' }, op);
+    expect(result).toEqual(out);
+    expect(cancel).toHaveBeenCalledWith(validId, { reason: 'other', note: 'khách đổi lịch' }, op);
+  });
   it('translates TransportOrderNotFoundError into NotFoundException (404)', async () => {
     cancel.mockRejectedValue(new TransportOrderNotFoundError());
     await expect(ctl.cancel(validId, validBody, op)).rejects.toBeInstanceOf(NotFoundException);
