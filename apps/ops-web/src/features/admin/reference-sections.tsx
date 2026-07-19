@@ -5,13 +5,18 @@
 // Rendering goes through the shared DataTable (TanStack v8) for visual
 // consistency with the Tai xe & xe table: bordered/searchable/paginated, with
 // columns Ten (+ So dien thoai for customers) + Thao tac (Sua SDT / Xoa).
-// CRUD (add / inline rename / soft-delete / 409-conflict / refetch) is
-// unchanged; delete routes through client.remove -> server soft-delete
-// (active=false), retained for the Delete Item audit view, behind a confirm.
 //
-// 409 conflict: the rejected row is highlighted and scrolled into view via
-// the DataTable rowAttrs seam -- the mark lands on the <tr> (row identity),
-// not on a cell span, so the whole row reads as rejected.
+// 409 conflict: the rejected row is highlighted and scrolled into view via the
+// DataTable rowAttrs seam -- the mark lands on the <tr> (row identity), not a
+// cell span, so the whole row reads as rejected.
+//
+// SESSION seam (T11 idle-timeout): an idle-expired 401 (refresh impossible via
+// the BFF) hands the browser to the silent-refresh route instead of painting a
+// dead-end banner; everything else keeps the friendly copy the client already
+// composed (detail > legacy > status-class Vietnamese). This shared module was
+// lifted from a snapshot predating the T11 arc, so the fail() seam must thread
+// through every write handler or the extraction silently regresses the fix
+// across all five sections and both pages that render them.
 //
 // Selectors are semantic (getByRole cell/columnheader/button, data-testid) so
 // they survive markup changes (2026 resilient-selector standard).
@@ -25,6 +30,10 @@ import {
 } from '@/features/admin/reference-admin-client';
 import { DataTable, type DataTableRowAttrs } from '@/features/admin/DataTable';
 import { useRefetchOnFocus } from '@/lib/use-refetch-on-focus';
+import {
+  isSessionExpired,
+  navigateToSessionRefresh,
+} from '@/features/auth/session-refresh-navigation';
 export interface SectionDef {
   segment: ReferenceSegment;
   title: string;
@@ -47,9 +56,6 @@ function rowPhone(row: ReferenceOption): string {
   const p = row.meta?.['phone'];
   return typeof p === 'string' ? p : '';
 }
-function quote(s: string): string {
-  return String.fromCharCode(34) + s + String.fromCharCode(34);
-}
 function getErrorMessage(e: unknown, fallback: string): string {
   if (e instanceof Error) return e.message;
   if (typeof e === 'string') return e;
@@ -67,6 +73,16 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPhone, setEditPhone] = useState('');
+  // One error seam per section: idle-expired 401 -> silent-refresh navigation;
+  // everything else keeps the client-composed Vietnamese copy.
+  const fail = (e: unknown, fallback: string): boolean => {
+    if (isSessionExpired(e)) {
+      navigateToSessionRefresh();
+      return true;
+    }
+    setError(getErrorMessage(e, fallback));
+    return false;
+  };
   const refresh = async (preserveError = false): Promise<void> => {
     setLoading(true);
     try {
@@ -77,7 +93,7 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
         setConflictName(null);
       }
     } catch (e) {
-      setError(getErrorMessage(e, 'load failed'));
+      if (fail(e, 'load failed')) return;
     } finally {
       setLoading(false);
     }
@@ -94,8 +110,8 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
       setNewPhone('');
       await refresh();
     } catch (e) {
+      if (fail(e, 'create failed')) return;
       const msg = getErrorMessage(e, 'create failed');
-      setError(msg);
       setConflictName(extractConflictName(msg) ?? newName.trim());
       await refresh(true);
     } finally {
@@ -103,13 +119,13 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
     }
   };
   const del = async (id: string, label: string): Promise<void> => {
-    if (!window.confirm('Xóa ' + quote(label) + '?')) return;
+    if (!window.confirm('Xóa ' + String.fromCharCode(34) + label + String.fromCharCode(34) + '?')) return;
     setBusy(true);
     try {
       await client.remove(id);
       await refresh();
     } catch (e) {
-      setError(getErrorMessage(e, 'delete failed'));
+      if (fail(e, 'delete failed')) return;
       await refresh(true);
     } finally {
       setBusy(false);
@@ -127,7 +143,7 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
       setEditPhone('');
       await refresh();
     } catch (e) {
-      setError(getErrorMessage(e, 'update failed'));
+      if (fail(e, 'update failed')) return;
       await refresh(true);
     } finally {
       setBusy(false);

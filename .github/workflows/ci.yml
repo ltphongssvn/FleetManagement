@@ -58,7 +58,21 @@
 #     store is cached explicitly via actions/cache.
 #   - pnpm/action-setup@v5 uses NO explicit version: the root package.json
 #     packageManager field is the single source of truth.
-#   - fetch-depth: 0 required for Turborepo --affected filtering and tagging.
+#   - Checkouts are SHALLOW (fetch-depth: 1, fetch-tags: false). This note
+#     previously claimed fetch-depth: 0 was required for Turborepo --affected
+#     filtering and tagging. Both halves were false, and the claim is what kept
+#     six jobs per run cloning full history plus every branch and tag:
+#       * --affected is invoked NOWHERE in this repo. resolve-ci-sha.ts:17-18
+#         records that it was deliberately rejected in favour of API base-SHA
+#         resolution, specifically so clones could stay shallow.
+#       * Nothing in this workflow reads a tag or any history. version.ts:5
+#         reads NEXT_PUBLIC_APP_VERSION, injected from package.json via
+#         next.config.ts; version-drift.test.ts pins package.json as the source
+#         of truth. Every rev-list / git-tag caller is local dev tooling under
+#         scripts/, or lives in release.yml / promote.yml, which keep their own
+#         checkout config and are unaffected by this file.
+#     If a future job here needs history (e.g. a diff-based path filter), give
+#     THAT job the depth it needs rather than restoring depth 0 for all of them.
 #
 # Related files:
 #   - turbo.jsonc                        — task definitions
@@ -92,6 +106,24 @@ env:
   # Node 24 ahead of the 2026-06-02 forced cutover, clearing the Node 20
   # deprecation warnings.
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  # turbo.jsonc sets remoteCache.signature:true, so turbo HMAC-SHA256-signs
+  # artifacts on upload and VERIFIES them on download; any artifact that fails
+  # verification is SILENTLY treated as a cache miss. The key must therefore be
+  # in the environment of the step that runs TURBO -- signing is turbo's job,
+  # not the cache server's (rharkor/caching-for-turbo only supplies TURBO_API /
+  # TURBO_TOKEN / TURBO_TEAM and proxies to the Actions cache).
+  #
+  # Declared at WORKFLOW level deliberately. It was first attached as step-level
+  # env on the caching action itself, which GitHub scopes to that step alone --
+  # so the later Build step ran turbo with signature:true and NO key. Run
+  # 29582220071 is the receipt: setup executed hashes 9d45559821005cb9 /
+  # 6980c5deee87153b / cd839492c612b82e / 8587f5af9e2e56d2 / 8a50541737bbf8b2,
+  # then api-tests recomputed the SAME five hashes four minutes later and logged
+  # 'Remote caching enabled' followed by 'cache miss, executing' on every one.
+  # Identical keys missing means the artifacts were unreadable, not unfound.
+  # Workflow level is one declaration that reaches every step of every job, so
+  # no future turbo job can be added without it.
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 jobs:
   setup:
     name: Install / Build / Lint / Typecheck
@@ -104,7 +136,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          # Shallow. fetch-depth: 0 was here for --affected filtering and
+          # tagging; BOTH claims are false in this workflow. --affected is
+          # invoked nowhere in the repo -- resolve-ci-sha.ts:17-18 records that
+          # this repo DELIBERATELY rejected it in favour of API base-SHA
+          # resolution precisely to keep clones shallow. And nothing here reads
+          # git history or tags: version.ts:5 reads NEXT_PUBLIC_APP_VERSION,
+          # injected from package.json via next.config.ts (version-drift.test.ts
+          # guards that package.json stays the source of truth), and every
+          # rev-list / git-tag caller is either local dev tooling in scripts/ or
+          # lives in release.yml / promote.yml, which keep their own checkout.
+          #
+          # So six jobs per run were cloning full history plus every branch and
+          # tag to satisfy a requirement that does not exist.
+          fetch-depth: 1
+          # Tags are pure overhead here for the same reason: this workflow never
+          # reads one. Skipping them avoids transferring every tag in the repo
+          # on all six jobs.
+          fetch-tags: false
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
       - name: Setup Node
@@ -130,6 +179,36 @@ jobs:
       - name: Install dependencies
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm install --frozen-lockfile
+      # Turborepo remote cache, backed by GitHub Actions own cache -- no Vercel
+      # account and no external service; any HTTP server implementing the Turbo
+      # Remote Cache API would do. Stands up that server on localhost and
+      # exports TURBO_API / TURBO_TOKEN / TURBO_TEAM to every later step in THIS
+      # job. Runners are ephemeral and jobs share nothing, so each turbo-running
+      # job needs its own copy of this step (setup, api-tests x4, other-tests --
+      # six jobs per run rebuilding the same five packages today).
+      #
+      # Without this step, remoteCache.enabled:true in turbo.jsonc is INERT:
+      # turbo logs 'Remote caching disabled' and falls back to a local cache the
+      # ephemeral runner throws away. Verified locally via turbo --dry.
+      #
+      # TURBO_REMOTE_CACHE_SIGNATURE_KEY is REQUIRED, not optional hardening:
+      # turbo.jsonc sets signature:true, so artifacts are HMAC-SHA256 signed and
+      # any artifact failing verification is SILENTLY TREATED AS A CACHE MISS.
+      # Omit the key and the hit rate is 0% while every log still looks healthy.
+      - name: Turborepo remote cache (GitHub Actions cache backend)
+        uses: rharkor/caching-for-turbo@v2.5.0
+        with:
+          # REQUIRED for cross-job hits, and the reason the first two attempts
+          # missed 100% while logging 'Remote caching enabled'. GitHub's cache
+          # service versions an entry by the PATH of the saved blob as well as
+          # its key. The blob lives in RUNNER_TEMP, and every job gets a fresh
+          # runner with a different RUNNER_TEMP, so setup saved under one
+          # path-derived version and api-tests looked up another: key matched,
+          # version did not, miss. Upstream documents this exactly -- set it
+          # 'when jobs may save and restore the same cache from runners with
+          # different temporary directories'. Relative path => versions match
+          # across runners.
+          use-relative-cache-path: true
       - name: Security audit
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm audit --audit-level=high
@@ -138,8 +217,20 @@ jobs:
         # tsbuildinfo, which the type-aware lint/typecheck steps below depend
         # on to resolve cross-package types. --concurrency=1 keeps peak memory
         # bounded on the 2-core runner; turbo's ^build ordering still applies.
+        #
+        # --force was REMOVED here. It means 'ignore the cache and execute
+        # anyway', so with it this step would reach the remote cache wired up
+        # above and then decline to use it -- the cache would be populated but
+        # never read, and the whole change would show as a no-op. Cache
+        # correctness is not --force's job: turbo hashes task inputs, and the
+        # build task already declares its inputs and outputs precisely
+        # (turbo.jsonc), so a hit means the inputs are byte-identical. If a hit
+        # were ever wrong, the fix is the input declaration, not blanket
+        # re-execution. Restoring dist/ + .d.ts + tsbuildinfo from cache is
+        # exactly what the lint/typecheck steps below need, and turbo's build
+        # task owns tsbuildinfo atomically with dist/ (see the header note).
         if: hashFiles('pnpm-lock.yaml') != ''
-        run: pnpm exec turbo run build --force --concurrency=1
+        run: pnpm exec turbo run build --concurrency=1
       - name: Lint
         # pnpm -r runs each package's eslint directly (not via turbo), so it
         # relies on the Build step above having emitted all @fleet/* .d.ts.
@@ -175,7 +266,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          # Shallow. fetch-depth: 0 was here for --affected filtering and
+          # tagging; BOTH claims are false in this workflow. --affected is
+          # invoked nowhere in the repo -- resolve-ci-sha.ts:17-18 records that
+          # this repo DELIBERATELY rejected it in favour of API base-SHA
+          # resolution precisely to keep clones shallow. And nothing here reads
+          # git history or tags: version.ts:5 reads NEXT_PUBLIC_APP_VERSION,
+          # injected from package.json via next.config.ts (version-drift.test.ts
+          # guards that package.json stays the source of truth), and every
+          # rev-list / git-tag caller is either local dev tooling in scripts/ or
+          # lives in release.yml / promote.yml, which keep their own checkout.
+          #
+          # So six jobs per run were cloning full history plus every branch and
+          # tag to satisfy a requirement that does not exist.
+          fetch-depth: 1
+          # Tags are pure overhead here for the same reason: this workflow never
+          # reads one. Skipping them avoids transferring every tag in the repo
+          # on all six jobs.
+          fetch-tags: false
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
       - name: Setup Node
@@ -194,6 +302,24 @@ jobs:
           restore-keys: ${{ runner.os }}-pnpm-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # See the setup job for why this step exists and why the signature key is
+      # mandatory. Repeated per job because runners share nothing. This job is
+      # the clearest case for it: the five packages rebuilt below were ALREADY
+      # built by setup, and this matrix rebuilds them four more times.
+      - name: Turborepo remote cache (GitHub Actions cache backend)
+        uses: rharkor/caching-for-turbo@v2.5.0
+        with:
+          # REQUIRED for cross-job hits, and the reason the first two attempts
+          # missed 100% while logging 'Remote caching enabled'. GitHub's cache
+          # service versions an entry by the PATH of the saved blob as well as
+          # its key. The blob lives in RUNNER_TEMP, and every job gets a fresh
+          # runner with a different RUNNER_TEMP, so setup saved under one
+          # path-derived version and api-tests looked up another: key matched,
+          # version did not, miss. Upstream documents this exactly -- set it
+          # 'when jobs may save and restore the same cache from runners with
+          # different temporary directories'. Relative path => versions match
+          # across runners.
+          use-relative-cache-path: true
       - name: Build workspace package deps
         run: pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures --filter=@fleet/main-worker
       - name: Pre-pull Postgres image (testcontainers warm cache)
@@ -270,7 +396,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          # Shallow. fetch-depth: 0 was here for --affected filtering and
+          # tagging; BOTH claims are false in this workflow. --affected is
+          # invoked nowhere in the repo -- resolve-ci-sha.ts:17-18 records that
+          # this repo DELIBERATELY rejected it in favour of API base-SHA
+          # resolution precisely to keep clones shallow. And nothing here reads
+          # git history or tags: version.ts:5 reads NEXT_PUBLIC_APP_VERSION,
+          # injected from package.json via next.config.ts (version-drift.test.ts
+          # guards that package.json stays the source of truth), and every
+          # rev-list / git-tag caller is either local dev tooling in scripts/ or
+          # lives in release.yml / promote.yml, which keep their own checkout.
+          #
+          # So six jobs per run were cloning full history plus every branch and
+          # tag to satisfy a requirement that does not exist.
+          fetch-depth: 1
+          # Tags are pure overhead here for the same reason: this workflow never
+          # reads one. Skipping them avoids transferring every tag in the repo
+          # on all six jobs.
+          fetch-tags: false
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
       - name: Setup Node
@@ -289,6 +432,24 @@ jobs:
           restore-keys: ${{ runner.os }}-pnpm-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # See the setup job for why this step exists and why the signature key is
+      # mandatory. Sixth and last turbo-running job in this workflow; the five
+      # packages rebuilt below were already built by setup and by all four
+      # api-tests shards.
+      - name: Turborepo remote cache (GitHub Actions cache backend)
+        uses: rharkor/caching-for-turbo@v2.5.0
+        with:
+          # REQUIRED for cross-job hits, and the reason the first two attempts
+          # missed 100% while logging 'Remote caching enabled'. GitHub's cache
+          # service versions an entry by the PATH of the saved blob as well as
+          # its key. The blob lives in RUNNER_TEMP, and every job gets a fresh
+          # runner with a different RUNNER_TEMP, so setup saved under one
+          # path-derived version and api-tests looked up another: key matched,
+          # version did not, miss. Upstream documents this exactly -- set it
+          # 'when jobs may save and restore the same cache from runners with
+          # different temporary directories'. Relative path => versions match
+          # across runners.
+          use-relative-cache-path: true
       - name: Build workspace package deps
         run: pnpm exec turbo run build --filter=@fleet/observability --filter=@fleet/sync-protocol --filter=@fleet/domain --filter=@fleet/test-fixtures --filter=@fleet/main-worker
       - name: Test non-api packages (with coverage)

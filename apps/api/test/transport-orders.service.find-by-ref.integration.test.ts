@@ -192,4 +192,47 @@ describe('@fleet/api - TransportOrdersService.findByCompanyIdOrRef (integration)
     expect(startedAt).toBeNull();
     expect(completedAt).toBeNull();
   });
+  it('sets canCancel=false + cancelBlockedReason=photos_received when a received manifest exists', async () => {
+    let canCancel: boolean | undefined;
+    let reason: string | null | undefined;
+    await withTxIsolation(testDb, async (tx) => {
+      const svc = new TransportOrdersService(tx as never);
+      const op = createOperatorContext();
+      const { operatorId, vehicleId } = await seedActivePair(tx, op);
+      const created = await svc.create({
+        stops: [{ sequence: 1, stopType: 'pickup' }],
+        roadRun: { plannedStartAt: '2026-06-03T07:00:00.000Z', assignedOperatorId: operatorId, assignedAssetId: vehicleId },
+      }, op);
+      const { manifest } = await import('../src/database/schema/manifest.js');
+      const tn = { companyId: op.companyId, businessUnitId: op.businessUnitId, depotId: op.depotId, legalEntityId: op.legalEntityId };
+      await tx.insert(manifest).values({ ...tn, transportOrderId: created.transportOrderId, manifestCorrelationId: randomUUID(), state: 'committed' });
+      const found = await svc.findByCompanyIdOrRef(created.transportOrderId, op);
+      canCancel = found.canCancel;
+      reason = found.cancelBlockedReason;
+    });
+    expect(canCancel).toBe(false);
+    expect(reason).toBe('photos_received');
+  });
+  it('sets canCancel=true + null reason when no received manifest exists', async () => {
+    let canCancel: boolean | undefined;
+    let reason: string | null | undefined;
+    await withTxIsolation(testDb, async (tx) => {
+      const svc = new TransportOrdersService(tx as never);
+      const op = createOperatorContext();
+      const { operatorId, vehicleId } = await seedActivePair(tx, op);
+      const created = await svc.create({
+        stops: [{ sequence: 1, stopType: 'pickup' }],
+        roadRun: { plannedStartAt: '2026-06-04T07:00:00.000Z', assignedOperatorId: operatorId, assignedAssetId: vehicleId },
+      }, op);
+      const { manifest } = await import('../src/database/schema/manifest.js');
+      const tn = { companyId: op.companyId, businessUnitId: op.businessUnitId, depotId: op.depotId, legalEntityId: op.legalEntityId };
+      // A PENDING manifest (no photo yet) must NOT block cancel.
+      await tx.insert(manifest).values({ ...tn, transportOrderId: created.transportOrderId, manifestCorrelationId: randomUUID(), state: 'pending' });
+      const found = await svc.findByCompanyIdOrRef(created.transportOrderId, op);
+      canCancel = found.canCancel;
+      reason = found.cancelBlockedReason;
+    });
+    expect(canCancel).toBe(true);
+    expect(reason).toBeNull();
+  });
 });

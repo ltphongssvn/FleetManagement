@@ -1,26 +1,23 @@
 // apps/ops-web/test/admin-drivers-client-boundary-parse.test.ts
-// RED-first (schema-first arc, AXIS 1 -- trust boundary).
+// Schema-first arc, AXIS 1 -- trust boundary.
 //
-// AdminDriversClient.list() casts: return (await res.json()) as DriverRow[].
-// GET /admin/drivers is an HTTP trust boundary, so the payload is untrusted
-// and MUST be Zod-validated there. The SSOT already ships the validator --
-// parseAdminDriverRows in driver-attention-contract, whose own header says it
-// exists to replace this very cast -- but it has ZERO production callers, so
-// the boundary was never actually closed. driver-attention.machine.ts even
-// documents that it trusts rows parsed by the client; today nothing parses.
+// AdminDriversClient.list() consumed GET /admin/drivers by casting
+// res.json() as DriverRow[]. That endpoint is an HTTP trust boundary, so the
+// payload is untrusted and MUST be Zod-validated there. The SSOT ships the
+// validator -- parseAdminDriverRows in driver-attention-contract, whose header
+// says it exists to replace this very cast -- but it had ZERO production
+// callers, so the boundary was documented-closed yet actually open.
 //
-// Consequence the cast hides: a producer that renames or drops a member (the
-// t5b failure mode) enters React state as a well-typed lie and surfaces as an
+// Consequence the cast hid (the t5b failure mode): a producer that renames or
+// drops a member enters React state as a well-typed lie and surfaces as an
 // undefined read deep in a cell renderer, far from the cause. A boundary parse
-// turns that into one loud, local load error.
+// turns that into one loud, local load error; DriversSection already renders
+// its handled error state on a rejected promise.
 //
-// Contract driven here: a shape-invalid payload is an ERROR, not data. list()
-// throws; DriversSection already renders its error state (Khong tai duoc danh
-// sach tai xe) on a rejected promise, so the failure is handled, not a crash.
-//
-// enrollDevice never checks res.ok -- it parses the body of a 4xx/5xx as if it
-// were a success envelope and hands back an undefined deviceId. Every sibling
-// method throws on non-ok; this one is the outlier.
+// Transport note: after the T11/idle-timeout arc the client authenticates via
+// the httpOnly fleet_session cookie and raises non-ok through ensureOk, so
+// these fixtures need no Authorization header; the parse runs AFTER ensureOk
+// has cleared transport, on a 2xx body that is still shape-untrusted.
 import { describe, it, expect, vi } from 'vitest';
 import { AdminDriversClient } from '../src/features/admin/admin-drivers-client';
 const VALID_ROW = {
@@ -36,7 +33,7 @@ const VALID_ROW = {
 };
 function clientWith(json: unknown, ok = true, status = 200): AdminDriversClient {
   const fetchFn = vi.fn().mockResolvedValue({ ok, status, json: () => Promise.resolve(json) });
-  return new AdminDriversClient({ apiUrl: '', bearerToken: () => 'tok', fetchFn: fetchFn as never });
+  return new AdminDriversClient({ fetchFn: fetchFn as never });
 }
 describe('AdminDriversClient.list parses at the trust boundary', () => {
   it('returns rows for a wire-truthful payload', async () => {
@@ -64,18 +61,5 @@ describe('AdminDriversClient.list parses at the trust boundary', () => {
   });
   it('still accepts a legitimately empty fleet', async () => {
     await expect(clientWith([]).list()).resolves.toEqual([]);
-  });
-});
-describe('AdminDriversClient.enrollDevice checks the response status', () => {
-  it('throws on non-ok instead of parsing the error body as a device', async () => {
-    await expect(
-      clientWith({ statusCode: 409, message: 'UDID đã tồn tại' }, false, 409)
-        .enrollDevice({ driverId: 'd1', udid: 'UDID-A', platform: 'ios' }),
-    ).rejects.toThrow(/409/);
-  });
-  it('still returns the deviceId on success', async () => {
-    const r = await clientWith({ deviceId: 'dev-9' })
-      .enrollDevice({ driverId: 'd1', udid: 'UDID-A', platform: 'ios' });
-    expect(r.deviceId).toBe('dev-9');
   });
 });

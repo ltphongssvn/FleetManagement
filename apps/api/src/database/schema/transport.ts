@@ -7,24 +7,25 @@
 // literals so the file contains zero backticks (heredoc-safe edits).
 import { pgTable, uuid, varchar, timestamp, index, integer, jsonb, pgEnum, check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import { TRANSPORT_ORDER_STATES, ROAD_RUN_STATES } from '@fleet/domain';
 import { tenancyColumns } from './tenancy.js';
 
-// pgEnum mirrors @fleet/domain TRANSPORT_ORDER_STATES — DB-level enforcement.
-export const transportOrderStateEnum = pgEnum('transport_order_state', [
-  'draft',
-  'assigned',
-  'in_transit',
-  'completed',
-  'cancelled',
-]);
-
-export const roadRunStateEnum = pgEnum('road_run_state', [
-  'planned',
-  'dispatched',
-  'started',
-  'completed',
-  'cancelled',
-]);
+// Axis-2 (z.infer SSOT): the pgEnum vocabulary IS the domain Zod schema option
+// tuple, never a copy of it. These arrays were previously hand-duplicated here
+// under a comment claiming they mirror @fleet/domain -- a mirror is precisely
+// the drift hazard: the DB enum and the domain FSM can diverge silently until
+// Postgres rejects a state the app wrote. Guarded by
+// test/transport-schema-enum-domain-ssot.test.ts (value equality IN ORDER plus
+// a source scan that fails on re-inlining, since a re-copied array would still
+// satisfy value equality).
+//
+// The STATES exports are frozen as-const tuples in @fleet/domain, which
+// satisfy the Readonly<[U, ...U[]]> that pgEnum requires and preserve the
+// literal union downstream. This mirrors manifest.ts, which imports its
+// vocabularies the same way. Identical values and order => identical SQL =>
+// no migration.
+export const transportOrderStateEnum = pgEnum('transport_order_state', TRANSPORT_ORDER_STATES);
+export const roadRunStateEnum = pgEnum('road_run_state', ROAD_RUN_STATES);
 
 export const transportOrder = pgTable(
   'transport_order',

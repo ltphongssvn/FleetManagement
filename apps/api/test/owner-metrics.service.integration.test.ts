@@ -49,7 +49,7 @@ async function seedDevice(operatorId: string, platform: string, appVersion: stri
 }
 
 describe('@fleet/api - OwnerMetricsService.adoption', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_ownermetrics'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_ownermetrics'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => { await truncateAllTables(testDb.db); });
 
@@ -65,7 +65,7 @@ describe('@fleet/api - OwnerMetricsService.adoption', () => {
     expect(m.activeToday).toBe(0);
     expect(m.notInstalled).toBe(0);
     expect(m.day).toBe('2026-07-07');
-  }, 30_000);
+  });
 
   it('computes the full funnel with per-driver dedupe and inactive exclusion', async () => {
     const d1 = await seedDriver('D1 TWO DEVICES INSTALLED ACTIVE');

@@ -18,9 +18,9 @@ describe('@fleet/api - export workbook fallbacks for empty refs and null planned
   beforeAll(async () => {
     testDb = await startPgliteTestDb();
     svc = new TransportOrdersExportService(testDb.db as never);
-  }, 60_000);
+  });
   afterAll(async () => stopPgliteTestDb(testDb));
-  it('renders em-dash in cells A and E when refs is empty and plannedStartAt is null', async () => {
+  it('renders em-dash in cells A and F when refs is empty and plannedStartAt is null', async () => {
     const co = OP.companyId;
     const sq = String.fromCharCode(39);
     await exec(
@@ -33,6 +33,6 @@ describe('@fleet/api - export workbook fallbacks for empty refs and null planned
     const ws = wb.worksheets[0];
     if (!ws) throw new Error('no worksheet');
     expect(ws.getRow(2).getCell(1).value).toBe('—'); // empty refs -> DASH
-    expect(ws.getRow(2).getCell(5).value).toBe('—'); // null plannedStartAt -> DASH
+    expect(ws.getRow(2).getCell(6).value).toBe('—'); // null plannedStartAt -> DASH
   });
 });

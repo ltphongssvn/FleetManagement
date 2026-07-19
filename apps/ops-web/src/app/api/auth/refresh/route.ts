@@ -9,6 +9,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import {
   REFRESH_COOKIE,
   SESSION_COOKIE,
+  publicOrigin,
   refreshCookieOptions,
   refreshEnvFromProcess,
   refreshSession,
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const refresh = req.cookies.get(REFRESH_COOKIE)?.value;
   const env = refreshEnvFromProcess();
   const fail = (): NextResponse => {
-    const res = NextResponse.redirect(new URL('/login?error=session_expired', req.url));
+    const res = NextResponse.redirect(new URL('/login?error=session_expired', publicOrigin(req)));
     res.cookies.delete(SESSION_COOKIE);
     res.cookies.delete(REFRESH_COOKIE);
     return res;
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (refresh === undefined || env === null) return fail();
   const rotated = await refreshSession(refresh, env);
   if (rotated === null) return fail();
-  const res = NextResponse.redirect(new URL(nextPath, req.url));
+  const res = NextResponse.redirect(new URL(nextPath, publicOrigin(req)));
   res.cookies.set(SESSION_COOKIE, rotated.accessToken, sessionCookieOptions(rotated.expiresIn));
   res.cookies.set(REFRESH_COOKIE, rotated.refreshToken, refreshCookieOptions());
   return res;

@@ -46,7 +46,7 @@ async function setupVerifyingSession(transportOrderId: string, correlationId: st
 }
 
 describe('@fleet/api - finalizeIntake emits manifest_extraction.requested', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_ext'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_ext'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     service = new ManifestService(testDb.db, fakeBlobStore(), fakeConfig());

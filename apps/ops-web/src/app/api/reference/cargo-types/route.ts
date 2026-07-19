@@ -2,7 +2,7 @@
 // BFF: list (GET) + create (POST) for the cargo-types reference table.
 import type { NextRequest } from 'next/server';
 import type { NextResponse } from 'next/server';
-import { forwardGet, forwardWrite } from '../_forward';
+import { forwardGet, forwardWrite } from '@/app/api/_forward';
 export function GET(): Promise<NextResponse> {
   return forwardGet('/reference/cargo-types');
 }
