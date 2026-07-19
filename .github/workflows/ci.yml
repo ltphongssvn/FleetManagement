@@ -231,15 +231,19 @@ jobs:
         # task owns tsbuildinfo atomically with dist/ (see the header note).
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm exec turbo run build --concurrency=1
-      - name: Lint
-        # pnpm -r runs each package's eslint directly (not via turbo), so it
-        # relies on the Build step above having emitted all @fleet/* .d.ts.
-        # See the "Local/CI lint parity" note in this file's header.
+      - name: Lint + Typecheck (cached)
+        # Routed through turbo, NOT pnpm -r, so both tasks read and write the
+        # remote cache. Measured cost of the old pnpm -r path on a warm run:
+        # Lint 95s + Typecheck 51s = 146s that never cached, dwarfing the 4s
+        # cached Build. turbo.jsonc defines lint and typecheck as cacheable
+        # tasks (outputs:[] but input-keyed), so an unchanged tree replays them
+        # in milliseconds instead of re-running eslint and tsc across 11
+        # packages every run. Both declare dependsOn ^build for type-aware
+        # @fleet/* .d.ts resolution; Build already ran above, so ^build is a
+        # warm cache hit here, not a rebuild. One turbo invocation lets turbo
+        # parallelise the two task graphs and short-circuit on cache hits.
         if: hashFiles('pnpm-lock.yaml') != ''
-        run: pnpm -r --if-present lint
-      - name: Typecheck
-        if: hashFiles('pnpm-lock.yaml') != ''
-        run: pnpm -r --if-present typecheck
+        run: pnpm exec turbo run lint typecheck
       - name: E2E Typecheck
         # The Playwright e2e specs live at the repo root (e2e/), outside any
         # workspace package, so `pnpm -r typecheck` never reaches them. They are
