@@ -10,9 +10,11 @@
 // Playwright job — invisible to the PR gate). Importing this one definition makes
 // that drift structurally impossible.
 //
-// Shape: 6 identifying columns + Chênh lệch (the pickup-vs-delivery weight diff),
+// Shape: 9 identifying columns (Số lệnh, Trạng thái, Khách hàng, Tên hàng, Tài xế,
+// Xe, Ngày dự kiến, Số điểm, Chênh lệch — the pickup-vs-delivery weight diff),
 // then a (warehouse NAME, net-weight kg NUMBER) PAIR per stop slot — pickup slots
-// 1..4 then delivery slot 1 — giving 17 columns. Mirrors board-stops.tsx slot order.
+// 1..4 then delivery slot 1 — giving 19 columns. Mirrors board column order
+// (Khách hàng then Tên hàng), so the workbook matches the on-screen board.
 
 /** Pickup stop slots shown on the board, in order (1..4). */
 export const EXPORT_PICKUP_SLOTS = [1, 2, 3, 4] as const;
@@ -21,9 +23,9 @@ export const EXPORT_DELIVERY_SLOTS = [1] as const;
 /** Suffix appended to a slot name column to form its paired kg-number column. */
 export const EXPORT_KG_SUFFIX = ' - KL (kg)';
 
-/** The 6 fixed identifying columns + Chênh lệch, before the per-slot pairs. */
+/** The 8 fixed identifying columns + Chênh lệch, before the per-slot pairs. */
 export const EXPORT_IDENTIFYING_HEADERS = [
-  'Số lệnh', 'Trạng thái', 'Khách hàng', 'Tài xế', 'Xe', 'Ngày dự kiến', 'Số điểm', 'Chênh lệch (Số giao - Số nhận)',
+  'Số lệnh', 'Trạng thái', 'Khách hàng', 'Tên hàng', 'Tài xế', 'Xe', 'Ngày dự kiến', 'Số điểm', 'Chênh lệch (Số giao - Số nhận)',
 ] as const;
 
 /** SSOT: the complete export header row, in order. Derived so a slot-count change
