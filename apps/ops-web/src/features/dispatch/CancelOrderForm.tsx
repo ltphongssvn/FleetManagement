@@ -58,6 +58,12 @@ export interface CancelOrderFormProps {
 }
 export function CancelOrderForm({ transportOrderId, state, canCancel = true, cancelBlockedReason = null }: CancelOrderFormProps): JSX.Element | null {
   const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState<string>('');
+  // The other bucket is only a recorded reason when a free-text note explains
+  // it, so the note becomes required (and the submit disabled) until then.
+  const [note, setNote] = useState<string>('');
+  const noteRequired = reason === 'other';
+  const noteMissing = noteRequired && note.trim().length === 0;
   const [result, formAction, pending] = useActionState<CancelOrderState, FormData>(cancelOrder, undefined);
   if (NON_CANCELLABLE_STATES.has(state)) {
     return null;
@@ -105,7 +111,8 @@ export function CancelOrderForm({ transportOrderId, state, canCancel = true, can
             id='order-cancel-reason'
             name='reason'
             data-testid='order-cancel-reason'
-            defaultValue=''
+            value={reason}
+            onChange={(e) => { setReason(e.target.value); }}
             required
             className='mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm'
           >
@@ -116,15 +123,26 @@ export function CancelOrderForm({ transportOrderId, state, canCancel = true, can
           </select>
         </div>
         <div>
-          <label htmlFor='order-cancel-note' className='block text-sm font-medium text-slate-700'>Ghi chú (tùy chọn)</label>
+          <label htmlFor='order-cancel-note' className='block text-sm font-medium text-slate-700'>
+            {noteRequired ? 'Ghi chú (bắt buộc khi chọn Khác)' : 'Ghi chú (tùy chọn)'}
+          </label>
           <textarea
             id='order-cancel-note'
             name='note'
             data-testid='order-cancel-note'
             rows={3}
             maxLength={500}
+            value={note}
+            onChange={(e) => { setNote(e.target.value); }}
+            required={noteRequired}
+            aria-required={noteRequired}
             className='mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm'
           />
+          {noteMissing && (
+            <p className='mt-1 text-sm text-red-700' data-testid='order-cancel-note-required'>
+              Vui lòng nhập lý do cụ thể khi chọn "Khác".
+            </p>
+          )}
         </div>
         {result?.status === 'invalid' && (
           <div className='text-sm text-red-700'>
@@ -144,7 +162,7 @@ export function CancelOrderForm({ transportOrderId, state, canCancel = true, can
           <button
             type='submit'
             data-testid='order-cancel-submit'
-            disabled={pending}
+            disabled={pending || noteMissing}
             className='rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 disabled:opacity-50'
           >
             {pending ? 'Đang hủy...' : 'Xác nhận hủy'}
