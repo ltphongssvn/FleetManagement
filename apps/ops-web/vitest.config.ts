@@ -17,6 +17,24 @@ export default defineConfig({
     // from CPU contention (passes in ~1s in isolation). Prevents flaky
     // timeouts in CI without masking real hangs.
     testTimeout: 30000,
+    // Bound this pool. vitest sizes its workers from
+    // os.availableParallelism(), which reports the HOST core count and cannot
+    // see the other vitest processes on the box. This machine runs up to ~8
+    // parallel worktree terminals, so every runner independently concludes it
+    // owns all 8 cores: each is individually correct and collectively wrong.
+    // Unbounded, this config spawned 8 forks while two other worktrees were
+    // mid-suite, and the resulting thrash timed out unrelated packages at
+    // their configured budgets.
+    //
+    // 2 matches apps/api/vitest.config.ts and packages/codemods, whose header
+    // already documents this exact Vitest-4-on-Turborepo oversubscription
+    // mode. This file had the timeout half of that lesson and not the
+    // concurrency half. Bounding the pool is the fix; raising testTimeout
+    // would be the treadmill 9710dd8 locked as an anti-pattern -- root cause
+    // is SCHEDULING, not budgets.
+    //
+    // vitest-maxworkers-ssot.guard.test.ts keeps this from drifting back.
+    maxWorkers: 2,
     coverage: {
       exclude: ['**/index.ts', '**/types.ts', '**/*.config.{ts,mjs}', '**/dist/**', '**/.next/**', '**/test/**', 'src/app/**', '**/*.stories.tsx', '**/*.mock.ts'],
       provider: 'v8',

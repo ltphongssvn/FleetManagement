@@ -46,3 +46,18 @@ export class TransportOrderCannotBeCancelledError extends TransportOrderError {
     this.currentState = currentState;
   }
 }
+// URGENT production invariant (2026): thrown by TransportOrdersCancelService
+// when a dispatcher attempts to cancel an order for which a weigh-slip photo
+// (phieu can / manifest) has already been RECEIVED. A received photo proves the
+// run physically started and goods were handled, so cancellation is no longer
+// safe regardless of the coarse FSM state. Distinct from the FSM-state error so
+// the controller can surface a precise localized message and audit pipelines can
+// pivot on this specific cause. Mapped to 409 Conflict at the HTTP boundary.
+export class TransportOrderCannotBeCancelledWithReceivedPhotosError extends TransportOrderError {
+  readonly receivedManifestCount: number;
+  constructor(receivedManifestCount: number, message?: string) {
+    super(message ?? 'Transport order cannot be cancelled: weigh-slip photos have been received');
+    this.name = 'TransportOrderCannotBeCancelledWithReceivedPhotosError';
+    this.receivedManifestCount = receivedManifestCount;
+  }
+}

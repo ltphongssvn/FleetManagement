@@ -35,7 +35,7 @@ const OP = createOperatorContext({ companyId: '00000000-0000-0000-0000-000000000
 // service writes. (Asserting the imported value still proves the service emits it.)
 const EXPECTED_HEADERS = LENH_DIEU_XE_EXPORT_HEADERS;
 function q(s: string): string { return String.fromCharCode(39) + s + String.fromCharCode(39); }
-async function seedProjection(roadRunId: string, refs: readonly string[]): Promise<void> {
+async function seedProjection(roadRunId: string, refs: readonly string[], state = 'planned'): Promise<void> {
   const co = OP.companyId;
   const refsJson = JSON.stringify(refs);
   const stmt =
@@ -43,7 +43,7 @@ async function seedProjection(roadRunId: string, refs: readonly string[]): Promi
     '(road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, ' +
     ' state, stop_count, transport_order_refs, server_seq, planned_start_at) ' +
     'VALUES (' + q(roadRunId) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ', ' +
-    q('planned') + ',2,' + q(refsJson) + '::jsonb,1,' + q('2026-05-24T08:00:00Z') + ')';
+    q(state) + ',2,' + q(refsJson) + '::jsonb,1,' + q('2026-05-24T08:00:00Z') + ')';
   await testDb.db.execute(sql.raw(stmt));
 }
 async function seedOrderGraph(opts: {
@@ -97,7 +97,7 @@ function rowValues(ws: ExcelJS.Worksheet, rowIdx: number): unknown[] {
   beforeAll(async () => {
     testDb = await startPgliteTestDb();
     svc = new TransportOrdersExportService(testDb.db as never);
-  }, 60_000);
+  });
   afterAll(async () => stopPgliteTestDb(testDb));
   beforeEach(async () => {
     await testDb.db.execute(sql.raw('TRUNCATE TABLE dispatch_board_projection CASCADE'));
@@ -139,24 +139,27 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
     expect(headerOf(ws)).toEqual(EXPECTED_HEADERS);
     const data = rowValues(ws, 2);
-    // 0-based after slice(1): 0..5 identifying; 6 = Chênh lệch; then pairs:
-    // 7 P1 name,8 P1 kg, 9 P2 name,10 P2 kg, 11 P3,12, 13 P4,14, 15 D1 name,16 D1 kg
+    // 0-based after slice(1): 0 Số lệnh, 1 Trạng thái, 2 Khách hàng, 3 Tài xế,
+    // 4 Xe, 5 Ngày dự kiến, 6 Số điểm, 7 = Chênh lệch; then pairs:
+    // 8 P1 name,9 P1 kg, 10 P2 name,11 P2 kg, 12 P3,13, 14 P4,15, 16 D1 name,17 D1 kg
     expect(String(data[0])).toBe('XT.GRAPH');
-    const kh = String(data[1]);
+    // Trạng thái is blank for a non-cancelled (planned) order.
+    expect(data[1] === null || data[1] === undefined).toBe(true);
+    const kh = String(data[2]);
     expect(kh).toContain('ĐA NĂNG');
     expect(kh).toContain('0903998784');
     // pickup slot 1: warehouse name present; NO status text anywhere in the row
-    // Chênh lệch (col 6) is BLANK here: only the pickup is seeded with no weight,
+    // Chênh lệch (col 7) is BLANK here: only the pickup is seeded with no weight,
     // so the diff is incomplete -> true blank, never 0.
-    expect(data[6] === null || data[6] === undefined).toBe(true);
-    expect(String(data[7])).toBe('Cần Thơ');
+    expect(data[7] === null || data[7] === undefined).toBe(true);
+    expect(String(data[8])).toBe('Cần Thơ');
     // delivery slot 1: warehouse name present
-    expect(String(data[15])).toBe('ĐA NĂNG');
+    expect(String(data[16])).toBe('ĐA NĂNG');
     // no weights extracted yet -> kg cells are EMPTY (blank), never 0, never status
-    expect(data[8] === null || data[8] === undefined).toBe(true);
-    expect(data[16] === null || data[16] === undefined).toBe(true);
+    expect(data[9] === null || data[9] === undefined).toBe(true);
+    expect(data[17] === null || data[17] === undefined).toBe(true);
     // unused pickup slots 2-4: both name and kg cells EMPTY (no em-dash, no status)
-    for (const i of [9, 10, 11, 12, 13, 14]) {
+    for (const i of [10, 11, 12, 13, 14, 15]) {
       expect(data[i] === null || data[i] === undefined).toBe(true);
     }
     // explicit: the row contains NO legacy status strings anywhere
@@ -248,9 +251,10 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(r.buffer as unknown as ArrayBuffer);
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
-    // col 7 = Chênh lệch; paired layout shifts by 1: col 8 = P1 name, col 9 = P1 kg
-    expect(ws.getRow(2).getCell(8).value).toBe('Cần Thơ');
-    const kgCell = ws.getRow(2).getCell(9).value;
+    // With Trạng thái inserted at col 2, the layout shifts by 1 more: col 8 =
+    // Chênh lệch; col 9 = P1 name, col 10 = P1 kg.
+    expect(ws.getRow(2).getCell(9).value).toBe('Cần Thơ');
+    const kgCell = ws.getRow(2).getCell(10).value;
     expect(typeof kgCell).toBe('number');
     expect(kgCell).toBe(7920);
   });
@@ -258,8 +262,8 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
   // Feature 3 export parity: the board shows a Chenh lech (pickup-vs-delivery
   // net-weight difference) column; the export MUST carry the same value, computed
   // by the shared @fleet/sync-protocol computeWeightDiffKg SSOT. Here pickup
-  // 7920 - delivery 5000 = 2920, emitted as a NUMBER in the Chenh lech column.
-  it('emits a Chênh lệch column with the numeric pickup-minus-delivery weight diff', async () => {
+  // 5000 - pickup 7920 = -2920, emitted as a NUMBER in the Chenh lech column.
+  it('emits a Chênh lệch column with the numeric delivery-minus-pickup weight diff', async () => {
     const roadRunId = 'aaaaaaaa-8888-4888-8888-888888888888';
     const toId = '00000000-0000-4000-8000-000000088001';
     await seedProjection(roadRunId, ['XT.DIFF']);
@@ -303,13 +307,43 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     await wb.xlsx.load(r.buffer as unknown as ArrayBuffer);
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
     const headers = headerOf(ws);
-    expect(headers).toContain('Chênh lệch');
-    const diffCol = headers.indexOf('Chênh lệch');
-    // Chênh lệch sits right after Số điểm (col index 5), before the stop pairs.
-    expect(diffCol).toBe(6);
+    expect(headers).toContain('Chênh lệch (Số giao - Số nhận)');
+    const diffCol = headers.indexOf('Chênh lệch (Số giao - Số nhận)');
+    // Chênh lệch sits right after Số điểm; with Trạng thái inserted at index 1
+    // the identifying block is Số lệnh(0) Trạng thái(1) Khách hàng(2) Tài xế(3)
+    // Xe(4) Ngày dự kiến(5) Số điểm(6) Chênh lệch(7), before the stop pairs.
+    expect(diffCol).toBe(7);
     const cell = ws.getRow(2).getCell(diffCol + 1).value;
     expect(typeof cell).toBe('number');
-    expect(cell).toBe(2920);
+    expect(cell).toBe(-2920);
+  });
+  // Feature (2026): the owner wants to see which orders are cancelled in the
+  // exported workbook. A dedicated Trạng thái column shows Đã hủy for a
+  // cancelled road run and a true blank for any other state, mirroring the
+  // on-screen board badge (the state lives on dispatch_board_projection.state).
+  it('Trạng thái column shows Đã hủy for a cancelled order and blank otherwise', async () => {
+    await seedProjection('aaaaaaaa-9999-4999-8999-999999999999', ['XT.CANCELLED'], 'cancelled');
+    await seedProjection('bbbbbbbb-9999-4999-8999-999999999999', ['XT.PLANNED'], 'planned');
+    const r = await svc.exportAndLog(OP, 'manual');
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(r.buffer as unknown as ArrayBuffer);
+    const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
+    const headers = headerOf(ws);
+    expect(headers).toContain('Trạng thái');
+    const statusCol = headers.indexOf('Trạng thái');
+    // Trạng thái is the second column (right after Số lệnh).
+    expect(statusCol).toBe(1);
+    // Collect the Số lệnh + Trạng thái pair for every data row, order-independent.
+    const byRef = new Map<string, unknown>();
+    ws.eachRow((row, idx) => {
+      if (idx === 1) return;
+      const ref = row.getCell(1).value;
+      const status = row.getCell(statusCol + 1).value;
+      if (typeof ref === 'string') byRef.set(ref, status);
+    });
+    expect(byRef.get('XT.CANCELLED')).toBe('Đã hủy');
+    const plannedStatus = byRef.get('XT.PLANNED');
+    expect(plannedStatus === null || plannedStatus === undefined).toBe(true);
   });
 });
 

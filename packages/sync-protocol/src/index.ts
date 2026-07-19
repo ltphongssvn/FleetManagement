@@ -133,9 +133,11 @@ export {
 export {
   ExtractionJobDataWireSchema,
   EXTRACTION_STATUSES,
+  EXTRACTION_FAILURE_REASONS,
   ExtractionResultWireSchema,
   type ExtractionJobDataWire,
   type ExtractionStatus,
+  type ExtractionFailureReason,
   type ExtractionResultWire,
 } from './extraction-types.js';
 export {
@@ -149,9 +151,22 @@ export {
   EXPORT_PICKUP_SLOTS,
   EXPORT_DELIVERY_SLOTS,
   EXPORT_KG_SUFFIX,
+  EXPORT_PICKUP_LABEL_PREFIX,
+  EXPORT_DELIVERY_LABEL_PREFIX,
+  exportPickupLabel,
+  exportDeliveryLabel,
   EXPORT_IDENTIFYING_HEADERS,
   LENH_DIEU_XE_EXPORT_HEADERS,
 } from './transport-order-export-headers.js';
+export {
+  BOARD_SEARCH_PREDICATES,
+  type BoardSearchPredicate,
+  BoardSearchColumnSchema,
+  type BoardSearchColumn,
+  BOARD_SEARCH_COLUMNS,
+  boardSearchNameHeaders,
+  boardSearchableColumns,
+} from './board-search-contract.js';
 export {
   FLEET_ERROR_CODES,
   FleetErrorCodeSchema,
@@ -253,3 +268,11 @@ export {
   DRIVER_ALERT_SOUND,
   DRIVER_ALERT_VIBRATION_PATTERN,
 } from './driver-alert-contract.js';
+export {
+  DRIVER_DB_STATUSES,
+  driverDbStatusSchema,
+  type DriverDbStatus,
+  DRIVER_DB_STATUS_PLACEHOLDER_APP_VERSION,
+  type DriverDbStatusFacts,
+  classifyDriverDbStatus,
+} from './co-so-du-lieu-contract.js';

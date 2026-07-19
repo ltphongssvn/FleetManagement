@@ -61,6 +61,42 @@ export const EnvSchema = z.object({
   KEYCLOAK_MONITOR_CLIENT_SECRET: z.string().min(1).optional(),
   BREAKGLASS_USERNAME_PREFIX: z.string().min(1).default('fleet-breakglass'),
   BREAKGLASS_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
+  // Intake-lag regression guard (Jun-24 incident class): pages via Sentry
+  // fatal when the OLDEST verifying manifest exceeds this age -- any break in
+  // the intake loop (auth, queue, worker, relay) becomes loud within one
+  // threshold window instead of silently stranding uploads for weeks.
+  INTAKE_LAG_ALERT_MINUTES: z.coerce.number().int().positive().default(30),
+  // Intake self-healing reconciler (2026 level-based recovery loop). Every
+  // tick it re-emits the compensating intake job for verifying manifests
+  // older than AFTER_MINUTES (set below the lag ALERT threshold so auto-heal
+  // races the page), gated by exponential backoff off lastIntakeReconcileAt,
+  // bounded by MAX_ATTEMPTS and BATCH_SIZE (the per-tick retry budget). At
+  // max attempts a manifest is quarantined in place (state untouched) and a
+  // distinct Sentry fatal fires. ENABLED gates the scheduler tick; unset ->
+  // ON (self-healing is the safe default for production).
+  INTAKE_RECONCILE_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  INTAKE_RECONCILE_AFTER_MINUTES: z.coerce.number().int().positive().default(15),
+  INTAKE_RECONCILE_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
+  INTAKE_RECONCILE_BATCH_SIZE: z.coerce.number().int().positive().default(25),
+  // Inbound webhook HMAC secrets (Factor III: declared at the validated
+  // boundary, not read raw in the request path). Per-provider distinct
+  // secrets -- never a shared WEBHOOK_SECRET (2026 practice). Optional +
+  // fail-safe dormant, mirroring KEYCLOAK_MONITOR_CLIENT_SECRET: an
+  // environment that does not wire the integration boots, while the
+  // request-time verifier stays fail-closed (rejects unsigned/missigned).
+  EAS_WEBHOOK_SECRET: z.string().min(1).optional(),
+  ERP_WEBHOOK_SECRET: z.string().min(1).optional(),
+  // Browser origins allowed by CORS. CSV env -> trimmed string array (same
+  // idiom as STEP_UP_ACR_LADDER). Default = local ops-web + driver-app dev
+  // origins; production supplies the real origins via this var.
+  CORS_ORIGINS: z
+    .string()
+    .default('http://localhost:8081,http://localhost:3001')
+    .transform((v) => v.split(',').map((s) => s.trim()).filter((s) => s.length > 0)),
+  // Guards the seed endpoint (POST /transport-orders). Default ON; a deploy
+  // sets this false to disable the seed path. Boolean-coerced like the
+  // OTEL_ENABLED / INTAKE_RECONCILE_ENABLED flags.
+  FLEET_PILOT_SEED_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
 });
 export type Env = z.infer<typeof EnvSchema>;
 // Rebuild-CLI-scoped validator (follow-up #5). Derives from the SAME EnvSchema

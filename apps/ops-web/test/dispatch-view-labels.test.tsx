@@ -36,6 +36,7 @@ const run: DispatchBoardRoadRun = {
   transportOrderRefs: ['XT.0067'],
   customerName: null,
   customerPhone: null,
+  cargoName: null,
   weightDiffKg: null,
   stops: [],
 };
@@ -75,7 +76,7 @@ describe('DispatchView - human-readable labels (T4)', () => {
     const r3: DispatchBoardRoadRun = { ...run, plannedStartAt: 'not-a-real-date', transportOrderRefs: ['XT.0001'], stops: [] };
     render(<DispatchView initialRuns={[r3]} refs={refs} />);
     const cells = within(dataRow()).getAllByRole('cell');
-    const plannedCell = cells[4];
+    const plannedCell = cells[5];
     if (plannedCell === undefined) throw new Error('expected a planned-start cell');
     expect(plannedCell.textContent).toBe('—');
   });

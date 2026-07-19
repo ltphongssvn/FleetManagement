@@ -53,7 +53,7 @@ async function negotiateThenCommit(): Promise<void> {
 }
 
 describe('@fleet/api - commitUpload enqueues a schema-valid intake job', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_intake_contract'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_intake_contract'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     service = new ManifestService(testDb.db, fakeBlobStore(), fakeConfig());
@@ -66,7 +66,7 @@ describe('@fleet/api - commitUpload enqueues a schema-valid intake job', () => {
       SELECT COUNT(*)::text AS count FROM outbox WHERE queue_name = 'intake'
     `);
     expect(rows.rows[0]?.count).toBe('1');
-  }, 60_000);
+  });
 
   it('intake outbox payload (envelope stripped) parses against IntakeJobDataWireSchema', async () => {
     await negotiateThenCommit();

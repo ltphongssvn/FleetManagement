@@ -73,6 +73,7 @@ interface ExportStop {
 }
 interface ExportRow {
   readonly roadRunId: string;
+  readonly state: string;
   readonly stopCount: number;
   readonly transportOrderRefs: readonly string[];
   readonly plannedStartAt: Date | null;
@@ -125,6 +126,16 @@ function customerCell(name: string | null, phone: string | null): string {
   const baseName = name === null || name === '' ? DASH : name;
   if (phone === null || phone === '') return baseName;
   return baseName + '\n' + phone;
+}
+// Trạng thái (status) cell: the on-screen board shows a red Đã hủy badge on a
+// cancelled order and nothing on the others. The export mirrors that binary
+// treatment in a dedicated column (2026 best practice: capture a color-coded
+// status as an explicit column, never rely on cell formatting): Đã hủy when the
+// road-run state is cancelled, else a true blank so the owner can filter/sort
+// the column for cancellations. The label is Vietnamese presentation text; the
+// cancelled STATE is the road_run_state enum SSOT.
+function statusCell(state: string): string | null {
+  return state === 'cancelled' ? 'Đã hủy' : null;
 }
 function vnDayKey(now: Date = new Date()): string {
   const shifted = new Date(now.getTime() + 7 * 60 * 60 * 1000);
@@ -204,6 +215,7 @@ export class TransportOrdersExportService {
     const base = await this.db
       .select({
         roadRunId: dispatchBoardProjection.roadRunId,
+        state: dispatchBoardProjection.state,
         stopCount: dispatchBoardProjection.stopCount,
         transportOrderRefs: dispatchBoardProjection.transportOrderRefs,
         plannedStartAt: dispatchBoardProjection.plannedStartAt,
@@ -306,6 +318,7 @@ export class TransportOrdersExportService {
     }
     return base.map((r) => ({
       roadRunId: r.roadRunId,
+      state: r.state,
       stopCount: r.stopCount,
       transportOrderRefs: r.transportOrderRefs,
       plannedStartAt: r.plannedStartAt,
@@ -335,6 +348,7 @@ export class TransportOrdersExportService {
       const planned = r.plannedStartAt ? PLANNED_FORMATTER.format(r.plannedStartAt) : DASH;
       ws.addRow([
         primaryRef,
+        statusCell(r.state),
         customerCell(r.customerName, r.customerPhone),
         r.driverName ?? DASH,
         r.vehiclePlate ?? DASH,

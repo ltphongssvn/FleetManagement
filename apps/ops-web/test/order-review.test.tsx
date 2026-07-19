@@ -25,6 +25,8 @@ const row: ListAssignedRow = {
   driverName: 'Nguyễn Văn A',
   pickupName: 'North Pickup Dock',
   deliveryName: 'South Delivery Bay',
+  canCancel: true,
+  cancelBlockedReason: null,
   stops: [
     { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-01T08:00:00.000Z', warehouseName: 'North Pickup Dock', arrivedAt: null, departedAt: null },
     { sequence: 2, stopType: 'delivery', plannedAt: null, warehouseName: 'South Delivery Bay', arrivedAt: null, departedAt: null },

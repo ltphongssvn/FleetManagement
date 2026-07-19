@@ -29,6 +29,7 @@ const run: DispatchBoardRoadRun = {
   transportOrderRefs: ['XTT.05-001'],
   customerName: null,
   customerPhone: null,
+  cargoName: null,
   weightDiffKg: null,
   stops: [
     { sequence: 1, stopType: 'pickup', warehouseName: 'Chơn Chính', arrivedAt: '2026-05-30T09:00:00.000Z', departedAt: '2026-05-30T09:15:00.000Z', proof: null },

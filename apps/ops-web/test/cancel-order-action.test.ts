@@ -244,4 +244,44 @@ describe('cancelOrder server action (T5)', () => {
     expect(body).toEqual({ reason: 'weather' });
     expect(body.note).toBeUndefined();
   });
+  it('returns invalid (errors.note) when reason=other has no note, and never calls the API', async () => {
+    vi.stubEnv('FLEET_API_URL', 'http://api:3000');
+    cookieGet.mockReturnValue({ value: 'jwt' });
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const { cancelOrder } = await import('@/features/dispatch/cancel-order.action');
+    const fd = new FormData();
+    fd.set('transportOrderId', VALID_ID);
+    fd.set('reason', 'other');
+    const r = defined(await cancelOrder(undefined, fd));
+    expect(r.status).toBe('invalid');
+    if (r.status !== 'invalid') throw new Error('not invalid');
+    expect(r.errors.note).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+  it('accepts reason=other WITH a note and forwards both to the API', async () => {
+    vi.stubEnv('FLEET_API_URL', 'http://api:3000');
+    cookieGet.mockReturnValue({ value: 'jwt' });
+    const fetchMock = vi.fn(() => Promise.resolve(new Response(
+      JSON.stringify({ transportOrderId: VALID_ID, idempotent: false, state: 'cancelled' }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    )));
+    vi.stubGlobal('fetch', fetchMock);
+    const { cancelOrder } = await import('@/features/dispatch/cancel-order.action');
+    const fd = new FormData();
+    fd.set('transportOrderId', VALID_ID);
+    fd.set('reason', 'other');
+    fd.set('note', 'khách đổi lịch');
+    try {
+      await cancelOrder(undefined, fd);
+    } catch {
+      // expected NextRedirect throw on success
+    }
+    const calls = fetchMock.mock.calls as unknown as [string, { body: string }][];
+    const first = calls[0];
+    if (!first) throw new Error('no fetch call');
+    const body = JSON.parse(first[1].body);
+    expect(body).toEqual({ reason: 'other', note: 'khách đổi lịch' });
+  });
 });
