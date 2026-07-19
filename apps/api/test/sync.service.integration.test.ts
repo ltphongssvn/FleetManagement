@@ -28,7 +28,7 @@ describe('@fleet/api - SyncService (integration)', () => {
   beforeAll(async () => {
     testDb = await startMigratedTestDb('fleet_test');
     service = new SyncService(testDb.db);
-  }, 90_000);
+  });
 
   afterAll(async () => {
     await stopMigratedTestDb(testDb);

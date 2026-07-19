@@ -45,7 +45,9 @@
     "compose:env": "tsx scripts/compose-identity.ts --env .env",
     "compose:print": "tsx scripts/compose-identity.ts --print",
     "sync:develop": "tsx scripts/sync-develop.ts",
-    "bump:pnpm": "tsx scripts/bump-pnpm.ts"
+    "bump:pnpm": "tsx scripts/bump-pnpm.ts",
+    "audit:ci-minutes": "tsx scripts/ci/ci-minutes-fetch.ts",
+    "worktree:close": "tsx scripts/worktree-close-cli.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
@@ -68,7 +70,7 @@
     "prettier": "^3.8.3",
     "semantic-release": "^25.0.3",
     "tsx": "^4.21.0",
-    "turbo": "^2.10.4",
+    "turbo": "^2.10.5",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.58.2",
     "vite": ">=8.0.16",

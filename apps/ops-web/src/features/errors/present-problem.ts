@@ -16,6 +16,7 @@ import {
   FleetErrorCodeSchema,
   type FleetErrorCode,
 } from '@fleet/sync-protocol';
+import { ApiProblemError } from './api-problem-error';
 
 export const VN_OPS_ERROR_MESSAGES: Readonly<Record<FleetErrorCode, string>> = {
   VALIDATION_FAILED: 'Dữ liệu chưa hợp lệ. Vui lòng kiểm tra lại các trường đã nhập.',
@@ -51,11 +52,16 @@ export function vnApiErrorMessage(
   return fallback;
 }
 /** Present a caught exception (admin client throws, unexpected failures)
- * without ever rendering its raw message. Admin clients today throw
- * Error('<status> <text>')-style messages; a leading 3-digit HTTP status maps
- * through the status-class rules, everything else gets the caller''s fixed
- * copy -- raw exception text is structurally unreachable. */
+ * without ever rendering its raw message. ApiProblemError (the ensureOk
+ * seam) carries structured status + Zod-parsed problem code, so the code
+ * maps FIRST -- an idle-expired 401 renders the friendly session-expired
+ * copy instead of a status-class generic. Legacy Error('<status> <text>')
+ * shapes keep mapping through the leading-status regex; everything else
+ * gets the caller's fixed copy -- raw exception text stays unreachable. */
 export function vnExceptionMessage(e: unknown, fallback: string): string {
+  if (e instanceof ApiProblemError) {
+    return vnApiErrorMessage(e.status, { status: e.status, code: e.code }, fallback);
+  }
   if (e instanceof Error) {
     const m = /^(\d{3})\b/.exec(e.message);
     if (m !== null) return vnApiErrorMessage(Number(m[1]), undefined, fallback);

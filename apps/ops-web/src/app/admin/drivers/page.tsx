@@ -7,6 +7,11 @@
 // the regular table. State ownership: driverAttentionMachine (useMachine)
 // replaces the old useReducer -- loading / ready.attention / ready.allClear
 // / error are explicit machine states, boolean soup is unrepresentable.
+// data-testid hooks keyed by driverId are the contract consumed by the
+// Playwright acceptance specs -- assign/revoke controls are addressed by
+// testid, never by Vietnamese copy, so a copy edit cannot silently break
+// the gate (this page shipped with no testids and #302's removal of the
+// device step turned develop red for exactly that reason).
 // Rows are server data; classification truth lives in @fleet/sync-protocol;
 // Vietnamese copy lives in driver-attention.presenter (immutable contracts).
 // T5: no inline rename (Xoa + re-create supersedes). Device enrollment removed
@@ -18,6 +23,10 @@ import { useEffect, useState, type JSX } from 'react';
 import { useMachine } from '@xstate/react';
 import type { AdminDriverRow } from '@fleet/sync-protocol';
 import { vnExceptionMessage } from '@/features/errors/present-problem';
+import {
+  isSessionExpired,
+  navigateToSessionRefresh,
+} from '@/features/auth/session-refresh-navigation';
 import { useRouter } from 'next/navigation';
 import { revalidateDispatch } from '../../../features/admin/revalidate-dispatch.action';
 import { AdminDriversClient } from '../../../features/admin/admin-drivers-client';
@@ -54,15 +63,20 @@ export default function AdminDriversPage(): JSX.Element {
   const [vehicles, setVehicles] = useState<readonly VehicleOption[]>([]);
   const [createForm, setCreateForm] = useState<CreateFormState>(EMPTY_CREATE_FORM);
   const [busy, setBusy] = useState(false);
-  const client = new AdminDriversClient({
-    apiUrl: '',
-    bearerToken: (): string => '',
-  });
+  const client = new AdminDriversClient({});
   const refresh = async (): Promise<void> => {
     try {
       const rows = await client.list();
       send({ type: 'LOADED', rows });
     } catch (e) {
+      // Idle-expired session (401, refresh impossible via the BFF seam):
+      // hand the browser to /api/auth/refresh?next=<here> -- the server
+      // re-mints silently or lands on public-origin /login?error=session_expired.
+      // Rendering an error here was the prod dead-end (Loi: load failed).
+      if (isSessionExpired(e)) {
+        navigateToSessionRefresh();
+        return;
+      }
       send({ type: 'ERROR', message: vnExceptionMessage(e, 'load failed') });
     }
   };
@@ -182,6 +196,7 @@ export default function AdminDriversPage(): JSX.Element {
     row.assignmentId !== null ? (
       <button
         type='button'
+        data-testid={'driver-revoke-' + row.driverId}
         onClick={() => { void handleRevoke(row.assignmentId ?? ''); }}
         className='bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm w-fit'
       >
@@ -190,6 +205,7 @@ export default function AdminDriversPage(): JSX.Element {
     ) : (
       <div className='flex flex-col gap-2'>
         <select
+          data-testid={'driver-assign-vehicle-' + row.driverId}
           value={vehicleSelect[row.driverId] ?? ''}
           onChange={(e) => { setVehicleSelect((m) => ({ ...m, [row.driverId]: e.target.value })); }}
           className='border rounded px-2 py-1 text-sm w-72'
@@ -201,6 +217,7 @@ export default function AdminDriversPage(): JSX.Element {
         </select>
         <button
           type='button'
+          data-testid={'driver-assign-submit-' + row.driverId}
           onClick={() => { void handleAssign(row.driverId); }}
           className='bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm w-fit'
         >
@@ -314,7 +331,7 @@ export default function AdminDriversPage(): JSX.Element {
                     <div className='font-medium'>{entry.row.fullName}</div>
                     <div className='text-xs text-gray-700'>{entry.row.phone}</div>
                     {entry.row.assignedVehicle ? (
-                      <span className='inline-block mt-1 bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>
+                      <span data-testid={'driver-assigned-plate-' + entry.row.driverId} className='inline-block mt-1 bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>
                         {entry.row.assignedVehicle.plate}
                       </span>
                     ) : null}
@@ -359,7 +376,7 @@ export default function AdminDriversPage(): JSX.Element {
               </td>
               <td className='p-2'>
                 {row.assignedVehicle ? (
-                  <span className='inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>
+                  <span data-testid={'driver-assigned-plate-' + row.driverId} className='inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>
                     {row.assignedVehicle.plate}
                   </span>
                 ) : (

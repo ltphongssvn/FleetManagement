@@ -25,9 +25,10 @@
 // reach a fixed point; nextjs.org prefetching: avoid churn on dynamic lists.)
 //
 // PAGINATION (2026): the board is status-partitioned + offset-paginated. When a
-// pagination prop is supplied, DispatchView renders Active/Finished filter tabs
-// (the default view is Active = pending + in-progress; Finished = completed +
-// cancelled) and a bottom pagination control: numbered page links, a
+// pagination prop is supplied, DispatchView renders one filter tab per SSOT
+// status group (Đang chạy = pending + in-progress; Đã hoàn tất = completed;
+// Lệnh Hủy = cancelled -- the T16 three-way carve-out) and a bottom pagination
+// control: numbered page links, a
 // jump-to-page search input, and a total count. All navigation is URL-state
 // (?group=&page=) via plain <a>/full navigation, so pages are shareable and
 // RSC-rendered server-side (the offset-pagination advantage). When the prop is
@@ -66,6 +67,7 @@ import { CreateOrderForm, type CreateOrderFormProps } from './CreateOrderForm';
 import { LogoutButton } from '../auth/LogoutButton';
 import { ExportOrdersExcelButton } from './ExportOrdersExcelButton';
 import { buildLookup, formatOrderRef } from './labels';
+import type { RoadRunStatusGroup } from '@fleet/sync-protocol';
 import type { DispatchBoardRoadRun } from './types';
 import { StopSlotHeaders, StopSlotCells, STOP_SLOT_COL_COUNT } from './board-stops';
 import { useRefetchOnFocus } from '../../lib/use-refetch-on-focus';
@@ -133,13 +135,16 @@ function OrderRefCell({ refs }: { refs: readonly string[] }): JSX.Element {
     <a href={href} data-testid={testId} className='font-mono text-blue-700 underline-offset-2 hover:underline cursor-pointer'>{formatOrderRef(refs)}</a>
   );
 }
-// Status group of the board view. active = pending + in-progress (planned,
-// dispatched, started); finished = completed + cancelled. Mirrors the SSOT
-// @fleet/sync-protocol RoadRunStatusGroup (string-typed here to avoid coupling
-// the client component to the contract import; the loader/api are authoritative).
-export type BoardStatusGroup = 'active' | 'finished' | 'cancelled';
+// Status group of the board view: the SSOT @fleet/sync-protocol
+// RoadRunStatusGroup, imported type-only (erased at build, so the client bundle
+// is unchanged) rather than re-declared. The previous local union was a
+// structural twin that compiled only because it happened to coincide with the
+// contract; a 4th group added to the SSOT would NOT have failed this file.
+// load-board-page.ts already consumed the contract type, leaving this the lone
+// hold-out. Group membership and the state partition stay authoritative in
+// dispatch-board-pagination-contract.ts (statesForStatusGroup).
 export interface DispatchBoardPagination {
-  readonly group: BoardStatusGroup;
+  readonly group: RoadRunStatusGroup;
   readonly page: number;
   readonly pageSize: number;
   readonly total: number;
@@ -148,14 +153,14 @@ export interface DispatchBoardPagination {
 }
 // Build a shareable board URL preserving status group, target page, AND the
 // active search term, so paging/tab-switching never drops the dispatcher search.
-function buildBoardHref(group: BoardStatusGroup, page: number, search: string): string {
+function buildBoardHref(group: RoadRunStatusGroup, page: number, search: string): string {
   const qs = new URLSearchParams();
   qs.set('group', group);
   qs.set('page', String(page));
   if (search !== '') qs.set('search', search);
   return '/?' + qs.toString();
 }
-function FilterTabs({ group, search }: { group: BoardStatusGroup; search: string }): JSX.Element {
+function FilterTabs({ group, search }: { group: RoadRunStatusGroup; search: string }): JSX.Element {
   const base = 'rounded px-3 py-1 text-sm font-medium';
   const activeCls = base + ' bg-blue-600 text-white';
   const idleCls = base + ' bg-slate-100 text-slate-600 hover:bg-slate-200';
@@ -171,7 +176,7 @@ function FilterTabs({ group, search }: { group: BoardStatusGroup; search: string
 // same plain-anchor escape hatch the tabs/pagination use -> no router.push -> no
 // RSC prefetch loop). Submitting resets to page 1 of the current group. Empty
 // term navigates without the search param (full board).
-function SearchBox({ group, search }: { group: BoardStatusGroup; search: string }): JSX.Element {
+function SearchBox({ group, search }: { group: RoadRunStatusGroup; search: string }): JSX.Element {
   const onKey = (e: React.KeyboardEvent<HTMLInputElement>): void => {
     if (e.key !== 'Enter') return;
     const term = (e.target as HTMLInputElement).value.trim();

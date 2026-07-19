@@ -80,7 +80,7 @@ function plannedAt(n: number): string {
 beforeAll(async () => {
   testDb = await startPgliteTestDb();
   ctrl = new DispatchController(testDb.db as never);
-}, 60_000);
+});
 afterAll(async () => stopPgliteTestDb(testDb));
 beforeEach(async () => {
   await testDb.db.execute(sql.raw('TRUNCATE TABLE dispatch_board_projection CASCADE'));

@@ -17,7 +17,7 @@ export default defineConfig({
     // app.module.test.ts imports the full Nest module graph (~4s isolated,
     // >30s when starved). 60s matches vitest.coverage.config.ts.
     testTimeout: 60_000,
-    hookTimeout: 60_000,
+    hookTimeout: 180_000, // PGlite WASM cold-start headroom under load; test budget stays 60s
     // Cap parallel workers: several unit-glob files boot Testcontainers/PGlite
     // (app.module, pglite-smoke, manifest.commit-finalize.parallel). Running all
     // in parallel under the 8-package turbo run oversubscribes Docker/CPU and
