@@ -46,12 +46,15 @@ import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { CancelReasonSchema } from '@fleet/domain';
-const FormSchema = z.object({
-  transportOrderId: z.guid('Invalid order id'),
-  reason: CancelReasonSchema,
-  note: z.string().min(1).max(500).optional(),
-});
+import { CancelOrderInputSchema } from '@fleet/domain';
+// transportOrderId is form-transport-specific; the reason/note contract and
+// its reason===other-requires-note invariant come from the shared
+// CancelOrderInputSchema SSOT. They are validated as two parses (id + cancel
+// input) rather than a Zod intersection: intersecting an object with a
+// refined schema (ZodEffects) does not compose the .refine reliably in Zod v4,
+// so the shared schema is parsed directly to guarantee the same rule the API
+// enforces fires here identically.
+const IdSchema = z.guid('Invalid order id');
 type ErrorKey = 'transportOrderId' | 'reason' | 'note';
 export type CancelOrderState =
   | undefined
@@ -64,19 +67,25 @@ export type CancelOrderState =
 export async function cancelOrder(_prev: CancelOrderState, formData: FormData): Promise<CancelOrderState> {
   const rawNote = formData.get('note');
   const noteValue = typeof rawNote === 'string' && rawNote.trim() !== '' ? rawNote : undefined;
-  const parsed = FormSchema.safeParse({
-    transportOrderId: formData.get('transportOrderId'),
+  const errors: Partial<Record<ErrorKey, string>> = {};
+  const idResult = IdSchema.safeParse(formData.get('transportOrderId'));
+  if (!idResult.success) {
+    errors.transportOrderId = idResult.error.issues[0]?.message ?? 'Invalid order id';
+  }
+  const cancelResult = CancelOrderInputSchema.safeParse({
     reason: formData.get('reason'),
     ...(noteValue !== undefined ? { note: noteValue } : {}),
   });
-  if (!parsed.success) {
-    const errors: Partial<Record<ErrorKey, string>> = {};
-    for (const issue of parsed.error.issues) {
+  if (!cancelResult.success) {
+    for (const issue of cancelResult.error.issues) {
       const k = issue.path[0];
       if (typeof k === 'string') errors[k as ErrorKey] = issue.message;
     }
+  }
+  if (!idResult.success || !cancelResult.success) {
     return { status: 'invalid', errors };
   }
+  const parsed = { data: { transportOrderId: idResult.data, ...cancelResult.data } };
   const apiUrl = process.env['FLEET_API_URL'];
   if (!apiUrl) return { status: 'server_error', message: 'Hệ thống chưa được cấu hình. Vui lòng liên hệ quản trị.' };
   const cookieStore = await cookies();
