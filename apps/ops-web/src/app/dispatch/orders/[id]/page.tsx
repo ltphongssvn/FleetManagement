@@ -97,7 +97,7 @@ export default async function OrderReviewPage({ params }: PageProps): Promise<JS
           Quay lại bảng điều phối
         </Link>
         <OrderReview order={order} />
-        <CancelOrderForm transportOrderId={order.transportOrderId} state={order.state} />
+        <CancelOrderForm transportOrderId={order.transportOrderId} state={order.state} canCancel={order.canCancel} cancelBlockedReason={order.cancelBlockedReason} />
       </div>
     </AppShell>
   );

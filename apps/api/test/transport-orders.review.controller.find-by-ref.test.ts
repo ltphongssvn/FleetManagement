@@ -28,6 +28,8 @@ const sampleRow: ListAssignedRow = {
   driverName: null,
   pickupName: null,
   deliveryName: null,
+  canCancel: true,
+  cancelBlockedReason: null,
   stops: [],
 };
 describe('@fleet/api - TransportOrdersReviewController.findOne (T5 ref-or-id)', () => {
