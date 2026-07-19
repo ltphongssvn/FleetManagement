@@ -44,6 +44,11 @@ export {
   type SweepDecision,
 } from './manifest/capture-spool-policy.js';
 export {
+  DRIVER_ALERT_NAV_POLICY_VERSION,
+  decideDriverAlertNavigation,
+  type DriverAlertNavDecision,
+} from './push/driver-alert-navigation-policy.js';
+export {
   buildTransportAlertChannelConfig,
   runNotificationSetup,
   type ChannelAudioUsage,
