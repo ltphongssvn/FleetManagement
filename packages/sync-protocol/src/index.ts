@@ -209,6 +209,11 @@ export {
   type PeekOrderRefResponse,
 } from './reference-contract.js';
 export {
+  QuickAssignInputSchema,
+  parseQuickAssignInput,
+  type QuickAssignInput,
+} from './quick-assign-contract.js';
+export {
   OwnerAdoptionMetricsSchema,
   type OwnerAdoptionMetrics,
   parseOwnerAdoptionMetrics,
