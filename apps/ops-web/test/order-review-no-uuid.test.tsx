@@ -25,6 +25,8 @@ const row: ListAssignedRow = {
   driverName: 'NGUYỄN THÀNH ĐỨC',
   pickupName: 'A',
   deliveryName: 'B',
+  canCancel: true,
+  cancelBlockedReason: null,
   stops: [],
 };
 describe('OrderReview hides the internal UUID', () => {

@@ -17,6 +17,7 @@ import { TransportOrdersService } from '../src/transport-orders/transport-orders
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
 import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
 import { driver, vehicle, customer, warehouse } from '../src/database/schema/reference.js';
+import { manifest } from '../src/database/schema/manifest.js';
 import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
@@ -181,6 +182,24 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
       }, op1);
       const result = await svc.listAssigned(op2);
       expect(result.rows).toEqual([]);
+    });
+  });
+  it('sets canCancel=false + photos_received on a row whose order has a received manifest', async () => {
+    await withTxIsolation(testDb, async (tx) => {
+      const svc = new TransportOrdersService(tx as never);
+      const op = createOperatorContext();
+      const { operatorId, vehicleId } = await seedActivePair(tx, op);
+      const created = await svc.create({
+        stops: [{ sequence: 1, stopType: 'pickup' }],
+        roadRun: { assignedOperatorId: operatorId, assignedAssetId: vehicleId },
+      }, op);
+      const tn = { companyId: op.companyId, businessUnitId: op.businessUnitId, depotId: op.depotId, legalEntityId: op.legalEntityId };
+      await tx.insert(manifest).values({ ...tn, transportOrderId: created.transportOrderId, manifestCorrelationId: randomUUID(), state: 'committed' });
+      const result = await svc.listAssigned(op);
+      expect(result.rows).toHaveLength(1);
+      const row = result.rows[0];
+      expect(row?.canCancel).toBe(false);
+      expect(row?.cancelBlockedReason).toBe('photos_received');
     });
   });
 });

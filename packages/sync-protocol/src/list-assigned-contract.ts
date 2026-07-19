@@ -47,6 +47,15 @@ export const ListAssignedRowSchema = z.object({
   pickupName: z.union([z.string(), z.null()]),
   deliveryName: z.union([z.string(), z.null()]),
   stops: z.array(ListAssignedRowStopSchema).readonly(),
+  // Server-computed cancel affordance (HATEOAS-style: the response carries the
+  // information needed to know whether the cancel transition is available, so
+  // the client NEVER re-derives the rule). canCancel=false with a non-null
+  // cancelBlockedReason code (e.g. photos_received) means the order can no
+  // longer be cancelled. Robustness principle: parser is liberal (defaults so
+  // rows from endpoints that do not compute these still parse), producers are
+  // conservative (the dispatcher-review path sends the real computed values).
+  canCancel: z.boolean().default(true),
+  cancelBlockedReason: z.union([z.string(), z.null()]).default(null),
 });
 export type ListAssignedRow = z.infer<typeof ListAssignedRowSchema>;
 
