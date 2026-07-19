@@ -1,29 +1,23 @@
 // apps/api/test/completion-on-manifest-committed.integration.test.ts
 // RED-first (edge-triggered completion arc, terminal 29): the batch
-// reconciler repairCompleteDeliveredRuns heals stranded runs after the
-// fact (level-triggered backstop). This test pins the DURABLE root fix:
-// completion must fire the INSTANT the final manifest commits, via the
-// server-side finalizeIntake path -- no client complete-intent window, no
-// periodic sweep needed. 2026 process-manager pattern (Event-Driven.io /
-// saga): re-evaluate completion on the downstream manifest.committed event
-// rather than a one-time client trigger, so late-committing photos self-heal.
-//
-// Discriminating seed: a started run, order with 2 stops, only 1 manifest
-// committed (NOT yet delivered -> stays started). Commit the 2nd manifest
-// through the REAL ManifestService.finalizeIntake. The run MUST become
-// completed with a road_run.completed feed row appended in the SAME tx.
-// A run still missing a photo after a commit MUST stay started (gate parity).
-// Fails at import until completeRunIfDelivered lands + finalizeIntake calls it.
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { eq, and } from "drizzle-orm";
-import { ManifestService } from "../src/manifest/manifest.service.js";
-import { vehicle } from "../src/database/schema/reference.js";
-import { roadRun, transportOrder, roadRunTransportOrder, stop } from "../src/database/schema/transport.js";
-import { manifest, uploadSession } from "../src/database/schema/manifest.js";
-import { syncChangeFeed } from "../src/database/schema/index.js";
+// reconciler repairCompleteDeliveredRuns heals stranded runs after the fact
+// (level-triggered backstop). This test pins the DURABLE root fix: completion
+// must fire the INSTANT the final manifest commits, via the server-side
+// finalizeIntake path -- no client complete-intent window, no periodic sweep.
+// 2026 process-manager pattern (Event-Driven.io / saga): re-evaluate
+// completion on the downstream manifest.committed event rather than a
+// one-time client trigger, so late-committing photos self-heal.
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { eq, and } from 'drizzle-orm';
+import { ManifestService } from '../src/manifest/manifest.service.js';
+import { completeRunIfDelivered } from '../src/maintenance/repair-complete-delivered-runs.js';
+import { vehicle } from '../src/database/schema/reference.js';
+import { roadRun, transportOrder, roadRunTransportOrder, stop } from '../src/database/schema/transport.js';
+import { manifest, uploadSession } from '../src/database/schema/manifest.js';
+import { syncChangeFeed } from '../src/database/schema/index.js';
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
 import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
-import { createOperatorContext } from "@fleet/test-fixtures";
+import { createOperatorContext } from '@fleet/test-fixtures';
 
 let testDb: PgliteTestDb;
 
@@ -36,18 +30,15 @@ function tenancy(op: ReturnType<typeof createOperatorContext>): {
   };
 }
 
-// A blob store fake: finalizeIntake never touches S3 (that is the worker),
-// so an empty object satisfies the constructor dependency.
 const blobsFake = {} as never;
 const configFake = { getOrThrow: () => 3600 } as never;
 
 interface SeededStop { readonly stopId: string; readonly manifestId: string; readonly uploadSessionId: string; }
 interface Seeded { readonly roadRunId: string; readonly transportOrderId: string; readonly stops: readonly SeededStop[]; }
 
-// Seed a started run with an order carrying `stopCount` stops. For the first
-// `committedCount` stops the manifest is already committed; the rest are left
-// in `verifying` WITH an upload_session in `verifying`, ready for a real
-// finalizeIntake commit to drive them to committed.
+// Seed a started run whose order has stopCount stops; the first committedCount
+// manifests are committed, the rest left verifying WITH a verifying upload
+// session, ready for a real finalizeIntake commit to drive them to committed.
 async function seedRun(
   tx: TestTx,
   op: ReturnType<typeof createOperatorContext>,
@@ -103,7 +94,6 @@ describe("@fleet/api - completion fires on manifest.committed (edge-triggered)",
       const op = createOperatorContext();
       const seeded = await seedRun(tx, op, "00000000-0000-0000-0000-000000031001", 2, 1);
       const svc = new ManifestService(tx as never, blobsFake, configFake);
-      // Commit the last still-verifying manifest (the delivery stop).
       const last = seeded.stops[seeded.stops.length - 1];
       if (!last) throw new Error("no last stop");
       await svc.finalizeIntake({ uploadSessionId: last.uploadSessionId, accepted: true }, op);
@@ -127,7 +117,6 @@ describe("@fleet/api - completion fires on manifest.committed (edge-triggered)",
   it("committing a manifest when photos are STILL missing leaves the run started (gate parity)", async () => {
     const result = await withTxIsolation(testDb, async (tx) => {
       const op = createOperatorContext();
-      // 3 stops, 1 committed; commit ONE more -> 2 of 3 -> still not delivered.
       const seeded = await seedRun(tx, op, "00000000-0000-0000-0000-000000031002", 3, 1);
       const svc = new ManifestService(tx as never, blobsFake, configFake);
       const mid = seeded.stops[1];
@@ -138,5 +127,51 @@ describe("@fleet/api - completion fires on manifest.committed (edge-triggered)",
       return { state: after?.state };
     });
     expect(result?.state).toBe("started");
+  });
+
+  it("completeRunIfDelivered returns completed:false roadRunId:null when the order has no linked run", async () => {
+    const result = await withTxIsolation(testDb, async (tx) => {
+      const op = createOperatorContext();
+      const tn = tenancy(op);
+      const [o] = await tx.insert(transportOrder).values({ ...tn, state: "draft" }).returning();
+      if (!o) throw new Error("order seed failed");
+      return completeRunIfDelivered(tx as never, op, o.transportOrderId);
+    });
+    expect(result?.completed).toBe(false);
+    expect(result?.roadRunId).toBeNull();
+  });
+
+  it("completeRunIfDelivered is a no-op when a delivered run is already terminal (guarded flip moves 0 rows)", async () => {
+    const result = await withTxIsolation(testDb, async (tx) => {
+      const op = createOperatorContext();
+      const tn = tenancy(op);
+      const [v] = await tx.insert(vehicle).values({ ...tn, plate: "CO-DONE-01", active: true }).returning();
+      if (!v) throw new Error("vehicle seed failed");
+      const [rr] = await tx.insert(roadRun).values({
+        ...tn, state: "completed",
+        assignedOperatorId: "00000000-0000-0000-0000-000000031003", assignedAssetId: v.vehicleId,
+        startedAt: new Date(), completedAt: new Date(),
+      }).returning();
+      const [o] = await tx.insert(transportOrder).values({ ...tn, state: "draft" }).returning();
+      if (!rr || !o) throw new Error("run/order seed failed");
+      await tx.insert(roadRunTransportOrder).values({
+        ...tn, roadRunId: rr.roadRunId, transportOrderId: o.transportOrderId, sequence: 1,
+      });
+      for (let i = 0; i < 2; i += 1) {
+        const [st] = await tx.insert(stop).values({
+          ...tn, transportOrderId: o.transportOrderId, sequence: i + 1,
+          stopType: i === 0 ? "pickup" : "delivery",
+        }).returning();
+        if (!st) throw new Error("stop seed failed");
+        await tx.insert(manifest).values({
+          ...tn, transportOrderId: o.transportOrderId, stopId: st.stopId,
+          manifestCorrelationId: crypto.randomUUID(),
+          state: "committed", committedAt: new Date(),
+        });
+      }
+      return completeRunIfDelivered(tx as never, op, o.transportOrderId);
+    });
+    expect(result?.completed).toBe(false);
+    expect(result?.roadRunId).not.toBeNull();
   });
 });
