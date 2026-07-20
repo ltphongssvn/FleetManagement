@@ -36,6 +36,10 @@ export interface DataTableProps<TRow> {
   readonly enableSelection?: boolean;
   readonly onSelectionChange?: (rows: readonly TRow[]) => void;
   readonly rowAttrs?: (row: TRow) => DataTableRowAttrs;
+  // Arbitrary per-table callbacks/data forwarded to useReactTable meta and
+  // read in cells via ctx.table.options.meta -- the TanStack-endorsed way to
+  // hand row-action handlers to column cells (docs: Table/Column Meta).
+  readonly meta?: unknown;
 }
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -49,6 +53,7 @@ export function DataTable<TRow>({
   enableSelection = false,
   onSelectionChange,
   rowAttrs,
+  meta,
 }: DataTableProps<TRow>): JSX.Element {
   const [globalFilter, setGlobalFilter] = useState('');
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -61,6 +66,7 @@ export function DataTable<TRow>({
     onRowSelectionChange: setRowSelection,
     enableRowSelection: enableSelection,
     globalFilterFn: 'includesString',
+    meta: meta as never,
     initialState: { pagination: { pageIndex: 0, pageSize } },
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
