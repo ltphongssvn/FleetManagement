@@ -98,7 +98,12 @@ export {
   type RolloutAllocation,
 } from './delivery/rollout-allocation.js';
 export { bucketFor, isTenantExposed } from './delivery/rollout-bucket.js';
-export { decideRollout, type BreachHistory } from './delivery/rollout-analysis.js';
+export {
+  decideRollout,
+  DEFAULT_INCONCLUSIVE_LIMIT,
+  type BreachHistory,
+  type InconclusiveHistory,
+} from './delivery/rollout-analysis.js';
 export {
   startRollout,
   advanceRollout,

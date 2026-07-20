@@ -11,9 +11,16 @@
 // verdict, calls advanceRollout to get the next state, then actually shifts
 // traffic and persists the state.
 //
-// promote: step to the next rung; at the last rung the rollout is complete.
-// hold:    stay on the current rung, unchanged.
-// rollback: go to the terminal rolled_back phase; exposure returns to zero.
+// promote:      step to the next rung; at the last rung the rollout is complete.
+// hold:         stay on the current rung, unchanged.
+// inconclusive: also stay on the current rung. The decision to roll back on an
+//               exhausted inconclusive budget is made INSIDE decideRollout, which
+//               returns rollback in that case; a plain inconclusive verdict means
+//               the round could not be judged but the budget is not spent, so the
+//               controller waits exactly as it does on hold. It never climbs on
+//               inconclusive -- raising exposure on evidence you could not read
+//               is the opposite of progressive delivery.
+// rollback:     go to the terminal rolled_back phase; exposure returns to zero.
 //
 // The controller owns the breach tally the analysis engine delegates: a promote
 // or a completed rollout clears it, a hold carries it forward incremented for the
@@ -30,7 +37,7 @@ const LADDER = DEFAULT_ROLLOUT_LADDER;
 
 function exposureOf(state: RolloutState): number {
   const stage = LADDER[state.stageIndex];
-  if (stage === undefined) throw new Error("stage index out of ladder");
+  if (stage === undefined) throw new Error('stage index out of ladder');
   return stage.exposurePercent;
 }
 
@@ -88,6 +95,28 @@ describe('advanceRollout: hold stays put', () => {
     s = advanceRollout(s, 'hold', LADDER);
     s = advanceRollout(s, 'hold', LADDER);
     expect(exposureOf(s)).toBe(1);
+  });
+});
+
+describe('advanceRollout: inconclusive stays put, like hold', () => {
+  it('keeps the same rung and phase on inconclusive', () => {
+    const start = advanceRollout(startRollout(), 'promote', LADDER);
+    const held = advanceRollout(start, 'inconclusive', LADDER);
+    expect(held.stageIndex).toBe(start.stageIndex);
+    expect(held.phase).toBe('running');
+  });
+
+  it('never climbs the ladder on inconclusive', () => {
+    let s = advanceRollout(startRollout(), 'promote', LADDER);
+    s = advanceRollout(s, 'inconclusive', LADDER);
+    s = advanceRollout(s, 'inconclusive', LADDER);
+    expect(exposureOf(s)).toBe(1);
+  });
+
+  it('does not roll back on a plain inconclusive verdict', () => {
+    const start = advanceRollout(startRollout(), 'promote', LADDER);
+    const next = advanceRollout(start, 'inconclusive', LADDER);
+    expect(next.phase).toBe('running');
   });
 });
 
