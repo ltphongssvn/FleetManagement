@@ -21,6 +21,9 @@ export const VN_ERROR_MESSAGES: Readonly<Record<FleetErrorCode, string>> = {
   NOT_FOUND: 'Không tìm thấy dữ liệu. Vui lòng tải lại danh sách.',
   INVALID_STATE_TRANSITION: 'Không thể hoàn thành chuyến. Vui lòng kiểm tra trạng thái đơn.',
   MANIFESTS_INCOMPLETE: 'Chưa thể hoàn thành chuyến: chưa chụp đủ ảnh phiếu cân. Vui lòng chụp đủ ảnh tại các điểm lấy và giao hàng.',
+  DEVICE_NOT_REGISTERED: 'Thiết bị chưa được đăng ký. Vui lòng đăng ký thiết bị trước khi sử dụng.',
+  DEVICE_PENDING_APPROVAL: 'Thiết bị đang chờ được phê duyệt. Vui lòng liên hệ điều phối để kích hoạt.',
+  DEVICE_REVOKED: 'Thiết bị đã bị thu hồi quyền truy cập. Vui lòng liên hệ điều phối.',
   INTERNAL: 'Hệ thống đang gặp sự cố. Vui lòng thử lại sau.',
 };
 
