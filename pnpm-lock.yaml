@@ -151,6 +151,9 @@ importers:
       '@fleet/sync-protocol':
         specifier: workspace:*
         version: link:../../packages/sync-protocol
+      '@levischuck/tiny-cbor':
+        specifier: 0.2.11
+        version: 0.2.11
       '@nestjs/common':
         specifier: ^11.1.19
         version: 11.1.19(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -196,6 +199,15 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: ^1.40.0
         version: 1.40.0
+      '@peculiar/asn1-android':
+        specifier: 2.7.0
+        version: 2.7.0
+      '@peculiar/asn1-schema':
+        specifier: 2.7.0
+        version: 2.7.0
+      '@peculiar/x509':
+        specifier: 1.14.3
+        version: 1.14.3
       '@sentry/nestjs':
         specifier: ^10.51.0
         version: 10.51.0(@nestjs/common@11.1.19(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.19)(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))
@@ -305,6 +317,9 @@ importers:
 
   apps/driver-app:
     dependencies:
+      '@expo/app-integrity':
+        specifier: ^57.0.0
+        version: 57.0.0(expo@55.0.26)(react-native@0.83.6(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))
       '@expo/metro-runtime':
         specifier: ^55.0.11
         version: 55.0.11(@expo/dom-webview@55.0.6)(expo@55.0.26)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
@@ -1921,6 +1936,12 @@ packages:
 
   '@expo-google-fonts/material-symbols@0.4.38':
     resolution: {integrity: sha512-IJkBtN1o8u9BW5fvSii1MyHPQ7Q0HxbWcVBvOrOzgMLpVtZw7R2w94wBTVR7kZwv3w1JNTESMmLA5Sqn1+Z36A==}
+
+  '@expo/app-integrity@57.0.0':
+    resolution: {integrity: sha512-UmD8vF7z50AO5gQFq7Wp5mlmHubvewcTV7P9PKQ6F1KVh6D0QRnE74baumtqij4YbBqdKVJGzFO/DMJESD5UiA==}
+    peerDependencies:
+      expo: '*'
+      react-native: '*'
 
   '@expo/cli@55.0.32':
     resolution: {integrity: sha512-fq+/yUYBVw5ZudT4igNyJ3WaF17R39iS7EZlrkfHkLI7Y1kmUlivabwKviLoAfepJOKjKODKpViti9EPfmG3SQ==}
@@ -11579,6 +11600,11 @@ snapshots:
       levn: 0.4.1
 
   '@expo-google-fonts/material-symbols@0.4.38': {}
+
+  '@expo/app-integrity@57.0.0(expo@55.0.26)(react-native@0.83.6(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))':
+    dependencies:
+      expo: 55.0.26(@babel/core@7.29.7)(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.11)(expo-router@55.0.16)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
+      react-native: 0.83.6(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0)
 
   '@expo/cli@55.0.32(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.11)(expo-constants@55.0.16)(expo-font@55.0.8)(expo-router@55.0.16)(expo@55.0.26)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)':
     dependencies:

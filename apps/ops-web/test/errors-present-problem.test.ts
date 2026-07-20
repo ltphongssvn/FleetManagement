@@ -42,6 +42,7 @@ describe('ops-web vnApiErrorMessage', () => {
   it('keys the copy Record by the strict contract union', () => {
     const keys = Object.keys(VN_OPS_ERROR_MESSAGES).sort();
     expect(keys).toEqual([
+      'DEVICE_NOT_REGISTERED', 'DEVICE_PENDING_APPROVAL', 'DEVICE_REVOKED',
       'FORBIDDEN', 'INTERNAL', 'INVALID_STATE_TRANSITION',
       'MANIFESTS_INCOMPLETE', 'NOT_FOUND', 'UNAUTHORIZED', 'VALIDATION_FAILED',
     ]);

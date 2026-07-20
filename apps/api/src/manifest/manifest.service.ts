@@ -14,6 +14,7 @@ import { manifest, uploadSession } from '../database/schema/manifest.js';
 import { outbox } from '../database/schema/append-paths.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { appendTriWrite } from '../database/append-tri-write.js';
+import { completeRunIfDelivered } from '../maintenance/repair-complete-delivered-runs.js';
 import { stop, transportOrder } from '../database/schema/transport.js';
 import { BLOB_STORE, type IBlobStore } from '../storage/storage-provider.interface.js';
 import type { Env } from '../config/env.config.js';
@@ -258,6 +259,21 @@ export class ManifestService {
       if (input.accepted) {
         await this.emitManifestCommittedEvent(tx, session.manifestId, input.uploadSessionId, op);
         await this.emitManifestExtractionRequestedEvent(tx, session, op);
+        // Edge-triggered completion (terminal-29 arc): a committed manifest may
+        // be the LAST photo a run was waiting on. Re-evaluate the run now, in
+        // this same tx, so completion fires the instant delivery is complete --
+        // even when the photo commits long after the client complete-intent
+        // window (the async-intake-lag strand). Reuses the completion predicate
+        // SSOT (runIsDelivered); the batch reconciler stays the periodic backstop.
+        const committedManifest = await tx
+          .select({ transportOrderId: manifest.transportOrderId })
+          .from(manifest)
+          .where(eq(manifest.manifestId, session.manifestId))
+          .limit(1);
+        const orderId = committedManifest[0]?.transportOrderId;
+        if (orderId !== undefined) {
+          await completeRunIfDelivered(tx as never, op, orderId);
+        }
       } else {
         await this.emitManifestRejectedEvent(tx, session.manifestId, input.uploadSessionId, input.rejectionReasonCode, op);
       }

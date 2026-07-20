@@ -258,7 +258,7 @@
 ,
     "__ci_fast__": {
       "description": "PR gate orchestration node — lint + typecheck + test:unit + codemod drift gate. Double-underscore prevents package-script collision. Expose via root package.json script 'ci:fast' for friendly CLI. CI workflow should matrix-split (ADR-001).",
-      "dependsOn": ["lint", "typecheck", "test:unit", "//#codemod:check"],
+      "dependsOn": ["lint", "typecheck", "test:unit", "//#codemod:check", "//#test:scripts"],
       "cache": false
     },
     "__ci_full__": {
@@ -278,6 +278,10 @@
     },
     "//#codemod:check": {
       "description": "Root-level task: run the @fleet/codemods drift gate (extract-parse-one-number --check) across the worker tsconfig spanned with @fleet/domain source. Prefix '//#' ensures repo-root-only (it spans packages, so it is not a per-package task). Fails when source still has an un-migrated parseOneNumber outside @fleet/domain. Wired into __ci_fast__ so PRs fail on drift. cache:false — it is a fast in-memory AST pass with no cacheable output.",
+      "cache": false
+    },
+    "//#test:scripts": {
+      "description": "Root-level task: run the vitest suite that covers the repo-level tooling in scripts/ (sync-worktrees, sync-develop, close-worktree, worktree-close-cli, compose-identity, db-generate, railway-reference-guard, the e2e stack drivers, the ci-minutes reconciler). Prefix //# ensures repo-root-only: these scripts belong to no workspace package (2026 Turborepo guidance is package-tasks-first; this is the carve-out for genuinely repo-spanning tooling), so a per-package task would find nothing. Runs the committed root script 'test:scripts' (vitest run scripts) verbatim -- it is NOT a second runner. Wired into __ci_fast__ so a regression in the worktree-deletion logic (which removes branches) fails the PR gate instead of merging green; before this the suite passed but the gate never executed it. cache:false -- a pass/fail check with no cacheable output, matching codemod:check.",
       "cache": false
     },
     "//#audit:ci-minutes": {
