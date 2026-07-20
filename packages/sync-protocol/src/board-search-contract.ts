@@ -30,6 +30,7 @@ import {
 export const BOARD_SEARCH_PREDICATES = [
   'orderRefs',
   'customer',
+  'cargoName',
   'driverName',
   'vehiclePlate',
   'plannedStartAt',
@@ -98,6 +99,12 @@ export const BOARD_SEARCH_COLUMNS: readonly BoardSearchColumn[] = [
       'searchable from facetable: enums are filtered, not free-text matched.',
   },
   { id: 'customer', labels: ['Khách hàng'], kind: 'searchable', predicate: 'customer' },
+  // Tên hàng (cargo-type name) is a STORED string resolved via transport_order
+  // -> cargo_type.name (see the export service join), ILIKE-able exactly like
+  // customer.name, so it is searchable — not derived (it is stored) and not a
+  // facet (it is free text, not a finite enum). Added atomically with the
+  // Tên hàng export column so the contract stays exhaustive.
+  { id: 'cargoName', labels: ['Tên hàng'], kind: 'searchable', predicate: 'cargoName' },
   { id: 'driverName', labels: ['Tài xế'], kind: 'searchable', predicate: 'driverName' },
   { id: 'vehiclePlate', labels: ['Xe'], kind: 'searchable', predicate: 'vehiclePlate' },
   { id: 'plannedStartAt', labels: ['Ngày dự kiến'], kind: 'searchable', predicate: 'plannedStartAt' },
