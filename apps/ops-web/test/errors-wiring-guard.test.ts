@@ -33,7 +33,10 @@ const BOUNDARIES = ['app/error.tsx', 'app/global-error.tsx'] as const;
 // ALREADY-PRESENTED server Vietnamese (e.g. the da-ton-tai 409 copy) and the
 // page must surface that message verbatim -- routing it through the
 // presenter would swallow intentional copy (conflict-consistency test).
-const ADMIN_PAGES = ['app/admin/drivers/page.tsx'] as const;
+// The driver CRUD surface was extracted into the shared DriversAdminSection
+// (both the thin /admin/drivers shell and the Co so du lieu page render it), so
+// the presenter wiring lives there now -- assert the guard on the section.
+const ADMIN_PAGES = ['features/admin/DriversAdminSection.tsx'] as const;
 
 describe('ops-web error wiring guard', () => {
   it.each([...ACTIONS])('%s routes !res.ok through vnApiErrorMessage on a read body', (file) => {
