@@ -177,4 +177,94 @@ describe('@fleet/api - scheduled completion reconciler heals edge-bypassed stran
     expect(result?.after).toBe('started');
     expect(result?.repaired).toBe(0);
   });
+
+  it('reconcileOnce finds no stranded tenants when nothing is fully delivered (empty-path branches)', async () => {
+    const result = await withTxIsolation(testDb, async (tx) => {
+      const op = createOperatorContext();
+      const tn = tenancy(op);
+      const [v] = await tx.insert(vehicle).values({ ...tn, plate: 'CO-NONE-01', active: true }).returning();
+      if (!v) throw new Error('vehicle seed failed');
+      const [rr] = await tx.insert(roadRun).values({
+        ...tn, state: 'started',
+        assignedOperatorId: op.operatorId, assignedAssetId: v.vehicleId, startedAt: new Date(),
+      }).returning();
+      const [o] = await tx.insert(transportOrder).values({ ...tn, state: 'draft' }).returning();
+      if (!rr || !o) throw new Error('run/order seed failed');
+      await tx.insert(roadRunTransportOrder).values({
+        ...tn, roadRunId: rr.roadRunId, transportOrderId: o.transportOrderId, sequence: 1,
+      });
+      // Two stops, only ONE committed manifest -> NOT fully delivered -> the
+      // tenant is not stranded, so findStrandedTenants returns empty and
+      // reconcileOnce never calls repairTenant. Exercises both empty branches.
+      for (let i = 0; i < 2; i += 1) {
+        const [st] = await tx.insert(stop).values({
+          ...tn, transportOrderId: o.transportOrderId, sequence: i + 1,
+          stopType: i === 0 ? 'pickup' : 'delivery',
+        }).returning();
+        if (!st) throw new Error('stop seed failed');
+        if (i === 0) {
+          await tx.insert(manifest).values({
+            ...tn, transportOrderId: o.transportOrderId, stopId: st.stopId,
+            manifestCorrelationId: crypto.randomUUID(),
+            state: 'committed', committedAt: new Date(),
+          });
+        }
+      }
+      const repo = new DrizzleCompletionReconcileRepo(tx as never);
+      const svc = new CompletionReconcilerService(repo, 0, 50);
+      const outcome = await svc.reconcileOnce();
+      return { after: await runState(tx, rr.roadRunId), outcome };
+    });
+    expect(result?.after).toBe('started');
+    expect(result?.outcome.tenants).toBe(0);
+    expect(result?.outcome.repaired).toBe(0);
+  });
+
+  it('findStrandedTenants respects the batch limit: with 2 stranded tenants and batchSize 1, only one is repaired (limit break)', async () => {
+    const result = await withTxIsolation(testDb, async (tx) => {
+      const opA = createOperatorContext();
+      const opB = createOperatorContext();
+      const runA = await seedStrandedDeliveredRun(tx, opA, 'CO-LIM-A', 2);
+      const runB = await seedStrandedDeliveredRun(tx, opB, 'CO-LIM-B', 2);
+      const repo = new DrizzleCompletionReconcileRepo(tx as never);
+      const svc = new CompletionReconcilerService(repo, 0, 1);
+      const outcome = await svc.reconcileOnce();
+      const healed = [await runState(tx, runA), await runState(tx, runB)]
+        .filter((st) => st === 'completed').length;
+      return { tenants: outcome.tenants, repaired: outcome.repaired, healed };
+    });
+    expect(result?.tenants).toBe(1);
+    expect(result?.repaired).toBe(1);
+    expect(result?.healed).toBe(1);
+  });
+
+  it('repairTenant returns 0 when a directly-targeted tenant has no delivered runs (TOCTOU empty guard)', async () => {
+    const result = await withTxIsolation(testDb, async (tx) => {
+      const op = createOperatorContext();
+      const tn = tenancy(op);
+      const [v] = await tx.insert(vehicle).values({ ...tn, plate: 'CO-TOCTOU-01', active: true }).returning();
+      if (!v) throw new Error('vehicle seed failed');
+      const [rr] = await tx.insert(roadRun).values({
+        ...tn, state: 'started',
+        assignedOperatorId: op.operatorId, assignedAssetId: v.vehicleId, startedAt: new Date(),
+      }).returning();
+      const [o] = await tx.insert(transportOrder).values({ ...tn, state: 'draft' }).returning();
+      if (!rr || !o) throw new Error('run/order seed failed');
+      await tx.insert(roadRunTransportOrder).values({
+        ...tn, roadRunId: rr.roadRunId, transportOrderId: o.transportOrderId, sequence: 1,
+      });
+      // One delivery stop, NO committed manifest -> not delivered. Calling
+      // repairTenant directly reaches the in-tx findDeliveredIncompleteRuns
+      // empty result and the ids.length === 0 guard (return 0).
+      const [st] = await tx.insert(stop).values({
+        ...tn, transportOrderId: o.transportOrderId, sequence: 1, stopType: 'delivery',
+      }).returning();
+      if (!st) throw new Error('stop seed failed');
+      const repo = new DrizzleCompletionReconcileRepo(tx as never);
+      const repaired = await repo.repairTenant(op.companyId, '00000000-0000-0000-0000-0000000000bb', 50);
+      return { repaired, after: await runState(tx, rr.roadRunId) };
+    });
+    expect(result?.repaired).toBe(0);
+    expect(result?.after).toBe('started');
+  });
 });
