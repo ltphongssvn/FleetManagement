@@ -97,6 +97,20 @@ export const EnvSchema = z.object({
   // sets this false to disable the seed path. Boolean-coerced like the
   // OTEL_ENABLED / INTAKE_RECONCILE_ENABLED flags.
   FLEET_PILOT_SEED_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  // Device attestation (arc: feature/device-binding). Server-side deployment
+  // constants for hardware attestation verification. The two CSV lists are the
+  // accepted app identities (an app can ship under more than one id across
+  // build profiles); ATTESTATION_APPLE_TEAM_ID feeds the iOS App Attest
+  // rpIdHash check SHA256(teamId.bundleId). CSV envs -> trimmed string arrays.
+  ATTESTATION_ANDROID_PACKAGE_NAMES: z
+    .string()
+    .default('')
+    .transform((v) => v.split(',').map((x) => x.trim()).filter((x) => x.length > 0)),
+  ATTESTATION_IOS_BUNDLE_IDS: z
+    .string()
+    .default('')
+    .transform((v) => v.split(',').map((x) => x.trim()).filter((x) => x.length > 0)),
+  ATTESTATION_APPLE_TEAM_ID: z.string().min(1).default('0000000000'),
 });
 export type Env = z.infer<typeof EnvSchema>;
 // Rebuild-CLI-scoped validator (follow-up #5). Derives from the SAME EnvSchema
@@ -116,16 +130,15 @@ export function validateRebuildEnv(raw: Record<string, unknown>): RebuildEnv {
   const result = RebuildEnvSchema.safeParse(raw);
   if (!result.success) {
     const paths = result.error.issues.map((i) => i.path.join('.')).join(', ');
-    throw new Error(`Invalid rebuild environment at: ${paths}`);
+    throw new Error('Invalid rebuild environment at: ' + paths);
   }
   return result.data;
 }
-
 export function validateEnv(raw: Record<string, unknown>): Env {
   const result = EnvSchema.safeParse(raw);
   if (!result.success) {
     const paths = result.error.issues.map((i) => i.path.join('.')).join(', ');
-    throw new Error(`Invalid environment at: ${paths}`);
+    throw new Error('Invalid environment at: ' + paths);
   }
   return result.data;
 }

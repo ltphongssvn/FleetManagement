@@ -5,18 +5,13 @@
 // Rendering goes through the shared DataTable (TanStack v8) for visual
 // consistency with the Tai xe & xe table: bordered/searchable/paginated, with
 // columns Ten (+ So dien thoai for customers) + Thao tac (Sua SDT / Xoa).
+// CRUD (add / inline rename / soft-delete / 409-conflict / refetch) is
+// unchanged; delete routes through client.remove -> server soft-delete
+// (active=false), retained for the Delete Item audit view, behind a confirm.
 //
-// 409 conflict: the rejected row is highlighted and scrolled into view via the
-// DataTable rowAttrs seam -- the mark lands on the <tr> (row identity), not a
-// cell span, so the whole row reads as rejected.
-//
-// SESSION seam (T11 idle-timeout): an idle-expired 401 (refresh impossible via
-// the BFF) hands the browser to the silent-refresh route instead of painting a
-// dead-end banner; everything else keeps the friendly copy the client already
-// composed (detail > legacy > status-class Vietnamese). This shared module was
-// lifted from a snapshot predating the T11 arc, so the fail() seam must thread
-// through every write handler or the extraction silently regresses the fix
-// across all five sections and both pages that render them.
+// 409 conflict: the rejected row is highlighted and scrolled into view via
+// the DataTable rowAttrs seam -- the mark lands on the <tr> (row identity),
+// not on a cell span, so the whole row reads as rejected.
 //
 // Selectors are semantic (getByRole cell/columnheader/button, data-testid) so
 // they survive markup changes (2026 resilient-selector standard).
@@ -56,10 +51,28 @@ function rowPhone(row: ReferenceOption): string {
   const p = row.meta?.['phone'];
   return typeof p === 'string' ? p : '';
 }
+function quote(s: string): string {
+  return String.fromCharCode(34) + s + String.fromCharCode(34);
+}
 function getErrorMessage(e: unknown, fallback: string): string {
   if (e instanceof Error) return e.message;
   if (typeof e === 'string') return e;
   return fallback;
+}
+// One error seam per section: an idle-expired 401 hands the browser to the
+// silent-refresh route instead of painting a dead-end banner; everything else
+// keeps the friendly Vietnamese copy the client already composed. Ported from
+// the pre-extraction page so the DataTable refactor does not regress the T11
+// idle-timeout fix across all five sections and both host pages.
+function useFail(setError: (m: string) => void) {
+  return (e: unknown, fallback: string): boolean => {
+    if (isSessionExpired(e)) {
+      navigateToSessionRefresh();
+      return true;
+    }
+    setError(getErrorMessage(e, fallback));
+    return false;
+  };
 }
 export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
   const client = new ReferenceAdminClient(def.segment);
@@ -73,16 +86,7 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPhone, setEditPhone] = useState('');
-  // One error seam per section: idle-expired 401 -> silent-refresh navigation;
-  // everything else keeps the client-composed Vietnamese copy.
-  const fail = (e: unknown, fallback: string): boolean => {
-    if (isSessionExpired(e)) {
-      navigateToSessionRefresh();
-      return true;
-    }
-    setError(getErrorMessage(e, fallback));
-    return false;
-  };
+  const fail = useFail(setError);
   const refresh = async (preserveError = false): Promise<void> => {
     setLoading(true);
     try {
@@ -119,7 +123,7 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
     }
   };
   const del = async (id: string, label: string): Promise<void> => {
-    if (!window.confirm('Xóa ' + String.fromCharCode(34) + label + String.fromCharCode(34) + '?')) return;
+    if (!window.confirm('Xóa ' + quote(label) + '?')) return;
     setBusy(true);
     try {
       await client.remove(id);
