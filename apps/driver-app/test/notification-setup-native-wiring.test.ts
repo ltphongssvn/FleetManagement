@@ -111,6 +111,30 @@ describe('@fleet/driver-app - notification-setup native adapter contract', () =>
     expect(s.includes('getExpoPushTokenAsync'), 'the adapter must fetch the Expo token the policy hands to decidePushRegistration').toBe(true);
   });
 
+  it('registers the live tap listener via addNotificationResponseReceivedListener', () => {
+    const s = src(ADAPTER);
+    expect(s.includes('addNotificationResponseReceivedListener'), 'the fg/bg tap path must use the expo response listener').toBe(true);
+  });
+
+  it('drains the cold-start tap via the SYNC getLastNotificationResponse (SDK 55)', () => {
+    const s = src(ADAPTER);
+    expect(s.includes('getLastNotificationResponse()'), 'a killed-app launch-by-tap is missed by the listener; the initial response must be drained. SDK 55 exposes the SYNC getLastNotificationResponse; the deprecated *Async is banned by no-deprecated').toBe(true);
+    expect(s.includes('getLastNotificationResponseAsync'), 'the deprecated Async variant must not be used').toBe(false);
+  });
+
+  it('routes BOTH tap paths through the pure decideDriverAlertNavigation policy', () => {
+    const s = src(ADAPTER);
+    expect(s.includes('decideDriverAlertNavigation('), 'the untrusted payload must go through the pure fail-safe policy, never parsed inline in the adapter').toBe(true);
+    const handleCount = (s.match(/handleNotificationResponse/g) ?? []).length;
+    expect(handleCount, 'both the listener and the drain must funnel through the single handleNotificationResponse mapper (defn + 2 call sites)').toBeGreaterThanOrEqual(3);
+  });
+
+  it('types the tap subscription as the non-deprecated EventSubscription', () => {
+    const s = src(ADAPTER);
+    expect(s.includes('EventSubscription'), 'SDK 55 deprecates the Subscription type; the subscription must be typed EventSubscription (no-deprecated)').toBe(true);
+    expect(s.includes('Notifications.Subscription'), 'the deprecated Subscription type must not be used').toBe(false);
+  });
+
   it('is coverage-excluded like the other native adapters', () => {
     const cfg = src('vitest.config.ts');
     expect(cfg.includes(ADAPTER), 'native modules cannot be unit tested; the perFile 90 gate would fail on unreachable code').toBe(true);

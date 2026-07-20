@@ -32,6 +32,7 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import {
   buildTransportAlertChannelConfig,
+  decideDriverAlertNavigation,
   runNotificationSetup,
   type NotificationPlatformPort,
   type NotificationSetupResult,
@@ -152,4 +153,45 @@ export async function registerTransportAlertChannel(): Promise<void> {
 export async function setUpDriverAlerts(): Promise<NotificationSetupResult> {
   installForegroundHandler();
   return runNotificationSetup(createNotificationPlatformPort());
+}
+
+/** The one impure edge: perform the navigation. The root layout injects
+ *  router.push; tests never reach here (this module is coverage-excluded). */
+export type NavigateFn = (href: string) => void;
+
+/** Map a single notification response to a navigation. Extracts the data
+ *  payload, routes it through the PURE fail-safe policy, and navigates only
+ *  on a navigate decision (fallback still yields the safe assignments href).
+ *  Shared by BOTH the live listener and the cold-start drain so tap handling
+ *  is defined in exactly one place. */
+export function handleNotificationResponse(
+  response: Notifications.NotificationResponse | null,
+  navigate: NavigateFn,
+): void {
+  if (response === null) return;
+  const data: unknown = response.notification.request.content.data;
+  const decision = decideDriverAlertNavigation(data);
+  navigate(decision.href);
+}
+
+/** Register the tap listener for while the app is running (foreground/
+ *  background). Returns the EventSubscription so the caller removes it on
+ *  cleanup. MUST be registered BEFORE draining the initial response: Expo
+ *  only reliably returns the last response once a response listener exists
+ *  (expo/expo#36930, #37511). Does NOT catch a cold-start tap on its own. */
+export function subscribeNotificationTaps(navigate: NavigateFn): Notifications.EventSubscription {
+  return Notifications.addNotificationResponseReceivedListener((response) => {
+    handleNotificationResponse(response, navigate);
+  });
+}
+
+/** Cold-start path: when the app is KILLED and launched BY tapping the alert,
+ *  the listener never fires (Expo 2026 docs). getLastNotificationResponse is
+ *  SYNCHRONOUS in SDK 55, so the initial response is available immediately on
+ *  mount -- no await, and no isMounted guard is needed because there is no
+ *  async gap in which an unmount could race a late navigation. Call this AFTER
+ *  subscribeNotificationTaps so the native last-response is primed. */
+export function drainInitialNotificationResponse(navigate: NavigateFn): void {
+  const response = Notifications.getLastNotificationResponse();
+  handleNotificationResponse(response, navigate);
 }
