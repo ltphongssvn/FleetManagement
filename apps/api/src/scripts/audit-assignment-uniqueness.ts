@@ -12,25 +12,20 @@
 //   pnpm exec turbo run audit:assignment-uniqueness --filter=@fleet/api
 //   pnpm exec turbo run audit:assignment-uniqueness --filter=@fleet/api -- --introspect
 import { NestFactory } from '@nestjs/core';
-import { z } from 'zod';
 import { sql } from 'drizzle-orm';
 import { ProjectionRebuildModule } from '../projections/projection-rebuild.module.js';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { auditAssignmentUniqueness } from '../admin/assignment-uniqueness-audit.js';
+import { resolveCliScope } from './resolve-cli-scope.js';
+import { formatDbError } from './format-db-error.js';
 
-const ScopeSchema = z.uuid();
 
-function resolveScope(argv: readonly string[]): string {
-  const flagIdx = argv.indexOf('--scope');
-  const raw = flagIdx >= 0 ? argv[flagIdx + 1] : process.env['FLEET_PILOT_SCOPE'];
-  return ScopeSchema.parse(raw);
-}
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const introspect = argv.includes('--introspect');
-  const scope = resolveScope(argv);
+  const scope = resolveCliScope(argv, process.env);
   const app = await NestFactory.createApplicationContext(ProjectionRebuildModule, {
     logger: ['error', 'warn', 'log'],
   });
@@ -67,6 +62,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  process.stderr.write('audit-assignment-uniqueness failed: ' + (err instanceof Error ? err.message : String(err)) + '\n');
+  process.stderr.write('audit-assignment-uniqueness failed: ' + formatDbError(err) + '\n');
   process.exitCode = 1;
 });
