@@ -4,6 +4,11 @@
 // 'Sửa SĐT' control that reveals an inline 'Số điện thoại' field + 'Lưu' which
 // calls client.update(id, name, phone). ReferenceAdminClient is mocked.
 // RED first: no phone input, no phone render, no Sửa SĐT control yet.
+// MARKUP CONTRACT MIGRATED (Co so du lieu arc): sections render through the
+// shared DataTable, so a row is a <tr> of <td> cells, not a <ul><li>. The
+// BEHAVIOUR asserted here is unchanged -- only the row locator moves from
+// closest(li) to closest(tr) / getByRole(cell). Semantic role queries are
+// preferred over tag queries so the next markup change costs nothing.
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react';
 const listMock = vi.fn();
@@ -48,15 +53,15 @@ describe('ReferenceAdminPage Khách hàng Số điện thoại (L1)', () => {
     const sec = customerSection();
     expect(within(sec).getByText('0901234567')).toBeTruthy();
   });
-  it('row label contract: first li span is the name only, not name+phone (specs read it)', async () => {
+  it('row label contract: the name cell is the name only, not name+phone (specs read it)', async () => {
     render(<ReferenceAdminPage />);
     await screen.findAllByText('Acme');
     const sec = customerSection();
-    const li = within(sec).getByText('Acme').closest('li');
-    if (li === null) throw new Error('no row');
-    const firstSpan = li.querySelector('span');
-    if (firstSpan === null) throw new Error('no span in row');
-    expect(firstSpan.textContent).toBe('Acme');
+    const nameCell = within(sec).getByRole('cell', { name: 'Acme' });
+    expect(nameCell.textContent).toBe('Acme');
+    const row = nameCell.closest('tr');
+    if (row === null) throw new Error('no row');
+    expect(within(row).getByText('0901234567')).toBeTruthy();
   });
   it('create() is called with name + phone from the add form', async () => {
     render(<ReferenceAdminPage />);
@@ -76,10 +81,10 @@ describe('ReferenceAdminPage Khách hàng Số điện thoại (L1)', () => {
     await screen.findAllByText('Acme');
     const sec = customerSection();
     const editBtn = within(sec).getByRole('button', { name: 'Sửa SĐT' });
-    const li = editBtn.closest('li');
-    if (li === null) throw new Error('no row ancestor');
+    const row = editBtn.closest('tr');
+    if (row === null) throw new Error('no row ancestor');
     fireEvent.click(editBtn);
-    const editField = within(li).getByLabelText('Số điện thoại');
+    const editField = within(row).getByLabelText('Số điện thoại');
     fireEvent.change(editField, { target: { value: '0906666666' } });
     fireEvent.click(within(sec).getByRole('button', { name: 'Lưu' }));
     await waitFor(() => {

@@ -15,7 +15,7 @@ const OP: OperatorContext = {
   legalEntityId: '00000000-0000-0000-0000-000000000004',
 };
 
-type MarkFn = (input: { deviceId: string; platform: 'android' | 'ios'; tokenHashHex: string }) => Promise<void>;
+type MarkFn = (input: { deviceId: string; platform: 'android' | 'ios'; tokenHashHex: string; publicKeySpkiBase64: string; securityLevel: string | null; environment: string; keyId: string | null }) => Promise<void>;
 type IssueFn = (op: string) => Promise<string>;
 type ConsumeFn = (op: string) => Promise<string | null>;
 function makeRepo(): { markAttestationVerified: ReturnType<typeof vi.fn<MarkFn>> } {
@@ -50,7 +50,7 @@ describe('AttestationController', () => {
   });
 
   it('POST /device/attest/verify accepts ok outcome, persists attestation, returns verified', async () => {
-    const svc = { verify: vi.fn().mockResolvedValue({ kind: 'ok' } as AttestationOutcome) } as unknown as AttestationService;
+    const svc = { verify: vi.fn().mockResolvedValue({ kind: 'ok', publicKeySpkiBase64: 'c3BraQ==', securityLevel: 'trusted-environment', environment: 'production', keyId: null }) } as unknown as AttestationService;
     const nonceStore = makeNonceStore();
     await nonceStore.issue(OP.operatorId);
     const repo = makeRepo();
@@ -61,6 +61,10 @@ describe('AttestationController', () => {
       deviceId: '00000000-0000-0000-0000-0000000000d1',
       platform: 'android',
       tokenHashHex: expect.stringMatching(/^[0-9a-f]{64}$/),
+      publicKeySpkiBase64: 'c3BraQ==',
+      securityLevel: 'trusted-environment',
+      environment: 'production',
+      keyId: null,
     });
   });
 
@@ -93,7 +97,7 @@ describe('AttestationController', () => {
   });
 
   it('passes expectedNonce from store and token from body into svc.verify', async () => {
-    const svc = { verify: vi.fn().mockResolvedValue({ kind: 'ok' }) } as unknown as AttestationService;
+    const svc = { verify: vi.fn().mockResolvedValue({ kind: 'ok', publicKeySpkiBase64: 'aW9z', securityLevel: null, environment: 'production', keyId: 'a2V5' }) } as unknown as AttestationService;
     const nonceStore = makeNonceStore();
     await nonceStore.issue(OP.operatorId);
     const repo = makeRepo();

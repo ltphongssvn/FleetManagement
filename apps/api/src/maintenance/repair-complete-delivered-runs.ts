@@ -33,6 +33,9 @@ import { manifest } from "../database/schema/manifest.js";
 import { allocateServerSeq } from "../database/server-seq.repository.js";
 import { appendTriWrite } from "../database/append-tri-write.js";
 import type { FleetDb } from "../database/database.module.js";
+// Transaction handle type, identical to appendTriWrite TxLike: this module
+// edge-completes inside the caller-owned finalizeIntake tx.
+type TxLike = Parameters<Parameters<FleetDb['transaction']>[0]>[0];
 import type { OperatorContext } from "../auth/operator-context.js";
 
 export interface DeliveredRunRow {
@@ -107,6 +110,67 @@ export async function findDeliveredIncompleteRuns(
     }
   }
   return delivered;
+}
+
+// Edge-triggered completion (terminal-29 arc): re-evaluate ONE run the
+// instant a manifest commits, rather than waiting for the periodic batch
+// reconciler. Called from ManifestService.finalizeIntake inside the commit
+// transaction: when the last stop photo commits (however late relative to
+// the client complete-intent window), the run is driven started->completed
+// through the SAME guarded flip + appendTriWrite(road_run.completed) as the
+// batch path, reusing runIsDelivered so the completion predicate stays a
+// single authority. Idempotent + guarded: only a still-non-terminal, fully-
+// delivered run moves; a concurrent legitimate completion is a no-op. This
+// is the durable root fix (2026 process-manager pattern); the batch
+// reconciler remains the level-triggered backstop.
+export async function completeRunIfDelivered(
+  tx: TxLike,
+  op: OperatorContext,
+  transportOrderId: string,
+): Promise<{ readonly completed: boolean; readonly roadRunId: string | null }> {
+  const linkRows = await tx
+    .select({ roadRunId: roadRunTransportOrder.roadRunId })
+    .from(roadRunTransportOrder)
+    .where(and(
+      eq(roadRunTransportOrder.transportOrderId, transportOrderId),
+      eq(roadRunTransportOrder.companyId, op.companyId),
+    ));
+  const runId = linkRows[0]?.roadRunId;
+  if (runId === undefined) return { completed: false, roadRunId: null };
+  if (!(await runIsDelivered(tx as never, op.companyId, runId))) {
+    return { completed: false, roadRunId: runId };
+  }
+  const now = new Date();
+  const moved = await tx
+    .update(roadRun)
+    .set({ state: "completed", completedAt: now })
+    .where(and(
+      eq(roadRun.roadRunId, runId),
+      eq(roadRun.companyId, op.companyId),
+      inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
+    ))
+    .returning({ roadRunId: roadRun.roadRunId });
+  if (moved.length === 0) return { completed: false, roadRunId: runId };
+  const serverSeq = await allocateServerSeq(tx);
+  await appendTriWrite(tx, {
+    serverSeq,
+    actionId: randomUUID(),
+    aggregateType: "road_run",
+    aggregateId: runId,
+    delta: { state: "completed" },
+    eventType: "road_run.completed",
+    auditPayload: { roadRunId: runId, trigger: "manifest-committed-edge" },
+    operatorId: op.operatorId,
+    queueName: OUTBOX_QUEUES.PROJECTIONS,
+    outboxPayload: {
+      aggregateType: "road_run",
+      eventType: "road_run.completed",
+      roadRunId: runId,
+      trigger: "manifest-committed-edge",
+    },
+    op,
+  });
+  return { completed: true, roadRunId: runId };
 }
 
 export async function repairCompleteDeliveredRuns(

@@ -8,7 +8,7 @@
 // opt-in row selection (enableSelection -> leading checkbox column;
 // onSelectionChange reports the selected ORIGINAL rows). Vietnamese strings
 // (Tim kiem / Truoc / Sau / Khong co du lieu) are immutable UI contracts.
-import { useEffect, useState, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX } from 'react';
 import {
   flexRender,
   getCoreRowModel,
@@ -19,6 +19,14 @@ import {
   type RowSelectionState,
 } from '@tanstack/react-table';
 
+// Per-row DOM seam. TanStack v8 is headless and owns no DOM, so row-level
+// concerns (marking a row, scrolling it into view) belong to the CALLER:
+// the table stays generic and reference/driver semantics never leak in.
+export interface DataTableRowAttrs {
+  readonly testId?: string;
+  readonly className?: string;
+  readonly scrollIntoView?: boolean;
+}
 export interface DataTableProps<TRow> {
   readonly columns: ColumnDef<TRow>[];
   readonly data: readonly TRow[];
@@ -27,6 +35,7 @@ export interface DataTableProps<TRow> {
   readonly pageSize?: number;
   readonly enableSelection?: boolean;
   readonly onSelectionChange?: (rows: readonly TRow[]) => void;
+  readonly rowAttrs?: (row: TRow) => DataTableRowAttrs;
 }
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -39,9 +48,11 @@ export function DataTable<TRow>({
   pageSize = DEFAULT_PAGE_SIZE,
   enableSelection = false,
   onSelectionChange,
+  rowAttrs,
 }: DataTableProps<TRow>): JSX.Element {
   const [globalFilter, setGlobalFilter] = useState('');
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const table = useReactTable({
     data: data as TRow[],
     columns,
@@ -64,11 +75,23 @@ export function DataTable<TRow>({
   }, [rowSelection, onSelectionChange, table]);
 
   const rows = table.getRowModel().rows;
+  // Which row (if any) asked to be scrolled to. Derived during render so the
+  // effect below is keyed on the row IDENTITY: it fires once when the target
+  // changes, never on every unrelated re-render (the inline-ref-callback trap:
+  // React detaches/reattaches a fresh arrow each render).
+  const scrollRowId = rows.find((r) => rowAttrs?.(r.original).scrollIntoView === true)?.id ?? null;
+  useEffect(() => {
+    if (scrollRowId === null) return;
+    const el = containerRef.current?.querySelector('[data-scroll-into-view=true]');
+    if (el instanceof HTMLElement && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [scrollRowId]);
   const showPagination = table.getPageCount() > 1;
   const colCount = table.getAllLeafColumns().length + (enableSelection ? 1 : 0);
 
   return (
-    <div className='space-y-3'>
+    <div className='space-y-3' ref={containerRef}>
       <input
         type='text'
         data-testid='datatable-search'
@@ -107,8 +130,15 @@ export function DataTable<TRow>({
             ))}
           </thead>
           <tbody className='divide-y divide-slate-100 bg-white'>
-            {rows.map((row) => (
-              <tr key={row.id} className='hover:bg-slate-50'>
+            {rows.map((row) => {
+              const attrs = rowAttrs?.(row.original) ?? {};
+              return (
+              <tr
+                key={row.id}
+                data-testid={attrs.testId}
+                data-scroll-into-view={attrs.scrollIntoView === true ? 'true' : undefined}
+                className={attrs.className === undefined ? 'hover:bg-slate-50' : 'hover:bg-slate-50 ' + attrs.className}
+              >
                 {enableSelection ? (
                   <td className='w-10 px-3 py-2'>
                     <input
@@ -125,7 +155,8 @@ export function DataTable<TRow>({
                   </td>
                 ))}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
         {rows.length === 0 ? (
