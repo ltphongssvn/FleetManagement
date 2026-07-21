@@ -169,6 +169,13 @@
       "persistent": false,
       "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
     },
+    "inspect:review-parse": {
+      "description": "Read-only diagnostic: reproduce the dispatcher-review producer (findByCompanyIdOrRef) for --ref and run its output through ListAssignedRowSchema.safeParse to reveal whether the review-page parse throws and on which path. Isolates the review-page crash. MUTATES NOTHING. Live DB read: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run inspect:review-parse --filter=@fleet/api -- --ref XTT.07-043.",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
     "repair:complete-delivered-runs": {
       "description": "Event-sourced completion reconciler: drive every non-terminal road_run whose linked transport_orders are ALL fully photo-committed (committed manifests >= stop count, the same predicate the live completion gate enforces) to completed by appending road_run.completed through appendTriWrite, letting the projection runner heal dispatch_board. Heals runs stranded when intake lagged or the old departedAt-proxy made completion unreachable. DRY-RUN by default; pass -- --execute to mutate. Live DB mutation: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run repair:complete-delivered-runs --filter=@fleet/api [-- --execute].",
       "dependsOn": ["build"],
