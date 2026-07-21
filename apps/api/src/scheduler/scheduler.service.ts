@@ -17,12 +17,14 @@ import type { BreakGlassLoginMonitorService } from '../security/break-glass-logi
 import type { IntakeLagMonitorService } from '../manifest/intake-lag-monitor.service.js';
 import type { IntakeReconcilerService } from '../manifest/intake-reconciler.service.js';
 import type { AlertLagMonitorService } from '../manifest/alert-lag-monitor.service.js';
+import type { CompletionReconcilerService } from '../manifest/completion-reconciler.service.js';
 import type { Env } from '../config/env.config.js';
 
 export const BREAKGLASS_MONITOR = 'BREAKGLASS_MONITOR' as const;
 export const INTAKE_LAG_MONITOR = 'INTAKE_LAG_MONITOR' as const;
 export const INTAKE_RECONCILER = 'INTAKE_RECONCILER' as const;
 export const ALERT_LAG_MONITOR = 'ALERT_LAG_MONITOR' as const;
+export const COMPLETION_RECONCILER = 'COMPLETION_RECONCILER' as const;
 
 const DRAIN_INTERVAL_MS = 5_000;
 const RECONCILE_INTERVAL_MS = 2_000;
@@ -35,7 +37,12 @@ const INTAKE_RECONCILE_INTERVAL_MS = 300_000;
 // monitor threshold, or any dead-lettered alert, pages within one window.
 const ALERT_LAG_INTERVAL_MS = 300_000;
 
-type SchedulerKind = 'outbox' | 'projection' | 'reconciler' | 'breakglass' | 'intakeLag' | 'intakeReconcile' | 'alertLag';
+type SchedulerKind = 'outbox' | 'projection' | 'reconciler' | 'breakglass' | 'intakeLag' | 'intakeReconcile' | 'completionReconcile' | 'alertLag';
+// Completion reconciler tick: same 5-min cadence. A frequent, cheap
+// level-triggered sweep that heals any delivered run the edge-trigger
+// missed, across all tenants, within one interval.
+const COMPLETION_RECONCILE_INTERVAL_MS = 300_000;
+
 
 @Injectable()
 export class SchedulerService implements OnModuleInit, OnModuleDestroy {
@@ -48,6 +55,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   private intakeLagTimer: NodeJS.Timeout | null = null;
   private intakeReconcileTimer: NodeJS.Timeout | null = null;
   private alertLagTimer: NodeJS.Timeout | null = null;
+  private completionReconcileTimer: NodeJS.Timeout | null = null;
   private stopped = false;
   constructor(
     private readonly outboxRelay: OutboxRelayService,
@@ -64,6 +72,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     @Inject(INTAKE_RECONCILER)
     private readonly intakeReconciler: IntakeReconcilerService | null = null,
     @Optional()
+    @Inject(COMPLETION_RECONCILER)
+    private readonly completionReconciler: CompletionReconcilerService | null = null,
+    @Optional()
     @Inject(ALERT_LAG_MONITOR)
     private readonly alertLagMonitor: AlertLagMonitorService | null = null,
   ) {
@@ -77,6 +88,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     if (this.intakeLagMonitor !== null) this.scheduleNext('intakeLag');
     if (this.intakeReconciler !== null) this.scheduleNext('intakeReconcile');
     if (this.alertLagMonitor !== null) this.scheduleNext('alertLag');
+    if (this.completionReconciler !== null) this.scheduleNext('completionReconcile');
   }
   onModuleDestroy(): void {
     if (this.outboxTimer !== null) {
@@ -107,6 +119,10 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       clearTimeout(this.alertLagTimer);
       this.alertLagTimer = null;
     }
+    if (this.completionReconcileTimer !== null) {
+      clearTimeout(this.completionReconcileTimer);
+      this.completionReconcileTimer = null;
+    }
     this.stopped = true;
   }
 
@@ -135,6 +151,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       case 'alertLag':
         this.alertLagTimer = setTimeout(tick, ALERT_LAG_INTERVAL_MS);
         return;
+      case 'completionReconcile':
+        this.completionReconcileTimer = setTimeout(tick, COMPLETION_RECONCILE_INTERVAL_MS);
+        return;
       default: {
         const _exhaustive: never = kind;
         throw new Error(`unknown scheduler kind: ${String(_exhaustive)}`);
@@ -151,6 +170,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       case 'intakeLag': return 'intake-lag-check';
       case 'intakeReconcile': return 'intake-reconcile';
       case 'alertLag': return 'driver-alert-lag-check';
+      case 'completionReconcile': return 'completion-reconcile';
       default: {
         const _exhaustive: never = kind;
         throw new Error(`unknown scheduler kind: ${String(_exhaustive)}`);
@@ -166,6 +186,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       case 'intakeLag': return 'Intake-lag check failed: ';
       case 'intakeReconcile': return 'Intake reconcile failed: ';
       case 'alertLag': return 'Driver-alert-lag check failed: ';
+      case 'completionReconcile': return 'Completion reconcile failed: ';
       default: {
         const _exhaustive: never = kind;
         throw new Error(`unknown scheduler kind: ${String(_exhaustive)}`);
@@ -194,6 +215,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
         return;
       case 'alertLag':
         if (this.alertLagMonitor !== null) await this.alertLagMonitor.checkOnce();
+        return;
+      case 'completionReconcile':
+        if (this.completionReconciler !== null) await this.completionReconciler.reconcileOnce();
         return;
       default: {
         const _exhaustive: never = kind;
@@ -230,4 +254,5 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   async drainIntakeLag(): Promise<void> { await this.runDrain('intakeLag'); }
   async drainIntakeReconcile(): Promise<void> { await this.runDrain('intakeReconcile'); }
   async drainAlertLag(): Promise<void> { await this.runDrain('alertLag'); }
+  async drainCompletionReconcile(): Promise<void> { await this.runDrain('completionReconcile'); }
 }

@@ -29,10 +29,11 @@ const proj = (): ProjectionRunnerService => ({ drainOnce: vi.fn().mockResolvedVa
 const gw = (): CommandsGateway => ({ reconcileNow: vi.fn().mockReturnValue([]) } as unknown as CommandsGateway);
 
 // Constructor arg order: outbox, proj, cfg, gw, breakGlass, intakeLag,
-// intakeReconcile, alertLag. All monitor slots after gw are optional; we pass
-// null for the three we are not exercising and the alert monitor 8th.
+// intakeReconcile, completionReconcile, alertLag. All monitor slots after gw
+// are optional; we pass null for the four we are not exercising and the alert
+// monitor 9th (completion reconciler occupies the 8th slot on develop).
 function makeSvc(monitor: AlertLagMonitorService | null): SchedulerService {
-  return new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, null, null, monitor);
+  return new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, null, null, null, monitor);
 }
 
 describe('@fleet/api - SchedulerService alert-lag tick', () => {
