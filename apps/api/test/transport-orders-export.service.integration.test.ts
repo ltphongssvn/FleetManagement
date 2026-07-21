@@ -55,16 +55,27 @@ async function seedOrderGraph(opts: {
   deliveryWarehouseName: string;
   pickupArrived: string | null;
   deliveryArrived: string | null;
+  cargoName?: string | null;
 }): Promise<void> {
   const co = OP.companyId;
   const customerId = '00000000-0000-4000-8000-00000000c001';
   const pickupYardId = '00000000-0000-4000-8000-00000000a001';
   const deliveryYardId = '00000000-0000-4000-8000-00000000a002';
   const toId = opts.transportOrderId;
+  const cargoTypeId = '00000000-0000-4000-8000-00000000ca01';
+  const hasCargo = opts.cargoName !== undefined && opts.cargoName !== null;
   const phoneVal = opts.customerPhone === null ? 'NULL' : q(opts.customerPhone);
   const operatorId = '00000000-0000-4000-8000-0000000d0001'.replace('d','b');
   const assetId = '00000000-0000-4000-8000-0000000e0001'.replace('e','c');
-  const stmts = [
+  const stmts: string[] = [];
+  if (opts.cargoName !== undefined && opts.cargoName !== null) {
+    const cargoName = opts.cargoName;
+    stmts.push(
+      'INSERT INTO cargo_type (cargo_type_id, company_id, business_unit_id, depot_id, legal_entity_id, name) VALUES (' +
+        q(cargoTypeId) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(cargoName) + ')',
+    );
+  }
+  stmts.push(
     'INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, assigned_operator_id, assigned_asset_id, planned_start_at) VALUES (' +
       q(opts.roadRunId) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q('planned') + ',' + q(operatorId) + ',' + q(assetId) + ',' + q('2026-05-24T08:00:00Z') + ')',
     'INSERT INTO customer (customer_id, company_id, business_unit_id, depot_id, legal_entity_id, name, phone) VALUES (' +
@@ -73,11 +84,11 @@ async function seedOrderGraph(opts: {
       q(pickupYardId) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(opts.pickupWarehouseName) + ',' + q('pickup') + ')',
     'INSERT INTO warehouse (warehouse_id, company_id, business_unit_id, depot_id, legal_entity_id, name, role) VALUES (' +
       q(deliveryYardId) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(opts.deliveryWarehouseName) + ',' + q('delivery') + ')',
-    'INSERT INTO transport_order (transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, external_ref, state, customer_id) VALUES (' +
-      q(toId) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q('XT.GRAPH') + ',' + q('assigned') + ',' + q(customerId) + ')',
+    'INSERT INTO transport_order (transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, external_ref, state, customer_id, cargo_type_id) VALUES (' +
+      q(toId) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q('XT.GRAPH') + ',' + q('assigned') + ',' + q(customerId) + ',' + (hasCargo ? q(cargoTypeId) : 'NULL') + ')',
     'INSERT INTO road_run_transport_order (road_run_transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, road_run_id, transport_order_id, sequence) VALUES (' +
       q('00000000-0000-4000-8000-000000040001') + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(opts.roadRunId) + ',' + q(toId) + ',1)',
-  ];
+  );
   const pickupArr = opts.pickupArrived === null ? 'NULL' : q(opts.pickupArrived);
   const delivArr = opts.deliveryArrived === null ? 'NULL' : q(opts.deliveryArrived);
   stmts.push(
@@ -128,6 +139,7 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
       transportOrderId: '00000000-0000-4000-8000-000000070001',
       customerName: 'ĐA NĂNG',
       customerPhone: '0903998784',
+      cargoName: 'GẠO',
       pickupWarehouseName: 'Cần Thơ',
       deliveryWarehouseName: 'ĐA NĂNG',
       pickupArrived: '2026-05-24T10:00:00Z',
@@ -139,27 +151,29 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
     expect(headerOf(ws)).toEqual(EXPECTED_HEADERS);
     const data = rowValues(ws, 2);
-    // 0-based after slice(1): 0 Số lệnh, 1 Trạng thái, 2 Khách hàng, 3 Tài xế,
-    // 4 Xe, 5 Ngày dự kiến, 6 Số điểm, 7 = Chênh lệch; then pairs:
-    // 8 P1 name,9 P1 kg, 10 P2 name,11 P2 kg, 12 P3,13, 14 P4,15, 16 D1 name,17 D1 kg
+    // 0-based after slice(1): 0 Số lệnh, 1 Trạng thái, 2 Khách hàng, 3 Tên hàng,
+    // 4 Tài xế, 5 Xe, 6 Ngày dự kiến, 7 Số điểm, 8 = Chênh lệch; then pairs:
+    // 9 P1 name,10 P1 kg, 11 P2 name,12 P2 kg, 13 P3,14, 15 P4,16, 17 D1 name,18 D1 kg
     expect(String(data[0])).toBe('XT.GRAPH');
     // Trạng thái is blank for a non-cancelled (planned) order.
     expect(data[1] === null || data[1] === undefined).toBe(true);
     const kh = String(data[2]);
     expect(kh).toContain('ĐA NĂNG');
     expect(kh).toContain('0903998784');
+    // Tên hàng: the cargo-type name resolved via transport_order -> cargo_type.
+    expect(String(data[3])).toBe('GẠO');
     // pickup slot 1: warehouse name present; NO status text anywhere in the row
-    // Chênh lệch (col 7) is BLANK here: only the pickup is seeded with no weight,
+    // Chênh lệch (col 8) is BLANK here: only the pickup is seeded with no weight,
     // so the diff is incomplete -> true blank, never 0.
-    expect(data[7] === null || data[7] === undefined).toBe(true);
-    expect(String(data[8])).toBe('Cần Thơ');
+    expect(data[8] === null || data[8] === undefined).toBe(true);
+    expect(String(data[9])).toBe('Cần Thơ');
     // delivery slot 1: warehouse name present
-    expect(String(data[16])).toBe('ĐA NĂNG');
+    expect(String(data[17])).toBe('ĐA NĂNG');
     // no weights extracted yet -> kg cells are EMPTY (blank), never 0, never status
-    expect(data[9] === null || data[9] === undefined).toBe(true);
-    expect(data[17] === null || data[17] === undefined).toBe(true);
+    expect(data[10] === null || data[10] === undefined).toBe(true);
+    expect(data[18] === null || data[18] === undefined).toBe(true);
     // unused pickup slots 2-4: both name and kg cells EMPTY (no em-dash, no status)
-    for (const i of [10, 11, 12, 13, 14, 15]) {
+    for (const i of [11, 12, 13, 14, 15, 16]) {
       expect(data[i] === null || data[i] === undefined).toBe(true);
     }
     // explicit: the row contains NO legacy status strings anywhere
@@ -251,10 +265,10 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(r.buffer as unknown as ArrayBuffer);
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
-    // With Trạng thái inserted at col 2, the layout shifts by 1 more: col 8 =
-    // Chênh lệch; col 9 = P1 name, col 10 = P1 kg.
-    expect(ws.getRow(2).getCell(9).value).toBe('Cần Thơ');
-    const kgCell = ws.getRow(2).getCell(10).value;
+    // With Trạng thái at col 2 and Tên hàng at col 4, the layout shifts by 1
+    // more: col 9 = Chênh lệch; col 10 = P1 name, col 11 = P1 kg.
+    expect(ws.getRow(2).getCell(10).value).toBe('Cần Thơ');
+    const kgCell = ws.getRow(2).getCell(11).value;
     expect(typeof kgCell).toBe('number');
     expect(kgCell).toBe(7920);
   });
@@ -309,10 +323,11 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     const headers = headerOf(ws);
     expect(headers).toContain('Chênh lệch (Số giao - Số nhận)');
     const diffCol = headers.indexOf('Chênh lệch (Số giao - Số nhận)');
-    // Chênh lệch sits right after Số điểm; with Trạng thái inserted at index 1
-    // the identifying block is Số lệnh(0) Trạng thái(1) Khách hàng(2) Tài xế(3)
-    // Xe(4) Ngày dự kiến(5) Số điểm(6) Chênh lệch(7), before the stop pairs.
-    expect(diffCol).toBe(7);
+    // Chênh lệch sits right after Số điểm; with Trạng thái at index 1 and
+    // Tên hàng at index 3 the identifying block is Số lệnh(0) Trạng thái(1)
+    // Khách hàng(2) Tên hàng(3) Tài xế(4) Xe(5) Ngày dự kiến(6) Số điểm(7)
+    // Chênh lệch(8), before the stop pairs.
+    expect(diffCol).toBe(8);
     const cell = ws.getRow(2).getCell(diffCol + 1).value;
     expect(typeof cell).toBe('number');
     expect(cell).toBe(-2920);
