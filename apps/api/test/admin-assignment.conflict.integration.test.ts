@@ -45,8 +45,12 @@ describe('@fleet/api - AdminAssignmentService conflict (409)', () => {
     const v1 = await seedVehicle();
     const v2 = await seedVehicle();
     await svc().assign({ ...TENANCY, driverId, vehicleId: v1 });
-    await expect(svc().assign({ ...TENANCY, driverId, vehicleId: v2 }))
-      .rejects.toBeInstanceOf(ConflictException);
+    const err = await svc().assign({ ...TENANCY, driverId, vehicleId: v2 }).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(ConflictException);
+    expect((err as ConflictException).getResponse()).toMatchObject({ code: 'DRIVER_ALREADY_ASSIGNED' });
   });
 
   it('throws ConflictException when the same vehicle is assigned a second active driver', async () => {
@@ -54,8 +58,12 @@ describe('@fleet/api - AdminAssignmentService conflict (409)', () => {
     const d1 = await seedDriver();
     const d2 = await seedDriver();
     await svc().assign({ ...TENANCY, driverId: d1, vehicleId });
-    await expect(svc().assign({ ...TENANCY, driverId: d2, vehicleId }))
-      .rejects.toBeInstanceOf(ConflictException);
+    const err = await svc().assign({ ...TENANCY, driverId: d2, vehicleId }).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(ConflictException);
+    expect((err as ConflictException).getResponse()).toMatchObject({ code: 'VEHICLE_ALREADY_ASSIGNED' });
   }, 30_000);
 
   it('allows re-assigning the same driver after the prior assignment is revoked', async () => {
