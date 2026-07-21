@@ -33,6 +33,6 @@ describe('@fleet/api - export workbook fallbacks for empty refs and null planned
     const ws = wb.worksheets[0];
     if (!ws) throw new Error('no worksheet');
     expect(ws.getRow(2).getCell(1).value).toBe('—'); // empty refs -> DASH
-    expect(ws.getRow(2).getCell(6).value).toBe('—'); // null plannedStartAt -> DASH
+    expect(ws.getRow(2).getCell(7).value).toBe('—'); // null plannedStartAt -> DASH
   });
 });
