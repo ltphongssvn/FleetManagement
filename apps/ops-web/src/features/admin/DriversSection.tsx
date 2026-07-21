@@ -68,10 +68,13 @@ export function DriversSection({ client }: DriversSectionProps): JSX.Element {
   const canQuickAssign = dataClient.listVehicles !== undefined && dataClient.assign !== undefined;
   const openQuickAssign = useCallback(
     (driverId: string): void => {
+      /* v8 ignore next -- action only renders in the loaded state; defensive */
       if (state.kind !== 'loaded') return;
       const driver = state.rows.find((r) => r.driverId === driverId) ?? null;
+      /* v8 ignore next -- driverId comes from a rendered row; always found */
       if (driver === null) return;
       const listVehicles = dataClient.listVehicles;
+      /* v8 ignore next -- only wired when canQuickAssign (listVehicles set) */
       if (listVehicles === undefined) return;
       setModalDriver(driver);
       void listVehicles().then((vs) => { setVehicles(vs); });
@@ -85,6 +88,7 @@ export function DriversSection({ client }: DriversSectionProps): JSX.Element {
   const confirmAssign = useCallback(
     (vehicleId: string): void => {
       const assign = dataClient.assign;
+      /* v8 ignore next -- confirm fires only from an open, armed modal */
       if (modalDriver === null || assign === undefined) return;
       void assign({ driverId: modalDriver.driverId, vehicleId }).then(() => {
         closeModal();

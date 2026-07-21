@@ -36,6 +36,7 @@ export function QuickAssignModal({
   const [vehicleId, setVehicleId] = useState('');
   useEffect(() => {
     const el = dialogRef.current;
+    /* v8 ignore next -- ref is always set on a mounted <dialog>; defensive */
     if (el === null) return;
     if (open && typeof el.showModal === 'function' && !el.open) {
       el.showModal();
@@ -49,6 +50,7 @@ export function QuickAssignModal({
   const canAssign = parsed !== null && !noVehicles;
   const confirm = (): void => {
     const valid = parseQuickAssignInput({ vehicleId });
+    /* v8 ignore next -- confirm is disabled while parse is null; defensive re-check */
     if (valid === null) return;
     onAssign(valid.vehicleId);
   };

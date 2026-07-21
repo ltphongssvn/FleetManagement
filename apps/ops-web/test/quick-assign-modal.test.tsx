@@ -107,4 +107,40 @@ describe('QuickAssignModal (Phan cong nhanh)', () => {
     expect(screen.getByText(/Không có xe khả dụng/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Phân công' })).toBeDisabled();
   });
+  it('closes the native dialog when re-rendered with open=false (close branch)', () => {
+    const { rerender } = render(
+      <QuickAssignModal open driverName='A' vehicles={VEHICLES} onAssign={vi.fn()} onClose={vi.fn()} />,
+    );
+    const dialog = screen.getByTestId('quick-assign-dialog');
+    if (!(dialog instanceof HTMLDialogElement)) throw new Error('not a dialog');
+    expect(dialog.open).toBe(true);
+    rerender(
+      <QuickAssignModal open={false} driverName='A' vehicles={VEHICLES} onAssign={vi.fn()} onClose={vi.fn()} />,
+    );
+    expect(dialog.open).toBe(false);
+  });
+  it('calls onClose when the native dialog emits cancel (Esc)', () => {
+    const onClose = vi.fn();
+    render(
+      <QuickAssignModal open driverName='A' vehicles={VEHICLES} onAssign={vi.fn()} onClose={onClose} />,
+    );
+    const dialog = screen.getByTestId('quick-assign-dialog');
+    // <dialog> fires a native cancel event on Esc; RTL has no fireEvent.cancel
+    // helper, so dispatch the event through the generic fireEvent(node, event).
+    fireEvent(dialog, new Event('cancel', { cancelable: true, bubbles: false }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+  it('confirm guard: a selection cleared back to empty cannot assign', () => {
+    const onAssign = vi.fn();
+    render(
+      <QuickAssignModal open driverName='A' vehicles={VEHICLES} onAssign={onAssign} onClose={vi.fn()} />,
+    );
+    const select = screen.getByRole('combobox');
+    fireEvent.change(select, { target: { value: VEHICLE_B } });
+    fireEvent.change(select, { target: { value: '' } });
+    const confirm = screen.getByRole('button', { name: 'Phân công' });
+    expect(confirm).toBeDisabled();
+    fireEvent.click(confirm);
+    expect(onAssign).not.toHaveBeenCalled();
+  });
 });

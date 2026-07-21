@@ -93,4 +93,36 @@ describe('DriversSection quick-assign wiring', () => {
     render(<DriversSection client={client} />);
     expect(await screen.findByText('LE VAN CHAU')).toBeInTheDocument();
   });
+  it('falls back to makeDefaultClient and drives the full default wire path', async () => {
+    // No client prop -> makeDefaultClient() builds a real AdminDriversClient +
+    // ReferenceAdminClient(vehicles). Stub global fetch per endpoint so list,
+    // listVehicles AND assign all run -- exercising the factory arrow bodies
+    // (the production wiring every injected test skips). Open the modal (calls
+    // the listVehicles arrow) and confirm (calls the assign arrow).
+    const driverRow = row({ fullName: 'DEFAULT WIRE DRIVER' });
+    const fetchMock = vi.fn((url: string, init?: { method?: string }) => {
+      const method = init?.method ?? 'GET';
+      if (url === '/api/admin/drivers' && method === 'GET') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([driverRow]) });
+      }
+      if (url.startsWith('/api/reference/vehicles')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ items: VEHICLES }) });
+      }
+      if (url === '/api/admin/driver-vehicle-assignments' && method === 'POST') {
+        return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ assignmentId: 'a1' }) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) });
+    });
+    globalThis.fetch = fetchMock as never;
+    render(<DriversSection />);
+    await screen.findByText('DEFAULT WIRE DRIVER');
+    fireEvent.click(screen.getByRole('button', { name: 'Phân công nhanh' }));
+    await waitFor(() => { expect(screen.getByRole('option', { name: '62H 05194' })).toBeInTheDocument(); });
+    const dialog = screen.getByTestId('quick-assign-dialog');
+    fireEvent.change(within(dialog).getByRole('combobox'), { target: { value: VEHICLE } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Phân công' }));
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/admin/driver-vehicle-assignments', expect.objectContaining({ method: 'POST' }));
+    });
+  });
 });
