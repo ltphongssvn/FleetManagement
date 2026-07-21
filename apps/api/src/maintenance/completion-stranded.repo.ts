@@ -35,8 +35,12 @@ export class DrizzleCompletionStrandedRepo implements CompletionStrandedRepo {
       .orderBy(asc(roadRun.startedAt))
       .limit(1);
     // Optional-chain the row access (prefer-optional-chain); null startedAt or a
-    // missing row both mean no stranded run to report.
+    // missing row both mean no stranded run to report. Both guards are defensive:
+    // the ids came from findDeliveredIncompleteRuns querying the SAME db in the
+    // SAME call, so a row for one of them always exists, and a delivered run has
+    // by definition been started (startedAt non-null). Unreachable in practice.
     const startedAt = oldest?.startedAt ?? null;
+    /* v8 ignore next 2 -- defensive: oldest is always present (ids came from the same query) and a delivered run is always started */
     if (oldest === undefined || startedAt === null) return null;
     return {
       roadRunId: oldest.roadRunId,
