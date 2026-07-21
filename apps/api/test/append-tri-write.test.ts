@@ -12,7 +12,7 @@ let testDb: MigratedTestDb;
 const OP = createOperatorContext();
 
 describe('@fleet/api - appendTriWrite', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_atw'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_atw'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     await truncateAllTables(testDb.db);
@@ -45,7 +45,7 @@ describe('@fleet/api - appendTriWrite', () => {
         (SELECT COUNT(*)::text FROM outbox WHERE queue_name = 'erp') AS outbox
     `);
     expect(counts.rows[0]).toEqual({ feed: '1', audit: '1', outbox: '1' });
-  }, 30_000);
+  });
 
   it('returns duplicate=true and skips audit/outbox when idempotent and actionId exists', async () => {
     const aggregateId = randomUUID();

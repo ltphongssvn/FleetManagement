@@ -18,7 +18,7 @@ const TENANCY = {
   legalEntityId: '00000000-0000-0000-0000-000000000004',
 };
 describe('@fleet/api - AdminDriversListService', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_adminlist'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_adminlist'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     await truncateAllTables(testDb.db);
@@ -37,7 +37,7 @@ describe('@fleet/api - AdminDriversListService', () => {
     expect(rows[0]?.assignmentId).toBeNull();
     expect(rows[0]?.operatorId).toBeNull();
     expect(rows[0]?.devices).toEqual([]);
-  }, 30_000);
+  });
   it('lists a driver with an active assignment, vehicle, operatorId and a device', async () => {
     const operatorId = randomUUID();
     const [d] = await testDb.db.insert(driver)

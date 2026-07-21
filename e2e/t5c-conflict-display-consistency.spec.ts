@@ -10,6 +10,11 @@
 // Either way, the dispatcher never sees an inconsistent state.
 //
 // Critical user journey: always display items that already exist.
+//
+// MARKUP CONTRACT MIGRATED (Co so du lieu arc): sections render through the
+// shared DataTable, so a row is a <tr> of <td> cells, not a <ul><li>. The
+// invariant is unchanged; the locator moves to getByRole(cell), which is
+// semantic and survives the next markup change.
 import { test, expect, type Page } from '@playwright/test';
 import { loginAs } from './helpers/auth';
 
@@ -47,7 +52,7 @@ for (const c of CASES) {
     // listing -- either because the server reactivated it (success) or
     // because the server returned 409 and the UI highlighted the
     // already-active row. Either way the consistency invariant holds.
-    const rowSpan = section.locator('ul li span', { hasText: c.seedName });
-    await expect(rowSpan.first()).toBeVisible({ timeout: 10_000 });
+    const nameCell = section.getByRole('cell', { name: c.seedName, exact: true });
+    await expect(nameCell.first()).toBeVisible({ timeout: 10_000 });
   });
 }

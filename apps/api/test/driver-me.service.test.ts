@@ -18,7 +18,7 @@ const TENANCY = {
 };
 
 describe('@fleet/api - DriverMeService', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_driverme'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_driverme'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     await truncateAllTables(testDb.db);
@@ -72,5 +72,5 @@ describe('@fleet/api - DriverMeService', () => {
     const result = await svc().fetchMe({ operatorId, companyId: COMPANY });
     expect(result.driver.fullName).toBe('HAPPY');
     expect(result.assignedVehicle?.plate).toBe('HAP-001');
-  }, 30_000);
+  });
 });

@@ -88,6 +88,21 @@ export const EnvSchema = z.object({
   // is the safe production posture, mirroring INTAKE_RECONCILE_ENABLED).
   COMPLETION_MONITOR_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
   COMPLETION_STRANDED_ALERT_MINUTES: z.coerce.number().int().positive().default(30),
+  // Completion self-healing reconciler (2026 level-based recovery loop,
+  // sibling of the intake reconciler). Every tick it finds non-terminal
+  // road_runs whose linked orders are ALL photo-committed (the same
+  // runIsDelivered predicate the live gate + edge-trigger use) and drives
+  // them started->completed through the SAME guarded flip + appendTriWrite.
+  // Closes the structural gap where a manifest reaches committed WITHOUT
+  // firing the finalizeIntake edge-trigger (manual redrive, pre-deploy
+  // commit, edge-eval rollback): the run stranded in Dang chay with photos
+  // uploaded and nothing scheduled healed it. Idempotent guarded flip -> no
+  // MAX_ATTEMPTS/quarantine (unlike intake). ENABLED gates the tick; unset
+  // -> ON (self-healing is the safe production default). AFTER_MINUTES set
+  // low: a delivered run should complete within minutes, not stay running.
+  COMPLETION_RECONCILE_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  COMPLETION_RECONCILE_AFTER_MINUTES: z.coerce.number().int().positive().default(5),
+  COMPLETION_RECONCILE_BATCH_SIZE: z.coerce.number().int().positive().default(50),
   // Inbound webhook HMAC secrets (Factor III: declared at the validated
   // boundary, not read raw in the request path). Per-provider distinct
   // secrets -- never a shared WEBHOOK_SECRET (2026 practice). Optional +
@@ -107,6 +122,20 @@ export const EnvSchema = z.object({
   // sets this false to disable the seed path. Boolean-coerced like the
   // OTEL_ENABLED / INTAKE_RECONCILE_ENABLED flags.
   FLEET_PILOT_SEED_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  // Device attestation (arc: feature/device-binding). Server-side deployment
+  // constants for hardware attestation verification. The two CSV lists are the
+  // accepted app identities (an app can ship under more than one id across
+  // build profiles); ATTESTATION_APPLE_TEAM_ID feeds the iOS App Attest
+  // rpIdHash check SHA256(teamId.bundleId). CSV envs -> trimmed string arrays.
+  ATTESTATION_ANDROID_PACKAGE_NAMES: z
+    .string()
+    .default('')
+    .transform((v) => v.split(',').map((x) => x.trim()).filter((x) => x.length > 0)),
+  ATTESTATION_IOS_BUNDLE_IDS: z
+    .string()
+    .default('')
+    .transform((v) => v.split(',').map((x) => x.trim()).filter((x) => x.length > 0)),
+  ATTESTATION_APPLE_TEAM_ID: z.string().min(1).default('0000000000'),
 });
 export type Env = z.infer<typeof EnvSchema>;
 // Rebuild-CLI-scoped validator (follow-up #5). Derives from the SAME EnvSchema
@@ -126,16 +155,15 @@ export function validateRebuildEnv(raw: Record<string, unknown>): RebuildEnv {
   const result = RebuildEnvSchema.safeParse(raw);
   if (!result.success) {
     const paths = result.error.issues.map((i) => i.path.join('.')).join(', ');
-    throw new Error(`Invalid rebuild environment at: ${paths}`);
+    throw new Error('Invalid rebuild environment at: ' + paths);
   }
   return result.data;
 }
-
 export function validateEnv(raw: Record<string, unknown>): Env {
   const result = EnvSchema.safeParse(raw);
   if (!result.success) {
     const paths = result.error.issues.map((i) => i.path.join('.')).join(', ');
-    throw new Error(`Invalid environment at: ${paths}`);
+    throw new Error('Invalid environment at: ' + paths);
   }
   return result.data;
 }

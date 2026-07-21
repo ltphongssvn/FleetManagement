@@ -5,7 +5,7 @@
 // status + body verbatim so a 404/409 from the API stays a 404/409 on
 // the BFF. The Playwright L0 acceptance spec drives this route.
 import type { NextRequest, NextResponse } from 'next/server';
-import { forwardWrite } from '../../../reference/_forward';
+import { forwardWrite } from '@/app/api/_forward';
 interface Ctx { params: Promise<{ id: string }> }
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id } = await ctx.params;

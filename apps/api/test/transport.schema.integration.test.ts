@@ -30,7 +30,7 @@ async function seedTransportOrder(d: NodePgDatabase<typeof schema>): Promise<str
 describe('@fleet/api - transport schema (integration)', () => {
   beforeAll(async () => {
     testDb = await startMigratedTestDb('fleet_test');
-  }, 90_000);
+  });
 
   afterAll(async () => {
     await stopMigratedTestDb(testDb);

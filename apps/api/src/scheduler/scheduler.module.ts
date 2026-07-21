@@ -4,14 +4,16 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { OutboxModule } from '../outbox/outbox.module.js';
 import { ProjectionsModule } from '../projections/projections.module.js';
 import { CommandsModule } from '../commands/commands.module.js';
-import { SchedulerService, BREAKGLASS_MONITOR, INTAKE_LAG_MONITOR, INTAKE_RECONCILER, COMPLETION_RECONCILER_MONITOR } from './scheduler.service.js';
+import { SchedulerService, BREAKGLASS_MONITOR, INTAKE_LAG_MONITOR, INTAKE_RECONCILER, COMPLETION_RECONCILER, COMPLETION_RECONCILER_MONITOR } from './scheduler.service.js';
 import { KeycloakEventPollCursorService } from '../security/keycloak-event-poll-cursor.service.js';
 import { KeycloakEventsClient } from '../security/keycloak-events-client.js';
 import { BreakGlassLoginMonitorService } from '../security/break-glass-login-monitor.service.js';
 import { IntakeLagMonitorService } from '../manifest/intake-lag-monitor.service.js';
 import { DrizzleIntakeLagRepo } from '../manifest/intake-lag.repo.js';
 import { IntakeReconcilerService } from '../manifest/intake-reconciler.service.js';
+import { CompletionReconcilerService } from '../manifest/completion-reconciler.service.js';
 import { DrizzleIntakeReconcileRepo } from '../manifest/intake-reconcile.repo.js';
+import { DrizzleCompletionReconcileRepo } from '../manifest/completion-reconcile.repo.js';
 import { CompletionReconcilerMonitorService } from '../maintenance/completion-reconciler-monitor.service.js';
 import { DrizzleCompletionStrandedRepo, COMPLETION_STRANDED_PILOT_SCOPE } from '../maintenance/completion-stranded.repo.js';
 import type { Env } from '../config/env.config.js';
@@ -28,6 +30,7 @@ import type { Env } from '../config/env.config.js';
     KeycloakEventPollCursorService,
     DrizzleIntakeLagRepo,
     DrizzleIntakeReconcileRepo,
+    DrizzleCompletionReconcileRepo,
     {
       // The completion-stranded repo is company-scoped (the finder filters by
       // companyId); supply the pilot scope from config so the monitor reads the
@@ -68,6 +71,27 @@ import type { Env } from '../config/env.config.js';
           config.getOrThrow('INTAKE_RECONCILE_AFTER_MINUTES', { infer: true }),
           config.getOrThrow('INTAKE_RECONCILE_MAX_ATTEMPTS', { infer: true }),
           config.getOrThrow('INTAKE_RECONCILE_BATCH_SIZE', { infer: true }),
+        );
+      },
+    },
+    {
+      // Completion self-healing reconciler. ALWAYS provided but tick-gated:
+      // the factory returns null when COMPLETION_RECONCILE_ENABLED is false,
+      // so SchedulerService skips the tick (mirrors the intake reconciler).
+      // Enabled is the production default. Tenant-iterating: the service +
+      // repo discover stranded tenants from data and heal each under its own
+      // scope, so a single-scope treadmill can never reappear.
+      provide: COMPLETION_RECONCILER,
+      inject: [ConfigService, DrizzleCompletionReconcileRepo],
+      useFactory: (
+        config: ConfigService<Env, true>,
+        repo: DrizzleCompletionReconcileRepo,
+      ): CompletionReconcilerService | null => {
+        if (!config.getOrThrow('COMPLETION_RECONCILE_ENABLED', { infer: true })) return null;
+        return new CompletionReconcilerService(
+          repo,
+          config.getOrThrow('COMPLETION_RECONCILE_AFTER_MINUTES', { infer: true }),
+          config.getOrThrow('COMPLETION_RECONCILE_BATCH_SIZE', { infer: true }),
         );
       },
     },

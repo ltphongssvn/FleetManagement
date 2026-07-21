@@ -26,3 +26,7 @@ export {
   CancelReasonSchema,
   CANCEL_REASONS,
 } from './cancel-reason.js';
+export {
+  type CancelOrderInput,
+  CancelOrderInputSchema,
+} from './cancel-order-input.js';
