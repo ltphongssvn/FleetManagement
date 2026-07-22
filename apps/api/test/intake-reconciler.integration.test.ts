@@ -85,7 +85,7 @@ async function intakeOutboxBodies(): Promise<Record<string, unknown>[]> {
   return rows.map((r) => r.payload as Record<string, unknown>);
 }
 describe('@fleet/api - IntakeReconcilerService self-healing loop', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_intake_reconciler'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_intake_reconciler'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     vi.mocked(Sentry.captureEvent).mockClear();
@@ -108,7 +108,7 @@ describe('@fleet/api - IntakeReconcilerService self-healing loop', () => {
     expect(row.state).toBe('verifying');
     expect(row.attempts).toBe(1);
     expect(row.lastAt).not.toBeNull();
-  }, 60_000);
+  });
   it('freshness and exponential backoff gate re-emission', async () => {
     const fresh = await seedVerifyingManifest();
     await ageManifest(fresh, 5);

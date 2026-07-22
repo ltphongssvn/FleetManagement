@@ -7,8 +7,8 @@ import { AdminDriversListService } from './admin-drivers-list.service.js';
 import { AdminOrderTimelineService } from './admin-order-timeline.service.js';
 import { AdminOrderTimelineController } from './admin-order-timeline.controller.js';
 import { AdminDriversListController } from './admin-drivers-list.controller.js';
-import { AdminDeviceEnrollService } from './admin-device-enroll.service.js';
-import { AdminDeviceEnrollController } from './admin-device-enroll.controller.js';
+import { AdminDeviceBindingService } from './admin-device-binding.service.js';
+import { AdminDeviceBindingController } from './admin-device-binding.controller.js';
 import {
   AdminDriversCreateService,
   BCRYPT_HASH,
@@ -31,7 +31,7 @@ const bcryptHashProvider = {
     AdminAssignmentController,
     AdminDriversListController,
     AdminOrderTimelineController,
-    AdminDeviceEnrollController,
+    AdminDeviceBindingController,
     AdminDriversCreateController,
     AdminDriversUpdateController,
     AdminDriversResetPasswordController,
@@ -40,7 +40,7 @@ const bcryptHashProvider = {
     AdminOrderTimelineService,
     AdminAssignmentService,
     AdminDriversListService,
-    AdminDeviceEnrollService,
+    AdminDeviceBindingService,
     AdminDriversCreateService,
     AdminDriversUpdateService,
     AdminDriversResetPasswordService,
@@ -50,7 +50,6 @@ const bcryptHashProvider = {
     AdminOrderTimelineService,
     AdminAssignmentService,
     AdminDriversListService,
-    AdminDeviceEnrollService,
     AdminDriversCreateService,
     AdminDriversUpdateService,
     AdminDriversResetPasswordService,

@@ -16,7 +16,7 @@ const TENANCY = {
 };
 
 describe('@fleet/api - DeviceEnrollmentService', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_devenroll'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_devenroll'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     await truncateAllTables(testDb.db);
@@ -36,7 +36,7 @@ describe('@fleet/api - DeviceEnrollmentService', () => {
     const all = await testDb.db.select().from(deviceRegistry)
       .where(eq(deviceRegistry.operatorId, operatorId));
     expect(all).toHaveLength(1);
-  }, 30_000);
+  });
 
   it('updates appVersion + expoPushToken on conflicting (operatorId, platform) re-enrollment', async () => {
     const operatorId = randomUUID();

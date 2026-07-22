@@ -151,4 +151,59 @@ describe('CancelOrderForm', () => {
     expect(screen.queryByTestId('order-cancel-reason')).toBeNull();
     expect(screen.getByTestId('order-cancel-open')).toBeTruthy();
   });
+  it('requires a note when reason=other: submit disabled and warning shown until a note is typed', () => {
+    defaultMock();
+    render(<CancelOrderForm transportOrderId='11111111-1111-1111-1111-111111111111' state='draft' />);
+    fireEvent.click(screen.getByTestId('order-cancel-open'));
+    fireEvent.change(screen.getByTestId('order-cancel-reason'), { target: { value: 'other' } });
+    // other selected, no note -> submit disabled + warning visible.
+    expect(screen.getByTestId('order-cancel-submit').hasAttribute('disabled')).toBe(true);
+    expect(screen.getByTestId('order-cancel-note-required')).toBeTruthy();
+    // typing a note clears the block.
+    fireEvent.change(screen.getByTestId('order-cancel-note'), { target: { value: 'khách đổi lịch' } });
+    expect(screen.getByTestId('order-cancel-submit').hasAttribute('disabled')).toBe(false);
+    expect(screen.queryByTestId('order-cancel-note-required')).toBeNull();
+  });
+  it('whitespace-only note does not satisfy the other-requires-note rule', () => {
+    defaultMock();
+    render(<CancelOrderForm transportOrderId='11111111-1111-1111-1111-111111111111' state='draft' />);
+    fireEvent.click(screen.getByTestId('order-cancel-open'));
+    fireEvent.change(screen.getByTestId('order-cancel-reason'), { target: { value: 'other' } });
+    fireEvent.change(screen.getByTestId('order-cancel-note'), { target: { value: '   ' } });
+    expect(screen.getByTestId('order-cancel-submit').hasAttribute('disabled')).toBe(true);
+  });
+  it('an enumerated reason keeps the note optional (submit enabled with no note)', () => {
+    defaultMock();
+    render(<CancelOrderForm transportOrderId='11111111-1111-1111-1111-111111111111' state='draft' />);
+    fireEvent.click(screen.getByTestId('order-cancel-open'));
+    fireEvent.change(screen.getByTestId('order-cancel-reason'), { target: { value: 'weather' } });
+    expect(screen.getByTestId('order-cancel-submit').hasAttribute('disabled')).toBe(false);
+    expect(screen.queryByTestId('order-cancel-note-required')).toBeNull();
+  });
+});
+
+describe('CancelOrderForm - photos-received guard (server-computed affordance)', () => {
+  it('does NOT render the open button when canCancel is false', () => {
+    defaultMock();
+    render(<CancelOrderForm transportOrderId='11111111-1111-1111-1111-111111111111' state='in_transit' canCancel={false} cancelBlockedReason='photos_received' />);
+    expect(screen.queryByTestId('order-cancel-open')).toBeNull();
+  });
+  it('shows an explanatory blocked message when canCancel is false with photos_received', () => {
+    defaultMock();
+    render(<CancelOrderForm transportOrderId='11111111-1111-1111-1111-111111111111' state='in_transit' canCancel={false} cancelBlockedReason='photos_received' />);
+    const blocked = screen.getByTestId('order-cancel-blocked');
+    expect(blocked).toBeTruthy();
+    expect(blocked.textContent).toContain('phiếu cân');
+  });
+  it('still renders the open button when canCancel is true (default behavior preserved)', () => {
+    defaultMock();
+    render(<CancelOrderForm transportOrderId='11111111-1111-1111-1111-111111111111' state='in_transit' canCancel={true} cancelBlockedReason={null} />);
+    expect(screen.getByTestId('order-cancel-open')).toBeTruthy();
+    expect(screen.queryByTestId('order-cancel-blocked')).toBeNull();
+  });
+  it('defaults to cancellable when canCancel prop is omitted (back-compat)', () => {
+    defaultMock();
+    render(<CancelOrderForm transportOrderId='11111111-1111-1111-1111-111111111111' state='draft' />);
+    expect(screen.getByTestId('order-cancel-open')).toBeTruthy();
+  });
 });

@@ -3,7 +3,7 @@
 // Reuses the shared reference forwarder (one forwarding SSOT).
 import type { NextRequest } from 'next/server';
 import type { NextResponse } from 'next/server';
-import { forwardWrite } from '../../reference/_forward';
+import { forwardWrite } from '@/app/api/_forward';
 
 export function POST(req: NextRequest): Promise<NextResponse> {
   return forwardWrite(req, '/copilot/execute', 'POST');

@@ -4,9 +4,10 @@
 // Buffer using ExcelJS and records the export in transport_order_export_log.
 //
 // DATA EXPORT (2026, Feature 2): the workbook is a DATA export for spreadsheet
-// analysis, NOT a screenshot of the board. After the 6 identifying columns
-// (Số lệnh | Khách hàng | Tài xế | Xe | Ngày dự kiến | Số điểm) each stop slot
-// contributes a PAIR of columns: the warehouse NAME and the extracted net weight
+// analysis, NOT a screenshot of the board. After the identifying columns
+// (Số lệnh | Trạng thái | Khách hàng | Tên hàng | Tài xế | Xe | Ngày dự kiến |
+// Số điểm | Chênh lệch) each stop slot contributes a PAIR of columns — the
+// warehouse NAME and the extracted net weight
 // as a NUMBER (kg). There is NO per-stop status text and NO em-dash filler: a
 // slot with no stop, or a stop whose Phiếu Cân weight has not been extracted yet,
 // leaves the weight cell EMPTY (a true blank, never 0) so spreadsheet SUM/AVERAGE
@@ -20,6 +21,10 @@
 // The Khách hàng cell carries the customer name and, when present, the phone on a
 // second line (the on-screen cell stacks name over phone; Excel is flat so the
 // phone is folded into that one cell — it is NOT a separate column).
+//
+// The Tên hàng cell carries the order's cargo-type name, resolved read-time via
+// transport_order -> cargo_type (company-scoped LEFT JOIN, cargo is nullable),
+// mirroring the on-screen board's Tên hàng column next to Khách hàng.
 //
 // Label resolution (2026-05): rows JOIN dispatch_board_projection LEFT JOIN
 // driver (operator_id) and LEFT JOIN vehicle (vehicle_id) so cells contain
@@ -47,7 +52,7 @@ import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { dispatchBoardProjection } from '../database/schema/projections.js';
-import { customer, driver, vehicle } from '../database/schema/reference.js';
+import { cargoType, customer, driver, vehicle } from '../database/schema/reference.js';
 import { roadRunTransportOrder, stop, transportOrder } from '../database/schema/transport.js';
 import { manifest, uploadSession } from '../database/schema/manifest.js';
 import { warehouse } from '../database/schema/reference.js';
@@ -73,6 +78,7 @@ interface ExportStop {
 }
 interface ExportRow {
   readonly roadRunId: string;
+  readonly state: string;
   readonly stopCount: number;
   readonly transportOrderRefs: readonly string[];
   readonly plannedStartAt: Date | null;
@@ -80,6 +86,7 @@ interface ExportRow {
   readonly vehiclePlate: string | null;
   readonly customerName: string | null;
   readonly customerPhone: string | null;
+  readonly cargoName: string | null;
   readonly stops: readonly ExportStop[];
 }
 // On-screen Lệnh điều xe slots, in order. The slot vocabulary AND the full header
@@ -125,6 +132,23 @@ function customerCell(name: string | null, phone: string | null): string {
   const baseName = name === null || name === '' ? DASH : name;
   if (phone === null || phone === '') return baseName;
   return baseName + '\n' + phone;
+}
+// Tên hàng cell: the cargo-type name for the order, or a true blank when no
+// cargo type is set (a DATA export column — no em-dash filler, so an empty
+// Tên hàng does not masquerade as a real value). Resolved read-time via
+// transport_order -> cargo_type, mirroring the on-screen board's Tên hàng column.
+function cargoCell(name: string | null): string | null {
+  return name === null || name === '' ? null : name;
+}
+// Trạng thái (status) cell: the on-screen board shows a red Đã hủy badge on a
+// cancelled order and nothing on the others. The export mirrors that binary
+// treatment in a dedicated column (2026 best practice: capture a color-coded
+// status as an explicit column, never rely on cell formatting): Đã hủy when the
+// road-run state is cancelled, else a true blank so the owner can filter/sort
+// the column for cancellations. The label is Vietnamese presentation text; the
+// cancelled STATE is the road_run_state enum SSOT.
+function statusCell(state: string): string | null {
+  return state === 'cancelled' ? 'Đã hủy' : null;
 }
 function vnDayKey(now: Date = new Date()): string {
   const shifted = new Date(now.getTime() + 7 * 60 * 60 * 1000);
@@ -204,6 +228,7 @@ export class TransportOrdersExportService {
     const base = await this.db
       .select({
         roadRunId: dispatchBoardProjection.roadRunId,
+        state: dispatchBoardProjection.state,
         stopCount: dispatchBoardProjection.stopCount,
         transportOrderRefs: dispatchBoardProjection.transportOrderRefs,
         plannedStartAt: dispatchBoardProjection.plannedStartAt,
@@ -240,6 +265,7 @@ export class TransportOrdersExportService {
     const stopsByRoadRun = new Map<string, ExportStop[]>();
     const customerByRoadRun = new Map<string, string | null>();
     const customerPhoneByRoadRun = new Map<string, string | null>();
+    const cargoByRoadRun = new Map<string, string | null>();
     if (roadRunIds.length > 0) {
       const stopRows = await this.db
         .select({
@@ -288,10 +314,18 @@ export class TransportOrdersExportService {
           roadRunId: roadRunTransportOrder.roadRunId,
           customerName: customer.name,
           customerPhone: customer.phone,
+          cargoName: cargoType.name,
         })
         .from(roadRunTransportOrder)
         .innerJoin(transportOrder, eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId))
         .innerJoin(customer, eq(customer.customerId, transportOrder.customerId))
+        // cargo_type is nullable on transport_order -> LEFT JOIN so an order with
+        // no cargo type still yields its row (cargoName null). Company-scoped to
+        // keep tenant isolation on the cargo label, matching the board's join.
+        .leftJoin(cargoType, and(
+          eq(cargoType.cargoTypeId, transportOrder.cargoTypeId),
+          eq(cargoType.companyId, op.companyId),
+        ))
         .where(and(
           eq(roadRunTransportOrder.companyId, op.companyId),
           inArray(roadRunTransportOrder.roadRunId, roadRunIds),
@@ -301,11 +335,13 @@ export class TransportOrdersExportService {
         if (!customerByRoadRun.has(cr.roadRunId)) {
           customerByRoadRun.set(cr.roadRunId, cr.customerName);
           customerPhoneByRoadRun.set(cr.roadRunId, cr.customerPhone);
+          cargoByRoadRun.set(cr.roadRunId, cr.cargoName);
         }
       }
     }
     return base.map((r) => ({
       roadRunId: r.roadRunId,
+      state: r.state,
       stopCount: r.stopCount,
       transportOrderRefs: r.transportOrderRefs,
       plannedStartAt: r.plannedStartAt,
@@ -313,6 +349,7 @@ export class TransportOrdersExportService {
       vehiclePlate: r.vehiclePlate,
       customerName: customerByRoadRun.get(r.roadRunId) ?? null,
       customerPhone: customerPhoneByRoadRun.get(r.roadRunId) ?? null,
+      cargoName: cargoByRoadRun.get(r.roadRunId) ?? null,
       stops: stopsByRoadRun.get(r.roadRunId) ?? [],
     }));
   }
@@ -335,7 +372,9 @@ export class TransportOrdersExportService {
       const planned = r.plannedStartAt ? PLANNED_FORMATTER.format(r.plannedStartAt) : DASH;
       ws.addRow([
         primaryRef,
+        statusCell(r.state),
         customerCell(r.customerName, r.customerPhone),
+        cargoCell(r.cargoName),
         r.driverName ?? DASH,
         r.vehiclePlate ?? DASH,
         planned,

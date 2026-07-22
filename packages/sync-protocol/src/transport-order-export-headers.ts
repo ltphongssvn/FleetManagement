@@ -10,9 +10,11 @@
 // Playwright job — invisible to the PR gate). Importing this one definition makes
 // that drift structurally impossible.
 //
-// Shape: 6 identifying columns + Chênh lệch (the pickup-vs-delivery weight diff),
+// Shape: 9 identifying columns (Số lệnh, Trạng thái, Khách hàng, Tên hàng, Tài xế,
+// Xe, Ngày dự kiến, Số điểm, Chênh lệch — the pickup-vs-delivery weight diff),
 // then a (warehouse NAME, net-weight kg NUMBER) PAIR per stop slot — pickup slots
-// 1..4 then delivery slot 1 — giving 17 columns. Mirrors board-stops.tsx slot order.
+// 1..4 then delivery slot 1 — giving 19 columns. Mirrors board column order
+// (Khách hàng then Tên hàng), so the workbook matches the on-screen board.
 
 /** Pickup stop slots shown on the board, in order (1..4). */
 export const EXPORT_PICKUP_SLOTS = [1, 2, 3, 4] as const;
@@ -21,15 +23,28 @@ export const EXPORT_DELIVERY_SLOTS = [1] as const;
 /** Suffix appended to a slot name column to form its paired kg-number column. */
 export const EXPORT_KG_SUFFIX = ' - KL (kg)';
 
-/** The 6 fixed identifying columns + Chênh lệch, before the per-slot pairs. */
+/** The 8 fixed identifying columns + Chênh lệch, before the per-slot pairs. */
 export const EXPORT_IDENTIFYING_HEADERS = [
-  'Số lệnh', 'Khách hàng', 'Tài xế', 'Xe', 'Ngày dự kiến', 'Số điểm', 'Chênh lệch (Số giao - Số nhận)',
+  'Số lệnh', 'Trạng thái', 'Khách hàng', 'Tên hàng', 'Tài xế', 'Xe', 'Ngày dự kiến', 'Số điểm', 'Chênh lệch (Số giao - Số nhận)',
 ] as const;
+
+/** Slot-label builders. The per-slot column NAME is built in exactly one
+ *  place so consumers (the export header row, the board search registry)
+ *  derive it instead of re-typing the Vietnamese literal -- the same drift
+ *  this module was created to stop. */
+export const EXPORT_PICKUP_LABEL_PREFIX = 'Điểm nhận hàng ';
+export const EXPORT_DELIVERY_LABEL_PREFIX = 'Kho giao hàng ';
+export function exportPickupLabel(n: number): string {
+  return EXPORT_PICKUP_LABEL_PREFIX + String(n);
+}
+export function exportDeliveryLabel(n: number): string {
+  return EXPORT_DELIVERY_LABEL_PREFIX + String(n);
+}
 
 /** SSOT: the complete export header row, in order. Derived so a slot-count change
  *  updates every consumer (service, integration test, e2e spec) from one place. */
 export const LENH_DIEU_XE_EXPORT_HEADERS: readonly string[] = [
   ...EXPORT_IDENTIFYING_HEADERS,
-  ...EXPORT_PICKUP_SLOTS.flatMap((n) => ['Điểm nhận hàng ' + String(n), 'Điểm nhận hàng ' + String(n) + EXPORT_KG_SUFFIX]),
-  ...EXPORT_DELIVERY_SLOTS.flatMap((n) => ['Kho giao hàng ' + String(n), 'Kho giao hàng ' + String(n) + EXPORT_KG_SUFFIX]),
+  ...EXPORT_PICKUP_SLOTS.flatMap((n) => [exportPickupLabel(n), exportPickupLabel(n) + EXPORT_KG_SUFFIX]),
+  ...EXPORT_DELIVERY_SLOTS.flatMap((n) => [exportDeliveryLabel(n), exportDeliveryLabel(n) + EXPORT_KG_SUFFIX]),
 ];

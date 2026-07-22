@@ -45,7 +45,7 @@ const validCmd = (over: Partial<{ targetOperatorId: string; aggregateId: string 
 });
 
 describe('@fleet/api - CommandsController tenant policy', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_cmd_tenant'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_cmd_tenant'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     await testDb.db.execute(sql`TRUNCATE TABLE device_registry, road_run CASCADE`);

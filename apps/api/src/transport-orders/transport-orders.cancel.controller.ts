@@ -42,6 +42,7 @@ import { TransportOrdersCancelService } from './transport-orders.cancel.service.
 import { ProjectionRunnerService } from '../projections/projection-runner.service.js';
 import {
   TransportOrderCannotBeCancelledError,
+  TransportOrderCannotBeCancelledWithReceivedPhotosError,
   TransportOrderNotFoundError,
 } from './transport-orders.errors.js';
 // Axis-2 SSOT (2026-07-07): shared UuidParamSchema replaces local z.guid()
@@ -69,6 +70,13 @@ export class TransportOrdersCancelController {
     } catch (err) {
       if (err instanceof TransportOrderNotFoundError) {
         throw new NotFoundException(err.message);
+      }
+      if (err instanceof TransportOrderCannotBeCancelledWithReceivedPhotosError) {
+        // Localized business message for the dispatcher: a weigh-slip photo
+        // (phieu can) has already been received, so the order cannot be cancelled.
+        throw new ConflictException(
+          'Không thể hủy lệnh: đã nhận phiếu cân cho lệnh này. Lệnh đã bắt đầu vận chuyển.',
+        );
       }
       if (err instanceof TransportOrderCannotBeCancelledError) {
         throw new ConflictException(err.message);

@@ -1,5 +1,5 @@
-// apps/ops-web/src/app/api/reference/_forward.ts
-// Shared BFF forwarder for reference master-data + copilot routes. Attaches
+// apps/ops-web/src/app/api/_forward.ts
+// App-wide BFF forwarder for ALL ops-web API route families. Attaches
 // the fleet_session bearer (httpOnly, never exposed to the browser) and
 // proxies verbatim. When the access token is missing/expired but a
 // fleet_refresh cookie survives, it SILENTLY re-mints the session at the
@@ -51,10 +51,17 @@ async function bearer(): Promise<Bearer | null> {
 }
 
 function passthrough(res: Response, body: string, rotated: RefreshedTokens | null): NextResponse {
-  const out = new NextResponse(body, {
-    status: res.status,
-    headers: { 'content-type': 'application/json' },
-  });
+  // 204/205/304 -- and any empty body -- must not carry a body or a JSON
+  // content-type: new NextResponse(body, ...) THROWS on null-body statuses,
+  // and reset-password forwards the API's 204 No Content verbatim.
+  const bodiless =
+    res.status === 204 || res.status === 205 || res.status === 304 || body.length === 0;
+  const out = bodiless
+    ? new NextResponse(null, { status: res.status })
+    : new NextResponse(body, {
+        status: res.status,
+        headers: { 'content-type': 'application/json' },
+      });
   if (rotated !== null) {
     out.cookies.set(SESSION_COOKIE, rotated.accessToken, sessionCookieOptions(rotated.expiresIn));
     out.cookies.set(REFRESH_COOKIE, rotated.refreshToken, refreshCookieOptions());
@@ -80,7 +87,12 @@ export async function forwardWrite(
 ): Promise<NextResponse> {
   const b = await bearer();
   if (b === null) return NextResponse.json(UNAUTHORIZED_PROBLEM, { status: 401 });
-  const hasBody = method !== 'DELETE';
+  // Body presence is decided by the ACTUAL payload, not the verb: revoke()
+  // sends {reason} in a DELETE body (audit trail) that must not be silently
+  // dropped, while bodyless DELETE (drivers remove) stays legal. Empty
+  // payloads carry neither a body nor a JSON content-type.
+  const payload = await req.text();
+  const hasBody = payload.length > 0;
   const init: RequestInit = {
     method,
     headers: {
@@ -89,7 +101,7 @@ export async function forwardWrite(
     },
     cache: 'no-store',
   };
-  if (hasBody) init.body = await req.text();
+  if (hasBody) init.body = payload;
   const res = await fetch(getApiUrl() + path, init);
   return passthrough(res, await res.text(), b.rotated);
 }
