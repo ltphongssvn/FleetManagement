@@ -28,6 +28,8 @@ export const VN_OPS_ERROR_MESSAGES: Readonly<Record<FleetErrorCode, string>> = {
   DEVICE_NOT_REGISTERED: 'Thiết bị của tài xế chưa được đăng ký. Vui lòng yêu cầu tài xế đăng ký thiết bị.',
   DEVICE_PENDING_APPROVAL: 'Thiết bị của tài xế đang chờ phê duyệt. Vui lòng kích hoạt thiết bị trong trang quản lý.',
   DEVICE_REVOKED: 'Thiết bị của tài xế đã bị thu hồi quyền truy cập.',
+  DRIVER_ALREADY_ASSIGNED: 'Tài xế này đã được phân công một xe khác. Vui lòng hủy phân công cũ trước.',
+  VEHICLE_ALREADY_ASSIGNED: 'Xe này đã được phân công cho một tài xế khác. Vui lòng hủy phân công cũ trước.',
   INTERNAL: 'Hệ thống đang gặp sự cố. Vui lòng thử lại sau.',
 };
 

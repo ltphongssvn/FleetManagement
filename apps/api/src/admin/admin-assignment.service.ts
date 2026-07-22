@@ -62,10 +62,16 @@ export class AdminAssignmentService {
       return row;
     } catch (e) {
       if (isPgUniqueViolationOnConstraintInChain(e, 'dva_one_active_per_driver_uq')) {
-        throw new ConflictException('Tài xế này đã được phân công một xe khác. Vui lòng hủy phân công cũ trước.');
+        throw new ConflictException({
+          message: 'Tài xế này đã được phân công một xe khác. Vui lòng hủy phân công cũ trước.',
+          code: 'DRIVER_ALREADY_ASSIGNED',
+        });
       }
       if (isPgUniqueViolationOnConstraintInChain(e, 'dva_one_active_per_vehicle_uq')) {
-        throw new ConflictException('Xe này đã được phân công cho một tài xế khác. Vui lòng hủy phân công cũ trước.');
+        throw new ConflictException({
+          message: 'Xe này đã được phân công cho một tài xế khác. Vui lòng hủy phân công cũ trước.',
+          code: 'VEHICLE_ALREADY_ASSIGNED',
+        });
       }
       throw e;
     }
