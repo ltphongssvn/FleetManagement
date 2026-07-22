@@ -27,7 +27,7 @@ describe('master-data section renders as a DataTable', () => {
   });
   it('renders each row in a table cell with a Xoa action', async () => {
     render(<ReferenceSection def={customers} />);
-    expect(await screen.findByRole('cell', { name: 'ACME' })).toBeInTheDocument();
+    expect(await screen.findByRole('rowheader', { name: 'ACME' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xóa' })).toBeInTheDocument();
   });
 });
