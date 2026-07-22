@@ -270,7 +270,7 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
       {loading ? (
         <div className='text-sm text-gray-500'>Đang tải…</div>
       ) : (
-        <DataTable columns={columns} data={rows} emptyLabel='Chưa có dữ liệu' rowAttrs={rowAttrs} />
+        <DataTable columns={columns} data={rows} caption={def.title} emptyLabel='Chưa có dữ liệu' rowAttrs={rowAttrs} />
       )}
     </section>
   );

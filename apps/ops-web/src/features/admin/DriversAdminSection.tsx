@@ -6,10 +6,16 @@
 // duplication. Device enrollment is NOT here: devices self-enroll via the app
 // (T7). Each mutation refreshes + busts the Router Cache + revalidates dispatch.
 // VN copy is immutable production contract.
+//
+// Vehicle dropdown loads /api/reference/vehicles and PARSES the response with
+// the sync-protocol SSOT (ReferenceListResponseSchema) at the trust boundary --
+// never an as-cast (the reference-contract header documents what cast-not-parse
+// cost at the t5b incident).
 'use client';
 import { useEffect, useState, type JSX } from 'react';
 import { useMachine } from '@xstate/react';
 import type { AdminDriverRow } from '@fleet/sync-protocol';
+import { ReferenceListResponseSchema } from '@fleet/sync-protocol';
 import { vnExceptionMessage } from '@/features/errors/present-problem';
 import {
   isSessionExpired,
@@ -81,9 +87,9 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
     try {
       const res = await fetch('/api/reference/vehicles?scope=admin');
       if (res.ok) {
-        const data = await res.json() as { items?: { id: string; label: string }[] };
-        const list = (data.items ?? []).map((it) => ({ vehicleId: it.id, plate: it.label }));
-        setVehicles(list);
+        const parsed = ReferenceListResponseSchema.safeParse(await res.json());
+        const items = parsed.success ? parsed.data.items : [];
+        setVehicles(items.map((it) => ({ vehicleId: it.id, plate: it.label })));
       }
     } catch { /* ignore */ }
   };
