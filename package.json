@@ -47,7 +47,8 @@
     "sync:develop": "tsx scripts/sync-develop.ts",
     "bump:pnpm": "tsx scripts/bump-pnpm.ts",
     "audit:ci-minutes": "tsx scripts/ci/ci-minutes-fetch.ts",
-    "worktree:close": "tsx scripts/worktree-close-cli.ts"
+    "worktree:close": "tsx scripts/worktree-close-cli.ts",
+    "inspect:prod-deploy": "tsx scripts/inspect-prod-deploy.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
