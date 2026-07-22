@@ -3,13 +3,13 @@
 // Tenancy comes from JWT via CurrentOperator (defense against IDOR).
 import { Body, Controller, Post, UseGuards } from "@nestjs/common";
 import { z } from "zod";
-import type { OperatorContext } from "@fleet/domain";
+import { DriverNameSchema, type OperatorContext } from "@fleet/domain";
 import { CurrentOperator } from "../auth/current-operator.decorator.js";
 import { JwtGuard } from "../auth/jwt.guard.js";
 import { AdminDriversCreateService } from "./admin-drivers-create.service.js";
 
 const CreateSchema = z.object({
-  fullName: z.string().min(1).max(200),
+  fullName: DriverNameSchema,
   phone: z.string().min(8).max(32),
   password: z.string().min(6).max(128),
 });
