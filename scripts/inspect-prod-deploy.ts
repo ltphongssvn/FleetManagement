@@ -7,7 +7,10 @@
 // threshold). computeDeployVerdict is the pure, unit-tested core; the git
 // driver only resolves ancestry facts and feeds them in.
 //
-// Run: pnpm exec turbo run inspect:prod-deploy -- --live <sha> --fix <sha> [--base <ref>]
+// Run: pnpm exec turbo run inspect:prod-deploy -- --fix <sha> [--base <ref>] \\
+//        (--live <sha> | --live-url <url>)
+// --live-url fetches the deploy commit from a /health/version endpoint, so the
+// running app self-reports its SHA instead of an operator copying a build id.
 
 import { execFileSync } from "node:child_process";
 
@@ -51,6 +54,28 @@ export function computeDeployVerdict(f: DeployFacts): DeployVerdict {
   return { verdict, exitCode, lines };
 }
 
+
+// --- live-ref resolution: ask prod which commit it runs (ends tile-hash guessing) ---
+export function looksLikeUrl(v: string): boolean {
+  return v.startsWith("http://") || v.startsWith("https://");
+}
+
+export function parseShaFromVersionPayload(body: string): string {
+  const data = JSON.parse(body) as { sha?: unknown };
+  const sha = typeof data.sha === "string" ? data.sha : "";
+  if (sha === "" || sha === "unknown") {
+    throw new Error("version endpoint returned no usable sha (got: " + String((data as { sha?: unknown }).sha) + ")");
+  }
+  return sha;
+}
+
+export async function resolveLiveRef(live: string): Promise<string> {
+  if (!looksLikeUrl(live)) return live;
+  const res = await fetch(live);
+  if (!res.ok) throw new Error("version endpoint HTTP " + String(res.status) + " at " + live);
+  return parseShaFromVersionPayload(await res.text());
+}
+
 // --- git driver (impure; resolves ancestry facts) ---
 function git(args: string[]): string {
   return execFileSync("git", args, { encoding: "utf-8" }).trim();
@@ -70,15 +95,17 @@ function arg(flag: string, argv: string[]): string | undefined {
   return i >= 0 && i + 1 < argv.length ? argv[i + 1] : undefined;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  const live = arg("--live", argv);
+  const liveUrl = arg("--live-url", argv);
+  const liveArg = arg("--live", argv);
   const fix = arg("--fix", argv);
   const base = arg("--base", argv) ?? "origin/main";
-  if (!live || !fix) {
-    console.error("usage: inspect:prod-deploy -- --live <sha> --fix <sha> [--base <ref>]");
+  if ((!liveArg && !liveUrl) || !fix) {
+    console.error("usage: inspect:prod-deploy -- (--live <sha> | --live-url <url>) --fix <sha> [--base <ref>]");
     process.exit(2);
   }
+  const live = await resolveLiveRef(liveUrl ?? (liveArg as string));
   const facts: DeployFacts = {
     fixInBase: isAncestor(fix, base),
     fixInLive: isAncestor(fix, live),
@@ -93,5 +120,5 @@ function main(): void {
 
 const invoked = process.argv[1] ?? "";
 if (invoked.endsWith("inspect-prod-deploy.ts") || invoked.endsWith("inspect-prod-deploy.js")) {
-  main();
+  void main();
 }
