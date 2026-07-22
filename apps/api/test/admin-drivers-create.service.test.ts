@@ -21,6 +21,7 @@ function makeDb(): { db: unknown; inserts: DriverInsertCapture[] } {
   interface TxLike { insert: unknown; transaction: unknown }
   const db: Record<string, unknown> = {
     transaction: (fn: (tx: TxLike) => Promise<unknown>): Promise<unknown> => fn(db as never),
+    select: () => ({ from: () => ({ where: () => ({ limit: (): Promise<unknown[]> => Promise.resolve([]) }) }) }),
     insert: (): { values: (v: DriverInsertCapture) => { returning: () => Promise<DriverInsertCapture[]> } } => ({
       values: (v: DriverInsertCapture) => ({
         returning: (): Promise<DriverInsertCapture[]> => {
@@ -87,6 +88,7 @@ describe("AdminDriversCreateService", () => {
   it("throws when the DB returns no row (line 49 branch)", async () => {
     const emptyDb: Record<string, unknown> = {
       transaction: (fn: (tx: unknown) => Promise<unknown>): Promise<unknown> => fn(emptyDb as never),
+        select: () => ({ from: () => ({ where: () => ({ limit: (): Promise<unknown[]> => Promise.resolve([]) }) }) }),
       insert: (): { values: (v: unknown) => { returning: () => Promise<unknown[]> } } => ({
         values: () => ({ returning: (): Promise<unknown[]> => Promise.resolve([]) }),
       }),
