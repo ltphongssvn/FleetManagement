@@ -8,6 +8,12 @@
 // opt-in row selection (enableSelection -> leading checkbox column;
 // onSelectionChange reports the selected ORIGINAL rows). Vietnamese strings
 // (Tim kiem / Truoc / Sau / Khong co du lieu) are immutable UI contracts.
+//
+// R-A11Y (D1): WCAG 2.2 AA table semantics. An optional caption gives the
+// table an accessible name (rendered visually hidden). The first body cell of
+// each row is a row header (th scope=row) so screen readers announce the row
+// identity. A polite aria-live status region announces the visible-row count
+// after search or pagination (WCAG 4.1.3 Status Messages).
 import { useEffect, useRef, useState, type JSX } from 'react';
 import {
   flexRender,
@@ -36,6 +42,8 @@ export interface DataTableProps<TRow> {
   readonly enableSelection?: boolean;
   readonly onSelectionChange?: (rows: readonly TRow[]) => void;
   readonly rowAttrs?: (row: TRow) => DataTableRowAttrs;
+  // R-A11Y: accessible table name, rendered as a visually hidden caption.
+  readonly caption?: string;
 }
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -49,6 +57,7 @@ export function DataTable<TRow>({
   enableSelection = false,
   onSelectionChange,
   rowAttrs,
+  caption,
 }: DataTableProps<TRow>): JSX.Element {
   const [globalFilter, setGlobalFilter] = useState('');
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -98,10 +107,13 @@ export function DataTable<TRow>({
         value={globalFilter}
         onChange={(e) => { setGlobalFilter(e.target.value); }}
         placeholder={searchPlaceholder}
-        className='w-full max-w-xs rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500'
+        className='w-full max-w-xs rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500'
       />
       <div className='overflow-hidden rounded-lg border border-slate-200'>
         <table className='min-w-full divide-y divide-slate-200 text-sm'>
+          {caption === undefined ? null : (
+            <caption className='sr-only'>{caption}</caption>
+          )}
           <thead className='bg-slate-50'>
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
@@ -149,10 +161,20 @@ export function DataTable<TRow>({
                     />
                   </td>
                 ) : null}
-                {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className='px-3 py-2 text-slate-900'>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
+                {row.getVisibleCells().map((cell, cellIndex) => (
+                  cellIndex === 0 ? (
+                    <th
+                      key={cell.id}
+                      scope='row'
+                      className='px-3 py-2 text-left font-normal text-slate-900'
+                    >
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </th>
+                  ) : (
+                    <td key={cell.id} className='px-3 py-2 text-slate-900'>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  )
                 ))}
               </tr>
               );
@@ -179,7 +201,7 @@ export function DataTable<TRow>({
               data-testid='datatable-prev'
               onClick={() => { table.previousPage(); }}
               disabled={!table.getCanPreviousPage()}
-              className='rounded-md border border-slate-300 px-3 py-1 disabled:opacity-40'
+              className='min-h-11 rounded-md border border-slate-300 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-40'
             >
               Trước
             </button>
@@ -188,13 +210,21 @@ export function DataTable<TRow>({
               data-testid='datatable-next'
               onClick={() => { table.nextPage(); }}
               disabled={!table.getCanNextPage()}
-              className='rounded-md border border-slate-300 px-3 py-1 disabled:opacity-40'
+              className='min-h-11 rounded-md border border-slate-300 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-40'
             >
               Sau
             </button>
           </div>
         </div>
       ) : null}
+      <span
+        role='status'
+        aria-live='polite'
+        className='sr-only'
+        data-testid='datatable-status'
+      >
+        {rows.length} muc
+      </span>
       <span data-testid='datatable-colcount' hidden>{colCount}</span>
     </div>
   );
