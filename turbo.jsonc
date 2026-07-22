@@ -174,6 +174,13 @@
       "persistent": false,
       "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
     },
+    "inspect:review-parse": {
+      "description": "Read-only diagnostic: reproduce the dispatcher-review producer (findByCompanyIdOrRef) for --ref and run its output through ListAssignedRowSchema.safeParse to reveal whether the review-page parse throws and on which path. Isolates the review-page crash. MUTATES NOTHING. Live DB read: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run inspect:review-parse --filter=@fleet/api -- --ref XTT.07-043.",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
     "repair:complete-delivered-runs": {
       "description": "Event-sourced completion reconciler: drive every non-terminal road_run whose linked transport_orders are ALL fully photo-committed (committed manifests >= stop count, the same predicate the live completion gate enforces) to completed by appending road_run.completed through appendTriWrite, letting the projection runner heal dispatch_board. Heals runs stranded when intake lagged or the old departedAt-proxy made completion unreachable. DRY-RUN by default; pass -- --execute to mutate. Live DB mutation: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run repair:complete-delivered-runs --filter=@fleet/api [-- --execute].",
       "dependsOn": ["build"],
@@ -289,6 +296,11 @@
       "cache": false,
       "persistent": false,
       "passThroughEnv": ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_URL", "GITHUB_REPOSITORY"]
+    },
+    "//#inspect:prod-deploy": {
+      "description": "Root-level task: READ-ONLY diagnostic answering whether a fix commit is actually RUNNING in a given live deploy and whether it is PROMOTED to the base branch. Prefix //# ensures repo-root-only (it reads the git/deploy ledger, spans no package). Pure git ancestry: fix-in-base (promoted?), fix-in-live (running?), base-ahead-of-live count. Verdict EFFECTIVE / REDEPLOY-NEEDED / NOT-PROMOTED with NON-ZERO exit unless EFFECTIVE, so it gates scripts and CI, not just prints. Always emits a RAILWAY MANUAL CHECK line for the one fact git cannot prove -- whether the container was BUILT after a required build var existed. Token-free (local git only): no passThroughEnv. cache:false (live git read, no cacheable output). Run: pnpm exec turbo run inspect:prod-deploy -- --live <sha> --fix <sha> [--base <ref>].",
+      "cache": false,
+      "persistent": false
     },
     "//#sync:worktrees": {
       "description": "Root-level task: fast-forward every git worktree local branch to its remote tracking branch, SAFELY. Prefix //# ensures repo-root-only (it spans all worktrees, not a per-package task). Fast-forwards only when a branch is purely behind (behind>0, ahead=0); REFUSES and warns on true divergence (ahead>0 AND behind>0), never force-merging/resetting, so unpushed local commits can never be lost. The autonomous pipeline converges the REMOTE branches but git never auto-updates LOCAL worktree branches, so this closes that gap. cache:false (side-effecting git operation, no cacheable output). Run: pnpm exec turbo run sync:worktrees.",

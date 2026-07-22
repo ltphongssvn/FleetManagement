@@ -28,6 +28,7 @@
     "intake:redrive": "tsx src/scripts/intake-redrive.ts",
     "projection:rebuild": "tsx src/scripts/projection-rebuild.ts",
     "inspect:order-state": "tsx src/scripts/inspect-order-state.ts",
+    "inspect:review-parse": "tsx src/scripts/inspect-review-parse.ts",
     "repair:complete-delivered-runs": "tsx src/scripts/repair-complete-delivered-runs.ts",
     "repair:ghost-runs": "tsx src/scripts/repair-ghost-runs.ts",
     "audit:device-registry": "tsx src/scripts/audit-device-registry.ts",
