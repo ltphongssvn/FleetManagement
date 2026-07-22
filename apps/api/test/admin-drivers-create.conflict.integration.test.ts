@@ -99,6 +99,49 @@ describe('@fleet/api - AdminDriversCreateService conflict + reactivate', () => {
     });
   });
 
+  // ---- Case-insensitive, accent-SENSITIVE uniqueness (name-case arc) ----
+  // Vietnamese driver names collide only on CASE, never on accents: LÊ VĂN CHÂU
+  // and Lê Văn Châu are the same driver; LÊ and LE (no accent) are different
+  // people. Enforced by a partial lower(full_name) unique index on active rows.
+  it('ACTIVE case-variant full name (Lê Văn Châu vs LÊ VĂN CHÂU) is a conflict', async () => {
+    await withTxIsolation(testDb, async (tx) => {
+      const svc = new AdminDriversCreateService(tx as never, fakeHash);
+      const op = createOperatorContext();
+      await svc.create(inputFor(op, 'Lê Văn Châu', '0913998879', 'pass-1234'));
+      const attempt = svc.create(inputFor(op, 'LÊ VĂN CHÂU', '0854148878', 'pass-5678'));
+      await expect(attempt).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  it('soft-deleted case-variant name REACTIVATES the same row (case-insensitive match)', async () => {
+    await withTxIsolation(testDb, async (tx) => {
+      const svc = new AdminDriversCreateService(tx as never, fakeHash);
+      const op = createOperatorContext();
+      const original = await svc.create(inputFor(op, 'Lê Văn Châu', '0913998879', 'old-pass'));
+      await tx.update(driver).set({ active: false })
+        .where(and(eq(driver.companyId, op.companyId), eq(driver.driverId, original.driverId)));
+      const reborn = await svc.create(inputFor(op, 'LÊ VĂN CHÂU', '0854148878', 'new-pass'));
+      expect(reborn.driverId).toBe(original.driverId);
+      expect(reborn.operatorId).toBe(original.operatorId);
+      const [row] = await tx.select().from(driver).where(eq(driver.driverId, original.driverId));
+      expect(row?.active).toBe(true);
+      expect(row?.fullName).toBe('LÊ VĂN CHÂU');
+    });
+  });
+
+  it('accent-DIFFERENT names (LÊ VĂN CHÂU vs LE VAN CHAU) are DISTINCT drivers', async () => {
+    await withTxIsolation(testDb, async (tx) => {
+      const svc = new AdminDriversCreateService(tx as never, fakeHash);
+      const op = createOperatorContext();
+      await svc.create(inputFor(op, 'LÊ VĂN CHÂU', '0913998879', 'pass-1234'));
+      const other = await svc.create(inputFor(op, 'LE VAN CHAU', '0854148878', 'pass-5678'));
+      expect(other.driverId).toBeTruthy();
+      expect(other.active).toBe(true);
+      const rows = await tx.select().from(driver).where(eq(driver.companyId, op.companyId));
+      expect(rows.length).toBe(2);
+    });
+  });
+
   it('brand-new name + phone creates normally (regression)', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const svc = new AdminDriversCreateService(tx as never, fakeHash);
