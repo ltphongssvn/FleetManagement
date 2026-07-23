@@ -25,9 +25,13 @@ describe('master-data section renders as a DataTable', () => {
     expect(await screen.findByRole('columnheader', { name: 'Tên' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Thao tác' })).toBeInTheDocument();
   });
+  it('gives the table an accessible name from the section title', async () => {
+    render(<ReferenceSection def={customers} />);
+    expect(await screen.findByRole('table', { name: 'Khách hàng' })).toBeInTheDocument();
+  });
   it('renders each row in a table cell with a Xoa action', async () => {
     render(<ReferenceSection def={customers} />);
-    expect(await screen.findByRole('cell', { name: 'ACME' })).toBeInTheDocument();
+    expect(await screen.findByRole('rowheader', { name: 'ACME' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xóa' })).toBeInTheDocument();
   });
 });
