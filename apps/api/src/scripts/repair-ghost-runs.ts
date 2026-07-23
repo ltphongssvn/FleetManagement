@@ -18,6 +18,7 @@ import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { repairGhostRuns } from '../maintenance/repair-ghost-runs.js';
 import { resolveCliScope } from './resolve-cli-scope.js';
+import { formatDbError } from './format-db-error.js';
 // Fixed repair operator (same convention as the orphan-8ff951c9 repair
 // script): a recognizable synthetic operator id in the audit trail.
 const REPAIR_OPERATOR_ID = '00000000-0000-0000-0000-0000000000aa';
@@ -40,6 +41,6 @@ async function main(): Promise<void> {
   }
 }
 main().catch((err: unknown) => {
-  process.stderr.write('repair-ghost-runs failed: ' + (err instanceof Error ? err.message : String(err)) + '\n');
+  process.stderr.write('repair-ghost-runs failed: ' + formatDbError(err) + '\n');
   process.exitCode = 1;
 });

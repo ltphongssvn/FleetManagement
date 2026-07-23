@@ -12,25 +12,20 @@
 //   pnpm exec turbo run audit:device-registry --filter=@fleet/api
 // Scope defaults to FLEET_PILOT_SCOPE when --scope is omitted.
 import { NestFactory } from '@nestjs/core';
-import { z } from 'zod';
 import { sql, and, count, inArray, isNull } from 'drizzle-orm';
 import { deviceSession } from '../database/schema/device.js';
 import { ProjectionRebuildModule } from '../projections/projection-rebuild.module.js';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { auditDeviceRegistry } from '../admin/device-registry-audit.js';
+import { resolveCliScope } from './resolve-cli-scope.js';
+import { formatDbError } from './format-db-error.js';
 
-const ScopeSchema = z.uuid();
 
-function resolveScope(argv: readonly string[]): string {
-  const flagIdx = argv.indexOf('--scope');
-  const raw = flagIdx >= 0 ? argv[flagIdx + 1] : process.env['FLEET_PILOT_SCOPE'];
-  return ScopeSchema.parse(raw);
-}
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  const scope = resolveScope(argv);
+  const scope = resolveCliScope(argv, process.env);
   const introspect = argv.includes('--introspect');
   const app = await NestFactory.createApplicationContext(ProjectionRebuildModule, {
 
@@ -92,6 +87,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  process.stderr.write('audit-device-registry failed: ' + (err instanceof Error ? err.message : String(err)) + '\n');
+  process.stderr.write('audit-device-registry failed: ' + formatDbError(err) + '\n');
   process.exitCode = 1;
 });

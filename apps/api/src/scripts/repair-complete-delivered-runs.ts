@@ -18,6 +18,7 @@ import { DRIZZLE_DB } from "../database/database.tokens.js";
 import type { FleetDb } from "../database/database.module.js";
 import { repairCompleteDeliveredRuns } from "../maintenance/repair-complete-delivered-runs.js";
 import { resolveCliScope } from "./resolve-cli-scope.js";
+import { formatDbError } from "./format-db-error.js";
 
 // Fixed repair operator (same convention as repair-ghost-runs): a
 // recognizable synthetic operator id in the audit trail.
@@ -44,6 +45,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  process.stderr.write("repair-complete-delivered-runs failed: " + (err instanceof Error ? err.message : String(err)) + "\n");
+  process.stderr.write("repair-complete-delivered-runs failed: " + formatDbError(err) + "\n");
   process.exitCode = 1;
 });

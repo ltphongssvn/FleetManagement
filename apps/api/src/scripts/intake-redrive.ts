@@ -23,6 +23,7 @@ import { outbox } from '../database/schema/append-paths.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { buildIntakeRedriveOutboxValues } from '../manifest/intake-redrive.builder.js';
 import { validateRebuildEnv } from '../config/env.config.js';
+import { formatDbError } from './format-db-error.js';
 
 async function main(): Promise<void> {
   const execute = process.argv.includes('--execute');
@@ -80,7 +81,7 @@ async function main(): Promise<void> {
           emitted += 1;
         } catch (err: unknown) {
           skipped += 1;
-          console.error('  SKIP ' + c.manifestId + ': ' + (err instanceof Error ? err.message : String(err)));
+          console.error('  SKIP ' + c.manifestId + ': ' + formatDbError(err));
         }
       }
     });
@@ -90,6 +91,6 @@ async function main(): Promise<void> {
   }
 }
 main().catch((err: unknown) => {
-  console.error('intake-redrive failed: ' + (err instanceof Error ? err.message : String(err)));
+  console.error('intake-redrive failed: ' + formatDbError(err));
   process.exit(1);
 });

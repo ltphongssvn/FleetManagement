@@ -17,6 +17,7 @@ import { transportOrder } from "../database/schema/transport.js";
 import { TransportOrdersService } from "../transport-orders/transport-orders.service.js";
 import { ListAssignedRowSchema } from "@fleet/sync-protocol";
 import type { OperatorContext } from "../auth/operator-context.js";
+import { formatDbError } from "./format-db-error.js";
 const RefSchema = z.string().min(1);
 function argValue(argv: readonly string[], flag: string): string | undefined {
   const i = argv.indexOf(flag);
@@ -51,9 +52,8 @@ async function main(): Promise<void> {
   }
 }
 main().catch((err: unknown) => {
-  const msg = err instanceof Error ? err.message : String(err);
   const stack = err instanceof Error && err.stack !== undefined ? err.stack : "";
-  process.stderr.write("REVIEW_THROW msg=" + msg + nlLit);
+  process.stderr.write("REVIEW_THROW msg=" + formatDbError(err) + nlLit);
   process.stderr.write("REVIEW_STACK " + stack + nlLit);
   process.exitCode = 1;
 });

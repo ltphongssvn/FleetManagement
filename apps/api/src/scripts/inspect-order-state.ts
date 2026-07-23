@@ -17,6 +17,7 @@ import type { FleetDb } from "../database/database.module.js";
 import { transportOrder, roadRun, roadRunTransportOrder } from "../database/schema/transport.js";
 import { manifest } from "../database/schema/manifest.js";
 import { fleetAuditLog } from "../database/schema/append-paths.js";
+import { formatDbError } from "./format-db-error.js";
 
 function bigintSafe(_k: string, v: unknown): unknown {
   return typeof v === "bigint" ? v.toString() : v;
@@ -108,13 +109,11 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  const msg = err instanceof Error ? err.message : String(err);
+  // formatDbError walks the Error.cause chain and surfaces the wrapped pg
+  // error with its code/detail -- the shared seam replacing the ad-hoc
+  // own-property JSON dump this script used to carry.
   const stack = err instanceof Error && err.stack !== undefined ? err.stack : "";
-  process.stderr.write("INSPECT_ERROR msg=" + msg + "\n");
+  process.stderr.write("INSPECT_ERROR msg=" + formatDbError(err) + "\n");
   process.stderr.write("INSPECT_STACK " + stack + "\n");
-  // Full own-property dump (includes any nested cause chain) -- this is how
-  // the drizzle-wrapped pg cause (e.g. password auth failure) is surfaced.
-  const full = err instanceof Error ? JSON.stringify(err, Object.getOwnPropertyNames(err)) : "";
-  process.stderr.write("INSPECT_FULL " + full + "\n");
   process.exitCode = 1;
 });
