@@ -8,9 +8,29 @@
 //
 // 2026-Q2 hardening: bumped MAX_ATTEMPTS to 6 and capped backoff at 1600ms
 // (total ~7.5s budget). WSL VSock flaps during a fresh `compose up --build`
-// can last several seconds; 4 attempts at 150–1200ms were insufficient.
+// can last several seconds; 4 attempts at 150-1200ms were insufficient.
+//
+// CONTAINER NAMES COME FROM THE ENVIRONMENT, NEVER HARDCODED.
+// Root cause this closes (2026-07-23): specs that hardcoded
+// 'fleet-pilot-api-1' failed with "No such container" under the isolated
+// per-worktree stack, whose compose project is identity-derived
+// (fleet-<worktreeHash>-api-1). scripts/e2e/stack-e2e-isolated.ts already
+// injects E2E_API_CONTAINER + E2E_PG_CONTAINER from that identity; these
+// resolvers are the single place that reads them. Docker's own Testcontainers
+// guidance is explicit that fixed container names break the moment more than
+// one stack runs at a time -- exactly our 40+ worktree situation. The
+// fleet-pilot-* fallback keeps the shared default stack working unchanged.
 import { execSync } from 'node:child_process';
+
+/** Postgres container for this run (isolated stack overrides via env). */
 const POSTGRES_CONTAINER = process.env['E2E_PG_CONTAINER'] ?? 'fleet-pilot-postgres-1';
+
+/** API container for this run (isolated stack overrides via env). Exported so
+ *  every spec resolves the same way instead of embedding a literal name. */
+export function apiContainer(): string {
+  return process.env['E2E_API_CONTAINER'] ?? 'fleet-pilot-api-1';
+}
+
 const MAX_ATTEMPTS = 8;
 const BASE_BACKOFF_MS = 200;
 const MAX_BACKOFF_MS = 3200;
@@ -72,4 +92,10 @@ export function dockerExecNode(container: string, script: string): string {
     }
   }
   throw lastErr ?? new Error('docker exec failed');
+}
+
+/** Run a node script inside the API container for this run. Prefer this over
+ *  calling dockerExecNode with a literal container name. */
+export function dockerExecApiNode(script: string): string {
+  return dockerExecNode(apiContainer(), script);
 }
