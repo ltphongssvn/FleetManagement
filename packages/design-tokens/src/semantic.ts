@@ -52,6 +52,9 @@ export const SEMANTIC_ROLES = Object.freeze([
   'gradientFrom',
   'gradientVia',
   'gradientTo',
+  'textOnDark',
+  'textOnDarkMuted',
+  'primaryOnDark',
 ] as const);
 export type SemanticRole = (typeof SEMANTIC_ROLES)[number];
 export const SemanticRoleSchema = z.enum(SEMANTIC_ROLES);
@@ -102,4 +105,7 @@ export const semanticColors = {
   gradientFrom: palette.indigo[950],
   gradientVia: palette.violet[500],
   gradientTo: palette.violet[950],
+  textOnDark: palette.base.white,
+  textOnDarkMuted: palette.slate[300],
+  primaryOnDark: palette.indigo[300],
 } as const satisfies Record<SemanticRole, string>;

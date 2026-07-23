@@ -94,4 +94,7 @@
   --color-gradient-from: #1e1b4b;
   --color-gradient-via: #8b5cf6;
   --color-gradient-to: #2e1065;
+  --color-text-on-dark: #ffffff;
+  --color-text-on-dark-muted: #cbd5e1;
+  --color-primary-on-dark: #a5b4fc;
 }
