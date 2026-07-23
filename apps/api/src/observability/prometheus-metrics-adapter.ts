@@ -112,3 +112,22 @@ export function toRolloutMetrics(
   }
   return samples;
 }
+
+/**
+ * Build the instant-query URL for a PromQL expression. Pure and exported so the
+ * encoding rule is unit-tested without a running Prometheus.
+ *
+ * Uses URL + searchParams rather than string concatenation because PromQL is full
+ * of characters that must be percent-encoded -- spaces, braces, brackets, quotes,
+ * regex operators. A hand-built query string mangles or truncates them at the
+ * server, the reader then sees no data, and the analysis engine reads that as
+ * inconclusive instead of as the bug it is. Encoding is part of the contract.
+ *
+ * The URL constructor also normalises a trailing slash on the base, so both
+ * http://host:9090 and http://host:9090/ produce one /api/v1/query path.
+ */
+export function buildInstantQueryUrl(baseUrl: string, promQL: string): string {
+  const url = new URL('/api/v1/query', baseUrl);
+  url.searchParams.set('query', promQL);
+  return url.toString();
+}

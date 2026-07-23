@@ -26,6 +26,7 @@ import {
   toMetricSample,
   toRolloutMetrics,
   UNIX_SECONDS_TO_ISO_TESTS,
+  buildInstantQueryUrl,
   type InstantResultRow,
 } from '../src/observability/prometheus-metrics-adapter.js';
 
@@ -179,5 +180,39 @@ describe('toRolloutMetrics: omits absent series, never fabricates a reading', ()
     ]);
     expect(out).toHaveLength(1);
     expect(out[0]?.metric).toBe('request-success-rate');
+  });
+});
+
+describe('buildInstantQueryUrl: encodes PromQL so the query survives the wire', () => {
+  it('targets the documented instant-query endpoint', () => {
+    const url = buildInstantQueryUrl('http://prometheus:9090', 'up');
+    expect(url.startsWith('http://prometheus:9090/api/v1/query?')).toBe(true);
+  });
+
+  it('percent-encodes a PromQL expression containing spaces and braces', () => {
+    // A real guardrail query. Unencoded braces and spaces would be mangled or
+    // silently truncated by the server, and the reader would see no data --
+    // which the engine would then read as inconclusive rather than as the bug
+    // it actually is. Encoding is therefore part of the contract, not cosmetic.
+    const promQL = 'histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))';
+    const url = buildInstantQueryUrl('http://prometheus:9090', promQL);
+    // URLSearchParams uses form encoding (space -> plus), not percent encoding.
+    // Both are valid query-string encodings and Prometheus accepts either; what
+    // matters is that no raw space, brace or bracket reaches the wire and that the
+    // expression survives a round trip intact, which the next test pins.
+    expect(url).not.toContain(' ');
+    expect(url).not.toContain('[');
+    expect(new URL(url).searchParams.get('query')).toBe(promQL);
+  });
+
+  it('round-trips the expression through URL parsing unchanged', () => {
+    const promQL = 'sum(rate(http_requests_total{status=~"5.."}[5m]))';
+    const parsed = new URL(buildInstantQueryUrl('http://prometheus:9090', promQL));
+    expect(parsed.searchParams.get('query')).toBe(promQL);
+  });
+
+  it('does not double up the slash when the base URL has a trailing one', () => {
+    const url = buildInstantQueryUrl('http://prometheus:9090/', 'up');
+    expect(url).not.toContain('//api');
   });
 });

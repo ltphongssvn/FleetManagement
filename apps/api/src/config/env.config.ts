@@ -126,6 +126,16 @@ export const EnvSchema = z.object({
     .default('')
     .transform((v) => v.split(',').map((x) => x.trim()).filter((x) => x.length > 0)),
   ATTESTATION_APPLE_TEAM_ID: z.string().min(1).default('0000000000'),
+  // Prometheus base URL for the progressive-delivery metrics reader (arc T22).
+  // Factor III: declared at the validated boundary so the adapter never reads
+  // process.env raw -- the defect otel-bootstrap.ts had, where an unset or
+  // malformed value failed silently at query time instead of loudly at boot.
+  // OPTIONAL and fail-safe dormant, like KEYCLOAK_MONITOR_CLIENT_SECRET and the
+  // webhook secrets: an environment that has not wired Prometheus still boots.
+  // Unset -> the reader stays inert, every guarded metric reads ABSENT, and the
+  // analysis engine routes that to the inconclusive budget, so a rollout that
+  // cannot be measured is never promoted and never mistaken for healthy.
+  PROMETHEUS_BASE_URL: z.url().optional(),
 });
 export type Env = z.infer<typeof EnvSchema>;
 // Rebuild-CLI-scoped validator (follow-up #5). Derives from the SAME EnvSchema
@@ -176,6 +186,25 @@ export function validateOtelEnv(raw: Record<string, unknown>): OtelEnv {
   if (!result.success) {
     const paths = result.error.issues.map((i) => i.path.join('.')).join(', ');
     throw new Error('Invalid OTel environment at: ' + paths);
+  }
+  return result.data;
+}
+
+// Metrics-reader-scoped validator for the progressive-delivery adapter. Same
+// shape as RebuildEnvSchema and OtelEnvSchema above: pick from the SAME EnvSchema
+// SSOT so the URL rule cannot drift, and validate ONLY the key this reader needs
+// -- not DATABASE_URL/OIDC/S3, which a metrics query has no business requiring.
+export const PrometheusEnvSchema = EnvSchema.pick({
+  PROMETHEUS_BASE_URL: true,
+});
+
+export type PrometheusEnv = z.infer<typeof PrometheusEnvSchema>;
+
+export function validatePrometheusEnv(raw: Record<string, unknown>): PrometheusEnv {
+  const result = PrometheusEnvSchema.safeParse(raw);
+  if (!result.success) {
+    const paths = result.error.issues.map((i) => i.path.join('.')).join(', ');
+    throw new Error('Invalid Prometheus environment at: ' + paths);
   }
   return result.data;
 }
