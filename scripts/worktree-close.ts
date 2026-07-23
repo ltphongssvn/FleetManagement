@@ -76,6 +76,9 @@ export interface ResolveCloseInputParams {
   ahead: number;
   dirtyFileCount: number;
   containedInIntegration: boolean;
+  // F4: opt-in retirement. Absent means false via the schema default, so
+  // every existing caller is unchanged.
+  retired?: boolean;
 }
 
 export function resolveCloseInput(params: ResolveCloseInputParams): WorktreeCloseInput {
@@ -90,5 +93,6 @@ export function resolveCloseInput(params: ResolveCloseInputParams): WorktreeClos
     dirtyFileCount: params.dirtyFileCount,
     containedInIntegration: params.containedInIntegration,
     isPrimaryClone: params.path === params.primaryPath,
+    retired: params.retired ?? false,
   });
 }
