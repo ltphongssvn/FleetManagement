@@ -211,6 +211,13 @@
       "when": 1784331593048,
       "tag": "0029_unusual_wasp",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1784680772065,
+      "tag": "0030_jittery_princess_powerful",
+      "breakpoints": true
     }
   ]
 }
