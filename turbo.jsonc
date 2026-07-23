@@ -121,6 +121,11 @@
       "env": ["VITEST_*", "JEST_*"],
       "outputLogs": "new-only"
     },
+    "check": {
+      "description": "Per-package composite verification aggregate: lint + typecheck + test:unit as GRAPH DEPENDENCIES (parallel where the graph allows, each individually cached), then the package check script, which is an echo MARKER ONLY. Root cause this eliminates (recurred 3+ sessions): script/task vocabulary mismatch -- packages defined a check pnpm script (pnpm lint && pnpm typecheck && pnpm test) that was never a registered turbo task, so pnpm exec turbo run check failed with Could-not-find-task (distinct from the branch-staleness cause in context/turbo-root-task-staleness-bootstrap.md). The old && composite is the documented 2026 anti-pattern (sequential, unfilterable, cache-opaque); the dependsOn graph replaces it, mirroring the __ci_fast__ orchestration-node house pattern but package-scoped and filterable. Direct in-package pnpm check verifies NOTHING by design -- the marker prints the sanctioned invocation. cache:false: the marker is zero-work; caching lives in the dependency tasks. Run: pnpm exec turbo run check --filter=@fleet/<pkg>.",
+      "dependsOn": ["lint", "typecheck", "test:unit"],
+      "cache": false
+    },
     "test:watch": {
       "description": "Fast local TDD loop (Red-Green-Refactor). Package scripts invoke 'vitest --watch' or 'jest --watch'.",
       "cache": false,
