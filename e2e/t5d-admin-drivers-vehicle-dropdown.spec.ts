@@ -18,14 +18,14 @@ test('Chọn số xe dropdown on /admin/drivers matches Số xe section on /admi
   // The section now renders through the shared DataTable (TanStack v8): each
   // vehicle is a <tr> whose FIRST cell is the plate (Tên column). Iterate body
   // rows via getByRole('row'); the header is <th> (role=columnheader) with no
-  // role=cell, so reading each row first cell naturally skips it. Semantic
+  // role=rowheader, so reading each row first cell naturally skips it. Semantic
   // selectors survive markup churn (2026 resilient-selector standard).
-  const firstCell = vehiclesSection.getByRole('cell').first();
+  const firstCell = vehiclesSection.getByRole('rowheader').first();
   await expect(firstCell).toBeVisible({ timeout: 10_000 });
   const rowLocators = await vehiclesSection.getByRole('row').all();
   const referencePlates: string[] = [];
   for (const row of rowLocators) {
-    const cell = row.getByRole('cell').first();
+    const cell = row.getByRole('rowheader').first();
     if ((await cell.count()) === 0) continue;
     const t = (await cell.textContent()) ?? '';
     if (t.trim().length > 0) referencePlates.push(t.trim());
