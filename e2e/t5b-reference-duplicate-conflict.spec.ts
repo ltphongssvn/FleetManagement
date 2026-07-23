@@ -31,11 +31,11 @@ test('duplicate Khách hàng add surfaces friendly conflict, not HTTP 500', asyn
   await expect(section).toBeVisible({ timeout: 15_000 });
   // Pick the first existing customer name as the duplicate to re-add. The
   // section now renders through the shared DataTable (TanStack v8): rows are
-  // <tr><td>, and the name is the FIRST body cell. Header cells are <th>
-  // (role=columnheader), so getByRole('cell').first() resolves to the first
+  // <tr><td>, and the name is the FIRST body cell, rendered as th scope=row (role rowheader). Header cells are <th>
+  // (role=columnheader), so getByRole('rowheader').first() resolves to the first
   // DATA row name cell -- never a header -- and survives markup churn
   // (2026 resilient-selector standard).
-  const firstExisting = section.getByRole('cell').first();
+  const firstExisting = section.getByRole('rowheader').first();
   await expect(firstExisting).toBeVisible({ timeout: 10_000 });
   const existingName = (await firstExisting.textContent())?.trim() ?? '';
   expect(existingName.length).toBeGreaterThan(0);
