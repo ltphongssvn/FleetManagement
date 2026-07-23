@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "build": "next build",
-    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "check": "echo check is a turbo aggregate task -- run: pnpm exec turbo run check --filter=@fleet/ops-web",
     "clean": "rimraf .next dist .turbo coverage",
     "dev": "next dev",
     "lint": "eslint . --max-warnings=0",
