@@ -85,7 +85,14 @@ overrides:
   "@vitest/coverage-v8": "4.1.5"
   "@vitest/coverage-istanbul": "4.1.5"
   fast-xml-builder: ">=1.1.7"
-  next: ">=16.2.5"
+  # GHSA-6gpp-xcg3-4w24 (middleware/proxy bypass), GHSA-m99w-x7hq-7vfj (DoS via
+  # Server Actions), GHSA-89xv-2m56-2m9x (SSRF in Server Actions on custom
+  # servers), GHSA-p9j2-gv94-2wf4 (SSRF in rewrites via attacker-controlled
+  # destination hostname): all high, all next <16.2.11, all patched in 16.2.11.
+  # The floor lives HERE rather than only in apps/ops-web/package.json because
+  # next also arrives transitively via @sentry/nextjs -- a manifest-only bump
+  # leaves that path vulnerable.
+  next: ">=16.2.11"
   "@opentelemetry/auto-instrumentations-node": ">=0.75.0"
   "@opentelemetry/sdk-node": ">=0.217.0"
   # GHSA-45rx-2jwx-cxfr (CVE-2026-59892): propagator-jaeger <2.9.0 uncaught URIError DoS on malformed uber-trace-id header. sdk-node 0.217.0 pins it to EXACT 2.7.1, so re-resolve cannot reach the patch -- scoped override is the last-resort fix.
