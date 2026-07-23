@@ -18,3 +18,10 @@ export {
 } from './revocation.js';
 
 export type { OperatorContext } from './operator-context.js';
+
+export {
+  normalizeDisplayName,
+  personNameMatchKey,
+  DriverNameSchema,
+  type DriverName,
+} from './person-name.js';
