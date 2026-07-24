@@ -18,6 +18,14 @@ import { identityFor, type ComposeIdentity } from '../compose-identity.ts';
 export interface E2EEnv {
   readonly E2E_BASE_URL: string;
   readonly E2E_API_URL: string;
+  // The mock IdP authorize endpoint THIS stack redirects to. ops-web-login.spec
+  // asserts startLogin redirects to the configured authorize URL; without this
+  // the spec falls back to the playwright.config placeholder
+  // (https://kc.e2e.example/...) while the isolated stack actually redirects to
+  // its own mock-oauth2 on the identity OAUTH port -> guaranteed mismatch.
+  // e2e.yml sets the same variable for the shared-stack CI run; deriving it from
+  // the identity is the isolated-stack equivalent.
+  readonly OIDC_AUTHORIZATION_ENDPOINT: string;
 }
 
 // Derive the Playwright base/api URLs from the worktree identity ports. Browser
@@ -26,6 +34,7 @@ export function e2eEnvFromIdentity(id: ComposeIdentity): E2EEnv {
   return {
     E2E_BASE_URL: 'http://localhost:' + String(id.ports.OPS_WEB),
     E2E_API_URL: 'http://localhost:' + String(id.ports.API),
+    OIDC_AUTHORIZATION_ENDPOINT: 'http://localhost:' + String(id.ports.OAUTH) + '/fleet/authorize',
   };
 }
 
@@ -102,6 +111,11 @@ function mainIsolatedE2E(): number {
     // teardown docker exec to THIS worktree postgres, so it can never touch a
     // parallel worktree container (which the hardcoded fallback would).
     E2E_PG_CONTAINER: id.project + '-postgres-1',
+    // OIDC_AUTHORIZATION_ENDPOINT: the login spec reads this from its own process
+    // env to know where startLogin must redirect. Unset, playwright.config falls
+    // back to the kc.e2e.example placeholder while this stack redirects to its own
+    // mock-oauth2 -> the spec fails on a config mismatch, not a product defect.
+    OIDC_AUTHORIZATION_ENDPOINT: e2eEnv.OIDC_AUTHORIZATION_ENDPOINT,
     E2E_OPS_PASSWORD: process.env.E2E_OPS_PASSWORD ?? 'unused-token-auth',
   };
   process.stderr.write('[isolated-e2e] ops-web-runner @ ' + e2eEnv.E2E_BASE_URL + ' (api ' + e2eEnv.E2E_API_URL + ')' + String.fromCharCode(10));
