@@ -19,6 +19,48 @@ import { dockerPsql } from './helpers/docker-exec';
 
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 
+// ROOT-CAUSE FIX (FK drift, 2026-07-23): child tables are DISCOVERED from the
+// system catalog, never hand-listed.
+//
+// The previous hard-delete pass carried a literal list, commented "Children of
+// driver: passkey_credential + driver_vehicle_assignment (verified via
+// pg_constraint)". That list was verified ONCE and then drifted: the
+// driver-app-security arc added driver_refresh_token (RFC 9700 rotating refresh
+// tokens, migration 0026) and nobody updated it, so every E2E run failed with
+//   ERROR: update or delete on table driver violates foreign key constraint
+//   driver_refresh_token_driver_id_driver_driver_id_fk
+// Adding that one table by hand would fix today and guarantee the next break.
+//
+// Postgres has no DELETE ... CASCADE statement, and putting ON DELETE CASCADE on
+// the production FK is wrong here: it would silently destroy refresh tokens on
+// any driver delete, and passkey_credential deliberately does NOT cascade
+// (deactivation is the reversible lifecycle the rest of the app understands).
+// So we ask pg_constraint for every FK pointing at the parent and delete those
+// children first. Any future child table is swept automatically, no edit here.
+//
+// Identifiers go through format() %I and literals through %L, so the E2E% LIKE
+// pattern can never be misread as a format specifier and identifiers are always
+// correctly quoted. confkey[1] resolves the REFERENCED parent column, so this
+// works regardless of what the child names its FK column.
+function childSweepSql(parentTable: string, nameCol: string, namePattern: string): string {
+  const sq = String.fromCharCode(39);
+  const tag = String.fromCharCode(36) + 'fleet_sweep' + String.fromCharCode(36);
+  const template =
+    'DELETE FROM %I WHERE %I IN (SELECT %I FROM %I WHERE company_id = %L AND %I LIKE %L)';
+  return 'DO ' + tag + ' DECLARE r record; BEGIN ' +
+    'FOR r IN SELECT con.conrelid::regclass::text AS child_tbl, ' +
+    'ca.attname AS child_col, pa.attname AS parent_col ' +
+    'FROM pg_constraint con ' +
+    'JOIN pg_attribute ca ON ca.attrelid = con.conrelid AND ca.attnum = con.conkey[1] ' +
+    'JOIN pg_attribute pa ON pa.attrelid = con.confrelid AND pa.attnum = con.confkey[1] ' +
+    'WHERE con.contype = ' + sq + 'f' + sq + ' ' +
+    'AND con.confrelid = ' + sq + parentTable + sq + '::regclass ' +
+    'LOOP EXECUTE format(' + sq + template + sq + ', ' +
+    'r.child_tbl, r.child_col, r.parent_col, ' +
+    sq + parentTable + sq + ', ' + sq + COMPANY_ID + sq + ', ' +
+    sq + nameCol + sq + ', ' + sq + namePattern + sq + '); ' +
+    'END LOOP; END ' + tag + ';';
+}
 
 export default function globalTeardown(): void {
   const sq = String.fromCharCode(39);
@@ -110,10 +152,11 @@ export default function globalTeardown(): void {
     // leaves inactive E2E rows piling up in the DB run after run (the leak
     // assertion only checks active=true, so they pass yet never go away). Drop
     // every E2E reference row AND its FK children so no E2E-* row survives a
-    // suite. Children of driver: passkey_credential + driver_vehicle_assignment
-    // (verified via pg_constraint). Order: children first, then parents.
-    'DELETE FROM passkey_credential WHERE driver_id IN (SELECT driver_id FROM driver WHERE company_id=' + sq + COMPANY_ID + sq + ' AND full_name LIKE ' + sq + 'E2E%' + sq + ');',
-    'DELETE FROM driver_vehicle_assignment WHERE company_id=' + sq + COMPANY_ID + sq + ' AND (driver_id IN (SELECT driver_id FROM driver WHERE full_name LIKE ' + sq + 'E2E%' + sq + ') OR vehicle_id IN (SELECT vehicle_id FROM vehicle WHERE plate LIKE ' + sq + 'E2E-%' + sq + '));',
+    // suite. Child tables are discovered from pg_constraint (childSweepSql), so
+    // a newly added FK child never needs an edit here. Children first, then
+    // parents.
+    childSweepSql('driver', 'full_name', 'E2E%'),
+    childSweepSql('vehicle', 'plate', 'E2E-%'),
     'DELETE FROM driver WHERE company_id=' + sq + COMPANY_ID + sq + ' AND full_name LIKE ' + sq + 'E2E%' + sq + ';',
     'DELETE FROM vehicle WHERE company_id=' + sq + COMPANY_ID + sq + ' AND plate LIKE ' + sq + 'E2E-%' + sq + ';',
     'DELETE FROM customer WHERE company_id=' + sq + COMPANY_ID + sq + ' AND name LIKE ' + sq + 'E2E-%' + sq + ';',
