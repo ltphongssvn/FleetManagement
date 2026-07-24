@@ -6,7 +6,7 @@
 // ones per the 2026 dense-admin action-separation pattern. Semantic queries
 // (getByRole button/menuitem/dialog) so the markup can restyle freely.
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RowActionMenu } from '@/features/admin/RowActionMenu';
 afterEach(() => { cleanup(); });
@@ -75,7 +75,24 @@ describe('RowActionMenu', () => {
     await user.click(screen.getByRole('button', { name: 'Hủy' }));
     expect(onSelect).not.toHaveBeenCalled();
   });
+  it('closes the confirm dialog on Escape without firing the action', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(
+      <RowActionMenu
+        label={'Thao tác cho Acme'}
+        actions={[{ key: 'del', label: 'Xóa', onSelect, destructive: true, confirmLabel: 'Xóa Acme?' }]}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Thao tác cho Acme' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Xóa' }));
+    await screen.findByRole('dialog');
+    await user.keyboard('{Escape}');
+    await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull(); });
+    expect(onSelect).not.toHaveBeenCalled();
+  });
 });
+
 function within_dialog_confirm(): HTMLElement {
   const dialog = screen.getByRole('dialog');
   const btn = dialog.querySelector('[data-testid=confirm-accept]');
