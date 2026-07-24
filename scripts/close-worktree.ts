@@ -36,14 +36,14 @@ export type CloseVerdict =
 
 export function decideClose(raw: WorktreeCloseInput): CloseVerdict {
   const input = WorktreeCloseInputSchema.parse(raw);
-  if (input.isPrimaryClone === true) {
+  if (input.isPrimaryClone) {
     return { action: 'refuse', reasons: ['primary-clone'] };
   }
   const reasons: CloseRefusalReason[] = [];
-  if (input.hasUpstream === false) reasons.push('no-upstream');
+  if (!input.hasUpstream) reasons.push('no-upstream');
   if (input.aheadOfRemote > 0) reasons.push('unpushed');
   if (input.dirtyFileCount > 0) reasons.push('dirty');
-  if (input.containedInIntegration === false) reasons.push('unmerged');
+  if (!input.containedInIntegration) reasons.push('unmerged');
   if (reasons.length > 0) return { action: 'refuse', reasons };
   return { action: 'remove', reasons: [] };
 }

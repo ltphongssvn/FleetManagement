@@ -20,7 +20,6 @@ import {
 } from './worktree-close-cli.js';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
-const NL = String.fromCharCode(10);
 
 const entries = [
   { path: '/home/u/code/FleetManagement', branch: 'main' },
