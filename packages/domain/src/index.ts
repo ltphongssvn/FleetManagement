@@ -67,3 +67,19 @@ export {
 } from './manifest/manifest-rejection-reason.js';
 export * from "./number-format/parse-one-number.js";
 export * from './manifest/manifest-extraction-status.js';
+
+// T33: phieu-can STANDARD FORMAT SSOT + the pure goods-kg derivation rule.
+// Exported from the barrel because every consumer (worker extraction policy,
+// api manifest service, ops-web board) imports from the package ROOT; a deep
+// src path import is what invites a downstream re-declaration of the vocabulary.
+export {
+  PHIEU_CAN_FORMATS,
+  PhieuCanFormatSchema,
+  type PhieuCanFormat,
+  GOODS_DERIVATION_REFUSALS,
+  GoodsDerivationRefusalSchema,
+  type GoodsDerivationRefusal,
+  type PhieuCanWeights,
+  type GoodsDerivation,
+  deriveGoodsKg,
+} from './manifest/phieu-can-format.js';
