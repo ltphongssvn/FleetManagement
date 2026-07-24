@@ -67,7 +67,7 @@ export function decideDbGenerate(raw: DbGenerateObservation): DbGenerateVerdict 
 /* v8 ignore start -- CLI shell: exercised via db:generate, logic above is unit-tested */
 function main(): number {
   let exitCode = 0;
-  let output = '';
+  let output: string;
   try {
     output = execFileSync('drizzle-kit', ['generate'], {
       encoding: 'utf8',
@@ -76,7 +76,7 @@ function main(): number {
   } catch (err: unknown) {
     const e = err as { status?: number; stdout?: string; stderr?: string };
     exitCode = typeof e.status === 'number' ? e.status : 1;
-    output = String(e.stdout ?? '') + String(e.stderr ?? '');
+    output = (e.stdout ?? '') + (e.stderr ?? '');
   }
   process.stdout.write(output);
   const verdict = decideDbGenerate({ exitCode, output });
@@ -95,7 +95,7 @@ function main(): number {
 // Entrypoint guard (compose-identity.ts precedent): without it, importing this
 // module for its pure core would EXECUTE drizzle-kit as a side effect -- which
 // is exactly what the first test run caught.
-const isMain = process.argv[1] !== undefined && process.argv[1].endsWith('db-generate.ts');
+const isMain = process.argv[1]?.endsWith('db-generate.ts') ?? false;
 if (isMain) {
   process.exit(main());
 }
