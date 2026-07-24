@@ -4,7 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { OutboxModule } from '../outbox/outbox.module.js';
 import { ProjectionsModule } from '../projections/projections.module.js';
 import { CommandsModule } from '../commands/commands.module.js';
-import { SchedulerService, BREAKGLASS_MONITOR, INTAKE_LAG_MONITOR, INTAKE_RECONCILER, COMPLETION_RECONCILER } from './scheduler.service.js';
+import { SchedulerService, BREAKGLASS_MONITOR, INTAKE_LAG_MONITOR, INTAKE_RECONCILER, ALERT_LAG_MONITOR, COMPLETION_RECONCILER } from './scheduler.service.js';
 import { KeycloakEventPollCursorService } from '../security/keycloak-event-poll-cursor.service.js';
 import { KeycloakEventsClient } from '../security/keycloak-events-client.js';
 import { BreakGlassLoginMonitorService } from '../security/break-glass-login-monitor.service.js';
@@ -13,6 +13,8 @@ import { DrizzleIntakeLagRepo } from '../manifest/intake-lag.repo.js';
 import { IntakeReconcilerService } from '../manifest/intake-reconciler.service.js';
 import { CompletionReconcilerService } from '../manifest/completion-reconciler.service.js';
 import { DrizzleIntakeReconcileRepo } from '../manifest/intake-reconcile.repo.js';
+import { AlertLagMonitorService } from '../manifest/alert-lag-monitor.service.js';
+import { DrizzleAlertLagRepo } from '../manifest/alert-lag.repo.js';
 import { DrizzleCompletionReconcileRepo } from '../manifest/completion-reconcile.repo.js';
 import type { Env } from '../config/env.config.js';
 
@@ -28,6 +30,7 @@ import type { Env } from '../config/env.config.js';
     KeycloakEventPollCursorService,
     DrizzleIntakeLagRepo,
     DrizzleIntakeReconcileRepo,
+    DrizzleAlertLagRepo,
     DrizzleCompletionReconcileRepo,
     {
       // Intake-lag guard (Jun-24 incident class) is ALWAYS ON: it needs only
@@ -41,6 +44,20 @@ import type { Env } from '../config/env.config.js';
         repo: DrizzleIntakeLagRepo,
       ): IntakeLagMonitorService =>
         new IntakeLagMonitorService(repo, config.getOrThrow('INTAKE_LAG_ALERT_MINUTES', { infer: true })),
+    },
+    {
+      // Driver-alert-lag guard (T12) is ALWAYS ON: like intake-lag it needs
+      // only the DB + Sentry (both unconditionally present), so there is no
+      // dormancy secret. Threshold is the DRIVER_ALERT_LAG_MINUTES knob
+      // (default 15 -- tighter than intake because a missed alert = a missed
+      // truck run).
+      provide: ALERT_LAG_MONITOR,
+      inject: [ConfigService, DrizzleAlertLagRepo],
+      useFactory: (
+        config: ConfigService<Env, true>,
+        repo: DrizzleAlertLagRepo,
+      ): AlertLagMonitorService =>
+        new AlertLagMonitorService(repo, config.getOrThrow('DRIVER_ALERT_LAG_MINUTES', { infer: true })),
     },
     {
       // Intake self-healing reconciler. ALWAYS provided but tick-gated:

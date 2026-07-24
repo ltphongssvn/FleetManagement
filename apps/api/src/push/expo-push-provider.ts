@@ -6,7 +6,12 @@ import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { deviceRegistry } from '../database/schema/device.js';
 import type { IPushProvider, PushBody, PushSendResult } from './push-provider.interface.js';
+import { DRIVER_ALERT_ANDROID_CHANNEL_ID, DRIVER_ALERT_SOUND, DRIVER_ALERT_VIBRATION_PATTERN } from '@fleet/sync-protocol';
 
+// Channel-contract constants now live in @fleet/sync-protocol (shared SSOT for
+// this api sender AND the driver-app channel setup). Re-exported so existing
+// importers of this module (its test) keep working from one place.
+export { DRIVER_ALERT_ANDROID_CHANNEL_ID, DRIVER_ALERT_SOUND, DRIVER_ALERT_VIBRATION_PATTERN };
 /** Subset of Expo client API used by the adapter. Allows injection of a fake in tests. */
 export interface ExpoLike {
   isExpoPushToken(token: unknown): boolean;
@@ -51,7 +56,22 @@ export class ExpoPushProvider implements IPushProvider {
     }
 
     const messages: ExpoPushMessage[] = tokens.map((to) => {
-      const msg: ExpoPushMessage = { to, title: body.title, body: body.body, sound: 'default' };
+      const msg: ExpoPushMessage = {
+        to,
+        title: body.title,
+        body: body.body,
+        // 4AM wake-reliability (T12, 2026 research-locked): every order alert is
+        // a critical delivery. priority high wakes a Dozing Android immediately;
+        // channelId routes to the driver-app high-importance channel whose custom
+        // sound plays on the ALARM stream (audible on a silenced phone);
+        // interruptionLevel time-sensitive breaks through iOS notification
+        // controls without the critical-alerts entitlement. sound matches the
+        // bundled asset the driver-app channel registers.
+        sound: DRIVER_ALERT_SOUND,
+        priority: 'high',
+        channelId: DRIVER_ALERT_ANDROID_CHANNEL_ID,
+        interruptionLevel: 'time-sensitive',
+      } as ExpoPushMessage;
       if (body.data !== undefined) (msg as { data: Record<string, unknown> }).data = body.data;
       return msg;
     });

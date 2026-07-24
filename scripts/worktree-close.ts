@@ -55,7 +55,7 @@ export function parseAheadBehind(stdout: string): AheadBehind {
   }
   const ahead = Number(parts[0]);
   const behind = Number(parts[1]);
-  if (Number.isInteger(ahead) === false || Number.isInteger(behind) === false) {
+  if (!Number.isInteger(ahead) || !Number.isInteger(behind)) {
     throw new Error('non-integer ahead/behind counts: ' + JSON.stringify(stdout));
   }
   return { ahead, behind };
@@ -65,7 +65,7 @@ export function countDirtyFiles(stdout: string): number {
   return stdout
     .split(NL)
     .filter((line) => line.length > 0)
-    .filter((line) => line.startsWith('## ') === false).length;
+    .filter((line) => !line.startsWith('## ')).length;
 }
 
 export interface ResolveCloseInputParams {
