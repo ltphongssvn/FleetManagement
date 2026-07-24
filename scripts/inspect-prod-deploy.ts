@@ -101,11 +101,18 @@ async function main(): Promise<void> {
   const liveArg = arg("--live", argv);
   const fix = arg("--fix", argv);
   const base = arg("--base", argv) ?? "origin/main";
-  if ((!liveArg && !liveUrl) || !fix) {
+  // The usage guard must NARROW, not merely exit: process.exit() is typed as
+  // returning never only in a tail position TypeScript can see, so without the
+  // explicit return below the compiler still considers liveArg/fix possibly
+  // undefined and the code needed a forbidden non-null assertion. Returning here
+  // narrows both, so the assertion disappears rather than being suppressed.
+  const liveRef = liveUrl ?? liveArg;
+  if (liveRef === undefined || fix === undefined) {
     console.error("usage: inspect:prod-deploy -- (--live <sha> | --live-url <url>) --fix <sha> [--base <ref>]");
     process.exit(2);
+    return;
   }
-  const live = await resolveLiveRef(liveUrl ?? (liveArg as string));
+  const live = await resolveLiveRef(liveRef);
   const facts: DeployFacts = {
     fixInBase: isAncestor(fix, base),
     fixInLive: isAncestor(fix, live),

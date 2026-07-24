@@ -53,11 +53,7 @@ export default tseslint.config(
             "vitest.config.ts",
             "vitest.integration.config.ts",
             "vitest.coverage.config.ts",
-            "scripts/*.ts",
-            "scripts/e2e/*.ts",
-            "scripts/e2e/*.mts",
-            "scripts/ci/*.ts",
-          ],
+                          ],
           defaultProject: "tsconfig.base.json",
         },
         tsconfigRootDir: import.meta.dirname,
@@ -91,6 +87,24 @@ export default tseslint.config(
       parserOptions: {
         projectService: false,
         project: "./e2e/tsconfig.json",
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  // Root scripts/ live outside every workspace package, so the root
+  // projectService could not bind them either: they were shoehorned into
+  // allowDefaultProject, which caps at 8 files and made linting the DIRECTORY
+  // impossible (>8 matches -> "Too many files have matched the default
+  // project"). Individual files linted fine, which is exactly why the gap went
+  // unnoticed and why root tooling had no lint task at all. Same fix as e2e/
+  // above: bind them to a dedicated scripts/tsconfig.json so type-aware rules
+  // resolve, and drop scripts/* from allowDefaultProject.
+  {
+    files: ["scripts/**/*.ts", "scripts/**/*.mts"],
+    languageOptions: {
+      parserOptions: {
+        projectService: false,
+        project: "./scripts/tsconfig.json",
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -130,6 +144,49 @@ export default tseslint.config(
         "warn",
         { allowExpressions: true, allowTypedFunctionExpressions: true },
       ],
+    },
+  },
+
+  // Plain-JavaScript tooling (.mjs/.cjs/.js). scripts/tsconfig.json sets
+  // allowJs:true + checkJs:false, so TypeScript does not type-check these files and
+  // every value is implicitly any. Running type-aware rules over them produced ~88
+  // no-unsafe-* reports describing the ABSENCE of type information, not defects.
+  // disableTypeChecked is typescript-eslint documented mechanism for this
+  // subset-of-the-codebase case; upstream issue #9583 proposes making it the DEFAULT
+  // for precisely this allowJs-without-checkJs configuration.
+  //
+  // MUST BE LAST (before prettier): disableTypeChecked only switches off the PRESET
+  // type-aware rules. The Custom rule overrides block above re-enables several by
+  // hand with no files scope, so when this block came first those rules were
+  // reinstated on JS and ESLint CRASHED (rule requires type information, but
+  // parserOptions are not set to generate it). The docs call this out: turn off
+  // other type-aware rules explicitly. Hence the rules block below.
+  //
+  // explicit-function-return-type is off because a return-type annotation is not
+  // expressible in plain JS, so the rule can never be satisfied there.
+  //
+  // Node globals are declared because the root config never set
+  // languageOptions.globals. Only JS was affected: typescript-eslint disables
+  // no-undef for .ts files, since TypeScript itself catches undefined identifiers.
+  {
+    files: ["**/*.mjs", "**/*.cjs", "**/*.js"],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      globals: {
+        process: "readonly",
+        console: "readonly",
+        Buffer: "readonly",
+        URL: "readonly",
+        fetch: "readonly",
+        __dirname: "readonly",
+        __filename: "readonly",
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-floating-promises": "off",
+      "@typescript-eslint/no-misused-promises": "off",
+      "@typescript-eslint/consistent-type-imports": "off",
+      "@typescript-eslint/explicit-function-return-type": "off",
     },
   },
 

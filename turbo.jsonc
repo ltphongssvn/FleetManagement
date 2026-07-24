@@ -265,7 +265,7 @@
 ,
     "__ci_fast__": {
       "description": "PR gate orchestration node — lint + typecheck + test:unit + codemod drift gate. Double-underscore prevents package-script collision. Expose via root package.json script 'ci:fast' for friendly CLI. CI workflow should matrix-split (ADR-001).",
-      "dependsOn": ["lint", "typecheck", "test:unit", "//#codemod:check", "//#test:scripts", "//#guard:local-secrets"],
+      "dependsOn": ["lint", "typecheck", "test:unit", "//#codemod:check", "//#test:scripts", "//#lint:scripts", "//#guard:local-secrets"],
       "cache": false
     },
     "__ci_full__": {
@@ -285,6 +285,14 @@
     },
     "//#codemod:check": {
       "description": "Root-level task: run the @fleet/codemods drift gate (extract-parse-one-number --check) across the worker tsconfig spanned with @fleet/domain source. Prefix '//#' ensures repo-root-only (it spans packages, so it is not a per-package task). Fails when source still has an un-migrated parseOneNumber outside @fleet/domain. Wired into __ci_fast__ so PRs fail on drift. cache:false — it is a fast in-memory AST pass with no cacheable output.",
+      "cache": false
+    },
+    "//#lint:scripts": {
+      "description": "Root-level task: ESLint the repo-level tooling in scripts/. Prefix //# ensures repo-root-only. Exists because the package-scoped lint task CANNOT reach scripts/: that tree belongs to no workspace package, so turbo run lint skipped it entirely and the only way to lint a root script was a bare eslint invocation -- an uncaptured, unrediscoverable op that no gate ran. Same shape as the guards being wired into a turbo node CI never invoked: the check existed in principle and nowhere in practice. Pairs with //#test:scripts (vitest) so root tooling gets the same lint+test treatment every package gets. cache:false -- a pass/fail check with no cacheable output, matching codemod:check and test:scripts. Run: pnpm exec turbo run lint:scripts.",
+      "cache": false
+    },
+    "//#lint:scripts:fix": {
+      "description": "Root-level task: ESLint --fix over scripts/. Mutates the source tree, so cache:false -- a cache replay could restore stale content. Companion to lint:scripts; local/manual invocation, never wired into a gate (a gate must verify, not rewrite). Run: pnpm exec turbo run lint:scripts:fix.",
       "cache": false
     },
     "//#test:scripts": {
