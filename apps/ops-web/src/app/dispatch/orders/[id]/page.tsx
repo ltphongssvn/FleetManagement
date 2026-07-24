@@ -1,14 +1,25 @@
 // apps/ops-web/src/app/dispatch/orders/[id]/page.tsx
-// Dispatcher review page: server component fetches the order via the BFF
-// (which forwards to the API with the fleet_session bearer token) and hands
-// it to the OrderReview presentational component. notFound() is called on
-// any non-2xx so unknown ids render the framework 404, matching the API.
+// Dispatcher review page: server component loads the order via the server-only
+// loadOrderReview loader (which calls the API directly at FLEET_API_URL and
+// parses the response against the SSOT ListAssignedRowSchema) and hands it to
+// the OrderReview presentational component. notFound() is raised by the loader
+// on a 404 so unknown ids render the framework 404, matching the API.
 //
-// P0-#2 (2026): the BFF response is now PARSED at this trust boundary via
+// 2026-07-23 root fix: this page used to fetch its OWN BFF route, building the
+// absolute URL from the incoming host header. That is the documented Next.js
+// anti-pattern (a server component should fetch from the source, not jump
+// through its own route handler) and it silently coupled the render to the
+// PUBLISHED host port: ops-web always listens on 3001 in-container, so on a
+// stack that publishes 25021:3001 the self-fetch targeted a port nothing was
+// listening on, threw, and rendered the error boundary -- while every browser
+// request still showed 200, because the failing fetch was server-side. The
+// loader mirrors loadDispatchBoard, which never had this defect.
+//
+// P0-#2 (2026): the API response is PARSED at this trust boundary via
 // ListAssignedRowSchema (the @fleet/sync-protocol SSOT) instead of being cast
-// with 'as ListAssignedRow'. An untrusted server response that drifts from the
-// contract now throws a descriptive ZodError here — at the boundary, with the
-// offending path — rather than silently surfacing as undefined deep in the UI.
+// with 'as ListAssignedRow'. A server response that drifts from the contract
+// throws a descriptive error at the boundary rather than silently surfacing as
+// undefined deep in the UI. That parse now lives in the loader.
 //
 // T5 (2026):
 //   * Composes the CancelOrderForm client component below the review pane.
@@ -28,12 +39,10 @@
 // previous menu / between pages.
 import type { JSX } from 'react';
 import Link from 'next/link';
-import { cookies, headers } from 'next/headers';
-import { notFound, redirect } from 'next/navigation';
-import { sessionRefreshUrl } from '@/features/auth/session-refresh-navigation';
-import { ListAssignedRowSchema } from '@fleet/sync-protocol';
+import { cookies } from 'next/headers';
 import { OrderReview } from '@/features/dispatch/OrderReview';
 import { CancelOrderForm } from '@/features/dispatch/CancelOrderForm';
+import { loadOrderReview } from '@/features/dispatch/load-order-review';
 import { AppShell } from '@/features/shell/AppShell';
 import { RefetchOnFocusMount } from '@/features/shell/RefetchOnFocusMount';
 export const dynamic = 'force-dynamic';
@@ -50,36 +59,12 @@ function decodeUsername(token: string | undefined): string | undefined {
     return undefined;
   }
 }
-async function bffBaseUrl(): Promise<string> {
-  const h = await headers();
-  const host = h.get('host') ?? 'localhost:3001';
-  const proto = h.get('x-forwarded-proto') ?? 'http';
-  return proto + '://' + host;
-}
 export default async function OrderReviewPage({ params }: PageProps): Promise<JSX.Element> {
   const { id: idOrRef } = await params;
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get('fleet_session');
   const username = decodeUsername(sessionCookie?.value);
-  const base = await bffBaseUrl();
-  const fetchHeaders = sessionCookie?.value !== undefined
-    ? { cookie: 'fleet_session=' + sessionCookie.value }
-    : {};
-  const res = await fetch(base + '/api/transport-orders/' + encodeURIComponent(idOrRef), {
-    headers: fetchHeaders,
-    cache: 'no-store',
-  });
-  if (res.status === 404) notFound();
-  // Idle-expired session: the RSC forwarded no/expired fleet_session and the
-  // BFF answered 401. redirect() to the silent-refresh route (loadDispatchBoard
-  // house pattern) -- a TOP-LEVEL navigation lets the rotated cookie pair ride
-  // back to the browser legitimately; minting inside this internal fetch would
-  // strand the pair and trip RFC 9700 refresh-token reuse detection.
-  if (res.status === 401) redirect(sessionRefreshUrl('/dispatch/orders/' + idOrRef));
-  if (!res.ok) throw new Error('Failed to load order: ' + String(res.status));
-  // Trust boundary: validate the untrusted BFF response against the shared
-  // contract instead of casting. Throws a descriptive ZodError on drift.
-  const order = ListAssignedRowSchema.parse(await res.json());
+  const order = await loadOrderReview(idOrRef);
   return (
     <AppShell {...(username !== undefined ? { username } : {})}>
       {/* Refetch-on-focus: this RSC fetches the order server-side and cannot use
