@@ -302,6 +302,16 @@
       "cache": false,
       "persistent": false
     },
+    "//#prod:db-url": {
+      "description": "Root-level task: print the CURRENT production Postgres DSN, read LIVE from Railway (the single system of record) at call time. Prefix //# ensures repo-root-only (it spans no package). Exists to kill a recurring class of failure: operators pasted a PROD_DATABASE_URL literal into a local .env, prod credentials rotated, the copy went stale, and every prod-ops task (audit:*, inspect:*, projection:rebuild, repair:*) failed authentication with an opaque error. A stored copy is a SECOND system of record and always rots; re-pasting is a treadmill. This is the local-ops mirror of guard:railway-references, which forbids the same literal-vs-reference anti-pattern in Railway service variables. ONLY the DSN goes to stdout (diagnostics to stderr) so it composes via command substitution. Retries transient Railway API errors; fails immediately on auth/linkage errors -- there is no safe fallback for a prod DSN. cache:false (live network read, no cacheable output). Run: DATABASE_URL=$(pnpm prod:db-url) pnpm exec turbo run audit:assignment-uniqueness --filter=@fleet/api.",
+      "cache": false,
+      "persistent": false
+    },
+    "//#guard:local-secrets": {
+      "description": "Root-level task: fail when a PRODUCTION credential literal sits in a local env file (.env, .env.local, .env.production, .env.prod). Prefix //# ensures repo-root-only. Covers a genuine blind spot rather than duplicating existing protection: pre-commit check-env-files blocks COMMITTING a .env and detect-secrets scans STAGED content, but a local .env is untracked BY DESIGN so neither ever inspects it -- which is exactly how a stale PROD_DATABASE_URL sat undetected until prod rotated. Only PROD/PRODUCTION-scoped variable names holding an inline-credential URL are flagged, so an ordinary local docker-compose DATABASE_URL stays legitimate. Reports file, line and variable NAME only, never the value. Exit 1 on violation, 2 on tooling error. cache:false (reads working-tree state outside the task graph). Run: pnpm exec turbo run guard:local-secrets.",
+      "cache": false,
+      "persistent": false
+    },
     "//#sync:worktrees": {
       "description": "Root-level task: fast-forward every git worktree local branch to its remote tracking branch, SAFELY. Prefix //# ensures repo-root-only (it spans all worktrees, not a per-package task). Fast-forwards only when a branch is purely behind (behind>0, ahead=0); REFUSES and warns on true divergence (ahead>0 AND behind>0), never force-merging/resetting, so unpushed local commits can never be lost. The autonomous pipeline converges the REMOTE branches but git never auto-updates LOCAL worktree branches, so this closes that gap. cache:false (side-effecting git operation, no cacheable output). Run: pnpm exec turbo run sync:worktrees.",
       "cache": false

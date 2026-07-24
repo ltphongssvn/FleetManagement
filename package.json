@@ -49,7 +49,9 @@
     "audit:ci-minutes": "tsx scripts/ci/ci-minutes-fetch.ts",
     "worktree:close": "tsx scripts/worktree-close-cli.ts",
     "inspect:prod-deploy": "tsx scripts/inspect-prod-deploy.ts",
-    "gate:integration": "tsx scripts/gate-integration.ts"
+    "gate:integration": "tsx scripts/gate-integration.ts",
+    "prod:db-url": "tsx scripts/prod-db-url.ts",
+    "guard:local-secrets": "tsx scripts/local-secret-guard.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
