@@ -52,7 +52,9 @@
     "gate:integration": "tsx scripts/gate-integration.ts",
     "prod:db-url": "tsx scripts/prod-db-url.ts",
     "guard:local-secrets": "tsx scripts/local-secret-guard.ts",
-    "guard:local-secrets:baseline": "tsx scripts/local-secret-guard-baseline.ts"
+    "guard:local-secrets:baseline": "tsx scripts/local-secret-guard-baseline.ts",
+    "lint:scripts": "eslint scripts --max-warnings=0",
+    "lint:scripts:fix": "eslint scripts --fix"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",

@@ -62,16 +62,16 @@ describe('assertNotTruncated', () => {
   // same class of failure as a confident zero: a plausible number that is not
   // the truth. total_count is the wire telling us how many really exist.
   it('passes when the fetched count matches total_count', () => {
-    expect(() => assertNotTruncated(37, 37)).not.toThrow();
+    expect(() => { assertNotTruncated(37, 37); }).not.toThrow();
   });
   it('THROWS when total_count exceeds what pagination could return', () => {
-    expect(() => assertNotTruncated(1000, 2431)).toThrow(/truncat/i);
+    expect(() => { assertNotTruncated(1000, 2431); }).toThrow(/truncat/i);
   });
   it('names the API ceiling in the error so the window can be narrowed', () => {
-    expect(() => assertNotTruncated(1000, 2431)).toThrow(/1000/);
+    expect(() => { assertNotTruncated(1000, 2431); }).toThrow(/1000/);
   });
   it('does not throw when fewer than the ceiling came back', () => {
-    expect(() => assertNotTruncated(950, 950)).not.toThrow();
+    expect(() => { assertNotTruncated(950, 950); }).not.toThrow();
   });
 });
 
