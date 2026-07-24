@@ -3,9 +3,24 @@
 // Covers the PURE core of the runtime prod-DSN resolver. The Railway CLI is
 // never invoked: resolveProdDbUrl takes an injectable runner, so every branch
 // (parse, missing var, malformed value, transient retry, hard failure) is
-// exercised deterministically -- the same shape inspect-prod-deploy.test.ts
-// uses for computeDeployVerdict.
+// exercised deterministically -- the shape inspect-prod-deploy.test.ts uses.
+//
+// FIXTURE HYGIENE: a fixture never embeds real production topology and never
+// contains a hardcoded credential literal.
+//   - Host is db.example.invalid. RFC 2606 / BCP 32 reserves .invalid for names
+//     that are sure to be invalid and obvious at a glance, so a fixture can
+//     never resolve to -- or disclose -- real infrastructure. An earlier draft
+//     of this file used the live prod host and port; GitGuardian correctly
+//     flagged it, and it would have been the first commit of that hostname to
+//     the repo.
+//   - The password is generated per run with randomBytes, so no
+//     credential-shaped literal exists in source for either scanner
+//     (detect-secrets locally, GitGuardian in CI). This is the remediation the
+//     repo already adopted for the app-role test password: ELIMINATE the
+//     literal rather than suppress the alert with a per-tool ignore -- and note
+//     GitGuardian does not honour the detect-secrets allowlist pragma anyway.
 import { describe, it, expect, vi } from 'vitest';
+import { randomBytes } from 'node:crypto';
 import {
   parseProdDbUrl,
   resolveProdDbUrl,
@@ -17,7 +32,10 @@ import {
   PROD_DB_SERVICE,
 } from './prod-db-url';
 
-const DSN = 'postgresql://postgres:s3cr3t-rotated@trolley.proxy.rlwy.net:30812/railway';
+// Synthetic, per-run credential: never a literal, never a real value.
+const FAKE_PASSWORD = 'pw-' + randomBytes(8).toString('hex');
+const DSN =
+  'postgresql://appuser:' + FAKE_PASSWORD + '@db.example.invalid:5432/appdb';
 
 function kv(lines: readonly string[]): string {
   return lines.join('\n') + '\n';
@@ -28,7 +46,7 @@ describe('parseProdDbUrl', () => {
     const out = kv([
       'PGDATA=/var/lib/postgresql/data/pgdata',
       PROD_DB_URL_VARIABLE + '=' + DSN,
-      'RAILWAY_TCP_PROXY_PORT=30812',
+      'RAILWAY_TCP_PROXY_PORT=5432',
     ]);
     expect(parseProdDbUrl(out)).toBe(DSN);
   });
@@ -43,10 +61,11 @@ describe('parseProdDbUrl', () => {
   });
 
   it('rejects a truncated or malformed value WITHOUT echoing it', () => {
+    // The default (non---kv) Railway table rendering CLIPS long values. A bare
+    // z.url() accepts postgresql:// (empty host is legal for a non-special
+    // scheme), so a clipped DSN must be rejected here rather than at connect.
     const truncated = 'postgresql://';
     const out = kv([PROD_DB_URL_VARIABLE + '=' + truncated]);
-    // The default (non---kv) Railway table rendering CLIPS long values; a
-    // clipped DSN must fail loudly rather than reach a connection attempt.
     let message = '';
     try {
       parseProdDbUrl(out);
@@ -58,14 +77,14 @@ describe('parseProdDbUrl', () => {
   });
 
   it('never leaks the password in the failure message', () => {
-    const out = kv([PROD_DB_URL_VARIABLE + '=not-a-url-s3cr3t-rotated']);
+    const out = kv([PROD_DB_URL_VARIABLE + '=not-a-url-' + FAKE_PASSWORD]);
     let message = '';
     try {
       parseProdDbUrl(out);
     } catch (e) {
       message = e instanceof Error ? e.message : String(e);
     }
-    expect(message).not.toContain('s3cr3t-rotated');
+    expect(message).not.toContain(FAKE_PASSWORD);
   });
 });
 
@@ -123,9 +142,9 @@ describe('resolveProdDbUrl', () => {
 
 describe('buildRailwayArgs', () => {
   it('targets project, environment and service EXPLICITLY (never a directory link)', () => {
-    // The bug this prevents: every fresh git worktree starts UNLINKED, so a
-    // command relying on the CWD link fails with 'Service not found'. Explicit
-    // flags make the resolver work from ANY directory.
+    // Every fresh git worktree starts UNLINKED, so a command relying on the CWD
+    // link fails -- or silently reads a DIFFERENT project. Explicit flags make
+    // the resolver work from ANY directory.
     const args = buildRailwayArgs({});
     expect(args).toContain('--project');
     expect(args).toContain(PROD_DB_PROJECT_ID);
@@ -139,7 +158,7 @@ describe('buildRailwayArgs', () => {
     expect(buildRailwayArgs({})).toContain('--kv');
   });
 
-  it('uses the modern \'variable list\' subcommand form', () => {
+  it('uses the modern variable-list subcommand form', () => {
     const args = buildRailwayArgs({});
     expect(args[0]).toBe('variable');
     expect(args[1]).toBe('list');

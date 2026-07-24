@@ -265,7 +265,7 @@
 ,
     "__ci_fast__": {
       "description": "PR gate orchestration node — lint + typecheck + test:unit + codemod drift gate. Double-underscore prevents package-script collision. Expose via root package.json script 'ci:fast' for friendly CLI. CI workflow should matrix-split (ADR-001).",
-      "dependsOn": ["lint", "typecheck", "test:unit", "//#codemod:check", "//#test:scripts"],
+      "dependsOn": ["lint", "typecheck", "test:unit", "//#codemod:check", "//#test:scripts", "//#guard:local-secrets"],
       "cache": false
     },
     "__ci_full__": {
@@ -309,6 +309,11 @@
     },
     "//#guard:local-secrets": {
       "description": "Root-level task: fail when a PRODUCTION credential literal sits in a local env file (.env, .env.local, .env.production, .env.prod). Prefix //# ensures repo-root-only. Covers a genuine blind spot rather than duplicating existing protection: pre-commit check-env-files blocks COMMITTING a .env and detect-secrets scans STAGED content, but a local .env is untracked BY DESIGN so neither ever inspects it -- which is exactly how a stale PROD_DATABASE_URL sat undetected until prod rotated. Only PROD/PRODUCTION-scoped variable names holding an inline-credential URL are flagged, so an ordinary local docker-compose DATABASE_URL stays legitimate. Reports file, line and variable NAME only, never the value. Exit 1 on violation, 2 on tooling error. cache:false (reads working-tree state outside the task graph). Run: pnpm exec turbo run guard:local-secrets.",
+      "cache": false,
+      "persistent": false
+    },
+    "//#guard:local-secrets:baseline": {
+      "description": "Root-level task: regenerate scripts/local-secret-guard.config.json, the SHA-256 hashes of production hostnames that must never appear in tracked source. Prefix //# ensures repo-root-only. The hash is DERIVED AT RUNTIME from the live Railway value via the same resolver the ops tasks use, so the plaintext hostname is never typed into a tracked file -- a guard whose own config leaked the topology it protects would be self-defeating. Mirrors the hashed_secret field in .secrets.baseline. Reports a hash prefix only, never the hostname. cache:false (live network read). Run: pnpm exec turbo run guard:local-secrets:baseline.",
       "cache": false,
       "persistent": false
     },
