@@ -20,6 +20,7 @@
 // shows the arrival status. photoUrl is a short-lived presigned S3 GET URL minted
 // by the API (never a raw bucket path), so the private bucket is never exposed.
 import { z } from 'zod';
+import { EXTRACTION_FAILURE_REASONS } from './extraction-vocabulary.js';
 
 export const STOP_TYPES = ['pickup', 'delivery'] as const;
 export type StopType = typeof STOP_TYPES[number];
@@ -115,7 +116,7 @@ export const StopProofSchema = z.object({
   // inlined here to keep the contract dependency-free. optional => old producers
   // stay valid; null => pending/extracted/manual rows carry no reason.
   extractionReason: z
-    .enum(['unparseable', 'below_sanity_min', 'above_sanity_max', 'no_field', 'object_missing'])
+    .enum(EXTRACTION_FAILURE_REASONS)
     .nullable()
     .optional(),
 }).strict();
