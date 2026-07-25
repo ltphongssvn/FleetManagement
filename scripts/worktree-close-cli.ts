@@ -58,7 +58,7 @@ export function parseCloseArgv(argv: readonly string[]): CloseArgv {
   for (const arg of argv) {
     if (arg === '--retired') {
       retired = true;
-    } else if (arg.startsWith('--') === false && path === null && arg.length > 0) {
+    } else if (!arg.startsWith('--') && path === null && arg.length > 0) {
       path = arg;
     }
   }

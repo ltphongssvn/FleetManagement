@@ -62,7 +62,7 @@ export function decideClose(raw: WorktreeCloseInput): CloseVerdict {
   // Written in the ! idiom the root-scripts lint (#400) enforces.
   if (!input.containedInIntegration && !input.retired) reasons.push('unmerged');
   if (reasons.length > 0) return { action: 'refuse', reasons };
-  if (input.retired === true) return { action: 'remove-keep-branch', reasons: [] };
+  if (input.retired) return { action: 'remove-keep-branch', reasons: [] };
   return { action: 'remove', reasons: [] };
 }
 
