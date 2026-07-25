@@ -1,14 +1,25 @@
 // apps/ops-web/test/order-review-page-session-expired.test.ts
 // RED (T11 idle-timeout arc, P7 sweep, last surface): the order-review RSC
-// loader forwards ONLY fleet_session to the BFF; after idle expiry it sends
-// no cookie, the forwarder answers 401, and the loader THROWS into the error
+// loader forwards ONLY fleet_session to the API; after idle expiry it sends
+// no cookie, the API answers 401, and the loader THROWS into the error
 // boundary (dead-end). Pinned contract: 401 -> server-side redirect() to the
 // silent-refresh route with next=<this order page> (loadDispatchBoard house
 // pattern; a top-level navigation lets the rotated cookie pair ride
 // legitimately -- forwarding fleet_refresh into an internal fetch would trip
 // RFC 9700 reuse detection). 404 keeps notFound(); other failures keep the
 // descriptive throw.
+//
+// 2026-07-23: the page no longer self-fetches its own BFF through the host
+// header (that coupled the render to the PUBLISHED port and broke on any stack
+// whose mapping is not 3001:3001). It now delegates to the server-only
+// loadOrderReview loader, which calls FLEET_API_URL directly. This spec is
+// unchanged in CONTRACT -- it still drives the page and asserts the same three
+// behaviours -- but gains the server-only stub the sibling loader tests already
+// use (load-board.test.ts), because the loader imports 'server-only' and the
+// real package refuses to load outside a server component.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('server-only', () => ({}));
 
 const cookieGet = vi.fn();
 const headerGet = vi.fn();
@@ -49,6 +60,9 @@ describe('OrderReviewPage loader on idle-expired session', () => {
     headerGet.mockImplementation((n: string) =>
       n === 'host' ? 'xe.public.example' : n === 'x-forwarded-proto' ? 'https' : null,
     );
+    // The loader resolves the API from FLEET_API_URL (in-network address), so
+    // it must be present for the page to reach the fetch under test at all.
+    process.env['FLEET_API_URL'] = 'http://api:3000';
   });
 
   it('401 -> redirect() to the silent-refresh route with next=<this page>', async () => {

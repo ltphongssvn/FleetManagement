@@ -16,6 +16,7 @@ import { CommandsGateway } from '../commands/commands.gateway.js';
 import type { BreakGlassLoginMonitorService } from '../security/break-glass-login-monitor.service.js';
 import type { IntakeLagMonitorService } from '../manifest/intake-lag-monitor.service.js';
 import type { IntakeReconcilerService } from '../manifest/intake-reconciler.service.js';
+import type { AlertLagMonitorService } from '../manifest/alert-lag-monitor.service.js';
 import type { CompletionReconcilerService } from '../manifest/completion-reconciler.service.js';
 import type { CompletionReconcilerMonitorService } from '../maintenance/completion-reconciler-monitor.service.js';
 import type { Env } from '../config/env.config.js';
@@ -23,6 +24,7 @@ import type { Env } from '../config/env.config.js';
 export const BREAKGLASS_MONITOR = 'BREAKGLASS_MONITOR' as const;
 export const INTAKE_LAG_MONITOR = 'INTAKE_LAG_MONITOR' as const;
 export const INTAKE_RECONCILER = 'INTAKE_RECONCILER' as const;
+export const ALERT_LAG_MONITOR = 'ALERT_LAG_MONITOR' as const;
 export const COMPLETION_RECONCILER = 'COMPLETION_RECONCILER' as const;
 export const COMPLETION_RECONCILER_MONITOR = 'COMPLETION_RECONCILER_MONITOR' as const;
 
@@ -33,6 +35,11 @@ const INTAKE_LAG_INTERVAL_MS = 300_000;
 // Reconciler tick: same 5-min cadence as the lag monitor. Backoff gating
 // lives in the query, so a frequent tick is cheap and shortens recovery.
 const INTAKE_RECONCILE_INTERVAL_MS = 300_000;
+// Alert-lag guard: same 5-min cadence. A driver_alert stuck longer than the
+// monitor threshold, or any dead-lettered alert, pages within one window.
+const ALERT_LAG_INTERVAL_MS = 300_000;
+
+type SchedulerKind = 'outbox' | 'projection' | 'reconciler' | 'breakglass' | 'intakeLag' | 'intakeReconcile' | 'completionReconcile' | 'alertLag' | 'completionMonitor';
 // Completion reconciler tick: same 5-min cadence. A frequent, cheap
 // level-triggered sweep that heals any delivered run the edge-trigger
 // missed, across all tenants, within one interval.
@@ -41,7 +48,6 @@ const COMPLETION_RECONCILE_INTERVAL_MS = 300_000;
 // Threshold gating lives in the query/service, so a frequent tick is cheap.
 const COMPLETION_MONITOR_INTERVAL_MS = 300_000;
 
-type SchedulerKind = 'outbox' | 'projection' | 'reconciler' | 'breakglass' | 'intakeLag' | 'intakeReconcile' | 'completionReconcile' | 'completionMonitor';
 
 @Injectable()
 export class SchedulerService implements OnModuleInit, OnModuleDestroy {
@@ -53,6 +59,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   private breakglassTimer: NodeJS.Timeout | null = null;
   private intakeLagTimer: NodeJS.Timeout | null = null;
   private intakeReconcileTimer: NodeJS.Timeout | null = null;
+  private alertLagTimer: NodeJS.Timeout | null = null;
   private completionReconcileTimer: NodeJS.Timeout | null = null;
   private completionMonitorTimer: NodeJS.Timeout | null = null;
   private stopped = false;
@@ -74,6 +81,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     @Inject(COMPLETION_RECONCILER)
     private readonly completionReconciler: CompletionReconcilerService | null = null,
     @Optional()
+    @Inject(ALERT_LAG_MONITOR)
+    private readonly alertLagMonitor: AlertLagMonitorService | null = null,
+    @Optional()
     @Inject(COMPLETION_RECONCILER_MONITOR)
     private readonly completionMonitor: CompletionReconcilerMonitorService | null = null,
   ) {
@@ -86,6 +96,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     if (this.breakGlassMonitor !== null) this.scheduleNext('breakglass');
     if (this.intakeLagMonitor !== null) this.scheduleNext('intakeLag');
     if (this.intakeReconciler !== null) this.scheduleNext('intakeReconcile');
+    if (this.alertLagMonitor !== null) this.scheduleNext('alertLag');
     if (this.completionReconciler !== null) this.scheduleNext('completionReconcile');
     if (this.completionMonitor !== null) this.scheduleNext('completionMonitor');
   }
@@ -113,6 +124,10 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     if (this.intakeReconcileTimer !== null) {
       clearTimeout(this.intakeReconcileTimer);
       this.intakeReconcileTimer = null;
+    }
+    if (this.alertLagTimer !== null) {
+      clearTimeout(this.alertLagTimer);
+      this.alertLagTimer = null;
     }
     if (this.completionReconcileTimer !== null) {
       clearTimeout(this.completionReconcileTimer);
@@ -147,6 +162,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       case 'intakeReconcile':
         this.intakeReconcileTimer = setTimeout(tick, INTAKE_RECONCILE_INTERVAL_MS);
         return;
+      case 'alertLag':
+        this.alertLagTimer = setTimeout(tick, ALERT_LAG_INTERVAL_MS);
+        return;
       case 'completionReconcile':
         this.completionReconcileTimer = setTimeout(tick, COMPLETION_RECONCILE_INTERVAL_MS);
         return;
@@ -168,6 +186,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       case 'breakglass': return 'breakglass-scan';
       case 'intakeLag': return 'intake-lag-check';
       case 'intakeReconcile': return 'intake-reconcile';
+      case 'alertLag': return 'driver-alert-lag-check';
       case 'completionReconcile': return 'completion-reconcile';
       case 'completionMonitor': return 'completion-monitor-check';
       default: {
@@ -184,6 +203,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       case 'breakglass': return 'Break-glass poll failed: ';
       case 'intakeLag': return 'Intake-lag check failed: ';
       case 'intakeReconcile': return 'Intake reconcile failed: ';
+      case 'alertLag': return 'Driver-alert-lag check failed: ';
       case 'completionReconcile': return 'Completion reconcile failed: ';
       case 'completionMonitor': return 'Completion monitor check failed: ';
       default: {
@@ -211,6 +231,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
         return;
       case 'intakeReconcile':
         if (this.intakeReconciler !== null) await this.intakeReconciler.reconcileOnce();
+        return;
+      case 'alertLag':
+        if (this.alertLagMonitor !== null) await this.alertLagMonitor.checkOnce();
         return;
       case 'completionReconcile':
         if (this.completionReconciler !== null) await this.completionReconciler.reconcileOnce();
@@ -252,6 +275,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   async drainBreakglass(): Promise<void> { await this.runDrain('breakglass'); }
   async drainIntakeLag(): Promise<void> { await this.runDrain('intakeLag'); }
   async drainIntakeReconcile(): Promise<void> { await this.runDrain('intakeReconcile'); }
+  async drainAlertLag(): Promise<void> { await this.runDrain('alertLag'); }
   async drainCompletionReconcile(): Promise<void> { await this.runDrain('completionReconcile'); }
   async drainCompletionMonitor(): Promise<void> { await this.runDrain('completionMonitor'); }
 }

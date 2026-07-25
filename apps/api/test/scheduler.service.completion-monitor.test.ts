@@ -31,7 +31,7 @@ describe('@fleet/api - SchedulerService completion-monitor tick', () => {
   it('drainCompletionMonitor tags Sentry scope job=completion-monitor-check and calls checkOnce', async () => {
     const checkOnce = vi.fn().mockResolvedValue(undefined);
     const mon = { checkOnce } as unknown as CompletionReconcilerMonitorService;
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, null, null, null, mon);
+    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, null, null, null, null, mon);
     await svc.drainCompletionMonitor();
     expect(checkOnce).toHaveBeenCalledTimes(1);
     expect(capturedTags.find((t) => t.key === 'job')?.value).toBe('completion-monitor-check');
@@ -40,7 +40,7 @@ describe('@fleet/api - SchedulerService completion-monitor tick', () => {
   it('onModuleInit schedules the completion check at 300s when a monitor is present', async () => {
     const checkOnce = vi.fn().mockResolvedValue(undefined);
     const mon = { checkOnce } as unknown as CompletionReconcilerMonitorService;
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, null, null, null, mon);
+    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, null, null, null, null, mon);
     svc.onModuleInit();
     await vi.advanceTimersByTimeAsync(299_999);
     expect(checkOnce).not.toHaveBeenCalled();
@@ -51,7 +51,7 @@ describe('@fleet/api - SchedulerService completion-monitor tick', () => {
   it('keeps self-scheduling: a second completion tick fires another 300s later', async () => {
     const checkOnce = vi.fn().mockResolvedValue(undefined);
     const mon = { checkOnce } as unknown as CompletionReconcilerMonitorService;
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, null, null, null, mon);
+    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, null, null, null, null, mon);
     svc.onModuleInit();
     await vi.advanceTimersByTimeAsync(300_001);
     await vi.advanceTimersByTimeAsync(300_001);
