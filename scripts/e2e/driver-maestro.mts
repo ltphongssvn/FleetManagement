@@ -56,12 +56,12 @@ function log(section: string, msg: string): void {
 async function mintToken(): Promise<string> {
     const script = "fetch('http://mock-oauth2:8080/fleet/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:'grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret'}).then(r=>r.json()).then(j=>process.stdout.write(j.access_token))";
   const r = await execa('docker', ['exec', API_CTR, 'node', '-e', script], { all: true });
-  const tok = (r.stdout ?? '').trim();
-  if (!tok.includes('.')) throw new Error('token mint failed: ' + (r.all ?? ''));
+  const tok = r.stdout.trim();
+  if (!tok.includes('.')) throw new Error('token mint failed: ' + r.all);
   return tok;
 }
 
-interface PostOk { [k: string]: unknown }
+type PostOk = Record<string, unknown>;
 async function apiPost(token: string, path: string, body: unknown): Promise<PostOk> {
   const res = await fetch(API + path, {
     method: 'POST',
@@ -153,7 +153,7 @@ async function cleanup(vehicleId: string): Promise<void> {
 async function adbReverse(): Promise<void> {
   await execa('adb', ['-s', DEVICE, 'reverse', 'tcp:3000', 'tcp:3000'], { reject: false });
   const r = await execa('adb', ['-s', DEVICE, 'reverse', '--list'], { reject: false, all: true });
-  log('adb reverse', r.all ?? '');
+  log('adb reverse', r.all);
 }
 
 // hide_error_dialogs=1 stops the headless swiftshader emulator's system_server
@@ -162,14 +162,14 @@ async function adbReverse(): Promise<void> {
 async function ensureEmulatorSettings(): Promise<void> {
   await execa('adb', ['-s', DEVICE, 'shell', 'settings', 'put', 'global', 'hide_error_dialogs', '1'], { reject: false });
   const r = await execa('adb', ['-s', DEVICE, 'shell', 'settings', 'get', 'global', 'hide_error_dialogs'], { reject: false, all: true });
-  log('hide_error_dialogs', (r.all ?? '').trim());
+  log('hide_error_dialogs', r.all.trim());
 }
 
 interface FlowResult { flow: string; rc: number }
 async function runFlow(flowPath: string, seedEnv: Record<string, string>): Promise<FlowResult> {
   const r = await execa('maestro', ['test', flowPath], { cwd: WT, env: { ...env, ...seedEnv }, reject: false, all: true });
-  log('maestro ' + basename(flowPath), (r.all ?? '') + '\nRC=' + String(r.exitCode));
-  return { flow: basename(flowPath), rc: r.exitCode ?? 1 };
+  log('maestro ' + basename(flowPath), r.all + '\nRC=' + String(r.exitCode));
+  return { flow: basename(flowPath), rc: r.exitCode };
 }
 
 function copyScreens(): void {
@@ -177,7 +177,10 @@ function copyScreens(): void {
   if (!existsSync(base)) return;
   const runs = readdirSync(base).map((d) => join(base, d)).filter((d) => statSync(d).isDirectory());
   if (runs.length === 0) return;
+  // Indexed access: [0] is string | undefined under noUncheckedIndexedAccess even
+  // though runs.length > 0 was checked above. Narrow explicitly rather than assert.
   const latest = runs.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
+  if (latest === undefined) return;
   const pngs = readdirSync(latest).filter((f) => f.endsWith('.png')).map((f) => join(latest, f));
   const usersDir = '/mnt/c/Users';
   const desks = existsSync(usersDir) ? readdirSync(usersDir).map((u) => join(usersDir, u, 'Desktop')).filter((d) => existsSync(d)) : [];

@@ -1,7 +1,8 @@
 // apps/api/src/database/schema/reference.ts
 // Reference master tables for dispatch form dropdowns: drivers, vehicles,
 // customers, cargo types, warehouses. Seeded from VẬN CHUYỂN Xe Thùng PDFs.
-import { pgTable, uuid, varchar, timestamp, index, integer, boolean, unique } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, timestamp, index, integer, boolean, unique, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { tenancyColumns } from './tenancy.js';
 
 export const driver = pgTable(
@@ -18,7 +19,19 @@ export const driver = pgTable(
   },
   (t) => [
     index('driver_company_idx').on(t.companyId),
-    unique('driver_company_name_uq').on(t.companyId, t.fullName),
+    // Driver name uniqueness is case-INSENSITIVE but accent-SENSITIVE: LÊ VĂN
+    // CHÂU == Lê Văn Châu (same driver) yet LÊ != LE (different people). A plain
+    // UNIQUE(company_id, full_name) is case-sensitive, so it let case-variant
+    // duplicates through; lower(full_name) folds case without stripping accents
+    // (unlike unaccent/citext) and keeps the column plain text so board/export
+    // ILIKE search still works (a nondeterministic collation would break ILIKE
+    // pre-PG18). PARTIAL on active rows only -- mirrors dva_one_active_per_*_uq
+    // and the soft-delete convention: a soft-deleted row (active=false) never
+    // blocks re-registration, so the one prod case-variant (a soft-deleted twin)
+    // coexists without a destructive data migration.
+    uniqueIndex('driver_company_active_name_ci_uq')
+      .on(t.companyId, sql`lower(${t.fullName})`)
+      .where(sql`active = true`),
     unique('driver_company_phone_uq').on(t.companyId, t.phone),
   ],
 );

@@ -10,6 +10,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { driver } from '../database/schema/reference.js';
+import { normalizeDisplayName } from '@fleet/domain';
 import { driverVehicleAssignment } from '../database/schema/driver-vehicle-assignment.js';
 import { transportOrder, roadRun, roadRunTransportOrder } from '../database/schema/transport.js';
 export interface UpdateDriverInput {
@@ -26,7 +27,9 @@ export interface SoftDeleteDriverInput {
 export class AdminDriversUpdateService {
   constructor(@Inject(DRIZZLE_DB) private readonly db: FleetDb) {}
   async update(input: UpdateDriverInput): Promise<void> {
-    const patch: { fullName: string; phone?: string } = { fullName: input.fullName };
+    // Normalize on rename too, so a rename cannot reintroduce a case/spacing
+    // variant of an existing name (mirrors the create path + the lower() index).
+    const patch: { fullName: string; phone?: string } = { fullName: normalizeDisplayName(input.fullName) };
     if (input.phone !== undefined) patch.phone = input.phone;
     await this.db.update(driver).set(patch).where(and(
       eq(driver.companyId, input.companyId),

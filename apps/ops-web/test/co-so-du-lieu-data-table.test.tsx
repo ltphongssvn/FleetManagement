@@ -145,3 +145,35 @@ describe('DataTable row selection', () => {
     expect(onSelectionChange).toHaveBeenLastCalledWith([rows[1]]);
   });
 });
+
+// R-A11Y (D1): WCAG 2.2 AA table semantics. A caption gives the table an
+// accessible name; the first body cell of each row is a row header
+// (th scope=row) so screen readers announce the row identity; a polite
+// aria-live status region announces the visible-row count after search or
+// pagination (WCAG 4.1.3). These assertions are RED until DataTable adds
+// the caption prop, the rowheader first column, and the status region.
+describe('DataTable accessibility (R-A11Y)', () => {
+  it('exposes an accessible name via the caption prop', () => {
+    render(<DataTable columns={columns} data={rows} caption={'Danh sach tai xe'} />);
+    expect(screen.getByRole('table', { name: 'Danh sach tai xe' })).toBeInTheDocument();
+  });
+
+  it('marks the first cell of each row as a row header', () => {
+    render(<DataTable columns={columns} data={rows} caption={'Danh sach tai xe'} />);
+    const rowHeaders = screen.getAllByRole('rowheader');
+    expect(rowHeaders).toHaveLength(rows.length);
+    expect(rowHeaders[0]).toHaveTextContent('LE VAN CHAU');
+  });
+
+  it('announces the visible row count in a polite status region', () => {
+    render(<DataTable columns={columns} data={rows} caption={'Danh sach tai xe'} />);
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent(String(rows.length));
+  });
+
+  it('updates the status region after a search filter', () => {
+    render(<DataTable columns={columns} data={rows} caption={'Danh sach tai xe'} />);
+    fireEvent.change(screen.getByTestId('datatable-search'), { target: { value: '70H' } });
+    expect(screen.getByRole('status')).toHaveTextContent('1');
+  });
+});
