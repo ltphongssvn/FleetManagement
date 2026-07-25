@@ -35,7 +35,7 @@ const OP = createOperatorContext({ companyId: '00000000-0000-0000-0000-000000000
 // service writes. (Asserting the imported value still proves the service emits it.)
 const EXPECTED_HEADERS = LENH_DIEU_XE_EXPORT_HEADERS;
 function q(s: string): string { return String.fromCharCode(39) + s + String.fromCharCode(39); }
-async function seedProjection(roadRunId: string, refs: readonly string[]): Promise<void> {
+async function seedProjection(roadRunId: string, refs: readonly string[], state = 'planned'): Promise<void> {
   const co = OP.companyId;
   const refsJson = JSON.stringify(refs);
   const stmt =
@@ -43,7 +43,7 @@ async function seedProjection(roadRunId: string, refs: readonly string[]): Promi
     '(road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, ' +
     ' state, stop_count, transport_order_refs, server_seq, planned_start_at) ' +
     'VALUES (' + q(roadRunId) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ', ' +
-    q('planned') + ',2,' + q(refsJson) + '::jsonb,1,' + q('2026-05-24T08:00:00Z') + ')';
+    q(state) + ',2,' + q(refsJson) + '::jsonb,1,' + q('2026-05-24T08:00:00Z') + ')';
   await testDb.db.execute(sql.raw(stmt));
 }
 async function seedOrderGraph(opts: {
@@ -55,16 +55,27 @@ async function seedOrderGraph(opts: {
   deliveryWarehouseName: string;
   pickupArrived: string | null;
   deliveryArrived: string | null;
+  cargoName?: string | null;
 }): Promise<void> {
   const co = OP.companyId;
   const customerId = '00000000-0000-4000-8000-00000000c001';
   const pickupYardId = '00000000-0000-4000-8000-00000000a001';
   const deliveryYardId = '00000000-0000-4000-8000-00000000a002';
   const toId = opts.transportOrderId;
+  const cargoTypeId = '00000000-0000-4000-8000-00000000ca01';
+  const hasCargo = opts.cargoName !== undefined && opts.cargoName !== null;
   const phoneVal = opts.customerPhone === null ? 'NULL' : q(opts.customerPhone);
   const operatorId = '00000000-0000-4000-8000-0000000d0001'.replace('d','b');
   const assetId = '00000000-0000-4000-8000-0000000e0001'.replace('e','c');
-  const stmts = [
+  const stmts: string[] = [];
+  if (opts.cargoName !== undefined && opts.cargoName !== null) {
+    const cargoName = opts.cargoName;
+    stmts.push(
+      'INSERT INTO cargo_type (cargo_type_id, company_id, business_unit_id, depot_id, legal_entity_id, name) VALUES (' +
+        q(cargoTypeId) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(cargoName) + ')',
+    );
+  }
+  stmts.push(
     'INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, assigned_operator_id, assigned_asset_id, planned_start_at) VALUES (' +
       q(opts.roadRunId) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q('planned') + ',' + q(operatorId) + ',' + q(assetId) + ',' + q('2026-05-24T08:00:00Z') + ')',
     'INSERT INTO customer (customer_id, company_id, business_unit_id, depot_id, legal_entity_id, name, phone) VALUES (' +
@@ -73,11 +84,11 @@ async function seedOrderGraph(opts: {
       q(pickupYardId) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(opts.pickupWarehouseName) + ',' + q('pickup') + ')',
     'INSERT INTO warehouse (warehouse_id, company_id, business_unit_id, depot_id, legal_entity_id, name, role) VALUES (' +
       q(deliveryYardId) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(opts.deliveryWarehouseName) + ',' + q('delivery') + ')',
-    'INSERT INTO transport_order (transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, external_ref, state, customer_id) VALUES (' +
-      q(toId) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q('XT.GRAPH') + ',' + q('assigned') + ',' + q(customerId) + ')',
+    'INSERT INTO transport_order (transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, external_ref, state, customer_id, cargo_type_id) VALUES (' +
+      q(toId) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q('XT.GRAPH') + ',' + q('assigned') + ',' + q(customerId) + ',' + (hasCargo ? q(cargoTypeId) : 'NULL') + ')',
     'INSERT INTO road_run_transport_order (road_run_transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, road_run_id, transport_order_id, sequence) VALUES (' +
       q('00000000-0000-4000-8000-000000040001') + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(co) + ',' + q(opts.roadRunId) + ',' + q(toId) + ',1)',
-  ];
+  );
   const pickupArr = opts.pickupArrived === null ? 'NULL' : q(opts.pickupArrived);
   const delivArr = opts.deliveryArrived === null ? 'NULL' : q(opts.deliveryArrived);
   stmts.push(
@@ -128,6 +139,7 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
       transportOrderId: '00000000-0000-4000-8000-000000070001',
       customerName: 'ĐA NĂNG',
       customerPhone: '0903998784',
+      cargoName: 'GẠO',
       pickupWarehouseName: 'Cần Thơ',
       deliveryWarehouseName: 'ĐA NĂNG',
       pickupArrived: '2026-05-24T10:00:00Z',
@@ -139,24 +151,29 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
     expect(headerOf(ws)).toEqual(EXPECTED_HEADERS);
     const data = rowValues(ws, 2);
-    // 0-based after slice(1): 0..5 identifying; 6 = Chênh lệch; then pairs:
-    // 7 P1 name,8 P1 kg, 9 P2 name,10 P2 kg, 11 P3,12, 13 P4,14, 15 D1 name,16 D1 kg
+    // 0-based after slice(1): 0 Số lệnh, 1 Trạng thái, 2 Khách hàng, 3 Tên hàng,
+    // 4 Tài xế, 5 Xe, 6 Ngày dự kiến, 7 Số điểm, 8 = Chênh lệch; then pairs:
+    // 9 P1 name,10 P1 kg, 11 P2 name,12 P2 kg, 13 P3,14, 15 P4,16, 17 D1 name,18 D1 kg
     expect(String(data[0])).toBe('XT.GRAPH');
-    const kh = String(data[1]);
+    // Trạng thái is blank for a non-cancelled (planned) order.
+    expect(data[1] === null || data[1] === undefined).toBe(true);
+    const kh = String(data[2]);
     expect(kh).toContain('ĐA NĂNG');
     expect(kh).toContain('0903998784');
+    // Tên hàng: the cargo-type name resolved via transport_order -> cargo_type.
+    expect(String(data[3])).toBe('GẠO');
     // pickup slot 1: warehouse name present; NO status text anywhere in the row
-    // Chênh lệch (col 6) is BLANK here: only the pickup is seeded with no weight,
+    // Chênh lệch (col 8) is BLANK here: only the pickup is seeded with no weight,
     // so the diff is incomplete -> true blank, never 0.
-    expect(data[6] === null || data[6] === undefined).toBe(true);
-    expect(String(data[7])).toBe('Cần Thơ');
-    // delivery slot 1: warehouse name present
-    expect(String(data[15])).toBe('ĐA NĂNG');
-    // no weights extracted yet -> kg cells are EMPTY (blank), never 0, never status
     expect(data[8] === null || data[8] === undefined).toBe(true);
-    expect(data[16] === null || data[16] === undefined).toBe(true);
+    expect(String(data[9])).toBe('Cần Thơ');
+    // delivery slot 1: warehouse name present
+    expect(String(data[17])).toBe('ĐA NĂNG');
+    // no weights extracted yet -> kg cells are EMPTY (blank), never 0, never status
+    expect(data[10] === null || data[10] === undefined).toBe(true);
+    expect(data[18] === null || data[18] === undefined).toBe(true);
     // unused pickup slots 2-4: both name and kg cells EMPTY (no em-dash, no status)
-    for (const i of [9, 10, 11, 12, 13, 14]) {
+    for (const i of [11, 12, 13, 14, 15, 16]) {
       expect(data[i] === null || data[i] === undefined).toBe(true);
     }
     // explicit: the row contains NO legacy status strings anywhere
@@ -248,9 +265,10 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(r.buffer as unknown as ArrayBuffer);
     const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
-    // col 7 = Chênh lệch; paired layout shifts by 1: col 8 = P1 name, col 9 = P1 kg
-    expect(ws.getRow(2).getCell(8).value).toBe('Cần Thơ');
-    const kgCell = ws.getRow(2).getCell(9).value;
+    // With Trạng thái at col 2 and Tên hàng at col 4, the layout shifts by 1
+    // more: col 9 = Chênh lệch; col 10 = P1 name, col 11 = P1 kg.
+    expect(ws.getRow(2).getCell(10).value).toBe('Cần Thơ');
+    const kgCell = ws.getRow(2).getCell(11).value;
     expect(typeof kgCell).toBe('number');
     expect(kgCell).toBe(7920);
   });
@@ -305,11 +323,42 @@ describe('@fleet/api - TransportOrdersExportService (integration)', () => {
     const headers = headerOf(ws);
     expect(headers).toContain('Chênh lệch (Số giao - Số nhận)');
     const diffCol = headers.indexOf('Chênh lệch (Số giao - Số nhận)');
-    // Chênh lệch sits right after Số điểm (col index 5), before the stop pairs.
-    expect(diffCol).toBe(6);
+    // Chênh lệch sits right after Số điểm; with Trạng thái at index 1 and
+    // Tên hàng at index 3 the identifying block is Số lệnh(0) Trạng thái(1)
+    // Khách hàng(2) Tên hàng(3) Tài xế(4) Xe(5) Ngày dự kiến(6) Số điểm(7)
+    // Chênh lệch(8), before the stop pairs.
+    expect(diffCol).toBe(8);
     const cell = ws.getRow(2).getCell(diffCol + 1).value;
     expect(typeof cell).toBe('number');
     expect(cell).toBe(-2920);
+  });
+  // Feature (2026): the owner wants to see which orders are cancelled in the
+  // exported workbook. A dedicated Trạng thái column shows Đã hủy for a
+  // cancelled road run and a true blank for any other state, mirroring the
+  // on-screen board badge (the state lives on dispatch_board_projection.state).
+  it('Trạng thái column shows Đã hủy for a cancelled order and blank otherwise', async () => {
+    await seedProjection('aaaaaaaa-9999-4999-8999-999999999999', ['XT.CANCELLED'], 'cancelled');
+    await seedProjection('bbbbbbbb-9999-4999-8999-999999999999', ['XT.PLANNED'], 'planned');
+    const r = await svc.exportAndLog(OP, 'manual');
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(r.buffer as unknown as ArrayBuffer);
+    const ws = wb.worksheets[0]; if (!ws) throw new Error('no worksheet');
+    const headers = headerOf(ws);
+    expect(headers).toContain('Trạng thái');
+    const statusCol = headers.indexOf('Trạng thái');
+    // Trạng thái is the second column (right after Số lệnh).
+    expect(statusCol).toBe(1);
+    // Collect the Số lệnh + Trạng thái pair for every data row, order-independent.
+    const byRef = new Map<string, unknown>();
+    ws.eachRow((row, idx) => {
+      if (idx === 1) return;
+      const ref = row.getCell(1).value;
+      const status = row.getCell(statusCol + 1).value;
+      if (typeof ref === 'string') byRef.set(ref, status);
+    });
+    expect(byRef.get('XT.CANCELLED')).toBe('Đã hủy');
+    const plannedStatus = byRef.get('XT.PLANNED');
+    expect(plannedStatus === null || plannedStatus === undefined).toBe(true);
   });
 });
 

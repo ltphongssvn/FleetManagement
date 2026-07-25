@@ -102,8 +102,7 @@ function parseArgs(argv: readonly string[]): z.infer<typeof ArgsSchema> {
 }
 
 /* v8 ignore start -- CLI shell: exercised via compose:env, logic above is unit-tested */
-const isMain = process.argv[1] !== undefined &&
-  process.argv[1].endsWith('compose-identity.ts');
+const isMain = process.argv[1]?.endsWith('compose-identity.ts') ?? false;
 if (isMain) {
   const args = parseArgs(process.argv.slice(2));
   const id = identityFor(args.root);

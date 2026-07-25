@@ -6,13 +6,13 @@
 // IDOR) is silently stripped before the call — only fullName/phone survive.
 import { Body, Controller, Delete, HttpCode, Param, Patch, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
-import type { OperatorContext } from '@fleet/domain';
+import { DriverNameSchema, type OperatorContext } from '@fleet/domain';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { UuidParamSchema } from '../common/uuid-param.schema.js';
 import { AdminDriversUpdateService } from './admin-drivers-update.service.js';
 const UpdateSchema = z.object({
-  fullName: z.string().min(1).max(200),
+  fullName: DriverNameSchema,
   phone: z.string().min(8).max(32).optional(),
 });
 @UseGuards(JwtGuard)

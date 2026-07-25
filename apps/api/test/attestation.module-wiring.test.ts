@@ -9,6 +9,7 @@ import { DatabaseModule } from '../src/database/database.module.js';
 import { ConfigModule } from '@nestjs/config';
 import { validateEnv } from '../src/config/env.config.js';
 import { AttestationController } from '../src/device/attestation.controller.js';
+import { DeviceBindingGuard } from '../src/device/device-binding.guard.js';
 
 function makePems(): { privatePem: string; publicPem: string } {
   const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
@@ -56,6 +57,8 @@ describe('DeviceModule wires AttestationController', () => {
     }).compile();
     const ctrl = moduleRef.get(AttestationController);
     expect(ctrl).toBeInstanceOf(AttestationController);
+    const guard = moduleRef.get(DeviceBindingGuard);
+    expect(guard).toBeInstanceOf(DeviceBindingGuard);
     await moduleRef.close();
   });
 });

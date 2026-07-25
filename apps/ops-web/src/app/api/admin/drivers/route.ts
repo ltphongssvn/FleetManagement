@@ -1,32 +1,17 @@
 // apps/ops-web/src/app/api/admin/drivers/route.ts
-// BFF: forwards GET (list) and POST (create) /admin/drivers to backend
-// with token from httpOnly cookie.
-import { cookies } from 'next/headers';
-import { NextResponse, type NextRequest } from 'next/server';
-import { getApiUrl } from '@/lib/api-url';
+// BFF: GET (list) and POST (create) /admin/drivers, riding the app-wide
+// forwarder so an idle-expired hour-token is silently re-minted from the
+// httpOnly fleet_refresh cookie (mint-on-miss) instead of surfacing a raw 401
+// (prod evidence 2026-07-11: idle Quan ly tai xe & xe page died with
+// Loi: load failed). 401 problem+json (code UNAUTHORIZED) only when no
+// refresh is possible.
+import { type NextRequest, type NextResponse } from 'next/server';
+import { forwardGet, forwardWrite } from '@/app/api/_forward';
 
-
-export async function GET(): Promise<NextResponse> {
-  const token = (await cookies()).get('fleet_session')?.value;
-  if (token === undefined) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
-  const res = await fetch(`${getApiUrl()}/admin/drivers`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: 'no-store',
-  });
-  const body = await res.text();
-  return new NextResponse(body, { status: res.status, headers: { 'content-type': 'application/json' } });
+export async function GET(req: NextRequest): Promise<NextResponse> {
+  return forwardGet('/admin/drivers', req);
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const token = (await cookies()).get('fleet_session')?.value;
-  if (token === undefined) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
-  const body = await req.text();
-  const res = await fetch(`${getApiUrl()}/admin/drivers`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body,
-    cache: 'no-store',
-  });
-  const respBody = await res.text();
-  return new NextResponse(respBody, { status: res.status, headers: { 'content-type': 'application/json' } });
+  return forwardWrite(req, '/admin/drivers', 'POST');
 }

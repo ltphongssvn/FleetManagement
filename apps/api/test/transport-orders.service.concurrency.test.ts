@@ -27,7 +27,7 @@ describe('@fleet/api - TransportOrdersService concurrent create (RED)', () => {
   beforeAll(async () => {
     testDb = await startMigratedTestDb('fleet_test_to_seq');
     svc = new TransportOrdersService(testDb.db as never, new OrderNumberingService());
-  }, 90_000);
+  });
   afterAll(async () => {
     await stopMigratedTestDb(testDb);
   });
@@ -74,5 +74,5 @@ describe('@fleet/api - TransportOrdersService concurrent create (RED)', () => {
     ));
     expect(result.rows[0]?.total).toBe(String(PARALLELISM));
     expect(result.rows[0]?.distinct).toBe(String(PARALLELISM));
-  }, 60_000);
+  });
 });

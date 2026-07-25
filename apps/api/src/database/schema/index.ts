@@ -120,3 +120,4 @@ export {
   type CopilotPlanExecution,
   type NewCopilotPlanExecution,
 } from './copilot-plan-execution.js';
+export * from './device-binding.js';

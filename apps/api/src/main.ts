@@ -7,6 +7,7 @@ import { configureApp } from './configure-app.js';
 import { shutdownOtel } from './observability/otel.js';
 import { assertSingleInstance } from './runtime/single-instance-guard.js';
 import { selectMigrationConnectionString } from './database/migration-connection.js';
+import { validateEnv } from './config/env.config.js';
 
 assertSingleInstance(process.env);
 initSentry();
@@ -58,9 +59,12 @@ async function maybeSeed(): Promise<void> {
 async function bootstrap(): Promise<void> {
   await maybeMigrate();
   await maybeSeed();
+  // Factor III: read deploy-varying config from the single validated
+  // boundary (validateEnv), never raw process.env in the request path.
+  const env = validateEnv(process.env);
   const app = await NestFactory.create(AppModule, { rawBody: true });
-  configureApp(app);
-  const port = Number(process.env['PORT'] ?? 3000);
+  configureApp(app, env);
+  const port = env.PORT;
   await app.listen(port);
 
   // Factor IX (Disposability): bounded shutdown. A permanently stuck

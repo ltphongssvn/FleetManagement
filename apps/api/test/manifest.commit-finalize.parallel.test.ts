@@ -65,7 +65,7 @@ async function setupInitiatedSession(): Promise<string> {
 }
 
 describe('@fleet/api - parallel commit/finalize regression', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_par'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_par'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     service = new ManifestService(testDb.db, fakeBlobStore(), fakeConfig());
@@ -94,7 +94,7 @@ describe('@fleet/api - parallel commit/finalize regression', () => {
       SELECT state FROM upload_session WHERE upload_session_id = ${sessionId}::uuid
     `);
     expect(finalState.rows[0]?.state).toBe('verifying');
-  }, 60_000);
+  });
 
   it('#3: two concurrent finalizeIntake calls -> exactly one wins, other gets a state-guard error', async () => {
     const sessionId = await setupVerifyingSession();

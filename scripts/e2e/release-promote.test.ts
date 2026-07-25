@@ -52,7 +52,9 @@ describe('selectReleaseRunForSha', () => {
   // norm). Pure selector over a run list; main() polls with it until done+success.
   const sha = 'ef20534aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   const prev = 'b7b691cbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
-  const mk = (headSha, status, conclusion) => ({ databaseId: 1, headSha, status, conclusion });
+  const mk = (headSha: string, status: string, conclusion: string):
+    { databaseId: number; headSha: string; status: string; conclusion: string } =>
+    ({ databaseId: 1, headSha, status, conclusion });
 
   it('returns null when no run matches the merge SHA yet (run not created -> keep polling)', () => {
     const runs = [mk(prev, 'completed', 'success')];

@@ -44,7 +44,7 @@ async function setupVerifyingSession(transportOrderId: string, correlationId: st
 }
 
 describe('@fleet/api - finalizeIntake state guard + rejection audit', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_fin'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_fin'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     service = new ManifestService(testDb.db, fakeBlobStore(), fakeConfig());
@@ -59,7 +59,7 @@ describe('@fleet/api - finalizeIntake state guard + rejection audit', () => {
     await expect(
       service.finalizeIntake({ uploadSessionId: sessionId, accepted: true }, OP),
     ).rejects.toBeInstanceOf(ManifestStateInvalidTransitionError);
-  }, 60_000);
+  });
 
   it('#5: rejected manifest emits audit + sync_change_feed events (no ERP outbox)', async () => {
     const sessionId = await setupVerifyingSession(randomUUID(), randomUUID());
