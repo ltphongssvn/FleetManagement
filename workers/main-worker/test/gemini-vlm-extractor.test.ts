@@ -37,6 +37,26 @@ describe('GeminiVlmExtractor', () => {
     expect(out).toEqual({ rawLabel: 'TL hang lan 1 / lan 2', rawValues: ['10.500', '9.730'] });
   });
 
+  it('parses the T33 recognition signal (slipCount, format, component raws)', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: true, rawLabel: 'xe+hang/xe', rawValues: [], slipCount: 1, format: 'truck_and_goods', grossRaw: '28.450', tareRaw: '8.720', goodsRaw: null }));
+    const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn });
+    const out = await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' });
+    expect(out).toMatchObject({ slipCount: 1, format: 'truck_and_goods', grossRaw: '28.450', tareRaw: '8.720', goodsRaw: null });
+  });
+
+  it('asks the model for the standard-format recognition signal in the prompt', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: true, rawLabel: 'L', rawValues: ['20.730'], slipCount: 1, format: 'goods_only', grossRaw: null, tareRaw: null, goodsRaw: '20.730' }));
+    const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn });
+    await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' });
+    const [, init] = fetchFn.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as { contents: { parts: { text?: string }[] }[] };
+    const promptText = body.contents[0]?.parts.map((pp) => pp.text ?? '').join(' ');
+    expect(promptText).toContain('slipCount');
+    expect(promptText).toContain('truck_and_goods');
+    expect(promptText).toContain('goods_only');
+    expect(promptText).toContain('truck_only');
+  });
+
   it('returns null when model reports found=false', async () => {
     const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: false }));
     const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn });
