@@ -1,10 +1,10 @@
 // apps/api/test/scheduler.service.breakglass.test.ts
-// TDD for the break-glass poll tick wired into SchedulerService: an optional 5th
-// monitor dependency, a 'breakglass' self-scheduling kind at 60s inside a tagged
-// Sentry isolation scope, and dormancy when the monitor is absent (secret unset).
+// Break-glass poll tick against the multi-provider registry. The monitor is a
+// SchedulerTicker (key=breakglass, tag=breakglass-scan, 60s interval) built as
+// the module factory builds it. Dormancy (secret unset) lives in the factory:
+// it omits the ticker, so no 60s timer is armed -- modelled here by leaving the
+// breakglass ticker out of the list.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { ConfigService } from '@nestjs/config';
-
 const { mockWithIsolationScope, mockCaptureException, capturedTags } = vi.hoisted(() => {
   const capturedTags: { key: string; value: unknown }[] = [];
   return {
@@ -16,49 +16,43 @@ const { mockWithIsolationScope, mockCaptureException, capturedTags } = vi.hoiste
   };
 });
 vi.mock('@sentry/nestjs', () => ({ withIsolationScope: mockWithIsolationScope, captureException: mockCaptureException }));
-
 import { SchedulerService } from '../src/scheduler/scheduler.service.js';
-import type { OutboxRelayService } from '../src/outbox/outbox-relay.service.js';
-import type { ProjectionRunnerService } from '../src/projections/projection-runner.service.js';
-import type { CommandsGateway } from '../src/commands/commands.gateway.js';
-import type { BreakGlassLoginMonitorService } from '../src/security/break-glass-login-monitor.service.js';
+import { monitorTicker, coreTickers, INTERVALS } from './helpers/scheduler-ticker-factory.js';
+import type { SchedulerTicker } from '../src/scheduler/scheduler-ticker.js';
 
-const cfg = (): ConfigService => ({ get: vi.fn(), getOrThrow: vi.fn().mockReturnValue('scope') } as unknown as ConfigService);
-const outbox = (): OutboxRelayService => ({ drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as OutboxRelayService);
-const proj = (): ProjectionRunnerService => ({ drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as ProjectionRunnerService);
-const gw = (): CommandsGateway => ({ reconcileNow: vi.fn().mockReturnValue([]) } as unknown as CommandsGateway);
+const cores = (): SchedulerTicker[] => coreTickers({
+  outbox: () => undefined, projection: () => undefined, reconciler: () => undefined,
+});
 
-describe('@fleet/api - SchedulerService break-glass tick', () => {
+describe('@fleet/api - SchedulerService break-glass tick (registry)', () => {
   beforeEach(() => { vi.useFakeTimers(); capturedTags.length = 0; });
   afterEach(() => { vi.useRealTimers(); });
 
-  it('drainBreakglass tags Sentry scope job=breakglass-scan and calls monitor.pollOnce', async () => {
+  it('drainByKey(breakglass) tags job=breakglass-scan and calls monitor.pollOnce', async () => {
     const pollOnce = vi.fn().mockResolvedValue(undefined);
-    const monitor = { pollOnce } as unknown as BreakGlassLoginMonitorService;
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw(), monitor);
-    await svc.drainBreakglass();
+    const svc = new SchedulerService([...cores(), monitorTicker('breakglass', () => pollOnce())]);
+    await svc.drainByKey('breakglass');
     expect(pollOnce).toHaveBeenCalledTimes(1);
     expect(capturedTags.find((t) => t.key === 'job')?.value).toBe('breakglass-scan');
     svc.onModuleDestroy();
   });
 
-  it('onModuleInit schedules the break-glass poll at 60s when a monitor is present', async () => {
+  it('onModuleInit schedules the break-glass poll at the 60s interval', async () => {
     const pollOnce = vi.fn().mockResolvedValue(undefined);
-    const monitor = { pollOnce } as unknown as BreakGlassLoginMonitorService;
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw(), monitor);
+    const svc = new SchedulerService([...cores(), monitorTicker('breakglass', () => pollOnce())]);
     svc.onModuleInit();
-    await vi.advanceTimersByTimeAsync(59_999);
+    await vi.advanceTimersByTimeAsync(INTERVALS.breakglass - 1);
     expect(pollOnce).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(2);
     expect(pollOnce).toHaveBeenCalledTimes(1);
     svc.onModuleDestroy();
   });
 
-  it('is dormant when no monitor is provided: no 60s timer is ever scheduled', () => {
+  it('is dormant when the ticker is absent: no 60s timer is ever scheduled', () => {
     const setSpy = vi.spyOn(globalThis, 'setTimeout');
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw());
+    const svc = new SchedulerService(cores());
     svc.onModuleInit();
-    const sixtySecondTimers = setSpy.mock.calls.filter((c) => c[1] === 60_000);
+    const sixtySecondTimers = setSpy.mock.calls.filter((c) => c[1] === INTERVALS.breakglass);
     expect(sixtySecondTimers).toHaveLength(0);
     setSpy.mockRestore();
     svc.onModuleDestroy();
