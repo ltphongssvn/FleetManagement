@@ -17,6 +17,7 @@ import { describe, it, expect } from 'vitest';
 import {
   evaluateHostReadiness,
   buildFlockArgs,
+  resolveGateLockPath,
   type HostSnapshot,
 } from './host-gate.js';
 
@@ -101,5 +102,33 @@ describe('buildFlockArgs', () => {
   });
   it('rejects a non-positive wait budget (a gate must never hang forever)', () => {
     expect(() => buildFlockArgs('/tmp/x.lock', 0, ['echo'])).toThrow();
+  });
+});
+
+describe('resolveGateLockPath', () => {
+  // flock(1) is ADVISORY and inode-scoped: mutual exclusion holds only when
+  // every cooperating process locks the SAME file. The pre-push coverage hook
+  // has locked $HOME/.cache/fleetmanagement/gate.lock since 9710dd8, while
+  // fab24dd later gave gate:integration its own /tmp path -- so the two gates
+  // never excluded each other and a sibling worktree still starved this one.
+  // One exported resolver removes the possibility of that drift recurring.
+  it('resolves under XDG_CACHE_HOME when set', () => {
+    expect(resolveGateLockPath({ XDG_CACHE_HOME: '/xdg' }, '/home/u'))
+      .toBe('/xdg/fleetmanagement/gate.lock');
+  });
+  it('falls back to HOME/.cache when XDG_CACHE_HOME is unset', () => {
+    expect(resolveGateLockPath({}, '/home/u'))
+      .toBe('/home/u/.cache/fleetmanagement/gate.lock');
+  });
+  it('ignores a non-absolute XDG_CACHE_HOME per the XDG spec', () => {
+    expect(resolveGateLockPath({ XDG_CACHE_HOME: 'relative/path' }, '/home/u'))
+      .toBe('/home/u/.cache/fleetmanagement/gate.lock');
+  });
+  it('never returns a world-writable /tmp path (tmpfiles can sweep the inode)', () => {
+    expect(resolveGateLockPath({}, '/home/u')).not.toContain('/tmp/');
+  });
+  it('matches the path the pre-push hook already locks', () => {
+    expect(resolveGateLockPath({}, '/home/lenovo'))
+      .toBe('/home/lenovo/.cache/fleetmanagement/gate.lock');
   });
 });
