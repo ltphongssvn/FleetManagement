@@ -98,12 +98,12 @@ export function NaturalLanguageCreateForm({
         <input name='plannedStartAt' type='date' required aria-label={vi ? 'Ngày điều xe' : 'Dispatch date'} className={dateSlotCls} />
         <span>{vi ? 'hãy làm lệnh điều xe' : 'create a dispatch order for truck'}</span>
         <span className={slotCls}>
-          <ComboboxField name='vehiclePlate' options={pairedVehicles} placeholder={ph('số xe', 'truck')} value={vehicleValue} onChange={onVehicleChange} />
+          <ComboboxField id='vehiclePlate' name='vehiclePlate' options={pairedVehicles} placeholder={ph('số xe', 'truck')} value={vehicleValue} onChange={onVehicleChange} />
           <input type='hidden' name='assignedAssetId' value={assetIdValue} readOnly />
         </span>
         <span>{vi ? 'do tài xế' : 'driven by'}</span>
         <span className={slotCls}>
-          <ComboboxField name='assignedOperatorId' options={pairedDrivers} placeholder={ph('tài xế', 'driver')} required submitValue='id' value={driverValue} onChange={onDriverChange} />
+          <ComboboxField id='assignedOperatorId' name='assignedOperatorId' options={pairedDrivers} placeholder={ph('tài xế', 'driver')} required submitValue='id' value={driverValue} onChange={onDriverChange} />
         </span>
         <span>{vi ? 'chở' : 'carrying'}</span>
         <span className={slotCls}>
