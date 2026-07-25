@@ -105,6 +105,26 @@ describe('runExtraction', () => {
     if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
   });
 
+  it('goods_only: the printed goods value IS the goods weight', async () => {
+    const out = await runExtraction(JOB, stores(BYTES), vlmSignal({ rawLabel: 'TL Hang', rawValues: [], slipCount: 1, format: 'goods_only', grossRaw: null, tareRaw: null, goodsRaw: '20.730 Kg' }));
+    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'extracted', extractedNetWeightKg: 20730 } });
+    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
+  });
+
+  it('truck_and_goods with an unparseable gross -> unreadable, parser reason kept', async () => {
+    const out = await runExtraction(JOB, stores(BYTES), vlmSignal({ rawLabel: 'xe+hang/xe', rawValues: [], slipCount: 1, format: 'truck_and_goods', grossRaw: 'khong doc duoc', tareRaw: '8.720', goodsRaw: null }));
+    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: 'unparseable' } });
+  });
+
+  it('truck_and_goods with an unparseable tare -> unreadable, parser reason kept', async () => {
+    const out = await runExtraction(JOB, stores(BYTES), vlmSignal({ rawLabel: 'xe+hang/xe', rawValues: [], slipCount: 1, format: 'truck_and_goods', grossRaw: '28.450', tareRaw: 'khong doc duoc', goodsRaw: null }));
+    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: 'unparseable' } });
+  });
+
+  it('truck_and_goods with tare >= gross -> unreadable (never persists nonsense)', async () => {
+    const out = await runExtraction(JOB, stores(BYTES), vlmSignal({ rawLabel: 'xe+hang/xe', rawValues: [], slipCount: 1, format: 'truck_and_goods', grossRaw: '8.720', tareRaw: '28.450', goodsRaw: null }));
+    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: 'unparseable' } });
+  });
   it('VLM throw -> failed outcome (retryable), no result', async () => {
     const v: VlmExtractorPort = { extractNetWeight: vi.fn().mockRejectedValue(new Error('429 quota')) };
     const out = await runExtraction(JOB, stores(BYTES), v);

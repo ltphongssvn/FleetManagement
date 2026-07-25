@@ -46,6 +46,20 @@ describe('recognizePhieuCan', () => {
       .toEqual({ ok: false, reason: 'multiple_slips' });
   });
 
+  it('truck_and_goods missing ONLY the gross is non_standard_format', () => {
+    expect(recognizePhieuCan({ slipCount: 1, format: 'truck_and_goods', grossRaw: null, tareRaw: '8.720', goodsRaw: null }))
+      .toEqual({ ok: false, reason: 'non_standard_format' });
+  });
+
+  it('truck_and_goods missing ONLY the tare is non_standard_format', () => {
+    expect(recognizePhieuCan({ slipCount: 1, format: 'truck_and_goods', grossRaw: '28.450', tareRaw: null, goodsRaw: null }))
+      .toEqual({ ok: false, reason: 'non_standard_format' });
+  });
+
+  it('a zero slipCount is not treated as multiple slips', () => {
+    expect(recognizePhieuCan({ slipCount: 1, format: 'goods_only', grossRaw: null, tareRaw: null, goodsRaw: '9.000' }))
+      .toEqual({ ok: true, format: 'goods_only', rawValues: ['9.000'] });
+  });
   it('treats a recognised format missing its required components as non_standard_format', () => {
     expect(recognizePhieuCan({ slipCount: 1, format: 'goods_only', grossRaw: null, tareRaw: null, goodsRaw: null }))
       .toEqual({ ok: false, reason: 'non_standard_format' });

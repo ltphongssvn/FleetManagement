@@ -57,6 +57,41 @@ describe('GeminiVlmExtractor', () => {
     expect(promptText).toContain('truck_only');
   });
 
+  it('defaults every omitted recognition field (tolerant reader)', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: true, format: 'goods_only' }));
+    const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn });
+    const out = await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' });
+    expect(out).toEqual({ rawLabel: '', rawValues: [], slipCount: 1, format: 'goods_only', grossRaw: null, tareRaw: null, goodsRaw: null });
+  });
+
+  it('falls back to the global fetch and the default Gemini base URL', async () => {
+    const globalFetch = vi.fn().mockResolvedValue(okResponse({ found: true, rawLabel: 'TL Hang', rawValues: ['20.730'] }));
+    vi.stubGlobal('fetch', globalFetch);
+    try {
+      const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm' });
+      const out = await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' });
+      expect(out).toEqual({ rawLabel: 'TL Hang', rawValues: ['20.730'] });
+      expect(globalFetch).toHaveBeenCalledTimes(1);
+      const [url] = globalFetch.mock.calls[0] as [string];
+      expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models/m:generateContent');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('honours an injected baseUrl', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: true, rawLabel: 'L', rawValues: ['20.730'] }));
+    const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn, baseUrl: 'https://vlm.test/v1' });
+    await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' });
+    const [url] = fetchFn.mock.calls[0] as [string];
+    expect(url).toBe('https://vlm.test/v1/models/m:generateContent');
+  });
+
+  it('returns null when the response carries no candidate text', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(new Response(JSON.stringify({ candidates: [] }), { status: 200 }));
+    const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn });
+    expect(await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' })).toBeNull();
+  });
   it('returns null when model reports found=false', async () => {
     const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: false }));
     const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn });
