@@ -134,6 +134,10 @@ overrides:
   # original intent: satisfy GHSA-52cp-r559-cp3m (patched >=4.3.0) while staying
   # inside major 4, which is outside the 5.x advisory range entirely. Fixing the
   # cause removes the need for any 5.x floor.
+  # NOTE: supersedes a59ba17 on develop, which pinned js-yaml@<5.2.2 to >=5.2.2.
+  # That selector also matches cosmiconfig ^4.1.0 and so repeats the cross-major
+  # drag, and it needs a minimumReleaseAge exclusion for a package published 1.5h
+  # earlier. Bounding to major 4 removes both the drag and the exclusion.
   "js-yaml@<4.3.0": "^4.3.0"
   protobufjs@>=8.0.0 <=8.5.0: ^8.5.1
   protobufjs@>=8.2.0 <=8.4.2: ^8.4.3
