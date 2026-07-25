@@ -66,6 +66,11 @@ export const EnvSchema = z.object({
   // the intake loop (auth, queue, worker, relay) becomes loud within one
   // threshold window instead of silently stranding uploads for weeks.
   INTAKE_LAG_ALERT_MINUTES: z.coerce.number().int().positive().default(30),
+  // Driver-alert-lag guard (T12 driver-order-alerts): pages via Sentry fatal
+  // when a driver_alert outbox row dead-letters (permanent miss) or stays
+  // pending/failed past this age (stuck relay/queue/consumer). Tighter than
+  // the intake threshold because a missed 4AM alert = a missed truck run.
+  DRIVER_ALERT_LAG_MINUTES: z.coerce.number().int().positive().default(15),
   // Intake self-healing reconciler (2026 level-based recovery loop). Every
   // tick it re-emits the compensating intake job for verifying manifests
   // older than AFTER_MINUTES (set below the lag ALERT threshold so auto-heal

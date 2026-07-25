@@ -1,11 +1,10 @@
 // scripts/e2e/stack-e2e-isolated.test.ts
-// Outside-in RED: contract for the ISOLATED browser-E2E runner BEFORE it
-// exists. Composes the existing per-worktree compose identity
-// (compose-identity.ts identityFor) into a committed, rediscoverable op that
-// raises the app-only stack on the worktree ports and runs Playwright against
-// them -- replacing the ad-hoc docker compose + inline E2E_* env anti-pattern.
-// Pure planners describe WHAT to do; the side-effecting main() is entrypoint-
-// only. Imports a module that does not exist yet -> MUST fail at import (RED).
+// Contract for the ISOLATED browser-E2E runner. Composes the existing
+// per-worktree compose identity (compose-identity.ts identityFor) into a
+// committed, rediscoverable op that raises the app-only stack on the worktree
+// ports and runs Playwright against them -- replacing the ad-hoc docker compose
+// + inline E2E_* env anti-pattern. Pure planners describe WHAT to do; the
+// side-effecting main() is entrypoint-only.
 import { describe, it, expect } from 'vitest';
 import { identityFor } from '../compose-identity.ts';
 import {
@@ -28,6 +27,30 @@ describe('e2eEnvFromIdentity', () => {
     const env = e2eEnvFromIdentity(ID);
     expect(env.E2E_BASE_URL.startsWith('http://localhost:')).toBe(true);
     expect(env.E2E_API_URL.startsWith('http://localhost:')).toBe(true);
+  });
+  // Regression guard (2026-07-23): ops-web-login.spec asserts that startLogin
+  // redirects to the CONFIGURED authorize endpoint. When the runner did not
+  // inject OIDC_AUTHORIZATION_ENDPOINT, the spec fell back to the
+  // playwright.config placeholder (https://kc.e2e.example/...) while the
+  // isolated stack redirected to its own mock-oauth2 on the identity OAUTH
+  // port -- a guaranteed mismatch that looked like a product failure. The
+  // endpoint must therefore be derived from the SAME identity as every other
+  // URL, never left to a placeholder.
+  it('derives OIDC_AUTHORIZATION_ENDPOINT from the identity OAUTH port', () => {
+    const env = e2eEnvFromIdentity(ID);
+    expect(env.OIDC_AUTHORIZATION_ENDPOINT).toBe(
+      'http://localhost:' + String(ID.ports.OAUTH) + '/fleet/authorize',
+    );
+  });
+  it('never leaves the authorize endpoint pointing at the kc.e2e.example placeholder', () => {
+    const env = e2eEnvFromIdentity(ID);
+    expect(env.OIDC_AUTHORIZATION_ENDPOINT).not.toContain('kc.e2e.example');
+    expect(env.OIDC_AUTHORIZATION_ENDPOINT.startsWith('http://localhost:')).toBe(true);
+  });
+  it('points the authorize endpoint at the mock IdP port, not the api or ops-web port', () => {
+    const env = e2eEnvFromIdentity(ID);
+    expect(env.OIDC_AUTHORIZATION_ENDPOINT).not.toContain(':' + String(ID.ports.API) + '/');
+    expect(env.OIDC_AUTHORIZATION_ENDPOINT).not.toContain(':' + String(ID.ports.OPS_WEB) + '/');
   });
 });
 

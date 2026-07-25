@@ -106,7 +106,7 @@ describe('compose.yaml: no hardcoded singleton identity', () => {
   it('every published host port is interpolated from FLEET_PORT_*', () => {
     const published = compose.match(/- "[^"]+:[0-9]+"/g) ?? [];
     expect(published.length).toBeGreaterThanOrEqual(9);
-    const hardcoded = published.filter((p) => p.includes('FLEET_PORT_') === false);
+    const hardcoded = published.filter((p) => !p.includes('FLEET_PORT_'));
     expect(hardcoded).toEqual([]);
   });
 });

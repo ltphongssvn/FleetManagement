@@ -16,7 +16,7 @@
 // unique id, never by a mutable business value. Optimistic rows use synthetic
 // roadRunId 'optimistic-<ref>' which can never collide with a real UUID.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
+import { dockerPsql, dockerExecApiNode } from './helpers/docker-exec';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
@@ -95,7 +95,7 @@ function nextRefAndSeedStale(): string {
   dockerPsql('UPDATE order_sequence SET next_value=' + String(pinned) + ' WHERE company_id=' + sq + COMPANY_ID + sq + ' AND prefix=' + sq + 'XTT' + sq + ';');
   const seq = String(pinned).padStart(3, '0');
   const ref = 'XTT.' + month + '-' + seq;
-  const staleRr = dockerExecNode('fleet-pilot-api-1', 'process.stdout.write(require(' + JSON.stringify('crypto') + ').randomUUID())').trim();
+  const staleRr = dockerExecApiNode('process.stdout.write(require(' + JSON.stringify('crypto') + ').randomUUID())').trim();
   const refsJson = '[' + dq + ref + dq + ']';
   dockerPsql(
     'INSERT INTO dispatch_board_projection (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, stop_count, transport_order_refs) VALUES (' +
