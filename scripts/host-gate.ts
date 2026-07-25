@@ -82,6 +82,34 @@ export function evaluateHostReadiness(snapshot: HostSnapshot): HostReadiness {
   return { ready: problems.length === 0, problems };
 }
 
+// SINGLE SOURCE OF TRUTH for the host-wide gate lock path.
+//
+// flock(1) is ADVISORY and scoped to an INODE: mutual exclusion exists only
+// while every cooperating process locks the SAME file. The pre-push coverage
+// hook has locked $HOME/.cache/fleetmanagement/gate.lock since 9710dd8; fab24dd
+// then gave gate:integration its own path under the temp dir. Two paths means
+// two inodes, which means the two heaviest gates on this host never excluded
+// each other at all -- a sibling worktree kept starving whichever run went
+// second, producing 180s beforeAll timeouts that read as test failures.
+//
+// The temp dir is also the wrong home for a lock: it is world-writable, and
+// tmpfiles ageing only skips files that are locked AT THAT MOMENT, so an idle
+// lock file can be swept and recreated -- after which two processes hold locks
+// on different inodes and both proceed. A cache-dir path is stable and private.
+//
+// Pure: env and home are injected so this is unit-testable with zero I/O.
+export function resolveGateLockPath(
+  env: Readonly<Record<string, string | undefined>>,
+  homeDir: string,
+): string {
+  // XDG basedir spec: a relative XDG_CACHE_HOME is invalid and must be ignored.
+  const xdg = env['XDG_CACHE_HOME'];
+  const base = typeof xdg === 'string' && xdg.startsWith('/')
+    ? xdg
+    : homeDir + '/.cache';
+  return base + '/fleetmanagement/gate.lock';
+}
+
 // Build the flock(1) argv that serializes gates across worktrees. flock is
 // crash-safe: the kernel releases the lock when the holding process dies, so a
 // killed gate never wedges the host. The wait budget bounds the queue so a
