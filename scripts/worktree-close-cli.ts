@@ -42,6 +42,29 @@ export function containmentArgs(integrationRef: string): string[] {
   return ['rev-list', '--count', integrationRef + '..HEAD'];
 }
 
+// ---- pure argv parsing ----
+
+export interface CloseArgv {
+  path: string | null;
+  retired: boolean;
+}
+
+// Pure so flag handling is unit-tested without spawning git. --retired is
+// opt-in and order-independent; anything else starting with -- is ignored
+// rather than mistaken for the path.
+export function parseCloseArgv(argv: readonly string[]): CloseArgv {
+  let path: string | null = null;
+  let retired = false;
+  for (const arg of argv) {
+    if (arg === '--retired') {
+      retired = true;
+    } else if (!arg.startsWith('--') && path === null && arg.length > 0) {
+      path = arg;
+    }
+  }
+  return { path, retired };
+}
+
 // ---- pure selection + report ----
 
 export function selectTarget(entries: readonly WorktreeEntry[], path: string): WorktreeEntry {
@@ -62,11 +85,15 @@ export function formatCloseReport(verdict: CloseVerdict, input: WorktreeCloseInp
   if (verdict.action === 'refuse') {
     lines.push('refused because:');
     for (const r of verdict.reasons) lines.push('  - ' + r);
-    lines.push('state: ahead=' + String(input.aheadOfRemote) +
-      ' dirty=' + String(input.dirtyFileCount) +
-      ' upstream=' + String(input.hasUpstream) +
-      ' contained=' + String(input.containedInIntegration));
   }
+  // State is printed for EVERY verdict, not just refusals: a permitted
+  // retired close must visibly state why it was allowed (retired=true with
+  // contained=false), so the operator can audit the decision.
+  lines.push('state: ahead=' + String(input.aheadOfRemote) +
+    ' dirty=' + String(input.dirtyFileCount) +
+    ' upstream=' + String(input.hasUpstream) +
+    ' contained=' + String(input.containedInIntegration) +
+    ' retired=' + String(input.retired));
   return lines.join(NL);
 }
 
@@ -84,9 +111,10 @@ function gitAllowFail(args: readonly string[], cwd?: string): string {
 }
 
 function mainWorktreeClose(): number {
-  const target = process.argv[2];
-  if (target === undefined || target.length === 0) {
-    process.stderr.write('usage: turbo run worktree:close -- <worktree-path>' + NL);
+  const argv = parseCloseArgv(process.argv.slice(2));
+  const target = argv.path;
+  if (target === null) {
+    process.stderr.write('usage: turbo run worktree:close -- <worktree-path> [--retired]' + NL);
     return 2;
   }
   const entries = parseWorktreePorcelain(git(listWorktreesArgs()));
@@ -103,6 +131,7 @@ function mainWorktreeClose(): number {
     ahead,
     dirtyFileCount: countDirtyFiles(git(dirtyArgs(), entry.path)),
     containedInIntegration: Number(git(containmentArgs(INTEGRATION_REF), entry.path)) === 0,
+    retired: argv.retired,
   });
   const verdict = decideClose(input);
   process.stdout.write(formatCloseReport(verdict, input) + NL);
