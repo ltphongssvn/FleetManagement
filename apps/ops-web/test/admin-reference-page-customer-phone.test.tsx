@@ -57,7 +57,7 @@ describe('ReferenceAdminPage Khách hàng Số điện thoại (L1)', () => {
     render(<ReferenceAdminPage />);
     await screen.findAllByText('Acme');
     const sec = customerSection();
-    const nameCell = within(sec).getByRole('cell', { name: 'Acme' });
+    const nameCell = within(sec).getByRole('rowheader', { name: 'Acme' });
     expect(nameCell.textContent).toBe('Acme');
     const row = nameCell.closest('tr');
     if (row === null) throw new Error('no row');

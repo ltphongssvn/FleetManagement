@@ -8,7 +8,7 @@
   "main": "./dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "check": "echo check is a turbo aggregate task -- run: pnpm exec turbo run check --filter=@fleet/api",
     "clean": "rimraf dist .turbo coverage && rimraf \"*.tsbuildinfo\"",
     "dev": "tsx watch src/main.ts",
     "lint": "eslint . --max-warnings=0",
@@ -28,6 +28,7 @@
     "intake:redrive": "tsx src/scripts/intake-redrive.ts",
     "projection:rebuild": "tsx src/scripts/projection-rebuild.ts",
     "inspect:order-state": "tsx src/scripts/inspect-order-state.ts",
+    "inspect:review-parse": "tsx src/scripts/inspect-review-parse.ts",
     "repair:complete-delivered-runs": "tsx src/scripts/repair-complete-delivered-runs.ts",
     "repair:ghost-runs": "tsx src/scripts/repair-ghost-runs.ts",
     "audit:device-registry": "tsx src/scripts/audit-device-registry.ts",

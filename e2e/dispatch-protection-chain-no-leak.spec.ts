@@ -15,19 +15,20 @@
 // spec mid-test can put rows into the baseline that the cleanup of THIS
 // spec is not responsible for. Self-scoping is the 2026 industry best
 // practice for parallel-safe E2E isolation tests.
+//
+// 2026-07-23 root fix: this spec previously shelled out with a raw execSync
+// containing a hardcoded 'docker exec fleet-pilot-api-1', its own third copy
+// of mintDispatcherToken, and backslash-escaped quotes. Under the isolated
+// per-worktree stack that container name does not exist ("No such container"),
+// and the copy bypassed both the E2E_API_CONTAINER resolution and the
+// TokenResponseSchema validation that helpers/auth.ts already performs. The
+// duplicate is deleted in favour of the single source of truth, which also
+// removes the last raw child_process call from this file.
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, ReferenceListResponseSchema } from './helpers/contracts';
-import { execSync } from 'node:child_process';
+import { mintDispatcherToken } from './helpers/auth';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
-function mintDispatcherToken(): string {
-  const script =
-    "fetch('http://mock-oauth2:8080/fleet/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:'grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret'})" +
-    ".then(r=>r.json()).then(j=>process.stdout.write(j.access_token))";
-  const out = execSync("docker exec fleet-pilot-api-1 node -e \"" + script + "\"", { stdio: ['pipe','pipe','pipe'] }).toString();
-  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
-  return out.trim();
-}
 async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },

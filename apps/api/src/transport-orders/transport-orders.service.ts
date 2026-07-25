@@ -34,13 +34,14 @@ import { vehicle, customer, cargoType, warehouse, driver } from '../database/sch
 import { driverVehicleAssignment } from '../database/schema/driver-vehicle-assignment.js';
 import { manifest } from '../database/schema/manifest.js';
 import { appendTriWrite } from '../database/append-tri-write.js';
+import { outbox } from '../database/schema/index.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import type { CreateTransportOrderInput, CreateTransportOrderResponse, ListAssignedResponse, ListAssignedRow, TripHistoryResponse } from './transport-orders.dto.js';
 import { DriverVehicleAssignmentRequiredError, TransportOrderNotFoundError } from './transport-orders.errors.js';
 import { OrderNumberingService } from './order-numbering.service.js';
 import { groupCompletedTripsByMonth, MANIFEST_PHOTO_RECEIVED_STATES } from '@fleet/domain';
 import { OUTBOX_QUEUES, statesForStatusGroup } from '@fleet/sync-protocol';
-import type { DriverCompletedPageQuery, DriverCompletedPageResponse, RoadRunStateName } from '@fleet/sync-protocol';
+import type { DriverAlertJob, DriverCompletedPageQuery, DriverCompletedPageResponse, RoadRunStateName } from '@fleet/sync-protocol';
 
 // The active (non-terminal) road-run states, from the SSOT partition. Used to
 // filter listAssigned so completed/cancelled runs never appear in the live list.
@@ -152,6 +153,25 @@ export class TransportOrdersService {
         queueName: OUTBOX_QUEUES.PROJECTIONS,
         outboxPayload: { aggregateType: 'road_run', eventType: 'road_run.created', roadRunId, externalRef },
         op,
+      });
+      // T12 driver order alert: enqueue the wake-up signal ATOMICALLY with the
+      // order (same tx, crash-safe -- the 4AM mission-critical property).
+      // Plain outbox insert BY DESIGN, not appendTriWrite: an alert intent is
+      // no aggregate delta, so it must not pollute sync_change_feed (device
+      // sync) or fleet_audit_log. Body is the DriverAlertJob SSOT; the relay
+      // strips this envelope and the alerts consumer strict-parses the body,
+      // which is self-contained (operator + run + human ref) so the consumer
+      // performs zero joins.
+      const alertJob: DriverAlertJob = {
+        alertKind: 'transport_order_created',
+        assignedOperatorId: input.roadRun.assignedOperatorId,
+        roadRunId,
+        externalRef,
+      };
+      await tx.insert(outbox).values({
+        ...tenancy,
+        queueName: OUTBOX_QUEUES.ALERTS,
+        payload: { aggregateType: 'driver_alert', eventType: 'driver_alert.requested', ...alertJob },
       });
       return { transportOrderId, roadRunId, externalRef };
     });

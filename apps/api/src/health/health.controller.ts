@@ -15,6 +15,13 @@ export interface ReadinessStatus {
   readonly database: 'up' | 'down';
 }
 
+export interface VersionInfo {
+  readonly sha: string;
+  readonly shortSha: string;
+  readonly branch: string;
+  readonly buildTime: string;
+}
+
 @Controller('health')
 export class HealthController {
   private readonly logger = new Logger(HealthController.name);
@@ -35,5 +42,18 @@ export class HealthController {
       this.logger.error('Readiness check failed', err);
       throw new ServiceUnavailableException({ status: 'degraded', database: 'down' });
     }
+  }
+
+  // Build-info self-report: minimal, unauthenticated (sha/branch/time only,
+  // no paths or dep versions). Lets a deploy-verification tool ask prod which
+  // commit is live. SHA injected by the platform (RAILWAY_GIT_COMMIT_SHA) or an
+  // explicit GIT_SHA; unknown off-platform.
+  @Get("version")
+  version(): VersionInfo {
+    const sha = process.env["GIT_SHA"] ?? process.env["RAILWAY_GIT_COMMIT_SHA"] ?? "unknown";
+    const branch = process.env["GIT_BRANCH"] ?? process.env["RAILWAY_GIT_BRANCH"] ?? "unknown";
+    const buildTime = process.env["BUILD_TIME"] ?? new Date().toISOString();
+    const shortSha = sha === "unknown" ? "unknown" : sha.slice(0, 7);
+    return { sha, shortSha, branch, buildTime };
   }
 }

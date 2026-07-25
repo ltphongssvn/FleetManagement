@@ -3,7 +3,7 @@
   "name": "fleet-management",
   "version": "0.1.0",
   "private": true,
-  "description": "Intermodal Fleet Platform — pnpm/Turborepo monorepo root",
+  "description": "Intermodal Fleet Platform \u2014 pnpm/Turborepo monorepo root",
   "packageManager": "pnpm@11.15.1+sha512.81350b07e53c9538a02f1f2303b4290fa2d7be04e56e2a970c4cc4b417dc761de196edabd49d55c7dc9580db81007c44143e4e3d7e462b3000d23c255122d065",
   "engines": {
     "node": ">=22.0.0 <25.0.0",
@@ -47,7 +47,14 @@
     "sync:develop": "tsx scripts/sync-develop.ts",
     "bump:pnpm": "tsx scripts/bump-pnpm.ts",
     "audit:ci-minutes": "tsx scripts/ci/ci-minutes-fetch.ts",
-    "worktree:close": "tsx scripts/worktree-close-cli.ts"
+    "worktree:close": "tsx scripts/worktree-close-cli.ts",
+    "inspect:prod-deploy": "tsx scripts/inspect-prod-deploy.ts",
+    "gate:integration": "tsx scripts/gate-integration.ts",
+    "prod:db-url": "tsx scripts/prod-db-url.ts",
+    "guard:local-secrets": "tsx scripts/local-secret-guard.ts",
+    "guard:local-secrets:baseline": "tsx scripts/local-secret-guard-baseline.ts",
+    "lint:scripts": "eslint scripts --max-warnings=0",
+    "lint:scripts:fix": "eslint scripts --fix"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
@@ -70,7 +77,7 @@
     "prettier": "^3.8.3",
     "semantic-release": "^25.0.3",
     "tsx": "^4.21.0",
-    "turbo": "^2.10.5",
+    "turbo": "^2.10.6",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.58.2",
     "vite": ">=8.0.16",
