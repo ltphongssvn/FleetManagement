@@ -22,6 +22,10 @@ export {
   type RevocationEvent,
   RevocationEventSchema,
   type OperatorContext,
+  normalizeDisplayName,
+  personNameMatchKey,
+  DriverNameSchema,
+  type DriverName,
 } from './identity/index.js';
 export {
   type TransportOrderState,

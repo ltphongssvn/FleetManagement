@@ -3,6 +3,22 @@ FROM node:22-alpine AS base
 RUN corepack enable
 WORKDIR /repo
 FROM base AS builder
+# Version-skew protection (Next.js self-hosting, 2026): Server Action IDs and
+# their argument-encryption key are derived from the build. Without a STABLE
+# encryption key every rebuild rotates the key, so a browser tab from an
+# earlier deploy POSTs an action id the new build cannot decrypt and Next
+# throws Failed to find Server Action -> the ops-web error boundary shows the
+# generic Vietnamese error. NEXT_SERVER_ACTIONS_ENCRYPTION_KEY (a stable
+# base64 32-byte secret, same value every build) keeps action encryption
+# consistent across rebuilds and replicas. NEXT_PUBLIC_DEPLOYMENT_ID (the
+# per-deploy git SHA) feeds next.config deploymentId so a genuine version
+# mismatch triggers a hard reload instead of a broken client navigation.
+# Both must be present at next build time, so they are build ARGs promoted
+# to ENV in this builder stage before the build runs.
+ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
+ARG RAILWAY_GIT_COMMIT_SHA
+ENV NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY}
+ENV NEXT_PUBLIC_DEPLOYMENT_ID=${RAILWAY_GIT_COMMIT_SHA}
 COPY . .
 RUN pnpm install --frozen-lockfile && \
     pnpm exec turbo run build --filter=@fleet/ops-web

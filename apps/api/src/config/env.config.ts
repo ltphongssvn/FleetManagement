@@ -66,6 +66,11 @@ export const EnvSchema = z.object({
   // the intake loop (auth, queue, worker, relay) becomes loud within one
   // threshold window instead of silently stranding uploads for weeks.
   INTAKE_LAG_ALERT_MINUTES: z.coerce.number().int().positive().default(30),
+  // Driver-alert-lag guard (T12 driver-order-alerts): pages via Sentry fatal
+  // when a driver_alert outbox row dead-letters (permanent miss) or stays
+  // pending/failed past this age (stuck relay/queue/consumer). Tighter than
+  // the intake threshold because a missed 4AM alert = a missed truck run.
+  DRIVER_ALERT_LAG_MINUTES: z.coerce.number().int().positive().default(15),
   // Intake self-healing reconciler (2026 level-based recovery loop). Every
   // tick it re-emits the compensating intake job for verifying manifests
   // older than AFTER_MINUTES (set below the lag ALERT threshold so auto-heal
@@ -78,6 +83,21 @@ export const EnvSchema = z.object({
   INTAKE_RECONCILE_AFTER_MINUTES: z.coerce.number().int().positive().default(15),
   INTAKE_RECONCILE_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
   INTAKE_RECONCILE_BATCH_SIZE: z.coerce.number().int().positive().default(25),
+  // Completion self-healing reconciler (2026 level-based recovery loop,
+  // sibling of the intake reconciler). Every tick it finds non-terminal
+  // road_runs whose linked orders are ALL photo-committed (the same
+  // runIsDelivered predicate the live gate + edge-trigger use) and drives
+  // them started->completed through the SAME guarded flip + appendTriWrite.
+  // Closes the structural gap where a manifest reaches committed WITHOUT
+  // firing the finalizeIntake edge-trigger (manual redrive, pre-deploy
+  // commit, edge-eval rollback): the run stranded in Dang chay with photos
+  // uploaded and nothing scheduled healed it. Idempotent guarded flip -> no
+  // MAX_ATTEMPTS/quarantine (unlike intake). ENABLED gates the tick; unset
+  // -> ON (self-healing is the safe production default). AFTER_MINUTES set
+  // low: a delivered run should complete within minutes, not stay running.
+  COMPLETION_RECONCILE_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  COMPLETION_RECONCILE_AFTER_MINUTES: z.coerce.number().int().positive().default(5),
+  COMPLETION_RECONCILE_BATCH_SIZE: z.coerce.number().int().positive().default(50),
   // Inbound webhook HMAC secrets (Factor III: declared at the validated
   // boundary, not read raw in the request path). Per-provider distinct
   // secrets -- never a shared WEBHOOK_SECRET (2026 practice). Optional +
