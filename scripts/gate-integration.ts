@@ -17,18 +17,26 @@
 //   --no-wait   fail immediately instead of queueing when the lock is held
 //   --force     skip the readiness preflight (still takes the lock)
 import { spawn, execFileSync } from 'node:child_process';
-import { loadavg, cpus, tmpdir } from 'node:os';
+import { loadavg, cpus, homedir } from 'node:os';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import {
   evaluateHostReadiness,
   buildFlockArgs,
+  resolveGateLockPath,
   TEST_CONTAINER_PREFIX,
   type HostSnapshot,
 } from './host-gate.js';
 
-// One lock file per host, shared by every worktree.
-const LOCK_PATH = join(tmpdir(), 'fleet-integration-gate.lock');
+// One lock file per host, shared by every worktree AND by the pre-push
+// coverage hook, which has locked the cache-dir path since 9710dd8.
+//
+// flock(1) is ADVISORY and INODE-scoped: exclusion exists only while every
+// cooperating process locks the SAME file. fab24dd gave this gate its own
+// temp-dir path, so the two heaviest gates on the host never excluded each
+// other at all -- whichever ran second was starved by the first and died on
+// 180s beforeAll timeouts that read as test failures. Resolving the path from
+// host-gate.ts makes a second path impossible to reintroduce by accident.
+const LOCK_PATH = resolveGateLockPath(process.env, homedir());
 // Queue budget: long enough to outlast a legitimate sibling gate, short enough
 // that a wedged host fails loudly instead of hanging overnight.
 const WAIT_SECONDS = 3600;
