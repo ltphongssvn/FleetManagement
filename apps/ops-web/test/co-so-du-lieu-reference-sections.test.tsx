@@ -66,9 +66,17 @@ describe('reference-sections shared module', () => {
     const customers = SECTIONS[0];
     if (customers === undefined) throw new Error('no sections');
     render(<ReferenceSection def={customers} />);
-    const delBtn = await screen.findByRole('button', { name: 'Xóa' });
-    await userEvent.setup().click(delBtn);
-    await waitFor(() => { expect(screen.getByText(/delete failed|500|x/i)).toBeInTheDocument(); });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Xóa' }));
+    const dialog = await screen.findByRole('dialog');
+    const accept = dialog.querySelector('[data-testid=confirm-accept]');
+    if (accept === null) throw new Error('no confirm-accept');
+    await user.click(accept as HTMLElement);
+    await waitFor(() => {
+      const err = document.querySelector('.text-red-600');
+      expect(err).not.toBeNull();
+    });
   });
   it('shows an error when saving a customer phone fails', async () => {
     const row = { id: 'r1', label: 'ACME', meta: { phone: '0900000000' } };
