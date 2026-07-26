@@ -14,7 +14,7 @@
 // response envelope (untrusted external input -> Zod-parsed, never cast --
 // closing the envelope-cast gap the worker extractor left).
 import { randomBytes } from 'node:crypto';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AnthropicCopilotLlmAdapter } from '../src/copilot/anthropic-copilot-llm.adapter.js';
 
 // Runtime-generated so no credential-shaped literal sits next to the
@@ -36,6 +36,10 @@ function messagesResponse(text: string): Response {
 }
 
 describe('AnthropicCopilotLlmAdapter.proposeDraft', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('POSTs to the Anthropic Messages API with the configured model, key headers, and temperature 0', async () => {
     const draftText = JSON.stringify({
       summaryVi: 'Se tao tai xe',
@@ -88,5 +92,49 @@ describe('AnthropicCopilotLlmAdapter.proposeDraft', () => {
     );
     const adapter = new AnthropicCopilotLlmAdapter({ ...CFG, fetchFn: fetchFn as never });
     await expect(adapter.proposeDraft('x')).rejects.toThrow();
+  });
+  it('throws when a well-formed envelope carries no text block (tool_use-only reply)', async () => {
+    // Envelope is VALID (content array, min 1) but holds no text block, so the
+    // union's fallback member matches and the text-block find returns undefined.
+    const fetchFn = vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ id: 'msg_2', type: 'message', content: [{ type: 'tool_use' }] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+    const adapter = new AnthropicCopilotLlmAdapter({ ...CFG, fetchFn: fetchFn as never });
+    await expect(adapter.proposeDraft('x')).rejects.toThrow(/no text block/);
+  });
+
+  it('honours a configured baseUrl override instead of the public Anthropic host', async () => {
+    // Exercises the baseUrl ?? default branch (proxy/gateway deployments).
+    const draftText = JSON.stringify({ summaryVi: 'Kiem tra', commands: [] });
+    const fetchFn = vi.fn(() => Promise.resolve(messagesResponse(draftText)));
+    const adapter = new AnthropicCopilotLlmAdapter({
+      ...CFG,
+      baseUrl: 'https://gateway.internal',
+      fetchFn: fetchFn as never,
+    });
+
+    await adapter.proposeDraft('x');
+
+    const [url] = fetchFn.mock.calls[0] as unknown as [string];
+    expect(url).toBe('https://gateway.internal/v1/messages');
+  });
+
+  it('falls back to the global fetch when no fetchFn is injected (production wiring)', async () => {
+    // Exercises the fetchFn ?? globalThis.fetch branch -- the path the Nest
+    // factory actually takes, since it constructs the adapter without a stub.
+    const draftText = JSON.stringify({ summaryVi: 'Toan cuc', commands: [] });
+    const globalFetch = vi.fn(() => Promise.resolve(messagesResponse(draftText)));
+    vi.stubGlobal('fetch', globalFetch);
+
+    const adapter = new AnthropicCopilotLlmAdapter({ ...CFG });
+    const out = await adapter.proposeDraft('x');
+
+    expect(globalFetch).toHaveBeenCalledTimes(1);
+    expect(out).toEqual(JSON.parse(draftText));
   });
 });
