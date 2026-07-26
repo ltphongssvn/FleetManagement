@@ -3,7 +3,7 @@
 // classify() is a total, side-effect-free function: given an observed
 // worktree state it returns a discriminated-union Action. No git, no I/O.
 import { describe, it, expect } from "vitest";
-import { classify } from "./sync-worktrees.ts";
+import { classify, gitExecOptions, GIT_READ_TIMEOUT_MS, GIT_NETWORK_TIMEOUT_MS } from "./sync-worktrees.ts";
 
 type St = Parameters<typeof classify>[0];
 const base: St = {
@@ -44,5 +44,31 @@ describe("classify (pure worktree-sync decision core)", () => {
     const r = classify(st({ ahead: 2, behind: 3 }));
     expect(r.kind).toBe("blocked");
     if (r.kind === "blocked") expect(r.reason).toBe("diverged-remote");
+  });
+});
+
+describe('gitExecOptions (execFileSync timeout policy -- prevents the 4h push hang)', () => {
+  it('always sets a bounded timeout and SIGTERM killSignal (never unbounded)', () => {
+    const o = gitExecOptions(['status', '--porcelain']);
+    expect(typeof o.timeout).toBe('number');
+    expect(o.timeout).toBeGreaterThan(0);
+    expect(o.killSignal).toBe('SIGTERM');
+  });
+  it('uses the SHORT read timeout for read-only git commands', () => {
+    expect(gitExecOptions(['status', '--porcelain']).timeout).toBe(GIT_READ_TIMEOUT_MS);
+    expect(gitExecOptions(['rev-parse', 'HEAD']).timeout).toBe(GIT_READ_TIMEOUT_MS);
+  });
+  it('uses the LONGER network timeout for push (the operation that hung 4h17m)', () => {
+    expect(gitExecOptions(['push', '-u', 'origin', 'feature/x']).timeout).toBe(GIT_NETWORK_TIMEOUT_MS);
+  });
+  it('uses the network timeout for fetch', () => {
+    expect(gitExecOptions(['fetch', '--all', '--prune']).timeout).toBe(GIT_NETWORK_TIMEOUT_MS);
+  });
+  it('network timeout is generous but still finite and larger than the read timeout', () => {
+    expect(GIT_NETWORK_TIMEOUT_MS).toBeGreaterThan(GIT_READ_TIMEOUT_MS);
+    expect(Number.isFinite(GIT_NETWORK_TIMEOUT_MS)).toBe(true);
+  });
+  it('passes through cwd when provided', () => {
+    expect(gitExecOptions(['status'], '/tmp/x').cwd).toBe('/tmp/x');
   });
 });
