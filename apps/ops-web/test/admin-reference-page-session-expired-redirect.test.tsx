@@ -72,7 +72,12 @@ describe('ReferenceAdminPage on idle-expired session (401)', () => {
     const user = userEvent.setup();
     await screen.findAllByText('ACME');
     const sec = customerSection();
-    await user.click(within(sec).getByRole('button', { name: 'Xóa' }));
+    await user.click(within(sec).getByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Xóa' }));
+    const dialog = await screen.findByRole('dialog');
+    const accept = dialog.querySelector('[data-testid=confirm-accept]');
+    if (accept === null) throw new Error('no confirm-accept');
+    await user.click(accept as HTMLElement);
     await waitFor(() => { expect(navigateToSessionRefreshMock).toHaveBeenCalled(); });
   });
   it('navigates on a session-expired failure while saving an edited phone', async () => {
