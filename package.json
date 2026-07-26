@@ -46,6 +46,7 @@
     "compose:print": "tsx scripts/compose-identity.ts --print",
     "sync:develop": "tsx scripts/sync-develop.ts",
     "bump:pnpm": "tsx scripts/bump-pnpm.ts",
+    "bump:turbo": "tsx scripts/bump-turbo.ts",
     "audit:ci-minutes": "tsx scripts/ci/ci-minutes-fetch.ts",
     "worktree:close": "tsx scripts/worktree-close-cli.ts",
     "inspect:prod-deploy": "tsx scripts/inspect-prod-deploy.ts",
