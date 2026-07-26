@@ -15,15 +15,19 @@ test('Chọn số xe dropdown on /admin/drivers matches Số xe section on /admi
   await page.goto('/admin/reference');
   const vehiclesSection = page.locator('section').filter({ has: page.getByRole('heading', { name: /^Số xe$/ }) });
   await expect(vehiclesSection).toBeVisible({ timeout: 15_000 });
-  await expect(vehiclesSection.locator('ul li').first()).toBeVisible({ timeout: 10_000 });
-  // The plate text is the first <span> inside each <li>; the Xóa button
-  // lives in a sibling <span>. Use locator('ul li > span').first() per row.
-  const liHandles = await vehiclesSection.locator('ul li').elementHandles();
+  // The section now renders through the shared DataTable (TanStack v8): each
+  // vehicle is a <tr> whose FIRST cell is the plate (Tên column). Iterate body
+  // rows via getByRole('row'); the header is <th> (role=columnheader) with no
+  // role=rowheader, so reading each row first cell naturally skips it. Semantic
+  // selectors survive markup churn (2026 resilient-selector standard).
+  const firstCell = vehiclesSection.getByRole('rowheader').first();
+  await expect(firstCell).toBeVisible({ timeout: 10_000 });
+  const rowLocators = await vehiclesSection.getByRole('row').all();
   const referencePlates: string[] = [];
-  for (const li of liHandles) {
-    const span = await li.$('span');
-    if (span === null) continue;
-    const t = (await span.textContent()) ?? '';
+  for (const row of rowLocators) {
+    const cell = row.getByRole('rowheader').first();
+    if ((await cell.count()) === 0) continue;
+    const t = (await cell.textContent()) ?? '';
     if (t.trim().length > 0) referencePlates.push(t.trim());
   }
   expect(referencePlates.length).toBeGreaterThan(0);

@@ -16,7 +16,6 @@ const DEVICE = {
   platform: 'ios',
   appVersion: '1.4.0',
   lastSeenAt: null,
-  udid: 'UDID-1',
 };
 function row(overrides: Partial<AdminDriverRow>): AdminDriverRow {
   return {

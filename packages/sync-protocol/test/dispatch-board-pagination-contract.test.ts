@@ -1,19 +1,17 @@
 // packages/sync-protocol/test/dispatch-board-pagination-contract.test.ts
-// Contract tests (RED-first, now GREEN) for the Lệnh điều xe board pagination +
-// active/finished partition feature. Pins the SSOT the API validates query
-// params against, the envelope ops-web parses, and — crucially — the
+// Contract tests (RED-first, now GREEN) for the Lenh dieu xe board pagination +
+// active/finished/cancelled partition feature. Pins the SSOT the API validates
+// query params against, the envelope ops-web parses, and -- crucially -- the
 // state->group PARTITION as a regression guard.
 //
 // Partition lockstep (mirrors the ROAD_RUN_STATES / CANCEL_REASONS inlining
 // pattern in this zod-only package): the SSOT is @fleet/domain roadRunFsm whose
-// terminal set is ['completed','cancelled']. This package takes NO @fleet/*
-// runtime dep, so we do NOT import @fleet/domain; instead the source inlines
-// ROAD_RUN_TERMINAL_STATES and we assert the partition is exhaustive + disjoint
-// over the canonical inlined ROAD_RUN_STATES (source-tracking: if a new road-run
-// state is added to ROAD_RUN_STATES, the union assertion fails until the new
-// state is classified, and the value assertions fail if the terminal set drifts
-// from the domain). If @fleet/domain's terminal set changes, update the source's
-// inlined ROAD_RUN_TERMINAL_STATES to match.
+// terminal set is [completed, cancelled]. This package takes NO @fleet/* runtime
+// dep, so we do NOT import @fleet/domain; instead the source inlines the group
+// membership and we assert the partition is exhaustive + disjoint over the
+// canonical inlined ROAD_RUN_STATES. The T16 board split gives cancelled its own
+// dispatcher tab (Lenh Huy), so finished now holds ONLY completed and cancelled
+// is its own group -- both terminal, but surfaced separately for the dispatcher.
 import { describe, it, expect } from 'vitest';
 import {
   ROAD_RUN_STATUS_GROUPS,
@@ -26,12 +24,13 @@ import { ROAD_RUN_STATES } from '../src/dispatch-stop-view-contract.js';
 import { z } from 'zod';
 
 describe('roadRunStatusGroupSchema', () => {
-  it('exposes exactly active + finished groups', () => {
-    expect([...ROAD_RUN_STATUS_GROUPS]).toEqual(['active', 'finished']);
+  it('exposes exactly active + finished + cancelled groups', () => {
+    expect([...ROAD_RUN_STATUS_GROUPS]).toEqual(['active', 'finished', 'cancelled']);
   });
-  it('accepts active and finished', () => {
+  it('accepts active, finished, and cancelled', () => {
     expect(roadRunStatusGroupSchema.parse('active')).toBe('active');
     expect(roadRunStatusGroupSchema.parse('finished')).toBe('finished');
+    expect(roadRunStatusGroupSchema.parse('cancelled')).toBe('cancelled');
   });
   it('rejects an unknown group (kills enum removal)', () => {
     expect(roadRunStatusGroupSchema.safeParse('done').success).toBe(false);
@@ -42,14 +41,29 @@ describe('statesForStatusGroup (partition lockstep guard)', () => {
   it('maps active -> the three non-terminal states', () => {
     expect([...statesForStatusGroup('active')].sort()).toEqual(['dispatched', 'planned', 'started']);
   });
-  it('maps finished -> the two terminal states (lockstep with @fleet/domain terminal set)', () => {
-    expect([...statesForStatusGroup('finished')].sort()).toEqual(['cancelled', 'completed']);
+  it('maps finished -> completed ONLY (cancelled split out to its own group)', () => {
+    expect([...statesForStatusGroup('finished')].sort()).toEqual(['completed']);
   });
-  it('partition exactly covers canonical ROAD_RUN_STATES — exhaustive + disjoint, source-tracking', () => {
-    const union = [...statesForStatusGroup('active'), ...statesForStatusGroup('finished')].sort();
+  it('maps cancelled -> the cancelled terminal state', () => {
+    expect([...statesForStatusGroup('cancelled')].sort()).toEqual(['cancelled']);
+  });
+  it('partition exactly covers canonical ROAD_RUN_STATES -- exhaustive + pairwise-disjoint', () => {
+    const union = [
+      ...statesForStatusGroup('active'),
+      ...statesForStatusGroup('finished'),
+      ...statesForStatusGroup('cancelled'),
+    ].sort();
     expect(union).toEqual([...ROAD_RUN_STATES].sort());
-    const overlap = statesForStatusGroup('active').filter((s) => statesForStatusGroup('finished').includes(s));
-    expect(overlap).toEqual([]);
+    const groups = ['active', 'finished', 'cancelled'] as const;
+    // Iterate tuple VALUES (no index assertions -> lint-clean): for each group,
+    // compare against every LATER group so each unordered pair is checked once.
+    for (const [idx, ga] of groups.entries()) {
+      const a = statesForStatusGroup(ga);
+      for (const gb of groups.slice(idx + 1)) {
+        const b = statesForStatusGroup(gb);
+        expect(a.filter((s) => b.includes(s))).toEqual([]);
+      }
+    }
   });
 });
 

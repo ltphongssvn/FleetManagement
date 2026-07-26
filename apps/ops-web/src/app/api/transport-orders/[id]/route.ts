@@ -4,7 +4,7 @@
 // shared _forward helper attaches auth and proxies status + body verbatim
 // so a 404 from the API stays a 404 on the BFF.
 import type { NextResponse } from 'next/server';
-import { forwardGet } from '../../reference/_forward';
+import { forwardGet } from '@/app/api/_forward';
 interface Ctx { params: Promise<{ id: string }> }
 export async function GET(_req: Request, ctx: Ctx): Promise<NextResponse> {
   const { id } = await ctx.params;

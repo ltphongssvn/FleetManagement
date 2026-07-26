@@ -23,8 +23,34 @@
     "affectedUsingTaskInputs": true,
     "watchUsingTaskInputs": true
   },
+  // Remote caching is the single largest lever on this repo CI bill. Measured
+  // (//#audit:ci-minutes, Jul 1-4, 244 runs): ci.yml burned 1440 billable
+  // minutes over 63 runs -- 22.9 min/run against ~9 min of wall clock, ~67% of
+  // the whole account. The cause is that caching was disabled at BOTH layers at
+  // once: enabled:false here, plus --force in ci.yml, plus a fresh runner per
+  // job. So all 8 jobs in a run re-install and rebuild the same five packages
+  // from zero, every run. Locally the same 37-task gate finishes in 24s off the
+  // shared worktree cache; a fresh worktree restores a full build in 6s with
+  // FULL TURBO. Identical work, identical tool -- CI was simply forbidden to
+  // remember anything. enabled:false carried no description in a file where
+  // every task documents its rationale: it was an unrevisited default, not a
+  // decision.
+  //
+  // No Vercel account is involved: rharkor/caching-for-turbo backs the Turbo
+  // Remote Cache API with GitHub Actions own cache and injects TURBO_API /
+  // TURBO_TOKEN / TURBO_TEAM per job. Any HTTP server implementing the API
+  // works, so this stays portable.
+  //
+  // signature:true is KEPT, and it is a live trap worth stating plainly: Turbo
+  // HMAC-SHA256-signs artifacts with TURBO_REMOTE_CACHE_SIGNATURE_KEY, and any
+  // artifact that fails verification is silently TREATED AS A CACHE MISS. It
+  // was set here while remote caching was off, so it had never been exercised
+  // and no key existed. Flipping enabled:true alone would have produced a 100%
+  // miss rate that looks exactly like a working cache -- the same shape as the
+  // confident zeros the audit tool exists to refuse. The key is now a repo
+  // secret and every job that runs turbo must export it.
   "remoteCache": {
-    "enabled": false,
+    "enabled": true,
     "signature": true
   },
   "tasks": {
@@ -95,6 +121,11 @@
       "env": ["VITEST_*", "JEST_*"],
       "outputLogs": "new-only"
     },
+    "check": {
+      "description": "Per-package composite verification aggregate: lint + typecheck + test:unit as GRAPH DEPENDENCIES (parallel where the graph allows, each individually cached), then the package check script, which is an echo MARKER ONLY. Root cause this eliminates (recurred 3+ sessions): script/task vocabulary mismatch -- packages defined a check pnpm script (pnpm lint && pnpm typecheck && pnpm test) that was never a registered turbo task, so pnpm exec turbo run check failed with Could-not-find-task (distinct from the branch-staleness cause in context/turbo-root-task-staleness-bootstrap.md). The old && composite is the documented 2026 anti-pattern (sequential, unfilterable, cache-opaque); the dependsOn graph replaces it, mirroring the __ci_fast__ orchestration-node house pattern but package-scoped and filterable. Direct in-package pnpm check verifies NOTHING by design -- the marker prints the sanctioned invocation. cache:false: the marker is zero-work; caching lives in the dependency tasks. Run: pnpm exec turbo run check --filter=@fleet/<pkg>.",
+      "dependsOn": ["lint", "typecheck", "test:unit"],
+      "cache": false
+    },
     "test:watch": {
       "description": "Fast local TDD loop (Red-Green-Refactor). Package scripts invoke 'vitest --watch' or 'jest --watch'.",
       "cache": false,
@@ -117,6 +148,41 @@
     },
     "repair:ghost-runs": {
       "description": "Event-sourced ghost-run repair: cancel every non-terminal road_run whose linked transport_orders are all terminal (or that has zero links) by appending road_run.cancelled through appendTriWrite, letting the projection runner heal dispatch_board. DRY-RUN by default; pass -- --execute to mutate. Live DB mutation: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run repair:ghost-runs --filter=@fleet/api [-- --execute].",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
+    "audit:device-registry": {
+      "description": "READ-ONLY audit of device_registry fabrication from the manual pre-enroll path. Runs the unit-tested auditDeviceRegistry classifier against live rows and prints duplicate-udid groups, platform monoculture, placeholder-version count, and active device_session blast-radius. No mutation, no --execute. Live DB read: cache:false. passThroughEnv DATABASE_URL under strict envMode. Run: pnpm exec turbo run audit:device-registry --filter=@fleet/api.",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL"]
+    },
+    "audit:assignment-uniqueness": {
+      "description": "READ-ONLY audit of driver-vehicle assignment-pair uniqueness. Runs the unit-tested auditAssignmentUniqueness classifier against live ACTIVE assignment rows and prints any duplicate driver/vehicle/pair groups (violations of the 1:1 partial-unique-index invariant). --introspect mode instead prints whether the two dva_one_active_* partial-unique indexes exist and are VALID in prod (drift check). No mutation. Live DB read: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run audit:assignment-uniqueness --filter=@fleet/api [-- --introspect].",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
+    "inspect:order-state": {
+      "description": "Read-only diagnostic: print a transport order actual server-side state (transport_order row, linked road_run states + started_at/completed_at, last 20 fleet_audit_log events) resolved by --ref. Boots the standalone ProjectionRebuildModule (config + database). MUTATES NOTHING. Live DB read: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run inspect:order-state --filter=@fleet/api -- --ref XTT.07-020.",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
+    "inspect:review-parse": {
+      "description": "Read-only diagnostic: reproduce the dispatcher-review producer (findByCompanyIdOrRef) for --ref and run its output through ListAssignedRowSchema.safeParse to reveal whether the review-page parse throws and on which path. Isolates the review-page crash. MUTATES NOTHING. Live DB read: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run inspect:review-parse --filter=@fleet/api -- --ref XTT.07-043.",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
+    "repair:complete-delivered-runs": {
+      "description": "Event-sourced completion reconciler: drive every non-terminal road_run whose linked transport_orders are ALL fully photo-committed (committed manifests >= stop count, the same predicate the live completion gate enforces) to completed by appending road_run.completed through appendTriWrite, letting the projection runner heal dispatch_board. Heals runs stranded when intake lagged or the old departedAt-proxy made completion unreachable. DRY-RUN by default; pass -- --execute to mutate. Live DB mutation: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run repair:complete-delivered-runs --filter=@fleet/api [-- --execute].",
       "dependsOn": ["build"],
       "cache": false,
       "persistent": false,
@@ -190,11 +256,16 @@
       "description": "End-to-end tests (Playwright), repo-root task. The playwright config lives at the repo root (testDir ./e2e, workers 1) and the spec-runner is the root 'test:e2e' script, so this spans packages and MUST be root-scoped (the '//#' prefix). A prior package-level 'test:e2e' task was dead: no package exposes a test:e2e script, so 'turbo run test:e2e --filter=@fleet/ops-web' ran zero tasks. env declares the vars the e2e run actually reads (E2E_* base/api URLs, OIDC_* for the IdP authorize flow, PLAYWRIGHT_* runtime) so they pass the envMode:strict boundary; the old task listed DATABASE_URL/API_BASE_URL/TESTCONTAINERS_* which the Playwright run does not consume. Owns playwright-report/**. cache:false until a migration-hash key is wired (ADR-001).",
       "cache": false,
       "env": ["E2E_*", "OIDC_*", "PLAYWRIGHT_*"]
+    },
+    "//#stack:e2e:isolated": {
+      "description": "Root-level task: raise the ISOLATED per-worktree browser-E2E stack (infra + api + ops-web, NO driver/expo/android) on this worktree deterministic compose ports (compose-identity), health-gated (docker compose up --wait), run Playwright via the existing ops-web-runner with identity-derived E2E_BASE_URL/E2E_API_URL, then tear the stack down (down -v). Prefix //# ensures repo-root-only (spans packages + the whole compose stack, not a per-package task). Replaces the ad-hoc docker compose + inline E2E_* env pattern with one rediscoverable op. env declares the vars the run reads so they pass envMode:strict. cache:false (side-effecting: docker + network). Run: pnpm exec turbo run stack:e2e:isolated -- e2e/dispatch-board-search.spec.ts.",
+      "cache": false,
+      "env": ["E2E_*", "OIDC_*", "PLAYWRIGHT_*", "FLEET_*"]
     }
 ,
     "__ci_fast__": {
       "description": "PR gate orchestration node — lint + typecheck + test:unit + codemod drift gate. Double-underscore prevents package-script collision. Expose via root package.json script 'ci:fast' for friendly CLI. CI workflow should matrix-split (ADR-001).",
-      "dependsOn": ["lint", "typecheck", "test:unit", "//#codemod:check"],
+      "dependsOn": ["lint", "typecheck", "test:unit", "//#codemod:check", "//#test:scripts", "//#lint:scripts", "//#guard:local-secrets"],
       "cache": false
     },
     "__ci_full__": {
@@ -216,6 +287,48 @@
       "description": "Root-level task: run the @fleet/codemods drift gate (extract-parse-one-number --check) across the worker tsconfig spanned with @fleet/domain source. Prefix '//#' ensures repo-root-only (it spans packages, so it is not a per-package task). Fails when source still has an un-migrated parseOneNumber outside @fleet/domain. Wired into __ci_fast__ so PRs fail on drift. cache:false — it is a fast in-memory AST pass with no cacheable output.",
       "cache": false
     },
+    "//#lint:scripts": {
+      "description": "Root-level task: ESLint the repo-level tooling in scripts/. Prefix //# ensures repo-root-only. Exists because the package-scoped lint task CANNOT reach scripts/: that tree belongs to no workspace package, so turbo run lint skipped it entirely and the only way to lint a root script was a bare eslint invocation -- an uncaptured, unrediscoverable op that no gate ran. Same shape as the guards being wired into a turbo node CI never invoked: the check existed in principle and nowhere in practice. Pairs with //#test:scripts (vitest) so root tooling gets the same lint+test treatment every package gets. cache:false -- a pass/fail check with no cacheable output, matching codemod:check and test:scripts. Run: pnpm exec turbo run lint:scripts.",
+      "cache": false
+    },
+    "//#lint:scripts:fix": {
+      "description": "Root-level task: ESLint --fix over scripts/. Mutates the source tree, so cache:false -- a cache replay could restore stale content. Companion to lint:scripts; local/manual invocation, never wired into a gate (a gate must verify, not rewrite). Run: pnpm exec turbo run lint:scripts:fix.",
+      "cache": false
+    },
+    "//#secrets:baseline": {
+      "description": "Root-level task: refresh (or audit) the tracked detect-secrets baseline that the pre-commit hook reads via --baseline .secrets.baseline. Prefix //# ensures repo-root-only: it scans the whole tree, so it belongs to no workspace package. WHY IT EXISTS: the hook blocks only findings absent from the baseline, so a branch that adds files containing credential-SHAPED but synthetic strings (randomBytes test passwords, RFC 2606 .invalid hosts, SHA-256 topology hashes, a task literally named guard:local-secrets) blocks EVERY worktree push until the baseline is refreshed -- observed 2026-07-23 when the security-guard arc landed seven scripts without regenerating it. Previously this refresh was an uncaptured CLI incantation, free to drift from the hook own flags; this task is the single definition. Scans IN PLACE with --baseline (never shell redirection, which silently discards the is_secret labels a prior audit recorded) and mirrors the hook exclude list. NOT a suppression tool: a real credential must be removed and rotated, never baselined -- run -- --audit to label each finding before committing. cache:false (mutates a tracked file, no cacheable output). Run: pnpm exec turbo run secrets:baseline [-- --audit].",
+      "cache": false
+    },
+    "//#test:scripts": {
+      "description": "Root-level task: run the vitest suite that covers the repo-level tooling in scripts/ (sync-worktrees, sync-develop, close-worktree, worktree-close-cli, compose-identity, db-generate, railway-reference-guard, the e2e stack drivers, the ci-minutes reconciler). Prefix //# ensures repo-root-only: these scripts belong to no workspace package (2026 Turborepo guidance is package-tasks-first; this is the carve-out for genuinely repo-spanning tooling), so a per-package task would find nothing. Runs the committed root script 'test:scripts' (vitest run scripts) verbatim -- it is NOT a second runner. Wired into __ci_fast__ so a regression in the worktree-deletion logic (which removes branches) fails the PR gate instead of merging green; before this the suite passed but the gate never executed it. cache:false -- a pass/fail check with no cacheable output, matching codemod:check.",
+      "cache": false
+    },
+    "//#audit:ci-minutes": {
+      "description": "Root-level task: READ-ONLY audit attributing BILLABLE GitHub Actions minutes to the workflow that spent them, then reconciling the total against the enhanced billing platform. Prefix //# ensures repo-root-only (it spans no package; it reads the repo CI ledger). Computed from /actions/runs/{id}/jobs records, never /actions/workflows/{id}/timing -- that endpoint is closing down and returns 0ms while billing shows five figures. Billing meters JOB execution rounded UP per job, so a 4-way shard matrix cuts wall clock but not minutes, and a 12-second gate job still bills one. Absent data throws rather than scoring 0 (three confident-zero hazards observed in this domain, including GitHub docs saying product=Actions while the wire sends product=actions). Exits 2 when computed-vs-billed drift exceeds 5%: the instrument is wrong and no cut may be sized on it. cache:false (live network read, no cacheable output). passThroughEnv exposes the API token under strict envMode. Run: pnpm exec turbo run audit:ci-minutes [-- --year 2026 --month 7].",
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_URL", "GITHUB_REPOSITORY"]
+    },
+    "//#inspect:prod-deploy": {
+      "description": "Root-level task: READ-ONLY diagnostic answering whether a fix commit is actually RUNNING in a given live deploy and whether it is PROMOTED to the base branch. Prefix //# ensures repo-root-only (it reads the git/deploy ledger, spans no package). Pure git ancestry: fix-in-base (promoted?), fix-in-live (running?), base-ahead-of-live count. Verdict EFFECTIVE / REDEPLOY-NEEDED / NOT-PROMOTED with NON-ZERO exit unless EFFECTIVE, so it gates scripts and CI, not just prints. Always emits a RAILWAY MANUAL CHECK line for the one fact git cannot prove -- whether the container was BUILT after a required build var existed. Token-free (local git only): no passThroughEnv. cache:false (live git read, no cacheable output). Run: pnpm exec turbo run inspect:prod-deploy -- --live <sha> --fix <sha> [--base <ref>].",
+      "cache": false,
+      "persistent": false
+    },
+    "//#prod:db-url": {
+      "description": "Root-level task: print the CURRENT production Postgres DSN, read LIVE from Railway (the single system of record) at call time. Prefix //# ensures repo-root-only (it spans no package). Exists to kill a recurring class of failure: operators pasted a PROD_DATABASE_URL literal into a local .env, prod credentials rotated, the copy went stale, and every prod-ops task (audit:*, inspect:*, projection:rebuild, repair:*) failed authentication with an opaque error. A stored copy is a SECOND system of record and always rots; re-pasting is a treadmill. This is the local-ops mirror of guard:railway-references, which forbids the same literal-vs-reference anti-pattern in Railway service variables. ONLY the DSN goes to stdout (diagnostics to stderr) so it composes via command substitution. Retries transient Railway API errors; fails immediately on auth/linkage errors -- there is no safe fallback for a prod DSN. cache:false (live network read, no cacheable output). Run: DATABASE_URL=$(pnpm prod:db-url) pnpm exec turbo run audit:assignment-uniqueness --filter=@fleet/api.",
+      "cache": false,
+      "persistent": false
+    },
+    "//#guard:local-secrets": {
+      "description": "Root-level task: fail when a PRODUCTION credential literal sits in a local env file (.env, .env.local, .env.production, .env.prod). Prefix //# ensures repo-root-only. Covers a genuine blind spot rather than duplicating existing protection: pre-commit check-env-files blocks COMMITTING a .env and detect-secrets scans STAGED content, but a local .env is untracked BY DESIGN so neither ever inspects it -- which is exactly how a stale PROD_DATABASE_URL sat undetected until prod rotated. Only PROD/PRODUCTION-scoped variable names holding an inline-credential URL are flagged, so an ordinary local docker-compose DATABASE_URL stays legitimate. Reports file, line and variable NAME only, never the value. Exit 1 on violation, 2 on tooling error. cache:false (reads working-tree state outside the task graph). Run: pnpm exec turbo run guard:local-secrets.",
+      "cache": false,
+      "persistent": false
+    },
+    "//#guard:local-secrets:baseline": {
+      "description": "Root-level task: regenerate scripts/local-secret-guard.config.json, the SHA-256 hashes of production hostnames that must never appear in tracked source. Prefix //# ensures repo-root-only. The hash is DERIVED AT RUNTIME from the live Railway value via the same resolver the ops tasks use, so the plaintext hostname is never typed into a tracked file -- a guard whose own config leaked the topology it protects would be self-defeating. Mirrors the hashed_secret field in .secrets.baseline. Reports a hash prefix only, never the hostname. cache:false (live network read). Run: pnpm exec turbo run guard:local-secrets:baseline.",
+      "cache": false,
+      "persistent": false
+    },
     "//#sync:worktrees": {
       "description": "Root-level task: fast-forward every git worktree local branch to its remote tracking branch, SAFELY. Prefix //# ensures repo-root-only (it spans all worktrees, not a per-package task). Fast-forwards only when a branch is purely behind (behind>0, ahead=0); REFUSES and warns on true divergence (ahead>0 AND behind>0), never force-merging/resetting, so unpushed local commits can never be lost. The autonomous pipeline converges the REMOTE branches but git never auto-updates LOCAL worktree branches, so this closes that gap. cache:false (side-effecting git operation, no cacheable output). Run: pnpm exec turbo run sync:worktrees.",
       "cache": false
@@ -226,6 +339,10 @@
     },
     "//#bump:pnpm": {
       "description": "Root-level task: bump the corepack-pinned pnpm version for the whole repo via corepack use pnpm@<version|latest> -- resolves the version and rewrites the packageManager pin + sha512 in package.json itself (2026 canonical; never pnpm add -g, which fails on this box because the global bin dir is not on PATH and would only mutate one machine anyway). Script refuses on a dirty tree so the pin change is always an isolated, reviewable commit. Prefix //# ensures repo-root-only. cache:false (side-effecting, network-resolving). Run: pnpm exec turbo run bump:pnpm [-- <version>].",
+      "cache": false
+    },
+    "//#worktree:close": {
+      "description": "Root-level task: close a git worktree SAFELY -- remove the worktree and delete its local branch, but ONLY when nothing can be lost. Prefix //# ensures repo-root-only (it spans all worktrees, not a per-package task). REFUSES on any loss risk and reports every reason at once: primary-clone, no-upstream, unpushed (ahead>0), dirty (any modified or untracked file), unmerged (commits not contained in origin/develop). Never passes --force, -D or -f, so git own merged-check is the last line of defence. Complements sync:worktrees, which fast-forwards but has no removal path -- closing a worktree was previously a hand-rolled git idiom, not a captured op. Decision core (scripts/close-worktree.ts) and parsers (scripts/worktree-close.ts) are pure and unit-tested; only the driver touches git. cache:false (side-effecting git mutation, no cacheable output). Run: pnpm exec turbo run worktree:close -- <worktree-path>.",
       "cache": false
     },
     "//#graph": {

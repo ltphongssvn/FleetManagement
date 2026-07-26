@@ -2,7 +2,7 @@
 // PGLite integration (RED-first) for the paginated + status-partitioned dispatch
 // board. Drives DispatchController.getBoardPage(op, query): offset/page-number
 // pagination over dispatch_board_projection, filtered by status group (active =
-// planned|dispatched|started; finished = completed|cancelled), returning the SSOT
+// planned|dispatched|started; finished = completed; cancelled = cancelled), the SSOT
 // paginated envelope (data + page/pageSize/total/totalPages/hasMore) that
 // validates against @fleet/sync-protocol DispatchBoardPageApiResponseSchema.
 // Mirrors dispatch.controller.integration.test.ts (real projection table, real
@@ -43,7 +43,7 @@ function plannedAt(n: number): string {
 beforeAll(async () => {
   testDb = await startPgliteTestDb();
   ctrl = new DispatchController(testDb.db as never);
-}, 60_000);
+});
 afterAll(async () => stopPgliteTestDb(testDb));
 beforeEach(async () => {
   await testDb.db.execute(sql.raw('TRUNCATE TABLE dispatch_board_projection CASCADE'));
@@ -61,13 +61,21 @@ describe('@fleet/api - DispatchController.getBoardPage (paginated + status parti
     expect(page.total).toBe(3);
   });
 
-  it('finished group returns only completed/cancelled rows', async () => {
+  it('finished group returns only completed rows (cancelled split to its own group)', async () => {
     await insertRow(rr(1), 'planned', plannedAt(1));
     await insertRow(rr(4), 'completed', plannedAt(4));
     await insertRow(rr(5), 'cancelled', plannedAt(5));
     const page = await ctrl.getBoardPage(OP, { group: 'finished', page: 1, pageSize: 20 });
-    expect(page.data.map((r) => r.state).sort()).toEqual(['cancelled', 'completed']);
-    expect(page.total).toBe(2);
+    expect(page.data.map((r) => r.state).sort()).toEqual(['completed']);
+    expect(page.total).toBe(1);
+  });
+  it('cancelled group returns only cancelled rows (T16 Lenh Huy tab)', async () => {
+    await insertRow(rr(1), 'planned', plannedAt(1));
+    await insertRow(rr(4), 'completed', plannedAt(4));
+    await insertRow(rr(5), 'cancelled', plannedAt(5));
+    const page = await ctrl.getBoardPage(OP, { group: 'cancelled', page: 1, pageSize: 20 });
+    expect(page.data.map((r) => r.state).sort()).toEqual(['cancelled']);
+    expect(page.total).toBe(1);
   });
 
   it('paginates: pageSize 2 over 5 active rows -> page1=2, total=5, totalPages=3, hasMore=true', async () => {

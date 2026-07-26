@@ -24,6 +24,8 @@ const row: ListAssignedRow = {
   driverName: 'NGUYỄN THANH PHONG',
   pickupName: null,
   deliveryName: null,
+  canCancel: true,
+  cancelBlockedReason: null,
   stops: [
     { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'WH1', arrivedAt: null, departedAt: null },
     { sequence: 2, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'WH2', arrivedAt: null, departedAt: null },
@@ -87,6 +89,8 @@ const t9row: ListAssignedRowT9 = {
   driverName: 'NGUYỄN THANH PHONG',
   pickupName: null,
   deliveryName: null,
+  canCancel: true,
+  cancelBlockedReason: null,
   stops: [
     { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'Chơn Chính', arrivedAt: '2026-05-30T17:30:00.000Z', departedAt: '2026-05-30T17:45:00.000Z' },
     { sequence: 2, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'Cần Thơ', arrivedAt: null, departedAt: null },

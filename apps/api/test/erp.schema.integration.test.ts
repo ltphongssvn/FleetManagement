@@ -15,7 +15,7 @@ const TENANT = {
 describe('@fleet/api - ERP schema (integration)', () => {
   beforeAll(async () => {
     testDb = await startMigratedTestDb('fleet_test');
-  }, 90_000);
+  });
 
   afterAll(async () => {
     await stopMigratedTestDb(testDb);
