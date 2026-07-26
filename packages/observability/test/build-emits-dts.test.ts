@@ -28,7 +28,13 @@ describe('observability build emits declarations deterministically', () => {
     execSync('pnpm run build', { cwd: pkgRoot, stdio: 'inherit' });
     rmSync(resolve(pkgRoot, 'dist'), { recursive: true, force: true });
     execSync('pnpm run build', { cwd: pkgRoot, stdio: 'inherit' });
-  }, 60_000);
+    // Timeout headroom: this hook runs TWO full pnpm builds back-to-back. In
+    // isolation that is ~30s, but under the whole-repo pre-push COVERAGE gate
+    // (all packages building in parallel on memory-contended WSL2) two
+    // sequential tsc builds can exceed 60s and time out the hook -- a false
+    // gate failure on a green tree. 180s absorbs worst-case build-under-load
+    // without masking a genuinely hung build (the WSL2 contention SSOT).
+  }, 180_000);
   it('emits dist/index.d.ts after a build with a pre-existing stale tsbuildinfo', () => {
     expect(existsSync(dts)).toBe(true);
   });
