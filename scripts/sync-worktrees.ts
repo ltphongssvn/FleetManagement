@@ -61,13 +61,41 @@ export function classify(s: WorktreeState): Action {
 }
 
 // ------------------------------ SHELL (impure) -----------------------------
+// execFileSync has NO timeout by default: a hung child (a git push stalled on
+// network or an auth prompt for a large no-upstream branch) blocks the event
+// loop FOREVER -- the observed 4h17m wedge after auto-push of no-upstream
+// branches was added. Every git subprocess therefore gets a bounded timeout +
+// SIGTERM killSignal so a stuck call is killed and surfaces as a throw, which
+// the per-worktree try/catch downgrades to blocked{error}. Read-only commands
+// get a short cap; network commands (push/fetch/pull/clone/ls-remote) get a
+// generous-but-finite cap.
+export const GIT_READ_TIMEOUT_MS = 30_000;
+export const GIT_NETWORK_TIMEOUT_MS = 120_000;
+const GIT_NETWORK_VERBS = new Set(['push', 'fetch', 'pull', 'clone', 'ls-remote']);
+export interface GitExecOptions {
+  cwd?: string;
+  encoding: 'utf8';
+  stdio: ['ignore', 'pipe', 'pipe'];
+  timeout: number;
+  killSignal: 'SIGTERM';
+}
+// Pure: maps a git argv (+ optional cwd) to the execFileSync options, choosing
+// the timeout by whether the first arg is a network verb. Exported for unit test.
+export function gitExecOptions(args: string[], cwd?: string): GitExecOptions {
+  const verb = args[0] ?? '';
+  const timeout = GIT_NETWORK_VERBS.has(verb) ? GIT_NETWORK_TIMEOUT_MS : GIT_READ_TIMEOUT_MS;
+  const base: GitExecOptions = {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout,
+    killSignal: 'SIGTERM',
+  };
+  return cwd === undefined ? base : { ...base, cwd };
+}
+
 function git(args: string[], opts: { cwd?: string; allowFail?: boolean } = {}): string {
   try {
-    return execFileSync("git", args, {
-      cwd: opts.cwd,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
+    return execFileSync("git", args, gitExecOptions(args, opts.cwd)).trim();
   } catch (err) {
     if (opts.allowFail) return '';
     throw err;
