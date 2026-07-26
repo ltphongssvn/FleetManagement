@@ -63,8 +63,10 @@ interface ProofSource {
   readonly key: string;
   readonly capturedAt: string;
   readonly extractedNetWeightKg: number | null;
-  readonly extractionStatus: 'pending' | 'extracted' | 'not_found' | 'unreadable' | 'manual';
-  readonly extractionReason: 'unparseable' | 'below_sanity_min' | 'above_sanity_max' | 'no_field' | 'object_missing' | null;
+  // Derived from the SSOT StopProof contract (NonNullable strips the optional)
+  // so a widened extraction vocabulary can never drift from this internal carrier.
+  readonly extractionStatus: NonNullable<StopProof['extractionStatus']>;
+  readonly extractionReason: NonNullable<StopProof['extractionReason']> | null;
 }
 // The base projection row (after driver/vehicle label joins) that enrichRows
 // turns into a full DispatchBoardApiRow. Identical select shape in getBoard and
