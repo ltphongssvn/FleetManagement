@@ -1,6 +1,6 @@
 // packages/sync-protocol/test/extraction-types.test.ts
 import { describe, expect, it } from 'vitest';
-import { ExtractionJobDataWireSchema, ExtractionResultWireSchema } from '../src/extraction-types.js';
+import { ExtractionJobDataWireSchema, ExtractionResultWireSchema, EXTRACTION_FAILURE_REASONS } from '../src/extraction-types.js';
 
 const job = {
   manifestId: '7b6a1c9e-2f4d-4a8b-9c0d-1e2f3a4b5c6d',
@@ -52,5 +52,26 @@ describe('ExtractionResultWireSchema reason invariant (failure cause is SSOT, no
   });
   it('rejects an unknown reason value', () => {
     expect(ok({ manifestId: m, status: 'not_found', extractedNetWeightKg: null, reason: 'bogus' })).toBe(false);
+  });
+});
+
+
+// T33: cannot-recognize outcomes. The recognizer accepts ONLY the three
+// standard phieu-can layouts. Two NEW terminal causes, both surfaced to the
+// dispatcher as a single cannot-recognize state on the board:
+//   multiple_slips      -> several tickets photographed together in one image.
+//   non_standard_format -> a layout outside the three standard formats.
+// EXPAND-only additions to the SSOT reason vocabulary (older producers stay
+// valid); a recognised-but-unusable ticket still degrades to manual entry.
+describe('ExtractionResultWireSchema cannot-recognize reasons (T33)', () => {
+  it('exposes the two new reasons in the SSOT vocabulary', () => {
+    expect(EXTRACTION_FAILURE_REASONS).toContain('multiple_slips');
+    expect(EXTRACTION_FAILURE_REASONS).toContain('non_standard_format');
+  });
+  it('accepts multiple_slips as a not_found cause', () => {
+    expect(ok({ manifestId: m, status: 'not_found', extractedNetWeightKg: null, reason: 'multiple_slips' })).toBe(true);
+  });
+  it('accepts non_standard_format as an unreadable cause', () => {
+    expect(ok({ manifestId: m, status: 'unreadable', extractedNetWeightKg: null, reason: 'non_standard_format' })).toBe(true);
   });
 });

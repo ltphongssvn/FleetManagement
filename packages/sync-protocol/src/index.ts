@@ -140,6 +140,14 @@ export {
   type ExtractionFailureReason,
   type ExtractionResultWire,
 } from './extraction-types.js';
+
+// Leaf SSOT for the failure-reason vocabulary (extracted to break the
+// extraction-types <-> dispatch-stop-view import cycle). The array + type are
+// already re-exported above via extraction-types; the Zod SCHEMA is exported
+// here for boundary validators (api/ops-web) that parse a reason value.
+export {
+  ExtractionFailureReasonSchema,
+} from './extraction-vocabulary.js';
 export {
   exportDayKeySchema,
   type ExportDayKey,

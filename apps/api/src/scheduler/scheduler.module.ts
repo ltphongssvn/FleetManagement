@@ -20,6 +20,8 @@ import { DrizzleIntakeReconcileRepo } from '../manifest/intake-reconcile.repo.js
 import { AlertLagMonitorService } from '../manifest/alert-lag-monitor.service.js';
 import { DrizzleAlertLagRepo } from '../manifest/alert-lag.repo.js';
 import { DrizzleCompletionReconcileRepo } from '../manifest/completion-reconcile.repo.js';
+import { CompletionReconcilerMonitorService } from '../maintenance/completion-reconciler-monitor.service.js';
+import { DrizzleCompletionStrandedRepo, COMPLETION_STRANDED_PILOT_SCOPE } from '../maintenance/completion-stranded.repo.js';
 import type { Env } from '../config/env.config.js';
 
 // DI tokens for the optional monitors. Each is provided by a useFactory that
@@ -30,10 +32,11 @@ const INTAKE_LAG_MONITOR = 'INTAKE_LAG_MONITOR' as const;
 const INTAKE_RECONCILER = 'INTAKE_RECONCILER' as const;
 const ALERT_LAG_MONITOR = 'ALERT_LAG_MONITOR' as const;
 const COMPLETION_RECONCILER = 'COMPLETION_RECONCILER' as const;
+const COMPLETION_RECONCILER_MONITOR = 'COMPLETION_RECONCILER_MONITOR' as const;
 
 // Tick cadences (ms). Core relays drain fast; monitors and reconcilers sweep
-// on a 5-min cadence (backoff gating lives in each query, so a frequent tick is
-// cheap and shortens recovery).
+// on a 5-min cadence (backoff/threshold gating lives in each query, so a
+// frequent tick is cheap and shortens recovery).
 const DRAIN_INTERVAL_MS = 5_000;
 const RECONCILE_INTERVAL_MS = 2_000;
 const BREAKGLASS_INTERVAL_MS = 60_000;
@@ -41,11 +44,11 @@ const INTAKE_LAG_INTERVAL_MS = 300_000;
 const INTAKE_RECONCILE_INTERVAL_MS = 300_000;
 const ALERT_LAG_INTERVAL_MS = 300_000;
 const COMPLETION_RECONCILE_INTERVAL_MS = 300_000;
+const COMPLETION_MONITOR_INTERVAL_MS = 300_000;
 
 // The break-glass monitor is DORMANT unless KEYCLOAK_MONITOR_CLIENT_SECRET is
 // set: its factory returns null when the secret is absent, so no ticker is
-// registered (no client, no poll). Mirrors the AWS_*/FLEET_API_* port-absent
-// gating and keeps local/dev without the secret from polling prod Keycloak.
+// registered. Mirrors the AWS_*/FLEET_API_* port-absent gating.
 @Module({
   imports: [ConfigModule, OutboxModule, ProjectionsModule, CommandsModule],
   providers: [
@@ -56,9 +59,17 @@ const COMPLETION_RECONCILE_INTERVAL_MS = 300_000;
     DrizzleAlertLagRepo,
     DrizzleCompletionReconcileRepo,
     {
+      // completion-stranded repo is company-scoped; supply the pilot scope from
+      // config so the monitor reads the same tenant the projection runner drains.
+      provide: COMPLETION_STRANDED_PILOT_SCOPE,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<Env, true>): string =>
+        config.getOrThrow('FLEET_PILOT_SCOPE', { infer: true }),
+    },
+    DrizzleCompletionStrandedRepo,
+    {
       // Intake-lag guard (Jun-24 incident class) is ALWAYS ON: needs only DB +
-      // Sentry (both unconditionally present), so no dormancy secret. Threshold
-      // is the INTAKE_LAG_ALERT_MINUTES knob (default 30).
+      // Sentry, so no dormancy secret. Threshold INTAKE_LAG_ALERT_MINUTES (30).
       provide: INTAKE_LAG_MONITOR,
       inject: [ConfigService, DrizzleIntakeLagRepo],
       useFactory: (
@@ -68,10 +79,8 @@ const COMPLETION_RECONCILE_INTERVAL_MS = 300_000;
         new IntakeLagMonitorService(repo, config.getOrThrow('INTAKE_LAG_ALERT_MINUTES', { infer: true })),
     },
     {
-      // Driver-alert-lag guard (T12) is ALWAYS ON: like intake-lag it needs only
-      // DB + Sentry, so no dormancy secret. Threshold is DRIVER_ALERT_LAG_MINUTES
-      // (default 15 -- tighter than intake because a missed alert = a missed
-      // truck run).
+      // Driver-alert-lag guard (T12) is ALWAYS ON. Threshold
+      // DRIVER_ALERT_LAG_MINUTES (15 -- tighter: a missed alert = a missed run).
       provide: ALERT_LAG_MONITOR,
       inject: [ConfigService, DrizzleAlertLagRepo],
       useFactory: (
@@ -81,9 +90,8 @@ const COMPLETION_RECONCILE_INTERVAL_MS = 300_000;
         new AlertLagMonitorService(repo, config.getOrThrow('DRIVER_ALERT_LAG_MINUTES', { infer: true })),
     },
     {
-      // Intake self-healing reconciler. ALWAYS provided but tick-gated: the
-      // factory returns null when INTAKE_RECONCILE_ENABLED is false, so no ticker
-      // is registered. Enabled is the production default.
+      // Intake self-healing reconciler. ALWAYS provided but tick-gated: null
+      // when INTAKE_RECONCILE_ENABLED is false. Enabled is the prod default.
       provide: INTAKE_RECONCILER,
       inject: [ConfigService, DrizzleIntakeReconcileRepo],
       useFactory: (
@@ -100,10 +108,8 @@ const COMPLETION_RECONCILE_INTERVAL_MS = 300_000;
       },
     },
     {
-      // Completion self-healing reconciler. ALWAYS provided but tick-gated: the
-      // factory returns null when COMPLETION_RECONCILE_ENABLED is false. Enabled
-      // is the production default. Tenant-iterating: service + repo discover
-      // stranded tenants from data and heal each under its own scope.
+      // Completion self-healing reconciler. ALWAYS provided but tick-gated: null
+      // when COMPLETION_RECONCILE_ENABLED is false. Tenant-iterating.
       provide: COMPLETION_RECONCILER,
       inject: [ConfigService, DrizzleCompletionReconcileRepo],
       useFactory: (
@@ -115,6 +121,23 @@ const COMPLETION_RECONCILE_INTERVAL_MS = 300_000;
           repo,
           config.getOrThrow('COMPLETION_RECONCILE_AFTER_MINUTES', { infer: true }),
           config.getOrThrow('COMPLETION_RECONCILE_BATCH_SIZE', { infer: true }),
+        );
+      },
+    },
+    {
+      // Completion-stranded proactive monitor (T16 guard). ALWAYS provided but
+      // tick-gated: null when COMPLETION_MONITOR_ENABLED is false. Needs only
+      // the DB (scoped repo) + Sentry.
+      provide: COMPLETION_RECONCILER_MONITOR,
+      inject: [ConfigService, DrizzleCompletionStrandedRepo],
+      useFactory: (
+        config: ConfigService<Env, true>,
+        repo: DrizzleCompletionStrandedRepo,
+      ): CompletionReconcilerMonitorService | null => {
+        if (!config.getOrThrow('COMPLETION_MONITOR_ENABLED', { infer: true })) return null;
+        return new CompletionReconcilerMonitorService(
+          repo,
+          config.getOrThrow('COMPLETION_STRANDED_ALERT_MINUTES', { infer: true }),
         );
       },
     },
@@ -155,6 +178,7 @@ const COMPLETION_RECONCILE_INTERVAL_MS = 300_000;
         ALERT_LAG_MONITOR,
         INTAKE_RECONCILER,
         COMPLETION_RECONCILER,
+        COMPLETION_RECONCILER_MONITOR,
         BREAKGLASS_MONITOR,
       ],
       useFactory: (
@@ -166,6 +190,7 @@ const COMPLETION_RECONCILE_INTERVAL_MS = 300_000;
         alertLagMonitor: AlertLagMonitorService | null,
         intakeReconciler: IntakeReconcilerService | null,
         completionReconciler: CompletionReconcilerService | null,
+        completionMonitor: CompletionReconcilerMonitorService | null,
         breakGlassMonitor: BreakGlassLoginMonitorService | null,
       ): SchedulerTicker[] => {
         const pilotScope = config.getOrThrow('FLEET_PILOT_SCOPE', { infer: true });
@@ -198,6 +223,10 @@ const COMPLETION_RECONCILE_INTERVAL_MS = 300_000;
         if (completionReconciler !== null) tickers.push({
           key: 'completionReconcile', tag: 'completion-reconcile', label: 'Completion reconcile failed: ',
           intervalMs: COMPLETION_RECONCILE_INTERVAL_MS, run: () => completionReconciler.reconcileOnce(),
+        });
+        if (completionMonitor !== null) tickers.push({
+          key: 'completionMonitor', tag: 'completion-monitor-check', label: 'Completion monitor check failed: ',
+          intervalMs: COMPLETION_MONITOR_INTERVAL_MS, run: () => completionMonitor.checkOnce(),
         });
         if (breakGlassMonitor !== null) tickers.push({
           key: 'breakglass', tag: 'breakglass-scan', label: 'Break-glass poll failed: ',

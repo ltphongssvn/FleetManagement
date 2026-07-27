@@ -16,13 +16,14 @@ export const INTERVALS = Object.freeze({
   alertLag: 300_000,
   intakeReconcile: 300_000,
   completionReconcile: 300_000,
+  completionMonitor: 300_000,
   breakglass: 60_000,
 });
 
-// Build a single monitor ticker exactly as the module factory does. The five
+// Build a single monitor ticker exactly as the module factory does. The six
 // monitor kinds differ only in key/tag/label/interval + which method they call.
 export function monitorTicker(
-  kind: 'intakeLag' | 'alertLag' | 'intakeReconcile' | 'completionReconcile' | 'breakglass',
+  kind: 'intakeLag' | 'alertLag' | 'intakeReconcile' | 'completionReconcile' | 'completionMonitor' | 'breakglass',
   run: () => unknown,
 ): SchedulerTicker {
   switch (kind) {
@@ -34,6 +35,8 @@ export function monitorTicker(
       return { key: 'intakeReconcile', tag: 'intake-reconcile', label: 'Intake reconcile failed: ', intervalMs: INTERVALS.intakeReconcile, run };
     case 'completionReconcile':
       return { key: 'completionReconcile', tag: 'completion-reconcile', label: 'Completion reconcile failed: ', intervalMs: INTERVALS.completionReconcile, run };
+    case 'completionMonitor':
+      return { key: 'completionMonitor', tag: 'completion-monitor-check', label: 'Completion monitor check failed: ', intervalMs: INTERVALS.completionMonitor, run };
     case 'breakglass':
       return { key: 'breakglass', tag: 'breakglass-scan', label: 'Break-glass poll failed: ', intervalMs: INTERVALS.breakglass, run };
   }

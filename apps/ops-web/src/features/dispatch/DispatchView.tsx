@@ -63,7 +63,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import { useRouter } from 'next/navigation';
-import { CreateOrderForm, type CreateOrderFormProps } from './CreateOrderForm';
+import { type CreateOrderFormProps } from './CreateOrderForm';
+import { NaturalLanguageCreateForm } from './NaturalLanguageCreateForm';
 import { LogoutButton } from '../auth/LogoutButton';
 import { ExportOrdersExcelButton } from './ExportOrdersExcelButton';
 import { buildLookup, formatOrderRef } from './labels';
@@ -292,6 +293,9 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
   // this does NOT re-derive on every render, so it cannot drive a re-render
   // loop when router.refresh() supplies a fresh initialRuns reference.
   const [stickyRuns, setStickyRuns] = useState<readonly DispatchBoardRoadRun[]>([]);
+  // Table-first (T38): the create form is create-on-demand behind a drawer,
+  // so the Lenh dieu xe table is the primary above-the-fold surface.
+  const [createOpen, setCreateOpen] = useState(false);
   const pushOptimisticRow = (externalRef: string, op: { operatorId: string; assetId: string }): void => {
     setStickyRuns((prev) => {
       for (const r of prev) {
@@ -340,26 +344,35 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
     }
     router.refresh();
   };
+  const createForm = (
+    <NaturalLanguageCreateForm
+      drivers={refs.drivers}
+      vehicles={refs.vehicles ?? []}
+      customers={refs.customers ?? []}
+      cargoTypes={refs.cargoTypes ?? []}
+      pickupWarehouses={refs.pickupWarehouses ?? []}
+      deliveryWarehouses={refs.deliveryWarehouses ?? []}
+      driverVehicleAssignments={refs.driverVehicleAssignments ?? []}
+      defaultOrderRef={refs.nextOrderRef ?? ''}
+      onCreated={(externalRef, op) => { handleCreated(externalRef, op); setCreateOpen(false); }}
+    />
+  );
   return (
     <>
-      <CreateOrderForm
-        drivers={refs.drivers}
-        vehicles={refs.vehicles ?? []}
-        customers={refs.customers ?? []}
-        cargoTypes={refs.cargoTypes ?? []}
-        pickupWarehouses={refs.pickupWarehouses ?? []}
-        deliveryWarehouses={refs.deliveryWarehouses ?? []}
-        driverVehicleAssignments={refs.driverVehicleAssignments ?? []}
-        defaultOrderRef={refs.nextOrderRef ?? ''}
-        onCreated={handleCreated}
-      />
-      <div className='mt-8 rounded-2xl bg-white/95 shadow-sm'>
+      <div className='rounded-2xl bg-white/95 shadow-sm'>
         <section className='p-6'>
           <header className='mb-4 flex items-center justify-between'>
             <h1 className='text-2xl font-semibold'>Lệnh điều xe</h1>
             <div className='flex items-center gap-2'>
               {pagination ? <SearchBox group={pagination.group} search={search} /> : null}
               {pagination ? <FilterTabs group={pagination.group} search={search} /> : null}
+              <button
+                type='button'
+                data-testid='open-create-order'
+                onClick={() => { setCreateOpen(true); }}
+                className='inline-flex items-center gap-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500'>
+                <span aria-hidden='true'>+</span> Tạo lệnh điều xe
+              </button>
               <ExportOrdersExcelButton /><LogoutButton />
             </div>
           </header>
@@ -399,6 +412,17 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
           {pagination ? <PaginationBar pagination={pagination} search={search} /> : null}
         </section>
       </div>
+      {createOpen ? (
+        <div className='fixed inset-0 z-40 flex justify-end' role='dialog' aria-modal='true' aria-label='Tạo lệnh điều xe'>
+          <button type='button' aria-label='Đóng' onClick={() => { setCreateOpen(false); }} className='absolute inset-0 bg-slate-900/40' />
+          <div className='relative z-50 h-full w-full max-w-2xl overflow-y-auto bg-transparent p-4 shadow-2xl'>
+            <div className='mb-2 flex justify-end'>
+              <button type='button' data-testid='close-create-order' onClick={() => { setCreateOpen(false); }} className='rounded-md bg-white/90 px-3 py-1 text-sm font-medium text-slate-700 shadow'>Đóng</button>
+            </div>
+            {createForm}
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

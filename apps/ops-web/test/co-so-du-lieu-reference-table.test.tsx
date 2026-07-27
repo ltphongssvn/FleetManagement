@@ -6,6 +6,7 @@
 // getByText / data-testid) so they survive the list->table markup change.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ReferenceSection } from '@/features/admin/reference-sections';
 beforeEach(() => {
   globalThis.fetch = vi.fn().mockResolvedValue({
@@ -29,9 +30,19 @@ describe('master-data section renders as a DataTable', () => {
     render(<ReferenceSection def={customers} />);
     expect(await screen.findByRole('table', { name: 'Khách hàng' })).toBeInTheDocument();
   });
+  it('reaches Xoa through the row action menu, gated by a confirm dialog', async () => {
+    const user = userEvent.setup();
+    render(<ReferenceSection def={customers} />);
+    await screen.findByRole('rowheader', { name: 'ACME' });
+    // No always-visible Xoa button; it lives in the row action menu.
+    expect(screen.queryByRole('button', { name: 'Xóa' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Xóa' }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+  });
   it('renders each row in a table cell with a Xoa action', async () => {
     render(<ReferenceSection def={customers} />);
     expect(await screen.findByRole('rowheader', { name: 'ACME' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Xóa' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Thao tác/ })).toBeInTheDocument();
   });
 });

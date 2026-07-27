@@ -37,6 +37,7 @@ describe('@fleet/api - scheduler registry: anti-collision invariant', () => {
       'case ' + String.fromCharCode(39) + 'intakeReconcile',
       'case ' + String.fromCharCode(39) + 'alertLag',
       'case ' + String.fromCharCode(39) + 'completionReconcile',
+      'case ' + String.fromCharCode(39) + 'completionMonitor',
     ];
     for (const frag of banned) {
       // vitest expect() takes no message arg; assert the banned frag directly.
