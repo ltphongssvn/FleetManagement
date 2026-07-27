@@ -1,10 +1,12 @@
 // apps/api/test/scheduler.service.intake-reconcile.test.ts
-// TDD for the intake self-healing reconciler tick wired into
-// SchedulerService (T9 arc): an optional 7th monitor dependency, an
-// intakeReconcile self-scheduling kind at 300s inside a tagged Sentry
-// isolation scope. Mirrors scheduler.service.intake-lag.test.ts exactly.
+// Intake self-healing reconciler tick against the multi-provider registry
+// (T9 arc). The reconciler is a SchedulerTicker (key=intakeReconcile, tag=
+// intake-reconcile, 5-min interval) built as the module factory builds it. Its
+// run() returns a result summary, which the scheduler discards. Dormancy now
+// lives in the factory: when INTAKE_RECONCILE_ENABLED is false it omits the
+// ticker, so no tick is scheduled and drainByKey is an inert no-op (there is no
+// null-dep branch to exercise -- the absent ticker IS the dormant state).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { ConfigService } from '@nestjs/config';
 const { mockWithIsolationScope, mockCaptureException, capturedTags } = vi.hoisted(() => {
   const capturedTags: { key: string; value: unknown }[] = [];
   return {
@@ -17,58 +19,56 @@ const { mockWithIsolationScope, mockCaptureException, capturedTags } = vi.hoiste
 });
 vi.mock('@sentry/nestjs', () => ({ withIsolationScope: mockWithIsolationScope, captureException: mockCaptureException }));
 import { SchedulerService } from '../src/scheduler/scheduler.service.js';
-import type { OutboxRelayService } from '../src/outbox/outbox-relay.service.js';
-import type { ProjectionRunnerService } from '../src/projections/projection-runner.service.js';
-import type { CommandsGateway } from '../src/commands/commands.gateway.js';
-import type { IntakeReconcilerService } from '../src/manifest/intake-reconciler.service.js';
-const cfg = (): ConfigService => ({ get: vi.fn(), getOrThrow: vi.fn().mockReturnValue('scope') } as unknown as ConfigService);
-const outbox = (): OutboxRelayService => ({ drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as OutboxRelayService);
-const proj = (): ProjectionRunnerService => ({ drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as ProjectionRunnerService);
-const gw = (): CommandsGateway => ({ reconcileNow: vi.fn().mockReturnValue([]) } as unknown as CommandsGateway);
+import { monitorTicker, coreTickers, INTERVALS } from './helpers/scheduler-ticker-factory.js';
+import type { SchedulerTicker } from '../src/scheduler/scheduler-ticker.js';
+
 const RESULT = { eligible: 0, emitted: 0, exhausted: 0 };
-describe('@fleet/api - SchedulerService intake-reconcile tick', () => {
+const cores = (): SchedulerTicker[] => coreTickers({
+  outbox: () => undefined, projection: () => undefined, reconciler: () => undefined,
+});
+
+describe('@fleet/api - SchedulerService intake-reconcile tick (registry)', () => {
   beforeEach(() => { vi.useFakeTimers(); capturedTags.length = 0; });
   afterEach(() => { vi.useRealTimers(); });
-  it('drainIntakeReconcile tags Sentry scope job=intake-reconcile and calls reconcileOnce', async () => {
+
+  it('drainByKey(intakeReconcile) tags job=intake-reconcile and calls reconcileOnce', async () => {
     const reconcileOnce = vi.fn().mockResolvedValue(RESULT);
-    const svc_ = { reconcileOnce } as unknown as IntakeReconcilerService;
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, null, svc_);
-    await svc.drainIntakeReconcile();
+    const svc = new SchedulerService([...cores(), monitorTicker('intakeReconcile', () => reconcileOnce())]);
+    await svc.drainByKey('intakeReconcile');
     expect(reconcileOnce).toHaveBeenCalledTimes(1);
     expect(capturedTags.find((t) => t.key === 'job')?.value).toBe('intake-reconcile');
     svc.onModuleDestroy();
   });
-  it('onModuleInit schedules the reconcile at 300s when a reconciler is present', async () => {
+
+  it('onModuleInit schedules the reconcile at the 5-minute interval', async () => {
     const reconcileOnce = vi.fn().mockResolvedValue(RESULT);
-    const svc_ = { reconcileOnce } as unknown as IntakeReconcilerService;
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, null, svc_);
+    const svc = new SchedulerService([...cores(), monitorTicker('intakeReconcile', () => reconcileOnce())]);
     svc.onModuleInit();
-    await vi.advanceTimersByTimeAsync(299_999);
+    await vi.advanceTimersByTimeAsync(INTERVALS.intakeReconcile - 1);
     expect(reconcileOnce).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(2);
     expect(reconcileOnce).toHaveBeenCalledTimes(1);
     svc.onModuleDestroy();
   });
-  it('keeps self-scheduling: a second tick fires another 300s later', async () => {
+
+  it('keeps self-scheduling: a second tick fires another interval later', async () => {
     const reconcileOnce = vi.fn().mockResolvedValue(RESULT);
-    const svc_ = { reconcileOnce } as unknown as IntakeReconcilerService;
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, null, svc_);
+    const svc = new SchedulerService([...cores(), monitorTicker('intakeReconcile', () => reconcileOnce())]);
     svc.onModuleInit();
-    await vi.advanceTimersByTimeAsync(300_001);
-    await vi.advanceTimersByTimeAsync(300_001);
+    await vi.advanceTimersByTimeAsync(INTERVALS.intakeReconcile + 1);
+    await vi.advanceTimersByTimeAsync(INTERVALS.intakeReconcile + 1);
     expect(reconcileOnce).toHaveBeenCalledTimes(2);
     svc.onModuleDestroy();
   });
-  it('is dormant when no reconciler is provided: reconcileOnce is never called', async () => {
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw());
+
+  it('is dormant when the ticker is absent: nothing scheduled, drainByKey is a no-op', async () => {
+    const svc = new SchedulerService(cores());
     svc.onModuleInit();
     await vi.advanceTimersByTimeAsync(600_002);
-    // No reconciler injected -> the intakeReconcile kind is never scheduled.
     expect(capturedTags.find((t) => t.value === 'intake-reconcile')).toBeUndefined();
-    // Directly drive the drain with a null reconciler to exercise invokeDrain
-    // null-guard false branch (the kind can be invoked but the dep is absent).
-    await svc.drainIntakeReconcile();
-    expect(capturedTags.find((t) => t.value === 'intake-reconcile')).toBeDefined();
+    // No ticker registered under this key: drainByKey does nothing and tags no scope.
+    await svc.drainByKey('intakeReconcile');
+    expect(capturedTags.find((t) => t.value === 'intake-reconcile')).toBeUndefined();
     svc.onModuleDestroy();
   });
 });

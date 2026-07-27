@@ -1,10 +1,9 @@
 // apps/api/test/scheduler.service.intake-lag.test.ts
-// TDD for the intake-lag guard tick wired into SchedulerService (slice G of
-// the phieu-photo-visibility arc): an optional 6th monitor dependency, an
-// intakeLag self-scheduling kind at 300s inside a tagged Sentry isolation
-// scope. Mirrors scheduler.service.breakglass.test.ts exactly.
+// Intake-lag guard tick against the multi-provider registry. The monitor is a
+// SchedulerTicker (key=intakeLag, tag=intake-lag-check, 5-min interval) built as
+// the module factory builds it. Dormancy now lives in the factory (it omits the
+// ticker when the monitor is null), modelled here by not including the ticker.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { ConfigService } from '@nestjs/config';
 const { mockWithIsolationScope, mockCaptureException, capturedTags } = vi.hoisted(() => {
   const capturedTags: { key: string; value: unknown }[] = [];
   return {
@@ -17,52 +16,52 @@ const { mockWithIsolationScope, mockCaptureException, capturedTags } = vi.hoiste
 });
 vi.mock('@sentry/nestjs', () => ({ withIsolationScope: mockWithIsolationScope, captureException: mockCaptureException }));
 import { SchedulerService } from '../src/scheduler/scheduler.service.js';
-import type { OutboxRelayService } from '../src/outbox/outbox-relay.service.js';
-import type { ProjectionRunnerService } from '../src/projections/projection-runner.service.js';
-import type { CommandsGateway } from '../src/commands/commands.gateway.js';
-import type { IntakeLagMonitorService } from '../src/manifest/intake-lag-monitor.service.js';
-const cfg = (): ConfigService => ({ get: vi.fn(), getOrThrow: vi.fn().mockReturnValue('scope') } as unknown as ConfigService);
-const outbox = (): OutboxRelayService => ({ drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as OutboxRelayService);
-const proj = (): ProjectionRunnerService => ({ drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as ProjectionRunnerService);
-const gw = (): CommandsGateway => ({ reconcileNow: vi.fn().mockReturnValue([]) } as unknown as CommandsGateway);
-describe('@fleet/api - SchedulerService intake-lag tick', () => {
+import { monitorTicker, coreTickers, INTERVALS } from './helpers/scheduler-ticker-factory.js';
+import type { SchedulerTicker } from '../src/scheduler/scheduler-ticker.js';
+
+const cores = (): SchedulerTicker[] => coreTickers({
+  outbox: () => undefined, projection: () => undefined, reconciler: () => undefined,
+});
+
+describe('@fleet/api - SchedulerService intake-lag tick (registry)', () => {
   beforeEach(() => { vi.useFakeTimers(); capturedTags.length = 0; });
   afterEach(() => { vi.useRealTimers(); });
-  it('drainIntakeLag tags Sentry scope job=intake-lag-check and calls monitor.checkOnce', async () => {
+
+  it('drainByKey(intakeLag) tags job=intake-lag-check and calls monitor.checkOnce', async () => {
     const checkOnce = vi.fn().mockResolvedValue(undefined);
-    const monitor = { checkOnce } as unknown as IntakeLagMonitorService;
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, monitor);
-    await svc.drainIntakeLag();
+    const svc = new SchedulerService([...cores(), monitorTicker('intakeLag', () => checkOnce())]);
+    await svc.drainByKey('intakeLag');
     expect(checkOnce).toHaveBeenCalledTimes(1);
     expect(capturedTags.find((t) => t.key === 'job')?.value).toBe('intake-lag-check');
     svc.onModuleDestroy();
   });
-  it('onModuleInit schedules the intake-lag check at 300s when a monitor is present', async () => {
+
+  it('onModuleInit schedules the intake-lag check at the 5-minute interval', async () => {
     const checkOnce = vi.fn().mockResolvedValue(undefined);
-    const monitor = { checkOnce } as unknown as IntakeLagMonitorService;
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, monitor);
+    const svc = new SchedulerService([...cores(), monitorTicker('intakeLag', () => checkOnce())]);
     svc.onModuleInit();
-    await vi.advanceTimersByTimeAsync(299_999);
+    await vi.advanceTimersByTimeAsync(INTERVALS.intakeLag - 1);
     expect(checkOnce).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(2);
     expect(checkOnce).toHaveBeenCalledTimes(1);
     svc.onModuleDestroy();
   });
-  it('keeps self-scheduling: a second tick fires another 300s later', async () => {
+
+  it('keeps self-scheduling: a second tick fires another interval later', async () => {
     const checkOnce = vi.fn().mockResolvedValue(undefined);
-    const monitor = { checkOnce } as unknown as IntakeLagMonitorService;
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, monitor);
+    const svc = new SchedulerService([...cores(), monitorTicker('intakeLag', () => checkOnce())]);
     svc.onModuleInit();
-    await vi.advanceTimersByTimeAsync(300_001);
-    await vi.advanceTimersByTimeAsync(300_001);
+    await vi.advanceTimersByTimeAsync(INTERVALS.intakeLag + 1);
+    await vi.advanceTimersByTimeAsync(INTERVALS.intakeLag + 1);
     expect(checkOnce).toHaveBeenCalledTimes(2);
     svc.onModuleDestroy();
   });
-  it('is dormant when no monitor is provided: no 300s timer is ever scheduled', () => {
+
+  it('is dormant when the ticker is absent: no intake-lag timer is scheduled', () => {
     const setSpy = vi.spyOn(globalThis, 'setTimeout');
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw());
+    const svc = new SchedulerService(cores());
     svc.onModuleInit();
-    const fiveMinuteTimers = setSpy.mock.calls.filter((c) => c[1] === 300_000);
+    const fiveMinuteTimers = setSpy.mock.calls.filter((c) => c[1] === INTERVALS.intakeLag);
     expect(fiveMinuteTimers).toHaveLength(0);
     setSpy.mockRestore();
     svc.onModuleDestroy();

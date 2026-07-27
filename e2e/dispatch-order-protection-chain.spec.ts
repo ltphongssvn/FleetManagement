@@ -33,6 +33,7 @@ import { dockerPsql } from './helpers/docker-exec';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, ReferenceListResponseSchema } from './helpers/contracts';
+import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 function sq39(): string { return String.fromCharCode(39); }
@@ -186,7 +187,7 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
     );
     await loginAsDispatcher(page);
     await page.goto('/');
-    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
+    await openCreateOrderDrawer(page);
     const vehicleInput = page.locator('input#vehiclePlate');
     await vehicleInput.click();
     await vehicleInput.fill('E2E-');
@@ -211,12 +212,13 @@ test.describe('dispatch order protection chain (Layers 1-5)', () => {
     const beforeMax = parseInt(dockerPsql(beforeMaxSql).stdout.trim(), 10);
     await loginAsDispatcher(page);
     await page.goto('/');
-    // Wait for the hydration-ready signal before filling. The form is SSR'd
-    // and visible before React hydrates; filling #plannedStartAt in that
-    // window silently drops the value, native required-validation then blocks
-    // submit and no Số Lệnh banner appears (Playwright docs / Microsoft #27759).
-    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15000 });
-    await page.locator('#plannedStartAt').fill('2026-06-01');
+    // Open the create drawer, then wait for the hydration-ready signal
+    // before filling. The form mounts inside the drawer and is briefly
+    // visible before React hydrates; filling the date field in that window
+    // silently drops the value, native required-validation then blocks
+    // submit and no banner appears (Playwright docs / Microsoft #27759).
+    await openCreateOrderDrawer(page);
+    await plannedStartAtField(page.locator('[data-testid=nl-create-order-form]')).fill('2026-06-01');
     const vehicleInput = page.locator('input#vehiclePlate');
     await vehicleInput.click();
     await vehicleInput.fill(pair.vehicleLabel);

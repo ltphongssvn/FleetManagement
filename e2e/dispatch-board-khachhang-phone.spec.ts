@@ -30,6 +30,7 @@ import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { dockerPsql } from './helpers/docker-exec';
 import { z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
+import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
@@ -171,10 +172,10 @@ test.describe.serial('Lệnh điều xe board: Khách hàng shows Số điện t
     // Authenticate via injected session (PKCE login has no credential form).
     await loginAs(page);
 
-    await expect(page.getByTestId('create-order-form')).toBeVisible({ timeout: 15_000 });
+    await openCreateOrderDrawer(page);
 
     const localIso = '2026-06-02';
-    await page.locator('#plannedStartAt').fill(localIso);
+    await plannedStartAtField(page.locator('[data-testid=nl-create-order-form]')).fill(localIso);
     await pickCombobox(page, 'customer', seed.customerName);
     await pickCombobox(page, 'cargo', seed.cargoName);
     await pickCombobox(page, 'vehiclePlate', seed.vehicleLabel);
