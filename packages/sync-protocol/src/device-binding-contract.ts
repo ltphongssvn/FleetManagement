@@ -9,6 +9,9 @@
 // terminal-rejected. Axis 1: runtime validation at the trust boundary.
 // Axis 2: single type source via z.infer.
 import { z } from 'zod';
+// GET /admin/devices reuses the shared offset-pagination envelope factory
+// (never a hand-rolled parallel shape) over AdminDeviceRowSchema below.
+import { makePaginatedResponseSchema } from './dispatch-board-pagination-contract.js';
 
 export const DeviceBindingPlatformSchema = z.enum(['ios', 'android']);
 export type DeviceBindingPlatform = z.infer<typeof DeviceBindingPlatformSchema>;
@@ -138,3 +141,38 @@ export function parseDeviceEnrollResponse(input: unknown): DeviceEnrollResponse 
   const r = DeviceEnrollResponseSchema.safeParse(input);
   return r.success ? r.data : null;
 }
+
+// GET /admin/devices query contract (P7 approval queue). A FILTERED,
+// offset-paginated COLLECTION, not a /pending sub-resource: one endpoint with
+// a status filter is the 2026 root-fix (fewer endpoints that cannot drift)
+// rather than pending/active/revoked variants. Offset (page-number) matches
+// the dispatch-board admin precedent -- a single-company admin table an
+// operator pages through, where large-OFFSET cost is irrelevant and
+// jump-to-page beats forward-only cursors. Query params are a trust boundary
+// (Axis 1): z.coerce turns string query values into numbers, .strict() makes a
+// typo param a 400 (not a silent no-op), and pageSize is capped server-side so
+// a client can never request an unbounded page. status defaults to pending --
+// the review queue is the default view an admin lands on.
+export const ADMIN_DEVICE_PAGE_SIZE_MAX = 100;
+export const ADMIN_DEVICE_PAGE_SIZE_DEFAULT = 20;
+export const AdminDeviceListQuerySchema = z
+  .object({
+    status: DeviceBindingStatusSchema.default('pending'),
+    page: z.coerce.number().int().positive().default(1),
+    pageSize: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(ADMIN_DEVICE_PAGE_SIZE_MAX)
+      .default(ADMIN_DEVICE_PAGE_SIZE_DEFAULT),
+  })
+  .strict();
+export type AdminDeviceListQuery = z.infer<typeof AdminDeviceListQuerySchema>;
+
+// The paginated response the API PRODUCES and ops-web PARSES: the shared
+// offset-envelope factory over the existing AdminDeviceRowSchema (one row SSOT,
+// one envelope shape). Carries data + page metadata + total + hasMore; per the
+// house rule we never paginate without a total, and .strict() (baked into the
+// factory) catches server drift.
+export const AdminDeviceListResponseSchema = makePaginatedResponseSchema(AdminDeviceRowSchema);
+export type AdminDeviceListResponse = z.infer<typeof AdminDeviceListResponseSchema>;

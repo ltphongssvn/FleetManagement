@@ -26,6 +26,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { dockerPsql } from './helpers/docker-exec';
 import { loginAs } from './helpers/auth';
+import { openCreateOrderDrawer } from './helpers/create-order';
 
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 const DRIVER_ID = '00000000-0000-0000-0000-00000000a5e0';
@@ -68,7 +69,7 @@ test('admin pair surfaces in dispatch Section 3 Số xe and Tài xế dropdowns'
   await expect(page.getByTestId('driver-assigned-plate-' + DRIVER_ID)).toHaveText(PLATE, { timeout: 15_000 });
   // Now go to dispatch home and check Section 3 dropdowns.
   await page.goto('/');
-  await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
+  await openCreateOrderDrawer(page);
   const vehicleField = page.locator('input[placeholder*="Chọn số xe" i]').first();
   await expect(vehicleField).toBeVisible({ timeout: 15_000 });
   await vehicleField.click();

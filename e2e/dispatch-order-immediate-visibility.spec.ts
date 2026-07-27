@@ -18,6 +18,7 @@ import { dockerPsql } from './helpers/docker-exec';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
+import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
@@ -125,7 +126,8 @@ test.describe('created order immediate visibility on dispatch board (T3)', () =>
 
     const now = new Date(Date.now() + 60 * 60 * 1000);
     const localIso = now.toISOString().slice(0, 10);
-    await page.locator('#plannedStartAt').fill(localIso);
+    await openCreateOrderDrawer(page);
+    await plannedStartAtField(page.locator('[data-testid=nl-create-order-form]')).fill(localIso);
     const vehicleInput = page.locator('input#vehiclePlate');
     await vehicleInput.click();
     await vehicleInput.fill(pair.vehicleLabel);

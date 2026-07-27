@@ -3,8 +3,8 @@
   "name": "fleet-management",
   "version": "0.1.0",
   "private": true,
-  "description": "Intermodal Fleet Platform \u2014 pnpm/Turborepo monorepo root",
-  "packageManager": "pnpm@11.15.1+sha512.81350b07e53c9538a02f1f2303b4290fa2d7be04e56e2a970c4cc4b417dc761de196edabd49d55c7dc9580db81007c44143e4e3d7e462b3000d23c255122d065",
+  "description": "Intermodal Fleet Platform — pnpm/Turborepo monorepo root",
+  "packageManager": "pnpm@11.17.0+sha512.cca3cea332ad254bb84145f966d19f4879615210346fc92c79a047f23a0d7b3cca3c3792f0076ba1f1831d277efbcf0a9119b31a9a60eca7fb3d6231f331ef72",
   "engines": {
     "node": ">=22.0.0 <25.0.0",
     "pnpm": ">=11.0.0 <12.0.0"
@@ -49,12 +49,14 @@
     "audit:ci-minutes": "tsx scripts/ci/ci-minutes-fetch.ts",
     "worktree:close": "tsx scripts/worktree-close-cli.ts",
     "inspect:prod-deploy": "tsx scripts/inspect-prod-deploy.ts",
+    "pr:follow": "tsx scripts/pr-follow.ts",
     "gate:integration": "tsx scripts/gate-integration.ts",
     "prod:db-url": "tsx scripts/prod-db-url.ts",
     "guard:local-secrets": "tsx scripts/local-secret-guard.ts",
     "guard:local-secrets:baseline": "tsx scripts/local-secret-guard-baseline.ts",
     "lint:scripts": "eslint scripts --max-warnings=0",
-    "lint:scripts:fix": "eslint scripts --fix"
+    "lint:scripts:fix": "eslint scripts --fix",
+    "secrets:baseline": "tsx scripts/secrets-baseline.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
