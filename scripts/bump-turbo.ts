@@ -124,6 +124,6 @@ function main(): number {
 
 // Only run main() when invoked directly, so the test can import the pure core
 // without triggering the git/pnpm side effects.
-if (process.argv[1] !== undefined && process.argv[1].endsWith('bump-turbo.ts')) {
+if (process.argv[1]?.endsWith('bump-turbo.ts')) {
   process.exit(main());
 }
