@@ -126,7 +126,10 @@ const TRANSITIONS: Readonly<Record<GateState, Partial<Record<GateEvent, GateStat
 };
 
 export function nextState(state: GateState, event: GateEvent): GateState {
-  const target = TRANSITIONS[state]?.[event];
+  // TRANSITIONS is a TOTAL Record over GateState, so the outer lookup is never
+  // nullish; only the inner event lookup can miss. An optional chain here would
+  // be dead code that hides that guarantee.
+  const target = TRANSITIONS[state][event];
   if (target === undefined) {
     throw new Error('nextState: illegal transition ' + state + ' --> ' + event);
   }
@@ -192,11 +195,11 @@ export function summarizeTurboRun(payload: unknown): RunOutcome {
     const taskExec = asRecord(task['execution'] ?? {}, 'task execution');
     const cache = asRecord(task['cache'] ?? {}, 'task cache');
     return {
-      taskId: typeof task['taskId'] === 'string' ? (task['taskId'] as string) : 'unknown',
-      hash: typeof task['hash'] === 'string' ? (task['hash'] as string) : 'unknown',
+      taskId: typeof task['taskId'] === 'string' ? task['taskId'] : 'unknown',
+      hash: typeof task['hash'] === 'string' ? task['hash'] : 'unknown',
       exitCode: num(taskExec['exitCode'], -1),
       durationMs: num(taskExec['endTime'], 0) - num(taskExec['startTime'], 0),
-      cacheStatus: typeof cache['status'] === 'string' ? (cache['status'] as string) : 'unknown',
+      cacheStatus: typeof cache['status'] === 'string' ? cache['status'] : 'unknown',
       timeSavedMs: num(cache['timeSaved'], 0),
     };
   });

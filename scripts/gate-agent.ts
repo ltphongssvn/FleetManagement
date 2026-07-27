@@ -37,8 +37,15 @@ function newestSummary(root: string): unknown {
     .filter((f) => f.endsWith('.json'))
     .map((f) => join(dir, f))
     .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
-  if (files.length === 0) throw new Error('gate:agent: no run summary was written');
-  return JSON.parse(readFileSync(files[0] as string, 'utf8'));
+  // Destructured rather than indexed: under noUncheckedIndexedAccess an index
+  // read is string | undefined, and the lint config forbids BOTH the non-null
+  // assertion and a redundant as-cast. Narrowing by binding satisfies the type
+  // system with no assertion at all.
+  const [newest] = files;
+  if (newest === undefined) {
+    throw new Error('gate:agent: no run summary was written');
+  }
+  return JSON.parse(readFileSync(newest, 'utf8'));
 }
 
 function main(): void {
@@ -98,7 +105,13 @@ function main(): void {
   ];
   const wrapped = backend.wrap(turbo, noWait ? 1 : WAIT_SECONDS);
 
-  const child = spawn(wrapped[0] as string, wrapped.slice(1) as string[], {
+  // Same narrowing-by-binding as above; wrap() already guarantees a non-empty
+  // argv, but the type system cannot see that across the call boundary.
+  const [executable, ...execArgs] = wrapped;
+  if (executable === undefined) {
+    throw new Error('gate:agent: lock backend produced an empty command');
+  }
+  const child = spawn(executable, execArgs, {
     stdio: ['ignore', 'inherit', 'inherit'],
     env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=4096' },
   });
