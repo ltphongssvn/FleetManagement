@@ -380,13 +380,9 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
                 {row.devices.length === 0 ? (
                   <span className='text-amber-600 text-sm'>Chưa đăng ký</span>
                 ) : (
-                  <ul className='text-sm'>
-                    {row.devices.map((d) => (
-                      <li key={d.deviceId}>
-                        {d.deviceId}
-                      </li>
-                    ))}
-                  </ul>
+                  <span className='inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>
+                    {row.devices.length > 1 ? 'Đã đăng ký (' + String(row.devices.length) + ')' : 'Đã đăng ký'}
+                  </span>
                 )}
               </td>
               <td className='p-2'>
