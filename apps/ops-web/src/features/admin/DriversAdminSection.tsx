@@ -33,6 +33,8 @@ import {
   DRIVER_ATTENTION_QUEUE_HEADING,
   presentDriverAttentionReason,
 } from '@/features/admin/driver-attention.presenter';
+import type { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from '@/features/admin/DataTable';
 interface VehicleOption { vehicleId: string; plate: string; }
 interface CreateFormState {
   fullName: string;
@@ -265,6 +267,45 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
   if (snapshot.matches('error')) return <div className='py-4 text-red-600'>Lỗi: {snapshot.context.errorMessage}</div>;
   const attention: readonly DriverAttentionEntry[] = snapshot.context.attention;
   const configured: readonly AdminDriverRow[] = snapshot.context.configured;
+  const configuredColumns: ColumnDef<AdminDriverRow>[] = [
+    {
+      accessorKey: 'fullName', header: 'Tài xế',
+      cell: (ctx) => {
+        const row = ctx.row.original;
+        return (
+          <>
+            <div className='font-medium'>{row.fullName}</div>
+            <div className='text-xs text-gray-700'>{row.phone}</div>
+          </>
+        );
+      },
+    },
+    {
+      id: 'vehicle', header: 'Xe được giao',
+      accessorFn: (row) => row.assignedVehicle?.plate ?? null,
+      cell: (ctx) => {
+        const row = ctx.row.original;
+        // configured rows always carry a vehicle: classifyDriverAttention routes
+        // vehicle-less rows to the attention queue (VEHICLE_UNASSIGNED).
+        return (
+          <span data-testid={'driver-assigned-plate-' + row.driverId} className='inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>{row.assignedVehicle?.plate}</span>
+        );
+      },
+    },
+    {
+      id: 'devices', header: 'Thiết bị',
+      cell: (ctx) => {
+        const row = ctx.row.original;
+        // configured rows always carry >=1 device (DEVICE_UNREGISTERED routes the
+        // rest to the attention queue), so there is no empty-state arm here.
+        return (
+          <ul className='text-sm'>{row.devices.map((d) => (<li key={d.deviceId}>{d.deviceId}</li>))}</ul>
+        );
+      },
+    },
+    { id: 'assign', header: 'Phân công xe', cell: (ctx) => renderAssignControls(ctx.row.original) },
+    { id: 'ops', header: 'Thao tác', cell: (ctx) => renderOpsControls(ctx.row.original) },
+  ];
   return (
     <div>
       <section className='mb-8 p-4 border rounded bg-gray-50'>
@@ -350,55 +391,12 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
           </ul>
         </section>
       ) : null}
-      <table className='w-full border-collapse'>
-        <thead>
-          <tr className='border-b bg-gray-50'>
-            <th className='text-left p-2'>Tài xế</th>
-            <th className='text-left p-2'>Xe được giao</th>
-            <th className='text-left p-2'>Thiết bị</th>
-            <th className='text-left p-2'>Phân công xe</th>
-            <th className='text-left p-2'>Thao tác</th>
-          </tr>
-        </thead>
-        <tbody>
-          {configured.map((row: AdminDriverRow) => (
-            <tr key={row.driverId} className='border-b'>
-              <td className='p-2'>
-                <div className='font-medium'>{row.fullName}</div>
-                <div className='text-xs text-gray-700'>{row.phone}</div>
-              </td>
-              <td className='p-2'>
-                {row.assignedVehicle ? (
-                  <span data-testid={'driver-assigned-plate-' + row.driverId} className='inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>
-                    {row.assignedVehicle.plate}
-                  </span>
-                ) : (
-                  <span className='text-gray-400'>— Chưa giao —</span>
-                )}
-              </td>
-              <td className='p-2'>
-                {row.devices.length === 0 ? (
-                  <span className='text-amber-600 text-sm'>Chưa đăng ký</span>
-                ) : (
-                  <ul className='text-sm'>
-                    {row.devices.map((d) => (
-                      <li key={d.deviceId}>
-                        {d.deviceId}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </td>
-              <td className='p-2'>
-                {renderAssignControls(row)}
-              </td>
-              <td className='p-2'>
-                {renderOpsControls(row)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataTable
+        columns={configuredColumns}
+        data={configured}
+        caption='Tài xế'
+        emptyLabel='Chưa có tài xế'
+      />
     </div>
   );
 }
