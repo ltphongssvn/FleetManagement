@@ -26,7 +26,7 @@ const row: ListAssignedRow = {
   canCancel: true,
   cancelBlockedReason: null,
   stops: [
-    { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-31T11:20:00.000Z', warehouseName: 'Kho A', arrivedAt: null, departedAt: null },
+    { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-31T11:20:00.000Z', warehouseName: 'Kho A', arrivedAt: null, departedAt: null, proof: null },
   ],
 };
 describe('OrderReview date-only display', () => {

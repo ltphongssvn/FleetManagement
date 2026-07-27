@@ -23,7 +23,7 @@
 // the row shape + enrichment can never diverge across the driver reads; each
 // caller passes its own state slice / ordering / paging. The active/finished
 // partition derives from the SSOT statesForStatusGroup (never hardcoded here).
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import { eq, and, asc, desc, isNull, inArray, ilike, count, type SQL } from 'drizzle-orm';
@@ -32,7 +32,11 @@ import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { transportOrder, stop, roadRun, roadRunTransportOrder } from '../database/schema/transport.js';
 import { vehicle, customer, cargoType, warehouse, driver } from '../database/schema/reference.js';
 import { driverVehicleAssignment } from '../database/schema/driver-vehicle-assignment.js';
-import { manifest } from '../database/schema/manifest.js';
+import { manifest, uploadSession } from '../database/schema/manifest.js';
+// Hexagonal port for presigning proof-photo GETs. Imported here so the REVIEW
+// read resolves proofs through the SAME seam the dispatch board uses, instead
+// of growing a second, drift-prone path to the same S3 object.
+import { STOP_PROOF_URL_SIGNER, type StopProofUrlSigner } from '../dispatch/stop-proof-url.port.js';
 import { appendTriWrite } from '../database/append-tri-write.js';
 import { outbox } from '../database/schema/index.js';
 import type { OperatorContext } from '../auth/operator-context.js';
@@ -41,11 +45,16 @@ import { DriverVehicleAssignmentRequiredError, TransportOrderNotFoundError } fro
 import { OrderNumberingService } from './order-numbering.service.js';
 import { groupCompletedTripsByMonth, MANIFEST_PHOTO_RECEIVED_STATES } from '@fleet/domain';
 import { OUTBOX_QUEUES, statesForStatusGroup } from '@fleet/sync-protocol';
-import type { DriverAlertJob, DriverCompletedPageQuery, DriverCompletedPageResponse, RoadRunStateName } from '@fleet/sync-protocol';
+import type { DriverAlertJob, DriverCompletedPageQuery, DriverCompletedPageResponse, RoadRunStateName, StopProof } from '@fleet/sync-protocol';
 
 // The active (non-terminal) road-run states, from the SSOT partition. Used to
 // filter listAssigned so completed/cancelled runs never appear in the live list.
 const ACTIVE_ROAD_RUN_STATES: readonly RoadRunStateName[] = [...statesForStatusGroup('active')];
+
+// Proof-photo link TTL. Same 15 minutes the dispatch board uses -- the review
+// view and the board hand out links of identical lifetime, so one surface can
+// never outlive the other.
+const PROOF_URL_TTL_SECONDS = 900;
 
 // Options for the shared driver-row query. Every field is optional so each
 // public caller composes exactly the slice it needs:
@@ -75,6 +84,10 @@ export class TransportOrdersService {
   constructor(
     @Inject(DRIZZLE_DB) private readonly db: FleetDb,
     numbering?: OrderNumberingService,
+    // Optional by design (mirrors DispatchController): when no signer is wired
+    // the review row reports proof = null rather than exposing a raw bucket
+    // path. Tests inject a fake so no S3 is needed.
+    @Optional() @Inject(STOP_PROOF_URL_SIGNER) private readonly proofSigner?: StopProofUrlSigner,
   ) {
     this.numbering = numbering ?? new OrderNumberingService();
   }
@@ -238,6 +251,7 @@ export class TransportOrdersService {
     const stopRows = await this.db
       .select({
         transportOrderId: stop.transportOrderId,
+        stopId: stop.stopId,
         sequence: stop.sequence,
         stopType: stop.stopType,
         plannedAt: stop.plannedAt,
@@ -252,6 +266,7 @@ export class TransportOrdersService {
         eq(stop.transportOrderId, head.transportOrderId),
       ))
       .orderBy(asc(stop.sequence));
+    const proofByStopId = await this.resolveStopProofs(op, stopRows.map((s) => s.stopId));
     const stops = stopRows.map((s) => ({
       sequence: s.sequence,
       stopType: s.stopType,
@@ -259,6 +274,10 @@ export class TransportOrdersService {
       warehouseName: s.warehouseName,
       arrivedAt: s.arrivedAt ? s.arrivedAt.toISOString() : null,
       departedAt: s.departedAt ? s.departedAt.toISOString() : null,
+      // The defect this fixes: a completed order whose stop carries a
+      // committed Phieu Can showed the arrival-only fallback, because this
+      // row never resolved proof at all. It now resolves as the board does.
+      proof: proofByStopId.get(s.stopId) ?? null,
     }));
     const pickupName = stops.find((x) => x.stopType.toLowerCase() === 'pickup')?.warehouseName ?? null;
     const drops = stops.filter((x) => {
@@ -288,6 +307,60 @@ export class TransportOrdersService {
       cancelBlockedReason: cancelInfo.cancelBlockedReason,
       stops,
     };
+  }
+
+  // Committed Phieu Can proofs for the given stops, keyed by stop_id. This is
+  // the SAME resolution DispatchController.enrichRows performs for the board
+  // (committed manifest -> upload_session object -> short-lived presigned GET),
+  // lifted here so the REVIEW surface cannot drift from the BOARD surface again
+  // -- that drift is precisely what made completed, photographed stops read
+  // Chua toi on review while the board showed their weight.
+  //
+  // Returns an EMPTY map when no signer is wired: a review row must never carry
+  // a raw bucket path, so absent signing degrades to proof = null.
+  private async resolveStopProofs(
+    op: OperatorContext,
+    stopIds: readonly string[],
+  ): Promise<Map<string, StopProof>> {
+    const byStopId = new Map<string, StopProof>();
+    const signer = this.proofSigner;
+    if (stopIds.length === 0 || signer === undefined) return byStopId;
+    const proofRows = await this.db
+      .select({
+        stopId: manifest.stopId,
+        manifestId: manifest.manifestId,
+        committedAt: manifest.committedAt,
+        extractedNetWeightKg: manifest.extractedNetWeightKg,
+        extractionStatus: manifest.extractionStatus,
+        extractionReason: manifest.extractionReason,
+        s3Key: uploadSession.s3Key,
+        s3Bucket: uploadSession.s3Bucket,
+      })
+      .from(manifest)
+      .innerJoin(uploadSession, eq(uploadSession.manifestId, manifest.manifestId))
+      .where(and(
+        eq(manifest.companyId, op.companyId),
+        eq(manifest.state, 'committed'),
+        inArray(manifest.stopId, [...stopIds]),
+      ));
+    for (const pr of proofRows) {
+      if (pr.stopId === null) continue;
+      if (byStopId.has(pr.stopId)) continue;
+      const photoUrl = await signer.presignProofUrl({
+        bucket: pr.s3Bucket,
+        key: pr.s3Key,
+        ttlSeconds: PROOF_URL_TTL_SECONDS,
+      });
+      byStopId.set(pr.stopId, {
+        manifestId: pr.manifestId,
+        photoUrl,
+        capturedAt: (pr.committedAt ?? new Date()).toISOString(),
+        extractedNetWeightKg: pr.extractedNetWeightKg === null ? null : Number(pr.extractedNetWeightKg),
+        extractionStatus: pr.extractionStatus,
+        extractionReason: pr.extractionReason,
+      });
+    }
+    return byStopId;
   }
 
   // Single source of truth for the cancel affordance surfaced on read models.
@@ -436,6 +509,9 @@ export class TransportOrdersService {
           warehouseName: s.warehouseName,
           arrivedAt: s.arrivedAt ? s.arrivedAt.toISOString() : null,
           departedAt: s.departedAt ? s.departedAt.toISOString() : null,
+          // Driver-app reads do not render Phieu Can proofs today; the field is
+          // contract-required, so it is EXPLICITLY null here, never absent.
+          proof: null,
         })),
       };
     });
