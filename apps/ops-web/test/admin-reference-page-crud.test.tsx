@@ -1,11 +1,13 @@
 // apps/ops-web/test/admin-reference-page-crud.test.tsx
-// RED: ReferenceAdminPage (Quản lý dữ liệu điều phối) must NOT render
-// per-row 'Sửa' inline-rename buttons (T5). Xóa + re-create supersedes
-// rename safely. The page still lists rows + add form + Xóa per row.
-// ReferenceAdminClient is mocked at module level so the page renders
-// without the real fetch layer.
+// ReferenceAdminPage (Quản lý dữ liệu điều phối) must NOT render per-row
+// Sửa inline-rename buttons (T5). Xóa now lives in the per-row action menu
+// (E1) and is gated by a confirm dialog rather than window.confirm. The page
+// still lists rows + add form; each row exposes a Thao tác menu with Xóa.
+// ReferenceAdminClient is mocked at module level so the page renders without
+// the real fetch layer.
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 const listMock = vi.fn();
 const createMock = vi.fn();
 const updateMock = vi.fn();
@@ -37,28 +39,29 @@ describe('ReferenceAdminPage CRUD UI (T5)', () => {
     await screen.findAllByText('ĐA NẴNG');
     expect(screen.queryByRole('button', { name: /^Lưu$/ })).toBeNull();
   });
-  it('still renders Xóa buttons per row', async () => {
+  it('exposes a Thao tác action menu per row (no always-visible Xóa)', async () => {
     render(<ReferenceAdminPage />);
     await screen.findAllByText('ĐA NẴNG');
-    const xoaButtons = screen.getAllByRole('button', { name: /^Xóa$/ });
-    // 5 sections × 2 rows each = 10 Xóa buttons.
-    expect(xoaButtons.length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByRole('button', { name: /^Xóa$/ })).toBeNull();
+    const menus = screen.getAllByRole('button', { name: /Thao tác/ });
+    expect(menus.length).toBeGreaterThanOrEqual(2);
   });
-  it('clicking Xóa confirms and calls client.remove', async () => {
+  it('Xóa via the menu opens a confirm dialog and calls client.remove', async () => {
+    const user = userEvent.setup();
     removeMock.mockResolvedValue(undefined);
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    try {
-      render(<ReferenceAdminPage />);
-      await screen.findAllByText('ĐA NẴNG');
-      const firstXoa = screen.getAllByRole('button', { name: /^Xóa$/ })[0];
-      if (firstXoa === undefined) throw new Error('no Xóa button');
-      fireEvent.click(firstXoa);
-      expect(confirmSpy).toHaveBeenCalled();
-      await waitFor(() => {
-        expect(removeMock).toHaveBeenCalledWith('r1');
-      });
-    } finally {
-      confirmSpy.mockRestore();
-    }
+    render(<ReferenceAdminPage />);
+    await screen.findAllByText('ĐA NẴNG');
+    const firstMenu = screen.getAllByRole('button', { name: /Thao tác/ })[0];
+    if (firstMenu === undefined) throw new Error('no action menu');
+    await user.click(firstMenu);
+    await user.click(await screen.findByRole('menuitem', { name: 'Xóa' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(removeMock).not.toHaveBeenCalled();
+    const accept = dialog.querySelector('[data-testid=confirm-accept]');
+    if (accept === null) throw new Error('no confirm-accept');
+    await user.click(accept as HTMLElement);
+    await waitFor(() => {
+      expect(removeMock).toHaveBeenCalledWith('r1');
+    });
   });
 });

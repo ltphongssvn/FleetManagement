@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import { ALLOWED_MANIFEST_MIME_TYPES } from './manifest-types.js';
 import { netWeightKgSchema } from './dispatch-stop-view-contract.js';
+import { EXTRACTION_FAILURE_REASONS, type ExtractionFailureReason } from './extraction-vocabulary.js';
 
 const ExtractionMimeSchema = z.enum(ALLOWED_MANIFEST_MIME_TYPES as unknown as [string, ...string[]]);
 
@@ -23,18 +24,11 @@ export type ExtractionJobDataWire = z.infer<typeof ExtractionJobDataWireSchema>;
 export const EXTRACTION_STATUSES = ['extracted', 'not_found', 'unreadable'] as const;
 export type ExtractionStatus = typeof EXTRACTION_STATUSES[number];
 
-/** Deterministic cause of a non-extracted outcome. Persisted so a parse failure
- *  ('unparseable' / sanity bounds) is never collapsed into an undifferentiated
- *  'unreadable' — distinguishing "VLM read fine, our parser refused" from
- *  "image illegible" / "no field on ticket" / "object absent in store". */
-export const EXTRACTION_FAILURE_REASONS = [
-  'unparseable',
-  'below_sanity_min',
-  'above_sanity_max',
-  'no_field',
-  'object_missing',
-] as const;
-export type ExtractionFailureReason = typeof EXTRACTION_FAILURE_REASONS[number];
+// Failure-reason vocabulary is the LEAF SSOT in extraction-vocabulary.ts
+// (imported above and re-exported here for back-compat with existing
+// importers of this module). Extracted to a leaf to break the import cycle
+// with dispatch-stop-view-contract.ts, which also needs the reasons.
+export { EXTRACTION_FAILURE_REASONS, type ExtractionFailureReason };
 
 /** POST /upload/extraction-result body. kg is present iff status==='extracted';
  *  reason is present iff status!=='extracted'. kg is parser-normalized:

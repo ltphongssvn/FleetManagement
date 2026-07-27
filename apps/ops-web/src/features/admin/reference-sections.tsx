@@ -4,17 +4,19 @@
 // sections (Khach hang / Ten hang / So xe / Kho nhan hang / Kho giao hang).
 // Rendering goes through the shared DataTable (TanStack v8) for visual
 // consistency with the Tai xe & xe table: bordered/searchable/paginated, with
-// columns Ten (+ So dien thoai for customers) + Thao tac (Sua SDT / Xoa).
+// columns Ten (+ So dien thoai for customers) + Thao tac (Sua SDT inline; Xoa
+// in the row action menu behind a confirm dialog).
 // CRUD (add / inline rename / soft-delete / 409-conflict / refetch) is
 // unchanged; delete routes through client.remove -> server soft-delete
-// (active=false), retained for the Delete Item audit view, behind a confirm.
+// (active=false), retained for the Delete Item audit view, behind the
+// RowActionMenu confirm dialog.
 //
 // 409 conflict: the rejected row is highlighted and scrolled into view via
 // the DataTable rowAttrs seam -- the mark lands on the <tr> (row identity),
 // not on a cell span, so the whole row reads as rejected.
 //
-// Selectors are semantic (getByRole cell/columnheader/button, data-testid) so
-// they survive markup changes (2026 resilient-selector standard).
+// Selectors are semantic (getByRole rowheader/columnheader/menuitem/dialog,
+// data-testid) so they survive markup changes (2026 resilient-selector).
 'use client';
 import { useEffect, useMemo, useState, type JSX } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -24,6 +26,7 @@ import {
   type ReferenceSegment,
 } from '@/features/admin/reference-admin-client';
 import { DataTable, type DataTableRowAttrs } from '@/features/admin/DataTable';
+import { RowActionMenu } from '@/features/admin/RowActionMenu';
 import { useRefetchOnFocus } from '@/lib/use-refetch-on-focus';
 import {
   isSessionExpired,
@@ -44,7 +47,7 @@ export const SECTIONS: SectionDef[] = [
   { segment: 'warehouses', title: 'Kho giao hàng', addLabel: 'Thêm kho giao hàng', role: 'delivery' },
 ];
 function extractConflictName(msg: string): string | null {
-  const m = /["“”]([^"“”]+)["“”]\s*đã tồn tại/i.exec(msg);
+  const m = /["“”]([^"“”]+)["“”]\\s*đã tồn tại/i.exec(msg);
   return m?.[1] ?? null;
 }
 function rowPhone(row: ReferenceOption): string {
@@ -61,9 +64,7 @@ function getErrorMessage(e: unknown, fallback: string): string {
 }
 // One error seam per section: an idle-expired 401 hands the browser to the
 // silent-refresh route instead of painting a dead-end banner; everything else
-// keeps the friendly Vietnamese copy the client already composed. Ported from
-// the pre-extraction page so the DataTable refactor does not regress the T11
-// idle-timeout fix across all five sections and both host pages.
+// keeps the friendly Vietnamese copy the client already composed.
 function useFail(setError: (m: string) => void) {
   return (e: unknown, fallback: string): boolean => {
     if (isSessionExpired(e)) {
@@ -122,8 +123,7 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
       setBusy(false);
     }
   };
-  const del = async (id: string, label: string): Promise<void> => {
-    if (!window.confirm('Xóa ' + quote(label) + '?')) return;
+  const del = async (id: string): Promise<void> => {
     setBusy(true);
     try {
       await client.remove(id);
@@ -193,7 +193,7 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
         const phone = rowPhone(row);
         const isEditing = editingId === row.id;
         return (
-          <span className='flex gap-2'>
+          <span className='flex items-center gap-2'>
             {isCustomers && !isEditing ? (
               <button
                 type='button'
@@ -214,14 +214,19 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
                 Lưu
               </button>
             ) : null}
-            <button
-              type='button'
-              disabled={busy}
-              onClick={() => { void del(row.id, row.label); }}
-              className='rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600'
-            >
-              Xóa
-            </button>
+            <RowActionMenu
+              label={'Thao tác cho ' + row.label}
+              actions={[
+                {
+                  key: 'delete',
+                  label: 'Xóa',
+                  destructive: true,
+                  disabled: busy,
+                  confirmLabel: 'Xóa ' + quote(row.label) + ' ?',
+                  onSelect: () => { void del(row.id); },
+                },
+              ]}
+            />
           </span>
         );
       },

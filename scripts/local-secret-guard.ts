@@ -45,7 +45,14 @@ export const SCANNED_FILES: readonly string[] = [
 
 export const CONFIG_FILE = 'scripts/local-secret-guard.config.json';
 
-// A connection string carrying inline credentials: scheme://user:secret@host
+// Matches a connection string whose AUTHORITY section embeds credentials --
+// that is, a scheme, then a userinfo pair (user and password separated by a
+// colon), then an at-sign, then the host. The shape is described in prose
+// rather than shown as a literal example ON PURPOSE: a written-out sample of
+// that form is itself credential-shaped, so every value-based scanner
+// (detect-secrets locally, GitGuardian in CI) flags the documentation. An
+// allowlist pragma would only silence the local scanner and would drift; not
+// writing the shape at all leaves nothing for any scanner to match.
 // Mirrors railway-reference-guard credentialUrlPattern so both guards agree on
 // what a credential literal means.
 const CREDENTIAL_URL_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^:/?#@\s]+:[^@/?#\s]+@/;

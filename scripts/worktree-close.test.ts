@@ -107,6 +107,9 @@ describe('worktree-close: input assembly is Zod-parsed', () => {
       dirtyFileCount: 0,
       containedInIntegration: true,
       isPrimaryClone: false,
+      // retired defaults false at assembly (F4): the Zod default is
+      // materialised here, never left undefined for the decision core.
+      retired: false,
     });
   });
   it('flags the primary clone by path identity', () => {
