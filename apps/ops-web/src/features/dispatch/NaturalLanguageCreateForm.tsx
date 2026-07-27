@@ -78,7 +78,6 @@ export function NaturalLanguageCreateForm({
   };
   const errs = state?.status === 'invalid' ? state.errors : {};
   const topError = state?.status === 'api_error' || state?.status === 'server_error' ? state.message : undefined;
-  const createdRef = state?.status === 'created' ? state.externalRef : undefined;
   const vi = locale === 'vi';
   const ph = (labelVi: string, labelEn: string): string =>
     vi ? 'Chọn ' + labelVi : 'Select ' + labelEn;
@@ -88,14 +87,13 @@ export function NaturalLanguageCreateForm({
       {topError ? (
         <div role='alert' className='mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700'>{topError}</div>
       ) : null}
-      {createdRef ? (
-        <div role='status' className='mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800'>
-          <span className='font-semibold'>{vi ? 'Số Lệnh' : 'Order No'}:</span> <span className='font-mono'>{createdRef}</span>
-        </div>
-      ) : null}
+      {/* The Số Lệnh confirmation is NOT rendered here. onCreated closes the
+          drawer, so a banner inside this form is unmounted in the same commit
+          that assigns the number. DispatchView owns a persistent role=status
+          live region on the board instead, which outlives the drawer. */}
       <div className='flex flex-wrap items-baseline gap-x-1 gap-y-2'>
         <span>{lead}</span>
-        <input name='plannedStartAt' type='date' required aria-label={vi ? 'Ngày điều xe' : 'Dispatch date'} className={dateSlotCls} />
+        <input id='plannedStartAt' name='plannedStartAt' type='date' required aria-label={vi ? 'Ngày điều xe' : 'Dispatch date'} className={dateSlotCls} />
         <span>{vi ? 'hãy làm lệnh điều xe' : 'create a dispatch order for truck'}</span>
         <span className={slotCls}>
           <ComboboxField id='vehiclePlate' name='vehiclePlate' options={pairedVehicles} placeholder={ph('số xe', 'truck')} value={vehicleValue} onChange={onVehicleChange} />
@@ -107,14 +105,14 @@ export function NaturalLanguageCreateForm({
         </span>
         <span>{vi ? 'chở' : 'carrying'}</span>
         <span className={slotCls}>
-          <ComboboxField name='cargo' options={cargoTypes} placeholder={ph('tên hàng', 'cargo')} submitValue='id' />
+          <ComboboxField id='cargo' name='cargo' options={cargoTypes} placeholder={ph('tên hàng', 'cargo')} submitValue='id' />
         </span>
         <span>{vi ? 'cho khách hàng' : 'for customer'}</span>
         <span className={slotCls}>
-          <ComboboxField name='customer' options={customers} placeholder={ph('khách hàng', 'customer')} submitValue='id' />
+          <ComboboxField id='customer' name='customer' options={customers} placeholder={ph('khách hàng', 'customer')} submitValue='id' />
         </span>
         <span>{vi ? '. Tài xế tới kho nhận hàng ngày' : '. Pick up on'}</span>
-        <input name='pickupAt' type='date' required aria-label={vi ? 'Ngày nhận hàng' : 'Pickup date'} className={dateSlotCls} />
+        <input id='pickupAt' name='pickupAt' type='date' required aria-label={vi ? 'Ngày nhận hàng' : 'Pickup date'} className={dateSlotCls} />
         <span>{vi ? 'tại' : 'at'}</span>
         {pickupRows.map((n) => {
           const whId = 'pickupWarehouse_' + String(n);
@@ -140,7 +138,7 @@ export function NaturalLanguageCreateForm({
           <span aria-hidden='true'>+</span> {vi ? 'thêm kho giao hàng' : 'add unloading warehouse'}
         </button>
         <span>{vi ? '. Khách cần nhận hàng ngày' : '. Customer delivery date'}</span>
-        <input name='deliveryAt' type='date' required aria-label={vi ? 'Ngày giao hàng' : 'Delivery date'} className={dateSlotCls} />
+        <input id='deliveryAt' name='deliveryAt' type='date' required aria-label={vi ? 'Ngày giao hàng' : 'Delivery date'} className={dateSlotCls} />
         <span>.</span>
       </div>
       <FieldError msg={errs.pickupWarehouses} />
