@@ -35,6 +35,7 @@ import { dockerPsql } from './helpers/docker-exec';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, DriverLoginResponseSchema, DriverMeResponseSchema } from './helpers/contracts';
+import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 const HANDOFF_PATH = process.env['E2E_DRIVER_HANDOFF']
@@ -86,8 +87,8 @@ test.describe.serial('dispatcher creates an order, driver fulfills it (self-seed
     const sd = requireSeed();
     await login(page);
     await page.goto('/');
-    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
-    await page.locator('#plannedStartAt').fill('2026-06-01');
+    await openCreateOrderDrawer(page);
+    await plannedStartAtField(page.locator('[data-testid=nl-create-order-form]')).fill('2026-06-01');
     const vehicleInput = page.locator('input#vehiclePlate');
     await vehicleInput.click();
     await vehicleInput.fill(sd.vehicleLabel);
