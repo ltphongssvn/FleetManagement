@@ -51,4 +51,25 @@ describe('DispatchView -- handleCreated wired to the create form onCreated', () 
       expect(screen.getByTestId('dispatch-board-row-XTT.05-form')).toBeTruthy();
     });
   });
+
+  // Regression: onCreated closes the drawer, so a Số Lệnh banner rendered
+  // INSIDE the form was unmounted in the same commit that assigned the
+  // number -- the dispatcher lost the order number and eight e2e specs raced
+  // the unmount. The board owns the banner now, so it must survive.
+  it('keeps the So Lenh confirmation visible after the drawer closes', async () => {
+    render(<DispatchView initialRuns={initialRuns} refs={refs} />);
+    fireEvent.click(screen.getByTestId('open-create-order'));
+    await waitFor(() => {
+      expect(screen.getByRole('status').textContent).toContain('XTT.05-form');
+    });
+  });
+
+  // WCAG 4.1.3: a live region that is mounted on demand is never monitored by
+  // assistive technology. The container must exist from first paint, empty.
+  it('renders the live-region container before any order is created', () => {
+    render(<DispatchView initialRuns={initialRuns} refs={refs} />);
+    const region = screen.getByRole('status');
+    expect(region).toBeTruthy();
+    expect(region.textContent).toBe('');
+  });
 });

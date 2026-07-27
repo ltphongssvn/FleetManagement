@@ -1,11 +1,13 @@
 // apps/api/test/scheduler.service.alert-lag.test.ts
-// S6c (T12 driver-order-alerts) -- TDD for the alert-lag guard tick wired into
-// SchedulerService: an optional 7th monitor dependency, an alertLag
-// self-scheduling kind inside a tagged Sentry isolation scope. Mirrors
-// scheduler.service.intake-lag.test.ts exactly. Dormant unless an
-// AlertLagMonitorService is injected (present iff the wiring provides it).
+// S6c (T12) alert-lag guard tick, re-expressed against the multi-provider
+// registry: the monitor is a SchedulerTicker (key=alertLag, tag=
+// driver-alert-lag-check, 5-min interval) built exactly as the module factory
+// builds it (helpers/scheduler-ticker-factory). The service drives it
+// generically; these tests assert the tick runs the monitor, tags the scope,
+// self-schedules, and that WITHOUT the ticker nothing is scheduled (dormancy
+// now lives in the module factory, which omits the ticker when the monitor is
+// null).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { ConfigService } from '@nestjs/config';
 const { mockWithIsolationScope, mockCaptureException, capturedTags } = vi.hoisted(() => {
   const capturedTags: { key: string; value: unknown }[] = [];
   return {
@@ -18,44 +20,32 @@ const { mockWithIsolationScope, mockCaptureException, capturedTags } = vi.hoiste
 });
 vi.mock('@sentry/nestjs', () => ({ withIsolationScope: mockWithIsolationScope, captureException: mockCaptureException }));
 import { SchedulerService } from '../src/scheduler/scheduler.service.js';
-import type { OutboxRelayService } from '../src/outbox/outbox-relay.service.js';
-import type { ProjectionRunnerService } from '../src/projections/projection-runner.service.js';
-import type { CommandsGateway } from '../src/commands/commands.gateway.js';
-import type { AlertLagMonitorService } from '../src/manifest/alert-lag-monitor.service.js';
+import { monitorTicker, coreTickers, INTERVALS } from './helpers/scheduler-ticker-factory.js';
+import type { SchedulerTicker } from '../src/scheduler/scheduler-ticker.js';
 
-const cfg = (): ConfigService => ({ get: vi.fn(), getOrThrow: vi.fn().mockReturnValue('scope') } as unknown as ConfigService);
-const outbox = (): OutboxRelayService => ({ drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as OutboxRelayService);
-const proj = (): ProjectionRunnerService => ({ drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as ProjectionRunnerService);
-const gw = (): CommandsGateway => ({ reconcileNow: vi.fn().mockReturnValue([]) } as unknown as CommandsGateway);
+// Core ticks are inert no-ops here; we only exercise the alert-lag ticker.
+const cores = (): SchedulerTicker[] => coreTickers({
+  outbox: () => undefined, projection: () => undefined, reconciler: () => undefined,
+});
 
-// Constructor arg order: outbox, proj, cfg, gw, breakGlass, intakeLag,
-// intakeReconcile, completionReconcile, alertLag. All monitor slots after gw
-// are optional; we pass null for the four we are not exercising and the alert
-// monitor 9th (completion reconciler occupies the 8th slot on develop).
-function makeSvc(monitor: AlertLagMonitorService | null): SchedulerService {
-  return new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, null, null, null, monitor);
-}
-
-describe('@fleet/api - SchedulerService alert-lag tick', () => {
+describe('@fleet/api - SchedulerService alert-lag tick (registry)', () => {
   beforeEach(() => { vi.useFakeTimers(); capturedTags.length = 0; });
   afterEach(() => { vi.useRealTimers(); });
 
-  it('drainAlertLag tags Sentry scope job=driver-alert-lag-check and calls monitor.checkOnce', async () => {
+  it('drainByKey(alertLag) tags job=driver-alert-lag-check and calls monitor.checkOnce', async () => {
     const checkOnce = vi.fn().mockResolvedValue(undefined);
-    const monitor = { checkOnce } as unknown as AlertLagMonitorService;
-    const svc = makeSvc(monitor);
-    await svc.drainAlertLag();
+    const svc = new SchedulerService([...cores(), monitorTicker('alertLag', () => checkOnce())]);
+    await svc.drainByKey('alertLag');
     expect(checkOnce).toHaveBeenCalledTimes(1);
     expect(capturedTags.find((t) => t.key === 'job')?.value).toBe('driver-alert-lag-check');
     svc.onModuleDestroy();
   });
 
-  it('onModuleInit schedules the alert-lag check when a monitor is present', async () => {
+  it('onModuleInit schedules the alert-lag check at the 5-minute interval', async () => {
     const checkOnce = vi.fn().mockResolvedValue(undefined);
-    const monitor = { checkOnce } as unknown as AlertLagMonitorService;
-    const svc = makeSvc(monitor);
+    const svc = new SchedulerService([...cores(), monitorTicker('alertLag', () => checkOnce())]);
     svc.onModuleInit();
-    await vi.advanceTimersByTimeAsync(299_999);
+    await vi.advanceTimersByTimeAsync(INTERVALS.alertLag - 1);
     expect(checkOnce).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(2);
     expect(checkOnce).toHaveBeenCalledTimes(1);
@@ -64,22 +54,21 @@ describe('@fleet/api - SchedulerService alert-lag tick', () => {
 
   it('keeps self-scheduling: a second tick fires another interval later', async () => {
     const checkOnce = vi.fn().mockResolvedValue(undefined);
-    const monitor = { checkOnce } as unknown as AlertLagMonitorService;
-    const svc = makeSvc(monitor);
+    const svc = new SchedulerService([...cores(), monitorTicker('alertLag', () => checkOnce())]);
     svc.onModuleInit();
-    await vi.advanceTimersByTimeAsync(300_001);
-    await vi.advanceTimersByTimeAsync(300_001);
+    await vi.advanceTimersByTimeAsync(INTERVALS.alertLag + 1);
+    await vi.advanceTimersByTimeAsync(INTERVALS.alertLag + 1);
     expect(checkOnce).toHaveBeenCalledTimes(2);
     svc.onModuleDestroy();
   });
 
-  it('is dormant when no monitor is provided: no alert-lag timer is scheduled', () => {
+  it('is dormant when the ticker is absent: no alert-lag timer is scheduled', () => {
     const setSpy = vi.spyOn(globalThis, 'setTimeout');
-    const svc = makeSvc(null);
+    // Module factory omits the alertLag ticker when the monitor is null; model
+    // that by simply not including it. No 300s timer should be armed.
+    const svc = new SchedulerService(cores());
     svc.onModuleInit();
-    // intake-lag also uses 300_000; with all lag monitors null here, NO 300s
-    // timer should be scheduled at all, so a zero count isolates the alert tick.
-    const fiveMinuteTimers = setSpy.mock.calls.filter((c) => c[1] === 300_000);
+    const fiveMinuteTimers = setSpy.mock.calls.filter((c) => c[1] === INTERVALS.alertLag);
     expect(fiveMinuteTimers).toHaveLength(0);
     setSpy.mockRestore();
     svc.onModuleDestroy();

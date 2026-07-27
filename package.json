@@ -49,6 +49,7 @@
     "audit:ci-minutes": "tsx scripts/ci/ci-minutes-fetch.ts",
     "worktree:close": "tsx scripts/worktree-close-cli.ts",
     "inspect:prod-deploy": "tsx scripts/inspect-prod-deploy.ts",
+    "pr:follow": "tsx scripts/pr-follow.ts",
     "gate:integration": "tsx scripts/gate-integration.ts",
     "gate:agent": "tsx scripts/gate-agent.ts",
     "prod:db-url": "tsx scripts/prod-db-url.ts",
