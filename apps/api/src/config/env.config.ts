@@ -95,6 +95,16 @@ export const EnvSchema = z.object({
   INTAKE_RECONCILE_AFTER_MINUTES: z.coerce.number().int().positive().default(15),
   INTAKE_RECONCILE_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
   INTAKE_RECONCILE_BATCH_SIZE: z.coerce.number().int().positive().default(25),
+  // Completion-reconciler proactive monitor (T16 stranded-delivery guard, PR
+  // #297 class). Pages via Sentry fatal when the OLDEST delivered-but-non-
+  // terminal road_run (all stop photos committed, gate parity) has been
+  // started longer than ALERT_MINUTES -- so a future recurrence of the
+  // XTT.07-019/020 strand (order stuck in Dang chay after a late intake
+  // commit) becomes loud within one threshold window instead of stranding
+  // silently. ENABLED gates the scheduler tick; unset -> ON (loud-by-default
+  // is the safe production posture, mirroring INTAKE_RECONCILE_ENABLED).
+  COMPLETION_MONITOR_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  COMPLETION_STRANDED_ALERT_MINUTES: z.coerce.number().int().positive().default(30),
   // Completion self-healing reconciler (2026 level-based recovery loop,
   // sibling of the intake reconciler). Every tick it finds non-terminal
   // road_runs whose linked orders are ALL photo-committed (the same
