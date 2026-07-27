@@ -72,6 +72,7 @@ import type { RoadRunStatusGroup } from '@fleet/sync-protocol';
 import type { DispatchBoardRoadRun } from './types';
 import { StopSlotHeaders, StopSlotCells, STOP_SLOT_COL_COUNT } from './board-stops';
 import { useRefetchOnFocus } from '../../lib/use-refetch-on-focus';
+import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
 const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
 });
@@ -296,6 +297,21 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
   // Table-first (T38): the create form is create-on-demand behind a drawer,
   // so the Lenh dieu xe table is the primary above-the-fold surface.
   const [createOpen, setCreateOpen] = useState(false);
+  // Số Lệnh confirmation state lives on the BOARD, not inside the create form.
+  // Creating an order closes the drawer, which unmounted the form and took the
+  // success banner with it: the dispatcher lost the order number at the moment
+  // it was assigned. The board outlives the drawer, so the confirmation stays
+  // readable and eight e2e specs stop racing an unmount (WCAG 4.1.3 / G199).
+  const [createdRef, setCreatedRef] = useState<string | null>(null);
+  // Page-level readiness signal (2026 e2e contract). Previously the only
+  // data-hydrated marker lived on the create form, so browser specs used
+  // form-is-hydrated as a proxy for board-is-interactive. When T38 moved the
+  // form behind the drawer, that proxy forced specs to OPEN a drawer they did
+  // not need, and the open drawer then intercepted board row clicks. Readiness
+  // is a property of the PAGE, not of one conditionally-rendered child, so the
+  // signal lives here on the board root and holds regardless of drawer state.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => { setHydrated(true); }, []);
   const pushOptimisticRow = (externalRef: string, op: { operatorId: string; assetId: string }): void => {
     setStickyRuns((prev) => {
       for (const r of prev) {
@@ -342,6 +358,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
     if (op.operatorId !== '' && op.assetId !== '') {
       pushOptimisticRow(externalRef, op);
     }
+    setCreatedRef(externalRef);
     router.refresh();
   };
   const createForm = (
@@ -359,7 +376,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
   );
   return (
     <>
-      <div className='rounded-2xl bg-white/95 shadow-sm'>
+      <div data-testid='dispatch-board' data-hydrated={hydrated ? 'true' : 'false'} className='rounded-2xl bg-white/95 shadow-sm'>
         <section className='p-6'>
           <header className='mb-4 flex items-center justify-between'>
             <h1 className='text-2xl font-semibold'>Lệnh điều xe</h1>
@@ -376,6 +393,19 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
               <ExportOrdersExcelButton /><LogoutButton />
             </div>
           </header>
+          {/* Persistent live region. The container is rendered from first
+              paint and only its CONTENT changes; mounting a role=status node
+              on demand is the documented WCAG 4.1.3 failure mode, because an
+              assistive technology never starts monitoring a region that did
+              not exist when the page loaded. role=status already implies
+              aria-live=polite and aria-atomic=true, so no extra ARIA is added,
+              and focus is deliberately NOT moved here: a focus change would
+              stop this being a status message. */}
+          <div role='status' className={createdRef === null ? undefined : 'mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800'}>
+            {createdRef === null ? null : (
+              <><span className='font-semibold'>Số Lệnh:</span> <span className='font-mono'>{createdRef}</span></>
+            )}
+          </div>
           <table className='w-full border-collapse text-sm'>
             <thead>
               <tr className='border-b text-left'>
@@ -412,17 +442,29 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
           {pagination ? <PaginationBar pagination={pagination} search={search} /> : null}
         </section>
       </div>
-      {createOpen ? (
-        <div className='fixed inset-0 z-40 flex justify-end' role='dialog' aria-modal='true' aria-label='Tạo lệnh điều xe'>
-          <button type='button' aria-label='Đóng' onClick={() => { setCreateOpen(false); }} className='absolute inset-0 bg-slate-900/40' />
-          <div className='relative z-50 h-full w-full max-w-2xl overflow-y-auto bg-transparent p-4 shadow-2xl'>
+      {/* Drawer: Headless UI Dialog, not a hand-rolled overlay. The previous
+          markup painted a full-viewport <button className=absolute inset-0>
+          as its backdrop, which intercepted every pointer event on the board
+          underneath and made board rows unclickable whenever the drawer was
+          open. Native <dialog>+showModal would be the generic 2026 answer, but
+          ComboboxField anchors its listbox (anchor=bottom start), which Headless
+          UI renders through a Floating UI portal; a top-layer native dialog would
+          paint OVER that portal and hide the options. Headless UI Dialog is the
+          vendor-sanctioned pairing: focus trap, Escape and click-outside close,
+          scroll lock, correct dialog semantics, and portal-compatible. It also
+          unmounts when closed, so nothing can intercept the board. */}
+      <Dialog open={createOpen} onClose={() => { setCreateOpen(false); }} className='relative z-40'>
+        <DialogBackdrop className='fixed inset-0 bg-slate-900/40' />
+        <div className='fixed inset-0 flex justify-end'>
+          <DialogPanel className='h-full w-full max-w-2xl overflow-y-auto bg-transparent p-4 shadow-2xl'>
+            <DialogTitle className='sr-only'>Tạo lệnh điều xe</DialogTitle>
             <div className='mb-2 flex justify-end'>
               <button type='button' data-testid='close-create-order' onClick={() => { setCreateOpen(false); }} className='rounded-md bg-white/90 px-3 py-1 text-sm font-medium text-slate-700 shadow'>Đóng</button>
             </div>
             {createForm}
-          </div>
+          </DialogPanel>
         </div>
-      ) : null}
+      </Dialog>
     </>
   );
 }

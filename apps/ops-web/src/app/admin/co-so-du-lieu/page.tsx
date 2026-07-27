@@ -1,14 +1,19 @@
 // apps/ops-web/src/app/admin/co-so-du-lieu/page.tsx
 // Consolidated Co so du lieu admin page: the single database-style view that
 // replaces the separate Doi xe (/admin/drivers) and Du lieu (/admin/reference)
-// pages. Renders the DriversSection (drivers + vehicle status) followed by the
-// five shared master-data CRUD sections (Khach hang / Ten hang / So xe / Kho
-// nhan hang / Kho giao hang) from the shared reference-sections module -- so
-// both this page and the old reference page render the SAME sections without
-// duplication. Back-link returns to the dispatch board. VN copy is immutable.
+// pages. Renders the DriversSection (drivers + vehicle status), the devices
+// approval queue (T7 hardware binding: self-enrolled + attested devices land
+// pending and an admin activates or revokes them here), then the five shared
+// master-data CRUD sections (Khach hang / Ten hang / So xe / Kho nhan hang /
+// Kho giao hang) from the shared reference-sections module -- so both this page
+// and the old reference page render the SAME sections without duplication. The
+// devices queue mounts HERE rather than behind a third nav entry, keeping the
+// consolidation this page exists for. Back-link returns to the dispatch board.
+// VN copy is immutable.
 'use client';
 import type { JSX } from 'react';
 import { DriversAdminSection } from '@/features/admin/DriversAdminSection';
+import { DevicesApprovalSection } from '@/features/admin/DevicesApprovalSection';
 import { SECTIONS, ReferenceSection } from '@/features/admin/reference-sections';
 
 export default function CoSoDuLieuPage(): JSX.Element {
@@ -32,6 +37,10 @@ export default function CoSoDuLieuPage(): JSX.Element {
       <div className='rounded-xl bg-white/95 p-4 shadow-lg ring-1 ring-black/5'>
         <h2 className='mb-3 text-lg font-semibold text-slate-900'>Tài xế &amp; xe</h2>
         <DriversAdminSection />
+      </div>
+      <div className='rounded-xl bg-white/95 p-4 shadow-lg ring-1 ring-black/5'>
+        <h2 className='mb-3 text-lg font-semibold text-slate-900'>Thiết bị</h2>
+        <DevicesApprovalSection />
       </div>
       <div className='rounded-xl bg-white/95 p-4 shadow-lg ring-1 ring-black/5'>
         {SECTIONS.map((def) => (
