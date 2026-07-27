@@ -26,6 +26,7 @@ import { dockerPsql } from './helpers/docker-exec';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
+import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 function sq39(): string { return String.fromCharCode(39); }
@@ -141,19 +142,14 @@ test.describe('review view reflects create-order form (T7)', () => {
     seededRefNames.push(refs.customerLabel, refs.cargoLabel, refs.pickupLabel, refs.deliveryLabel);
     await loginAsDispatcher(page);
     await page.goto('/');
-    // Wait for the form to fully hydrate before touching inputs. Without
-    // this, the first fill races React hydration and the value is dropped
-    // silently — the dispatcher sees an empty Ngày điều xe and the native
-    // HTML5 validation blocks submission with no server-action signal.
-    await expect(page.getByRole('heading', { name: 'Lệnh điều xe - Tải thùng' })).toBeVisible({ timeout: 15000 });
-    // Wait for the hydration-ready signal before touching any input. The
-    // heading is server-rendered and visible BEFORE React hydrates; filling
-    // an input in that window silently drops the value (Playwright docs /
-    // Microsoft #27759). data-hydrated flips to 'true' only in the form's
-    // mount effect, i.e. once interactivity is real.
-    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15000 });
+    // Open the create drawer, then wait for the hydration-ready signal
+    // before touching any input. The form is briefly visible before React
+    // hydrates; filling an input in that window silently drops the value
+    // (Playwright docs / Microsoft #27759). data-hydrated flips to true
+    // only in the mount effect, i.e. once interactivity is real.
+    await openCreateOrderDrawer(page);
     // Section 1: planned start (ngày điều xe)
-    const plannedStart = page.locator('#plannedStartAt');
+    const plannedStart = plannedStartAtField(page.locator('[data-testid=nl-create-order-form]'));
     await plannedStart.fill('2026-06-02');
     await expect(plannedStart).toHaveValue('2026-06-02', { timeout: 5000 });
     // Section 2: khách hàng + tên hàng
