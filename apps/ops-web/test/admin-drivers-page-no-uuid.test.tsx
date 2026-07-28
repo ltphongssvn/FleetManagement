@@ -39,4 +39,19 @@ describe('AdminDriversPage hides raw UUIDs', () => {
     await screen.findByText('Driver Alpha');
     expect(screen.queryByText(DRIVER_UUID)).toBeNull();
   });
+  it('does NOT render a device UUID; shows a friendly registered status instead', async () => {
+    listMock.mockResolvedValue([
+      {
+        driverId: DRIVER_UUID, fullName: 'Driver Beta', phone: '0900000002',
+        operatorId: OPERATOR_UUID,
+        assignedVehicle: { vehicleId: 'v-beta', plate: '62H 09999' },
+        assignmentId: 'as-beta',
+        devices: [{ deviceId: '6071e3fe-b083-45b2-9bae-ea5d8ea26c83' }],
+      },
+    ]);
+    render(<AdminDriversPage />);
+    await screen.findByText('Driver Beta');
+    expect(screen.queryByText('6071e3fe-b083-45b2-9bae-ea5d8ea26c83')).toBeNull();
+    expect(screen.getByText('Đã đăng ký')).toBeInTheDocument();
+  });
 });
