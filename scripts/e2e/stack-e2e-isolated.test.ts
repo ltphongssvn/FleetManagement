@@ -11,6 +11,12 @@ import {
   e2eEnvFromIdentity,
   browserE2EServices,
   browserE2EReadiness,
+  shouldTakeHostLock,
+  selfUnderLockCommand,
+  HOST_LOCK_ENV,
+  HOST_LOCK_WAIT_SECONDS,
+  hostLockTimeoutMessage,
+  isLockTimeoutExit,
 } from './stack-e2e-isolated.ts';
 
 // A concrete identity for a fixed worktree root, so the derived URLs/ports are
@@ -76,5 +82,81 @@ describe('browserE2EReadiness', () => {
     const targets = browserE2EReadiness(ID);
     expect(targets).toContain('http://localhost:' + String(ID.ports.API) + '/health/ready');
     expect(targets).toContain('http://localhost:' + String(ID.ports.OPS_WEB));
+  });
+});
+
+// Host-lock enrollment. gate:integration has queued behind a host-wide flock
+// since fab24dd, and 742e1f7 put it on the same inode as the pre-push coverage
+// hook. The isolated E2E stack was never enrolled -- yet it is by far the
+// heaviest consumer on this host: seven containers plus a --no-cache rebuild
+// of two app images. So the two guarded gates politely queued for each other
+// while the biggest one barged straight through, which is how a sibling
+// worktree could still starve a run that had done everything right.
+//
+// The runner cannot simply wrap its own body: flock(1) holds the lock for the
+// lifetime of a CHILD process. The runner therefore re-executes ITSELF under
+// flock, and a sentinel env var stops that recursing forever.
+describe('host-lock enrollment', () => {
+  // flock(1) exits 1 on -w timeout with NOTHING on stderr, which is
+  // indistinguishable from a failing test run. Observed live: a sibling
+  // gate held the lock, this runner waited the full budget and died silently
+  // after an hour. An uninterpretable run is precisely what host-gate exists
+  // to prevent, so the timeout must be named as a timeout.
+  it('explains a lock timeout instead of failing silently', () => {
+    const msg = hostLockTimeoutMessage('/l.lock', 3600);
+    expect(msg).toContain('timed out');
+    expect(msg).toContain('/l.lock');
+    expect(msg).toContain('3600');
+  });
+
+  // A timeout is a HOST condition, not a product failure. Distinguishing it
+  // from a genuine spec failure is what stops a queued run being triaged as
+  // a broken feature.
+  it('classifies the flock timeout exit code distinctly', () => {
+    expect(isLockTimeoutExit(1, true)).toBe(true);
+    expect(isLockTimeoutExit(1, false)).toBe(false);
+    expect(isLockTimeoutExit(0, true)).toBe(false);
+  });
+
+  // E2E is not gate:integration. A full isolated stack runs ~25 minutes, so
+  // a handful of legitimately queued siblings exceeds an hour without any
+  // fault. The budget must exceed several sibling runs, not one.
+  it('budgets enough wait for several sibling E2E runs', () => {
+    expect(HOST_LOCK_WAIT_SECONDS).toBeGreaterThanOrEqual(4 * 25 * 60);
+  });
+
+  it('takes the lock when the sentinel is absent', () => {
+    expect(shouldTakeHostLock({})).toBe(true);
+  });
+
+  it('does NOT retake the lock once held (no infinite re-exec)', () => {
+    expect(shouldTakeHostLock({ [HOST_LOCK_ENV]: '1' })).toBe(false);
+  });
+
+  it('ignores a sentinel set to anything other than 1', () => {
+    expect(shouldTakeHostLock({ [HOST_LOCK_ENV]: '' })).toBe(true);
+    expect(shouldTakeHostLock({ [HOST_LOCK_ENV]: '0' })).toBe(true);
+  });
+
+  it('re-executes THIS script with the original arguments preserved', () => {
+    const cmd = selfUnderLockCommand(
+      '/home/u/.cache/fleetmanagement/gate.lock',
+      ['/usr/bin/node', '/w/scripts/e2e/stack-e2e-isolated.ts'],
+      ['e2e/a.spec.ts', 'e2e/b.spec.ts'],
+    );
+    expect(cmd[0]).toBe('flock');
+    expect(cmd).toContain('/home/u/.cache/fleetmanagement/gate.lock');
+    expect(cmd).toContain('e2e/a.spec.ts');
+    expect(cmd).toContain('e2e/b.spec.ts');
+    expect(cmd).not.toContain('--');
+  });
+
+  it('queues rather than failing fast, and never waits forever', () => {
+    const cmd = selfUnderLockCommand('/l.lock', ['node', 's.ts'], []);
+    const w = cmd.indexOf('-w');
+    expect(w).toBeGreaterThanOrEqual(0);
+    const budget = Number(cmd[w + 1]);
+    expect(budget).toBeGreaterThan(0);
+    expect(Number.isFinite(budget)).toBe(true);
   });
 });
