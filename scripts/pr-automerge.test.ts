@@ -5,8 +5,10 @@
 // It deliberately does NOT use gh pr merge --auto: native auto-merge is unreliable
 // when required checks come from repository rulesets (community #162623), where
 // --auto enables but never fires. Instead it polls and merges synchronously once
-// green. Two pure cores are tested here: decideAutoMerge (the one-time precondition
-// guard) and decideMergeReady (the per-poll merge-now decision), plus the shared
+// green. When the branch is BEHIND (the develop-protection ruleset requires up to
+// date), it updates the branch and re-polls rather than stalling. Three pure
+// decisions are tested: decideAutoMerge (one-time precondition guard),
+// decideMergeReady (per-poll MERGE/UPDATE/WAIT/BLOCKED), and the shared
 // summarizeChecks green semantics reused from pr-follow.ts.
 import { describe, it, expect } from 'vitest';
 import {
@@ -83,9 +85,20 @@ describe('decideMergeReady per-poll decision', () => {
     expect(decideMergeReady(summarizeChecks(green3), 'HAS_HOOKS').action).toBe('MERGE');
   });
 
+  it('UPDATES the branch when green but BEHIND (ruleset requires up to date)', () => {
+    const d = decideMergeReady(summarizeChecks(green3), 'BEHIND');
+    expect(d.action).toBe('UPDATE');
+    expect(d.reason.toLowerCase()).toContain('behind');
+  });
+
   it('WAITS when a check is still pending, even if mergeState is CLEAN', () => {
     const checks: CheckRun[] = [...green3, { name: 'slow', state: 'IN_PROGRESS' }];
     expect(decideMergeReady(summarizeChecks(checks), 'CLEAN').action).toBe('WAIT');
+  });
+
+  it('does NOT update when BEHIND but a check is still pending -- checks come first', () => {
+    const checks: CheckRun[] = [...green3, { name: 'slow', state: 'IN_PROGRESS' }];
+    expect(decideMergeReady(summarizeChecks(checks), 'BEHIND').action).toBe('WAIT');
   });
 
   it('BLOCKS when a required check has failed', () => {
@@ -99,8 +112,8 @@ describe('decideMergeReady per-poll decision', () => {
     expect(decideMergeReady(summarizeChecks(green3), 'DIRTY').action).toBe('BLOCKED');
   });
 
-  it('WAITS when green but the branch is BEHIND (not yet mergeable)', () => {
-    expect(decideMergeReady(summarizeChecks(green3), 'BEHIND').action).toBe('WAIT');
+  it('WAITS when green but mergeState is UNKNOWN (GitHub not yet recomputed)', () => {
+    expect(decideMergeReady(summarizeChecks(green3), 'UNKNOWN').action).toBe('WAIT');
   });
 
   it('WAITS on zero checks -- an ungated PR is never treated as green (confident-zero guard)', () => {

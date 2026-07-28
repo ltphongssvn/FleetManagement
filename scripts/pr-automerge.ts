@@ -14,6 +14,13 @@
 // respects the ruleset (GitHub still refuses if a required check is red) but does
 // not depend on the broken --auto trigger.
 //
+// BEHIND handling (the gap the dogfood exposed): the develop-protection ruleset
+// requires the branch be up to date before merge. In a many-worktree repo develop
+// moves constantly, so a green PR is almost always BEHIND. A passive wait there
+// stalls to TIMEOUT forever, because nothing updates the branch. The task instead
+// ACTS on BEHIND: gh pr update-branch (never --rebase, immutable history), which
+// merges the base in and starts a fresh CI run, then keeps polling.
+//
 // Contained on purpose: it acts ONLY on the PR's base (feature -> develop), never
 // promotes develop -> main, so it cannot race promote.yml -- the same boundary
 // pr-follow.ts and release-promote.ts observe. A merge queue would also solve the
@@ -98,18 +105,20 @@ export function summarizeChecks(checks: readonly CheckRun[]): CheckSummary {
   return { total: checks.length, pending, failed, settled, green };
 }
 
-export type MergeReadyAction = 'MERGE' | 'WAIT' | 'BLOCKED';
+export type MergeReadyAction = 'MERGE' | 'UPDATE' | 'WAIT' | 'BLOCKED';
 export interface MergeReadyDecision {
   readonly action: MergeReadyAction;
   readonly reason: string;
 }
 
 // Decide, on one poll, whether to merge now. Pure.
-//   BLOCKED -- a required check FAILED, or GitHub reports the PR CONFLICTING /
-//              DIRTY: merging is impossible until a human intervenes.
+//   BLOCKED -- a required check FAILED, or GitHub reports the PR DIRTY: merging is
+//              impossible until a human intervenes.
+//   UPDATE  -- checks green but the branch is BEHIND base; the ruleset requires
+//              up-to-date, so update the branch (triggers fresh CI) and re-poll.
 //   WAIT    -- checks still pending, none registered yet, or mergeStateStatus not
-//              yet mergeable (BEHIND/UNKNOWN): poll again.
-//   MERGE   -- every check green AND GitHub says the PR is mergeable.
+//              yet resolved (UNKNOWN/BLOCKED): poll again.
+//   MERGE   -- every check green AND GitHub says the PR is mergeable now.
 export function decideMergeReady(
   sum: CheckSummary,
   mergeStateStatus: string,
@@ -126,12 +135,21 @@ export function decideMergeReady(
       ? 'no checks registered yet'
       : 'checks pending: ' + sum.pending.join(', ') };
   }
-  // Checks are green. GitHub still gates on the ruleset via mergeStateStatus:
-  // CLEAN or HAS_HOOKS means ready; BEHIND/BLOCKED/UNKNOWN means wait (the branch
-  // needs updating, or GitHub has not recomputed since the last green check).
+  // Checks are green. GitHub still gates on the ruleset via mergeStateStatus.
+  // CLEAN or HAS_HOOKS means ready to merge now.
   if (mss === 'CLEAN' || mss === 'HAS_HOOKS') {
     return { action: 'MERGE', reason: 'all checks green and PR mergeable' };
   }
+  // BEHIND means the develop-protection ruleset requires the branch be current
+  // before merge -- the common case in a many-worktree repo where develop moves
+  // constantly. Update the branch (gh pr update-branch, never --rebase) rather
+  // than wait forever for a state nothing will change. This was the gap the
+  // dogfood exposed: a passive WAIT here stalled to TIMEOUT on a BEHIND PR.
+  if (mss === 'BEHIND') {
+    return { action: 'UPDATE', reason: 'checks green but branch BEHIND; updating branch with base' };
+  }
+  // BLOCKED/UNKNOWN/other: GitHub has not recomputed since the last green check,
+  // or a non-check rule is unmet. Poll again rather than force it.
   return { action: 'WAIT', reason: 'checks green; waiting on mergeState (' + mergeStateStatus + ')' };
 }
 
@@ -217,6 +235,11 @@ function main(): number {
     if (ready.action === 'BLOCKED') {
       process.stderr.write('[pr:automerge] BLOCKED -- ' + ready.reason + nl);
       return 1;
+    }
+    if (ready.action === 'UPDATE') {
+      const u = sh('gh', ['pr', 'update-branch', String(cfg.prNumber)]);
+      process.stdout.write(u.out);
+      // update-branch merges base in and starts a fresh CI run; keep polling.
     }
     if (ready.action === 'MERGE') {
       const m = sh('gh', ['pr', 'merge', String(cfg.prNumber), '--squash']);
