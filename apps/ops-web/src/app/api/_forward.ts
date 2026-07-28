@@ -12,6 +12,7 @@
 // opt into ?scope=admin.
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
+import { getApiUrl } from '@/lib/api-url';
 import {
   REFRESH_COOKIE,
   SESSION_COOKIE,
@@ -22,9 +23,6 @@ import {
   type RefreshedTokens,
 } from '@/features/auth/session-refresh';
 
-function getApiUrl(): string {
-  return process.env['FLEET_API_URL'] ?? 'http://api:3000';
-}
 
 const UNAUTHORIZED_PROBLEM = {
   type: 'about:blank',

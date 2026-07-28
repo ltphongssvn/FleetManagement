@@ -18,7 +18,8 @@
 //   --force     skip the readiness preflight (still takes the lock)
 import { spawn, execFileSync } from 'node:child_process';
 import { loadavg, cpus, homedir } from 'node:os';
-import { readFileSync, statfsSync } from 'node:fs';
+import { readFileSync, statfsSync, mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 import {
   evaluateHostReadiness,
   buildFlockArgs,
@@ -153,6 +154,13 @@ function main(): void {
     '--concurrency=1',
     ...passthrough,
   ];
+  // flock(1) opens the lock file but will NOT create missing parent dirs, so an
+  // absent cache dir aborts the gate with
+  //   flock: cannot open lock file ...: No such file or directory
+  // The pre-push hook has always done this mkdir; this script did not need it
+  // while the lock lived in the temp dir, which always exists. Unifying the two
+  // onto the cache path exposed the gap on any host whose cache dir is fresh.
+  mkdirSync(dirname(LOCK_PATH), { recursive: true });
   const flockArgs = buildFlockArgs(LOCK_PATH, noWait ? 1 : WAIT_SECONDS, turbo);
 
   console.error('gate:integration: acquiring host lock ' + LOCK_PATH +
