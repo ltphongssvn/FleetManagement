@@ -18,7 +18,7 @@
 //   --force     skip the readiness preflight (still takes the lock)
 import { spawn, execFileSync } from 'node:child_process';
 import { loadavg, cpus, homedir } from 'node:os';
-import { readFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, statfsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import {
   evaluateHostReadiness,
@@ -60,6 +60,27 @@ function readAvailableGiB(): number {
   return Number.POSITIVE_INFINITY;
 }
 
+// Free space on the filesystem backing this worktree, in GiB.
+//
+// Guarded on BOTH sides. A JS statfs binding truncates f_bavail to 32 bits,
+// so a filesystem with more than ~17.6TB free reports a NEGATIVE figure --
+// reported in the wild as a false out-of-space abort on exactly the roomiest
+// build hosts. Any nonsensical reading is converted to the same permissive
+// Infinity this returns when statfs is unavailable, so an unmeasurable host
+// is never blocked. evaluateHostReadiness re-checks the same invariant,
+// because the guard must hold for every caller, not just this one.
+function readAvailableDiskGiB(): number {
+  try {
+    const st = statfsSync(process.cwd());
+    const bytes = st.bavail * st.bsize;
+    if (!Number.isFinite(bytes) || bytes < 0) return Number.POSITIVE_INFINITY;
+    return bytes / 1024 / 1024 / 1024;
+  } catch {
+    // Non-Linux or unreadable: permissive, same policy as readAvailableGiB.
+    return Number.POSITIVE_INFINITY;
+  }
+}
+
 function listTestContainers(): readonly string[] {
   try {
     const out = execFileSync('docker', ['ps', '--format', '{{.Names}}'], {
@@ -90,6 +111,7 @@ function snapshotHost(): HostSnapshot {
     load1,
     cores: cpus().length,
     availableGiB: readAvailableGiB(),
+    availableDiskGiB: readAvailableDiskGiB(),
     testContainerNames: listTestContainers(),
     ownContainerName: ownContainerName(),
   };

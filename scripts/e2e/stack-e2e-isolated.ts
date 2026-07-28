@@ -14,6 +14,10 @@
 // contract test imports the pure parts without spawning docker/playwright.
 import { spawnSync } from 'node:child_process';
 import { identityFor, type ComposeIdentity } from '../compose-identity.ts';
+import { homedir } from 'node:os';
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { resolveGateLockPath, buildFlockArgs } from '../host-gate.ts';
 
 export interface E2EEnv {
   readonly E2E_BASE_URL: string;
@@ -53,6 +57,68 @@ export function browserE2EReadiness(id: ComposeIdentity): readonly string[] {
   return [env.E2E_API_URL + '/health/ready', env.E2E_BASE_URL];
 }
 
+// ---- host-lock enrollment (pure planners) ----
+//
+// gate:integration has queued behind a host-wide flock since fab24dd, and
+// 742e1f7 unified it with the pre-push coverage hook on one inode. This
+// runner was never enrolled, yet it is the heaviest consumer on the host:
+// seven containers plus a --no-cache rebuild of two app images. The two
+// guarded gates queued for each other while the biggest one barged through,
+// so a sibling worktree could still starve a run that had done everything
+// right. Sharing the SAME resolver guarantees the same inode -- a second
+// path would silently mean no exclusion at all.
+//
+// flock(1) holds the lock for the lifetime of a CHILD process, so a script
+// cannot wrap its own already-running body. It re-executes ITSELF under
+// flock instead; this sentinel stops that recursing forever.
+export const HOST_LOCK_ENV = 'FLEET_HOST_LOCK_HELD';
+
+// Queue budget. Matches gate:integration: long enough to outlast a genuine
+// sibling run, short enough that a wedged host fails loudly overnight
+// instead of hanging in silence.
+// One isolated E2E stack runs about 25 minutes (seven containers plus a
+// --no-cache rebuild of two app images), so several legitimately queued
+// siblings exceed an hour with nothing wrong. gate:integration budget of
+// 3600s was sized for a minutes-long gate and timed this runner out live
+// after waiting behind a single sibling. Four sibling runs is the budget.
+export const HOST_LOCK_WAIT_SECONDS = 4 * 25 * 60;
+
+export function shouldTakeHostLock(env: Readonly<Record<string, string | undefined>>): boolean {
+  return env[HOST_LOCK_ENV] !== '1';
+}
+
+// Rebuild THIS invocation verbatim under flock: the interpreter and script
+// path from execArgv, plus the caller spec arguments. Losing the arguments
+// here would silently widen a targeted run into the whole suite.
+// flock(1) exits 1 on -w timeout and writes NOTHING, so a queued-out run is
+// indistinguishable from a failing suite. Observed live: a sibling gate held
+// the lock, this runner waited the whole budget and died silent after an
+// hour. host-gate exists to replace uninterpretable runs with actionable
+// ones, so the timeout has to name itself.
+export function isLockTimeoutExit(code: number, lockWasTaken: boolean): boolean {
+  return lockWasTaken && code === 1;
+}
+
+export function hostLockTimeoutMessage(lockPath: string, waitSeconds: number): string {
+  return (
+    '[isolated-e2e] timed out after ' + String(waitSeconds) +
+    's waiting for the host lock ' + lockPath + '.' +
+    String.fromCharCode(10) +
+    'A sibling worktree still holds it. This is a HOST condition, not a test' +
+    ' failure: nothing in this branch is broken.' + String.fromCharCode(10) +
+    'Inspect the holder with: lslocks | grep gate.lock' + String.fromCharCode(10)
+  );
+}
+
+export function selfUnderLockCommand(
+  lockPath: string,
+  argv0: readonly string[],
+  passthrough: readonly string[],
+): readonly string[] {
+  const inner = [...argv0, ...passthrough];
+  return ['flock', ...buildFlockArgs(lockPath, HOST_LOCK_WAIT_SECONDS, inner)];
+}
+
 // ---- side-effecting entrypoint (never imported by the contract test) ----
 function sh(cmd: string, args: readonly string[], env?: NodeJS.ProcessEnv): number {
   const r = spawnSync(cmd, [...args], { stdio: 'inherit', env: env ?? process.env });
@@ -64,6 +130,33 @@ function composeArgs(project: string, rest: readonly string[]): readonly string[
 }
 
 function mainIsolatedE2E(): number {
+  // Take the host lock BEFORE any docker work, by re-executing under flock.
+  // The lock dir is created first: flock OPENS the file and will not create
+  // missing parents (the da1257f fix, same reasoning).
+  if (shouldTakeHostLock(process.env)) {
+    const lockPath = resolveGateLockPath(process.env, homedir());
+    mkdirSync(dirname(lockPath), { recursive: true });
+    // Re-enter through pnpm exec tsx, NOT process.execPath: this runner is a
+    // TypeScript file and bare node cannot load it. The same invocation form
+    // this script already uses for compose-identity and ops-web-runner.
+    const cmd = selfUnderLockCommand(
+      lockPath,
+      ['pnpm', 'exec', 'tsx', 'scripts/e2e/stack-e2e-isolated.ts'],
+      process.argv.slice(2),
+    );
+    process.stderr.write(
+      '[isolated-e2e] acquiring host lock ' + lockPath +
+      ' (queueing up to ' + String(HOST_LOCK_WAIT_SECONDS) + 's)' +
+      String.fromCharCode(10),
+    );
+    const head = cmd[0] ?? 'flock';
+    const code = sh(head, cmd.slice(1), { ...process.env, [HOST_LOCK_ENV]: '1' });
+    if (isLockTimeoutExit(code, true)) {
+      process.stderr.write(hostLockTimeoutMessage(lockPath, HOST_LOCK_WAIT_SECONDS));
+    }
+    return code;
+  }
+
   const id = identityFor(process.cwd());
   // Ensure THIS worktree compose identity (FLEET_COMPOSE_PROJECT + FLEET_PORT_*
   // block) is written into .env BEFORE docker compose up, so the stack publishes
