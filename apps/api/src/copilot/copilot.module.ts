@@ -5,6 +5,7 @@
 // drift in any admin/reference signature becomes a typecheck failure here,
 // never a runtime surprise.
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AdminModule } from '../admin/admin.module.js';
 import { AdminDriversListService } from '../admin/admin-drivers-list.service.js';
 import { AdminAssignmentService } from '../admin/admin-assignment.service.js';
@@ -25,10 +26,13 @@ import {
   type CopilotReferencePort,
 } from './copilot-executor.service.js';
 import { CopilotPlanExecutionStoreService } from './copilot-plan-execution.store.js';
+import { AnthropicCopilotLlmAdapter } from './anthropic-copilot-llm.adapter.js';
 import {
   COPILOT_CATALOG_PORT,
+  COPILOT_LLM_PORT,
   CopilotPlannerService,
   type CopilotCatalogPort,
+  type CopilotLlmPort,
 } from './copilot-planner.service.js';
 
 @Module({
@@ -79,6 +83,21 @@ import {
       provide: COPILOT_REFERENCE_PORT,
       useFactory: (svc: ReferenceService): CopilotReferencePort => svc,
       inject: [ReferenceService],
+    },
+    {
+      // Palette LLM port -> Claude Haiku 4.5 adapter, but ONLY when a key is
+      // configured. Absent -> null, which the planner normalizes and treats as
+      // clarify-fallback (the palette still runs its two quick actions).
+      // Fail-safe gating, mirroring the auth CHALLENGE_STORE / break-glass
+      // optional wiring.
+      provide: COPILOT_LLM_PORT,
+      useFactory: (config: ConfigService): CopilotLlmPort | null => {
+        const apiKey = config.get<string>('ANTHROPIC_API_KEY');
+        if (apiKey === undefined || apiKey.length === 0) return null;
+        const model = config.get<string>('COPILOT_LLM_MODEL') ?? 'claude-haiku-4-5';
+        return new AnthropicCopilotLlmAdapter({ apiKey, model });
+      },
+      inject: [ConfigService],
     },
   ],
 })
