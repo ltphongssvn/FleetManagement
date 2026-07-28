@@ -34,10 +34,31 @@ export const TEST_CONTAINER_PREFIX = 'fleet-pg-test-';
 export const MAX_LOAD_PER_CORE = 2.0;
 export const MIN_AVAILABLE_GIB = 2.0;
 
+// Free-disk floor. Disk was the one saturation axis this guard did not
+// measure, and it is the axis that took the host down on 2026-07-27: free
+// space reached zero, the Docker Desktop VM lost its backing disk, and every
+// docker call started failing at the EXEC layer with Input/output error --
+// the cli-tools mount had gone hollow while still listed as mounted. Load and
+// memory were healthy the whole time, so nothing here could have caught it,
+// and eighteen e2e specs reported as product failures for a full suite run.
+//
+// 10GiB is sized for what one isolated E2E stack actually consumes: a
+// --no-cache rebuild of two app images plus five service images, their
+// volumes, and Playwright traces/screenshots on retry. Below that a run can
+// still START and then die mid-build, which is the expensive failure mode.
+export const MIN_DISK_GIB = 10.0;
+
 export interface HostSnapshot {
   readonly load1: number;
   readonly cores: number;
   readonly availableGiB: number;
+  // Free space on the filesystem backing this worktree. NOTE: Docker
+  // Desktop on WSL2 keeps its images in a SEPARATE vhdx that this cannot
+  // see, so a healthy figure here does not prove the daemon has room. It is
+  // still worth measuring: the pnpm store, node_modules, build output and
+  // Playwright artifacts all land here. Non-finite or negative means
+  // UNMEASURABLE, never full (see evaluateHostReadiness).
+  readonly availableDiskGiB: number;
   // Names of currently running test containers (any worktree).
   readonly testContainerNames: readonly string[];
   // This worktree own container name, or null when it cannot be determined.
@@ -69,6 +90,20 @@ export function evaluateHostReadiness(snapshot: HostSnapshot): HostReadiness {
     problems.push(
       'only ' + snapshot.availableGiB.toFixed(1) + 'GiB available (floor ' +
       MIN_AVAILABLE_GIB.toFixed(1) + 'GiB)',
+    );
+  }
+
+  // Fail-safe on two axes at once. A JS statfs binding truncates f_bavail to
+  // 32 bits, so a filesystem with more than ~17.6TB free reports a NEGATIVE
+  // figure; read naively that is the fullest disk imaginable and this guard
+  // would block every run on precisely the roomiest hosts. Requiring a finite,
+  // non-negative reading before comparing means nonsensical is treated as
+  // unknown, matching how availableGiB already yields to an unmeasurable host.
+  const diskKnown = Number.isFinite(snapshot.availableDiskGiB) && snapshot.availableDiskGiB >= 0;
+  if (diskKnown && snapshot.availableDiskGiB < MIN_DISK_GIB) {
+    problems.push(
+      'only ' + snapshot.availableDiskGiB.toFixed(1) + 'GiB free disk (floor ' +
+        MIN_DISK_GIB.toFixed(1) + 'GiB)',
     );
   }
 
