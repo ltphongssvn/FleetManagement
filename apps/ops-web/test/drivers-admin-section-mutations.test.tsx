@@ -260,6 +260,17 @@ describe('DriversAdminSection mutations', () => {
     expect(screen.queryByRole('button', { name: /^Xóa$/ })).toBeNull();
     expect(screen.getByRole('button', { name: /Thao tác/ })).toBeInTheDocument();
   });
+  it('shows a device count suffix when a driver has more than one device', async () => {
+    const twoDevices = {
+      driverId: 'dr9', fullName: 'MULTI DEV', phone: '0900000009',
+      operatorId: 'op9', assignedVehicle: { vehicleId: 'v9', plate: '62H 08888' },
+      assignmentId: 'as9', devices: [{ deviceId: 'dev-a' }, { deviceId: 'dev-b' }],
+    } as unknown as AdminDriverRow;
+    const client = mkClient({}, [twoDevices]);
+    render(<DriversAdminSection client={client} />);
+    expect(await screen.findByText('62H 08888')).toBeInTheDocument();
+    expect(screen.getByText('Đã đăng ký (2)')).toBeInTheDocument();
+  });
   it('saves the existing phone when the field is not edited', async () => {
     const client = mkClient({}, [unassigned]);
     render(<DriversAdminSection client={client} />);
