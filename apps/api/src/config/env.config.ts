@@ -61,6 +61,18 @@ export const EnvSchema = z.object({
   KEYCLOAK_MONITOR_CLIENT_SECRET: z.string().min(1).optional(),
   BREAKGLASS_USERNAME_PREFIX: z.string().min(1).default('fleet-breakglass'),
   BREAKGLASS_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
+  // Command Palette LLM adapter (Claude Haiku 4.5 via Anthropic Messages REST).
+  // ANTHROPIC_API_KEY is optional on purpose: unset -> COPILOT_LLM_PORT stays
+  // unbound and the planner falls back to clarify (fail-safe, mirroring the
+  // KEYCLOAK_MONITOR_CLIENT_SECRET gating). Empty string (compose ${VAR:-}) is
+  // coerced to undefined so a blank interpolation reads as absent, not as a
+  // present-but-invalid key. COPILOT_LLM_MODEL is the technical best-fit default
+  // for strict-JSON + sub-600ms; env-overridable for a model A/B.
+  ANTHROPIC_API_KEY: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  COPILOT_LLM_MODEL: z.string().min(1).default('claude-haiku-4-5'),
   // Intake-lag regression guard (Jun-24 incident class): pages via Sentry
   // fatal when the OLDEST verifying manifest exceeds this age -- any break in
   // the intake loop (auth, queue, worker, relay) becomes loud within one
