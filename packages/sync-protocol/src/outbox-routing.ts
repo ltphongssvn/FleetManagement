@@ -15,6 +15,7 @@ export const OUTBOX_QUEUES = {
   EXTRACTION: 'extraction',
   ERP: 'erp',
   PROJECTIONS: 'projections',
+  ALERTS: 'alerts',
 } as const;
 export type OutboxQueueName = typeof OUTBOX_QUEUES[keyof typeof OUTBOX_QUEUES];
 /** Alias kept for routing-policy callsites; new code should use OutboxQueueName. */
@@ -46,6 +47,7 @@ const PROJECTION_AGGREGATES: ReadonlySet<string> = new Set([
  * Pilot routing rules (Day-One Pilot Plan):
  *   manifest_intake.requested      -> 'intake'
  *   manifest.committed             -> 'erp' (invoice generation)
+ *   driver_alert.requested         -> 'alerts' (T12 driver order alerts)
  *   <projection-aggregate>.*       -> 'projections'
  *   anything else                  -> unknown_aggregate / unknown_event_type
  */
@@ -64,6 +66,12 @@ export function routeOutboxRow(input: OutboxRoutingInput): OutboxRoutingDecision
   }
   if (input.aggregateType === 'manifest' && input.eventType === 'manifest.committed') {
     return { accepted: true, queueName: 'erp', policyVersion: OUTBOX_ROUTING_POLICY_VERSION };
+  }
+  if (input.aggregateType === 'driver_alert') {
+    if (input.eventType === 'driver_alert.requested') {
+      return { accepted: true, queueName: 'alerts', policyVersion: OUTBOX_ROUTING_POLICY_VERSION };
+    }
+    return { accepted: false, rejectionCode: 'unknown_event_type', policyVersion: OUTBOX_ROUTING_POLICY_VERSION };
   }
   if (PROJECTION_AGGREGATES.has(input.aggregateType)) {
     return { accepted: true, queueName: 'projections', policyVersion: OUTBOX_ROUTING_POLICY_VERSION };

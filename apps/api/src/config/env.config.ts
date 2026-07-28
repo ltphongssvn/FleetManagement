@@ -61,11 +61,28 @@ export const EnvSchema = z.object({
   KEYCLOAK_MONITOR_CLIENT_SECRET: z.string().min(1).optional(),
   BREAKGLASS_USERNAME_PREFIX: z.string().min(1).default('fleet-breakglass'),
   BREAKGLASS_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
+  // Command Palette LLM adapter (Claude Haiku 4.5 via Anthropic Messages REST).
+  // ANTHROPIC_API_KEY is optional on purpose: unset -> COPILOT_LLM_PORT stays
+  // unbound and the planner falls back to clarify (fail-safe, mirroring the
+  // KEYCLOAK_MONITOR_CLIENT_SECRET gating). Empty string (compose ${VAR:-}) is
+  // coerced to undefined so a blank interpolation reads as absent, not as a
+  // present-but-invalid key. COPILOT_LLM_MODEL is the technical best-fit default
+  // for strict-JSON + sub-600ms; env-overridable for a model A/B.
+  ANTHROPIC_API_KEY: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  COPILOT_LLM_MODEL: z.string().min(1).default('claude-haiku-4-5'),
   // Intake-lag regression guard (Jun-24 incident class): pages via Sentry
   // fatal when the OLDEST verifying manifest exceeds this age -- any break in
   // the intake loop (auth, queue, worker, relay) becomes loud within one
   // threshold window instead of silently stranding uploads for weeks.
   INTAKE_LAG_ALERT_MINUTES: z.coerce.number().int().positive().default(30),
+  // Driver-alert-lag guard (T12 driver-order-alerts): pages via Sentry fatal
+  // when a driver_alert outbox row dead-letters (permanent miss) or stays
+  // pending/failed past this age (stuck relay/queue/consumer). Tighter than
+  // the intake threshold because a missed 4AM alert = a missed truck run.
+  DRIVER_ALERT_LAG_MINUTES: z.coerce.number().int().positive().default(15),
   // Intake self-healing reconciler (2026 level-based recovery loop). Every
   // tick it re-emits the compensating intake job for verifying manifests
   // older than AFTER_MINUTES (set below the lag ALERT threshold so auto-heal
@@ -78,6 +95,16 @@ export const EnvSchema = z.object({
   INTAKE_RECONCILE_AFTER_MINUTES: z.coerce.number().int().positive().default(15),
   INTAKE_RECONCILE_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
   INTAKE_RECONCILE_BATCH_SIZE: z.coerce.number().int().positive().default(25),
+  // Completion-reconciler proactive monitor (T16 stranded-delivery guard, PR
+  // #297 class). Pages via Sentry fatal when the OLDEST delivered-but-non-
+  // terminal road_run (all stop photos committed, gate parity) has been
+  // started longer than ALERT_MINUTES -- so a future recurrence of the
+  // XTT.07-019/020 strand (order stuck in Dang chay after a late intake
+  // commit) becomes loud within one threshold window instead of stranding
+  // silently. ENABLED gates the scheduler tick; unset -> ON (loud-by-default
+  // is the safe production posture, mirroring INTAKE_RECONCILE_ENABLED).
+  COMPLETION_MONITOR_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  COMPLETION_STRANDED_ALERT_MINUTES: z.coerce.number().int().positive().default(30),
   // Completion self-healing reconciler (2026 level-based recovery loop,
   // sibling of the intake reconciler). Every tick it finds non-terminal
   // road_runs whose linked orders are ALL photo-committed (the same

@@ -14,8 +14,20 @@
 //       PRESERVE-* or E2E-T4-FRESH-* rows. Industry-standard 2026 pattern:
 //       self-contained scenarios with try/finally cleanup + post-suite
 //       assertion that the database is clean.
+//
+// 2026-07-23 root fix: this spec used to carry its OWN copy of
+// mintDispatcherToken that hardcoded the container name 'fleet-pilot-api-1'
+// and validated the response with a bare out.includes('.') check. Under the
+// isolated per-worktree stack (compose project fleet-<hash>) that literal name
+// does not exist, so every run failed with "No such container". The copy was
+// the drift source: helpers/auth.ts already exports a correct minter that
+// resolves the container from E2E_API_CONTAINER and parses the response
+// through TokenResponseSchema. The duplicate is deleted; this file now imports
+// the single source of truth, and the wipe call goes through dockerExecApiNode
+// so it resolves the same way.
 import { test, expect, type APIRequestContext } from '@playwright/test';
-import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
+import { dockerPsql, dockerExecApiNode } from './helpers/docker-exec';
+import { mintDispatcherToken } from './helpers/auth';
 import { z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, CreateTransportOrderResponseSchema } from './helpers/contracts';
 
@@ -25,18 +37,6 @@ const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 function currentMonth2(): string {
   const m = new Date().getUTCMonth() + 1;
   return m.toString().padStart(2, '0');
-}
-
-function mintDispatcherToken(): string {
-  const script =
-    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
-    ',{method:' + JSON.stringify('POST') +
-    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-    ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
-    '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
-  const out = dockerExecNode('fleet-pilot-api-1', script);
-  if (!out.includes('.')) throw new Error('Token mint failed: ' + out);
-  return out.trim();
 }
 
 async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
@@ -132,16 +132,16 @@ test.describe('dispatch fresh start after wipe (T4) @serial', () => {
       const preDrv = await adminPost(
         request, preToken, '/admin/drivers',
         { fullName: 'PRESERVE DRIVER T4 ' + String(preTs) + '-' + preRand, phone: '08' + String(preTs).slice(-8), password: 'e2e-pass-1234' }, // pragma: allowlist secret
-    CreateDriverResponseSchema,
-  );
+        CreateDriverResponseSchema,
+      );
       seeded.driverIds.push(preDrv.driverId);
       const preVeh = await adminPost(request, preToken, '/reference/vehicles', { name: 'PRESERVE-VEH-' + preRand }, ReferenceItemSchema);
       seeded.vehicleIds.push(preVeh.id);
       const prePair = await adminPost(
         request, preToken, '/admin/driver-vehicle-assignments',
         { driverId: preDrv.driverId, vehicleId: preVeh.id },
-    AssignmentResponseSchema,
-  );
+        AssignmentResponseSchema,
+      );
       seeded.pairIds.push(prePair.assignmentId);
       const preCust = await adminPost(request, preToken, '/reference/customers', { name: 'PRESERVE-CUST-' + preRand }, ReferenceItemSchema);
       seeded.customerIds.push(preCust.id);
@@ -164,8 +164,7 @@ test.describe('dispatch fresh start after wipe (T4) @serial', () => {
       expect(Number(pairsBefore)).toBeGreaterThan(0);
 
       // ---- Run the wipe via the production wipeBusinessData() module ----
-      const wipeOut = dockerExecNode(
-        'fleet-pilot-api-1',
+      const wipeOut = dockerExecApiNode(
         'import(' + JSON.stringify('./dist/maintenance/wipe-business-data.js') + ').then(m=>m.wipeBusinessData(require(' + JSON.stringify('drizzle-orm/node-postgres') + ').drizzle(new (require(' + JSON.stringify('pg') + ').Pool)({connectionString:process.env.DATABASE_URL}))),{environment:' + JSON.stringify('production') + ',authorization:{confirmedEnvironment:' + JSON.stringify('production') + ',reason:' + JSON.stringify('e2e T4 acceptance fresh-start wipe (operator-confirmed)') + '}}).then(()=>process.stdout.write(' + JSON.stringify('WIPE-OK') + ')).catch(e=>{console.error(e);process.exit(1)})',
       );
       expect(wipeOut).toContain('WIPE-OK');
@@ -202,16 +201,16 @@ test.describe('dispatch fresh start after wipe (T4) @serial', () => {
       const postDrv = await adminPost(
         request, postToken, '/admin/drivers',
         { fullName: 'E2E DRIVER T4-FRESH ' + String(postTs) + '-' + postRand, phone: '09' + String(postTs).slice(-8), password: 'e2e-pass-1234' }, // pragma: allowlist secret
-    CreateDriverResponseSchema,
-  );
+        CreateDriverResponseSchema,
+      );
       seeded.driverIds.push(postDrv.driverId);
       const postVeh = await adminPost(request, postToken, '/reference/vehicles', { name: 'E2E-T4-FRESH-' + postRand }, ReferenceItemSchema);
       seeded.vehicleIds.push(postVeh.id);
       const postPair = await adminPost(
         request, postToken, '/admin/driver-vehicle-assignments',
         { driverId: postDrv.driverId, vehicleId: postVeh.id },
-    AssignmentResponseSchema,
-  );
+        AssignmentResponseSchema,
+      );
       seeded.pairIds.push(postPair.assignmentId);
 
       // INVARIANT 3 (sequence reset): first create after wipe MUST be XTT.MM-001.
@@ -221,8 +220,8 @@ test.describe('dispatch fresh start after wipe (T4) @serial', () => {
           stops: [{ sequence: 1, stopType: 'pickup' }],
           roadRun: { assignedOperatorId: postDrv.operatorId, assignedAssetId: postVeh.id },
         },
-    CreateTransportOrderResponseSchema,
-  );
+        CreateTransportOrderResponseSchema,
+      );
       expect(created.externalRef).toBe('XTT.' + currentMonth2() + '-001');
 
       // ---- Clean up the transport_order we just created (it's a fact row) ----

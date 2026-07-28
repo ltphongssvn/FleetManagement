@@ -140,6 +140,14 @@ export {
   type ExtractionFailureReason,
   type ExtractionResultWire,
 } from './extraction-types.js';
+
+// Leaf SSOT for the failure-reason vocabulary (extracted to break the
+// extraction-types <-> dispatch-stop-view import cycle). The array + type are
+// already re-exported above via extraction-types; the Zod SCHEMA is exported
+// here for boundary validators (api/ops-web) that parse a reason value.
+export {
+  ExtractionFailureReasonSchema,
+} from './extraction-vocabulary.js';
 export {
   exportDayKeySchema,
   type ExportDayKey,
@@ -259,6 +267,18 @@ export {
 
 // Device binding (installation identity + TOFU binding lifecycle).
 export * from './device-binding-contract.js';
+export {
+  DRIVER_ALERT_KINDS,
+  DriverAlertKindSchema,
+  type DriverAlertKind,
+  DriverAlertJobSchema,
+  type DriverAlertJob,
+  DriverAlertPushDataSchema,
+  type DriverAlertPushData,
+  DRIVER_ALERT_ANDROID_CHANNEL_ID,
+  DRIVER_ALERT_SOUND,
+  DRIVER_ALERT_VIBRATION_PATTERN,
+} from './driver-alert-contract.js';
 export {
   DRIVER_DB_STATUSES,
   driverDbStatusSchema,

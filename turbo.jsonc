@@ -121,6 +121,11 @@
       "env": ["VITEST_*", "JEST_*"],
       "outputLogs": "new-only"
     },
+    "check": {
+      "description": "Per-package composite verification aggregate: lint + typecheck + test:unit as GRAPH DEPENDENCIES (parallel where the graph allows, each individually cached), then the package check script, which is an echo MARKER ONLY. Root cause this eliminates (recurred 3+ sessions): script/task vocabulary mismatch -- packages defined a check pnpm script (pnpm lint && pnpm typecheck && pnpm test) that was never a registered turbo task, so pnpm exec turbo run check failed with Could-not-find-task (distinct from the branch-staleness cause in context/turbo-root-task-staleness-bootstrap.md). The old && composite is the documented 2026 anti-pattern (sequential, unfilterable, cache-opaque); the dependsOn graph replaces it, mirroring the __ci_fast__ orchestration-node house pattern but package-scoped and filterable. Direct in-package pnpm check verifies NOTHING by design -- the marker prints the sanctioned invocation. cache:false: the marker is zero-work; caching lives in the dependency tasks. Run: pnpm exec turbo run check --filter=@fleet/<pkg>.",
+      "dependsOn": ["lint", "typecheck", "test:unit"],
+      "cache": false
+    },
     "test:watch": {
       "description": "Fast local TDD loop (Red-Green-Refactor). Package scripts invoke 'vitest --watch' or 'jest --watch'.",
       "cache": false,
@@ -260,7 +265,7 @@
 ,
     "__ci_fast__": {
       "description": "PR gate orchestration node — lint + typecheck + test:unit + codemod drift gate. Double-underscore prevents package-script collision. Expose via root package.json script 'ci:fast' for friendly CLI. CI workflow should matrix-split (ADR-001).",
-      "dependsOn": ["lint", "typecheck", "test:unit", "//#codemod:check", "//#test:scripts"],
+      "dependsOn": ["lint", "typecheck", "test:unit", "//#codemod:check", "//#test:scripts", "//#lint:scripts", "//#guard:local-secrets"],
       "cache": false
     },
     "__ci_full__": {
@@ -282,6 +287,23 @@
       "description": "Root-level task: run the @fleet/codemods drift gate (extract-parse-one-number --check) across the worker tsconfig spanned with @fleet/domain source. Prefix '//#' ensures repo-root-only (it spans packages, so it is not a per-package task). Fails when source still has an un-migrated parseOneNumber outside @fleet/domain. Wired into __ci_fast__ so PRs fail on drift. cache:false — it is a fast in-memory AST pass with no cacheable output.",
       "cache": false
     },
+    "//#lint:scripts": {
+      "description": "Root-level task: ESLint the repo-level tooling in scripts/. Prefix //# ensures repo-root-only. Exists because the package-scoped lint task CANNOT reach scripts/: that tree belongs to no workspace package, so turbo run lint skipped it entirely and the only way to lint a root script was a bare eslint invocation -- an uncaptured, unrediscoverable op that no gate ran. Same shape as the guards being wired into a turbo node CI never invoked: the check existed in principle and nowhere in practice. Pairs with //#test:scripts (vitest) so root tooling gets the same lint+test treatment every package gets. cache:false -- a pass/fail check with no cacheable output, matching codemod:check and test:scripts. Run: pnpm exec turbo run lint:scripts.",
+      "cache": false
+    },
+    "//#lint:scripts:fix": {
+      "description": "Root-level task: ESLint --fix over scripts/. Mutates the source tree, so cache:false -- a cache replay could restore stale content. Companion to lint:scripts; local/manual invocation, never wired into a gate (a gate must verify, not rewrite). Run: pnpm exec turbo run lint:scripts:fix.",
+      "cache": false
+    },
+    "//#gate:agent": {
+      "description": "Root-level agent that runs the heavy container-backed gate under the host-wide lock and reports its verdict as DATA. Supersedes reading gate output with human eyes: turbo --summarize writes execution.exitCode, per-task hash, cache.status and cache.timeSaved to .turbo/runs, and the agent parses THAT rather than scraping stdout through head/tail, which destroyed stack traces and exit codes. Emits one NDJSON event per state transition on stdout, each carrying a W3C traceparent so a whole run correlates as one trace; narration stays on stderr. State machine is an explicit table (pending, preflight, queued, running, completed, failed, aborted) whose illegal transitions THROW, so impossible states cannot occur; host saturation routes to queued, not failed, because contention is a wait; a lock timeout routes to aborted, kept distinct from failed, so a starved run can be retried without misreporting a red build. Fails CLOSED: an unreadable summary is never a pass. The lock is a swappable LockBackend so a distributed backend can be added for multi-host CI without a rewrite. cache:false (host state). Run: pnpm exec turbo run gate:agent -- --filter=@fleet/api.",
+      "cache": false,
+      "persistent": false
+    },
+    "//#secrets:baseline": {
+      "description": "Root-level task: refresh (or audit) the tracked detect-secrets baseline that the pre-commit hook reads via --baseline .secrets.baseline. Prefix //# ensures repo-root-only: it scans the whole tree, so it belongs to no workspace package. WHY IT EXISTS: the hook blocks only findings absent from the baseline, so a branch that adds files containing credential-SHAPED but synthetic strings (randomBytes test passwords, RFC 2606 .invalid hosts, SHA-256 topology hashes, a task literally named guard:local-secrets) blocks EVERY worktree push until the baseline is refreshed -- observed 2026-07-23 when the security-guard arc landed seven scripts without regenerating it. Previously this refresh was an uncaptured CLI incantation, free to drift from the hook own flags; this task is the single definition. Scans IN PLACE with --baseline (never shell redirection, which silently discards the is_secret labels a prior audit recorded) and mirrors the hook exclude list. NOT a suppression tool: a real credential must be removed and rotated, never baselined -- run -- --audit to label each finding before committing. cache:false (mutates a tracked file, no cacheable output). Run: pnpm exec turbo run secrets:baseline [-- --audit].",
+      "cache": false
+    },
     "//#test:scripts": {
       "description": "Root-level task: run the vitest suite that covers the repo-level tooling in scripts/ (sync-worktrees, sync-develop, close-worktree, worktree-close-cli, compose-identity, db-generate, railway-reference-guard, the e2e stack drivers, the ci-minutes reconciler). Prefix //# ensures repo-root-only: these scripts belong to no workspace package (2026 Turborepo guidance is package-tasks-first; this is the carve-out for genuinely repo-spanning tooling), so a per-package task would find nothing. Runs the committed root script 'test:scripts' (vitest run scripts) verbatim -- it is NOT a second runner. Wired into __ci_fast__ so a regression in the worktree-deletion logic (which removes branches) fails the PR gate instead of merging green; before this the suite passed but the gate never executed it. cache:false -- a pass/fail check with no cacheable output, matching codemod:check.",
       "cache": false
@@ -292,8 +314,32 @@
       "persistent": false,
       "passThroughEnv": ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_URL", "GITHUB_REPOSITORY"]
     },
+    "//#pr:automerge": {
+      "description": "Root-level task: merge an open PR the instant its ruleset-required checks go green -- the fix for the pr-merged stall that pr:follow reports. Prefix //# ensures repo-root-only (it acts on the repo PR ledger, spans no package). Deliberately a synchronous poll-then-merge, NOT gh pr merge --auto: GitHub native auto-merge is unreliable when required checks come from repository RULESETS rather than classic branch protection (community #162623, open in 2026) -- --auto enables, checks go green, and the merge never fires, recreating the very stall this removes. This repo gates develop and main with rulesets (develop-protection, main-protection), so the task polls mergeStateStatus + checks and, once the ruleset is satisfied, merges synchronously via gh pr merge --merge (a true merge commit, NEVER --squash/--rebase: preserving original commit SHAs keeps the promote pipeline SHA-ancestry checks reliable). GitHub still refuses if a required check is red. When checks are green but the branch is BEHIND (the ruleset requires up to date, the common case as develop moves), it runs gh pr update-branch and re-polls rather than stalling. Contained: it acts only on the PR base (feature -> develop), never promotes develop -> main, so it cannot race promote.yml. Pure cores decideAutoMerge (precondition guard: draft/conflict/closed/idempotent) and decideMergeReady (per-poll MERGE/UPDATE/WAIT/BLOCKED, reusing pr-follow summarizeChecks incl the zero-checks confident-zero guard) are unit-tested under //#test:scripts; only the driver touches gh. Exit 0 merged/skip, 1 blocked, 3 timeout. cache:false (live network mutation, no cacheable output). Run: pnpm exec turbo run pr:automerge -- 421.",
+      "cache": false
+    },
+    "//#pr:follow": {
+      "description": "Root-level task: READ-ONLY follower that watches a merged PR through the ENTIRE autonomous chain to a live Railway deploy, and exits non-zero if it stops anywhere. Prefix //# ensures repo-root-only (it reads the repo CI ledger, spans no package). Exists because a green PR is not a shipped PR: the chain is PR checks -> merge to develop -> develop CI + E2E -> promote.yml merges develop into main -> Release -> main E2E -> Deploy to Railway (workflow_run on main E2E). Any link can stall silently, and across hundreds of PRs a stalled link is invisible until production is quietly behind; following it by hand is what strands PRs in the open list forever. DELIBERATELY NOT A PROMOTER: it never merges, promotes or dispatches, so it cannot race promote.yml. release:promote remains the manual fallback that DRIVES a promote; this only observes. Two correlation rules are baked in, both from real bugs: runs are matched by HEAD SHA and never by recency (the a006e8b race that mis-tagged a release), and the deploy run is matched by time window rather than SHA because a workflow_run-triggered run is reported against the DEFAULT branch head, not the main commit being deployed. Pure decision core (summarizeChecks, runStateFor, deployRunAfter, computeVerdict) is unit-tested under //#test:scripts; only the driver touches gh and git. Verdicts: DEPLOYED exit 0, FAILED exit 1 naming the phase, WAITING exit 2, TIMEOUT exit 3 -- so it gates a script, not just prints. cache:false (live network read, no cacheable output). Run: pnpm exec turbo run pr:follow -- 424.",
+      "cache": false,
+      "persistent": false
+    },
     "//#inspect:prod-deploy": {
       "description": "Root-level task: READ-ONLY diagnostic answering whether a fix commit is actually RUNNING in a given live deploy and whether it is PROMOTED to the base branch. Prefix //# ensures repo-root-only (it reads the git/deploy ledger, spans no package). Pure git ancestry: fix-in-base (promoted?), fix-in-live (running?), base-ahead-of-live count. Verdict EFFECTIVE / REDEPLOY-NEEDED / NOT-PROMOTED with NON-ZERO exit unless EFFECTIVE, so it gates scripts and CI, not just prints. Always emits a RAILWAY MANUAL CHECK line for the one fact git cannot prove -- whether the container was BUILT after a required build var existed. Token-free (local git only): no passThroughEnv. cache:false (live git read, no cacheable output). Run: pnpm exec turbo run inspect:prod-deploy -- --live <sha> --fix <sha> [--base <ref>].",
+      "cache": false,
+      "persistent": false
+    },
+    "//#prod:db-url": {
+      "description": "Root-level task: print the CURRENT production Postgres DSN, read LIVE from Railway (the single system of record) at call time. Prefix //# ensures repo-root-only (it spans no package). Exists to kill a recurring class of failure: operators pasted a PROD_DATABASE_URL literal into a local .env, prod credentials rotated, the copy went stale, and every prod-ops task (audit:*, inspect:*, projection:rebuild, repair:*) failed authentication with an opaque error. A stored copy is a SECOND system of record and always rots; re-pasting is a treadmill. This is the local-ops mirror of guard:railway-references, which forbids the same literal-vs-reference anti-pattern in Railway service variables. ONLY the DSN goes to stdout (diagnostics to stderr) so it composes via command substitution. Retries transient Railway API errors; fails immediately on auth/linkage errors -- there is no safe fallback for a prod DSN. cache:false (live network read, no cacheable output). Run: DATABASE_URL=$(pnpm prod:db-url) pnpm exec turbo run audit:assignment-uniqueness --filter=@fleet/api.",
+      "cache": false,
+      "persistent": false
+    },
+    "//#guard:local-secrets": {
+      "description": "Root-level task: fail when a PRODUCTION credential literal sits in a local env file (.env, .env.local, .env.production, .env.prod). Prefix //# ensures repo-root-only. Covers a genuine blind spot rather than duplicating existing protection: pre-commit check-env-files blocks COMMITTING a .env and detect-secrets scans STAGED content, but a local .env is untracked BY DESIGN so neither ever inspects it -- which is exactly how a stale PROD_DATABASE_URL sat undetected until prod rotated. Only PROD/PRODUCTION-scoped variable names holding an inline-credential URL are flagged, so an ordinary local docker-compose DATABASE_URL stays legitimate. Reports file, line and variable NAME only, never the value. Exit 1 on violation, 2 on tooling error. cache:false (reads working-tree state outside the task graph). Run: pnpm exec turbo run guard:local-secrets.",
+      "cache": false,
+      "persistent": false
+    },
+    "//#guard:local-secrets:baseline": {
+      "description": "Root-level task: regenerate scripts/local-secret-guard.config.json, the SHA-256 hashes of production hostnames that must never appear in tracked source. Prefix //# ensures repo-root-only. The hash is DERIVED AT RUNTIME from the live Railway value via the same resolver the ops tasks use, so the plaintext hostname is never typed into a tracked file -- a guard whose own config leaked the topology it protects would be self-defeating. Mirrors the hashed_secret field in .secrets.baseline. Reports a hash prefix only, never the hostname. cache:false (live network read). Run: pnpm exec turbo run guard:local-secrets:baseline.",
       "cache": false,
       "persistent": false
     },
@@ -307,6 +353,10 @@
     },
     "//#bump:pnpm": {
       "description": "Root-level task: bump the corepack-pinned pnpm version for the whole repo via corepack use pnpm@<version|latest> -- resolves the version and rewrites the packageManager pin + sha512 in package.json itself (2026 canonical; never pnpm add -g, which fails on this box because the global bin dir is not on PATH and would only mutate one machine anyway). Script refuses on a dirty tree so the pin change is always an isolated, reviewable commit. Prefix //# ensures repo-root-only. cache:false (side-effecting, network-resolving). Run: pnpm exec turbo run bump:pnpm [-- <version>].",
+      "cache": false
+    },
+    "//#bump:turbo": {
+      "description": "Root-level task: bump the turbo devDependency version for the whole repo. Unlike bump:pnpm (which drives the corepack packageManager pin), turbo is an ordinary devDependency, so the correct bump is a spec rewrite in package.json plus a lockfile update -- not corepack use. The pure decision core (scripts/bump-turbo.ts planTurboBump) preserves the range operator (^, ~, or exact) and refuses a non-semver target; the thin driver refuses on a dirty tree so the bump is always an isolated, reviewable commit, then runs pnpm install --lockfile-only. Replaces the uncaptured hand-edit + bare pnpm install idiom that drifted (wrong range, forgotten lockfile, no runtime verification). Prefix //# ensures repo-root-only. cache:false (side-effecting, network-resolving). Run: pnpm exec turbo run bump:turbo -- <version>.",
       "cache": false
     },
     "//#worktree:close": {

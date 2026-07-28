@@ -8,7 +8,7 @@
 // with tx works without any inner-savepoint concerns.
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { ExpoPushProvider, defaultExpoClient, type ExpoLike } from '../src/push/expo-push-provider.js';
+import { ExpoPushProvider, defaultExpoClient, DRIVER_ALERT_ANDROID_CHANNEL_ID, DRIVER_ALERT_SOUND, DRIVER_ALERT_VIBRATION_PATTERN, type ExpoLike } from '../src/push/expo-push-provider.js';
 import { Expo } from 'expo-server-sdk';
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
 import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
@@ -99,6 +99,21 @@ describe('@fleet/api - ExpoPushProvider (integration)', () => {
       expect(r.accepted).toBe(1);
     });
   });
+  it("sets critical-delivery fields on every message: high priority, transport-orders channel, time-sensitive iOS level, custom sound (4AM wake reliability)", async () => {
+    await withTxIsolation(testDb, async (tx) => {
+      await seedTokens(tx, [VALID_TOKEN]);
+      const expo = fakeExpo({ ticketStatuses: ["ok"] });
+      const calls = (expo.sendPushNotificationsAsync as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+      const p = new ExpoPushProvider(tx as never, expo);
+      await p.sendToOperator(OPERATOR_ID, { title: "t", body: "b" });
+      const sent = calls[0]?.[0] as Record<string, unknown>[];
+      const msg = sent[0] ?? {};
+      expect(msg['priority']).toBe("high");
+      expect(msg['channelId']).toBe("transport-orders-v1");
+      expect(msg['interruptionLevel']).toBe("time-sensitive");
+      expect(msg['sound']).toBe("transport_alert.wav");
+    });
+  });
   it('attaches body.data to the Expo message when provided (covers line 55 branch)', async () => {
     await withTxIsolation(testDb, async (tx) => {
       await seedTokens(tx, [VALID_TOKEN]);
@@ -162,5 +177,20 @@ describe('@fleet/api - defaultExpoClient', () => {
     } finally {
       sendSpy.mockRestore();
     }
+  });
+});
+
+describe("@fleet/api - driver alert channel contract constants", () => {
+  it("exports the versioned Android channel id", () => {
+    expect(DRIVER_ALERT_ANDROID_CHANNEL_ID).toBe("transport-orders-v1");
+  });
+  it("exports the custom alarm sound filename", () => {
+    expect(DRIVER_ALERT_SOUND).toBe("transport_alert.wav");
+  });
+  it("exports a strong vibration pattern as [wait, buzz, ...] ms pairs, distinct from ordinary notifications", () => {
+    expect(Array.isArray(DRIVER_ALERT_VIBRATION_PATTERN)).toBe(true);
+    expect(DRIVER_ALERT_VIBRATION_PATTERN.length).toBeGreaterThanOrEqual(4);
+    expect(DRIVER_ALERT_VIBRATION_PATTERN.every((n) => Number.isInteger(n) && n >= 0)).toBe(true);
+    expect(Math.max(...DRIVER_ALERT_VIBRATION_PATTERN)).toBeGreaterThanOrEqual(400);
   });
 });

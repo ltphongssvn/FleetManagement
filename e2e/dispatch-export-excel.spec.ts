@@ -23,6 +23,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { execSync } from 'node:child_process';
 import { loginAs } from './helpers/auth';
+import { waitForBoardReady } from './helpers/create-order';
 const POSTGRES_CONTAINER = process.env['E2E_PG_CONTAINER'] ?? 'fleet-pilot-postgres-1';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 const DISPATCHER_OPERATOR_ID = '00000000-0000-0000-0000-0000000000aa';
@@ -76,7 +77,7 @@ test.describe('dispatch export-excel backup chain (L1-L5)', () => {
   test('L1+L2+L3: manual export button downloads .xlsx with Vietnamese headers', async ({ page }) => {
     await loginAsDispatcher(page);
     await page.goto('/');
-    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
+    await waitForBoardReady(page);
     const downloadPromise = page.waitForEvent('download');
     await page.getByRole('button', { name: /xu.t excel/i }).click();
     const download = await downloadPromise;
@@ -89,7 +90,7 @@ test.describe('dispatch export-excel backup chain (L1-L5)', () => {
     const before = countExportLog(DISPATCHER_OPERATOR_ID, 'manual', todayKeyVnTz());
     await loginAsDispatcher(page);
     await page.goto('/');
-    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
+    await waitForBoardReady(page);
     const dl = page.waitForEvent('download');
     await page.getByRole('button', { name: /xu.t excel/i }).click();
     await dl;
@@ -102,7 +103,7 @@ test.describe('dispatch export-excel backup chain (L1-L5)', () => {
     // day is a no-op (idempotent), so row count must remain unchanged.
     await loginAsDispatcher(page);
     await page.goto('/');
-    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
+    await waitForBoardReady(page);
     await page.getByRole('main').getByRole('button', { name: /đăng xuất|log ?out|sign out/i }).click();
     await page.waitForURL(/\/login/);
     const afterFirst = await waitForExportLogAtLeast(DISPATCHER_OPERATOR_ID, 'logout', dayKey, 1);
@@ -110,7 +111,7 @@ test.describe('dispatch export-excel backup chain (L1-L5)', () => {
     await context.clearCookies();
     await loginAsDispatcher(page);
     await page.goto('/');
-    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
+    await waitForBoardReady(page);
     await page.getByRole('main').getByRole('button', { name: /đăng xuất|log ?out|sign out/i }).click();
     await page.waitForURL(/\/login/);
     const afterSecond = countExportLog(DISPATCHER_OPERATOR_ID, 'logout', dayKey);

@@ -6,7 +6,7 @@
   "main": "expo-router/entry",
   "scripts": {
     "android": "expo run:android",
-    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "check": "echo check is a turbo aggregate task -- run: pnpm exec turbo run check --filter=@fleet/owner-app",
     "clean": "rimraf .expo dist .turbo coverage",
     "eas-build-pre-install": "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @fleet/observability --filter @fleet/sync-protocol --filter @fleet/domain build",
     "ios": "expo run:ios",

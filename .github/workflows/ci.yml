@@ -462,6 +462,79 @@ jobs:
         run: pnpm -r --if-present --filter='!@fleet/api' test:coverage
 
   # ---------------------------------------------------------------------------
+  # Repository-level SECURITY CONTROL, enforced as a boundary rather than a
+  # report. It runs BEFORE a change can merge, and a violation FAILS THE BUILD --
+  # it does not merely describe a problem after the fact.
+  #
+  # Why it is a separate job and not a step inside setup: it must surface as its
+  # own named check so the branch ruleset can require it, and so a security
+  # rejection is never buried in build output.
+  #
+  # Why it exists at all: the guards were previously wired only into the
+  # __ci_fast__ turbo node, which THIS WORKFLOW NEVER INVOKES. The root scripts/
+  # tree belongs to no workspace package, so other-tests (pnpm -r ... test:coverage)
+  # never reaches it either. The protection was therefore real locally and absent
+  # remotely -- a human expectation, not an enforceable rule. This job closes that
+  # gap: a pull request carrying a production credential or production topology
+  # cannot pass CI.
+  #
+  # What it blocks:
+  #   * production credential literals in local env files (untracked by design, so
+  #     pre-commit check-env-files and detect-secrets never inspect them);
+  #   * production hostnames / infrastructure topology anywhere in TRACKED source,
+  #     matched by SHA-256 hash so the guard config never stores the forbidden
+  #     host in plaintext;
+  #   * regressions in the guards themselves (test:scripts covers both guards plus
+  #     every other root script).
+  security-guards:
+    name: Security guards (secrets + prod topology)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          fetch-tags: false
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Get pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Cache pnpm store
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # The guard is the BOUNDARY: non-zero exit fails this job, which fails the
+      # PR. Runs before any deployment job could ever be reached.
+      - name: Secret + production-topology guard
+        run: pnpm run guard:local-secrets
+      # The guards are only trustworthy if their own logic is verified. This also
+      # covers destructive-operation and authorization guard tests that live in
+      # root scripts/, which no other job in this workflow executes.
+      - name: Guard unit tests (root scripts)
+        run: pnpm run test:scripts
+      # Root scripts/ belongs to no workspace package, so the package-scoped lint
+      # task never reached it and this tooling went unlinted for the life of the
+      # repo. It is now bound to scripts/tsconfig.json and type-aware linted like
+      # any package (--max-warnings=0), which is what the security guards
+      # themselves are written in.
+      - name: Lint root scripts
+        run: pnpm run lint:scripts
+
+  # ---------------------------------------------------------------------------
   # On a green CI run for a develop push, explicitly dispatch the promote
   # workflow. This replaces promote.yml's old workflow_run trigger (which would
   # launch-then-skip on every unrelated completion). A workflow_dispatch fired
@@ -471,7 +544,10 @@ jobs:
   # so dispatching from each independently is safe.
   dispatch-promote:
     name: Dispatch promote (develop, on success)
-    needs: [setup, api-tests, coverage-gate, other-tests]
+    # security-guards is included deliberately: without it a develop push could
+    # promote to PRODUCTION while the secret/topology guard is still running or
+    # failing, which would defeat the point of having a boundary at all.
+    needs: [setup, api-tests, coverage-gate, other-tests, security-guards]
     if: >-
       success() &&
       github.event_name == 'push' &&

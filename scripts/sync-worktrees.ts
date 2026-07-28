@@ -61,13 +61,41 @@ export function classify(s: WorktreeState): Action {
 }
 
 // ------------------------------ SHELL (impure) -----------------------------
+// execFileSync has NO timeout by default: a hung child (a git push stalled on
+// network or an auth prompt for a large no-upstream branch) blocks the event
+// loop FOREVER -- the observed 4h17m wedge after auto-push of no-upstream
+// branches was added. Every git subprocess therefore gets a bounded timeout +
+// SIGTERM killSignal so a stuck call is killed and surfaces as a throw, which
+// the per-worktree try/catch downgrades to blocked{error}. Read-only commands
+// get a short cap; network commands (push/fetch/pull/clone/ls-remote) get a
+// generous-but-finite cap.
+export const GIT_READ_TIMEOUT_MS = 30_000;
+export const GIT_NETWORK_TIMEOUT_MS = 120_000;
+const GIT_NETWORK_VERBS = new Set(['push', 'fetch', 'pull', 'clone', 'ls-remote']);
+export interface GitExecOptions {
+  cwd?: string;
+  encoding: 'utf8';
+  stdio: ['ignore', 'pipe', 'pipe'];
+  timeout: number;
+  killSignal: 'SIGTERM';
+}
+// Pure: maps a git argv (+ optional cwd) to the execFileSync options, choosing
+// the timeout by whether the first arg is a network verb. Exported for unit test.
+export function gitExecOptions(args: string[], cwd?: string): GitExecOptions {
+  const verb = args[0] ?? '';
+  const timeout = GIT_NETWORK_VERBS.has(verb) ? GIT_NETWORK_TIMEOUT_MS : GIT_READ_TIMEOUT_MS;
+  const base: GitExecOptions = {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout,
+    killSignal: 'SIGTERM',
+  };
+  return cwd === undefined ? base : { ...base, cwd };
+}
+
 function git(args: string[], opts: { cwd?: string; allowFail?: boolean } = {}): string {
   try {
-    return execFileSync("git", args, {
-      cwd: opts.cwd,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
+    return execFileSync("git", args, gitExecOptions(args, opts.cwd)).trim();
   } catch (err) {
     if (opts.allowFail) return '';
     throw err;
@@ -128,9 +156,9 @@ function label(wt: Worktree): string {
 interface Tally { ff: number; synced: number; ahead: number; published: number; tracked: number; blocked: number; detached: number }
 
 function runAction(wt: Worktree, act: Action, dryRun: boolean, t: Tally): void {
-  const w = (s: string) => process.stdout.write(s + String.fromCharCode(10));
-  const e = (s: string) => process.stderr.write(s + String.fromCharCode(10));
-  const tag = (c: string, s: string) => c + s + C.reset;
+  const w = (s: string): void => { process.stdout.write(s + String.fromCharCode(10)); };
+  const e = (s: string): void => { process.stderr.write(s + String.fromCharCode(10)); };
+  const tag = (c: string, s: string): string => c + s + C.reset;
   const DRY = dryRun ? C.dim + " [dry-run]" + C.reset : '';
   switch (act.kind) {
     case "detached":
@@ -138,10 +166,10 @@ function runAction(wt: Worktree, act: Action, dryRun: boolean, t: Tally): void {
     case "synced":
       w(tag(C.green, "sync") + "   " + label(wt) + " (up to date)"); t.synced++; return;
     case "ahead":
-      w(tag(C.yellow, "ahead") + "  " + label(wt) + " (" + act.ahead + " ahead of remote; nothing to pull)"); t.ahead++; return;
+      w(tag(C.yellow, "ahead") + "  " + label(wt) + " (" + String(act.ahead) + " ahead of remote; nothing to pull)"); t.ahead++; return;
     case "ff":
       if (!dryRun) git(["merge", "--ff-only", "@{u}"], { cwd: wt.path });
-      w(tag(C.green, "ff") + "     " + label(wt) + " (" + act.behind + " behind -> fast-forwarded)" + DRY); t.ff++; return;
+      w(tag(C.green, "ff") + "     " + label(wt) + " (" + String(act.behind) + " behind -> fast-forwarded)" + DRY); t.ff++; return;
     case "publish":
       if (!dryRun) git(["push", "-u", "origin", act.branch], { cwd: wt.path });
       w(tag(C.green, "pub") + "    " + label(wt) + " (published + tracking origin/" + act.branch + ")" + DRY); t.published++; return;
@@ -150,8 +178,8 @@ function runAction(wt: Worktree, act: Action, dryRun: boolean, t: Tally): void {
       w(tag(C.green, "track") + "  " + label(wt) + " (set upstream -> origin/" + act.branch + ")" + DRY); t.tracked++; return;
     case "blocked": {
       const why = act.reason === "dirty"
-        ? "uncommitted changes block fast-forward (" + act.behind + " behind) -- commit or stash"
-        : "DIVERGED: " + act.ahead + " ahead AND " + act.behind + " behind -- refusing to auto-reconcile";
+        ? "uncommitted changes block fast-forward (" + String(act.behind) + " behind) -- commit or stash"
+        : "DIVERGED: " + String(act.ahead) + " ahead AND " + String(act.behind) + " behind -- refusing to auto-reconcile";
       e(tag(C.red, "BLOCK") + "  " + label(wt) + " (" + why + ")"); t.blocked++; return;
     }
   }
@@ -167,16 +195,18 @@ export function main(argv: string[] = process.argv.slice(2)): number {
       runAction(wt, classify(observe(wt)), dryRun, t);
     } catch (err) {
       t.blocked++;
-      const msg = err instanceof Error ? err.message.split(String.fromCharCode(10))[0] : String(err);
+      // split() is indexed, so under noUncheckedIndexedAccess the first element is
+      // string | undefined even though a split always yields at least one entry.
+      const msg = err instanceof Error ? (err.message.split(String.fromCharCode(10))[0] ?? err.message) : String(err);
       process.stderr.write(C.red + "BLOCK" + C.reset + "  " + label(wt) + " (" + msg + ")" + String.fromCharCode(10));
     }
   }
   process.stdout.write(
     String.fromCharCode(10) + C.dim + "Summary:" + C.reset + " " +
-      C.green + t.ff + " ff" + C.reset + ", " + t.synced + " synced" + ", " +
-      t.published + " published" + ", " + t.tracked + " tracked" + ", " +
-      t.ahead + " ahead" + ", " + t.detached + " detached" + ", " +
-      (t.blocked > 0 ? C.red : C.dim) + t.blocked + " blocked" + C.reset + String.fromCharCode(10),
+      C.green + String(t.ff) + " ff" + C.reset + ", " + String(t.synced) + " synced" + ", " +
+      String(t.published) + " published" + ", " + String(t.tracked) + " tracked" + ", " +
+      String(t.ahead) + " ahead" + ", " + String(t.detached) + " detached" + ", " +
+      (t.blocked > 0 ? C.red : C.dim) + String(t.blocked) + " blocked" + C.reset + String.fromCharCode(10),
   );
   return t.blocked > 0 ? 1 : 0;
 }

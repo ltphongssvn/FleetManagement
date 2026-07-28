@@ -10,6 +10,19 @@ RUN pnpm install --frozen-lockfile && \
     pnpm --filter=@fleet/api deploy --prod --no-optional --legacy /tmp/api-deploy
 FROM node:22-alpine
 WORKDIR /app
+# Build-info provenance is NOT set here, deliberately.
+#
+# This block previously declared ARG RAILWAY_GIT_COMMIT_SHA and set ENV GIT_SHA
+# from it (twice, an accidental duplicate). It could never work: this service
+# runs in Railway CLI-ONLY mode, with no repo connected, so Railway never
+# injects its git variables. Docker substitutes an unpassed ARG with the EMPTY
+# STRING, so the image shipped a blank GIT_SHA that then SHADOWED any runtime
+# value, and /health/version answered unknown in production indefinitely.
+#
+# GIT_SHA, GIT_BRANCH and BUILD_TIME are now stamped as Railway SERVICE
+# VARIABLES by the deploy workflow, which already knows the exact deployed
+# commit, and are read from process.env per request. See scripts/ci/
+# deploy-stamp.ts and .github/workflows/railway-deploy.yml.
 COPY --from=builder /tmp/api-deploy /app
 COPY --from=builder /repo/apps/api/dist /app/dist
 COPY --from=builder /repo/apps/api/src/database/migrations /app/dist/database/migrations
