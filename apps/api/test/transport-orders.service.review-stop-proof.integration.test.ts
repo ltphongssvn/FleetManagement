@@ -147,4 +147,66 @@ describe('@fleet/api - findByCompanyIdOrRef stop proof (review parity with the b
     });
     expect(deliveryProof).toBeNull();
   });
+
+  it('falls back to a captured time and a null weight when the manifest carries neither, and keeps the FIRST committed photo when a stop has several', async () => {
+    let proofCount: number | undefined;
+    let capturedAt: string | undefined;
+    let kg: number | null | undefined;
+    let photoUrl: string | undefined;
+    await withTxIsolation(testDb, async (tx) => {
+      const svc = new TransportOrdersService(tx as never, undefined, fakeSigner);
+      const op = createOperatorContext();
+      const tn = { companyId: op.companyId, businessUnitId: op.businessUnitId, depotId: op.depotId, legalEntityId: op.legalEntityId };
+      const { operatorId, vehicleId } = await seedActivePair(tx, op);
+      const created = await svc.create({
+        stops: [{ sequence: 1, stopType: 'delivery' }],
+        roadRun: { plannedStartAt: '2026-07-03T07:00:00.000Z', assignedOperatorId: operatorId, assignedAssetId: vehicleId },
+      }, op);
+      const stopRows = await tx
+        .select({ stopId: stop.stopId })
+        .from(stop)
+        .where(and(eq(stop.companyId, op.companyId), eq(stop.transportOrderId, created.transportOrderId)));
+      const only = stopRows[0];
+      if (only === undefined) throw new Error('expected one stop');
+      // TWO committed manifests on the SAME stop: a re-upload. Neither carries a
+      // committedAt nor an extracted weight -- extraction is still pending.
+      for (const key of ['proofs/first.jpg', 'proofs/second.jpg']) {
+        const [m] = await tx.insert(manifest).values({
+          ...tn,
+          transportOrderId: created.transportOrderId,
+          manifestCorrelationId: randomUUID(),
+          stopId: only.stopId,
+          state: 'committed',
+        }).returning({ manifestId: manifest.manifestId });
+        if (m === undefined) throw new Error('manifest seed failed');
+        await tx.insert(uploadSession).values({
+          ...tn,
+          manifestId: m.manifestId,
+          operatorId: op.operatorId,
+          s3Key: key,
+          s3Bucket: 'fleet-proofs',
+          contentType: 'image/jpeg',
+          state: 'committed',
+        });
+      }
+      const found = await svc.findByCompanyIdOrRef(created.transportOrderId, op);
+      const s0 = found.stops[0];
+      if (s0 === undefined) throw new Error('expected one review stop');
+      proofCount = found.stops.filter((x) => x.proof !== null).length;
+      if (s0.proof !== null) {
+        capturedAt = s0.proof.capturedAt;
+        kg = s0.proof.extractedNetWeightKg ?? null;
+        photoUrl = s0.proof.photoUrl;
+      }
+    });
+    // Exactly one proof survives the re-upload, and it is signed, not raw.
+    expect(proofCount).toBe(1);
+    expect(photoUrl).toBe(SIGNED_URL);
+    // No committed_at on the row, so the resolver supplies a real timestamp
+    // rather than emitting null into a contract that requires a datetime.
+    expect(capturedAt).toBeTruthy();
+    expect(Number.isNaN(Date.parse(capturedAt ?? ''))).toBe(false);
+    // Extraction has produced nothing yet: a true blank, never a zero.
+    expect(kg).toBeNull();
+  });
 });

@@ -318,13 +318,19 @@ export class TransportOrdersService {
   //
   // Returns an EMPTY map when no signer is wired: a review row must never carry
   // a raw bucket path, so absent signing degrades to proof = null.
+  //
+  // Map key is the manifest.stop_id COLUMN type (string | null) rather than a
+  // narrowed string: the SQL IN-list excludes NULL by definition, so a null key
+  // can never be produced, and typing it this way avoids an unreachable
+  // defensive branch -- same reasoning as computeCancelEligibility below. Lookups
+  // pass a non-null stop id, which a string|null-keyed Map accepts.
   private async resolveStopProofs(
     op: OperatorContext,
     stopIds: readonly string[],
-  ): Promise<Map<string, StopProof>> {
-    const byStopId = new Map<string, StopProof>();
+  ): Promise<Map<string | null, StopProof>> {
+    const byStopId = new Map<string | null, StopProof>();
     const signer = this.proofSigner;
-    if (stopIds.length === 0 || signer === undefined) return byStopId;
+    if (signer === undefined || stopIds.length === 0) return byStopId;
     const proofRows = await this.db
       .select({
         stopId: manifest.stopId,
@@ -344,7 +350,8 @@ export class TransportOrdersService {
         inArray(manifest.stopId, [...stopIds]),
       ));
     for (const pr of proofRows) {
-      if (pr.stopId === null) continue;
+      // First committed manifest per stop wins: a stop may accumulate more than
+      // one committed photo (re-upload), and the review view shows one proof.
       if (byStopId.has(pr.stopId)) continue;
       const photoUrl = await signer.presignProofUrl({
         bucket: pr.s3Bucket,
