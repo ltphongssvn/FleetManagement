@@ -299,7 +299,9 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
         // configured rows always carry >=1 device (DEVICE_UNREGISTERED routes the
         // rest to the attention queue), so there is no empty-state arm here.
         return (
-          <ul className='text-sm'>{row.devices.map((d) => (<li key={d.deviceId}>{d.deviceId}</li>))}</ul>
+          <span className='inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>
+            {row.devices.length > 1 ? 'Đã đăng ký (' + String(row.devices.length) + ')' : 'Đã đăng ký'}
+          </span>
         );
       },
     },

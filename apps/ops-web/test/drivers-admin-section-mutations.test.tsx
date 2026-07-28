@@ -203,7 +203,7 @@ describe('DriversAdminSection mutations', () => {
     const client = mkClient({}, [configured]);
     render(<DriversAdminSection client={client} />);
     await waitFor(() => { expect(screen.getByText('62H 07777')).toBeInTheDocument(); });
-    expect(screen.getByText('dev-abc')).toBeInTheDocument();
+    expect(screen.getByText('Đã đăng ký')).toBeInTheDocument();
   });
 
   it('renders a configured driver in the regular table with revoke + device', async () => {
@@ -219,7 +219,7 @@ describe('DriversAdminSection mutations', () => {
     const user = userEvent.setup();
     // configured driver -> renders in the regular table (not the attention queue):
     await waitFor(() => { expect(screen.getByText('51C-111.11')).toBeInTheDocument(); });
-    expect(screen.getByText('dev-1')).toBeInTheDocument();
+    expect(screen.getByText('Đã đăng ký')).toBeInTheDocument();
     // the table revoke button carries assignmentId (covers the ?? fallback arm):
     await user.click(screen.getByTestId('driver-revoke-d3'));
     await waitFor(() => { expect(client.revoke).toHaveBeenCalledWith('asg-1', 'driver_left'); });
