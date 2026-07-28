@@ -91,19 +91,27 @@ describe('DriversAdminSection mutations', () => {
     await waitFor(() => { expect(client.revoke).toHaveBeenCalledWith('as2', 'driver_left'); });
   });
   it('deletes a driver after confirm', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     const client = mkClient({}, [unassigned]);
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Xóa' }));
+    await screen.findByText('NGUYEN VAN A');
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Xóa' }));
+    const dialog = await screen.findByRole('dialog');
+    const accept = dialog.querySelector('[data-testid=confirm-accept]');
+    if (accept === null) throw new Error('no confirm-accept');
+    await user.click(accept as HTMLElement);
     await waitFor(() => { expect(client.remove).toHaveBeenCalledWith('dr1'); });
   });
-  it('does not delete when confirm is cancelled', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('does not delete when the confirm dialog is cancelled', async () => {
     const client = mkClient({}, [unassigned]);
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Xóa' }));
+    await screen.findByText('NGUYEN VAN A');
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Xóa' }));
+    await screen.findByRole('dialog');
+    await user.click(screen.getByRole('button', { name: 'Hủy' }));
     expect(client.remove).not.toHaveBeenCalled();
   });
   it('saves an edited phone', async () => {
@@ -118,7 +126,8 @@ describe('DriversAdminSection mutations', () => {
     const client = mkClient({}, [unassigned]);
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
-    await user.click(await screen.findByLabelText('Đặt lại mật khẩu của NGUYEN VAN A'));
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Đặt lại mật khẩu' }));
     await waitFor(() => { expect(client.resetPassword).toHaveBeenCalledWith('dr1', 'newpass1'); });
   });
   it('rejects a too-short reset password', async () => {
@@ -127,7 +136,8 @@ describe('DriversAdminSection mutations', () => {
     const client = mkClient({}, [unassigned]);
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
-    await user.click(await screen.findByLabelText('Đặt lại mật khẩu của NGUYEN VAN A'));
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Đặt lại mật khẩu' }));
     expect(alertSpy).toHaveBeenCalled();
     expect(client.resetPassword).not.toHaveBeenCalled();
   });
@@ -163,7 +173,8 @@ describe('DriversAdminSection mutations', () => {
     const client = mkClient({ resetPassword: vi.fn().mockRejectedValue(new Error('boom')) }, [unassigned]);
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
-    await user.click(await screen.findByLabelText('Đặt lại mật khẩu của NGUYEN VAN A'));
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Đặt lại mật khẩu' }));
     await waitFor(() => { expect(alertSpy).toHaveBeenCalled(); });
   });
 
@@ -230,7 +241,8 @@ describe('DriversAdminSection mutations', () => {
     const client = mkClient({}, [unassigned]);
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
-    await user.click(await screen.findByLabelText('Đặt lại mật khẩu của NGUYEN VAN A'));
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Đặt lại mật khẩu' }));
     expect(client.resetPassword).not.toHaveBeenCalled();
   });
 
@@ -240,6 +252,13 @@ describe('DriversAdminSection mutations', () => {
     render(<DriversAdminSection client={client} />);
     // still renders the assign control; the select simply has no plate options
     expect(await screen.findByTestId('driver-assign-vehicle-dr1')).toBeInTheDocument();
+  });
+  it('exposes a Thao tac menu per driver row; no always-visible Xoa button', async () => {
+    const client = mkClient({}, [unassigned]);
+    render(<DriversAdminSection client={client} />);
+    await screen.findByText('NGUYEN VAN A');
+    expect(screen.queryByRole('button', { name: /^Xóa$/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /Thao tác/ })).toBeInTheDocument();
   });
   it('saves the existing phone when the field is not edited', async () => {
     const client = mkClient({}, [unassigned]);

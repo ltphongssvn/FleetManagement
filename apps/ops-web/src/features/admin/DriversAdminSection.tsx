@@ -33,6 +33,7 @@ import {
   DRIVER_ATTENTION_QUEUE_HEADING,
   presentDriverAttentionReason,
 } from '@/features/admin/driver-attention.presenter';
+import { RowActionMenu } from '@/features/admin/RowActionMenu';
 interface VehicleOption { vehicleId: string; plate: string; }
 interface CreateFormState {
   fullName: string;
@@ -146,7 +147,6 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
     }
   };
   const handleDelete = async (row: AdminDriverRow): Promise<void> => {
-    if (!window.confirm('Xóa tài xế ' + row.fullName + '?')) return;
     setBusy(true);
     try {
       await client.remove(row.driverId);
@@ -222,7 +222,7 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
     )
   );
   const renderOpsControls = (row: AdminDriverRow): JSX.Element => (
-    <div className='flex gap-2'>
+    <div className='flex items-center gap-2'>
       <input
         type='text'
         aria-label={'Số điện thoại của ' + row.fullName}
@@ -239,23 +239,25 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
       >
         Lưu SĐT
       </button>
-      <button
-        type='button'
-        disabled={busy}
-        onClick={() => { void handleDelete(row); }}
-        className='rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600 disabled:bg-gray-400'
-      >
-        Xóa
-      </button>
-      <button
-        type='button'
-        disabled={busy}
-        aria-label={'Đặt lại mật khẩu của ' + row.fullName}
-        onClick={() => { void handleResetPassword(row); }}
-        className='rounded bg-amber-500 px-3 py-1 text-sm text-white hover:bg-amber-600 disabled:bg-gray-400'
-      >
-        Đặt lại mật khẩu
-      </button>
+      <RowActionMenu
+        label={'Thao tác cho ' + row.fullName}
+        actions={[
+          {
+            key: 'reset-password',
+            label: 'Đặt lại mật khẩu',
+            disabled: busy,
+            onSelect: () => { void handleResetPassword(row); },
+          },
+          {
+            key: 'delete',
+            label: 'Xóa',
+            destructive: true,
+            disabled: busy,
+            confirmLabel: 'Xóa tài xế ' + row.fullName + ' ?',
+            onSelect: () => { void handleDelete(row); },
+          },
+        ]}
+      />
       {resetMsg[row.driverId] !== undefined ? (
         <span className='self-center text-sm text-green-700'>{resetMsg[row.driverId]}</span>
       ) : null}
