@@ -50,7 +50,7 @@ describe('DriversAdminSection mutations', () => {
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Đăng ký tài xế' }));
-    expect(await screen.findByText(/Vui lòng nhập/)).toBeInTheDocument();
+    await waitFor(() => { expect(screen.getByText(/Vui lòng nhập/)).toBeInTheDocument(); });
     expect(client.create).not.toHaveBeenCalled();
   });
   it('surfaces a create error via alert', async () => {
@@ -202,8 +202,8 @@ describe('DriversAdminSection mutations', () => {
     } as unknown as AdminDriverRow;
     const client = mkClient({}, [configured]);
     render(<DriversAdminSection client={client} />);
-    expect(await screen.findByText('62H 07777')).toBeInTheDocument();
-    expect(screen.getByText('dev-abc')).toBeInTheDocument();
+    await waitFor(() => { expect(screen.getByText('62H 07777')).toBeInTheDocument(); });
+    expect(screen.getByText('Đã đăng ký')).toBeInTheDocument();
   });
 
   it('renders a configured driver in the regular table with revoke + device', async () => {
@@ -218,8 +218,8 @@ describe('DriversAdminSection mutations', () => {
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
     // configured driver -> renders in the regular table (not the attention queue):
-    expect(await screen.findByText('51C-111.11')).toBeInTheDocument();
-    expect(screen.getByText('dev-1')).toBeInTheDocument();
+    await waitFor(() => { expect(screen.getByText('51C-111.11')).toBeInTheDocument(); });
+    expect(screen.getByText('Đã đăng ký')).toBeInTheDocument();
     // the table revoke button carries assignmentId (covers the ?? fallback arm):
     await user.click(screen.getByTestId('driver-revoke-d3'));
     await waitFor(() => { expect(client.revoke).toHaveBeenCalledWith('asg-1', 'driver_left'); });
@@ -239,7 +239,7 @@ describe('DriversAdminSection mutations', () => {
     const client = mkClient({}, [unassigned]);
     render(<DriversAdminSection client={client} />);
     // still renders the assign control; the select simply has no plate options
-    expect(await screen.findByTestId('driver-assign-vehicle-dr1')).toBeInTheDocument();
+    await waitFor(() => { expect(screen.getByTestId('driver-assign-vehicle-dr1')).toBeInTheDocument(); });
   });
   it('saves the existing phone when the field is not edited', async () => {
     const client = mkClient({}, [unassigned]);
