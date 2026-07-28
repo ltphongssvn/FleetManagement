@@ -10,9 +10,15 @@
 // exact stall this task exists to remove. This repo gates develop and main with
 // rulesets (develop-protection 18237884, main-protection 18237898), so the
 // sanctioned workaround is to poll mergeStateStatus + the checks and, once the
-// ruleset is satisfied, merge synchronously via gh pr merge --squash. That path
+// ruleset is satisfied, merge synchronously via gh pr merge --merge. That path
 // respects the ruleset (GitHub still refuses if a required check is red) but does
 // not depend on the broken --auto trigger.
+//
+// MERGE STRATEGY IS --merge (a true merge commit), NEVER --squash or --rebase.
+// The promote pipeline relies on SHA-based ancestry (merge-base --is-ancestor,
+// branch --contains) to know a fix landed; a true merge preserves the original
+// commit SHAs in develop history, keeping that traceability reliable forever.
+// Squash or rebase would rewrite SHAs and silently break the promote checks.
 //
 // BEHIND handling (the gap the dogfood exposed): the develop-protection ruleset
 // requires the branch be up to date before merge. In a many-worktree repo develop
@@ -242,7 +248,10 @@ function main(): number {
       // update-branch merges base in and starts a fresh CI run; keep polling.
     }
     if (ready.action === 'MERGE') {
-      const m = sh('gh', ['pr', 'merge', String(cfg.prNumber), '--squash']);
+      // --merge (a true merge commit), never --squash/--rebase: preserves the
+      // original commit SHAs in develop history so the promote pipeline SHA
+      // ancestry checks stay reliable.
+      const m = sh('gh', ['pr', 'merge', String(cfg.prNumber), '--merge']);
       process.stdout.write(m.out);
       if (m.code === 0) {
         process.stdout.write('[pr:automerge] merged PR #' + String(cfg.prNumber) + '.' + nl);
