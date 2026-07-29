@@ -4,10 +4,12 @@
 // resolveCloseInput and the git arg-planners are IMPORTED verbatim, never
 // reimplemented, so a sweep close is byte-identical to a single worktree:close
 // and cannot bypass its guards. For each candidate the driver gathers the same
-// live state (upstream, ahead, dirty, containment) AT THE MOMENT OF ATTEMPT, so
-// a branch that a concurrent terminal advanced since the census is re-checked
-// and correctly refused. Pure parts (parseSweepArgv, formatSweepSummary) are
-// unit-tested; main() runs ONLY as entrypoint. Precedent: worktree-close-cli.ts.
+// live state (upstream, ahead, dirty, containment, idleHours) AT THE MOMENT OF
+// ATTEMPT, so a branch that a concurrent terminal advanced -- or that a terminal
+// is actively coding in right now (recent reflog) -- since the census is
+// re-checked and correctly refused. Pure parts (parseSweepArgv, formatSweepSummary,
+// protectedIntegrationPaths) are unit-tested; main() runs ONLY as entrypoint.
+// Precedent: worktree-close-cli.ts.
 
 import { execFileSync } from "node:child_process";
 import { planSweep } from "./sweep-worktrees.js";
@@ -16,6 +18,7 @@ import {
   parseWorktreePorcelain,
   parseAheadBehind,
   countDirtyFiles,
+  parseReflogIdleHours,
   resolveCloseInput,
 } from "./worktree-close.js";
 import {
@@ -24,6 +27,7 @@ import {
   aheadBehindArgs,
   dirtyArgs,
   containmentArgs,
+  reflogArgs,
 } from "./worktree-close-cli.js";
 
 const NL = String.fromCharCode(10);
@@ -116,12 +120,18 @@ function gitAllowFail(args: readonly string[], cwd?: string): string {
 
 // Gather live state AT ATTEMPT TIME and decide; execute the plan unless dryRun.
 // One code path for both modes: dry-run skips only the git mutation, never the
-// decision, so the printed verdict is exactly what a real run would do.
+// decision, so the printed verdict is exactly what a real run would do. idleHours
+// comes from the per-worktree HEAD reflog so an actively-developed worktree is
+// refused even when merged and clean.
 function sweepOne(path: string, primaryPath: string, dryRun: boolean): SweepOutcome {
   const upstream = gitAllowFail(upstreamArgs(), path);
   const ahead = upstream.length > 0
     ? parseAheadBehind(git(aheadBehindArgs(upstream), path)).ahead
     : 0;
+  const idleHours = parseReflogIdleHours(
+    gitAllowFail(reflogArgs(), path),
+    Math.floor(Date.now() / 1000),
+  );
   const input = resolveCloseInput({
     path,
     branch: gitAllowFail(["rev-parse", "--abbrev-ref", "HEAD"], path),
@@ -130,6 +140,7 @@ function sweepOne(path: string, primaryPath: string, dryRun: boolean): SweepOutc
     ahead,
     dirtyFileCount: countDirtyFiles(git(dirtyArgs(), path)),
     containedInIntegration: Number(git(containmentArgs(INTEGRATION_REF), path)) === 0,
+    idleHours,
   });
   const verdict = decideClose(input);
   if (!dryRun && verdict.action !== "refuse") {

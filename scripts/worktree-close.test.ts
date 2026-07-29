@@ -110,6 +110,9 @@ describe('worktree-close: input assembly is Zod-parsed', () => {
       // retired defaults false at assembly (F4): the Zod default is
       // materialised here, never left undefined for the decision core.
       retired: false,
+      // idleHours defaults 0 (recent) at assembly: the fail-safe schema default
+      // is materialised here since base supplies no reflog-derived value.
+      idleHours: 0,
     });
   });
   it('flags the primary clone by path identity', () => {
