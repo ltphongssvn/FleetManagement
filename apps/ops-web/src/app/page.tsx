@@ -25,25 +25,12 @@
 // re-implemented). Parsing is lenient: a garbage URL renders the default board.
 export const dynamic = 'force-dynamic';
 import type { JSX } from 'react';
-import { cookies } from 'next/headers';
+import { getSessionUsername } from '@/features/auth/session';
 import { AppShell } from '@/features/shell/AppShell';
 import { loadReferences } from '@/features/dispatch/load-references';
 import { loadDispatchBoardPage } from '@/features/dispatch/load-board-page';
 import { DispatchView } from '@/features/dispatch/DispatchView';
 import { parseBoardSearchParams } from '@/features/dispatch/parse-board-params';
-
-function decodeUsername(token: string | undefined): string | undefined {
-  if (!token) return undefined;
-  try {
-    const payload = token.split('.')[1];
-    if (!payload) return undefined;
-    const json = Buffer.from(payload, 'base64url').toString('utf8');
-    const claims = JSON.parse(json) as { preferred_username?: string; sub?: string };
-    return claims.preferred_username ?? claims.sub;
-  } catch {
-    return undefined;
-  }
-}
 
 // Next.js 16 App Router: searchParams is a Promise in async server components.
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -52,8 +39,7 @@ type SearchParams = Record<string, string | string[] | undefined>;
 export default async function HomePage(
   { searchParams }: { searchParams?: Promise<SearchParams> },
 ): Promise<JSX.Element> {
-  const cookieStore = await cookies();
-  const username = decodeUsername(cookieStore.get('fleet_session')?.value);
+  const username = await getSessionUsername();
   const sp: SearchParams = searchParams ? await searchParams : {};
   const { group, page, search } = parseBoardSearchParams(sp);
   const [refs, boardPage] = await Promise.all([
