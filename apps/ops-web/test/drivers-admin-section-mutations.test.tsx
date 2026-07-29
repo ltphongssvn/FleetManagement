@@ -50,7 +50,7 @@ describe('DriversAdminSection mutations', () => {
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Đăng ký tài xế' }));
-    expect(await screen.findByText(/Vui lòng nhập/)).toBeInTheDocument();
+    await waitFor(() => { expect(screen.getByText(/Vui lòng nhập/)).toBeInTheDocument(); });
     expect(client.create).not.toHaveBeenCalled();
   });
   it('surfaces a create error via alert', async () => {
@@ -213,7 +213,7 @@ describe('DriversAdminSection mutations', () => {
     } as unknown as AdminDriverRow;
     const client = mkClient({}, [configured]);
     render(<DriversAdminSection client={client} />);
-    expect(await screen.findByText('62H 07777')).toBeInTheDocument();
+    await waitFor(() => { expect(screen.getByText('62H 07777')).toBeInTheDocument(); });
     expect(screen.getByText('Đã đăng ký')).toBeInTheDocument();
   });
 
@@ -229,7 +229,7 @@ describe('DriversAdminSection mutations', () => {
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
     // configured driver -> renders in the regular table (not the attention queue):
-    expect(await screen.findByText('51C-111.11')).toBeInTheDocument();
+    await waitFor(() => { expect(screen.getByText('51C-111.11')).toBeInTheDocument(); });
     expect(screen.getByText('Đã đăng ký')).toBeInTheDocument();
     // the table revoke button carries assignmentId (covers the ?? fallback arm):
     await user.click(screen.getByTestId('driver-revoke-d3'));
@@ -251,7 +251,7 @@ describe('DriversAdminSection mutations', () => {
     const client = mkClient({}, [unassigned]);
     render(<DriversAdminSection client={client} />);
     // still renders the assign control; the select simply has no plate options
-    expect(await screen.findByTestId('driver-assign-vehicle-dr1')).toBeInTheDocument();
+    await waitFor(() => { expect(screen.getByTestId('driver-assign-vehicle-dr1')).toBeInTheDocument(); });
   });
   it('exposes a Thao tac menu per driver row; no always-visible Xoa button', async () => {
     const client = mkClient({}, [unassigned]);
