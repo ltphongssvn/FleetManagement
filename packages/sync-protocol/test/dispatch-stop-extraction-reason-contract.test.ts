@@ -29,6 +29,13 @@ describe('StopProofSchema extractionReason (additive)', () => {
     expect(StopProofSchema.safeParse(proofBase).success).toBe(true);
   });
 
+  it('accepts the T33 cannot-recognize reasons (multiple_slips, non_standard_format)', () => {
+    for (const reason of ['multiple_slips', 'non_standard_format']) {
+      const r = StopProofSchema.safeParse({ ...proofBase, extractionStatus: 'not_found', extractionReason: reason });
+      expect(r.success).toBe(true);
+    }
+  });
+
   it('rejects an unknown reason', () => {
     expect(StopProofSchema.safeParse({ ...proofBase, extractionReason: 'bogus' }).success).toBe(false);
   });
