@@ -17,6 +17,7 @@
 // no node (no em-dash leak). Outside-in TDD: board-stops-warehouse-name.test.tsx.
 import type { JSX } from 'react';
 import type { DispatchBoardStop } from './types';
+import type { ExtractionFailureReason } from '@fleet/sync-protocol';
 
 export const PICKUP_SLOTS = [1, 2, 3, 4] as const;
 export const DELIVERY_SLOTS = [1] as const;
@@ -24,12 +25,14 @@ export const DELIVERY_SLOTS = [1] as const;
 // reason, so a dispatcher seeing 'Nhập KL' also sees WHY it failed and can
 // triage (unparseable vs missing photo vs out-of-range). Vocabulary mirrors
 // @fleet/sync-protocol EXTRACTION_FAILURE_REASONS.
-const REASON_VI: Record<string, string> = {
+const REASON_VI: Record<ExtractionFailureReason, string> = {
   unparseable: 'không đọc được số',
   below_sanity_min: 'dưới ngưỡng',
   above_sanity_max: 'vượt ngưỡng',
   no_field: 'không thấy ô KL',
   object_missing: 'thiếu ảnh',
+  multiple_slips: 'nhiều phiếu',
+  non_standard_format: 'phiếu không chuẩn',
 };
 
 const STATUS_FORMATTER = new Intl.DateTimeFormat('en-US', {
@@ -135,7 +138,7 @@ function StopCellInner({
             >
               {'Nhập KL'}
             </button>
-            {proof.extractionReason != null && REASON_VI[proof.extractionReason] !== undefined ? (
+            {proof.extractionReason != null ? (
               <span
                 data-testid={testId.replace('board-stop-status-', 'board-stop-reason-')}
                 title={proof.extractionReason}

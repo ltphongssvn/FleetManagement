@@ -70,6 +70,7 @@ import { buildLookup, formatOrderRef } from './labels';
 import type { RoadRunStatusGroup } from '@fleet/sync-protocol';
 import type { DispatchBoardRoadRun } from './types';
 import { StopSlotHeaders, StopSlotCells, STOP_SLOT_COL_COUNT } from './board-stops';
+import { ManualNetWeightEditor } from './ManualNetWeightEditor';
 import { useRefetchOnFocus } from '../../lib/use-refetch-on-focus';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
 const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-US', {
@@ -293,10 +294,14 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
   // this does NOT re-derive on every render, so it cannot drive a re-render
   // loop when router.refresh() supplies a fresh initialRuns reference.
   const [stickyRuns, setStickyRuns] = useState<readonly DispatchBoardRoadRun[]>([]);
+  // T33: which committed manifest (if any) the dispatcher is entering a manual
+  // net weight for. Set by a per-stop Nhap KL button via onEnterNetWeight and
+  // cleared when the editor finishes (the action revalidatePath refreshes kg).
+  const [editingManifestId, setEditingManifestId] = useState<string | null>(null);
   // Table-first (T38): the create form is create-on-demand behind a drawer,
   // so the Lenh dieu xe table is the primary above-the-fold surface.
   const [createOpen, setCreateOpen] = useState(false);
-  // Số Lệnh confirmation state lives on the BOARD, not inside the create form.
+  // So Lenh confirmation state lives on the BOARD, not inside the create form.
   // Creating an order closes the drawer, which unmounted the form and took the
   // success banner with it: the dispatcher lost the order number at the moment
   // it was assigned. The board outlives the drawer, so the confirmation stays
@@ -430,7 +435,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                   <td className='px-3 py-2'>{formatPlannedStart(r.plannedStartAt)}</td>
                   <td className='px-3 py-2'>{r.stopCount}</td>
                   <td className='px-3 py-2 tabular-nums' data-testid={'dispatch-board-weightdiff-' + formatOrderRef(r.transportOrderRefs)}>{formatWeightDiff(r.weightDiffKg)}</td>
-                  <StopSlotCells primaryRef={formatOrderRef(r.transportOrderRefs)} stops={r.stops} />
+                  <StopSlotCells primaryRef={formatOrderRef(r.transportOrderRefs)} stops={r.stops} onEnterNetWeight={(manifestId) => { setEditingManifestId(manifestId); }} />
                 </tr>
               ))}
               {merged.length === 0 && (
@@ -439,6 +444,11 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
             </tbody>
           </table>
           {pagination ? <PaginationBar pagination={pagination} search={search} /> : null}
+          {editingManifestId !== null ? (
+            <div className={'mt-3'} data-testid={'manual-netweight-editor'}>
+              <ManualNetWeightEditor manifestId={editingManifestId} onDone={() => { setEditingManifestId(null); router.refresh(); }} />
+            </div>
+          ) : null}
         </section>
       </div>
       {/* Drawer: Headless UI Dialog, not a hand-rolled overlay. The previous
