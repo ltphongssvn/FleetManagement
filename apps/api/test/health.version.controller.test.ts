@@ -39,3 +39,52 @@ describe("@fleet/api - HealthController.version", () => {
     expect(makeCtl().version().sha).toBe("1111111explicit");
   });
 });
+
+// Blank-env handling. Dockerfile.api declares ARG RAILWAY_GIT_COMMIT_SHA and
+// then ENV GIT_SHA=$ARG. Docker substitutes an unpassed ARG with the EMPTY
+// STRING, so the image ships GIT_SHA set-but-blank. Nullish coalescing treats
+// blank as PRESENT, so it wins over the value the platform injects at runtime
+// and /health/version reported an empty sha in production forever.
+describe("@fleet/api - HealthController.version blank env", () => {
+  beforeEach(() => { process.env = { ...ORIG }; });
+  afterEach(() => { process.env = ORIG; });
+
+  it("treats an EMPTY GIT_SHA as absent, falling through to the platform var", () => {
+    process.env["GIT_SHA"] = "";
+    process.env["RAILWAY_GIT_COMMIT_SHA"] = "railwaysha9876543";
+    const v = makeCtl().version();
+    expect(v.sha).toBe("railwaysha9876543");
+    expect(v.shortSha).toBe("railway");
+  });
+
+  it("treats a WHITESPACE-ONLY GIT_SHA as absent", () => {
+    process.env["GIT_SHA"] = "   ";
+    process.env["RAILWAY_GIT_COMMIT_SHA"] = "railwaysha9876543";
+    expect(makeCtl().version().sha).toBe("railwaysha9876543");
+  });
+
+  it("reports unknown when BOTH sha vars are blank", () => {
+    process.env["GIT_SHA"] = "";
+    process.env["RAILWAY_GIT_COMMIT_SHA"] = "";
+    const v = makeCtl().version();
+    expect(v.sha).toBe("unknown");
+    expect(v.shortSha).toBe("unknown");
+  });
+
+  it("treats an EMPTY GIT_BRANCH as absent, falling through to the platform var", () => {
+    process.env["GIT_BRANCH"] = "";
+    process.env["RAILWAY_GIT_BRANCH"] = "develop";
+    expect(makeCtl().version().branch).toBe("develop");
+  });
+
+  it("reports unknown when BOTH branch vars are blank", () => {
+    process.env["GIT_BRANCH"] = "";
+    process.env["RAILWAY_GIT_BRANCH"] = "";
+    expect(makeCtl().version().branch).toBe("unknown");
+  });
+
+  it("falls back to a real timestamp when BUILD_TIME is blank", () => {
+    process.env["BUILD_TIME"] = "";
+    expect(makeCtl().version().buildTime.length).toBeGreaterThan(0);
+  });
+});
