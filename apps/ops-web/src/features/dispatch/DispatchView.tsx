@@ -65,7 +65,6 @@ import type { JSX } from 'react';
 import { useRouter } from 'next/navigation';
 import { type CreateOrderFormProps } from './CreateOrderForm';
 import { NaturalLanguageCreateForm } from './NaturalLanguageCreateForm';
-import { LogoutButton } from '../auth/LogoutButton';
 import { ExportOrdersExcelButton } from './ExportOrdersExcelButton';
 import { buildLookup, formatOrderRef } from './labels';
 import type { RoadRunStatusGroup } from '@fleet/sync-protocol';
@@ -395,7 +394,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                 className='inline-flex items-center gap-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500'>
                 <span aria-hidden='true'>+</span> Tạo lệnh điều xe
               </button>
-              <ExportOrdersExcelButton /><LogoutButton />
+              <ExportOrdersExcelButton />
             </div>
           </header>
           {/* Persistent live region. The container is rendered from first
