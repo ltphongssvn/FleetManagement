@@ -33,6 +33,7 @@
   "include": [
     "src/**/*",
     "test/**/*",
+    "scripts/**/*",
     "vitest.config.ts",
     "next.config.ts",
     ".next/types/**/*.ts",
