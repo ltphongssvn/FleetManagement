@@ -321,12 +321,23 @@ jobs:
       (needs.deploy-worker.result == 'success' || needs.deploy-worker.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
+      # This job was curl-only and deliberately had no checkout. The provenance
+      # verification below runs a repo script, so the working tree is required.
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.gate.outputs.head_sha }}
       - name: API health is ready
         run: |
           code=$(curl -s -o /dev/null -w '%{http_code}' https://api-production-fd42.up.railway.app/health/ready || echo 000)
           echo "api /health/ready -> $code"
           [ "$code" = '200' ] || { echo '::error::api /health/ready not 200'; exit 1; }
       - name: Verify the live commit matches what was deployed
+        # Only meaningful when the api ACTUALLY deployed. Change detection skips
+        # services whose paths did not change, and a skipped deploy legitimately
+        # leaves the previous image serving -- asserting sha equality there would
+        # fail every infra-only promote cycle. Stated explicitly rather than
+        # relying on the implicit success(), which a custom if would drop anyway.
+        if: needs.deploy-api.result == 'success'
         # Deploy verification used to be a human running inspect:prod-deploy by
         # hand, which is why a permanently blank sha went unnoticed for weeks.
         # 2026 practice is that provenance is asserted in a gate: this fails the
