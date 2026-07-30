@@ -3,11 +3,11 @@ import { initSentry } from './observability/sentry-bootstrap.js';
 // OTel SDK is started by ./observability/otel-bootstrap.ts via 'node --import'.
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
-import { ZodExceptionFilter } from './common/zod-exception.filter.js';
-import { ProblemDetailsExceptionFilter } from './common/problem-details-exception.filter.js';
+import { configureApp } from './configure-app.js';
 import { shutdownOtel } from './observability/otel.js';
 import { assertSingleInstance } from './runtime/single-instance-guard.js';
 import { selectMigrationConnectionString } from './database/migration-connection.js';
+import { validateEnv } from './config/env.config.js';
 
 assertSingleInstance(process.env);
 initSentry();
@@ -59,22 +59,35 @@ async function maybeSeed(): Promise<void> {
 async function bootstrap(): Promise<void> {
   await maybeMigrate();
   await maybeSeed();
+  // Factor III: read deploy-varying config from the single validated
+  // boundary (validateEnv), never raw process.env in the request path.
+  const env = validateEnv(process.env);
   const app = await NestFactory.create(AppModule, { rawBody: true });
-  app.enableCors({
-    origin: (process.env['CORS_ORIGINS'] ?? 'http://localhost:8081,http://localhost:3001').split(','),
-    credentials: true,
-  });
-  // Catch-all problem-details filter FIRST, ZodExceptionFilter LAST: Nest
-  // evaluates filters in reverse registration order, so ZodError keeps its
-  // existing 400 validation shape and everything else emits RFC 9457.
-  app.useGlobalFilters(new ProblemDetailsExceptionFilter(), new ZodExceptionFilter());
-  const port = Number(process.env['PORT'] ?? 3000);
+  configureApp(app, env);
+  const port = env.PORT;
   await app.listen(port);
 
+  // Factor IX (Disposability): bounded shutdown. A permanently stuck
+  // app.close() (e.g. a hung DB/queue handle) must never block the
+  // platform from replacing this process, so the graceful path races a
+  // deadline; on timeout we exit non-zero and let the platform reap us.
+  const SHUTDOWN_DEADLINE_MS = Number(process.env['SHUTDOWN_DEADLINE_MS'] ?? 10000);
   const shutdown = async (signal: string): Promise<void> => {
+    const deadline = new Promise<never>((_, reject) => {
+      const t = setTimeout(
+        () => { reject(new Error('shutdown exceeded ' + String(SHUTDOWN_DEADLINE_MS) + 'ms after ' + signal)); },
+        SHUTDOWN_DEADLINE_MS,
+      );
+      if (typeof t.unref === 'function') t.unref();
+    });
     try {
-      await app.close();
-      await shutdownOtel();
+      await Promise.race([
+        (async () => {
+          await app.close();
+          await shutdownOtel();
+        })(),
+        deadline,
+      ]);
       process.exit(0);
     } catch (err) {
       console.error('Shutdown failed after ' + signal, err);

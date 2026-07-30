@@ -1,5 +1,5 @@
 // packages/sync-protocol/src/dispatch-board-pagination-contract.ts
-// SSOT for the Lệnh điều xe board pagination + active/finished partition
+// SSOT for the Lệnh điều xe board pagination + three-way status partition
 // (2026 status-partitioned, pre-filtered-view pagination). ONE definition the
 // API validates query params against and the ops-web loader parses the envelope
 // from. Offset/page-number pagination is the deliberate choice: the dispatcher
@@ -7,21 +7,30 @@
 // (cursor is forward-only); the dataset is a single-company admin table, so the
 // large-offset cost of OFFSET is irrelevant here.
 //
-// The active/finished partition mirrors @fleet/domain's road-run FSM terminal
-// set, but is INLINED here (not imported) so this package stays dependency-free
-// (zod only) — the SAME pattern dispatch-stop-view-contract.ts uses for
-// ROAD_RUN_STATES (reused here from that sibling). active == the non-terminal
-// states (planned, dispatched, started == 'pending + in-progress'); finished ==
-// the terminal states (completed, cancelled). Membership is pinned by the
+// The partition mirrors @fleet/domain's road-run FSM terminal set, but is
+// INLINED here (not imported) so this package stays dependency-free (zod only)
+// — the SAME pattern dispatch-stop-view-contract.ts uses for ROAD_RUN_STATES
+// (reused here from that sibling). active == the non-terminal states (planned,
+// dispatched, started == 'pending + in-progress'); finished == completed;
+// cancelled == cancelled. The FSM terminal set is unchanged (completed AND
+// cancelled are both terminal) — the board simply PRESENTS the two terminal
+// outcomes as separate dispatcher tabs (T16). Membership is pinned by the
 // contract test so it can never drift from the domain.
+//
+// This module is the ONE definition of the group vocabulary for every consumer:
+// the API validates query params against RoadRunPageQuerySchema, and ops-web
+// parses the URL through the same schema (parse-board-params.ts) and types its
+// board components with RoadRunStatusGroup. No consumer re-declares the union.
 import { z } from 'zod';
 import { ROAD_RUN_STATES, type RoadRunStateName } from './dispatch-stop-view-contract.js';
 import { DispatchBoardApiRowSchema, DispatchBoardRowSchema } from './dispatch-stop-view-contract.js';
 
-// The two dispatcher-facing slices of the board. 'active' is the default view
-// (pending + in-progress); 'finished' is the archived view (completed +
-// cancelled), reached via the status filter.
-export const ROAD_RUN_STATUS_GROUPS = ['active', 'finished'] as const;
+// The three dispatcher-facing slices of the board, each rendered as its own tab:
+// 'active' is the default view (Đang chạy — pending + in-progress); 'finished'
+// is the delivered view (Đã hoàn tất — completed only); 'cancelled' is the
+// cancelled view (Lệnh Hủy). Both terminal outcomes are surfaced separately so a
+// dispatcher can tell a delivered run from a cancelled one at a glance.
+export const ROAD_RUN_STATUS_GROUPS = ['active', 'finished', 'cancelled'] as const;
 export const roadRunStatusGroupSchema = z.enum(ROAD_RUN_STATUS_GROUPS);
 export type RoadRunStatusGroup = z.infer<typeof roadRunStatusGroupSchema>;
 
@@ -34,11 +43,20 @@ const ROAD_RUN_TERMINAL_STATES: readonly RoadRunStateName[] = ['completed', 'can
 // from the single inlined state list so the partition is exhaustive + disjoint
 // by construction (every state lands in exactly one group). Frozen so callers
 // cannot mutate the shared arrays.
-const FINISHED_STATES: readonly RoadRunStateName[] = Object.freeze(ROAD_RUN_STATES.filter((s) => ROAD_RUN_TERMINAL_STATES.includes(s)));
+// T16 board split: cancelled is surfaced as its OWN dispatcher tab (Lenh Huy),
+// so it leaves the finished group. finished now holds only 'completed'; both
+// remain terminal (the FSM terminal set is unchanged), but the board presents
+// them separately so dispatchers can distinguish delivered from cancelled runs.
+const CANCELLED_STATES: readonly RoadRunStateName[] = Object.freeze(['cancelled']);
+const FINISHED_STATES: readonly RoadRunStateName[] = Object.freeze(
+  ROAD_RUN_STATES.filter((s) => ROAD_RUN_TERMINAL_STATES.includes(s) && !CANCELLED_STATES.includes(s)),
+);
 const ACTIVE_STATES: readonly RoadRunStateName[] = Object.freeze(ROAD_RUN_STATES.filter((s) => !ROAD_RUN_TERMINAL_STATES.includes(s)));
 
 export function statesForStatusGroup(group: RoadRunStatusGroup): readonly RoadRunStateName[] {
-  return group === 'finished' ? FINISHED_STATES : ACTIVE_STATES;
+  if (group === 'finished') return FINISHED_STATES;
+  if (group === 'cancelled') return CANCELLED_STATES;
+  return ACTIVE_STATES;
 }
 
 // Server-side cap on page size: a hard upper bound so a client can never request

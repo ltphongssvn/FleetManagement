@@ -1,12 +1,13 @@
 // e2e/dispatch-export-excel-all-columns.spec.ts
 //
 // L0 acceptance for the 2026 export invariant. The manually-exported Lệnh điều
-// xe Excel workbook is a DATA export: after the 6 identifying columns plus the
+// xe Excel workbook is a DATA export: after the 8 identifying columns (Số lệnh,
+// Trạng thái, Khách hàng, Tên hàng, Tài xế, Xe, Ngày dự kiến, Số điểm) plus the
 // Chênh lệch (pickup-vs-delivery weight diff) column
-//   Số lệnh | Khách hàng | Tài xế | Xe | Ngày dự kiến | Số điểm | Chênh lệch
+//   Số lệnh | Trạng thái | Khách hàng | Tên hàng | Tài xế | Xe | Ngày dự kiến | Số điểm | Chênh lệch
 // each stop slot contributes a PAIR of columns — the warehouse NAME and the
 // extracted net weight as a NUMBER (kg) — for pickup slots 1..4 and delivery
-// slot 1, giving 17 columns total:
+// slot 1, giving 19 columns total:
 //   ... | Điểm nhận hàng 1 | Điểm nhận hàng 1 - KL (kg) | ... (slots 2..4) |
 //       Kho giao hàng 1 | Kho giao hàng 1 - KL (kg)
 // The exact set is the @fleet/sync-protocol SSOT imported below — this comment is
@@ -27,6 +28,7 @@ import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { z } from 'zod';
 import { LENH_DIEU_XE_EXPORT_HEADERS } from '@fleet/sync-protocol';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
+import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const POSTGRES_CONTAINER = process.env['E2E_PG_CONTAINER'] ?? 'fleet-pilot-postgres-1';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
@@ -81,8 +83,8 @@ async function login(page: Page): Promise<void> {
 }
 async function createOrderViaUi(page: Page, pair: Pair): Promise<void> {
   await page.goto('/');
-  await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
-  await page.locator('#plannedStartAt').fill('2026-06-01');
+  await openCreateOrderDrawer(page);
+  await plannedStartAtField(page.locator('[data-testid=nl-create-order-form]')).fill('2026-06-01');
   const vehicleInput = page.locator('input#vehiclePlate');
   await vehicleInput.click();
   await vehicleInput.fill(pair.vehicleLabel);
@@ -100,7 +102,7 @@ test.describe.serial('export Excel contains all on-screen Lệnh điều xe colu
   let pair: Pair | null = null;
   test.beforeAll(async ({ request }) => { pair = await setupPair(request); });
   test.afterAll(() => { if (pair) cleanupPair(pair); });
-  test('exported workbook header row equals the 17 SSOT columns (6 identifying + Chênh lệch + per-slot name/kg pairs) in order', async ({ page }) => {
+  test('exported workbook header row equals the 19 SSOT columns (Số lệnh + Trạng thái + Khách hàng + Tên hàng + 4 more identifying + Chênh lệch + per-slot name/kg pairs) in order', async ({ page }) => {
     if (!pair) throw new Error('pair missing');
     await login(page);
     await createOrderViaUi(page, pair);

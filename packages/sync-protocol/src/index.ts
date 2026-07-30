@@ -133,11 +133,21 @@ export {
 export {
   ExtractionJobDataWireSchema,
   EXTRACTION_STATUSES,
+  EXTRACTION_FAILURE_REASONS,
   ExtractionResultWireSchema,
   type ExtractionJobDataWire,
   type ExtractionStatus,
+  type ExtractionFailureReason,
   type ExtractionResultWire,
 } from './extraction-types.js';
+
+// Leaf SSOT for the failure-reason vocabulary (extracted to break the
+// extraction-types <-> dispatch-stop-view import cycle). The array + type are
+// already re-exported above via extraction-types; the Zod SCHEMA is exported
+// here for boundary validators (api/ops-web) that parse a reason value.
+export {
+  ExtractionFailureReasonSchema,
+} from './extraction-vocabulary.js';
 export {
   exportDayKeySchema,
   type ExportDayKey,
@@ -149,9 +159,22 @@ export {
   EXPORT_PICKUP_SLOTS,
   EXPORT_DELIVERY_SLOTS,
   EXPORT_KG_SUFFIX,
+  EXPORT_PICKUP_LABEL_PREFIX,
+  EXPORT_DELIVERY_LABEL_PREFIX,
+  exportPickupLabel,
+  exportDeliveryLabel,
   EXPORT_IDENTIFYING_HEADERS,
   LENH_DIEU_XE_EXPORT_HEADERS,
 } from './transport-order-export-headers.js';
+export {
+  BOARD_SEARCH_PREDICATES,
+  type BoardSearchPredicate,
+  BoardSearchColumnSchema,
+  type BoardSearchColumn,
+  BOARD_SEARCH_COLUMNS,
+  boardSearchNameHeaders,
+  boardSearchableColumns,
+} from './board-search-contract.js';
 export {
   FLEET_ERROR_CODES,
   FleetErrorCodeSchema,
@@ -241,3 +264,26 @@ export {
   parseCopilotPlanResponse,
   parseCopilotExecutionResult,
 } from './copilot-types.js';
+
+// Device binding (installation identity + TOFU binding lifecycle).
+export * from './device-binding-contract.js';
+export {
+  DRIVER_ALERT_KINDS,
+  DriverAlertKindSchema,
+  type DriverAlertKind,
+  DriverAlertJobSchema,
+  type DriverAlertJob,
+  DriverAlertPushDataSchema,
+  type DriverAlertPushData,
+  DRIVER_ALERT_ANDROID_CHANNEL_ID,
+  DRIVER_ALERT_SOUND,
+  DRIVER_ALERT_VIBRATION_PATTERN,
+} from './driver-alert-contract.js';
+export {
+  DRIVER_DB_STATUSES,
+  driverDbStatusSchema,
+  type DriverDbStatus,
+  DRIVER_DB_STATUS_PLACEHOLDER_APP_VERSION,
+  type DriverDbStatusFacts,
+  classifyDriverDbStatus,
+} from './co-so-du-lieu-contract.js';

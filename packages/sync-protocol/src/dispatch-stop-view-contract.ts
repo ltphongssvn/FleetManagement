@@ -20,6 +20,7 @@
 // shows the arrival status. photoUrl is a short-lived presigned S3 GET URL minted
 // by the API (never a raw bucket path), so the private bucket is never exposed.
 import { z } from 'zod';
+import { EXTRACTION_FAILURE_REASONS } from './extraction-vocabulary.js';
 
 export const STOP_TYPES = ['pickup', 'delivery'] as const;
 export type StopType = typeof STOP_TYPES[number];
@@ -43,7 +44,7 @@ export type NetWeightKg = z.infer<typeof netWeightKgSchema>;
 /** SSOT for the pickup-vs-delivery weight DIFFERENCE (kg). Unlike netWeightKgSchema
  *  (a positive weight), a difference may be negative (delivery exceeds pickup) or
  *  zero, so it is a finite number with NO sign constraint. Computed server-side as
- *  (sum of pickup stop weights) - (delivery stop weight), and ONLY when every
+ *  (delivery stop weight) - (sum of pickup stop weights), and ONLY when every
  *  contributing stop weight is known (else null) — a partial diff would silently
  *  mislead the dispatcher's reconciliation (2026 missing-data best practice: never
  *  report a partial aggregate as if complete). */
@@ -65,7 +66,7 @@ export type WeightDiffStop = z.infer<typeof WeightDiffStopSchema>;
 
 /** SSOT pickup-vs-delivery net-weight difference (kg) for ONE road run, computed
  *  from the already-resolved stop weights. Sign convention: positive => more
- *  picked up than delivered. Returns null UNLESS every contributing weight is
+ *  delivered than picked up. Returns null UNLESS every contributing weight is
  *  known (all pickup stop weights AND the delivery stop weight), because a partial
  *  aggregate would silently misrepresent the dispatcher reconciliation (2026
  *  missing-data best practice). Pure + dependency-free; the SINGLE definition
@@ -84,7 +85,7 @@ export function computeWeightDiffKg(stops: readonly WeightDiffStop[]): WeightDif
     if (kg === null) return null;
     pickupTotal += kg;
   }
-  return pickupTotal - deliveryKg;
+  return deliveryKg - pickupTotal;
 }
 
 
@@ -115,7 +116,7 @@ export const StopProofSchema = z.object({
   // inlined here to keep the contract dependency-free. optional => old producers
   // stay valid; null => pending/extracted/manual rows carry no reason.
   extractionReason: z
-    .enum(['unparseable', 'below_sanity_min', 'above_sanity_max', 'no_field', 'object_missing'])
+    .enum(EXTRACTION_FAILURE_REASONS)
     .nullable()
     .optional(),
 }).strict();
@@ -181,8 +182,13 @@ export const DispatchBoardRowSchema = z.object({
   transportOrderRefs: z.array(z.string()).readonly(),
   customerName: z.union([z.string(), z.null()]).default(null),
   customerPhone: z.union([z.string(), z.null()]).default(null),
+  // Ten hang (T18): the transport order cargo type name, resolved read-time by
+  // the board join transport_order -> cargo_type. EXPAND-only: nullable + default
+  // so an older API that omits it still parses, and null when the order has no
+  // cargo type (transport_order.cargo_type_id is nullable) or weights unresolved.
+  cargoName: z.union([z.string(), z.null()]).default(null),
   // Feature 3 (2026): pickup-vs-delivery net-weight difference (kg), computed
-  // server-side = (sum of pickup stop weights) - (delivery stop weight); null
+  // server-side = (delivery stop weight) - (sum of pickup stop weights); null
   // unless EVERY contributing weight is known. EXPAND-only: nullable + default
   // so an older API that omits it still parses.
   weightDiffKg: z.union([weightDiffKgSchema, z.null()]).default(null),

@@ -17,7 +17,10 @@ const bullmqConnectionProvider: Provider = {
 @Module({
   imports: [DatabaseModule],
   providers: [bullmqConnectionProvider, OutboxRelayService],
-  exports: [OutboxRelayService],
+  // BULLMQ_CONNECTION exported so downstream queue consumers (AlertsModule)
+  // bind Workers to the SAME connection options -- one Redis config owner,
+  // never a redefined provider (DI-config duplication is the Axis-2 analog).
+  exports: [OutboxRelayService, BULLMQ_CONNECTION],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class OutboxModule {}

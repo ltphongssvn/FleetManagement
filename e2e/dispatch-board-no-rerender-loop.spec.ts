@@ -13,6 +13,7 @@ import { loginAs, mintToken } from './helpers/auth';
 import { z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
 import { execSync } from 'node:child_process';
+import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 
@@ -66,10 +67,10 @@ test.describe('dispatch board does not enter an RSC re-render loop after create'
     await login(page);
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1, name: 'Lệnh điều xe' })).toBeVisible();
-    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
+    await openCreateOrderDrawer(page);
 
     const now = new Date(Date.now() + 3600_000).toISOString().slice(0, 10);
-    await page.locator('#plannedStartAt').fill(now);
+    await plannedStartAtField(page.locator('[data-testid=nl-create-order-form]')).fill(now);
     const v = page.locator('input#vehiclePlate');
     await v.click(); await v.fill(pair.vehicleLabel);
     await page.getByRole('option', { name: pair.vehicleLabel }).click();

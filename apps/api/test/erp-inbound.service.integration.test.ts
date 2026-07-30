@@ -16,7 +16,7 @@ const DEPOT = '00000000-0000-0000-0000-000000000c03';
 const LE = '00000000-0000-0000-0000-000000000c04';
 const MCID = '00000000-0000-0000-0000-000000000c05';
 describe('@fleet/api - ErpInboundService (integration)', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_erp_inbound'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_erp_inbound'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   async function seedRow(tx: TestTx): Promise<void> {
     await tx.execute(sql.raw(

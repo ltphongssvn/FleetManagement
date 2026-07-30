@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "build": "next build",
-    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "check": "echo check is a turbo aggregate task -- run: pnpm exec turbo run check --filter=@fleet/ops-web",
     "clean": "rimraf .next dist .turbo coverage",
     "dev": "next dev",
     "lint": "eslint . --max-warnings=0",
@@ -20,7 +20,9 @@
     "test:watch": "vitest --watch",
     "typecheck": "tsc -p tsconfig.json",
     "test:changed": "vitest run --changed HEAD~1",
-    "test:mutation": "stryker run"
+    "test:mutation": "stryker run",
+    "tokens:build": "node scripts/build-tokens.mts write",
+    "tokens:check": "node scripts/build-tokens.mts check"
   },
   "engines": {
     "node": ">=22.0.0 <25.0.0"
@@ -31,8 +33,9 @@
     "@fleet/sync-protocol": "workspace:*",
     "@headlessui/react": "^2.2.10",
     "@sentry/nextjs": "^10.51.0",
+    "@tanstack/react-table": "^8.21.3",
     "@xstate/react": "^6.1.0",
-    "next": "^16.2.4",
+    "next": "^16.2.11",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "server-only": "^0.0.1",
@@ -40,6 +43,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@fleet/design-tokens": "workspace:*",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@tailwindcss/postcss": "^4.2.4",

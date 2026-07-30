@@ -14,52 +14,47 @@
 //   the admin section phone field + render (L1), the browser client phone
 //   payload (L2), the API DTO phone (L3), the service phone persistence (L4),
 //   and the schema phone column (L5).
+//
+// MARKUP CONTRACT MIGRATED (Co so du lieu arc): the Khách hàng section now
+//   renders through the shared DataTable, so a row is a <tr> of <td> cells,
+//   not a <ul><li>. Every invariant below is unchanged; only the row locator
+//   moves to getByRole(row) -- semantic, and it survives markup churn.
 import { test, expect } from '@playwright/test';
 import { loginAs } from './helpers/auth';
-
 const BUDGET_MS = 15_000;
-
 test.describe.serial('Khách hàng: Số điện thoại CRUD', () => {
   test('add customer with phone, see it, edit it, value persists', async ({ page }) => {
     const rand = Math.floor(Math.random() * 1e9).toString(36);
     const customerName = 'E2E-KHACH-PHONE-' + rand;
     const phone = '0901' + String(Date.now()).slice(-6);
     const newPhone = '0902' + String(Date.now()).slice(-6);
-
     // Authenticate via injected session (PKCE login has no credential form).
     await loginAs(page);
-
     await page.goto('/admin/reference');
     await expect(page.getByRole('heading', { name: 'Quản lý dữ liệu điều phối' })).toBeVisible({ timeout: BUDGET_MS });
-
     // Scope to the Khách hàng section (first section with that heading).
     const customerSection = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Khách hàng' }) });
-
     // INVARIANT 1: a Số điện thoại input exists in the Khách hàng section.
     const nameInput = customerSection.getByPlaceholder('Thêm khách hàng');
     const phoneInput = customerSection.getByPlaceholder('Số điện thoại');
     await expect(phoneInput).toBeVisible({ timeout: BUDGET_MS });
-
     // CREATE with name + phone via the real UI.
     await nameInput.fill(customerName);
     await phoneInput.fill(phone);
     await customerSection.getByRole('button', { name: 'Thêm khách hàng' }).click();
-
     // INVARIANT 2: the created customer's row shows the phone.
-    const row = customerSection.locator('li').filter({ hasText: customerName });
+    const row = customerSection.getByRole('row').filter({ hasText: customerName });
     await expect(row).toBeVisible({ timeout: BUDGET_MS });
     await expect(row).toContainText(phone);
-
     // UPDATE the phone via the row's Sửa SĐT (edit phone) control.
     await row.getByRole('button', { name: 'Sửa SĐT' }).click();
     const editInput = row.getByLabel('Số điện thoại');
     await editInput.fill(newPhone);
     await row.getByRole('button', { name: 'Lưu' }).click();
-
     // INVARIANT 3: the new phone persists after a reload (server round-trip).
     await page.reload();
     const customerSection2 = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Khách hàng' }) });
-    const row2 = customerSection2.locator('li').filter({ hasText: customerName });
+    const row2 = customerSection2.getByRole('row').filter({ hasText: customerName });
     await expect(row2).toContainText(newPhone, { timeout: BUDGET_MS });
   });
 });

@@ -1,4 +1,4 @@
-import { OUTBOX_QUEUES, MANIFEST_MAX_SIZE_BYTES, type ManifestStopRef } from '@fleet/sync-protocol';
+import { OUTBOX_QUEUES, MANIFEST_MAX_SIZE_BYTES, type ManifestStopRef, type ExtractionResultWire } from '@fleet/sync-protocol';
 // apps/api/src/manifest/manifest.service.ts
 // Manifest service per Frozen Stack PDF "Manifest" + "Uploads".
 import { Inject, Injectable, Optional } from '@nestjs/common';
@@ -14,6 +14,7 @@ import { manifest, uploadSession } from '../database/schema/manifest.js';
 import { outbox } from '../database/schema/append-paths.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { appendTriWrite } from '../database/append-tri-write.js';
+import { completeRunIfDelivered } from '../maintenance/repair-complete-delivered-runs.js';
 import { stop, transportOrder } from '../database/schema/transport.js';
 import { BLOB_STORE, type IBlobStore } from '../storage/storage-provider.interface.js';
 import type { Env } from '../config/env.config.js';
@@ -258,6 +259,21 @@ export class ManifestService {
       if (input.accepted) {
         await this.emitManifestCommittedEvent(tx, session.manifestId, input.uploadSessionId, op);
         await this.emitManifestExtractionRequestedEvent(tx, session, op);
+        // Edge-triggered completion (terminal-29 arc): a committed manifest may
+        // be the LAST photo a run was waiting on. Re-evaluate the run now, in
+        // this same tx, so completion fires the instant delivery is complete --
+        // even when the photo commits long after the client complete-intent
+        // window (the async-intake-lag strand). Reuses the completion predicate
+        // SSOT (runIsDelivered); the batch reconciler stays the periodic backstop.
+        const committedManifest = await tx
+          .select({ transportOrderId: manifest.transportOrderId })
+          .from(manifest)
+          .where(eq(manifest.manifestId, session.manifestId))
+          .limit(1);
+        const orderId = committedManifest[0]?.transportOrderId;
+        if (orderId !== undefined) {
+          await completeRunIfDelivered(tx as never, op, orderId);
+        }
       } else {
         await this.emitManifestRejectedEvent(tx, session.manifestId, input.uploadSessionId, input.rejectionReasonCode, op);
       }
@@ -391,12 +407,11 @@ export class ManifestService {
    *  (-> projections) so the dispatch board picks it up. not_found/unreadable
    *  record nothing (kg stays null) and emit nothing — extraction is best-effort
    *  enrichment, never a state machine transition. */
-  async finalizeExtraction(input: {
-    readonly manifestId: string;
-    readonly status: 'extracted' | 'not_found' | 'unreadable';
-    readonly extractedNetWeightKg: number | null;
-    readonly reason?: 'unparseable' | 'below_sanity_min' | 'above_sanity_max' | 'no_field' | 'object_missing' | undefined;
-  }, op: OperatorContext): Promise<{ manifestId: string; status: 'extracted' | 'not_found' | 'unreadable' }> {
+  // input is the SSOT ExtractionResultWire (@fleet/sync-protocol) the controller
+  // strict-parses and passes straight through, so the reason vocabulary can never
+  // drift from the wire contract (was a hand-written union that broke when T33
+  // widened the reasons).
+  async finalizeExtraction(input: ExtractionResultWire, op: OperatorContext): Promise<{ manifestId: string; status: ExtractionResultWire['status'] }> {
     return this.db.transaction(async (tx) => {
       if (input.status !== 'extracted' || input.extractedNetWeightKg === null) {
         // Persist the terminal status even when there is no kg, so the board can

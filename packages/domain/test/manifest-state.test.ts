@@ -8,6 +8,7 @@ import {
   MANIFEST_STATES,
   MANIFEST_VERIFIABLE_STATES,
   MANIFEST_FINALIZABLE_STATES,
+  MANIFEST_PHOTO_RECEIVED_STATES,
 } from '../src/manifest/manifest-state.js';
 
 describe('@fleet/domain - manifest state constants', () => {
@@ -28,5 +29,15 @@ describe('@fleet/domain - manifest state constants', () => {
   });
   it('MANIFEST_FINALIZABLE_STATES is verifying', () => {
     expect(MANIFEST_FINALIZABLE_STATES).toEqual(['verifying']);
+  });
+  it('MANIFEST_PHOTO_RECEIVED_STATES is verifying+captured+committed', () => {
+    expect(MANIFEST_PHOTO_RECEIVED_STATES).toEqual(['verifying', 'captured', 'committed']);
+  });
+  it('MANIFEST_PHOTO_RECEIVED_STATES is a subset of MANIFEST_STATES and excludes pending+rejected', () => {
+    for (const s of MANIFEST_PHOTO_RECEIVED_STATES) {
+      expect(MANIFEST_STATES).toContain(s);
+    }
+    expect(MANIFEST_PHOTO_RECEIVED_STATES).not.toContain('pending');
+    expect(MANIFEST_PHOTO_RECEIVED_STATES).not.toContain('rejected');
   });
 });

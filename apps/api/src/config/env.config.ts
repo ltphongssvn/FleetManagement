@@ -61,11 +61,98 @@ export const EnvSchema = z.object({
   KEYCLOAK_MONITOR_CLIENT_SECRET: z.string().min(1).optional(),
   BREAKGLASS_USERNAME_PREFIX: z.string().min(1).default('fleet-breakglass'),
   BREAKGLASS_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
+  // Command Palette LLM adapter (Claude Haiku 4.5 via Anthropic Messages REST).
+  // ANTHROPIC_API_KEY is optional on purpose: unset -> COPILOT_LLM_PORT stays
+  // unbound and the planner falls back to clarify (fail-safe, mirroring the
+  // KEYCLOAK_MONITOR_CLIENT_SECRET gating). Empty string (compose ${VAR:-}) is
+  // coerced to undefined so a blank interpolation reads as absent, not as a
+  // present-but-invalid key. COPILOT_LLM_MODEL is the technical best-fit default
+  // for strict-JSON + sub-600ms; env-overridable for a model A/B.
+  ANTHROPIC_API_KEY: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  COPILOT_LLM_MODEL: z.string().min(1).default('claude-haiku-4-5'),
   // Intake-lag regression guard (Jun-24 incident class): pages via Sentry
   // fatal when the OLDEST verifying manifest exceeds this age -- any break in
   // the intake loop (auth, queue, worker, relay) becomes loud within one
   // threshold window instead of silently stranding uploads for weeks.
   INTAKE_LAG_ALERT_MINUTES: z.coerce.number().int().positive().default(30),
+  // Driver-alert-lag guard (T12 driver-order-alerts): pages via Sentry fatal
+  // when a driver_alert outbox row dead-letters (permanent miss) or stays
+  // pending/failed past this age (stuck relay/queue/consumer). Tighter than
+  // the intake threshold because a missed 4AM alert = a missed truck run.
+  DRIVER_ALERT_LAG_MINUTES: z.coerce.number().int().positive().default(15),
+  // Intake self-healing reconciler (2026 level-based recovery loop). Every
+  // tick it re-emits the compensating intake job for verifying manifests
+  // older than AFTER_MINUTES (set below the lag ALERT threshold so auto-heal
+  // races the page), gated by exponential backoff off lastIntakeReconcileAt,
+  // bounded by MAX_ATTEMPTS and BATCH_SIZE (the per-tick retry budget). At
+  // max attempts a manifest is quarantined in place (state untouched) and a
+  // distinct Sentry fatal fires. ENABLED gates the scheduler tick; unset ->
+  // ON (self-healing is the safe default for production).
+  INTAKE_RECONCILE_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  INTAKE_RECONCILE_AFTER_MINUTES: z.coerce.number().int().positive().default(15),
+  INTAKE_RECONCILE_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
+  INTAKE_RECONCILE_BATCH_SIZE: z.coerce.number().int().positive().default(25),
+  // Completion-reconciler proactive monitor (T16 stranded-delivery guard, PR
+  // #297 class). Pages via Sentry fatal when the OLDEST delivered-but-non-
+  // terminal road_run (all stop photos committed, gate parity) has been
+  // started longer than ALERT_MINUTES -- so a future recurrence of the
+  // XTT.07-019/020 strand (order stuck in Dang chay after a late intake
+  // commit) becomes loud within one threshold window instead of stranding
+  // silently. ENABLED gates the scheduler tick; unset -> ON (loud-by-default
+  // is the safe production posture, mirroring INTAKE_RECONCILE_ENABLED).
+  COMPLETION_MONITOR_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  COMPLETION_STRANDED_ALERT_MINUTES: z.coerce.number().int().positive().default(30),
+  // Completion self-healing reconciler (2026 level-based recovery loop,
+  // sibling of the intake reconciler). Every tick it finds non-terminal
+  // road_runs whose linked orders are ALL photo-committed (the same
+  // runIsDelivered predicate the live gate + edge-trigger use) and drives
+  // them started->completed through the SAME guarded flip + appendTriWrite.
+  // Closes the structural gap where a manifest reaches committed WITHOUT
+  // firing the finalizeIntake edge-trigger (manual redrive, pre-deploy
+  // commit, edge-eval rollback): the run stranded in Dang chay with photos
+  // uploaded and nothing scheduled healed it. Idempotent guarded flip -> no
+  // MAX_ATTEMPTS/quarantine (unlike intake). ENABLED gates the tick; unset
+  // -> ON (self-healing is the safe production default). AFTER_MINUTES set
+  // low: a delivered run should complete within minutes, not stay running.
+  COMPLETION_RECONCILE_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  COMPLETION_RECONCILE_AFTER_MINUTES: z.coerce.number().int().positive().default(5),
+  COMPLETION_RECONCILE_BATCH_SIZE: z.coerce.number().int().positive().default(50),
+  // Inbound webhook HMAC secrets (Factor III: declared at the validated
+  // boundary, not read raw in the request path). Per-provider distinct
+  // secrets -- never a shared WEBHOOK_SECRET (2026 practice). Optional +
+  // fail-safe dormant, mirroring KEYCLOAK_MONITOR_CLIENT_SECRET: an
+  // environment that does not wire the integration boots, while the
+  // request-time verifier stays fail-closed (rejects unsigned/missigned).
+  EAS_WEBHOOK_SECRET: z.string().min(1).optional(),
+  ERP_WEBHOOK_SECRET: z.string().min(1).optional(),
+  // Browser origins allowed by CORS. CSV env -> trimmed string array (same
+  // idiom as STEP_UP_ACR_LADDER). Default = local ops-web + driver-app dev
+  // origins; production supplies the real origins via this var.
+  CORS_ORIGINS: z
+    .string()
+    .default('http://localhost:8081,http://localhost:3001')
+    .transform((v) => v.split(',').map((s) => s.trim()).filter((s) => s.length > 0)),
+  // Guards the seed endpoint (POST /transport-orders). Default ON; a deploy
+  // sets this false to disable the seed path. Boolean-coerced like the
+  // OTEL_ENABLED / INTAKE_RECONCILE_ENABLED flags.
+  FLEET_PILOT_SEED_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  // Device attestation (arc: feature/device-binding). Server-side deployment
+  // constants for hardware attestation verification. The two CSV lists are the
+  // accepted app identities (an app can ship under more than one id across
+  // build profiles); ATTESTATION_APPLE_TEAM_ID feeds the iOS App Attest
+  // rpIdHash check SHA256(teamId.bundleId). CSV envs -> trimmed string arrays.
+  ATTESTATION_ANDROID_PACKAGE_NAMES: z
+    .string()
+    .default('')
+    .transform((v) => v.split(',').map((x) => x.trim()).filter((x) => x.length > 0)),
+  ATTESTATION_IOS_BUNDLE_IDS: z
+    .string()
+    .default('')
+    .transform((v) => v.split(',').map((x) => x.trim()).filter((x) => x.length > 0)),
+  ATTESTATION_APPLE_TEAM_ID: z.string().min(1).default('0000000000'),
 });
 export type Env = z.infer<typeof EnvSchema>;
 // Rebuild-CLI-scoped validator (follow-up #5). Derives from the SAME EnvSchema
@@ -85,16 +172,15 @@ export function validateRebuildEnv(raw: Record<string, unknown>): RebuildEnv {
   const result = RebuildEnvSchema.safeParse(raw);
   if (!result.success) {
     const paths = result.error.issues.map((i) => i.path.join('.')).join(', ');
-    throw new Error(`Invalid rebuild environment at: ${paths}`);
+    throw new Error('Invalid rebuild environment at: ' + paths);
   }
   return result.data;
 }
-
 export function validateEnv(raw: Record<string, unknown>): Env {
   const result = EnvSchema.safeParse(raw);
   if (!result.success) {
     const paths = result.error.issues.map((i) => i.path.join('.')).join(', ');
-    throw new Error(`Invalid environment at: ${paths}`);
+    throw new Error('Invalid environment at: ' + paths);
   }
   return result.data;
 }

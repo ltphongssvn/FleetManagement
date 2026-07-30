@@ -1,8 +1,9 @@
-// workers/main-worker/test/outbox-routing.test.ts
+// packages/sync-protocol/test/outbox-routing.test.ts
+// (header + describe labels corrected: file moved from workers/main-worker)
 import { describe, it, expect } from 'vitest';
-import { routeOutboxRow, OUTBOX_ROUTING_POLICY_VERSION } from '../src/outbox-routing.js';
+import { routeOutboxRow, OUTBOX_ROUTING_POLICY_VERSION, OUTBOX_QUEUES } from '../src/outbox-routing.js';
 
-describe('@fleet/main-worker - routeOutboxRow', () => {
+describe('@fleet/sync-protocol - routeOutboxRow', () => {
   it('routes manifest_intake.requested to intake queue', () => {
     const r = routeOutboxRow({ aggregateType: 'manifest_intake', eventType: 'manifest_intake.requested' });
     expect(r.accepted).toBe(true);
@@ -74,7 +75,7 @@ describe('@fleet/main-worker - routeOutboxRow', () => {
 
 import fc from 'fast-check';
 
-describe('@fleet/main-worker - routeOutboxRow property invariants', () => {
+describe('@fleet/sync-protocol - routeOutboxRow property invariants', () => {
   it('never throws; always returns a versioned decision', () => {
     fc.assert(
       fc.property(
@@ -94,7 +95,8 @@ describe('@fleet/main-worker - routeOutboxRow property invariants', () => {
   });
 
   it('every accepted decision targets a known queue', () => {
-    const known = new Set(['intake', 'erp', 'projections']);
+    // Derived from the SSOT: hand-listing here already drifted once (missing 'extraction').
+    const known = new Set<string>(Object.values(OUTBOX_QUEUES));
     fc.assert(
       fc.property(
         fc.constantFrom('manifest_intake', 'manifest', 'road_run', 'transport_order', 'stop'),
@@ -119,7 +121,7 @@ describe('@fleet/main-worker - routeOutboxRow property invariants', () => {
     fc.assert(
       fc.property(
         fc.string({ minLength: 1, maxLength: 32 }).filter((s) =>
-          !['manifest_intake', 'manifest', 'road_run', 'transport_order', 'stop'].includes(s),
+          !['manifest_intake', 'manifest_extraction', 'manifest', 'road_run', 'transport_order', 'stop', 'driver_alert'].includes(s),
         ),
         (aggregateType) => {
           const r = routeOutboxRow({ aggregateType, eventType: `${aggregateType}.x` });
@@ -129,5 +131,24 @@ describe('@fleet/main-worker - routeOutboxRow property invariants', () => {
         },
       ),
     );
+  });
+});
+
+describe('@fleet/sync-protocol - driver_alert routing (T12 order alerts)', () => {
+  it('exposes the alerts queue in OUTBOX_QUEUES', () => {
+    expect(OUTBOX_QUEUES.ALERTS).toBe('alerts');
+  });
+  it('routes driver_alert.requested to the alerts queue with policy version', () => {
+    const r = routeOutboxRow({ aggregateType: 'driver_alert', eventType: 'driver_alert.requested' });
+    expect(r.accepted).toBe(true);
+    if (r.accepted) {
+      expect(r.queueName).toBe('alerts');
+      expect(r.policyVersion).toBe(OUTBOX_ROUTING_POLICY_VERSION);
+    }
+  });
+  it('rejects driver_alert.<other> as unknown_event_type (alert events are explicit, never wildcard)', () => {
+    const r = routeOutboxRow({ aggregateType: 'driver_alert', eventType: 'driver_alert.cancelled' });
+    expect(r.accepted).toBe(false);
+    if (!r.accepted) expect(r.rejectionCode).toBe('unknown_event_type');
   });
 });

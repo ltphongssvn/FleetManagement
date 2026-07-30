@@ -6,6 +6,18 @@
 // auto-backup was removed with the move to Authorization Code + PKCE, where
 // ops-web no longer runs a credential server action at sign-in.)
 //
+// LOGOUT LOCATOR (T60): the logout control is located page-wide by role +
+// accessible name, NOT scoped to a landmark. It previously carried a
+// getByRole(main) scope that existed only to dodge a strict-mode violation
+// caused by a SECOND LogoutButton mounted in the board toolbar. That scope
+// silently bound this spec to the redundant control and encoded a layout
+// position as a test invariant. The duplicate is removed (the app has exactly
+// one logout, in the AppShell banner), so the unscoped role+name locator is
+// unique BY CONSTRUCTION and survives the control moving between banner and
+// main. The toHaveCount(1) tripwires below assert that uniqueness instead of
+// assuming it, so a re-introduced duplicate fails loudly here rather than
+// being papered over with another scope.
+//
 // Layers exercised end-to-end:
 //   L1 (UI):     "Xuất Excel" button on DispatchBoard triggers a download.
 //   L2 (action): server action calls API with the session JWT.
@@ -23,6 +35,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { execSync } from 'node:child_process';
 import { loginAs } from './helpers/auth';
+import { waitForBoardReady } from './helpers/create-order';
 const POSTGRES_CONTAINER = process.env['E2E_PG_CONTAINER'] ?? 'fleet-pilot-postgres-1';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 const DISPATCHER_OPERATOR_ID = '00000000-0000-0000-0000-0000000000aa';
@@ -76,7 +89,7 @@ test.describe('dispatch export-excel backup chain (L1-L5)', () => {
   test('L1+L2+L3: manual export button downloads .xlsx with Vietnamese headers', async ({ page }) => {
     await loginAsDispatcher(page);
     await page.goto('/');
-    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
+    await waitForBoardReady(page);
     const downloadPromise = page.waitForEvent('download');
     await page.getByRole('button', { name: /xu.t excel/i }).click();
     const download = await downloadPromise;
@@ -89,7 +102,7 @@ test.describe('dispatch export-excel backup chain (L1-L5)', () => {
     const before = countExportLog(DISPATCHER_OPERATOR_ID, 'manual', todayKeyVnTz());
     await loginAsDispatcher(page);
     await page.goto('/');
-    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
+    await waitForBoardReady(page);
     const dl = page.waitForEvent('download');
     await page.getByRole('button', { name: /xu.t excel/i }).click();
     await dl;
@@ -102,16 +115,20 @@ test.describe('dispatch export-excel backup chain (L1-L5)', () => {
     // day is a no-op (idempotent), so row count must remain unchanged.
     await loginAsDispatcher(page);
     await page.goto('/');
-    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
-    await page.getByRole('main').getByRole('button', { name: /đăng xuất|log ?out|sign out/i }).click();
+    await waitForBoardReady(page);
+    const logoutButton = page.getByRole('button', { name: /đăng xuất|log ?out|sign out/i });
+    await expect(logoutButton).toHaveCount(1);
+    await logoutButton.click();
     await page.waitForURL(/\/login/);
     const afterFirst = await waitForExportLogAtLeast(DISPATCHER_OPERATOR_ID, 'logout', dayKey, 1);
     expect(afterFirst).toBeGreaterThanOrEqual(1);
     await context.clearCookies();
     await loginAsDispatcher(page);
     await page.goto('/');
-    await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
-    await page.getByRole('main').getByRole('button', { name: /đăng xuất|log ?out|sign out/i }).click();
+    await waitForBoardReady(page);
+    const logoutButtonAgain = page.getByRole('button', { name: /đăng xuất|log ?out|sign out/i });
+    await expect(logoutButtonAgain).toHaveCount(1);
+    await logoutButtonAgain.click();
     await page.waitForURL(/\/login/);
     const afterSecond = countExportLog(DISPATCHER_OPERATOR_ID, 'logout', dayKey);
     expect(afterSecond).toBe(afterFirst);

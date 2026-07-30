@@ -25,9 +25,10 @@
 // reach a fixed point; nextjs.org prefetching: avoid churn on dynamic lists.)
 //
 // PAGINATION (2026): the board is status-partitioned + offset-paginated. When a
-// pagination prop is supplied, DispatchView renders Active/Finished filter tabs
-// (the default view is Active = pending + in-progress; Finished = completed +
-// cancelled) and a bottom pagination control: numbered page links, a
+// pagination prop is supplied, DispatchView renders one filter tab per SSOT
+// status group (Đang chạy = pending + in-progress; Đã hoàn tất = completed;
+// Lệnh Hủy = cancelled -- the T16 three-way carve-out) and a bottom pagination
+// control: numbered page links, a
 // jump-to-page search input, and a total count. All navigation is URL-state
 // (?group=&page=) via plain <a>/full navigation, so pages are shareable and
 // RSC-rendered server-side (the offset-pagination advantage). When the prop is
@@ -62,13 +63,16 @@
 import { useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import { useRouter } from 'next/navigation';
-import { CreateOrderForm, type CreateOrderFormProps } from './CreateOrderForm';
-import { LogoutButton } from '../auth/LogoutButton';
+import { type CreateOrderFormProps } from './CreateOrderForm';
+import { NaturalLanguageCreateForm } from './NaturalLanguageCreateForm';
 import { ExportOrdersExcelButton } from './ExportOrdersExcelButton';
 import { buildLookup, formatOrderRef } from './labels';
+import type { RoadRunStatusGroup } from '@fleet/sync-protocol';
 import type { DispatchBoardRoadRun } from './types';
 import { StopSlotHeaders, StopSlotCells, STOP_SLOT_COL_COUNT } from './board-stops';
+import { ManualNetWeightEditor } from './ManualNetWeightEditor';
 import { useRefetchOnFocus } from '../../lib/use-refetch-on-focus';
+import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
 const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
 });
@@ -83,11 +87,18 @@ function formatCustomer(name: string | null): string {
 }
 // Chenh lech (Feature 3): the SERVER-computed pickup-vs-delivery net-weight
 // difference (kg), vi-VN grouped (12500 => 12.500 kg); sign preserved
-// (negative => delivery exceeded pickup). null => weights incomplete => em-dash,
+// (negative => pickup exceeded delivery). null => weights incomplete => em-dash,
 // so a partial reconciliation never shows a misleading number.
 const WEIGHT_DIFF_FORMATTER = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
 function formatWeightDiff(kg: number | null): string {
-  return kg === null ? DASH : WEIGHT_DIFF_FORMATTER.format(kg) + ' kg';
+  if (kg === null) return DASH;
+  // Collapse negative zero (a float-subtraction artifact) to a bare zero so the
+  // dispatcher never sees a misleading minus on an effectively-balanced load.
+  // signDisplay: 'negative' would do this natively, but the toolchain TS lib
+  // predates that literal (spec-late addition), so normalize in code and keep the
+  // lib-typed 'auto' semantics: negatives show a minus, positive and zero show none.
+  const normalized = Object.is(kg, -0) ? 0 : kg;
+  return WEIGHT_DIFF_FORMATTER.format(normalized) + ' kg';
 }
 // Tài xế / Xe label resolution: prefer the SERVER-resolved label (authoritative,
 // independent of the pair-filtered dropdowns). Fall back to the client lookup
@@ -126,38 +137,79 @@ function OrderRefCell({ refs }: { refs: readonly string[] }): JSX.Element {
     <a href={href} data-testid={testId} className='font-mono text-blue-700 underline-offset-2 hover:underline cursor-pointer'>{formatOrderRef(refs)}</a>
   );
 }
-// Status group of the board view. active = pending + in-progress (planned,
-// dispatched, started); finished = completed + cancelled. Mirrors the SSOT
-// @fleet/sync-protocol RoadRunStatusGroup (string-typed here to avoid coupling
-// the client component to the contract import; the loader/api are authoritative).
-export type BoardStatusGroup = 'active' | 'finished';
+// Status group of the board view: the SSOT @fleet/sync-protocol
+// RoadRunStatusGroup, imported type-only (erased at build, so the client bundle
+// is unchanged) rather than re-declared. The previous local union was a
+// structural twin that compiled only because it happened to coincide with the
+// contract; a 4th group added to the SSOT would NOT have failed this file.
+// load-board-page.ts already consumed the contract type, leaving this the lone
+// hold-out. Group membership and the state partition stay authoritative in
+// dispatch-board-pagination-contract.ts (statesForStatusGroup).
 export interface DispatchBoardPagination {
-  readonly group: BoardStatusGroup;
+  readonly group: RoadRunStatusGroup;
   readonly page: number;
   readonly pageSize: number;
   readonly total: number;
   readonly totalPages: number;
   readonly hasMore: boolean;
 }
-// Build a shareable board URL preserving the status group and target page.
-function buildBoardHref(group: BoardStatusGroup, page: number): string {
+// Build a shareable board URL preserving status group, target page, AND the
+// active search term, so paging/tab-switching never drops the dispatcher search.
+function buildBoardHref(group: RoadRunStatusGroup, page: number, search: string): string {
   const qs = new URLSearchParams();
   qs.set('group', group);
   qs.set('page', String(page));
+  if (search !== '') qs.set('search', search);
   return '/?' + qs.toString();
 }
-function FilterTabs({ group }: { group: BoardStatusGroup }): JSX.Element {
+function FilterTabs({ group, search }: { group: RoadRunStatusGroup; search: string }): JSX.Element {
   const base = 'rounded px-3 py-1 text-sm font-medium';
   const activeCls = base + ' bg-blue-600 text-white';
   const idleCls = base + ' bg-slate-100 text-slate-600 hover:bg-slate-200';
   return (
     <div className='flex items-center gap-2' role='tablist' aria-label='Lọc theo trạng thái'>
-      <a data-testid='dispatch-board-filter-active' href={buildBoardHref('active', 1)} aria-current={group === 'active' ? 'page' : undefined} className={group === 'active' ? activeCls : idleCls}>Đang chạy</a>
-      <a data-testid='dispatch-board-filter-finished' href={buildBoardHref('finished', 1)} aria-current={group === 'finished' ? 'page' : undefined} className={group === 'finished' ? activeCls : idleCls}>Đã hoàn tất</a>
+      <a data-testid='dispatch-board-filter-active' href={buildBoardHref('active', 1, search)} aria-current={group === 'active' ? 'page' : undefined} className={group === 'active' ? activeCls : idleCls}>Đang chạy</a>
+      <a data-testid='dispatch-board-filter-finished' href={buildBoardHref('finished', 1, search)} aria-current={group === 'finished' ? 'page' : undefined} className={group === 'finished' ? activeCls : idleCls}>Đã hoàn tất</a>
+      <a data-testid='dispatch-board-filter-cancelled' href={buildBoardHref('cancelled', 1, search)} aria-current={group === 'cancelled' ? 'page' : undefined} className={group === 'cancelled' ? activeCls : idleCls}>Lệnh Hủy</a>
     </div>
   );
 }
-function PaginationBar({ pagination }: { pagination: DispatchBoardPagination }): JSX.Element {
+// Free-text search box: plain input, full-navigation on Enter to ?search= (the
+// same plain-anchor escape hatch the tabs/pagination use -> no router.push -> no
+// RSC prefetch loop). Submitting resets to page 1 of the current group. Empty
+// term navigates without the search param (full board).
+function SearchBox({ group, search }: { group: RoadRunStatusGroup; search: string }): JSX.Element {
+  const onKey = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key !== 'Enter') return;
+    const term = (e.target as HTMLInputElement).value.trim();
+    window.location.assign(buildBoardHref(group, 1, term));
+  };
+  // Native clear (the X on type=search) fires a change event with an empty
+  // value and NO Enter keydown, so onKeyDown never runs. Detect the field
+  // becoming empty here and return to the unfiltered board -- but only when a
+  // search was actually active, so an empty-input event on an already-
+  // unfiltered board does not trigger a redundant navigation. Typing a
+  // non-empty value does nothing here (submission stays on Enter).
+  const onChangeInput = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const value = (e.target as HTMLInputElement).value;
+    if (value === '' && search !== '') {
+      window.location.assign(buildBoardHref(group, 1, ''));
+    }
+  };
+  return (
+    <input
+      data-testid='dispatch-board-search'
+      type='search'
+      defaultValue={search}
+      onKeyDown={onKey}
+      onChange={onChangeInput}
+      placeholder='Tìm lệnh điều xe...'
+      aria-label='Tìm kiếm lệnh điều xe theo bất kỳ thông tin nào'
+      className='w-56 rounded border px-2 py-1 text-sm'
+    />
+  );
+}
+function PaginationBar({ pagination, search }: { pagination: DispatchBoardPagination; search: string }): JSX.Element {
   const { group, page, total, totalPages } = pagination;
   // Jump-to-page: full navigation to the typed page (clamped) on Enter, matching
   // the plain-anchor escape hatch (no router.push -> no RSC prefetch loop).
@@ -166,7 +218,7 @@ function PaginationBar({ pagination }: { pagination: DispatchBoardPagination }):
     const raw = Number((e.target as HTMLInputElement).value);
     if (!Number.isFinite(raw)) return;
     const target = Math.min(Math.max(Math.trunc(raw), 1), Math.max(totalPages, 1));
-    window.location.assign(buildBoardHref(group, target));
+    window.location.assign(buildBoardHref(group, target, search));
   };
   const pages: number[] = [];
   for (let p = 1; p <= totalPages; p += 1) pages.push(p);
@@ -175,7 +227,7 @@ function PaginationBar({ pagination }: { pagination: DispatchBoardPagination }):
       <span data-testid='dispatch-board-total-count' className='text-sm text-slate-500'>{'Tổng: ' + String(total) + ' lệnh'}</span>
       <div className='flex flex-wrap items-center gap-1'>
         {pages.map((p) => (
-          <a key={p} data-testid={'dispatch-board-page-link-' + String(p)} href={buildBoardHref(group, p)} aria-current={p === page ? 'page' : undefined} className={'rounded px-2 py-1 text-sm ' + (p === page ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}>{String(p)}</a>
+          <a key={p} data-testid={'dispatch-board-page-link-' + String(p)} href={buildBoardHref(group, p, search)} aria-current={p === page ? 'page' : undefined} className={'rounded px-2 py-1 text-sm ' + (p === page ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}>{String(p)}</a>
         ))}
       </div>
       <label className='flex items-center gap-1 text-sm text-slate-500'>
@@ -197,6 +249,9 @@ function PaginationBar({ pagination }: { pagination: DispatchBoardPagination }):
 export interface DispatchViewProps {
   readonly initialRuns: readonly DispatchBoardRoadRun[];
   readonly refs: Omit<CreateOrderFormProps, 'locale'> & { readonly nextOrderRef?: string };
+  // Current free-text search term (from ?search=), echoed into the search box
+  // and preserved across tab/page navigation. Empty string => no active search.
+  readonly searchTerm?: string;
   readonly onMountForTest?: (push: (externalRef: string, op: { operatorId: string; assetId: string }) => void) => void;
   // When present, the board is paginated + status-partitioned (offset pagination
   // over the current page slice in initialRuns). Absent => unpaginated board.
@@ -215,6 +270,7 @@ function makeOptimisticRow(externalRef: string, opCtx: { operatorId: string; ass
     transportOrderRefs: [externalRef],
     customerName: null,
     customerPhone: null,
+    cargoName: null,
     weightDiffKg: null,
     stops: [],
   };
@@ -231,12 +287,35 @@ function mergeRuns(serverRuns: readonly DispatchBoardRoadRun[], optimistic: read
   return additions.length === 0 ? serverRuns : [...additions, ...serverRuns];
 }
 export function DispatchView(props: DispatchViewProps): JSX.Element {
-  const { initialRuns, refs, onMountForTest, pagination } = props;
+  const { initialRuns, refs, onMountForTest, pagination, searchTerm } = props;
+  const search = searchTerm ?? '';
   const router = useRouter();
   // Single source of optimistic rows: plain useState. Unlike useOptimistic,
   // this does NOT re-derive on every render, so it cannot drive a re-render
   // loop when router.refresh() supplies a fresh initialRuns reference.
   const [stickyRuns, setStickyRuns] = useState<readonly DispatchBoardRoadRun[]>([]);
+  // T33: which committed manifest (if any) the dispatcher is entering a manual
+  // net weight for. Set by a per-stop Nhap KL button via onEnterNetWeight and
+  // cleared when the editor finishes (the action revalidatePath refreshes kg).
+  const [editingManifestId, setEditingManifestId] = useState<string | null>(null);
+  // Table-first (T38): the create form is create-on-demand behind a drawer,
+  // so the Lenh dieu xe table is the primary above-the-fold surface.
+  const [createOpen, setCreateOpen] = useState(false);
+  // So Lenh confirmation state lives on the BOARD, not inside the create form.
+  // Creating an order closes the drawer, which unmounted the form and took the
+  // success banner with it: the dispatcher lost the order number at the moment
+  // it was assigned. The board outlives the drawer, so the confirmation stays
+  // readable and eight e2e specs stop racing an unmount (WCAG 4.1.3 / G199).
+  const [createdRef, setCreatedRef] = useState<string | null>(null);
+  // Page-level readiness signal (2026 e2e contract). Previously the only
+  // data-hydrated marker lived on the create form, so browser specs used
+  // form-is-hydrated as a proxy for board-is-interactive. When T38 moved the
+  // form behind the drawer, that proxy forced specs to OPEN a drawer they did
+  // not need, and the open drawer then intercepted board row clicks. Readiness
+  // is a property of the PAGE, not of one conditionally-rendered child, so the
+  // signal lives here on the board root and holds regardless of drawer state.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => { setHydrated(true); }, []);
   const pushOptimisticRow = (externalRef: string, op: { operatorId: string; assetId: string }): void => {
     setStickyRuns((prev) => {
       for (const r of prev) {
@@ -283,40 +362,65 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
     if (op.operatorId !== '' && op.assetId !== '') {
       pushOptimisticRow(externalRef, op);
     }
+    setCreatedRef(externalRef);
     router.refresh();
   };
+  const createForm = (
+    <NaturalLanguageCreateForm
+      drivers={refs.drivers}
+      vehicles={refs.vehicles ?? []}
+      customers={refs.customers ?? []}
+      cargoTypes={refs.cargoTypes ?? []}
+      pickupWarehouses={refs.pickupWarehouses ?? []}
+      deliveryWarehouses={refs.deliveryWarehouses ?? []}
+      driverVehicleAssignments={refs.driverVehicleAssignments ?? []}
+      defaultOrderRef={refs.nextOrderRef ?? ''}
+      onCreated={(externalRef, op) => { handleCreated(externalRef, op); setCreateOpen(false); }}
+    />
+  );
   return (
     <>
-      <CreateOrderForm
-        drivers={refs.drivers}
-        vehicles={refs.vehicles ?? []}
-        customers={refs.customers ?? []}
-        cargoTypes={refs.cargoTypes ?? []}
-        pickupWarehouses={refs.pickupWarehouses ?? []}
-        deliveryWarehouses={refs.deliveryWarehouses ?? []}
-        driverVehicleAssignments={refs.driverVehicleAssignments ?? []}
-        defaultOrderRef={refs.nextOrderRef ?? ''}
-        onCreated={handleCreated}
-      />
-      <div className='mt-8 rounded-2xl bg-white/95 shadow-sm'>
+      <div data-testid='dispatch-board' data-hydrated={hydrated ? 'true' : 'false'} className='rounded-2xl bg-white/95 shadow-sm'>
         <section className='p-6'>
           <header className='mb-4 flex items-center justify-between'>
             <h1 className='text-2xl font-semibold'>Lệnh điều xe</h1>
             <div className='flex items-center gap-2'>
-              {pagination ? <FilterTabs group={pagination.group} /> : null}
-              <ExportOrdersExcelButton /><LogoutButton />
+              {pagination ? <SearchBox group={pagination.group} search={search} /> : null}
+              {pagination ? <FilterTabs group={pagination.group} search={search} /> : null}
+              <button
+                type='button'
+                data-testid='open-create-order'
+                onClick={() => { setCreateOpen(true); }}
+                className='inline-flex items-center gap-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500'>
+                <span aria-hidden='true'>+</span> Tạo lệnh điều xe
+              </button>
+              <ExportOrdersExcelButton />
             </div>
           </header>
+          {/* Persistent live region. The container is rendered from first
+              paint and only its CONTENT changes; mounting a role=status node
+              on demand is the documented WCAG 4.1.3 failure mode, because an
+              assistive technology never starts monitoring a region that did
+              not exist when the page loaded. role=status already implies
+              aria-live=polite and aria-atomic=true, so no extra ARIA is added,
+              and focus is deliberately NOT moved here: a focus change would
+              stop this being a status message. */}
+          <div role='status' className={createdRef === null ? undefined : 'mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800'}>
+            {createdRef === null ? null : (
+              <><span className='font-semibold'>Số Lệnh:</span> <span className='font-mono'>{createdRef}</span></>
+            )}
+          </div>
           <table className='w-full border-collapse text-sm'>
             <thead>
               <tr className='border-b text-left'>
                 <th className='px-3 py-2'>Số lệnh</th>
                 <th className='px-3 py-2'>Khách hàng</th>
+                <th className='px-3 py-2'>Tên hàng</th>
                 <th className='px-3 py-2'>Tài xế</th>
                 <th className='px-3 py-2'>Xe</th>
                 <th className='px-3 py-2'>Ngày dự kiến</th>
                 <th className='px-3 py-2'>Số điểm</th>
-                <th className='px-3 py-2'>Chênh lệch</th>
+                <th className='px-3 py-2'>Chênh lệch (Số giao - Số nhận)</th>
                 <StopSlotHeaders />
               </tr>
             </thead>
@@ -325,22 +429,51 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                 <tr key={r.roadRunId} data-testid={'dispatch-board-rr-' + r.roadRunId} className='border-b'>
                   <td className='px-3 py-2'><OrderRefCell refs={r.transportOrderRefs} /></td>
                   <td className='px-3 py-2'><CustomerCell name={r.customerName} phone={r.customerPhone} state={r.state} primaryRef={formatOrderRef(r.transportOrderRefs)} /></td>
+                  <td className='px-3 py-2' data-testid={'dispatch-board-cargo-' + formatOrderRef(r.transportOrderRefs)}>{formatCustomer(r.cargoName)}</td>
                   <td className='px-3 py-2'>{resolveLabel(r.driverName, r.assignedOperatorId, driverLookup)}</td>
                   <td className='px-3 py-2'>{resolveLabel(r.vehiclePlate, r.assignedAssetId, vehicleLookup)}</td>
                   <td className='px-3 py-2'>{formatPlannedStart(r.plannedStartAt)}</td>
                   <td className='px-3 py-2'>{r.stopCount}</td>
                   <td className='px-3 py-2 tabular-nums' data-testid={'dispatch-board-weightdiff-' + formatOrderRef(r.transportOrderRefs)}>{formatWeightDiff(r.weightDiffKg)}</td>
-                  <StopSlotCells primaryRef={formatOrderRef(r.transportOrderRefs)} stops={r.stops} />
+                  <StopSlotCells primaryRef={formatOrderRef(r.transportOrderRefs)} stops={r.stops} onEnterNetWeight={(manifestId) => { setEditingManifestId(manifestId); }} />
                 </tr>
               ))}
               {merged.length === 0 && (
-                <tr><td colSpan={7 + STOP_SLOT_COL_COUNT} className='px-3 py-6 text-center text-slate-500'>Chưa có lệnh điều xe nào.</td></tr>
+                <tr><td colSpan={8 + STOP_SLOT_COL_COUNT} className='px-3 py-6 text-center text-slate-500'>Chưa có lệnh điều xe nào.</td></tr>
               )}
             </tbody>
           </table>
-          {pagination ? <PaginationBar pagination={pagination} /> : null}
+          {pagination ? <PaginationBar pagination={pagination} search={search} /> : null}
+          {editingManifestId !== null ? (
+            <div className={'mt-3'} data-testid={'manual-netweight-editor'}>
+              <ManualNetWeightEditor manifestId={editingManifestId} onDone={() => { setEditingManifestId(null); router.refresh(); }} />
+            </div>
+          ) : null}
         </section>
       </div>
+      {/* Drawer: Headless UI Dialog, not a hand-rolled overlay. The previous
+          markup painted a full-viewport <button className=absolute inset-0>
+          as its backdrop, which intercepted every pointer event on the board
+          underneath and made board rows unclickable whenever the drawer was
+          open. Native <dialog>+showModal would be the generic 2026 answer, but
+          ComboboxField anchors its listbox (anchor=bottom start), which Headless
+          UI renders through a Floating UI portal; a top-layer native dialog would
+          paint OVER that portal and hide the options. Headless UI Dialog is the
+          vendor-sanctioned pairing: focus trap, Escape and click-outside close,
+          scroll lock, correct dialog semantics, and portal-compatible. It also
+          unmounts when closed, so nothing can intercept the board. */}
+      <Dialog open={createOpen} onClose={() => { setCreateOpen(false); }} className='relative z-40'>
+        <DialogBackdrop className='fixed inset-0 bg-slate-900/40' />
+        <div className='fixed inset-0 flex justify-end'>
+          <DialogPanel className='h-full w-full max-w-2xl overflow-y-auto bg-transparent p-4 shadow-2xl'>
+            <DialogTitle className='sr-only'>Tạo lệnh điều xe</DialogTitle>
+            <div className='mb-2 flex justify-end'>
+              <button type='button' data-testid='close-create-order' onClick={() => { setCreateOpen(false); }} className='rounded-md bg-white/90 px-3 py-1 text-sm font-medium text-slate-700 shadow'>Đóng</button>
+            </div>
+            {createForm}
+          </DialogPanel>
+        </div>
+      </Dialog>
     </>
   );
 }

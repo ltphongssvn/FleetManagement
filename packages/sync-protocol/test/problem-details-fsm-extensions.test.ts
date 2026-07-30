@@ -37,10 +37,13 @@ const ENVELOPE_IST = {
 };
 
 describe('FSM structured-error contract', () => {
-  it('FLEET_ERROR_CODES gains MANIFESTS_INCOMPLETE (7 members, pinned)', () => {
+  it('FLEET_ERROR_CODES pinned membership (12 members incl. device-binding + assignment-conflict)', () => {
     expect([...FLEET_ERROR_CODES].sort()).toEqual([
+      'DEVICE_NOT_REGISTERED', 'DEVICE_PENDING_APPROVAL', 'DEVICE_REVOKED',
+      'DRIVER_ALREADY_ASSIGNED',
       'FORBIDDEN', 'INTERNAL', 'INVALID_STATE_TRANSITION',
       'MANIFESTS_INCOMPLETE', 'NOT_FOUND', 'UNAUTHORIZED', 'VALIDATION_FAILED',
+      'VEHICLE_ALREADY_ASSIGNED',
     ]);
   });
 

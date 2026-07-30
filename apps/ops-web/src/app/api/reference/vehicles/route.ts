@@ -4,7 +4,7 @@
 // the API.
 import type { NextRequest } from 'next/server';
 import type { NextResponse } from 'next/server';
-import { forwardGet, forwardWrite } from '../_forward';
+import { forwardGet, forwardWrite } from '@/app/api/_forward';
 export function GET(req: NextRequest): Promise<NextResponse> {
   return forwardGet('/reference/vehicles', req);
 }

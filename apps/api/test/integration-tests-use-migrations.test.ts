@@ -22,6 +22,12 @@ const EXEMPT = new Set([
   'commands.gateway.integration.test.ts',
   'otel.integration.test.ts',
   'migrations.integration.test.ts',
+  // app.module.integration.test.ts boots the full Nest graph for a DI
+  // resolution smoke (moved out of the unit lane, where a whole-graph
+  // import is a category error + recurring 60s timeout). It touches NO DB,
+  // so the shared-helper / migrate rules do not apply -- same class as the
+  // commands.gateway + otel exemptions above.
+  'app.module.integration.test.ts',
 ]);
 
 // NARROW, JUSTIFIED carve-out for the no-inline-DDL check ONLY (not the helper-usage

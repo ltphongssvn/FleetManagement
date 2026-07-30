@@ -48,7 +48,7 @@ async function committedManifest(): Promise<string> {
 }
 
 describe('@fleet/api - finalizeExtraction persists kg + reason + emits projection event', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_extres'); }, 90_000);
+  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_extres'); });
   afterAll(async () => { await stopMigratedTestDb(testDb); });
   beforeEach(async () => {
     service = new ManifestService(testDb.db, fakeBlobStore(), fakeConfig());

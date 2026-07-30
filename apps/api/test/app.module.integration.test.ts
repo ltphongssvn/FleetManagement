@@ -1,33 +1,37 @@
 // apps/api/test/app.module.integration.test.ts
-// LANE MOVE (root-cause fix, T17 2026-07-12): this smoke dynamically imports
-// the ENTIRE Nest AppModule graph -- the single heaviest import in the repo.
-// In the unit lane it recurrently starved past its 60s budget whenever broad
-// gates or neighbor-worktree containers loaded the 9.7GiB box (2026-05-17,
-// 06-27, 07-11, 07-12), and per 2026 practice unit lanes never boot the full
-// application graph. The integration lane runs files serially
-// (fileParallelism:false) with 180s hooks -- the correct budget class for a
-// whole-graph DI smoke. The guard itself is UNCHANGED: it still catches
-// top-level module misconfiguration (e.g. a provider token added to a module
-// without its factory) on every test:integration / __ci_full__ run.
-import { describe, it, expect, beforeAll } from 'vitest';
-describe('@fleet/api - AppModule', () => {
-  beforeAll(() => {
-    process.env['DATABASE_URL'] = 'postgres://localhost:5432/fleet_test';
-    process.env['OIDC_ISSUER'] = 'https://idp.example.com/';
-    process.env['OIDC_AUDIENCE'] = 'fleet-api';
-    process.env['OIDC_JWKS_URI'] = 'https://idp.example.com/.well-known/jwks.json';
-    process.env['AWS_REGION'] = 'us-west-2';
-    process.env['S3_ARTIFACTS_BUCKET'] = 'fleet-test';
+// LANE MOVE (root-cause fix, 2026-07-12 T12): this smoke dynamically imports
+// the ENTIRE Nest AppModule graph (24 modules: Sentry, BullMQ, drizzle,
+// jose/Keycloak, sockets...) -- the single heaviest import in the repo. In the
+// unit lane a whole-graph boot is a category error (2026 practice: unit tests
+// never boot the full app graph) and recurrently starved past 60s under broad
+// gates / neighbor-worktree container load. Relocated to the integration lane
+// (fileParallelism:false, hookTimeout 180s). CRITICAL: the heavy import lives in
+// beforeAll so the 180s HOOK budget governs it -- in the it-body it was capped
+// by testTimeout 60s, the exact axis that still timed out after the bare move.
+// Budget is INHERITED from vitest.integration.config.ts (hookTimeout 180_000),
+// not pinned at the call site. The original pin predated f9921a1 (#342), which
+// closed the cross-config hole that made inheritance unreliable and now forbids
+// per-hook literals outright -- they are what let the 60s budget silently drift
+// back across 43 files. hook-timeout-ssot.guard.test.ts enforces that; a literal
+// here would restate the SSOT value and reopen the drift it exists to prevent.
+// Performs REAL Nest DI resolution of the whole graph (including the new
+// AlertsModule) -- a value tsc cannot give: tsc proves it COMPILES, this proves
+// Nest RESOLVES it. Touches no DB (exempt in integration-tests-use-migrations).
+import { describe, it, expect, beforeAll } from "vitest";
+
+describe("@fleet/api - AppModule (integration smoke)", () => {
+  let AppModuleRef: unknown;
+  beforeAll(async () => {
+    process.env["DATABASE_URL"] = "postgres://localhost:5432/fleet_test";
+    process.env["OIDC_ISSUER"] = "https://idp.example.com/";
+    process.env["OIDC_AUDIENCE"] = "fleet-api";
+    process.env["OIDC_JWKS_URI"] = "https://idp.example.com/.well-known/jwks.json";
+    process.env["AWS_REGION"] = "us-west-2";
+    process.env["S3_ARTIFACTS_BUCKET"] = "fleet-test";
+    const mod = await import("../src/app.module.js");
+    AppModuleRef = mod.AppModule;
   });
-  // Budget = the integration lane class (180s, matching this config's
-  // hookTimeout rationale: whole-graph cold-start headroom under load).
-  // History: a hardcoded 30s SHADOWED the unit config's 60s (May); the
-  // inherited 60s then outgrew the merged coverage gate (1623 tests,
-  // instrumented V8, 2026-07-13). An EXPLICIT budget in the lane's own
-  // class is the classification completed, not a contention band-aid --
-  // the unit lane stays free of this import entirely.
-  it('should be defined', async () => {
-    const { AppModule } = await import('../src/app.module.js');
-    expect(AppModule).toBeDefined();
-  }, 180_000);
+  it("resolves the full Nest graph (DI wiring smoke)", () => {
+    expect(AppModuleRef).toBeDefined();
+  });
 });

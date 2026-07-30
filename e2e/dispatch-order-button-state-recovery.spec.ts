@@ -1,11 +1,17 @@
 // e2e/dispatch-order-button-state-recovery.spec.ts
 // RED L0 outer acceptance test for two T3 follow-up invariants:
 //
-// Business invariant 1 — button state recovery (permanent rule):
-//   After a successful 'Tạo lệnh' submission, the submit button transitions
-//   from 'Tạo lệnh' -> 'Đang tạo…' (pending) -> 'Tạo lệnh' (idle again)
-//   within a small, bounded time. The button must NOT remain stuck on
-//   'Đang tạo…' — that strands the dispatcher and blocks the queue.
+// Business invariant 1 -- drawer closes on success (permanent rule):
+//   After a successful submission the create drawer MUST close within a
+//   small, bounded time. It must not hang in the pending state: that
+//   strands the dispatcher and blocks the queue.
+//
+//   Pre-T38 this was expressed as the submit button returning to its idle
+//   label. The drawer now unmounts that button on success, and React 19
+//   Actions already reset the pending flag when the final state update
+//   commits, so the old assertion tested a framework guarantee against an
+//   element that no longer exists. The drawer closing is the app-owned
+//   invariant, and the board live region is what confirms the order.
 //
 // Business invariant 2 — no-leak (permanent rule, NEVER to be broken):
 //   E2E tests that create transport_order rows via the UI MUST delete the
@@ -30,6 +36,7 @@ import { dockerPsql } from './helpers/docker-exec';
 import { loginAs, mintToken } from './helpers/auth';
 import { z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
+import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
@@ -173,8 +180,8 @@ test.describe('create-order button state recovery + no-leak (T3 follow-up)', () 
     try {
       await loginAsDispatcher(page);
       await page.goto('/');
-      await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
-      await page.locator('#plannedStartAt').fill('2026-07-01');
+      await openCreateOrderDrawer(page);
+      await plannedStartAtField(page.locator('[data-testid=nl-create-order-form]')).fill('2026-07-01');
       const vehicleInput = page.locator('input#vehiclePlate');
       await vehicleInput.click();
       await vehicleInput.fill(pair.vehicleLabel);
@@ -186,11 +193,11 @@ test.describe('create-order button state recovery + no-leak (T3 follow-up)', () 
       await page.locator('input#deliveryWarehouse_1').click();
       await page.getByRole('option').first().click();
 
-      const submitBtn = page.getByRole('button', { name: /^Tạo lệnh$|^Đang tạo…$/ });
+      const form = page.locator('[data-testid=nl-create-order-form]');
+      const submitBtn = form.getByRole('button', { name: /^Tạo lệnh$|^Đang tạo…$/ });
       await expect(submitBtn).toHaveText('Tạo lệnh');
       await submitBtn.click();
-      await expect(submitBtn).toHaveText('Tạo lệnh', { timeout: RECOVERY_BUDGET_MS });
-      await expect(submitBtn).not.toHaveText('Đang tạo…');
+      await expect(form).toHaveCount(0, { timeout: RECOVERY_BUDGET_MS });
 
       // Capture the server-assigned externalRef from the success banner so
       // the afterEach can delete it and afterAll can prove the no-leak

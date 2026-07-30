@@ -83,6 +83,7 @@ jobs:
       deploy_ops_web: ${{ steps.detect.outputs.ops_web }}
       deploy_worker: ${{ steps.detect.outputs.worker }}
       head_sha: ${{ steps.resolve.outputs.head_sha }}
+      head_branch: ${{ steps.resolve.outputs.head_branch }}
     env:
       HAS_RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN != '' }}
     steps:
@@ -131,8 +132,10 @@ jobs:
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
           if [ "${{ github.event_name }}" = 'workflow_run' ]; then
             echo "head_sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "head_branch=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
           else
             echo "head_sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "head_branch=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           fi
           echo "resolved base_sha=$BASE_SHA"
       - name: Detect changed services
@@ -175,6 +178,21 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ needs.gate.outputs.head_sha }}
+      - name: Stamp build provenance (GIT_SHA / GIT_BRANCH / BUILD_TIME)
+        # Railway auto-injects its git variables ONLY for deploys from a
+        # CONNECTED repo. These services run in CLI-only mode by design (see the
+        # header note on double-deploy prevention), so those variables can never
+        # arrive: Dockerfile.api baked a blank GIT_SHA and /health/version
+        # answered unknown in production indefinitely. The gate already resolved
+        # the exact deployed commit, so stamp it as a service variable instead.
+        # --skip-deploys is essential: without it every set triggers its own
+        # redeploy and the job loops.
+        run: |
+          apk add --no-cache nodejs npm >/dev/null
+          npx --yes tsx scripts/ci/deploy-stamp.ts --stamp \
+            --service api \
+            --sha ${{ needs.gate.outputs.head_sha }} \
+            --branch ${{ needs.gate.outputs.head_branch }}
       - name: Deploy api (CI mode)
         run: railway up --service api --ci
       - name: Wait for /health/ready (5min budget)
@@ -210,6 +228,21 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ needs.gate.outputs.head_sha }}
+      - name: Stamp build provenance (GIT_SHA / GIT_BRANCH / BUILD_TIME)
+        # Railway auto-injects its git variables ONLY for deploys from a
+        # CONNECTED repo. These services run in CLI-only mode by design (see the
+        # header note on double-deploy prevention), so those variables can never
+        # arrive: Dockerfile.api baked a blank GIT_SHA and /health/version
+        # answered unknown in production indefinitely. The gate already resolved
+        # the exact deployed commit, so stamp it as a service variable instead.
+        # --skip-deploys is essential: without it every set triggers its own
+        # redeploy and the job loops.
+        run: |
+          apk add --no-cache nodejs npm >/dev/null
+          npx --yes tsx scripts/ci/deploy-stamp.ts --stamp \
+            --service ops-web \
+            --sha ${{ needs.gate.outputs.head_sha }} \
+            --branch ${{ needs.gate.outputs.head_branch }}
       - name: Deploy ops-web (CI mode)
         run: railway up --service ops-web --ci
       - name: Wait for /login (5min budget)
@@ -245,6 +278,21 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ needs.gate.outputs.head_sha }}
+      - name: Stamp build provenance (GIT_SHA / GIT_BRANCH / BUILD_TIME)
+        # Railway auto-injects its git variables ONLY for deploys from a
+        # CONNECTED repo. These services run in CLI-only mode by design (see the
+        # header note on double-deploy prevention), so those variables can never
+        # arrive: Dockerfile.api baked a blank GIT_SHA and /health/version
+        # answered unknown in production indefinitely. The gate already resolved
+        # the exact deployed commit, so stamp it as a service variable instead.
+        # --skip-deploys is essential: without it every set triggers its own
+        # redeploy and the job loops.
+        run: |
+          apk add --no-cache nodejs npm >/dev/null
+          npx --yes tsx scripts/ci/deploy-stamp.ts --stamp \
+            --service worker \
+            --sha ${{ needs.gate.outputs.head_sha }} \
+            --branch ${{ needs.gate.outputs.head_branch }}
       - name: Deploy worker (CI mode)
         run: railway up --service worker --ci
       - name: Confirm worker booted
@@ -273,11 +321,32 @@ jobs:
       (needs.deploy-worker.result == 'success' || needs.deploy-worker.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
+      # This job was curl-only and deliberately had no checkout. The provenance
+      # verification below runs a repo script, so the working tree is required.
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.gate.outputs.head_sha }}
       - name: API health is ready
         run: |
           code=$(curl -s -o /dev/null -w '%{http_code}' https://api-production-fd42.up.railway.app/health/ready || echo 000)
           echo "api /health/ready -> $code"
           [ "$code" = '200' ] || { echo '::error::api /health/ready not 200'; exit 1; }
+      - name: Verify the live commit matches what was deployed
+        # Only meaningful when the api ACTUALLY deployed. Change detection skips
+        # services whose paths did not change, and a skipped deploy legitimately
+        # leaves the previous image serving -- asserting sha equality there would
+        # fail every infra-only promote cycle. Stated explicitly rather than
+        # relying on the implicit success(), which a custom if would drop anyway.
+        if: needs.deploy-api.result == 'success'
+        # Deploy verification used to be a human running inspect:prod-deploy by
+        # hand, which is why a permanently blank sha went unnoticed for weeks.
+        # 2026 practice is that provenance is asserted in a gate: this fails the
+        # run when production reports a different commit, or reports unknown --
+        # exactly the state the missing stamp produced.
+        run: |
+          npx --yes tsx scripts/ci/deploy-stamp.ts --verify \
+            --url https://api-production-fd42.up.railway.app/health/version \
+            --sha ${{ needs.gate.outputs.head_sha }}
       - name: ops-web login renders
         run: |
           code=$(curl -s -o /dev/null -w '%{http_code}' https://xe.vominhchau.com/login || echo 000)

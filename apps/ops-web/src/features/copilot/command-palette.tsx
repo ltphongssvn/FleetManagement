@@ -19,6 +19,7 @@ import {
 } from '@fleet/sync-protocol';
 import { vnApiErrorMessage, VN_OPS_GENERIC_ERROR } from '@/features/errors/present-problem';
 import type { FetchFn } from '@/features/admin/reference-admin-client';
+import { navigateToSessionRefresh } from '@/features/auth/session-refresh-navigation';
 
 type Clarify = Extract<CopilotPlanResponse, { kind: 'clarify' }>;
 
@@ -138,6 +139,12 @@ export function CommandPalette({
         body: JSON.stringify({ text }),
       });
       const body = await readJson(res);
+      if (res.status === 401) {
+        // Session dead (forwarder exhausted mint-on-miss): an in-place
+        // message would strand the dispatcher -- every next action 401s.
+        navigateToSessionRefresh();
+        return;
+      }
       if (!res.ok) {
         setMessage(vnApiErrorMessage(res.status, body));
         return;
@@ -166,6 +173,10 @@ export function CommandPalette({
         body: JSON.stringify(current),
       });
       const body = await readJson(res);
+      if (res.status === 401) {
+        navigateToSessionRefresh();
+        return;
+      }
       if (!res.ok) {
         setMessage(vnApiErrorMessage(res.status, body));
         return;
