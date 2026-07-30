@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Expo native dispatcher app (voice dispatch, T17): mic -> copilot plan -> TTS confirm -> visual review -> tap-only Tao lenh",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "scripts": {
     "android": "expo run:android",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
