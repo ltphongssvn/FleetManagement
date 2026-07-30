@@ -153,6 +153,18 @@ describe('board-stops extraction reason hint (review queue: WHY it failed)', () 
     expect(screen.getByTestId('board-stop-reason-XTT.06-005-pickup-1')).toHaveTextContent('vượt ngưỡng');
   });
 
+  it('not_found + multiple_slips: shows the multiple-slips reason hint (T33)', () => {
+    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'not_found', extractionReason: 'multiple_slips' })]);
+    expect(screen.getByText(/Nhập KL/i)).toBeInTheDocument();
+    expect(screen.getByTestId('board-stop-reason-XTT.06-005-pickup-1')).toHaveTextContent('nhiều phiếu');
+  });
+
+  it('unreadable + non_standard_format: shows the non-standard-format reason hint (T33)', () => {
+    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'unreadable', extractionReason: 'non_standard_format' })]);
+    expect(screen.getByText(/Nhập KL/i)).toBeInTheDocument();
+    expect(screen.getByTestId('board-stop-reason-XTT.06-005-pickup-1')).toHaveTextContent('phiếu không chuẩn');
+  });
+
   it('no reason present: needs-entry button shows WITHOUT a reason hint node', () => {
     renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'not_found' })]);
     expect(screen.getByText(/Nhập KL/i)).toBeInTheDocument();

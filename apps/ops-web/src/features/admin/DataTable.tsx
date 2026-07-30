@@ -8,6 +8,9 @@
 // opt-in row selection (enableSelection -> leading checkbox column;
 // onSelectionChange reports the selected ORIGINAL rows). Vietnamese strings
 // (Tim kiem / Truoc / Sau / Khong co du lieu) are immutable UI contracts.
+// Styling: semantic design tokens only (bg-surface-subtle, text-text-primary,
+// ring-primary-ring, etc.), resolving from the @fleet/design-tokens SSOT via
+// globals.css @theme variables -- never a raw slate-/indigo- palette literal.
 //
 // R-A11Y (D1): WCAG 2.2 AA table semantics. An optional caption gives the
 // table an accessible name (rendered visually hidden). The first body cell of
@@ -107,14 +110,14 @@ export function DataTable<TRow>({
         value={globalFilter}
         onChange={(e) => { setGlobalFilter(e.target.value); }}
         placeholder={searchPlaceholder}
-        className='w-full max-w-xs rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500'
+        className='w-full max-w-xs rounded-md border border-border-strong px-3 py-1.5 text-sm text-text-primary placeholder:text-text-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ring'
       />
-      <div className='overflow-hidden rounded-lg border border-slate-200'>
-        <table className='min-w-full divide-y divide-slate-200 text-sm'>
+      <div className='overflow-hidden rounded-lg border border-border'>
+        <table className='min-w-full divide-y divide-border text-sm'>
           {caption === undefined ? null : (
             <caption className='sr-only'>{caption}</caption>
           )}
-          <thead className='bg-slate-50'>
+          <thead className='bg-surface-subtle'>
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
                 {enableSelection ? (
@@ -131,7 +134,7 @@ export function DataTable<TRow>({
                   <th
                     key={h.id}
                     scope='col'
-                    className='px-3 py-2 text-left font-medium text-slate-600'
+                    className='px-3 py-2 text-left font-medium text-text-secondary'
                   >
                     {h.isPlaceholder
                       ? null
@@ -141,7 +144,7 @@ export function DataTable<TRow>({
               </tr>
             ))}
           </thead>
-          <tbody className='divide-y divide-slate-100 bg-white'>
+          <tbody className='divide-y divide-border-subtle bg-white'>
             {rows.map((row) => {
               const attrs = rowAttrs?.(row.original) ?? {};
               return (
@@ -149,7 +152,7 @@ export function DataTable<TRow>({
                 key={row.id}
                 data-testid={attrs.testId}
                 data-scroll-into-view={attrs.scrollIntoView === true ? 'true' : undefined}
-                className={attrs.className === undefined ? 'hover:bg-slate-50' : 'hover:bg-slate-50 ' + attrs.className}
+                className={attrs.className === undefined ? 'hover:bg-surface-subtle' : 'hover:bg-surface-subtle ' + attrs.className}
               >
                 {enableSelection ? (
                   <td className='w-10 px-3 py-2'>
@@ -166,12 +169,12 @@ export function DataTable<TRow>({
                     <th
                       key={cell.id}
                       scope='row'
-                      className='px-3 py-2 text-left font-normal text-slate-900'
+                      className='px-3 py-2 text-left font-normal text-text-primary'
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </th>
                   ) : (
-                    <td key={cell.id} className='px-3 py-2 text-slate-900'>
+                    <td key={cell.id} className='px-3 py-2 text-text-primary'>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   )
@@ -184,14 +187,14 @@ export function DataTable<TRow>({
         {rows.length === 0 ? (
           <div
             data-testid='datatable-empty'
-            className='px-3 py-8 text-center text-sm text-slate-500'
+            className='px-3 py-8 text-center text-sm text-text-muted'
           >
             {emptyLabel}
           </div>
         ) : null}
       </div>
       {showPagination ? (
-        <div className='flex items-center justify-between gap-2 text-sm text-slate-600'>
+        <div className='flex items-center justify-between gap-2 text-sm text-text-secondary'>
           <span data-testid='datatable-page-info'>
             Trang {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
           </span>
@@ -201,7 +204,7 @@ export function DataTable<TRow>({
               data-testid='datatable-prev'
               onClick={() => { table.previousPage(); }}
               disabled={!table.getCanPreviousPage()}
-              className='min-h-11 rounded-md border border-slate-300 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-40'
+              className='min-h-11 rounded-md border border-border-strong px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ring disabled:opacity-40'
             >
               Trước
             </button>
@@ -210,7 +213,7 @@ export function DataTable<TRow>({
               data-testid='datatable-next'
               onClick={() => { table.nextPage(); }}
               disabled={!table.getCanNextPage()}
-              className='min-h-11 rounded-md border border-slate-300 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-40'
+              className='min-h-11 rounded-md border border-border-strong px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ring disabled:opacity-40'
             >
               Sau
             </button>

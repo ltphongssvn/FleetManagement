@@ -367,6 +367,16 @@
       "description": "Root-level task: generate pipeline DAG visualization (Mermaid for ADR/docs). Prefix '//#' ensures repo-root-only. For live operational inspection prefer 'turbo devtools' (2.7+) — browser-based package/task graph.",
       "cache": false
     },
+    "tokens:build": {
+      "description": "Package task: each consuming app regenerates its OWN design-token output from the @fleet/design-tokens SSOT (ops-web writes src/app/globals.css via node scripts/build-tokens.mts write; the RN apps will emit their theme tokens the same way). NOT a //# root task -- it is implemented per package so every app owns and rewrites a file inside its own boundary (2026 monorepo rule: no cross-package reach). dependsOn @fleet/design-tokens#build so the emitter dist exists before the .mts imports it via its public ./emit-ops-web subpath. cache:false (side-effecting file write). Run: pnpm exec turbo run tokens:build --filter=@fleet/ops-web.",
+      "dependsOn": ["@fleet/design-tokens#build"],
+      "cache": false
+    },
+    "tokens:check": {
+      "description": "Package task: drift guard -- regenerate the app design-token output in-memory and exit 1 when the on-disk file differs from the @fleet/design-tokens SSOT (node scripts/build-tokens.mts check). Implemented per consuming package. dependsOn @fleet/design-tokens#build. cache:false (pass/fail check). Wire into the app CI gate so a stale committed globals.css fails the build. Run: pnpm exec turbo run tokens:check --filter=@fleet/ops-web.",
+      "dependsOn": ["@fleet/design-tokens#build"],
+      "cache": false
+    },
     "dev": {
       "description": "Local dev server (persistent, turbo watch-aware)",
       "cache": false,
