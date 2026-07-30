@@ -22,7 +22,8 @@
     "test:changed": "vitest run --changed HEAD~1",
     "test:mutation": "stryker run",
     "tokens:build": "node scripts/build-tokens.mts write",
-    "tokens:check": "node scripts/build-tokens.mts check"
+    "tokens:check": "node scripts/build-tokens.mts check",
+    "tokens:lint": "node scripts/token-literal-ratchet.mts"
   },
   "engines": {
     "node": ">=22.0.0 <25.0.0"

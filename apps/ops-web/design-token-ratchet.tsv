@@ -1,0 +1,31 @@
+# apps/ops-web/design-token-ratchet.tsv
+# AUTO-GENERATED baseline for tokens:lint. Counts may only DECREASE.
+# Refresh after a migration: turbo run tokens:lint --filter=@fleet/ops-web -- --tighten
+# TSV, one atomic line per file, so parallel worktrees never conflict.
+# <path relative to apps/ops-web>	<allowed raw literals>
+src/app/admin/drivers/page.tsx	1
+src/app/admin/reference/page.tsx	3
+src/app/dispatch/orders/[id]/page.tsx	1
+src/app/error.tsx	1
+src/app/global-error.tsx	1
+src/app/loading.tsx	1
+src/app/login/page.tsx	1
+src/app/not-found.tsx	1
+src/app/page.tsx	1
+src/features/admin/DevicesApprovalSection.tsx	8
+src/features/admin/DriversAdminSection.tsx	37
+src/features/admin/DriversSection.tsx	2
+src/features/admin/RowActionMenu.tsx	12
+src/features/admin/reference-sections.tsx	10
+src/features/auth/LoginForm.tsx	5
+src/features/auth/LogoutButton.tsx	1
+src/features/dispatch/CancelOrderForm.tsx	23
+src/features/dispatch/CreateOrderForm.tsx	33
+src/features/dispatch/DispatchView.tsx	11
+src/features/dispatch/ExportOrdersExcelButton.tsx	8
+src/features/dispatch/ManualNetWeightEditor.tsx	2
+src/features/dispatch/NaturalLanguageCreateForm.tsx	16
+src/features/dispatch/OrderReview.tsx	24
+src/features/dispatch/board-stops.tsx	8
+src/features/dispatch/ui/ComboboxField.tsx	6
+src/features/shell/AppShell.tsx	15

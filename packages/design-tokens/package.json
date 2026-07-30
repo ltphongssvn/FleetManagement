@@ -15,6 +15,10 @@
       "types": "./dist/emit-ops-web.d.ts",
       "import": "./dist/emit-ops-web.js"
     },
+    "./literal-guard": {
+      "types": "./dist/literal-guard.d.ts",
+      "import": "./dist/literal-guard.js"
+    },
     "./react-native": {
       "types": "./dist/react-native.d.ts",
       "import": "./dist/react-native.js"
