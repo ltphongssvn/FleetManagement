@@ -161,3 +161,65 @@ describe('compareRatchet', () => {
     expect(compareRatchet(mk(), mk('x.tsx', 1)).ok).toBe(false);
   });
 });
+
+// The baseline is a tracked TSV that humans edit and merge, so malformed rows
+// are reachable input rather than paranoia: a resolved conflict can leave a row
+// with no count, a stray marker, or a non-numeric value. Every such row must be
+// ignored rather than crash the gate or silently parse as zero -- a corrupted
+// baseline that parses to zero would grant every file a zero budget and turn a
+// hygiene guard into a build-stopper.
+describe('parseRatchetTsv on malformed rows', () => {
+  it('ignores a row with no tab separator', () => {
+    expect(parseRatchetTsv('src/orphan.tsx')).toEqual(mk());
+  });
+
+  it('ignores a row whose count is not a number', () => {
+    expect(parseRatchetTsv('a.tsx' + TAB + 'twelve')).toEqual(mk());
+  });
+
+  it('ignores a row with an empty count field', () => {
+    expect(parseRatchetTsv('a.tsx' + TAB)).toEqual(mk());
+  });
+
+  it('ignores a row with an empty path but a valid count', () => {
+    expect(parseRatchetTsv(TAB + '7')).toEqual(mk());
+  });
+
+  it('ignores a negative count', () => {
+    expect(parseRatchetTsv('a.tsx' + TAB + '-3')).toEqual(mk());
+  });
+
+  it('ignores an explicit zero count', () => {
+    expect(parseRatchetTsv('a.tsx' + TAB + '0')).toEqual(mk());
+  });
+
+  it('tolerates surrounding whitespace on a valid row', () => {
+    expect(parseRatchetTsv('  a.tsx' + TAB + '4  ')).toEqual(mk('a.tsx', 4));
+  });
+
+  it('keeps the good rows when a bad row sits between them', () => {
+    const tsv = 'a.tsx' + TAB + '1' + NL + 'broken-row' + NL + 'b.tsx' + TAB + '2';
+    expect(parseRatchetTsv(tsv)).toEqual(mk('a.tsx', 1, 'b.tsx', 2));
+  });
+
+  it('returns an empty baseline for empty input', () => {
+    expect(parseRatchetTsv('')).toEqual(mk());
+  });
+});
+
+describe('formatRatchetTsv edge cases', () => {
+  it('emits only the banner when every count is zero', () => {
+    const tsv = formatRatchetTsv(mk('a.tsx', 0, 'b.tsx', 0));
+    expect(parseRatchetTsv(tsv)).toEqual(mk());
+    expect(tsv.includes('AUTO-GENERATED')).toBe(true);
+  });
+
+  it('emits only the banner for an empty baseline', () => {
+    expect(parseRatchetTsv(formatRatchetTsv(mk()))).toEqual(mk());
+  });
+
+  it('is stable across repeated calls', () => {
+    const m = mk('b.tsx', 2, 'a.tsx', 1);
+    expect(formatRatchetTsv(m)).toBe(formatRatchetTsv(m));
+  });
+});

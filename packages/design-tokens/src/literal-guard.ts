@@ -80,6 +80,7 @@ const LITERAL_GLOBAL = new RegExp(LITERAL_SOURCE, 'g');
 export function countRawColorLiterals(source: string): number {
   let total = 0;
   for (const attr of source.matchAll(CLASSNAME_ATTR)) {
+    /* v8 ignore next -- CLASSNAME_ATTR has one capture group, so group 1 always matches; the fallback guards an impossible undefined under noUncheckedIndexedAccess */
     const classes = attr.at(1) ?? '';
     total += Array.from(classes.matchAll(LITERAL_GLOBAL)).length;
   }
@@ -119,6 +120,7 @@ export function parseRatchetTsv(tsv: string): RatchetBaseline {
     if (line.length === 0) continue;
     if (line.startsWith(HASH)) continue;
     const parts = line.split(TAB);
+    /* v8 ignore next -- String.split always yields a head element; the fallback guards an impossible undefined under noUncheckedIndexedAccess */
     const file = (parts.at(0) ?? '').trim();
     const count = Number.parseInt(parts.at(1) ?? '', 10);
     if (file.length === 0) continue;
