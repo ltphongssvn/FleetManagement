@@ -28,6 +28,7 @@ import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { z } from 'zod';
 import { LENH_DIEU_XE_EXPORT_HEADERS } from '@fleet/sync-protocol';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
+import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const POSTGRES_CONTAINER = process.env['E2E_PG_CONTAINER'] ?? 'fleet-pilot-postgres-1';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
@@ -82,8 +83,8 @@ async function login(page: Page): Promise<void> {
 }
 async function createOrderViaUi(page: Page, pair: Pair): Promise<void> {
   await page.goto('/');
-  await expect(page.locator('[data-testid=create-order-form][data-hydrated=true]')).toBeVisible({ timeout: 15_000 });
-  await page.locator('#plannedStartAt').fill('2026-06-01');
+  await openCreateOrderDrawer(page);
+  await plannedStartAtField(page.locator('[data-testid=nl-create-order-form]')).fill('2026-06-01');
   const vehicleInput = page.locator('input#vehiclePlate');
   await vehicleInput.click();
   await vehicleInput.fill(pair.vehicleLabel);

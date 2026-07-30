@@ -23,6 +23,7 @@ import { FetchExtractionCallback, type ExtractionCallback } from './extraction/e
 import { S3ExtractionObjectStore } from './extraction/s3-extraction-object-store.js';
 import { GeminiVlmExtractor } from './extraction/gemini-vlm-extractor.js';
 import type { ExtractionObjectStore, VlmExtractorPort } from './extraction/extraction-flow.js';
+import { logEvent } from './logger.js';
 
 function bootstrap(): void {
   const config = loadConfig();
@@ -110,23 +111,23 @@ function bootstrap(): void {
       name,
       async (job) => {
         const result = await routeJob(name, job, deadLetters, intakeCallback, erpClient, objectStore, extractionCallback, extractionStore, vlmExtractor);
-        console.log(`[${name}] job ${String(job.id)} ${result.summary}`);
+        logEvent('info', 'job processed', { queue: name, jobId: String(job.id), summary: result.summary });
         return { processed: true, deadLettered: result.deadLettered };
       },
       { connection, concurrency: QUEUE_CONCURRENCY[name] },
     );
 
     worker.on('failed', (job, err) => {
-      console.error(`[${name}] job ${String(job?.id)} failed:`, err.message);
+      logEvent('error', 'job failed', { queue: name, jobId: String(job?.id), error: err.message });
     });
     worker.on('error', (err) => {
-      console.error(`[${name}] worker error:`, err.message);
+      logEvent('error', 'worker error', { queue: name, error: err.message });
     });
 
     return worker;
   });
 
-  console.log(`Started ${String(workers.length)} workers: ${QUEUE_NAMES.join(', ')}`);
+  logEvent('info', 'workers started', { count: workers.length, queues: QUEUE_NAMES });
 
   const shutdown = async (): Promise<void> => {
     await Promise.all(workers.map((w) => w.close()));
@@ -140,6 +141,6 @@ function bootstrap(): void {
 try {
   bootstrap();
 } catch (err: unknown) {
-  console.error('Worker bootstrap failed', err);
+  logEvent('error', 'worker bootstrap failed', { error: err instanceof Error ? err.message : String(err) });
   process.exit(1);
 }

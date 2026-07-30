@@ -101,7 +101,7 @@ describe('NaturalLanguageCreateForm - pair auto-fill', () => {
   });
 });
 describe('NaturalLanguageCreateForm - useActionState branches', () => {
-  it('created: fires onCreated once and shows the So Lenh banner', async () => {
+  it('created: fires onCreated once and renders NO banner here', async () => {
     mockUseActionState.mockReturnValue([
       { status: 'created', externalRef: 'XTT.07-900', transportOrderId: 't-900' },
       vi.fn(), false,
@@ -110,7 +110,11 @@ describe('NaturalLanguageCreateForm - useActionState branches', () => {
     const { NaturalLanguageCreateForm } = await load();
     render(<NaturalLanguageCreateForm drivers={drivers} vehicles={vehicles} driverVehicleAssignments={driverVehicleAssignments} onCreated={onCreated} locale={'vi'} />);
     await waitFor(() => { expect(onCreated).toHaveBeenCalledTimes(1); });
-    expect(screen.getByRole('status').textContent).toContain('XTT.07-900');
+    // The So Lenh confirmation belongs to DispatchView, not to this form:
+    // onCreated closes the drawer, so a banner rendered here would be
+    // unmounted in the same commit that assigned the number. See
+    // dispatch-view-handle-created.test.tsx for the surviving-banner test.
+    expect(screen.queryByRole('status')).toBeNull();
   });
   it('created without an onCreated prop does not throw', async () => {
     mockUseActionState.mockReturnValue([
@@ -118,8 +122,10 @@ describe('NaturalLanguageCreateForm - useActionState branches', () => {
       vi.fn(), false,
     ]);
     const { NaturalLanguageCreateForm } = await load();
-    render(<NaturalLanguageCreateForm drivers={drivers} locale={'vi'} />);
-    expect(screen.getByRole('status').textContent).toContain('XTT.07-901');
+    expect(() => {
+      render(<NaturalLanguageCreateForm drivers={drivers} locale={'vi'} />);
+    }).not.toThrow();
+    expect(screen.queryByRole('status')).toBeNull();
   });
   it('api_error renders the alert banner', async () => {
     mockUseActionState.mockReturnValue([

@@ -22,6 +22,7 @@
 // redundant controls listed above are visible on any of those screens.
 import { test, expect, type Page } from '@playwright/test';
 import { loginAs } from './helpers/auth';
+import { openCreateOrderDrawer } from './helpers/create-order';
 
 
 // Authenticate via injected session (PKCE login has no credential form).
@@ -39,8 +40,10 @@ test.describe.serial('T5: redundant UI elements are absent from dispatcher exper
   });
   test('Lệnh điều xe - Tải thùng form does not render Đặt lại reset button', async ({ page }) => {
     await login(page);
-    const form = page.locator('form').filter({ hasText: /Lệnh điều xe/i });
-    await expect(form).toBeVisible({ timeout: 15_000 });
+    // The create form is create-on-demand behind the drawer (T38), and it is
+    // reached by its stable testid rather than a CSS tag + text filter, which
+    // matched whatever markup happened to contain the heading.
+    const form = await openCreateOrderDrawer(page);
     await expect(form.getByRole('button', { name: /^Đặt lại$/ })).toHaveCount(0);
   });
   test('Quản lý tài xế & xe page does not render per-row Sửa buttons', async ({ page }) => {

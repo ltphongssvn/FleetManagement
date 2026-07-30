@@ -18,6 +18,7 @@ import {
   evaluateHostReadiness,
   buildFlockArgs,
   resolveGateLockPath,
+  MIN_DISK_GIB,
   type HostSnapshot,
 } from './host-gate.js';
 
@@ -25,6 +26,7 @@ const healthy: HostSnapshot = {
   load1: 2,
   cores: 8,
   availableGiB: 6,
+  availableDiskGiB: 120,
   testContainerNames: [],
   ownContainerName: 'fleet-pg-test-50d50c60da41',
 };
@@ -85,6 +87,59 @@ describe('evaluateHostReadiness', () => {
       testContainerNames: ['fleet-pg-test-anything'],
     });
     expect(r.ready).toBe(false);
+  });
+
+  // Disk was the ONE saturation axis this guard did not measure, and it is the
+  // axis that actually took the host down on 2026-07-27: free space hit zero,
+  // the Docker Desktop VM lost its backing disk, and every docker invocation
+  // began failing with an exec-layer Input/output error. Eighteen e2e specs
+  // reported as product failures for a full suite run before the cause was
+  // visible. Load and memory were both healthy throughout, so no existing
+  // predicate could have caught it.
+  it('BLOCKS when free disk is below the floor', () => {
+    const r = evaluateHostReadiness({ ...healthy, availableDiskGiB: 0.5 });
+    expect(r.ready).toBe(false);
+    expect(r.problems.join(' ')).toContain('disk');
+  });
+
+  it('is ready when free disk sits exactly at the floor', () => {
+    const r = evaluateHostReadiness({ ...healthy, availableDiskGiB: MIN_DISK_GIB });
+    expect(r.ready).toBe(true);
+  });
+
+  // Fail-safe, matching how availableGiB already behaves: a host we cannot
+  // measure must never be blocked, because an unmeasurable axis is not a
+  // saturated one.
+  it('treats an unmeasurable disk as OK rather than blocking', () => {
+    const r = evaluateHostReadiness({ ...healthy, availableDiskGiB: Number.POSITIVE_INFINITY });
+    expect(r.ready).toBe(true);
+  });
+
+  // A JS statfs binding truncates f_bavail to 32 bits, so a filesystem with
+  // more than ~17.6TB free reports a NEGATIVE figure. Read naively that is the
+  // fullest possible disk, and the guard would block every run on the roomiest
+  // hosts. Nonsensical means unknown, never full.
+  it('treats a NEGATIVE disk figure as unknown, not as full', () => {
+    const r = evaluateHostReadiness({ ...healthy, availableDiskGiB: -4469.49 });
+    expect(r.ready).toBe(true);
+  });
+
+  it('treats NaN disk as unknown, not as full', () => {
+    const r = evaluateHostReadiness({ ...healthy, availableDiskGiB: Number.NaN });
+    expect(r.ready).toBe(true);
+  });
+
+  it('names disk alongside every other problem at once', () => {
+    const r = evaluateHostReadiness({
+      load1: 19.27,
+      cores: 8,
+      availableGiB: 0.3,
+      availableDiskGiB: 0.2,
+      testContainerNames: ['fleet-pg-test-12f2574406eb'],
+      ownContainerName: 'fleet-pg-test-50d50c60da41',
+    });
+    expect(r.ready).toBe(false);
+    expect(r.problems).toHaveLength(4);
   });
 });
 

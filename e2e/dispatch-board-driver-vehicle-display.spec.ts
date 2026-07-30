@@ -16,6 +16,7 @@ import { test, expect, type APIRequestContext } from '@playwright/test';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
+import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const ROW_VISIBILITY_BUDGET_MS = 15_000;
@@ -87,10 +88,10 @@ test.describe.serial('Lệnh điều xe board: Tài xế + Xe display driver nam
     // Authenticate via injected session (PKCE login has no credential form).
     await loginAs(page);
 
-    await expect(page.getByTestId('create-order-form')).toBeVisible({ timeout: 15_000 });
+    await openCreateOrderDrawer(page);
 
     const localIso = '2026-06-02';
-    await page.locator('#plannedStartAt').fill(localIso);
+    await plannedStartAtField(page.locator('[data-testid=nl-create-order-form]')).fill(localIso);
     await pickCombobox(page, 'customer', seed.customerName);
     await pickCombobox(page, 'cargo', seed.cargoName);
     await pickCombobox(page, 'vehiclePlate', seed.vehicleLabel);

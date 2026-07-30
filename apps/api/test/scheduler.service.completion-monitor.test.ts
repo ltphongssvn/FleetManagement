@@ -1,10 +1,11 @@
 // apps/api/test/scheduler.service.completion-monitor.test.ts
-// TDD for the completion-stranded proactive monitor tick wired into
-// SchedulerService (T16 guard arc): an optional 8th monitor dependency, a
-// completionMonitor self-scheduling kind at 300s inside a tagged Sentry
-// isolation scope. Mirrors scheduler.service.intake-reconcile.test.ts exactly.
+// Completion-stranded proactive monitor tick (T16 guard) against the multi-
+// provider registry. The monitor is a SchedulerTicker (key=completionMonitor,
+// tag=completion-monitor-check, 5-min interval) built as the module factory
+// builds it. Dormancy now lives in the factory (it omits the ticker when
+// COMPLETION_MONITOR_ENABLED is false): an absent ticker is the dormant state,
+// so drainByKey is an inert no-op (no null-dep branch to exercise).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { ConfigService } from '@nestjs/config';
 const { mockWithIsolationScope, mockCaptureException, capturedTags } = vi.hoisted(() => {
   const capturedTags: { key: string; value: unknown }[] = [];
   return {
@@ -17,56 +18,54 @@ const { mockWithIsolationScope, mockCaptureException, capturedTags } = vi.hoiste
 });
 vi.mock('@sentry/nestjs', () => ({ withIsolationScope: mockWithIsolationScope, captureException: mockCaptureException }));
 import { SchedulerService } from '../src/scheduler/scheduler.service.js';
-import type { OutboxRelayService } from '../src/outbox/outbox-relay.service.js';
-import type { ProjectionRunnerService } from '../src/projections/projection-runner.service.js';
-import type { CommandsGateway } from '../src/commands/commands.gateway.js';
-import type { CompletionReconcilerMonitorService } from '../src/maintenance/completion-reconciler-monitor.service.js';
-const cfg = (): ConfigService => ({ get: vi.fn(), getOrThrow: vi.fn().mockReturnValue('scope') } as unknown as ConfigService);
-const outbox = (): OutboxRelayService => ({ drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as OutboxRelayService);
-const proj = (): ProjectionRunnerService => ({ drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as ProjectionRunnerService);
-const gw = (): CommandsGateway => ({ reconcileNow: vi.fn().mockReturnValue([]) } as unknown as CommandsGateway);
-describe('@fleet/api - SchedulerService completion-monitor tick', () => {
+import { monitorTicker, coreTickers, INTERVALS } from './helpers/scheduler-ticker-factory.js';
+import type { SchedulerTicker } from '../src/scheduler/scheduler-ticker.js';
+
+const cores = (): SchedulerTicker[] => coreTickers({
+  outbox: () => undefined, projection: () => undefined, reconciler: () => undefined,
+});
+
+describe('@fleet/api - SchedulerService completion-monitor tick (registry)', () => {
   beforeEach(() => { vi.useFakeTimers(); capturedTags.length = 0; });
   afterEach(() => { vi.useRealTimers(); });
-  it('drainCompletionMonitor tags Sentry scope job=completion-monitor-check and calls checkOnce', async () => {
+
+  it('drainByKey(completionMonitor) tags job=completion-monitor-check and calls checkOnce', async () => {
     const checkOnce = vi.fn().mockResolvedValue(undefined);
-    const mon = { checkOnce } as unknown as CompletionReconcilerMonitorService;
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, null, null, null, null, mon);
-    await svc.drainCompletionMonitor();
+    const svc = new SchedulerService([...cores(), monitorTicker('completionMonitor', () => checkOnce())]);
+    await svc.drainByKey('completionMonitor');
     expect(checkOnce).toHaveBeenCalledTimes(1);
     expect(capturedTags.find((t) => t.key === 'job')?.value).toBe('completion-monitor-check');
     svc.onModuleDestroy();
   });
-  it('onModuleInit schedules the completion check at 300s when a monitor is present', async () => {
+
+  it('onModuleInit schedules the completion check at the 5-minute interval', async () => {
     const checkOnce = vi.fn().mockResolvedValue(undefined);
-    const mon = { checkOnce } as unknown as CompletionReconcilerMonitorService;
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, null, null, null, null, mon);
+    const svc = new SchedulerService([...cores(), monitorTicker('completionMonitor', () => checkOnce())]);
     svc.onModuleInit();
-    await vi.advanceTimersByTimeAsync(299_999);
+    await vi.advanceTimersByTimeAsync(INTERVALS.completionMonitor - 1);
     expect(checkOnce).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(2);
     expect(checkOnce).toHaveBeenCalledTimes(1);
     svc.onModuleDestroy();
   });
-  it('keeps self-scheduling: a second completion tick fires another 300s later', async () => {
+
+  it('keeps self-scheduling: a second tick fires another interval later', async () => {
     const checkOnce = vi.fn().mockResolvedValue(undefined);
-    const mon = { checkOnce } as unknown as CompletionReconcilerMonitorService;
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw(), null, null, null, null, null, mon);
+    const svc = new SchedulerService([...cores(), monitorTicker('completionMonitor', () => checkOnce())]);
     svc.onModuleInit();
-    await vi.advanceTimersByTimeAsync(300_001);
-    await vi.advanceTimersByTimeAsync(300_001);
+    await vi.advanceTimersByTimeAsync(INTERVALS.completionMonitor + 1);
+    await vi.advanceTimersByTimeAsync(INTERVALS.completionMonitor + 1);
     expect(checkOnce).toHaveBeenCalledTimes(2);
     svc.onModuleDestroy();
   });
-  it('is dormant when no monitor is provided: checkOnce is never scheduled', async () => {
-    const svc = new SchedulerService(outbox(), proj(), cfg() as never, gw());
+
+  it('is dormant when the ticker is absent: nothing scheduled, drainByKey is a no-op', async () => {
+    const svc = new SchedulerService(cores());
     svc.onModuleInit();
     await vi.advanceTimersByTimeAsync(600_002);
     expect(capturedTags.find((t) => t.value === 'completion-monitor-check')).toBeUndefined();
-    // Directly drive the drain with a null monitor to exercise the invokeDrain
-    // null-guard false branch (the kind can be invoked but the dep is absent).
-    await svc.drainCompletionMonitor();
-    expect(capturedTags.find((t) => t.value === 'completion-monitor-check')).toBeDefined();
+    await svc.drainByKey('completionMonitor');
+    expect(capturedTags.find((t) => t.value === 'completion-monitor-check')).toBeUndefined();
     svc.onModuleDestroy();
   });
 });
