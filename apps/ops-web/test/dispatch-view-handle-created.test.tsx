@@ -60,15 +60,23 @@ describe('DispatchView -- handleCreated wired to the create form onCreated', () 
     render(<DispatchView initialRuns={initialRuns} refs={refs} />);
     fireEvent.click(screen.getByTestId('open-create-order'));
     await waitFor(() => {
-      expect(screen.getByRole('status').textContent).toContain('XTT.05-form');
+      expect(screen.getByTestId('dispatch-board-created-ref').textContent).toContain('XTT.05-form');
     });
   });
 
   // WCAG 4.1.3: a live region that is mounted on demand is never monitored by
   // assistive technology. The container must exist from first paint, empty.
+  //
+  // T70: queried by test id, not by role alone. This region used to be the
+  // only role=status node on the board, so a bare role query resolved it
+  // unambiguously -- by accident, not by contract. The empty-state primitive
+  // is also a status region (an empty area must announce WHY it is empty), so
+  // a board with no rows now legitimately has two. The test id names the
+  // load-bearing region -- the So Lenh announcement -- so this assertion
+  // stays pinned to the thing it is actually about.
   it('renders the live-region container before any order is created', () => {
     render(<DispatchView initialRuns={initialRuns} refs={refs} />);
-    const region = screen.getByRole('status');
+    const region = screen.getByTestId('dispatch-board-created-ref');
     expect(region).toBeTruthy();
     expect(region.textContent).toBe('');
   });
