@@ -37,9 +37,17 @@ test('dispatcher resets a driver password from /admin/drivers and the new passwo
   // The reset control prompts for the new password (mirrors the Hủy phân công
   // window.prompt pattern). Pre-answer the dialog with the new password.
   page.on('dialog', (dialog) => { void dialog.accept(NEW_PASSWORD); });
-  const resetBtn = row.getByRole('button', { name: /Đặt lại mật khẩu/ });
-  await expect(resetBtn).toBeVisible({ timeout: 10_000 });
-  await resetBtn.click();
+  // The reset action moved out of the row and into the RowActionMenu kebab
+  // (Headless-UI Menu). It is non-destructive, so selecting the item fires it
+  // directly with no confirm Dialog. MenuItems renders with anchor=bottom end,
+  // which portals the panel OUTSIDE the row subtree, so the item is queried on
+  // the page rather than scoped to the row locator.
+  const actionsTrigger = row.getByRole('button', { name: /^Thao tác cho / });
+  await expect(actionsTrigger).toBeVisible({ timeout: 10_000 });
+  await actionsTrigger.click();
+  const resetItem = page.getByRole('menuitem', { name: /Đặt lại mật khẩu/ });
+  await expect(resetItem).toBeVisible({ timeout: 10_000 });
+  await resetItem.click();
   // Success surfaces as a per-row confirmation the dispatcher can see.
   await expect(row.getByText(/Đã đặt lại mật khẩu/)).toBeVisible({ timeout: 15_000 });
   // Prove the credential actually changed: the new password authenticates.

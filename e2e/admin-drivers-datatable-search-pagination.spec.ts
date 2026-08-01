@@ -91,7 +91,11 @@ test.describe('driver roster DataTable affordances', () => {
 
     await page.getByTestId('datatable-prev').click();
     await expect(pageInfo).toContainText('Trang 1 /');
-    await expect(page.getByRole('rowheader').first()).toContainText(firstPageRow);
+    // Back on page 1 the first row is the same one we started from. Compare the
+    // normalised innerText of both captures rather than asserting a raw string
+    // against normalised rendered text.
+    const backToFirst = (await page.getByRole('rowheader').first().innerText()).trim();
+    expect(backToFirst).toBe(firstPageRow);
   });
 
   test('keeps every CRUD control reachable inside the DataTable cells', async ({ page }) => {
