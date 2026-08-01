@@ -85,14 +85,21 @@ describe('@fleet/api - TransportOrdersExportController', () => {
       ctl.exportXlsx({ from: '2026-5-1', to: '2026-05-31' }, op, res as unknown as Parameters<typeof ctl.exportXlsx>[2]),
     ).rejects.toThrow();
   });
-  it('GET export.xlsx with only one of from/to ignores the partial range (exports all)', async () => {
-    exportAndLog.mockResolvedValue({
-      buffer: Buffer.from([0x50]), filename: 'f.xlsx', sha256: 'a', rowCount: 1,
-      exportLogId: 'log-p', trigger: 'manual', dayKey: '2026-05-24',
-    });
+  // T67 CONTRACT CHANGE (was: partial range silently ignored -> exported all).
+  // Ignoring half a range is the query-parameter SILENT FAILURE anti-pattern: a
+  // 200 OK carrying the ENTIRE board while the caller believed the result was
+  // bounded, with nothing in the response signalling the difference. 2026
+  // practice is fail-fast at the request boundary, so ExportQuerySchema enforces
+  // both-or-neither and this is now a 400. Safe to tighten: no live caller sends
+  // a partial range -- the ops-web action validates before building the query
+  // string -- so this closes a silent data-scope hole rather than breaking a
+  // real consumer.
+  it('GET export.xlsx rejects a half-specified range instead of exporting everything', async () => {
     const res = mockRes();
-    await ctl.exportXlsx({ from: '2026-05-01' }, op, res as unknown as Parameters<typeof ctl.exportXlsx>[2]);
-    expect(exportAndLog).toHaveBeenCalledWith(op, 'manual', undefined);
+    await expect(
+      ctl.exportXlsx({ from: '2026-05-01' }, op, res as unknown as Parameters<typeof ctl.exportXlsx>[2]),
+    ).rejects.toThrow();
+    expect(exportAndLog).not.toHaveBeenCalled();
   });
 
   it('POST /export/auto with trigger=login delegates and returns ledger summary', async () => {

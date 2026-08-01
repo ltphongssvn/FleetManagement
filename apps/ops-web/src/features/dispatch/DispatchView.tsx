@@ -394,7 +394,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                 className='inline-flex items-center gap-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500'>
                 <span aria-hidden='true'>+</span> Tạo lệnh điều xe
               </button>
-              <ExportOrdersExcelButton />
+              <ExportOrdersExcelButton search={search} group={pagination?.group} />
             </div>
           </header>
           {/* Persistent live region. The container is rendered from first

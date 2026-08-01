@@ -16,7 +16,7 @@
 import { Body, Controller, Get, Post, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { z } from 'zod';
-import { ExportDateRangeSchema, type ExportDateRange } from '@fleet/sync-protocol';
+import { ExportQuerySchema, type ExportQuery } from '@fleet/sync-protocol';
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
@@ -48,16 +48,21 @@ export class TransportOrdersExportController {
     @CurrentOperator() op: OperatorContext,
     @Res() res: Response,
   ): Promise<void> {
-    // Feature 4: optional dispatcher-selected inclusive day-range. Only when BOTH
-    // from and to are present do we validate + apply a range; a partial/absent
-    // range exports everything (unchanged behavior). ExportDateRangeSchema is the
-    // SSOT (YYYY-MM-DD format + from<=to); an invalid range throws -> 400, never a
-    // silent empty export.
-    let range: ExportDateRange | undefined;
-    if (query['from'] !== undefined && query['to'] !== undefined) {
-      range = ExportDateRangeSchema.parse({ from: query['from'], to: query['to'] });
-    }
-    const result: ExportResult = await this.svc.exportAndLog(op, 'manual', range);
+    // T67: the export mirrors the dispatcher ACTIVE board view -- day range PLUS
+    // free-text search term PLUS status tab. ExportQuerySchema is the SSOT the
+    // ops-web server action builds against, so the query string cannot drift
+    // from what the API accepts.
+    //
+    // Every field is optional, but the schema is .strict() and enforces
+    // both-or-neither on from/to, so a partial range or a typo-d key is a 400
+    // rather than a 200 carrying the WHOLE board while looking bounded -- the
+    // query-parameter silent-failure anti-pattern this arc exists to close.
+    //
+    // An EMPTY query collapses to undefined, preserving the unfiltered
+    // login/logout daily-backup ledger semantics exactly as before.
+    const parsed: ExportQuery = ExportQuerySchema.parse(query);
+    const filter: ExportQuery | undefined = Object.keys(parsed).length === 0 ? undefined : parsed;
+    const result: ExportResult = await this.svc.exportAndLog(op, 'manual', filter);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename=' + String.fromCharCode(34) + result.filename + String.fromCharCode(34));
     res.setHeader('Content-Length', String(result.buffer.byteLength));

@@ -13,7 +13,7 @@
 'use client';
 import { useState, useTransition } from 'react';
 import { exportOrdersExcel } from './export-orders-excel.action';
-import type { ExportDateRange } from '@fleet/sync-protocol';
+import type { ExportQuery, RoadRunStatusGroup } from '@fleet/sync-protocol';
 const MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 function triggerDownload(bodyBase64: string, filename: string): void {
   const binary = atob(bodyBase64);
@@ -30,19 +30,48 @@ function triggerDownload(bodyBase64: string, filename: string): void {
   URL.revokeObjectURL(url);
 }
 type ErrState = { message: string } | null;
-export function ExportOrdersExcelButton(): React.ReactElement {
+// T67: the board filter the dispatcher can SEE, handed down from DispatchView.
+// Both optional, so an unfiltered board and the daily-backup callers keep the
+// previous whole-board behaviour with no change at the call site.
+// Both props are declared as explicitly-undefined-able. Under
+// exactOptionalPropertyTypes: true an optional key does NOT accept a literal
+// undefined, and DispatchView legitimately passes pagination?.group, which is
+// RoadRunStatusGroup | undefined whenever the board is unpaginated. Declaring
+// the true accepted type is the root fix; narrowing at the call site with a
+// conditional spread would only hide the mismatch.
+export interface ExportOrdersExcelButtonProps {
+  readonly search?: string | undefined;
+  readonly group?: RoadRunStatusGroup | undefined;
+}
+export function ExportOrdersExcelButton(
+  props: ExportOrdersExcelButtonProps = {},
+): React.ReactElement {
+  const { search, group } = props;
   const [isPending, startTransition] = useTransition();
   const [err, setErr] = useState<ErrState>(null);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   function onClick(): void {
     setErr(null);
-    // Only send a range when BOTH ends are chosen; a partial range is ambiguous,
-    // so it falls back to a full export. The action + API re-validate from<=to.
-    const range: ExportDateRange | undefined =
-      from !== '' && to !== '' ? { from, to } : undefined;
+    // T67: what-you-see-is-what-you-export. The workbook covers the rows the
+    // dispatcher is actually looking at -- the active free-text search AND the
+    // status tab -- never the whole board behind a filtered view.
+    //
+    // A range is still sent only when BOTH ends are chosen, but a half range is
+    // now rejected by the SSOT instead of silently widening the export back to
+    // everything. Empty keys are OMITTED rather than sent blank, so an
+    // unfiltered board yields undefined and daily-backup semantics are intact.
+    const filter: ExportQuery | undefined = (() => {
+      const f: {
+        from?: string; to?: string; search?: string; group?: RoadRunStatusGroup;
+      } = {};
+      if (from !== '' && to !== '') { f.from = from; f.to = to; }
+      if (search !== undefined && search !== '') f.search = search;
+      if (group !== undefined) f.group = group;
+      return Object.keys(f).length === 0 ? undefined : (f as ExportQuery);
+    })();
     startTransition(async () => {
-      const result = await exportOrdersExcel(range);
+      const result = await exportOrdersExcel(filter);
       if (result.status === 'ok') {
         triggerDownload(result.bodyBase64, result.filename);
         return;

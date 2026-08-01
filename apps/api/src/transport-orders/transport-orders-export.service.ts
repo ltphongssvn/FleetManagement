@@ -56,9 +56,12 @@ import { cargoType, customer, driver, vehicle } from '../database/schema/referen
 import { roadRunTransportOrder, stop, transportOrder } from '../database/schema/transport.js';
 import { manifest, uploadSession } from '../database/schema/manifest.js';
 import { warehouse } from '../database/schema/reference.js';
-import { netWeightKgSchema, computeWeightDiffKg, LENH_DIEU_XE_EXPORT_HEADERS, EXPORT_PICKUP_SLOTS, EXPORT_DELIVERY_SLOTS, type ExportDateRange, type WeightDiffStop } from '@fleet/sync-protocol';
+import { netWeightKgSchema, computeWeightDiffKg, statesForStatusGroup, LENH_DIEU_XE_EXPORT_HEADERS, EXPORT_PICKUP_SLOTS, EXPORT_DELIVERY_SLOTS, type ExportQuery, type WeightDiffStop } from '@fleet/sync-protocol';
 import { transportOrderExportLog } from '../database/schema/transport-order-export-log.js';
 import type { OperatorContext } from '../auth/operator-context.js';
+// T67: the SAME clause the dispatch board uses. Imported, never re-implemented,
+// so a search that matches on the board matches in the export by construction.
+import { buildBoardSearchClause } from '../dispatch/board-search-clause.js';
 export type ExportTrigger = 'manual' | 'login' | 'logout';
 export interface ExportResult {
   readonly buffer: Buffer;
@@ -163,7 +166,7 @@ function tenantSlug(companyId: string): string {
 @Injectable()
 export class TransportOrdersExportService {
   constructor(@Inject(DRIZZLE_DB) private readonly db: FleetDb) {}
-  async exportAndLog(op: OperatorContext, trigger: ExportTrigger, range?: ExportDateRange): Promise<ExportResult> {
+  async exportAndLog(op: OperatorContext, trigger: ExportTrigger, filter?: ExportQuery): Promise<ExportResult> {
     const dayKey = vnDayKey();
     if (trigger === 'login' || trigger === 'logout') {
       const existing = await this.db
@@ -190,7 +193,7 @@ export class TransportOrdersExportService {
         };
       }
     }
-    const rows = await this.fetchRows(op, range);
+    const rows = await this.fetchRowsForFilter(op, filter);
     const buffer = await this.buildXlsxBufferFromRows(rows);
     const sha256 = createHash('sha256').update(buffer).digest('hex');
     const filename =
@@ -224,7 +227,14 @@ export class TransportOrdersExportService {
   // Same scope + joins as DispatchController.getBoard: driver/vehicle labels via
   // company-scoped LEFT JOINs on the projection; customer name/phone, per-stop
   // warehouse name + extracted weight enriched at read time, grouped by road run.
-  private async fetchRows(op: OperatorContext, range?: ExportDateRange): Promise<readonly ExportRow[]> {
+  // Public: this is the query SEAM the export filter flows through, so it is
+  // directly exercisable by unit tests instead of only through a full export.
+  async fetchRowsForFilter(op: OperatorContext, filter?: ExportQuery): Promise<readonly ExportRow[]> {
+    // Status tab: undefined group means EVERY state, preserving the unfiltered
+    // login/logout daily-backup ledger semantics. A named group narrows to the
+    // SSOT partition, so the export matches the tab the dispatcher is viewing.
+    const states = filter?.group === undefined ? undefined : statesForStatusGroup(filter.group);
+    const searchClause = buildBoardSearchClause(op.companyId, filter?.search);
     const base = await this.db
       .select({
         roadRunId: dispatchBoardProjection.roadRunId,
@@ -253,12 +263,17 @@ export class TransportOrdersExportService {
         // by [from, to]. A null planned_start_at yields NULL here and is excluded
         // when a range is applied (an order with no planned date cannot fall in a
         // date window).
-        range === undefined
+        filter?.from === undefined
           ? undefined
-          : sql`(${dispatchBoardProjection.plannedStartAt} AT TIME ZONE 'Asia/Ho_Chi_Minh')::date >= ${range.from}::date`,
-        range === undefined
+          : sql`(${dispatchBoardProjection.plannedStartAt} AT TIME ZONE 'Asia/Ho_Chi_Minh')::date >= ${filter.from}::date`,
+        filter?.to === undefined
           ? undefined
-          : sql`(${dispatchBoardProjection.plannedStartAt} AT TIME ZONE 'Asia/Ho_Chi_Minh')::date <= ${range.to}::date`,
+          : sql`(${dispatchBoardProjection.plannedStartAt} AT TIME ZONE 'Asia/Ho_Chi_Minh')::date <= ${filter.to}::date`,
+        // Status-group narrowing (undefined => all states, backup semantics).
+        states === undefined ? undefined : inArray(dispatchBoardProjection.state, [...states]),
+        // Free-text term, identical SQL to the board. undefined when no term,
+        // and drizzle and() drops undefined arms, so the base predicate stands.
+        searchClause,
       ))
       .orderBy(asc(dispatchBoardProjection.plannedStartAt));
     const roadRunIds = base.map((r) => r.roadRunId);
@@ -354,7 +369,7 @@ export class TransportOrdersExportService {
     }));
   }
   private async buildXlsxBufferForOp(op: OperatorContext): Promise<Buffer> {
-    const rows = await this.fetchRows(op);
+    const rows = await this.fetchRowsForFilter(op);
     return this.buildXlsxBufferFromRows(rows);
   }
   private buildXlsxBufferFromRows(rows: readonly ExportRow[]): Promise<Buffer> {

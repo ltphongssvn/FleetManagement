@@ -152,6 +152,8 @@ export {
   exportDayKeySchema,
   type ExportDayKey,
   ExportDateRangeSchema,
+  ExportQuerySchema,
+  type ExportQuery,
   type ExportDateRange,
 } from './transport-order-export-contract.js';
 

@@ -28,7 +28,7 @@
 // SOFT DELETE: the board read filters deleted_at IS NULL so road runs hidden by a
 // tombstone (soft-deleted, since the app role holds no DELETE privilege) never appear.
 import { Controller, Get, Inject, Optional, Query, UseGuards } from '@nestjs/common';
-import { and, count, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull } from 'drizzle-orm';
 import { computeWeightDiffKg, statesForStatusGroup, RoadRunPageQuerySchema } from '@fleet/sync-protocol';
 import type { DispatchBoardApiResponse, DispatchBoardApiRow, DispatchBoardPageApiResponse, DispatchStopView, StopProof, WeightDiffStop } from '@fleet/sync-protocol';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
@@ -50,6 +50,7 @@ import { JwtGuard } from '../auth/jwt.guard.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 import { STOP_PROOF_URL_SIGNER, type StopProofUrlSigner } from './stop-proof-url.port.js';
+import { buildBoardSearchClause } from './board-search-clause.js';
 /** Pilot dispatch board cap. PDF Day-One: 5 trucks/depot, ~tens of runs/day. */
 const DISPATCH_BOARD_MAX_ROWS = 500;
 /** Proof-photo link TTL: 15 minutes is enough to view from the board. */
@@ -90,34 +91,6 @@ export class DispatchController {
     @Inject(DRIZZLE_DB) private readonly db: FleetDb,
     @Optional() @Inject(STOP_PROOF_URL_SIGNER) private readonly proofSigner?: StopProofUrlSigner,
   ) {}
-  // Diacritic-insensitive free-text search predicate over the dispatcher board
-  // columns. Vietnamese domain: unaccent() both sides so a term typed without
-  // marks (chau) matches an accented value (CHAU-with-marks). Correlated EXISTS
-  // subqueries reach the joined/enriched columns (customer, warehouse) that are
-  // not in the base projection, so the match filters BEFORE LIMIT without
-  // changing row cardinality. Columns covered: So lenh (transport_order_refs
-  // jsonb), Tai xe (driver.full_name), Xe (vehicle.plate), Ngay du kien
-  // (planned_start_at text), So diem (stop_count text), Khach hang (customer
-  // name/phone), Ten hang (cargo_type name), Diem/Kho (warehouse name). Chenh
-  // lech is JS-computed, not a column, so it is not searchable. Returns undefined when no
-  // term is given so the caller keeps the base predicate untouched (back-compat).
-  private buildSearchClause(op: OperatorContext, search: string | undefined): ReturnType<typeof or> | undefined {
-    if (search === undefined || search === '') return undefined;
-    const like = '%' + search + '%';
-    const co = op.companyId;
-    const p = dispatchBoardProjection;
-    return or(
-      sql`EXISTS (SELECT 1 FROM jsonb_array_elements_text(${p.transportOrderRefs}) AS ref WHERE unaccent(ref) ILIKE unaccent(${like}))`,
-      sql`EXISTS (SELECT 1 FROM driver d WHERE d.operator_id = ${p.assignedOperatorId} AND d.company_id = ${co} AND unaccent(d.full_name) ILIKE unaccent(${like}))`,
-      sql`EXISTS (SELECT 1 FROM vehicle v WHERE v.vehicle_id = ${p.assignedAssetId} AND v.company_id = ${co} AND unaccent(v.plate) ILIKE unaccent(${like}))`,
-      sql`CAST(${p.plannedStartAt} AS text) ILIKE ${like}`,
-      sql`CAST(${p.stopCount} AS text) ILIKE ${like}`,
-      sql`EXISTS (SELECT 1 FROM road_run_transport_order rto JOIN transport_order t ON t.transport_order_id = rto.transport_order_id JOIN customer c ON c.customer_id = t.customer_id WHERE rto.road_run_id = ${p.roadRunId} AND rto.company_id = ${co} AND (unaccent(c.name) ILIKE unaccent(${like}) OR c.phone ILIKE ${like}))`,
-      sql`EXISTS (SELECT 1 FROM road_run_transport_order rto JOIN stop st ON st.transport_order_id = rto.transport_order_id JOIN warehouse w ON w.warehouse_id = st.yard_id WHERE rto.road_run_id = ${p.roadRunId} AND rto.company_id = ${co} AND unaccent(w.name) ILIKE unaccent(${like}))`,
-      sql`EXISTS (SELECT 1 FROM road_run_transport_order rto JOIN transport_order t ON t.transport_order_id = rto.transport_order_id JOIN cargo_type ct ON ct.cargo_type_id = t.cargo_type_id WHERE rto.road_run_id = ${p.roadRunId} AND rto.company_id = ${co} AND unaccent(ct.name) ILIKE unaccent(${like}))`,
-    );
-  }
-
   @Get('board')
   async getBoard(
     @CurrentOperator() op: OperatorContext,
@@ -174,7 +147,7 @@ export class DispatchController {
       isNull(dispatchBoardProjection.deletedAt),
       inArray(dispatchBoardProjection.state, [...states]),
     );
-    const searchClause = this.buildSearchClause(op, search);
+    const searchClause = buildBoardSearchClause(op.companyId, search);
     const whereClause = searchClause === undefined ? baseWhere : and(baseWhere, searchClause);
     const totalRows = await this.db
       .select({ value: count() })
