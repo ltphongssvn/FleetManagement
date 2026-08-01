@@ -114,10 +114,16 @@ test.describe('driver roster DataTable affordances', () => {
     await expect(row).toContainText(target.plate);
     await expect(row).toContainText('Đã đăng ký');
 
-    // CRUD controls survived the move into DataTable cells.
+    // CRUD controls survived the move into DataTable cells. Revoke and save-phone
+    // sit directly in the row; reset-password and delete live behind the
+    // RowActionMenu kebab, so they are reachable only after opening it.
     await expect(row.getByRole('button', { name: 'Hủy phân công' })).toBeVisible();
     await expect(row.getByLabel('Lưu SĐT của ' + target.fullName)).toBeVisible();
-    await expect(row.getByLabel('Đặt lại mật khẩu của ' + target.fullName)).toBeVisible();
-    await expect(row.getByRole('button', { name: 'Xóa' })).toBeVisible();
+
+    const actionsTrigger = row.getByLabel('Thao tác cho ' + target.fullName);
+    await expect(actionsTrigger).toBeVisible();
+    await actionsTrigger.click();
+    await expect(page.getByRole('menuitem', { name: 'Đặt lại mật khẩu' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Xóa' })).toBeVisible();
   });
 });
