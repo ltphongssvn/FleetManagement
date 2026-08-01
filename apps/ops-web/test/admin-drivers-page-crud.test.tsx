@@ -1,14 +1,17 @@
 // apps/ops-web/test/admin-drivers-page-crud.test.tsx
 // AdminDriversPage CRUD UI tests.
 //
-// T5 update: the per-row 'Sửa' (inline rename) button is redundant. Xóa
+// T5 update: the per-row Sua (inline rename) button is redundant. Xoa
 // + re-create supersedes mid-list renames safely (idempotent, no stale
-// state). Tests now assert: (a) no 'Sửa' button per row, (b) no inline
-// editor / Lưu / Hủy controls, and (c) Xóa still works through the
-// confirm dialog. AdminDriversClient is mocked at module level so the
-// page renders without the real fetch layer.
+// state). E1-drivers update: Xoa + Dat lai mat khau now live in the per-row
+// Thao tac overflow menu (RowActionMenu), with Xoa gated by an accessible
+// confirm dialog rather than window.confirm. Tests assert: (a) no Sua button
+// per row, (b) no inline editor / Luu / Huy controls, and (c) Xoa still works
+// through the menu + confirm dialog. AdminDriversClient is mocked at module
+// level so the page renders without the real fetch layer.
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 const listMock = vi.fn();
 const updateMock = vi.fn();
 const removeMock = vi.fn();
@@ -49,46 +52,40 @@ describe('AdminDriversPage CRUD UI', () => {
     render(<AdminDriversPage />);
     await screen.findByText('Driver Alpha');
     expect(screen.queryByRole('button', { name: /^Lưu$/ })).toBeNull();
-    // 'Hủy' may still appear elsewhere (e.g. revoke prompt cancel), so
-    // we only assert the inline-rename Lưu button is gone — that is the
-    // definitive marker for the removed edit mode.
   });
-  it('still renders a Xóa button per row', async () => {
+  it('exposes a Thao tác menu per row; no always-visible Xóa button', async () => {
     render(<AdminDriversPage />);
     await screen.findByText('Driver Alpha');
-    expect(screen.getAllByRole('button', { name: /^Xóa$/ })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: /^Xóa$/ })).toBeNull();
+    expect(screen.getAllByRole('button', { name: /Thao tác/ })).toHaveLength(2);
   });
-  it('clicking Xóa confirms and then calls client.remove', async () => {
+  it('Xóa via the menu opens a confirm dialog and then calls client.remove', async () => {
     removeMock.mockResolvedValue(undefined);
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    try {
-      render(<AdminDriversPage />);
-      await screen.findByText('Driver Alpha');
-      const xoaButtons = screen.getAllByRole('button', { name: /^Xóa$/ });
-      const firstXoa = xoaButtons[0];
-      if (firstXoa === undefined) throw new Error('no Xóa button');
-      fireEvent.click(firstXoa);
-      expect(confirmSpy).toHaveBeenCalled();
-      await waitFor(() => {
-        expect(removeMock).toHaveBeenCalledWith('d1');
-      });
-    } finally {
-      confirmSpy.mockRestore();
-    }
+    const user = userEvent.setup();
+    render(<AdminDriversPage />);
+    await screen.findByText('Driver Alpha');
+    const menus = screen.getAllByRole('button', { name: /Thao tác/ });
+    const firstMenu = menus[0];
+    if (firstMenu === undefined) throw new Error('no action menu');
+    await user.click(firstMenu);
+    await user.click(await screen.findByRole('menuitem', { name: 'Xóa' }));
+    const dialog = await screen.findByRole('dialog');
+    const accept = dialog.querySelector('[data-testid=confirm-accept]');
+    if (accept === null) throw new Error('no confirm-accept');
+    await user.click(accept as HTMLElement);
+    await waitFor(() => { expect(removeMock).toHaveBeenCalledWith('d1'); });
   });
-  it('Xóa is a no-op when user cancels the confirm dialog', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
-    try {
-      render(<AdminDriversPage />);
-      await screen.findByText('Driver Alpha');
-      const xoaButtons = screen.getAllByRole('button', { name: /^Xóa$/ });
-      const firstXoa = xoaButtons[0];
-      if (firstXoa === undefined) throw new Error('no Xóa button');
-      fireEvent.click(firstXoa);
-      expect(confirmSpy).toHaveBeenCalled();
-      expect(removeMock).not.toHaveBeenCalled();
-    } finally {
-      confirmSpy.mockRestore();
-    }
+  it('Xóa is a no-op when the confirm dialog is cancelled', async () => {
+    const user = userEvent.setup();
+    render(<AdminDriversPage />);
+    await screen.findByText('Driver Alpha');
+    const menus = screen.getAllByRole('button', { name: /Thao tác/ });
+    const firstMenu = menus[0];
+    if (firstMenu === undefined) throw new Error('no action menu');
+    await user.click(firstMenu);
+    await user.click(await screen.findByRole('menuitem', { name: 'Xóa' }));
+    await screen.findByRole('dialog');
+    await user.click(screen.getByRole('button', { name: 'Hủy' }));
+    expect(removeMock).not.toHaveBeenCalled();
   });
 });
