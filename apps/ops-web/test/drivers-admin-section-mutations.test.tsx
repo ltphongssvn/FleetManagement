@@ -4,7 +4,7 @@
 // including the success and error/guard branches, so the extracted component
 // meets the 90/90/90/90 per-file gate independently of the old page tests.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { AdminDriverRow } from '@fleet/sync-protocol';
 import { DriversAdminSection, type DriversAdminClient } from '@/features/admin/DriversAdminSection';
@@ -33,7 +33,7 @@ const assigned: AdminDriverRow = {
 beforeEach(() => {
   globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({ items: [{ id: 'v9', label: '62H 05194' }] }) }) as never;
 });
-afterEach(() => { vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 describe('DriversAdminSection mutations', () => {
   it('creates a driver when the form is valid', async () => {
     const client = mkClient({}, [unassigned]);
