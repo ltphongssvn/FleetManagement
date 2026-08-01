@@ -82,11 +82,13 @@ describe('AdminDriversPage attention queue (contextual surfacing)', () => {
     expect(screen.queryByText('Cần xử lý')).toBeNull();
     expect(screen.queryByRole('region', { name: 'Cần xử lý' })).toBeNull();
   });
-  it('queue entries keep the operational controls (Xóa + phone edit)', async () => {
+  it('queue entries keep the operational controls (Thao tác menu + phone edit)', async () => {
     render(<AdminDriversPage />);
     await screen.findByText('Driver Alpha');
     const q = queueSection();
-    expect(within(q).getAllByRole('button', { name: /^Xóa$/ })).toHaveLength(2);
+    // Xoa + Dat lai mat khau moved into the per-row Thao tac overflow menu.
+    expect(within(q).queryByRole('button', { name: /^Xóa$/ })).toBeNull();
+    expect(within(q).getAllByRole('button', { name: /Thao tác/ })).toHaveLength(2);
     expect(within(q).getByLabelText('Số điện thoại của Driver Alpha')).toBeTruthy();
   });
 });
