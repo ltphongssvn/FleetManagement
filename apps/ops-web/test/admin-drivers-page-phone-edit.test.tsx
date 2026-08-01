@@ -7,6 +7,7 @@
 // the driver (which would orphan their operatorId / assignments).
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 const listMock = vi.fn();
 const updateMock = vi.fn();
 vi.mock('@/features/admin/admin-drivers-client', () => ({
@@ -30,18 +31,24 @@ beforeEach(() => {
 });
 describe('AdminDriversPage phone edit', () => {
   it('renders an editable phone input prefilled with the current phone', async () => {
+    const user = userEvent.setup();
     render(<AdminDriversPage />);
     await screen.findByText('Driver Alpha');
-    const input = screen.getByLabelText('Số điện thoại của Driver Alpha');
+    await user.click(await screen.findByRole('button', { name: 'Thao tác cho Driver Alpha' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sửa SĐT' }));
+    const input = await screen.findByLabelText('Số điện thoại của Driver Alpha');
     expect((input as HTMLInputElement).value).toBe('0900000001');
   });
   it('saving a new phone calls client.update with driverId + fullName + new phone', async () => {
     updateMock.mockResolvedValue(undefined);
+    const user = userEvent.setup();
     render(<AdminDriversPage />);
     await screen.findByText('Driver Alpha');
-    const input = screen.getByLabelText('Số điện thoại của Driver Alpha');
+    await user.click(await screen.findByRole('button', { name: 'Thao tác cho Driver Alpha' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sửa SĐT' }));
+    const input = await screen.findByLabelText('Số điện thoại của Driver Alpha');
     fireEvent.change(input, { target: { value: '0911111111' } });
-    const saveBtn = screen.getByRole('button', { name: 'Lưu SĐT của Driver Alpha' });
+    const saveBtn = screen.getByLabelText('Lưu SĐT của Driver Alpha');
     fireEvent.click(saveBtn);
     await waitFor(() => {
       expect(updateMock).toHaveBeenCalledWith('d1', { fullName: 'Driver Alpha', phone: '0911111111' });
