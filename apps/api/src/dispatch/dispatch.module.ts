@@ -4,6 +4,8 @@ import { ConfigService } from '@nestjs/config';
 import { DatabaseModule } from '../database/database.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { DispatchController } from './dispatch.controller.js';
+import { DispatchRosterSplitController } from './dispatch-roster-split.controller.js';
+import { DispatchRosterSplitService, ROSTER_SPLIT_NOW, type NowFn } from './dispatch-roster-split.service.js';
 import { DriverAssignmentsController } from './driver-assignments.controller.js';
 import { DriverDeliveryController } from './driver-delivery.controller.js';
 import { DriverDeliveryService } from './driver-delivery.service.js';
@@ -15,11 +17,23 @@ import type { S3Client } from '@aws-sdk/client-s3';
 // Dispatch owns its own S3 client for proof-photo GET presigning (StorageModule
 // does not export S3_CLIENT). Same construction as StorageModule: region from
 // AWS_REGION, optional endpoint/creds for local S3.
+//
+// ROSTER_SPLIT_NOW binds the real wall clock for the dispatched-vs-idle panel.
+// The Asia/Ho_Chi_Minh day window is derived from this instant, so the clock is
+// injected (never read inline) and tests substitute a fixed Date - mirroring
+// OWNER_METRICS_NOW in OwnerModule.
 @Module({
   imports: [DatabaseModule, AuthModule],
-  controllers: [DispatchController, DriverAssignmentsController, DriverDeliveryController],
+  controllers: [
+    DispatchController,
+    DispatchRosterSplitController,
+    DriverAssignmentsController,
+    DriverDeliveryController,
+  ],
   providers: [
     DriverDeliveryService,
+    DispatchRosterSplitService,
+    { provide: ROSTER_SPLIT_NOW, useValue: (() => new Date()) satisfies NowFn },
     {
       provide: STOP_PROOF_URL_SIGNER,
       inject: [ConfigService],
