@@ -10,6 +10,7 @@
 // admin-drivers-page-crud.test.tsx.
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 const listMock = vi.fn();
 vi.mock('@/features/admin/admin-drivers-client', () => ({
   AdminDriversClient: class {
@@ -83,12 +84,16 @@ describe('AdminDriversPage attention queue (contextual surfacing)', () => {
     expect(screen.queryByRole('region', { name: 'Cần xử lý' })).toBeNull();
   });
   it('queue entries keep the operational controls (Thao tác menu + phone edit)', async () => {
+    const user = userEvent.setup();
     render(<AdminDriversPage />);
     await screen.findByText('Driver Alpha');
     const q = queueSection();
     // Xoa + Dat lai mat khau moved into the per-row Thao tac overflow menu.
     expect(within(q).queryByRole('button', { name: /^Xóa$/ })).toBeNull();
     expect(within(q).getAllByRole('button', { name: /Thao tác/ })).toHaveLength(2);
-    expect(within(q).getByLabelText('Số điện thoại của Driver Alpha')).toBeTruthy();
+    // phone is read-only by default; editing is reached through the row menu.
+    await user.click(within(q).getByRole('button', { name: 'Thao tác cho Driver Alpha' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sửa SĐT' }));
+    expect(await screen.findByLabelText('Số điện thoại của Driver Alpha')).toBeTruthy();
   });
 });
