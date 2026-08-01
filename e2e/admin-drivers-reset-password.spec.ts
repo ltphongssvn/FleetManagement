@@ -37,9 +37,16 @@ test('dispatcher resets a driver password from /admin/drivers and the new passwo
   // The reset control prompts for the new password (mirrors the Hủy phân công
   // window.prompt pattern). Pre-answer the dialog with the new password.
   page.on('dialog', (dialog) => { void dialog.accept(NEW_PASSWORD); });
-  const resetBtn = row.getByRole('button', { name: /Đặt lại mật khẩu/ });
-  await expect(resetBtn).toBeVisible({ timeout: 10_000 });
-  await resetBtn.click();
+  // Dat lai mat khau now lives in the per-row Thao tac overflow menu (E1-drivers consolidation).
+  // The trigger is inside the row, but Headless-UI renders MenuItems with anchor=bottom end,
+  // which portals the panel to the document root -- so the menuitem is queried at page scope,
+  // never inside the row locator.
+  const menuTrigger = row.getByRole('button', { name: /Thao tác/ });
+  await expect(menuTrigger).toBeVisible({ timeout: 10_000 });
+  await menuTrigger.click();
+  const resetItem = page.getByRole('menuitem', { name: /Đặt lại mật khẩu/ });
+  await expect(resetItem).toBeVisible({ timeout: 10_000 });
+  await resetItem.click();
   // Success surfaces as a per-row confirmation the dispatcher can see.
   await expect(row.getByText(/Đã đặt lại mật khẩu/)).toBeVisible({ timeout: 15_000 });
   // Prove the credential actually changed: the new password authenticates.
