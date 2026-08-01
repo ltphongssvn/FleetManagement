@@ -18,6 +18,7 @@ import { Pool } from 'pg';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TestPgConnectionSchema, TEST_PG_INJECT_KEY } from './helpers/test-pg-connection-contract.js';
+import { EXTRACTION_FAILURE_REASONS } from '@fleet/sync-protocol';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsFolder = resolve(here, '../src/database/migrations');
@@ -123,5 +124,25 @@ describe('@fleet/api - drizzle migrations apply to fresh Postgres', () => {
       sql`SELECT COUNT(*)::text AS count FROM "drizzle"."__drizzle_migrations"`,
     );
     expect(Number(result.rows[0]?.count ?? 0)).toBeGreaterThan(0);
+  });
+
+  // REGRESSION GUARD (T33 enum-drift). The pg enum manifest_extraction_reason
+  // must contain EXACTLY the @fleet/sync-protocol EXTRACTION_FAILURE_REASONS SSOT.
+  // This is the cheap lower-layer guard for the class of bug that shipped in T33:
+  // the Zod SSOT + pgEnum DECLARATION were widened but no ALTER-TYPE migration was
+  // written, so migration-based DBs (this fresh-migrated DB, CI, Railway) kept the
+  // old value set while fresh-from-schema dev DBs masked it -- surfacing only as an
+  // opaque 500 at the e2e/deploy seam. Asserting the migrated enum labels EQUAL the
+  // contract makes the NEXT enum widening fail HERE (unit/integration) instead. Uses
+  // the raw pool with a parameterized catalog query (pg_enum joined to pg_type).
+  it('manifest_extraction_reason enum equals the EXTRACTION_FAILURE_REASONS SSOT', async () => {
+    if (pool === undefined) throw new Error('pool not initialised');
+    const res = await pool.query<{ enumlabel: string }>(
+      'SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = $1 ORDER BY e.enumsortorder',
+      ['manifest_extraction_reason'],
+    );
+    const dbLabels = res.rows.map((r) => r.enumlabel).sort();
+    const ssot = [...EXTRACTION_FAILURE_REASONS].sort();
+    expect(dbLabels).toEqual(ssot);
   });
 });
