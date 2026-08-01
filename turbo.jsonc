@@ -343,6 +343,11 @@
       "cache": false,
       "persistent": false
     },
+    "//#knip": {
+      "description": "Root-level task: dead-code gate -- report unused files, exports and dependencies across all 13 workspaces (knip). Prefix //# ensures repo-root-only: the analysis is whole-graph and cross-workspace, so a per-package task would see each package in isolation and mark every cross-workspace export dead. ROOT CAUSE THIS CLOSES: nothing in this repo could see a dead export. SUPPORTED_LOCALES in ops-web src/lib/i18n.ts had ZERO consumers repo-wide, and because nothing reported it, its sibling Locale union drifted into three independently hand-written copies (the union, the array, and the parseLocale equality check) where adding a third locale breaks NONE of them at compile time. eslint no-unused-vars cannot see this: it works within a file, never across the import graph. ADOPTION STAGE 1 of 3 (knip.dev/guides/adopt-gradually): every rule in knip.jsonc is warn, so this reports without failing while the config gaps are tuned -- on a legacy codebase the first run mostly surfaces unresolvable entry points and plugin-less deps, not real findings, and gating on that noise would make the branch unmergeable and teach the team to ignore the tool. Burn-down order is files -> dependencies -> exports (one unused FILE hides its own exports and deps, so files must go first), promoting each rule to error as it reaches zero, then ratcheting the remainder with --max-issues the way token-literal-ratchet does. NOT wired into __ci_fast__ yet: that happens in stage 3, when the first rule turns error. cache:false -- a pass/fail report over working-tree state, matching codemod:check and guard:local-secrets. Run: pnpm exec turbo run knip [-- --files | --dependencies | --exports].",
+      "cache": false,
+      "persistent": false
+    },
     "//#sync:worktrees": {
       "description": "Root-level task: fast-forward every git worktree local branch to its remote tracking branch, SAFELY. Prefix //# ensures repo-root-only (it spans all worktrees, not a per-package task). Fast-forwards only when a branch is purely behind (behind>0, ahead=0); REFUSES and warns on true divergence (ahead>0 AND behind>0), never force-merging/resetting, so unpushed local commits can never be lost. The autonomous pipeline converges the REMOTE branches but git never auto-updates LOCAL worktree branches, so this closes that gap. cache:false (side-effecting git operation, no cacheable output). Run: pnpm exec turbo run sync:worktrees.",
       "cache": false
@@ -365,6 +370,16 @@
     },
     "//#graph": {
       "description": "Root-level task: generate pipeline DAG visualization (Mermaid for ADR/docs). Prefix '//#' ensures repo-root-only. For live operational inspection prefer 'turbo devtools' (2.7+) — browser-based package/task graph.",
+      "cache": false
+    },
+    "tokens:build": {
+      "description": "Package task: each consuming app regenerates its OWN design-token output from the @fleet/design-tokens SSOT (ops-web writes src/app/globals.css via node scripts/build-tokens.mts write; the RN apps will emit their theme tokens the same way). NOT a //# root task -- it is implemented per package so every app owns and rewrites a file inside its own boundary (2026 monorepo rule: no cross-package reach). dependsOn @fleet/design-tokens#build so the emitter dist exists before the .mts imports it via its public ./emit-ops-web subpath. cache:false (side-effecting file write). Run: pnpm exec turbo run tokens:build --filter=@fleet/ops-web.",
+      "dependsOn": ["@fleet/design-tokens#build"],
+      "cache": false
+    },
+    "tokens:check": {
+      "description": "Package task: drift guard -- regenerate the app design-token output in-memory and exit 1 when the on-disk file differs from the @fleet/design-tokens SSOT (node scripts/build-tokens.mts check). Implemented per consuming package. dependsOn @fleet/design-tokens#build. cache:false (pass/fail check). Wire into the app CI gate so a stale committed globals.css fails the build. Run: pnpm exec turbo run tokens:check --filter=@fleet/ops-web.",
+      "dependsOn": ["@fleet/design-tokens#build"],
       "cache": false
     },
     "dev": {
