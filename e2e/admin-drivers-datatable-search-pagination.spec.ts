@@ -91,7 +91,12 @@ test.describe('driver roster DataTable affordances', () => {
 
     await page.getByTestId('datatable-prev').click();
     await expect(pageInfo).toContainText('Trang 1 /');
-    await expect(page.getByRole('rowheader').first()).toContainText(firstPageRow);
+    // Re-read the first rowheader with the SAME innerText extraction used to
+    // capture firstPageRow, then compare with toBe. toContainText normalizes
+    // whitespace, but the name/phone divs render with no separator, so a
+    // captured multi-line innerText never matches its own normalized form.
+    const backToFirst = (await page.getByRole('rowheader').first().innerText()).trim();
+    expect(backToFirst).toBe(firstPageRow);
   });
 
   test('keeps every CRUD control reachable inside the DataTable cells', async ({ page }) => {
