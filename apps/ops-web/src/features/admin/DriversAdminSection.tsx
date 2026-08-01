@@ -132,6 +132,7 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
   const router = useRouter();
   const [vehicleSelect, setVehicleSelect] = useState<Record<string, string>>({});
   const [phoneEdits, setPhoneEdits] = useState<Record<string, string>>({});
+  const [editingPhone, setEditingPhone] = useState<Record<string, boolean>>({});
   const [resetMsg, setResetMsg] = useState<Record<string, string>>({});
   const [vehicles, setVehicles] = useState<readonly VehicleOption[]>([]);
   const [createForm, setCreateForm] = useState<CreateFormState>(EMPTY_CREATE_FORM);
@@ -230,6 +231,7 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
     setBusy(true);
     try {
       await client.update(row.driverId, { fullName: row.fullName, phone: next });
+      setEditingPhone((m) => ({ ...m, [row.driverId]: false }));
       await refresh();
       router.refresh();
       await revalidateDispatch();
@@ -289,25 +291,49 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
   );
   const renderOpsControls = (row: AdminDriverRow): JSX.Element => (
     <div className='flex items-center gap-2'>
-      <input
-        type='text'
-        aria-label={'Số điện thoại của ' + row.fullName}
-        value={phoneEdits[row.driverId] ?? row.phone ?? ''}
-        onChange={(e) => { setPhoneEdits((m) => ({ ...m, [row.driverId]: e.target.value })); }}
-        className='w-32 rounded border px-2 py-1 text-sm'
-      />
-      <button
-        type='button'
-        disabled={busy}
-        aria-label={'Lưu SĐT của ' + row.fullName}
-        onClick={() => { void handleSavePhone(row); }}
-        className='rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600 disabled:bg-gray-400'
-      >
-        Lưu SĐT
-      </button>
+      {editingPhone[row.driverId] === true ? (
+        <>
+          <input
+            type='text'
+            aria-label={'Số điện thoại của ' + row.fullName}
+            value={phoneEdits[row.driverId] ?? row.phone ?? ''}
+            onChange={(e) => { setPhoneEdits((m) => ({ ...m, [row.driverId]: e.target.value })); }}
+            className='w-32 rounded border px-2 py-1 text-sm'
+          />
+          <button
+            type='button'
+            disabled={busy}
+            aria-label={'Lưu SĐT của ' + row.fullName}
+            onClick={() => { void handleSavePhone(row); }}
+            className='rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600 disabled:bg-gray-400'
+          >
+            Lưu SĐT
+          </button>
+          <button
+            type='button'
+            disabled={busy}
+            aria-label={'Hủy sửa SĐT của ' + row.fullName}
+            onClick={() => {
+              setEditingPhone((m) => ({ ...m, [row.driverId]: false }));
+              setPhoneEdits((m) => Object.fromEntries(Object.entries(m).filter(([k]) => k !== row.driverId)));
+            }}
+            className='rounded border px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-40'
+          >
+            Hủy
+          </button>
+        </>
+      ) : (
+        <span className='text-sm text-text-primary'>{row.phone}</span>
+      )}
       <RowActionMenu
         label={'Thao tác cho ' + row.fullName}
         actions={[
+          {
+            key: 'edit-phone',
+            label: 'Sửa SĐT',
+            disabled: busy || editingPhone[row.driverId] === true,
+            onSelect: () => { setEditingPhone((m) => ({ ...m, [row.driverId]: true })); },
+          },
           {
             key: 'reset-password',
             label: 'Đặt lại mật khẩu',

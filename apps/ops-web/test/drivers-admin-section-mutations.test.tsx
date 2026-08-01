@@ -118,6 +118,8 @@ describe('DriversAdminSection mutations', () => {
     const client = mkClient({}, [unassigned]);
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sửa SĐT' }));
     await user.click(await screen.findByLabelText('Lưu SĐT của NGUYEN VAN A'));
     await waitFor(() => { expect(client.update).toHaveBeenCalled(); });
   });
@@ -183,6 +185,8 @@ describe('DriversAdminSection mutations', () => {
     const client = mkClient({ update: vi.fn().mockRejectedValue(new Error('boom')) }, [unassigned]);
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sửa SĐT' }));
     await user.click(await screen.findByLabelText('Lưu SĐT của NGUYEN VAN A'));
     await waitFor(() => { expect(alertSpy).toHaveBeenCalled(); });
   });
@@ -190,6 +194,8 @@ describe('DriversAdminSection mutations', () => {
     const client = mkClient({}, [unassigned]);
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sửa SĐT' }));
     const phoneInput = await screen.findByLabelText('Số điện thoại của NGUYEN VAN A');
     await user.clear(phoneInput);
     await user.type(phoneInput, '0999999999');
@@ -274,6 +280,8 @@ describe('DriversAdminSection mutations', () => {
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
     const label = 'Số điện thoại của MULTI DEV';
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sửa SĐT' }));
     const input = await screen.findByLabelText(label);
     await user.clear(input);
     await user.type(input, '0912345678');
@@ -292,11 +300,49 @@ describe('DriversAdminSection mutations', () => {
     expect(await screen.findByText('62H 08888')).toBeInTheDocument();
     expect(screen.getByText('Đã đăng ký (2)')).toBeInTheDocument();
   });
+  it('shows the phone as read-only text with no persistent Luu SDT button', async () => {
+    const client = mkClient({}, [unassigned]);
+    render(<DriversAdminSection client={client} />);
+    await screen.findByText('NGUYEN VAN A');
+    // read-only by default: no phone input and no Luu SDT button on the row
+    expect(screen.queryByLabelText('Số điện thoại của NGUYEN VAN A')).toBeNull();
+    expect(screen.queryByLabelText('Lưu SĐT của NGUYEN VAN A')).toBeNull();
+  });
+  it('reveals the phone input and Luu SDT only after choosing Sua SDT in the menu', async () => {
+    const client = mkClient({}, [unassigned]);
+    render(<DriversAdminSection client={client} />);
+    const user = userEvent.setup();
+    await screen.findByText('NGUYEN VAN A');
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sửa SĐT' }));
+    const input = await screen.findByLabelText('Số điện thoại của NGUYEN VAN A');
+    await user.clear(input);
+    await user.type(input, '0912345678');
+    await user.click(screen.getByLabelText('Lưu SĐT của NGUYEN VAN A'));
+    await waitFor(() => { expect(client.update).toHaveBeenCalledWith('dr1', { fullName: 'NGUYEN VAN A', phone: '0912345678' }); });
+  });
+  it('cancels phone editing and returns to read-only without saving', async () => {
+    const client = mkClient({}, [unassigned]);
+    render(<DriversAdminSection client={client} />);
+    const user = userEvent.setup();
+    await screen.findByText('NGUYEN VAN A');
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sửa SĐT' }));
+    const input = await screen.findByLabelText('Số điện thoại của NGUYEN VAN A');
+    await user.clear(input);
+    await user.type(input, '0777777777');
+    await user.click(screen.getByLabelText('Hủy sửa SĐT của NGUYEN VAN A'));
+    // back to read-only: input gone, no update call
+    await waitFor(() => { expect(screen.queryByLabelText('Số điện thoại của NGUYEN VAN A')).toBeNull(); });
+    expect(client.update).not.toHaveBeenCalled();
+  });
   it('saves the existing phone when the field is not edited', async () => {
     const client = mkClient({}, [unassigned]);
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
-    // click Luu SDT without typing -> falls back to row.phone (covers the ?? arm)
+    // enter edit mode, then click Luu SDT without typing -> falls back to row.phone (?? arm)
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sửa SĐT' }));
     await user.click(await screen.findByLabelText('Lưu SĐT của NGUYEN VAN A'));
     await waitFor(() => { expect(client.update).toHaveBeenCalledWith('dr1', { fullName: 'NGUYEN VAN A', phone: '0900000001' }); });
   });
