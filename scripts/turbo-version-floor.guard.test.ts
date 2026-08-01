@@ -14,8 +14,12 @@
 // root test:scripts suite (vitest run scripts) is what //#test:scripts runs, and
 // that task is wired into __ci_fast__. A contract test placed in the repo-root
 // test/ directory is executed by NO registered task and therefore gates nothing
-// -- verified empirically: turbo run test:scripts reports 34 files, all of them
-// under scripts/.
+// -- verified empirically: turbo run test:scripts reports only scripts/ files.
+//
+// Assertion style: this repo forbids the 2-arg expect(value, message) form
+// (eslint vitest/valid-expect). Diagnostics therefore travel INSIDE the asserted
+// value as a labelled object, so a failure diff still names the pinned version
+// and the floor it violated instead of printing a bare boolean.
 //
 // Raising the floor is deliberate: bump FLOOR in the SAME commit as the pin, so
 // the guard and the manifest move together and a downgrade fails the PR gate.
@@ -36,9 +40,9 @@ interface RootManifest {
   readonly devDependencies?: Record<string, string>;
 }
 
-function turboSpec(): string | undefined {
+function turboSpec(): string {
   const raw = readFileSync(resolve(repoRoot, 'package.json'), 'utf8');
-  return (JSON.parse(raw) as RootManifest).devDependencies?.turbo;
+  return (JSON.parse(raw) as RootManifest).devDependencies?.turbo ?? 'MISSING';
 }
 
 // Strip a leading range operator, mirroring scripts/bump-turbo.ts splitSpec.
@@ -46,34 +50,33 @@ function versionOf(raw: string): string {
   return raw.startsWith('^') || raw.startsWith('~') ? raw.slice(1) : raw;
 }
 
-function compare(actual: string, floor: readonly number[]): number {
+function isBelow(actual: string, floor: readonly number[]): boolean {
   const parts = actual.split('.').map(Number);
   for (let i = 0; i < floor.length; i += 1) {
     const got = parts[i] ?? 0;
     const want = floor[i] ?? 0;
-    if (got !== want) return got - want;
+    if (got !== want) return got < want;
   }
-  return 0;
+  return false;
 }
 
 describe('turbo version floor guard', () => {
-  it('declares a turbo devDependency at the repo root (guard is not vacuous)', () => {
-    expect(turboSpec(), 'root package.json must pin turbo').toBeDefined();
+  // Vacuity check: a missing pin would make every later assertion meaningless.
+  it('declares a turbo devDependency at the repo root', () => {
+    expect(turboSpec()).not.toBe('MISSING');
   });
 
   it('pins turbo with a parseable semver version', () => {
-    expect(versionOf(turboSpec() ?? '')).toMatch(/^[0-9]+[.][0-9]+[.][0-9]+$/);
+    expect(versionOf(turboSpec())).toMatch(/^[0-9]+[.][0-9]+[.][0-9]+$/);
   });
 
   it('never drifts below the floor ' + FLOOR_TEXT, () => {
-    const actual = versionOf(turboSpec() ?? '0.0.0');
-    expect(
-      compare(actual, FLOOR),
-      'turbo pinned at ' + actual + ', below the floor ' + FLOOR_TEXT,
-    ).toBeGreaterThanOrEqual(0);
+    const pinned = versionOf(turboSpec());
+    expect({ pinned, floor: FLOOR_TEXT, belowFloor: isBelow(pinned, FLOOR) })
+      .toEqual({ pinned, floor: FLOOR_TEXT, belowFloor: false });
   });
 
   it('preserves a range operator so patch updates stay available', () => {
-    expect(turboSpec() ?? '').toMatch(/^[\^~]/);
+    expect(turboSpec()).toMatch(/^[\^~]/);
   });
 });
