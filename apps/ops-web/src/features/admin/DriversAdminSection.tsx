@@ -11,8 +11,19 @@
 // the sync-protocol SSOT (ReferenceListResponseSchema) at the trust boundary --
 // never an as-cast (the reference-contract header documents what cast-not-parse
 // cost at the t5b incident).
+//
+// STABLE CELL IDENTITY (root fix): DataTable renders every cell through
+// flexRender, which does createElement(cellFn, ctx). A cell function rebuilt on
+// each render is therefore a NEW element type, so React unmounts and remounts
+// the entire cell subtree instead of updating it -- which destroys focus,
+// selection and IME composition in the inline phone input while a dispatcher is
+// typing, and detaches nodes mid-assertion in tests. Column defs live at module
+// scope (TanStack: columns/data need stable references) and reach the
+// per-render handlers through context rather than closure capture; memoising
+// them in-component could not work, since renderOpsControls closes over
+// phoneEdits and changes on every keystroke.
 'use client';
-import { useEffect, useState, type JSX } from 'react';
+import { createContext, useContext, useEffect, useState, type JSX } from 'react';
 import { useMachine } from '@xstate/react';
 import type { AdminDriverRow } from '@fleet/sync-protocol';
 import { ReferenceListResponseSchema } from '@fleet/sync-protocol';
@@ -33,7 +44,7 @@ import {
   DRIVER_ATTENTION_QUEUE_HEADING,
   presentDriverAttentionReason,
 } from '@/features/admin/driver-attention.presenter';
-import type { ColumnDef } from '@tanstack/react-table';
+import type { CellContext, ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/features/admin/DataTable';
 import { RowActionMenu } from '@/features/admin/RowActionMenu';
 interface VehicleOption { vehicleId: string; plate: string; }
@@ -63,6 +74,59 @@ export interface DriversAdminClient {
   revoke: AdminDriversClient['revoke'];
   resetPassword: AdminDriversClient['resetPassword'];
 }
+// Internal, single-use, non-duplicated shape crossing no trust boundary:
+// plain TS by the two-axis rule (Zod here would be redundant validation).
+interface DriverRowRenderers {
+  readonly renderAssignControls: (row: AdminDriverRow) => JSX.Element;
+  readonly renderOpsControls: (row: AdminDriverRow) => JSX.Element;
+}
+const DriverRowRenderersContext = createContext<DriverRowRenderers | null>(null);
+function useDriverRowRenderers(): DriverRowRenderers {
+  const renderers = useContext(DriverRowRenderersContext);
+  if (renderers === null) throw new Error('DriverRowRenderers not provided');
+  return renderers;
+}
+function DriverNameCell({ row }: CellContext<AdminDriverRow, unknown>): JSX.Element {
+  return (
+    <>
+      <div className='font-medium'>{row.original.fullName}</div>
+      <div className='text-xs text-gray-700'>{row.original.phone}</div>
+    </>
+  );
+}
+function DriverVehicleCell({ row }: CellContext<AdminDriverRow, unknown>): JSX.Element {
+  // configured rows always carry a vehicle: classifyDriverAttention routes
+  // vehicle-less rows to the attention queue (VEHICLE_UNASSIGNED).
+  return (
+    <span data-testid={'driver-assigned-plate-' + row.original.driverId} className='inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>{row.original.assignedVehicle?.plate}</span>
+  );
+}
+function DriverDevicesCell({ row }: CellContext<AdminDriverRow, unknown>): JSX.Element {
+  // configured rows always carry >=1 device (DEVICE_UNREGISTERED routes the
+  // rest to the attention queue), so there is no empty-state arm here.
+  return (
+    <span className='inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>
+      {row.original.devices.length > 1 ? 'Đã đăng ký (' + String(row.original.devices.length) + ')' : 'Đã đăng ký'}
+    </span>
+  );
+}
+function DriverAssignCell({ row }: CellContext<AdminDriverRow, unknown>): JSX.Element {
+  return useDriverRowRenderers().renderAssignControls(row.original);
+}
+function DriverOpsCell({ row }: CellContext<AdminDriverRow, unknown>): JSX.Element {
+  return useDriverRowRenderers().renderOpsControls(row.original);
+}
+const CONFIGURED_COLUMNS: ColumnDef<AdminDriverRow>[] = [
+  { accessorKey: 'fullName', header: 'Tài xế', cell: DriverNameCell },
+  {
+    id: 'vehicle', header: 'Xe được giao',
+    accessorFn: (row) => row.assignedVehicle?.plate ?? null,
+    cell: DriverVehicleCell,
+  },
+  { id: 'devices', header: 'Thiết bị', cell: DriverDevicesCell },
+  { id: 'assign', header: 'Phân công xe', cell: DriverAssignCell },
+  { id: 'ops', header: 'Thao tác', cell: DriverOpsCell },
+];
 export function DriversAdminSection({ client: injected }: { client?: DriversAdminClient } = {}): JSX.Element {
   const [snapshot, send] = useMachine(driverAttentionMachine);
   const router = useRouter();
@@ -265,51 +329,11 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
       ) : null}
     </div>
   );
+  const rowRenderers: DriverRowRenderers = { renderAssignControls, renderOpsControls };
   if (snapshot.matches('loading')) return <div data-testid='drivers-section-loading' className='py-4 text-sm text-slate-500'>Đang tải…</div>;
   if (snapshot.matches('error')) return <div className='py-4 text-red-600'>Lỗi: {snapshot.context.errorMessage}</div>;
   const attention: readonly DriverAttentionEntry[] = snapshot.context.attention;
   const configured: readonly AdminDriverRow[] = snapshot.context.configured;
-  const configuredColumns: ColumnDef<AdminDriverRow>[] = [
-    {
-      accessorKey: 'fullName', header: 'Tài xế',
-      cell: (ctx) => {
-        const row = ctx.row.original;
-        return (
-          <>
-            <div className='font-medium'>{row.fullName}</div>
-            <div className='text-xs text-gray-700'>{row.phone}</div>
-          </>
-        );
-      },
-    },
-    {
-      id: 'vehicle', header: 'Xe được giao',
-      accessorFn: (row) => row.assignedVehicle?.plate ?? null,
-      cell: (ctx) => {
-        const row = ctx.row.original;
-        // configured rows always carry a vehicle: classifyDriverAttention routes
-        // vehicle-less rows to the attention queue (VEHICLE_UNASSIGNED).
-        return (
-          <span data-testid={'driver-assigned-plate-' + row.driverId} className='inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>{row.assignedVehicle?.plate}</span>
-        );
-      },
-    },
-    {
-      id: 'devices', header: 'Thiết bị',
-      cell: (ctx) => {
-        const row = ctx.row.original;
-        // configured rows always carry >=1 device (DEVICE_UNREGISTERED routes the
-        // rest to the attention queue), so there is no empty-state arm here.
-        return (
-          <span className='inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>
-            {row.devices.length > 1 ? 'Đã đăng ký (' + String(row.devices.length) + ')' : 'Đã đăng ký'}
-          </span>
-        );
-      },
-    },
-    { id: 'assign', header: 'Phân công xe', cell: (ctx) => renderAssignControls(ctx.row.original) },
-    { id: 'ops', header: 'Thao tác', cell: (ctx) => renderOpsControls(ctx.row.original) },
-  ];
   return (
     <div>
       <section className='mb-8 p-4 border rounded bg-gray-50'>
@@ -395,12 +419,14 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
           </ul>
         </section>
       ) : null}
-      <DataTable
-        columns={configuredColumns}
-        data={configured}
-        caption='Tài xế'
-        emptyLabel='Chưa có tài xế'
-      />
+      <DriverRowRenderersContext.Provider value={rowRenderers}>
+        <DataTable
+          columns={CONFIGURED_COLUMNS}
+          data={configured}
+          caption='Tài xế'
+          emptyLabel='Chưa có tài xế'
+        />
+      </DriverRowRenderersContext.Provider>
     </div>
   );
 }

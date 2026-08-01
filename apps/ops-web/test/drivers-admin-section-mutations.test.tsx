@@ -260,6 +260,27 @@ describe('DriversAdminSection mutations', () => {
     expect(screen.queryByRole('button', { name: /^Xóa$/ })).toBeNull();
     expect(screen.getByRole('button', { name: /Thao tác/ })).toBeInTheDocument();
   });
+  it('keeps focus in the phone field while typing for a configured driver', async () => {
+    const multiDevice: AdminDriverRow = {
+      driverId: 'dr9', fullName: 'MULTI DEV', phone: '0900000009',
+      operatorId: 'op9', assignmentId: 'as9',
+      assignedVehicle: { vehicleId: 'v9', plate: '62H 08888' },
+      devices: [
+        { deviceId: 'dev-a', platform: 'android', appVersion: '1.0.0', lastSeenAt: null },
+        { deviceId: 'dev-b', platform: 'ios', appVersion: '1.0.0', lastSeenAt: null },
+      ],
+    };
+    const client = mkClient({}, [multiDevice]);
+    render(<DriversAdminSection client={client} />);
+    const user = userEvent.setup();
+    const label = 'Số điện thoại của MULTI DEV';
+    const input = await screen.findByLabelText(label);
+    await user.clear(input);
+    await user.type(input, '0912345678');
+    // cells must update in place -- a remount destroys focus and IME state mid-typing
+    expect(document.activeElement).toBe(screen.getByLabelText(label));
+    expect(screen.getByLabelText(label)).toHaveValue('0912345678');
+  });
   it('shows a device count suffix when a driver has more than one device', async () => {
     const twoDevices = {
       driverId: 'dr9', fullName: 'MULTI DEV', phone: '0900000009',
