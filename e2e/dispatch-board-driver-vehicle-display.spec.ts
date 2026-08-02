@@ -12,6 +12,15 @@
 // carries only assignedOperatorId/assignedAssetId (UUIDs), not driverName or
 // vehiclePlate, so ops-web renders em-dash. It drives the API read-time
 // driver+vehicle enrichment (L3) and the ops-web column render (L1/L2).
+//
+// EVERY ASSERTION IS SCOPED TO data-testid=dispatch-board. The page now also
+// renders the dispatched-vs-idle roster panel above the board, which has its
+// own Tài xế / Số xe columns, so page-wide role locators resolve to three
+// columnheaders and would resolve the plate cell twice. Scoping is the fix
+// Playwright itself prescribes: .first()/.nth() are explicitly NOT recommended
+// because they silently pass when the page changes - here a .first() would keep
+// this spec green even if the BOARD's own Tài xế column disappeared, destroying
+// the exact invariant the spec exists to guard.
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { z } from 'zod';
@@ -101,29 +110,36 @@ test.describe.serial('Lệnh điều xe board: Tài xế + Xe display driver nam
     await pickCombobox(page, 'deliveryWarehouse_1', seed.deliveryName);
     await page.getByRole('button', { name: 'Tạo lệnh' }).click();
 
+    // The board container. Every assertion below is scoped to it so the roster
+    // split panel (which legitimately repeats Tài xế / Số xe headings and plate
+    // cells for the whole roster) can never satisfy or ambiguate a board claim.
+    const board = page.getByTestId('dispatch-board');
+
     // Wait for the order to land in the board (optimistic OR reconciled row),
     // then RELOAD so we assert the SERVER-rendered board only — the optimistic
     // row (which carries the just-picked labels) is gone after a full reload,
     // so these assertions exercise the real API board enrichment, not the
     // transient client-side optimistic row.
     await expect(
-      page.getByRole('cell', { name: seed.customerName }),
+      board.getByRole('cell', { name: seed.customerName }),
     ).toBeVisible({ timeout: ROW_VISIBILITY_BUDGET_MS });
     await page.reload();
-    await expect(page.getByRole('columnheader', { name: 'Tài xế' })).toBeVisible({ timeout: ROW_VISIBILITY_BUDGET_MS });
+    await expect(board.getByRole('columnheader', { name: 'Tài xế' })).toBeVisible({ timeout: ROW_VISIBILITY_BUDGET_MS });
 
     // INVARIANT 1: the assigned driver full name shows under Tài xế in the
     // server-rendered board. Fails today: the board resolves the driver UUID
     // via the pair-filtered client reference lookup, which no longer contains
     // the now-busy driver, so the cell renders em-dash.
     await expect(
-      page.getByRole('cell', { name: seed.driverLabel }),
+      board.getByRole('cell', { name: seed.driverLabel }),
     ).toBeVisible({ timeout: ROW_VISIBILITY_BUDGET_MS });
 
     // INVARIANT 2: the assigned vehicle plate shows under Xe in the
-    // server-rendered board (same root cause as INVARIANT 1).
+    // server-rendered board (same root cause as INVARIANT 1). Scoping matters
+    // most here: the idle roster table renders this same plate in a td, so an
+    // unscoped cell locator would match twice.
     await expect(
-      page.getByRole('cell', { name: seed.vehicleLabel }),
+      board.getByRole('cell', { name: seed.vehicleLabel }),
     ).toBeVisible({ timeout: ROW_VISIBILITY_BUDGET_MS });
   });
 });
