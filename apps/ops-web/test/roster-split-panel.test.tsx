@@ -1,6 +1,6 @@
 // apps/ops-web/test/roster-split-panel.test.tsx
-// outside-in strict TDD RED: the dispatched-vs-idle panel at the top of the
-// Bảng điều phối xe page - two tables side by side.
+// The dispatched-vs-idle panel at the top of the Bảng điều phối xe page - two
+// tables side by side.
 //
 // WHAT THE OWNER MUST SEE IN ONE GLANCE. Left: drivers on the road today with
 // their truck. Right: drivers staying home with an idle truck. The right table
@@ -23,6 +23,7 @@
 // guard is dead code and no-unnecessary-condition rejects it.
 import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { RosterSplitPanel } from '@/features/dispatch/RosterSplitPanel';
 import type { DispatchRosterSplit } from '@fleet/sync-protocol';
 
@@ -83,6 +84,25 @@ const EMPTY: DispatchRosterSplit = {
   totalDrivers: 0,
   dispatched: [],
   idle: [],
+};
+
+// A roster big enough to page: 12 idle drivers at 5 per page = 3 pages. Built
+// rather than hand-written so the arithmetic in the assertions is obvious
+// (driver N is IDLE-N) and a page-size change cannot silently pass.
+function idleRow(n: number): DispatchRosterSplit['idle'][number] {
+  return {
+    driverId: 'aaaaaaaa-aaaa-4aaa-8aaa-' + String(n).padStart(12, '0'),
+    driverName: 'IDLE-' + String(n),
+    vehiclePlate: '51A-' + String(n).padStart(5, '0'),
+    reason: 'no_dispatch_today',
+  };
+}
+const BIG: DispatchRosterSplit = {
+  day: '2026-08-01',
+  asOf: '2026-08-01T05:00:00.000Z',
+  totalDrivers: 12,
+  dispatched: [],
+  idle: Array.from({ length: 12 }, (_, i) => idleRow(i + 1)),
 };
 
 describe('RosterSplitPanel', () => {
@@ -187,5 +207,104 @@ describe('RosterSplitPanel', () => {
   it('shows no partition warning when the split is consistent', () => {
     render(<RosterSplitPanel split={SPLIT} />);
     expect(screen.queryByTestId('roster-split-partition-warning')).toBeNull();
+  });
+});
+
+// PAGINATION (2026). 29 real drivers rendered unpaginated pushed the Lệnh điều
+// xe board entirely below the fold, which DEFEATS the glance goal the panel
+// exists for. Five rows per table keeps both columns and the board on one
+// screen. Page changes are discrete, user-triggered events, which is exactly
+// what makes pagination the accessible choice over virtual scrolling.
+describe('RosterSplitPanel pagination', () => {
+  it('shows no pagination controls when a table fits on one page', () => {
+    render(<RosterSplitPanel split={SPLIT} />);
+    expect(screen.queryByTestId('roster-split-idle-pagination')).toBeNull();
+    expect(screen.queryByTestId('roster-split-dispatched-pagination')).toBeNull();
+  });
+
+  it('renders at most five driver rows per page', () => {
+    render(<RosterSplitPanel split={BIG} />);
+    const rows = within(screen.getByTestId('roster-split-idle')).getAllByRole('rowheader');
+    expect(rows).toHaveLength(5);
+    expect(rows.map((el) => el.textContent)).toEqual(['IDLE-1', 'IDLE-2', 'IDLE-3', 'IDLE-4', 'IDLE-5']);
+  });
+
+  // THE COUNT IS THE WHOLE POINT OF THE PANEL. It must keep reporting the FULL
+  // roster, never the visible page: an owner who reads 5 when 12 drivers are
+  // home has been actively misinformed by the pagination.
+  it('keeps the heading count at the FULL roster size, not the page size', () => {
+    render(<RosterSplitPanel split={BIG} />);
+    expect(screen.getByTestId('roster-split-idle-count').textContent).toBe('12');
+    expect(screen.getByTestId('roster-split-total').textContent).toBe('12');
+  });
+
+  it('still validates the partition against ALL rows, not the visible page', () => {
+    render(<RosterSplitPanel split={BIG} />);
+    expect(screen.queryByTestId('roster-split-partition-warning')).toBeNull();
+  });
+
+  it('wraps the controls in a nav named for THAT table (two tables, two navs)', () => {
+    render(<RosterSplitPanel split={BIG} />);
+    const nav = screen.getByTestId('roster-split-idle-pagination');
+    expect(nav.tagName).toBe('NAV');
+    expect(nav.getAttribute('aria-label')).toBe('Phân trang tài xế ở nhà hôm nay');
+  });
+
+  it('marks the current page with aria-current so it is announced', () => {
+    render(<RosterSplitPanel split={BIG} />);
+    const nav = within(screen.getByTestId('roster-split-idle-pagination'));
+    expect(nav.getByRole('button', { name: 'Trang 1' }).getAttribute('aria-current')).toBe('page');
+    expect(nav.getByRole('button', { name: 'Trang 2' }).getAttribute('aria-current')).toBeNull();
+  });
+
+  it('navigates to a clicked page number', async () => {
+    const user = userEvent.setup();
+    render(<RosterSplitPanel split={BIG} />);
+    const nav = within(screen.getByTestId('roster-split-idle-pagination'));
+    await user.click(nav.getByRole('button', { name: 'Trang 3' }));
+    const rows = within(screen.getByTestId('roster-split-idle')).getAllByRole('rowheader');
+    expect(rows.map((el) => el.textContent)).toEqual(['IDLE-11', 'IDLE-12']);
+  });
+
+  it('announces the visible range in a polite live region', async () => {
+    const user = userEvent.setup();
+    render(<RosterSplitPanel split={BIG} />);
+    const status = screen.getByTestId('roster-split-idle-status');
+    expect(status.getAttribute('aria-live')).toBe('polite');
+    expect(status.textContent).toBe('Hiển thị 1-5 trên 12 tài xế');
+    const nav = within(screen.getByTestId('roster-split-idle-pagination'));
+    await user.click(nav.getByRole('button', { name: 'Trang 2' }));
+    expect(status.textContent).toBe('Hiển thị 6-10 trên 12 tài xế');
+  });
+
+  // Each table pages on its OWN state. Sharing one page index would move the
+  // dispatched table when the owner pages the idle one - two independent
+  // questions answered by one control is a lie about the data.
+  it('pages each table independently', async () => {
+    const user = userEvent.setup();
+    const both: DispatchRosterSplit = {
+      ...BIG,
+      totalDrivers: 24,
+      dispatched: Array.from({ length: 12 }, (_, i) => ({
+        driverId: 'bbbbbbbb-bbbb-4bbb-8bbb-' + String(i + 1).padStart(12, '0'),
+        driverName: 'RUN-' + String(i + 1),
+        vehiclePlate: null,
+        roadRunId: 'cccccccc-cccc-4ccc-8ccc-' + String(i + 1).padStart(12, '0'),
+        state: 'dispatched' as const,
+        plannedStartAt: null,
+        orderRefs: [],
+      })),
+    };
+    render(<RosterSplitPanel split={both} />);
+    const idleNav = within(screen.getByTestId('roster-split-idle-pagination'));
+    await user.click(idleNav.getByRole('button', { name: 'Trang 2' }));
+    const dispatchedRows = within(screen.getByTestId('roster-split-dispatched')).getAllByRole('rowheader');
+    expect(dispatchedRows[0]?.textContent).toBe('RUN-1');
+  });
+
+  it('renders one page button per page and no more', () => {
+    render(<RosterSplitPanel split={BIG} />);
+    const nav = within(screen.getByTestId('roster-split-idle-pagination'));
+    expect(nav.getAllByRole('button')).toHaveLength(3);
   });
 });
