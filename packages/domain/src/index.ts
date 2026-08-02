@@ -26,6 +26,9 @@ export {
   personNameMatchKey,
   DriverNameSchema,
   type DriverName,
+  suggestDistinctDriverName,
+  DISTINCT_NAME_SUFFIXES,
+  type DistinctNameSuffix,
 } from './identity/index.js';
 export {
   type TransportOrderState,
