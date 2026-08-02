@@ -92,7 +92,8 @@ describe('reference-sections shared module', () => {
     if (customers === undefined) throw new Error('no sections');
     render(<ReferenceSection def={customers} />);
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Sửa SĐT' }));
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sửa SĐT' }));
     await user.click(await screen.findByRole('button', { name: 'Lưu' }));
     await waitFor(() => {
       const err = document.querySelector('.text-red-600');

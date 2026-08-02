@@ -80,10 +80,11 @@ describe('ReferenceAdminPage Khách hàng Số điện thoại (L1)', () => {
     render(<ReferenceAdminPage />);
     await screen.findAllByText('Acme');
     const sec = customerSection();
-    const editBtn = within(sec).getByRole('button', { name: 'Sửa SĐT' });
-    const row = editBtn.closest('tr');
+    const menuBtn = within(sec).getByRole('button', { name: /Thao tác/ });
+    const row = menuBtn.closest('tr');
     if (row === null) throw new Error('no row ancestor');
-    fireEvent.click(editBtn);
+    fireEvent.click(menuBtn);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Sửa SĐT' }));
     const editField = within(row).getByLabelText('Số điện thoại');
     fireEvent.change(editField, { target: { value: '0906666666' } });
     fireEvent.click(within(sec).getByRole('button', { name: 'Lưu' }));
