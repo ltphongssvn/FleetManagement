@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "android": "expo run:android",
-    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "check": "echo check is a turbo aggregate task -- run: pnpm exec turbo run check --filter=@fleet/dispatcher-app",
     "clean": "rimraf .expo dist .turbo coverage",
     "ios": "expo run:ios",
     "lint": "eslint . --max-warnings=0",
