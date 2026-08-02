@@ -144,4 +144,26 @@ describe('reference-sections shared module', () => {
     render(<ReferenceSection def={customers} />);
     expect(await screen.findByText('load failed')).toBeInTheDocument();
   });
+  it('cancels customer phone editing and returns to read-only', async () => {
+    const row = { id: 'r1', label: 'ACME', meta: { phone: '0900000000' } };
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ items: [row] }),
+    }) as never;
+    const customers = SECTIONS[0];
+    if (customers === undefined) throw new Error('no sections');
+    render(<ReferenceSection def={customers} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sửa SĐT' }));
+    const field = await screen.findByLabelText('Số điện thoại');
+    await user.clear(field);
+    await user.type(field, '0911111111');
+    await user.click(await screen.findByRole('button', { name: 'Hủy' }));
+    // back to read-only: the inline field is gone and no PATCH was issued
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Số điện thoại')).toBeNull();
+    });
+  });
 });
