@@ -29,7 +29,7 @@ import type { DispatchRosterSplit } from '@fleet/sync-protocol';
 const SPLIT: DispatchRosterSplit = {
   day: '2026-08-01',
   asOf: '2026-08-01T05:00:00.000Z',
-  totalDrivers: 4,
+  totalDrivers: 5,
   dispatched: [
     {
       driverId: '11111111-1111-4111-8111-111111111111',
@@ -39,6 +39,20 @@ const SPLIT: DispatchRosterSplit = {
       state: 'dispatched',
       plannedStartAt: '2026-08-01T01:00:00.000Z',
       orderRefs: ['XTT.08-001'],
+    },
+    {
+      // ON THE ROAD but with NO truck recorded on the run and no order refs
+      // yet. Both are real states: a run can be created before the asset is
+      // attached, and refs land when the transport order is linked. The panel
+      // must still show him as working, with a dash rather than a blank cell -
+      // a blank reads to the owner as a rendering fault.
+      driverId: '55555555-5555-4555-8555-555555555555',
+      driverName: 'HOÀNG VĂN NĂM',
+      vehiclePlate: null,
+      roadRunId: '88888888-8888-4888-8888-888888888888',
+      state: 'planned',
+      plannedStartAt: null,
+      orderRefs: [],
     },
   ],
   idle: [
@@ -96,13 +110,13 @@ describe('RosterSplitPanel', () => {
 
   it('shows the count on each heading so the owner never tallies rows', () => {
     render(<RosterSplitPanel split={SPLIT} />);
-    expect(screen.getByTestId('roster-split-dispatched-count').textContent).toBe('1');
+    expect(screen.getByTestId('roster-split-dispatched-count').textContent).toBe('2');
     expect(screen.getByTestId('roster-split-idle-count').textContent).toBe('3');
   });
 
   it('shows the roster total so a dropped driver would be visible', () => {
     render(<RosterSplitPanel split={SPLIT} />);
-    expect(screen.getByTestId('roster-split-total').textContent).toBe('4');
+    expect(screen.getByTestId('roster-split-total').textContent).toBe('5');
   });
 
   it('lists every dispatched driver with a plate in the LEFT table only', () => {
@@ -135,6 +149,15 @@ describe('RosterSplitPanel', () => {
     render(<RosterSplitPanel split={SPLIT} />);
     const noTruckRow = screen.getByTestId('roster-split-idle-row-33333333-3333-4333-8333-333333333333');
     expect(within(noTruckRow).getByText('-')).toBeTruthy();
+  });
+
+  it('renders a dash for a dispatched driver with no truck and no order refs', () => {
+    render(<RosterSplitPanel split={SPLIT} />);
+    const row = screen.getByTestId('roster-split-dispatched-row-55555555-5555-4555-8555-555555555555');
+    // Two dashes: the plate cell and the order-ref cell. A blank cell would
+    // read as a rendering fault; a dash reads as known-empty.
+    expect(within(row).getAllByText('-')).toHaveLength(2);
+    expect(within(row).getByText('HOÀNG VĂN NĂM')).toBeTruthy();
   });
 
   it('renders empty states for both tables when nobody is on the roster', () => {

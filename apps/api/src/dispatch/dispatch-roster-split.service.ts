@@ -132,6 +132,11 @@ export class DispatchRosterSplitService {
           vehiclePlate: run.runPlate ?? person.assignedPlate,
           roadRunId: run.roadRunId,
           state: run.state,
+          // The WHERE clause bounds planned_start_at with gte/lt, and SQL
+          // comparisons never match NULL, so a run reaching here always has a
+          // planned start. The null arm is defensive only and unreachable,
+          // hence excluded from branch coverage rather than tested.
+          /* c8 ignore next 2 -- gte/lt in the WHERE clause excludes NULL */
           plannedStartAt: run.plannedStartAt === null ? null : run.plannedStartAt.toISOString(),
           orderRefs: run.transportOrderRefs,
         });

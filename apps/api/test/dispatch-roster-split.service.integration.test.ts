@@ -48,14 +48,14 @@ const TOMORROW_VN = new Date('2026-08-01T18:00:00.000Z');
 
 interface SeededDriver {
   readonly driverId: string;
-  readonly operatorId: string;
+  readonly operatorId: string | null;
 }
 
 async function seedDriver(
   name: string,
-  opts: { active?: boolean; companyId?: string } = {},
+  opts: { active?: boolean; companyId?: string; operatorId?: string | null } = {},
 ): Promise<SeededDriver> {
-  const operatorId = randomUUID();
+  const operatorId = opts.operatorId === undefined ? randomUUID() : opts.operatorId;
   const tenancy = opts.companyId === undefined ? TENANCY : { ...TENANCY, companyId: opts.companyId };
   const [row] = await testDb.db.insert(driver)
     .values({ ...tenancy, fullName: name, operatorId, active: opts.active ?? true })
@@ -84,7 +84,7 @@ async function seedVehicleFor(
 }
 
 async function seedRun(
-  d: SeededDriver,
+  d: SeededDriver | null,
   plannedStartAt: Date | null,
   opts: { state?: string; vehicleId?: string; deleted?: boolean; companyId?: string } = {},
 ): Promise<string> {
@@ -94,7 +94,7 @@ async function seedRun(
     ...tenancy,
     roadRunId,
     state: (opts.state ?? 'dispatched') as never,
-    assignedOperatorId: d.operatorId,
+    assignedOperatorId: d === null ? null : d.operatorId,
     assignedAssetId: opts.vehicleId ?? null,
     plannedStartAt,
     stopCount: 2,
@@ -248,6 +248,38 @@ describe('@fleet/api - DispatchRosterSplitService.split', () => {
     expect(s.totalDrivers).toBe(1);
     expect(s.dispatched).toHaveLength(1);
     expect(s.dispatched[0]?.driverName).toBe('MINE');
+  }, 30_000);
+
+  it('ignores a run that carries no assigned operator (cannot be attributed to a driver)', async () => {
+    // A projection row with a null assigned_operator_id belongs to no driver.
+    // Attributing it by guesswork would put a name in the wrong column, so the
+    // service skips it - and the driver correctly stays in the idle table.
+    const d = await seedDriver('HAS NO RUN OF HIS OWN');
+    await seedVehicleFor(d, '51A-20202');
+    await seedRun(null, TODAY_VN_EARLY);
+
+    const s = await svc().split({ companyId: COMPANY });
+    expect(s.totalDrivers).toBe(1);
+    expect(s.dispatched).toHaveLength(0);
+    expect(s.idle).toHaveLength(1);
+    expect(s.idle[0]?.reason).toBe('no_dispatch_today');
+    expect(isRosterPartitionValid(s)).toBe(true);
+  }, 30_000);
+
+  it('keeps a driver with no operator binding on the roster, never as dispatched', async () => {
+    // driver.operator_id is nullable (a driver registered before Keycloak
+    // binding). Such a driver can never match a projection row, but he is
+    // still on the roster and MUST appear in the idle column - dropping him
+    // would silently shrink the boss total.
+    await seedDriver('NO OPERATOR BINDING', { operatorId: null });
+    await seedRun(null, TODAY_VN_EARLY);
+
+    const s = await svc().split({ companyId: COMPANY });
+    expect(s.totalDrivers).toBe(1);
+    expect(s.dispatched).toHaveLength(0);
+    expect(s.idle).toHaveLength(1);
+    expect(s.idle[0]?.driverName).toBe('NO OPERATOR BINDING');
+    expect(isRosterPartitionValid(s)).toBe(true);
   }, 30_000);
 
   it('produces a payload that parses against the DispatchRosterSplitSchema SSOT', async () => {
