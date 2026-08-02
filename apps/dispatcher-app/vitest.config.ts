@@ -6,6 +6,23 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
+    // Pool bounding, required by apps/api/test/vitest-maxworkers-ssot.guard
+    // .guard.test.ts: vitest sizes its pool from os.availableParallelism(),
+    // which reports HOST cores and cannot see the other worktree runners on
+    // this box. Every runner concludes it owns all 8 cores; individually
+    // correct, collectively ~21 workers. driver-app was exempted as node-env
+    // and then moved into MUST_BOUND after a SYNCHRONOUS Intl call died at
+    // the 5000ms default under neighbour thrash -- a cheap pool starved is
+    // still starved. This package is the same class: an Expo/RN app, not a
+    // pure-function package.
+    //
+    // fileParallelism:false rather than maxWorkers (owner-app precedent, the
+    // sanctioned lever for racy specs): with only 6 files, suites touching
+    // shared globals batch together and leak. install-fetch-polyfill assigns
+    // globalThis.fetch, and copilot-client + session-manager both exercise
+    // fetch/token globals. Serializing gives each file a clean global scope.
+    // Cheap here: the suite runs in ~1.5s.
+    fileParallelism: false,
     coverage: {
       provider: 'v8',
       include: [resolve(__dirname, 'src/**/*.ts')],

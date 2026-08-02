@@ -65,6 +65,12 @@ const MUST_BOUND = [
   'apps/ops-web/vitest.config.ts',
   'apps/owner-app/vitest.config.ts',
   'apps/driver-app/vitest.config.ts',
+  // dispatcher-app (T17 voice-dispatch) joins for the SAME reason driver-app
+  // did: an Expo/RN app is neither pure-function nor exempt-cheap. It bounds
+  // via fileParallelism:false rather than maxWorkers -- with only 6 files,
+  // suites touching shared globals (the fetch polyfill, copilot-client and
+  // session-manager) batch together and leak, which is the owner-app case.
+  'apps/dispatcher-app/vitest.config.ts',
   'packages/codemods/vitest.config.ts',
   'vitest.e2e.config.ts',
 ] as const;
