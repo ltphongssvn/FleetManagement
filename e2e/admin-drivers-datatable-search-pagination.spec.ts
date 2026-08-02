@@ -119,18 +119,19 @@ test.describe('driver roster DataTable affordances', () => {
     await expect(row).toContainText(target.plate);
     await expect(row).toContainText('Đã đăng ký');
 
-    // CRUD controls survived the move into DataTable cells. Revoke sits directly
-    // in the row; the phone is read-only by default and phone-edit, reset-password
-    // and delete live behind the RowActionMenu kebab. Save-phone (Lưu SĐT) is
-    // reachable only after choosing Sửa SĐT, which puts the row into edit mode.
-    await expect(row.getByRole('button', { name: 'Hủy phân công' })).toBeVisible();
-    // read-only by default: no persistent Lưu SĐT button on the row
+    // Every CRUD control is reachable from inside the DataTable cells. The phone is
+    // read-only by default; phone-edit, revoke, reset-password and delete all live
+    // behind the RowActionMenu kebab (2026 dense-table consolidation). Save-phone
+    // (Lưu SĐT) is reached only after choosing Sửa SĐT, which enters edit mode.
+    // read-only by default: no persistent revoke or Lưu SĐT button on the row
+    await expect(row.getByRole('button', { name: 'Hủy phân công' })).toHaveCount(0);
     await expect(row.getByLabel('Lưu SĐT của ' + target.fullName)).toHaveCount(0);
 
     const actionsTrigger = row.getByLabel('Thao tác cho ' + target.fullName);
     await expect(actionsTrigger).toBeVisible();
     await actionsTrigger.click();
     await expect(page.getByRole('menuitem', { name: 'Sửa SĐT' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Hủy phân công' })).toBeVisible();
     await expect(page.getByRole('menuitem', { name: 'Đặt lại mật khẩu' })).toBeVisible();
     await expect(page.getByRole('menuitem', { name: 'Xóa' })).toBeVisible();
 

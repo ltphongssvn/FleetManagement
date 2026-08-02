@@ -257,14 +257,9 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
   };
   const renderAssignControls = (row: AdminDriverRow): JSX.Element => (
     row.assignmentId !== null ? (
-      <button
-        type='button'
-        data-testid={'driver-revoke-' + row.driverId}
-        onClick={() => { void handleRevoke(row.assignmentId ?? ''); }}
-        className='bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm w-fit'
-      >
-        Hủy phân công
-      </button>
+      // Assigned rows show their plate in the Xe được giao column; revoke is
+      // consolidated into the Thao tác (⋯) menu, so this cell renders nothing.
+      <></>
     ) : (
       <div className='flex flex-col gap-2'>
         <select
@@ -334,6 +329,12 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
             disabled: busy || editingPhone[row.driverId] === true,
             onSelect: () => { setEditingPhone((m) => ({ ...m, [row.driverId]: true })); },
           },
+          ...(row.assignmentId !== null ? [{
+            key: 'revoke',
+            label: 'Hủy phân công',
+            disabled: busy,
+            onSelect: () => { void handleRevoke(row.assignmentId ?? ''); },
+          }] : []),
           {
             key: 'reset-password',
             label: 'Đặt lại mật khẩu',

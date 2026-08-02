@@ -87,7 +87,8 @@ describe('DriversAdminSection mutations', () => {
     const client = mkClient({}, [assigned]);
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
-    await user.click(await screen.findByTestId('driver-revoke-dr2'));
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Hủy phân công' }));
     await waitFor(() => { expect(client.revoke).toHaveBeenCalledWith('as2', 'driver_left'); });
   });
   it('deletes a driver after confirm', async () => {
@@ -166,7 +167,8 @@ describe('DriversAdminSection mutations', () => {
     const client = mkClient({ revoke: vi.fn().mockRejectedValue(new Error('boom')) }, [assigned]);
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
-    await user.click(await screen.findByTestId('driver-revoke-dr2'));
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Hủy phân công' }));
     await waitFor(() => { expect(alertSpy).toHaveBeenCalled(); });
   });
   it('alerts when reset password fails', async () => {
@@ -208,7 +210,8 @@ describe('DriversAdminSection mutations', () => {
     const client = mkClient({}, [assigned]);
     render(<DriversAdminSection client={client} />);
     const user = userEvent.setup();
-    await user.click(await screen.findByTestId('driver-revoke-dr2'));
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Hủy phân công' }));
     expect(client.revoke).not.toHaveBeenCalled();
   });
   it('renders a fully configured driver (assigned + device) in the table', async () => {
@@ -238,10 +241,31 @@ describe('DriversAdminSection mutations', () => {
     await waitFor(() => { expect(screen.getByText('51C-111.11')).toBeInTheDocument(); });
     expect(screen.getByText('Đã đăng ký')).toBeInTheDocument();
     // the table revoke button carries assignmentId (covers the ?? fallback arm):
-    await user.click(screen.getByTestId('driver-revoke-d3'));
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Hủy phân công' }));
     await waitFor(() => { expect(client.revoke).toHaveBeenCalledWith('asg-1', 'driver_left'); });
   });
 
+  it('exposes Huy phan cong in the row menu, not as a standalone button', async () => {
+    const client = mkClient({}, [assigned]);
+    render(<DriversAdminSection client={client} />);
+    const user = userEvent.setup();
+    await screen.findByText('TRAN VAN B');
+    // revoke is consolidated into the Thao tac menu -- no standalone button on the row
+    expect(screen.queryByTestId('driver-revoke-dr2')).toBeNull();
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    expect(await screen.findByRole('menuitem', { name: 'Hủy phân công' })).toBeInTheDocument();
+  });
+  it('revokes from the row menu after prompt', async () => {
+    vi.spyOn(window, 'prompt').mockReturnValue('driver_left');
+    const client = mkClient({}, [assigned]);
+    render(<DriversAdminSection client={client} />);
+    const user = userEvent.setup();
+    await screen.findByText('TRAN VAN B');
+    await user.click(await screen.findByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Hủy phân công' }));
+    await waitFor(() => { expect(client.revoke).toHaveBeenCalledWith('as2', 'driver_left'); });
+  });
   it('does not reset password when the prompt is cancelled', async () => {
     vi.spyOn(window, 'prompt').mockReturnValue(null);
     const client = mkClient({}, [unassigned]);
