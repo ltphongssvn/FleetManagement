@@ -287,3 +287,22 @@ export {
   type DriverDbStatusFacts,
   classifyDriverDbStatus,
 } from './co-so-du-lieu-contract.js';
+
+// Dispatched-vs-idle driver roster split for the Bang dieu phoi xe owner panel.
+// Exported from the barrel because every consumer (api service, ops-web loader,
+// panel component, E2E) imports from the package ROOT; a deep src path import
+// is what invites a downstream re-declaration of the partition rule.
+export {
+  IDLE_REASONS,
+  IdleReasonSchema,
+  type IdleReason,
+  DispatchedDriverRowSchema,
+  type DispatchedDriverRow,
+  IdleDriverRowSchema,
+  type IdleDriverRow,
+  DispatchRosterSplitSchema,
+  type DispatchRosterSplit,
+  parseDispatchRosterSplit,
+  isRosterPartitionValid,
+} from './dispatch-roster-split-contract.js';
+
