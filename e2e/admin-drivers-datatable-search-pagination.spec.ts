@@ -91,7 +91,12 @@ test.describe('driver roster DataTable affordances', () => {
 
     await page.getByTestId('datatable-prev').click();
     await expect(pageInfo).toContainText('Trang 1 /');
-    await expect(page.getByRole('rowheader').first()).toContainText(firstPageRow);
+    // Re-read the first rowheader with the SAME innerText extraction used to
+    // capture firstPageRow, then compare with toBe. toContainText normalizes
+    // whitespace, but the name/phone divs render with no separator, so a
+    // captured multi-line innerText never matches its own normalized form.
+    const backToFirst = (await page.getByRole('rowheader').first().innerText()).trim();
+    expect(backToFirst).toBe(firstPageRow);
   });
 
   test('keeps every CRUD control reachable inside the DataTable cells', async ({ page }) => {
@@ -114,16 +119,25 @@ test.describe('driver roster DataTable affordances', () => {
     await expect(row).toContainText(target.plate);
     await expect(row).toContainText('Đã đăng ký');
 
-    // CRUD controls survived the move into DataTable cells. Revoke and save-phone
-    // sit directly in the row; reset-password and delete live behind the
-    // RowActionMenu kebab, so they are reachable only after opening it.
-    await expect(row.getByRole('button', { name: 'Hủy phân công' })).toBeVisible();
-    await expect(row.getByLabel('Lưu SĐT của ' + target.fullName)).toBeVisible();
+    // Every CRUD control is reachable from inside the DataTable cells. The phone is
+    // read-only by default; phone-edit, revoke, reset-password and delete all live
+    // behind the RowActionMenu kebab (2026 dense-table consolidation). Save-phone
+    // (Lưu SĐT) is reached only after choosing Sửa SĐT, which enters edit mode.
+    // read-only by default: no persistent revoke or Lưu SĐT button on the row
+    await expect(row.getByRole('button', { name: 'Hủy phân công' })).toHaveCount(0);
+    await expect(row.getByLabel('Lưu SĐT của ' + target.fullName)).toHaveCount(0);
 
     const actionsTrigger = row.getByLabel('Thao tác cho ' + target.fullName);
     await expect(actionsTrigger).toBeVisible();
     await actionsTrigger.click();
+    await expect(page.getByRole('menuitem', { name: 'Sửa SĐT' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Hủy phân công' })).toBeVisible();
     await expect(page.getByRole('menuitem', { name: 'Đặt lại mật khẩu' })).toBeVisible();
     await expect(page.getByRole('menuitem', { name: 'Xóa' })).toBeVisible();
+
+    // choosing Sửa SĐT reveals the inline phone input and its Lưu SĐT button
+    await page.getByRole('menuitem', { name: 'Sửa SĐT' }).click();
+    await expect(row.getByLabel('Số điện thoại của ' + target.fullName)).toBeVisible();
+    await expect(row.getByLabel('Lưu SĐT của ' + target.fullName)).toBeVisible();
   });
 });
