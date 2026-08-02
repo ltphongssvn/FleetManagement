@@ -8,6 +8,7 @@
 // and the rows land in the DataTable, not the Can xu ly triage list.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { AdminDriverRow } from '@fleet/sync-protocol';
 import { DriversAdminSection, type DriversAdminClient } from '@/features/admin/DriversAdminSection';
 
@@ -50,10 +51,12 @@ describe('DriversAdminSection configured list via DataTable', () => {
     expect(screen.getByTestId('datatable-search')).toBeInTheDocument();
   });
 
-  it('keeps the reset-password CRUD control for each configured row', async () => {
+  it('keeps the reset-password CRUD control (in the Thao tac menu) for each configured row', async () => {
+    const user = userEvent.setup();
     render(<DriversAdminSection client={fakeClient([makeConfiguredRow('1', 'Nguyen Van A')])} />);
     await waitFor(() => { expect(screen.getByText('Nguyen Van A')).toBeInTheDocument(); });
-    expect(screen.getByLabelText('Đặt lại mật khẩu của Nguyen Van A')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Thao tác/ }));
+    expect(await screen.findByRole('menuitem', { name: 'Đặt lại mật khẩu' })).toBeInTheDocument();
   });
 
   it('paginates when configured drivers exceed one page', async () => {

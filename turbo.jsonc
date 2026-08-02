@@ -261,6 +261,11 @@
       "description": "Root-level task: raise the ISOLATED per-worktree browser-E2E stack (infra + api + ops-web, NO driver/expo/android) on this worktree deterministic compose ports (compose-identity), health-gated (docker compose up --wait), run Playwright via the existing ops-web-runner with identity-derived E2E_BASE_URL/E2E_API_URL, then tear the stack down (down -v). Prefix //# ensures repo-root-only (spans packages + the whole compose stack, not a per-package task). Replaces the ad-hoc docker compose + inline E2E_* env pattern with one rediscoverable op. env declares the vars the run reads so they pass envMode:strict. cache:false (side-effecting: docker + network). Run: pnpm exec turbo run stack:e2e:isolated -- e2e/dispatch-board-search.spec.ts.",
       "cache": false,
       "env": ["E2E_*", "OIDC_*", "PLAYWRIGHT_*", "FLEET_*"]
+    },
+    "//#stack:stop": {
+      "description": "Root-level task: STOP the shared fleet-pilot compose stack data-safely so its containers stop holding resident RAM on this memory-starved WSL box. Prefix //# ensures repo-root-only (spans the whole compose stack, belongs to no workspace package). STANDING RULE: never leave the 8-service stack (postgres, redis, api, worker, ops-web, driver-app, localstack, mock-oauth2) up-for-days idle -- each running container keeps its process memory resident (~1-2Gi total) and its JSON logs grow unbounded on disk whether or not it is doing work. Runs the committed root script stack:stop (scripts/e2e/stack-stop.ts), whose pure planner emits docker compose -p fleet-pilot stop -- deliberately stop, NOT down/-v: containers halt and release memory while named volumes + networks + container state survive for an instant on-demand restart (stack:up / stack:restart). Same fleet-pilot project identity as stack-up.ts so it targets the exact same containers regardless of which worktree resolved them. Replaces the throw-away docker compose stop CLI with one rediscoverable, unit-tested op (stopComposeArgs covered under //#test:scripts). Data-safe and idempotent: a second run on an already-stopped stack is a no-op. cache:false (side-effecting docker, no cacheable output). Run after any local E2E/stack use: pnpm exec turbo run stack:stop.",
+      "cache": false,
+      "persistent": false
     }
 ,
     "__ci_fast__": {

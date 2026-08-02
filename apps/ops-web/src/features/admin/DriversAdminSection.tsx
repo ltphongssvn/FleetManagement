@@ -11,8 +11,19 @@
 // the sync-protocol SSOT (ReferenceListResponseSchema) at the trust boundary --
 // never an as-cast (the reference-contract header documents what cast-not-parse
 // cost at the t5b incident).
+//
+// STABLE CELL IDENTITY (root fix): DataTable renders every cell through
+// flexRender, which does createElement(cellFn, ctx). A cell function rebuilt on
+// each render is therefore a NEW element type, so React unmounts and remounts
+// the entire cell subtree instead of updating it -- which destroys focus,
+// selection and IME composition in the inline phone input while a dispatcher is
+// typing, and detaches nodes mid-assertion in tests. Column defs live at module
+// scope (TanStack: columns/data need stable references) and reach the
+// per-render handlers through context rather than closure capture; memoising
+// them in-component could not work, since renderOpsControls closes over
+// phoneEdits and changes on every keystroke.
 'use client';
-import { useEffect, useState, type JSX } from 'react';
+import { createContext, useContext, useEffect, useState, type JSX } from 'react';
 import { useMachine } from '@xstate/react';
 import type { AdminDriverRow } from '@fleet/sync-protocol';
 import { ReferenceListResponseSchema } from '@fleet/sync-protocol';
@@ -33,8 +44,9 @@ import {
   DRIVER_ATTENTION_QUEUE_HEADING,
   presentDriverAttentionReason,
 } from '@/features/admin/driver-attention.presenter';
-import type { ColumnDef } from '@tanstack/react-table';
+import type { CellContext, ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/features/admin/DataTable';
+import { RowActionMenu } from '@/features/admin/RowActionMenu';
 interface VehicleOption { vehicleId: string; plate: string; }
 interface CreateFormState {
   fullName: string;
@@ -62,11 +74,65 @@ export interface DriversAdminClient {
   revoke: AdminDriversClient['revoke'];
   resetPassword: AdminDriversClient['resetPassword'];
 }
+// Internal, single-use, non-duplicated shape crossing no trust boundary:
+// plain TS by the two-axis rule (Zod here would be redundant validation).
+interface DriverRowRenderers {
+  readonly renderAssignControls: (row: AdminDriverRow) => JSX.Element;
+  readonly renderOpsControls: (row: AdminDriverRow) => JSX.Element;
+}
+const DriverRowRenderersContext = createContext<DriverRowRenderers | null>(null);
+function useDriverRowRenderers(): DriverRowRenderers {
+  const renderers = useContext(DriverRowRenderersContext);
+  if (renderers === null) throw new Error('DriverRowRenderers not provided');
+  return renderers;
+}
+function DriverNameCell({ row }: CellContext<AdminDriverRow, unknown>): JSX.Element {
+  return (
+    <>
+      <div className='font-medium'>{row.original.fullName}</div>
+      <div className='text-xs text-gray-700'>{row.original.phone}</div>
+    </>
+  );
+}
+function DriverVehicleCell({ row }: CellContext<AdminDriverRow, unknown>): JSX.Element {
+  // configured rows always carry a vehicle: classifyDriverAttention routes
+  // vehicle-less rows to the attention queue (VEHICLE_UNASSIGNED).
+  return (
+    <span data-testid={'driver-assigned-plate-' + row.original.driverId} className='inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>{row.original.assignedVehicle?.plate}</span>
+  );
+}
+function DriverDevicesCell({ row }: CellContext<AdminDriverRow, unknown>): JSX.Element {
+  // configured rows always carry >=1 device (DEVICE_UNREGISTERED routes the
+  // rest to the attention queue), so there is no empty-state arm here.
+  return (
+    <span className='inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>
+      {row.original.devices.length > 1 ? 'Đã đăng ký (' + String(row.original.devices.length) + ')' : 'Đã đăng ký'}
+    </span>
+  );
+}
+function DriverAssignCell({ row }: CellContext<AdminDriverRow, unknown>): JSX.Element {
+  return useDriverRowRenderers().renderAssignControls(row.original);
+}
+function DriverOpsCell({ row }: CellContext<AdminDriverRow, unknown>): JSX.Element {
+  return useDriverRowRenderers().renderOpsControls(row.original);
+}
+const CONFIGURED_COLUMNS: ColumnDef<AdminDriverRow>[] = [
+  { accessorKey: 'fullName', header: 'Tài xế', cell: DriverNameCell },
+  {
+    id: 'vehicle', header: 'Xe được giao',
+    accessorFn: (row) => row.assignedVehicle?.plate ?? null,
+    cell: DriverVehicleCell,
+  },
+  { id: 'devices', header: 'Thiết bị', cell: DriverDevicesCell },
+  { id: 'assign', header: 'Phân công xe', cell: DriverAssignCell },
+  { id: 'ops', header: 'Thao tác', cell: DriverOpsCell },
+];
 export function DriversAdminSection({ client: injected }: { client?: DriversAdminClient } = {}): JSX.Element {
   const [snapshot, send] = useMachine(driverAttentionMachine);
   const router = useRouter();
   const [vehicleSelect, setVehicleSelect] = useState<Record<string, string>>({});
   const [phoneEdits, setPhoneEdits] = useState<Record<string, string>>({});
+  const [editingPhone, setEditingPhone] = useState<Record<string, boolean>>({});
   const [resetMsg, setResetMsg] = useState<Record<string, string>>({});
   const [vehicles, setVehicles] = useState<readonly VehicleOption[]>([]);
   const [createForm, setCreateForm] = useState<CreateFormState>(EMPTY_CREATE_FORM);
@@ -148,7 +214,6 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
     }
   };
   const handleDelete = async (row: AdminDriverRow): Promise<void> => {
-    if (!window.confirm('Xóa tài xế ' + row.fullName + '?')) return;
     setBusy(true);
     try {
       await client.remove(row.driverId);
@@ -166,6 +231,7 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
     setBusy(true);
     try {
       await client.update(row.driverId, { fullName: row.fullName, phone: next });
+      setEditingPhone((m) => ({ ...m, [row.driverId]: false }));
       await refresh();
       router.refresh();
       await revalidateDispatch();
@@ -191,14 +257,9 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
   };
   const renderAssignControls = (row: AdminDriverRow): JSX.Element => (
     row.assignmentId !== null ? (
-      <button
-        type='button'
-        data-testid={'driver-revoke-' + row.driverId}
-        onClick={() => { void handleRevoke(row.assignmentId ?? ''); }}
-        className='bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm w-fit'
-      >
-        Hủy phân công
-      </button>
+      // Assigned rows show their plate in the Xe được giao column; revoke is
+      // consolidated into the Thao tác (⋯) menu, so this cell renders nothing.
+      <></>
     ) : (
       <div className='flex flex-col gap-2'>
         <select
@@ -224,90 +285,82 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
     )
   );
   const renderOpsControls = (row: AdminDriverRow): JSX.Element => (
-    <div className='flex gap-2'>
-      <input
-        type='text'
-        aria-label={'Số điện thoại của ' + row.fullName}
-        value={phoneEdits[row.driverId] ?? row.phone ?? ''}
-        onChange={(e) => { setPhoneEdits((m) => ({ ...m, [row.driverId]: e.target.value })); }}
-        className='w-32 rounded border px-2 py-1 text-sm'
+    <div className='flex items-center gap-2'>
+      {editingPhone[row.driverId] === true ? (
+        <>
+          <input
+            type='text'
+            aria-label={'Số điện thoại của ' + row.fullName}
+            value={phoneEdits[row.driverId] ?? row.phone ?? ''}
+            onChange={(e) => { setPhoneEdits((m) => ({ ...m, [row.driverId]: e.target.value })); }}
+            className='w-32 rounded border px-2 py-1 text-sm'
+          />
+          <button
+            type='button'
+            disabled={busy}
+            aria-label={'Lưu SĐT của ' + row.fullName}
+            onClick={() => { void handleSavePhone(row); }}
+            className='rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600 disabled:bg-gray-400'
+          >
+            Lưu SĐT
+          </button>
+          <button
+            type='button'
+            disabled={busy}
+            aria-label={'Hủy sửa SĐT của ' + row.fullName}
+            onClick={() => {
+              setEditingPhone((m) => ({ ...m, [row.driverId]: false }));
+              setPhoneEdits((m) => Object.fromEntries(Object.entries(m).filter(([k]) => k !== row.driverId)));
+            }}
+            className='rounded border px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-40'
+          >
+            Hủy
+          </button>
+        </>
+      ) : (
+        <span className='text-sm text-text-primary'>{row.phone}</span>
+      )}
+      <RowActionMenu
+        label={'Thao tác cho ' + row.fullName}
+        actions={[
+          {
+            key: 'edit-phone',
+            label: 'Sửa SĐT',
+            disabled: busy || editingPhone[row.driverId] === true,
+            onSelect: () => { setEditingPhone((m) => ({ ...m, [row.driverId]: true })); },
+          },
+          ...(row.assignmentId !== null ? [{
+            key: 'revoke',
+            label: 'Hủy phân công',
+            disabled: busy,
+            onSelect: () => { void handleRevoke(row.assignmentId ?? ''); },
+          }] : []),
+          {
+            key: 'reset-password',
+            label: 'Đặt lại mật khẩu',
+            disabled: busy,
+            onSelect: () => { void handleResetPassword(row); },
+          },
+          {
+            key: 'delete',
+            label: 'Xóa',
+            destructive: true,
+            disabled: busy,
+            confirmLabel: 'Xóa tài xế ' + row.fullName + ' ?',
+            onSelect: () => { void handleDelete(row); },
+          },
+        ]}
       />
-      <button
-        type='button'
-        disabled={busy}
-        aria-label={'Lưu SĐT của ' + row.fullName}
-        onClick={() => { void handleSavePhone(row); }}
-        className='rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600 disabled:bg-gray-400'
-      >
-        Lưu SĐT
-      </button>
-      <button
-        type='button'
-        disabled={busy}
-        onClick={() => { void handleDelete(row); }}
-        className='rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600 disabled:bg-gray-400'
-      >
-        Xóa
-      </button>
-      <button
-        type='button'
-        disabled={busy}
-        aria-label={'Đặt lại mật khẩu của ' + row.fullName}
-        onClick={() => { void handleResetPassword(row); }}
-        className='rounded bg-amber-500 px-3 py-1 text-sm text-white hover:bg-amber-600 disabled:bg-gray-400'
-      >
-        Đặt lại mật khẩu
-      </button>
       {resetMsg[row.driverId] !== undefined ? (
         <span className='self-center text-sm text-green-700'>{resetMsg[row.driverId]}</span>
       ) : null}
     </div>
   );
+  const rowRenderers: DriverRowRenderers = { renderAssignControls, renderOpsControls };
   if (snapshot.matches('loading')) return <div data-testid='drivers-section-loading' className='py-4 text-sm text-slate-500'>Đang tải…</div>;
   if (snapshot.matches('error')) return <div className='py-4 text-red-600'>Lỗi: {snapshot.context.errorMessage}</div>;
   const attention: readonly DriverAttentionEntry[] = snapshot.context.attention;
   const configured: readonly AdminDriverRow[] = snapshot.context.configured;
-  const configuredColumns: ColumnDef<AdminDriverRow>[] = [
-    {
-      accessorKey: 'fullName', header: 'Tài xế',
-      cell: (ctx) => {
-        const row = ctx.row.original;
-        return (
-          <>
-            <div className='font-medium'>{row.fullName}</div>
-            <div className='text-xs text-gray-700'>{row.phone}</div>
-          </>
-        );
-      },
-    },
-    {
-      id: 'vehicle', header: 'Xe được giao',
-      accessorFn: (row) => row.assignedVehicle?.plate ?? null,
-      cell: (ctx) => {
-        const row = ctx.row.original;
-        // configured rows always carry a vehicle: classifyDriverAttention routes
-        // vehicle-less rows to the attention queue (VEHICLE_UNASSIGNED).
-        return (
-          <span data-testid={'driver-assigned-plate-' + row.driverId} className='inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>{row.assignedVehicle?.plate}</span>
-        );
-      },
-    },
-    {
-      id: 'devices', header: 'Thiết bị',
-      cell: (ctx) => {
-        const row = ctx.row.original;
-        // configured rows always carry >=1 device (DEVICE_UNREGISTERED routes the
-        // rest to the attention queue), so there is no empty-state arm here.
-        return (
-          <span className='inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm'>
-            {row.devices.length > 1 ? 'Đã đăng ký (' + String(row.devices.length) + ')' : 'Đã đăng ký'}
-          </span>
-        );
-      },
-    },
-    { id: 'assign', header: 'Phân công xe', cell: (ctx) => renderAssignControls(ctx.row.original) },
-    { id: 'ops', header: 'Thao tác', cell: (ctx) => renderOpsControls(ctx.row.original) },
-  ];
   return (
     <div>
       <section className='mb-8 p-4 border rounded bg-gray-50'>
@@ -393,12 +446,14 @@ export function DriversAdminSection({ client: injected }: { client?: DriversAdmi
           </ul>
         </section>
       ) : null}
-      <DataTable
-        columns={configuredColumns}
-        data={configured}
-        caption='Tài xế'
-        emptyLabel='Chưa có tài xế'
-      />
+      <DriverRowRenderersContext.Provider value={rowRenderers}>
+        <DataTable
+          columns={CONFIGURED_COLUMNS}
+          data={configured}
+          caption='Tài xế'
+          emptyLabel='Chưa có tài xế'
+        />
+      </DriverRowRenderersContext.Provider>
     </div>
   );
 }
