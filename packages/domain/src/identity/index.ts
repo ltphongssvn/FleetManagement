@@ -25,3 +25,9 @@ export {
   DriverNameSchema,
   type DriverName,
 } from './person-name.js';
+
+export {
+  suggestDistinctDriverName,
+  DISTINCT_NAME_SUFFIXES,
+  type DistinctNameSuffix,
+} from './distinct-person-name.js';
