@@ -17,30 +17,35 @@ export default defineConfig({
     // pure-function package.
     //
     // fileParallelism:false rather than maxWorkers (owner-app precedent, the
-    // sanctioned lever for racy specs): with only 6 files, suites touching
-    // shared globals batch together and leak. install-fetch-polyfill assigns
-    // globalThis.fetch, and copilot-client + session-manager both exercise
-    // fetch/token globals. Serializing gives each file a clean global scope.
-    // Cheap here: the suite runs in ~1.5s.
+    // sanctioned lever for racy specs): with only a handful of files, suites
+    // touching shared globals batch together and leak. install-fetch-polyfill
+    // assigns globalThis.fetch, and copilot-client + session-manager both
+    // exercise fetch/token globals. Serializing gives each file a clean global
+    // scope. Cheap here: the suite runs in ~3s.
     fileParallelism: false,
     coverage: {
       provider: 'v8',
       include: [resolve(__dirname, 'src/**/*.ts')],
       // install-fetch-polyfill.ts is excluded for the SAME reason the
-      // driver-app config excludes its verbatim twin (that list also
-      // carries sentry-bootstrap, the native storage modules and the
-      // .web.ts platform variants). The module body is one side-effectful
-      // global assignment, globalThis.fetch = expoFetch, executed at import
-      // time and targeting the RN 0.83 Bridgeless runtime. Importing it into
-      // this node-env lane to cover it would replace global fetch for every
-      // other suite in the lane -- a test that damages its own lane to
-      // satisfy a number. It is environment-forced boilerplate whose real
-      // verification is the on-device run (V13), not a unit assertion.
+      // driver-app config excludes its verbatim twin. The module body is one
+      // side-effectful global assignment, globalThis.fetch = expoFetch,
+      // executed at import time and targeting the RN 0.83 Bridgeless runtime.
+      // Importing it into this node-env lane to cover it would replace global
+      // fetch for every other suite in the lane -- a test that damages its own
+      // lane to satisfy a number. Its real verification is the on-device run.
+      //
+      // speech-recognition-native.ts imports ExpoSpeechRecognitionModule,
+      // which transitively loads expo-modules-core and cannot resolve in this
+      // node lane. It holds NO logic: speech-recognition-port.ts owns every
+      // branch -- rejection handling, locales vs installedLocales, the
+      // platform narrowing -- and is fully covered against an injected fake.
+      // Guarded by test/speech-recognition-native-wiring.test.ts.
       exclude: [
         '**/index.ts',
         '**/*.config.ts',
         '**/test/**',
         'src/polyfills/install-fetch-polyfill.ts',
+        'src/voice/speech-recognition-native.ts',
       ],
       thresholds: {
         statements: 90,
