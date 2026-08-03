@@ -1,15 +1,14 @@
 // apps/dispatcher-app/test/speech-recognition-port.test.ts
-// RED (T17 D1b) -- the STT fact-gatherer, tested by EXECUTION not by reading
-// its source. The native module is injected, so every branch runs in the node
-// lane and nothing here needs a coverage exclusion.
+// The STT fact-gatherer, tested by EXECUTION not by reading its source. The
+// native module is injected, so every branch runs in the node lane and nothing
+// here needs a coverage exclusion.
 //
-// Only speech-recognition-native.ts stays excluded: it is a single line that
-// passes the real ExpoSpeechRecognitionModule to this function. The module
-// transitively loads expo-modules-core, which cannot resolve off-device, so
-// that one import is the whole untestable surface.
+// Only speech-recognition-native.ts stays excluded: it hands the real
+// ExpoSpeechRecognitionModule to these functions. That module transitively
+// loads expo-modules-core, which cannot resolve off-device, so that one import
+// is the whole untestable surface.
 //
-// The two invariants that matter most are the two a source-text guard could
-// never prove:
+// The invariants a source-text guard could never prove:
 //  - getSupportedLocales() REJECTS on package_not_found and on errors while
 //    retrieving locales. The rejection must become an EMPTY array, which D1a
 //    defines as UNKNOWN. A catch that rethrows, logs, or returns a partial
@@ -17,8 +16,16 @@
 //  - installedLocales must be IGNORED. It is empty unless the service package
 //    is com.google.android.as, so reading it would deny Vietnamese on most
 //    devices. Proven by feeding a payload where the two arrays disagree.
+//  - Platform.OS is a WIDE union: RN 0.85 targets android, ios, macos,
+//    windows, web, tvOS, visionOS and more, and react-native-windows reports
+//    'windows'. A ternary on !== 'ios' collapses all of them onto 'android',
+//    so assessVoiceCapability's android-only NO_SERVICE gate would fire
+//    against a browser. The mapping fails closed and names the platform.
 import { describe, expect, it, vi } from 'vitest';
-import { gatherSpeechFacts } from '../src/voice/speech-recognition-port.js';
+import {
+  gatherSpeechFacts,
+  toSupportedPlatform,
+} from '../src/voice/speech-recognition-port.js';
 import type { SpeechNativeModule } from '../src/voice/speech-recognition-port.js';
 const GOOGLE = 'com.google.android.googlequicksearchbox';
 function fakeNative(over: Partial<SpeechNativeModule> = {}): SpeechNativeModule {
@@ -71,11 +78,7 @@ describe('gatherSpeechFacts', () => {
     const spy = vi.fn(() =>
       Promise.resolve({ locales: ['vi-VN'], installedLocales: [] }),
     );
-    await gatherSpeechFacts(
-      fakeNative({ getSupportedLocales: spy }),
-      'android',
-      GOOGLE,
-    );
+    await gatherSpeechFacts(fakeNative({ getSupportedLocales: spy }), 'android', GOOGLE);
     expect(spy).toHaveBeenCalledWith({ androidRecognitionServicePackage: GOOGLE });
   });
   it('works on ios where the services list is empty', async () => {
@@ -85,5 +88,20 @@ describe('gatherSpeechFacts', () => {
     );
     expect(facts.platform).toBe('ios');
     expect(facts.recognitionServices).toEqual([]);
+  });
+});
+describe('toSupportedPlatform', () => {
+  it('passes android through', () => {
+    expect(toSupportedPlatform('android')).toBe('android');
+  });
+  it('passes ios through', () => {
+    expect(toSupportedPlatform('ios')).toBe('ios');
+  });
+  it('throws on web rather than silently claiming android', () => {
+    expect(() => toSupportedPlatform('web')).toThrow(/web/);
+  });
+  it('names the offending platform for windows and macos', () => {
+    expect(() => toSupportedPlatform('windows')).toThrow(/windows/);
+    expect(() => toSupportedPlatform('macos')).toThrow(/macos/);
   });
 });
