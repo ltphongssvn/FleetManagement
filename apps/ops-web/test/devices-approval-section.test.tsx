@@ -80,7 +80,8 @@ describe('DevicesApprovalSection', () => {
     const client = fakeClient();
     render(<DevicesApprovalSection client={client as unknown as DevicesApprovalClient} />);
     await waitFor(() => { expect(screen.getByText('Chờ duyệt')).toBeInTheDocument(); });
-    await user.click(screen.getByTestId('device-activate-' + DEVICE_ID));
+    await user.click(screen.getByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Duyệt' }));
     await waitFor(() => {
       expect(client.activate).toHaveBeenCalledWith(DEVICE_ID);
     });
@@ -92,7 +93,8 @@ describe('DevicesApprovalSection', () => {
     vi.spyOn(window, 'prompt').mockReturnValue('thiet bi bi mat');
     render(<DevicesApprovalSection client={client as unknown as DevicesApprovalClient} />);
     await waitFor(() => { expect(screen.getByText('Chờ duyệt')).toBeInTheDocument(); });
-    await user.click(screen.getByTestId('device-revoke-' + DEVICE_ID));
+    await user.click(screen.getByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Thu hồi' }));
     await waitFor(() => {
       expect(client.revoke).toHaveBeenCalledWith(DEVICE_ID, 'thiet bi bi mat');
     });
@@ -103,7 +105,8 @@ describe('DevicesApprovalSection', () => {
     vi.spyOn(window, 'prompt').mockReturnValue(null);
     render(<DevicesApprovalSection client={client as unknown as DevicesApprovalClient} />);
     await waitFor(() => { expect(screen.getByText('Chờ duyệt')).toBeInTheDocument(); });
-    await user.click(screen.getByTestId('device-revoke-' + DEVICE_ID));
+    await user.click(screen.getByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Thu hồi' }));
     expect(client.revoke).not.toHaveBeenCalled();
   });
   it('switching the status filter re-queries with that status', async () => {
@@ -139,7 +142,8 @@ describe('DevicesApprovalSection', () => {
     const client = fakeClient({ activate: vi.fn().mockRejectedValue(new Error('boom')) });
     render(<DevicesApprovalSection client={client as unknown as DevicesApprovalClient} />);
     await waitFor(() => { expect(screen.getByText('Chờ duyệt')).toBeInTheDocument(); });
-    await user.click(screen.getByTestId('device-activate-' + DEVICE_ID));
+    await user.click(screen.getByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Duyệt' }));
     await waitFor(() => {
       expect(screen.getByTestId('devices-section-error')).toBeInTheDocument();
     });
@@ -150,7 +154,8 @@ describe('DevicesApprovalSection', () => {
     const client = fakeClient({ revoke: vi.fn().mockRejectedValue(new Error('boom')) });
     render(<DevicesApprovalSection client={client as unknown as DevicesApprovalClient} />);
     await waitFor(() => { expect(screen.getByText('Chờ duyệt')).toBeInTheDocument(); });
-    await user.click(screen.getByTestId('device-revoke-' + DEVICE_ID));
+    await user.click(screen.getByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Thu hồi' }));
     await waitFor(() => {
       expect(screen.getByTestId('devices-section-error')).toBeInTheDocument();
     });
@@ -161,10 +166,12 @@ describe('DevicesApprovalSection', () => {
     const client = fakeClient();
     render(<DevicesApprovalSection client={client as unknown as DevicesApprovalClient} />);
     await waitFor(() => { expect(screen.getByText('Chờ duyệt')).toBeInTheDocument(); });
-    await user.click(screen.getByTestId('device-revoke-' + DEVICE_ID));
+    await user.click(screen.getByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Thu hồi' }));
     expect(client.revoke).not.toHaveBeenCalled();
   });
   it('renders every lifecycle state: hides Duyet when active, hides Thu hoi when revoked, and shows the not-yet-attested placeholders', async () => {
+    const user = userEvent.setup();
     // One render across all three binding states with null attestation fields.
     // Every A|B arm in the columns is exercised here (the union-arm rule): the
     // ?? placeholders for an unattested device, the null verified-at fallback,
@@ -194,11 +201,23 @@ describe('DevicesApprovalSection', () => {
     });
     render(<DevicesApprovalSection client={client as unknown as DevicesApprovalClient} />);
     await waitFor(() => { expect(screen.getByText('Chờ duyệt')).toBeInTheDocument(); });
-    // An approved device offers no Duyet button; a revoked one offers no Thu hoi.
-    expect(screen.queryByTestId('device-activate-' + ACTIVE_ID)).toBeNull();
-    expect(screen.getByTestId('device-revoke-' + ACTIVE_ID)).toBeInTheDocument();
-    expect(screen.queryByTestId('device-revoke-' + REVOKED_ID)).toBeNull();
-    expect(screen.getByTestId('device-activate-' + REVOKED_ID)).toBeInTheDocument();
+    // An approved device offers no Duyet action; a revoked one offers no Thu hoi.
+    // Three rows -> three menus; open each in turn and assert its contents.
+    const menus = screen.getAllByRole('button', { name: /Thao tác/ });
+    expect(menus).toHaveLength(3);
+    // row 2 = active: Thu hoi only
+    const activeMenu = menus[1];
+    if (activeMenu === undefined) throw new Error('no active-row menu');
+    await user.click(activeMenu);
+    expect(await screen.findByRole('menuitem', { name: 'Thu hồi' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Duyệt' })).toBeNull();
+    await user.keyboard('{Escape}');
+    // row 3 = revoked: Duyet only
+    const revokedMenu = menus[2];
+    if (revokedMenu === undefined) throw new Error('no revoked-row menu');
+    await user.click(revokedMenu);
+    expect(await screen.findByRole('menuitem', { name: 'Duyệt' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Thu hồi' })).toBeNull();
     // Not-yet-attested device: em-dash placeholders + the verified-at fallback.
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('Chưa xác thực')).toBeInTheDocument();
@@ -220,5 +239,17 @@ describe('DevicesApprovalSection', () => {
     await waitFor(() => {
       expect(screen.getByTestId('devices-section-error')).toBeInTheDocument();
     });
+  });
+  it('exposes Duyet and Thu hoi in the row menu, not as standalone buttons', async () => {
+    const user = userEvent.setup();
+    const client = fakeClient();
+    render(<DevicesApprovalSection client={client as unknown as DevicesApprovalClient} />);
+    await waitFor(() => { expect(screen.getByText('Chờ duyệt')).toBeInTheDocument(); });
+    // consolidated: no standalone approve/revoke buttons remain on the row
+    expect(screen.queryByTestId('device-activate-' + DEVICE_ID)).toBeNull();
+    expect(screen.queryByTestId('device-revoke-' + DEVICE_ID)).toBeNull();
+    await user.click(screen.getByRole('button', { name: /Thao tác/ }));
+    expect(await screen.findByRole('menuitem', { name: 'Duyệt' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Thu hồi' })).toBeInTheDocument();
   });
 });
