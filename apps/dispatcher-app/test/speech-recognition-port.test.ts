@@ -1,12 +1,12 @@
 // apps/dispatcher-app/test/speech-recognition-port.test.ts
 // The STT fact-gatherer, tested by EXECUTION not by reading its source. The
-// native module is injected, so every branch runs in the node lane and nothing
-// here needs a coverage exclusion.
+// native module and the timer are injected, so every branch runs in the node
+// lane and nothing here needs a coverage exclusion.
 //
 // Only speech-recognition-native.ts stays excluded: it hands the real
 // ExpoSpeechRecognitionModule to these functions. That module transitively
-// loads expo-modules-core, which cannot resolve off-device, so that one import
-// is the whole untestable surface.
+// loads expo-modules-core, which cannot resolve off-device, so that one
+// import is the whole untestable surface.
 //
 // The invariants a source-text guard could never prove:
 //  - getSupportedLocales() REJECTS on package_not_found and on errors while
@@ -21,7 +21,10 @@
 //    'windows'. A ternary on !== 'ios' collapses all of them onto 'android',
 //    so assessVoiceCapability's android-only NO_SERVICE gate would fire
 //    against a browser. The mapping fails closed and names the platform.
-import { describe, expect, it, vi } from 'vitest';
+//
+// The timeout behaviour lives in speech-recognition-timeout.test.ts, which
+// also covers forwarding the service package under the options shape.
+import { describe, expect, it } from 'vitest';
 import {
   gatherSpeechFacts,
   toSupportedPlatform,
@@ -73,13 +76,6 @@ describe('gatherSpeechFacts', () => {
     );
     expect(facts.sttLocales).toEqual([]);
     expect(facts.recognitionAvailable).toBe(true);
-  });
-  it('passes the android service package when one is supplied', async () => {
-    const spy = vi.fn(() =>
-      Promise.resolve({ locales: ['vi-VN'], installedLocales: [] }),
-    );
-    await gatherSpeechFacts(fakeNative({ getSupportedLocales: spy }), 'android', GOOGLE);
-    expect(spy).toHaveBeenCalledWith({ androidRecognitionServicePackage: GOOGLE });
   });
   it('works on ios where the services list is empty', async () => {
     const facts = await gatherSpeechFacts(
