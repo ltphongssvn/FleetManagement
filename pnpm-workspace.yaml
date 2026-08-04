@@ -91,12 +91,6 @@ overrides:
   "@vitest/coverage-v8": "4.1.5"
   "@vitest/coverage-istanbul": "4.1.5"
   fast-xml-builder: ">=1.1.7"
-  # GHSA-7p8r-x3mc-p8w7: fast-uri <3.1.5 does not treat a literal backslash as
-  # an authority delimiter, while Node's WHATWG URL (fetch, undici, http) does.
-  # Two parsers extract different hosts from one string, so any allowlist or
-  # SSRF filter built on fast-uri desyncs from where the request actually goes.
-  # Transitive via ajv under commitlint and stryker. Scoped to the 3.x line.
-  "fast-uri@>=3.0.0 <3.1.5": ">=3.1.5"
   # GHSA-6gpp-xcg3-4w24 / m99w-x7hq-7vfj / 89xv-2m56-2m9x / p9j2-gv94-2wf4:
   # next <16.2.11 middleware/proxy bypass + Server Action DoS + 2x SSRF.
   next: ">=16.2.11"
@@ -115,14 +109,10 @@ overrides:
   # not the LENGTH of each result string, so chained brace groups keep the
   # count under the cap while every result grows until the process dies.
   # Dev-only, transitive via eslint and stryker-mutator through minimatch.
-  # Bare floor, previously raised to >=5.0.7 for GHSA-3jxr-9vmj-r5cp, is now
-  # one patch below the fix -- the same stale-floor shape as postcss above.
-  # 5.0.8 is past the 1440-minute cooldown, so no release-age exclusion.
-  # GHSA-rgw5-rvv9-x895 supersedes the two bumps above: expand() still builds
-  # unbounded INTERMEDIATE arrays, bypassing the CVE-2026-14257 mitigation, so
-  # <5.0.9 is vulnerable again. Third time this floor has gone stale (5.0.6 ->
-  # 5.0.7 -> 5.0.8 -> 5.0.9); dev-only, transitive via eslint and stryker
-  # through minimatch.
+  # Bare floor, previously raised to >=5.0.8 for GHSA-mh99-v99m-4gvg, is again
+  # one patch below the fix: GHSA-rgw5-rvv9-x895 reports a DoS via unbounded
+  # intermediate arrays that BYPASSES the CVE-2026-14257 mitigation, so <5.0.9
+  # is vulnerable despite the earlier patch. Same stale-floor shape, third time.
   brace-expansion: ">=5.0.9"
   ws: ">=8.20.1"
   protobufjs: ">=8.2.0"
@@ -159,16 +149,6 @@ overrides:
   # Transitive via @semantic-release/github + testcontainers; scoped to the
   # vulnerable 7.x range so undici 6.x (via @semantic-release/npm) is untouched.
   "undici@>=7.23.0 <7.28.0": ">=7.28.0"
-  # GHSA-rgw5-rvv9-x895: undici 8.x cache interceptor mishandles optional
-  # whitespace around the = of a qualified no-cache/private Cache-Control
-  # directive, so in shared-cache mode one user's authenticated response can be
-  # served to a later, possibly unauthenticated caller. Patched in 7.29.0 and
-  # 8.9.0. The 7.x pin below is an UNBOUNDED floor (>=7.28.0), so it already
-  # resolves past 7.29.0 -- only the 8.x line was uncovered, which is why audit
-  # flagged exactly that range. Transitive and dev-only via
-  # @semantic-release/github. Scoped to the vulnerable 8.x range, per the
-  # js-yaml lesson below: an unbounded override rewrites every declaration and
-  # drags consumers across majors.
   # GHSA-2m8v-j782-fhvr: socket.io-parser <4.2.7 zero-attachment memory
   # exhaustion -- a crafted packet makes the server wait on and buffer an
   # unbounded number of binary attachments. Reaches us through
@@ -181,6 +161,18 @@ overrides:
   # 6.x path the 7.x pin above intentionally left alone). Dev-only (Release
   # CI job). Scoped to the vulnerable 6.x range so other majors are untouched.
   "undici@<6.27.0": ">=6.27.0"
+  # GHSA-7p8r-x3mc-p8w7: fast-uri <3.1.5 host confusion -- a backslash is
+  # accepted as an authority introducer, so a crafted URI parses to an
+  # unexpected host. PRODUCTION-reachable, verified with pnpm audit --prod:
+  # apps/ops-web -> @sentry/nextjs -> @sentry/webpack-plugin -> webpack ->
+  # schema-utils -> ajv -> fast-uri (dev paths via commitlint/stryker too).
+  # ajv declares "^3.0.1" which already admits 3.1.5, but the lockfile froze
+  # 3.1.4 and pnpm 11 seeds preferredVersions from the lockfile, so it never
+  # re-resolves on its own (11.10 notes, #10662) -- an in-range update was
+  # tried first and reported "Already up to date". Bounded selector so no
+  # future consumer is dragged across a major (the js-yaml lesson above).
+  # REMOVE once ajv ships a release whose own floor is >=3.1.5.
+  "fast-uri@>=3.0.0 <3.1.5": ">=3.1.5"
 # Accepted-risk allowlist (pnpm 11 filters audit by GHSA, not CVE).
 auditConfig:
   ignoreGhsas:

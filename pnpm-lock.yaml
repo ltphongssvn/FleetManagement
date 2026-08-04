@@ -19,7 +19,6 @@ overrides:
   '@vitest/coverage-v8': 4.1.5
   '@vitest/coverage-istanbul': 4.1.5
   fast-xml-builder: '>=1.1.7'
-  fast-uri@>=3.0.0 <3.1.5: '>=3.1.5'
   next: '>=16.2.11'
   '@opentelemetry/auto-instrumentations-node': '>=0.75.0'
   '@opentelemetry/sdk-node': '>=0.217.0'
@@ -49,6 +48,7 @@ overrides:
   undici@>=7.23.0 <7.28.0: '>=7.28.0'
   socket.io-parser@>=4.0.0 <4.2.7: '>=4.2.7'
   undici@<6.27.0: '>=6.27.0'
+  fast-uri@>=3.0.0 <3.1.5: '>=3.1.5'
 
 importers:
 
