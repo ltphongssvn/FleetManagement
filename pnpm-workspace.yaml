@@ -91,6 +91,12 @@ overrides:
   "@vitest/coverage-v8": "4.1.5"
   "@vitest/coverage-istanbul": "4.1.5"
   fast-xml-builder: ">=1.1.7"
+  # GHSA-7p8r-x3mc-p8w7: fast-uri <3.1.5 does not treat a literal backslash as
+  # an authority delimiter, while Node's WHATWG URL (fetch, undici, http) does.
+  # Two parsers extract different hosts from one string, so any allowlist or
+  # SSRF filter built on fast-uri desyncs from where the request actually goes.
+  # Transitive via ajv under commitlint and stryker. Scoped to the 3.x line.
+  "fast-uri@>=3.0.0 <3.1.5": ">=3.1.5"
   # GHSA-6gpp-xcg3-4w24 / m99w-x7hq-7vfj / 89xv-2m56-2m9x / p9j2-gv94-2wf4:
   # next <16.2.11 middleware/proxy bypass + Server Action DoS + 2x SSRF.
   next: ">=16.2.11"
@@ -112,7 +118,12 @@ overrides:
   # Bare floor, previously raised to >=5.0.7 for GHSA-3jxr-9vmj-r5cp, is now
   # one patch below the fix -- the same stale-floor shape as postcss above.
   # 5.0.8 is past the 1440-minute cooldown, so no release-age exclusion.
-  brace-expansion: ">=5.0.8"
+  # GHSA-rgw5-rvv9-x895 supersedes the two bumps above: expand() still builds
+  # unbounded INTERMEDIATE arrays, bypassing the CVE-2026-14257 mitigation, so
+  # <5.0.9 is vulnerable again. Third time this floor has gone stale (5.0.6 ->
+  # 5.0.7 -> 5.0.8 -> 5.0.9); dev-only, transitive via eslint and stryker
+  # through minimatch.
+  brace-expansion: ">=5.0.9"
   ws: ">=8.20.1"
   protobufjs: ">=8.2.0"
   "@expo/dom-webview": "55.0.6"
@@ -148,6 +159,23 @@ overrides:
   # Transitive via @semantic-release/github + testcontainers; scoped to the
   # vulnerable 7.x range so undici 6.x (via @semantic-release/npm) is untouched.
   "undici@>=7.23.0 <7.28.0": ">=7.28.0"
+  # GHSA-rgw5-rvv9-x895: undici 8.x cache interceptor mishandles optional
+  # whitespace around the = of a qualified no-cache/private Cache-Control
+  # directive, so in shared-cache mode one user's authenticated response can be
+  # served to a later, possibly unauthenticated caller. Patched in 7.29.0 and
+  # 8.9.0. The 7.x pin below is an UNBOUNDED floor (>=7.28.0), so it already
+  # resolves past 7.29.0 -- only the 8.x line was uncovered, which is why audit
+  # flagged exactly that range. Transitive and dev-only via
+  # @semantic-release/github. Scoped to the vulnerable 8.x range, per the
+  # js-yaml lesson below: an unbounded override rewrites every declaration and
+  # drags consumers across majors.
+  # GHSA-2m8v-j782-fhvr: socket.io-parser <4.2.7 zero-attachment memory
+  # exhaustion -- a crafted packet makes the server wait on and buffer an
+  # unbounded number of binary attachments. Reaches us through
+  # @nestjs/platform-socket.io -> socket.io, so it is a RUNTIME path on the api
+  # (the commands gateway), not dev-only. Scoped to the vulnerable range so
+  # other majors are untouched.
+  "socket.io-parser@>=4.0.0 <4.2.7": ">=4.2.7"
   # GHSA-vxpw-j846-p89q: undici <6.27.0 WebSocket DoS via fragment count
   # bypass. Transitive via @semantic-release/* -> @actions/http-client (the
   # 6.x path the 7.x pin above intentionally left alone). Dev-only (Release
@@ -164,6 +192,28 @@ auditConfig:
     # would risk the Image pipeline for a code path we never execute. Revisit
     # and remove when next bumps its sharp range to admit >=0.35.0. (2026-07)
     - GHSA-f88m-g3jw-g9cj
+    # GHSA-4cwx-7wf7-3272 / GHSA-rgw5-rvv9-x895: undici 8.x cache-interceptor
+    # cross-user disclosure in SHARED-CACHE mode. Patched >=8.9.0.
+    #
+    # DEV-ONLY, verified by evidence not intuition: `pnpm audit --prod` reports
+    # undici nowhere. Every path in `pnpm why undici` terminates in
+    # devDependencies -- @semantic-release/* (release tooling, CI-only) and
+    # testcontainers (a devDependency of @fleet/api). No shipped image contains
+    # it, and nothing we run enables interceptors.cache() at all.
+    #
+    # WHY NOT AN OVERRIDE: `pnpm why` reports "Found 1 version" -- one shared
+    # copy serves consumers whose declared ranges cannot all admit >=8.9.0
+    # (@actions/http-client, @semantic-release/github, testcontainers). pnpm
+    # keeps the version satisfying everyone and DECLINES the override without
+    # erroring: the entry lands in the lockfile's overrides block and the
+    # resolution stays at 8.5.0. A bounded selector was tried at <8.9.0 and at
+    # <9.0.0; neither fires. The cooldown was ruled out -- 8.9.0 published
+    # weeks ago, and 8.10.0 is available too.
+    #
+    # THE REAL FIX is upstream: @semantic-release/* and testcontainers must
+    # floor their undici ranges at >=8.9.0. REMOVE this entry once they do.
+    - GHSA-4cwx-7wf7-3272
+    - GHSA-rgw5-rvv9-x895
 minimumReleaseAgeExclude:
   - tmp@0.2.6 || 0.2.7
   - '@grpc/grpc-js@1.14.4'
@@ -174,7 +224,10 @@ minimumReleaseAgeExclude:
   - '@babel/core@7.29.1'
   - '@opentelemetry/core@2.8.0'
   - multer@2.2.0
-  - undici@6.27.0 || 7.28.0
+  - undici@6.27.0 || 7.28.0 || 8.9.0 || 8.10.0
+  - brace-expansion@5.0.9
+  - fast-uri@3.1.5
+  - socket.io-parser@4.2.7
   - '@turbo/darwin-64@2.10.2 || 2.10.3 || 2.10.8'
   - '@turbo/darwin-arm64@2.10.2 || 2.10.3 || 2.10.8'
   - '@turbo/linux-64@2.10.2 || 2.10.3 || 2.10.8'
