@@ -65,7 +65,8 @@
       ],
       "project": [
         "scripts/**/*.ts"
-      ]
+      ],
+      "includeEntryExports": true
     },
     "apps/api": {
       "project": [
