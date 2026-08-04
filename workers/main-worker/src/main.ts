@@ -24,6 +24,7 @@ import { S3ExtractionObjectStore } from './extraction/s3-extraction-object-store
 import { GeminiVlmExtractor } from './extraction/gemini-vlm-extractor.js';
 import type { ExtractionObjectStore, VlmExtractorPort } from './extraction/extraction-flow.js';
 import { logEvent } from './logger.js';
+import { buildBootProvenance, bootProvenanceSetArgs } from './boot-provenance.js';
 
 function bootstrap(): void {
   const config = loadConfig();
@@ -128,6 +129,28 @@ function bootstrap(): void {
   });
 
   logEvent('info', 'workers started', { count: workers.length, queues: QUEUE_NAMES });
+
+  // Record WHICH COMMIT is live, so the deploy can be verified. The worker has
+  // no HTTP surface and no public domain, so CI cannot probe it; it writes a
+  // TTL'd heartbeat to Redis instead and the api exposes it. Writing it proves
+  // the process booted AND reached its dependencies -- stronger than a log line,
+  // which proves only that a string was printed.
+  //
+  // Fire-and-forget by design: bootstrap() is synchronous, and provenance is a
+  // REPORTING concern. A Redis hiccup must never stop the worker from consuming
+  // jobs, so a failure is logged and swallowed -- the deploy check then sees an
+  // absent key and fails closed, which is the correct signal.
+  const provenance = buildBootProvenance(process.env, () => new Date().toISOString());
+  void deadLetterQueue.client
+    .then((redis) => redis.set(...bootProvenanceSetArgs(provenance)))
+    .then(() => {
+      logEvent('info', 'boot provenance recorded', { sha: provenance.shortSha, branch: provenance.branch });
+    })
+    .catch((err: unknown) => {
+      logEvent('error', 'boot provenance write failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
 
   const shutdown = async (): Promise<void> => {
     await Promise.all(workers.map((w) => w.close()));
