@@ -15,21 +15,22 @@
 // Deterministic, never random: a fixture that differs per run turns a failure
 // into a puzzle. Callers pass a seed when they need two distinct shas.
 
-// A tuple, not a string: indexing a string yields `string | undefined` under
-// noUncheckedIndexedAccess, and a non-null assertion would hide the one failure
-// that matters -- an undefined slipping in would render "undefined" INSIDE a
-// sha, producing exactly the invalid fixture this module exists to prevent.
-const HEX = Object.freeze([
-  '0', '1', '2', '3', '4', '5', '6', '7',
-  '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
-] as const);
-type HexDigit = (typeof HEX)[number];
+const HEX = '0123456789abcdef';
 const SHA_LENGTH = 40;
 
-// Total by construction: the modulo can only land inside the tuple, and the
-// return type says so without an assertion.
-function hexAt(index: number): HexDigit {
-  return HEX[index % HEX.length] ?? '0';
+// String.slice is TOTAL: it returns string, never string | undefined, so no
+// fallback branch exists to be written or tested.
+//
+// Indexing (HEX[i]) would be string | undefined under noUncheckedIndexedAccess,
+// and the usual answers are both wrong here. A non-null assertion hides the one
+// failure that matters -- an undefined slipping in would render "undefined"
+// INSIDE a sha, producing exactly the invalid fixture this module exists to
+// prevent. A `?? '0'` fallback is unreachable by construction (the modulo
+// cannot leave 0..15), so it is dead code that a branch-coverage gate rightly
+// fails on: it cost this file 75% branch coverage against a 90% threshold.
+function hexAt(index: number): string {
+  const i = index % HEX.length;
+  return HEX.slice(i, i + 1);
 }
 
 /** A deterministic, schema-valid 40-hex commit sha.
