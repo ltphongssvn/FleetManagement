@@ -209,8 +209,24 @@ jobs:
           # different temporary directories'. Relative path => versions match
           # across runners.
           use-relative-cache-path: true
-      - name: Security audit
+      # Two-tier audit, per the security-guards rationale below: a control
+      # that BLOCKS a merge must gate on what actually ships. This step was
+      # unscoped, so a freshly published advisory against a dev-only
+      # transitive dep (eslint, stryker, semantic-release, testcontainers)
+      # failed every PR in the repo regardless of what it changed -- three
+      # of the four advisories that blocked a UI-only PR on 2026-08-03 were
+      # dev-only, and one needed a permanent ignoreGhsas entry purely to
+      # satisfy this gate. --prod is pnpm's equivalent of npm --omit=dev.
+      - name: Security audit (production dependencies)
         if: hashFiles('pnpm-lock.yaml') != ''
+        run: pnpm audit --audit-level=high --prod
+      # Full tree INCLUDING devDependencies, reported but NOT blocking.
+      # Dev-tooling advisories are real and get fixed on their own cadence;
+      # they must not hold every branch hostage. continue-on-error keeps the
+      # finding visible in the run log without failing the check.
+      - name: Security audit (full tree, advisory only)
+        if: hashFiles('pnpm-lock.yaml') != ''
+        continue-on-error: true
         run: pnpm audit --audit-level=high
       - name: Build
         # Full workspace build. Emits every package's dist/ + .d.ts +
