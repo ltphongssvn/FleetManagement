@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { StopProofView, formatNetWeightKg, REASON_VI } from '@/features/dispatch/stop-proof-view';
+import { EXTRACTION_FAILURE_REASONS } from '@fleet/sync-protocol';
 import type { StopProof } from '@fleet/sync-protocol';
 
 afterEach(() => { cleanup(); });
@@ -72,14 +73,14 @@ describe('StopProofView', () => {
     render(<StopProofView proof={proofWith({ extractionStatus: 'unreadable', extractionReason: 'unparseable' })} testIds={testIds} />);
     expect(screen.getByTestId('proof-needsentry').textContent).toBe('Nhập KL');
     const reason = screen.getByTestId('proof-reason');
-    expect(reason.textContent).toBe(REASON_VI['unparseable']);
+    expect(reason.textContent).toBe(REASON_VI.unparseable);
     expect(reason.getAttribute('title')).toBe('unparseable');
   });
 
   it('offers manual entry for a not_found outcome too', () => {
     render(<StopProofView proof={proofWith({ extractionStatus: 'not_found', extractionReason: 'no_field' })} testIds={testIds} />);
     expect(screen.getByTestId('proof-needsentry')).toBeTruthy();
-    expect(screen.getByTestId('proof-reason').textContent).toBe(REASON_VI['no_field']);
+    expect(screen.getByTestId('proof-reason').textContent).toBe(REASON_VI.no_field);
   });
 
   it('omits the reason line when the failure carries no reason', () => {
@@ -105,5 +106,21 @@ describe('StopProofView', () => {
     expect(screen.queryByTestId('proof-netweight')).toBeNull();
     expect(screen.queryByTestId('proof-needsentry')).toBeNull();
     expect(screen.queryByTestId('proof-pending')).toBeNull();
+  });
+
+  it('labels the recognition-policy refusals develop added to the SSOT vocabulary', () => {
+    render(<StopProofView proof={proofWith({ extractionStatus: 'unreadable', extractionReason: 'multiple_slips' })} testIds={testIds} />);
+    expect(screen.getByTestId('proof-reason').textContent).toBe(REASON_VI.multiple_slips);
+    cleanup();
+    render(<StopProofView proof={proofWith({ extractionStatus: 'unreadable', extractionReason: 'non_standard_format' })} testIds={testIds} />);
+    expect(screen.getByTestId('proof-reason').textContent).toBe(REASON_VI.non_standard_format);
+  });
+
+  it('has a Vietnamese label for EVERY reason in the SSOT vocabulary, so none renders blank', () => {
+    for (const reason of EXTRACTION_FAILURE_REASONS) {
+      const label = REASON_VI[reason];
+      expect(typeof label).toBe('string');
+      expect(label.length).toBeGreaterThan(0);
+    }
   });
 });

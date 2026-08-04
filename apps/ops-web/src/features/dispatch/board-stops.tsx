@@ -18,6 +18,14 @@
 import type { JSX } from 'react';
 import type { DispatchBoardStop } from './types';
 // ONE proof renderer, shared with OrderReview (stop-proof-view.tsx).
+//
+// Merge resolution (develop -> this branch): develop enhanced the INLINE proof
+// block that this branch had already extracted into StopProofView. Per 2026
+// refactor-vs-feature conflict practice the feature change is applied to the
+// refactored structure, so REASON_VI and the ExtractionFailureReason binding
+// now live in stop-proof-view.tsx (the SSOT renderer) and must NOT be
+// reintroduced here -- a second copy in this file is the exact drift that made
+// a completed order read 'Chưa tới' on review while the board showed its kg.
 import { StopProofView } from './stop-proof-view';
 
 export const PICKUP_SLOTS = [1, 2, 3, 4] as const;
@@ -73,10 +81,7 @@ export function StopSlotHeaders(): JSX.Element {
 
 // The arrival/proof portion of a stop cell: the 'Phiếu Cân' proof link when a
 // committed proof photo exists, otherwise the arrival-status text. This is the
-// content rendered UNDER the warehouse name. The <a opener deliberately shares
-// its line with the first attribute — a bare '<a' alone on a shallow-indented
-// line gets stripped by some shells during heredoc writes
-// (context/file-editing-pattern.md, rule 5).
+// content rendered UNDER the warehouse name.
 function StopCellInner({
   stop,
   testId,

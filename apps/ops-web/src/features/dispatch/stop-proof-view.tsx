@@ -10,17 +10,28 @@
 // Surfaces differ ONLY in their data-testid vocabulary, so the ids are injected
 // rather than derived by string surgery inside the component.
 import type { JSX } from 'react';
-import type { StopProof } from '@fleet/sync-protocol';
+import type { StopProof, ExtractionFailureReason } from '@fleet/sync-protocol';
 
 // Human-readable Vietnamese for each extraction failure reason, so a dispatcher
-// seeing Nhap KL also sees WHY it failed and can triage (unparseable vs missing
-// photo vs out-of-range). Vocabulary mirrors the SSOT EXTRACTION_FAILURE_REASONS.
-export const REASON_VI: Record<string, string> = {
+// seeing Nhap KL also sees WHY it failed and can triage.
+//
+// Typed as a TOTAL Record over the SSOT ExtractionFailureReason union, NOT a
+// loose Record<string, string>. That is load-bearing: develop added
+// multiple_slips and non_standard_format to EXTRACTION_FAILURE_REASONS, and a
+// loose map let both surfaces silently render nothing (or undefined) for them.
+// With a total Record the compiler now fails the build when a reason is added
+// to the SSOT without a Vietnamese label here -- the gap cannot reach a
+// dispatcher unnoticed.
+export const REASON_VI: Record<ExtractionFailureReason, string> = {
   unparseable: 'không đọc được số',
   below_sanity_min: 'dưới ngưỡng',
   above_sanity_max: 'vượt ngưỡng',
   no_field: 'không thấy ô KL',
   object_missing: 'thiếu ảnh',
+  // Recognition-policy outcomes (T33): the layout itself was refused, so no
+  // weight was ever derived. Distinct from a value that failed to parse.
+  multiple_slips: 'nhiều phiếu trong ảnh',
+  non_standard_format: 'mẫu phiếu không chuẩn',
 };
 
 // vi-VN grouping: 20730 reads 20.730 kg. One formatter, so the board and the
@@ -76,7 +87,7 @@ export function StopProofView({
           >
             {'Nhập KL'}
           </button>
-          {proof.extractionReason != null && REASON_VI[proof.extractionReason] !== undefined ? (
+          {proof.extractionReason != null ? (
             <span
               data-testid={testIds.reason}
               title={proof.extractionReason}
