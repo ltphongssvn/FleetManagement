@@ -46,8 +46,12 @@ test.describe.serial('Khách hàng: Số điện thoại CRUD', () => {
     const row = customerSection.getByRole('row').filter({ hasText: customerName });
     await expect(row).toBeVisible({ timeout: BUDGET_MS });
     await expect(row).toContainText(phone);
-    // UPDATE the phone via the row's Sửa SĐT (edit phone) control.
-    await row.getByRole('button', { name: 'Sửa SĐT' }).click();
+    // UPDATE the phone via the row's Thao tác (kebab) menu. Sửa SĐT was
+    // consolidated into the row menu (2026 dense-table action consolidation),
+    // so the edit control is reached through the menu, not as a row button.
+    // MenuItems render in a portal, so the menuitem is queried on the page.
+    await row.getByRole('button', { name: /Thao tác/ }).click();
+    await page.getByRole('menuitem', { name: 'Sửa SĐT' }).click();
     const editInput = row.getByLabel('Số điện thoại');
     await editInput.fill(newPhone);
     await row.getByRole('button', { name: 'Lưu' }).click();
