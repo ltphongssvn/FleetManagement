@@ -109,10 +109,25 @@ overrides:
   # not the LENGTH of each result string, so chained brace groups keep the
   # count under the cap while every result grows until the process dies.
   # Dev-only, transitive via eslint and stryker-mutator through minimatch.
-  # Bare floor, previously raised to >=5.0.7 for GHSA-3jxr-9vmj-r5cp, is now
-  # one patch below the fix -- the same stale-floor shape as postcss above.
-  # 5.0.8 is past the 1440-minute cooldown, so no release-age exclusion.
-  brace-expansion: ">=5.0.8"
+  # Bare floor, previously raised to >=5.0.8 for GHSA-mh99-v99m-4gvg, is again
+  # one patch below the fix: GHSA-rgw5-rvv9-x895 reports a DoS via unbounded
+  # intermediate arrays that BYPASSES the CVE-2026-14257 mitigation, so <5.0.9
+  # is vulnerable despite the earlier patch. Same stale-floor shape, third time.
+  brace-expansion: ">=5.0.9"
+  # GHSA-2m8v-j782-fhvr: socket.io-parser <4.2.7 memory exhaustion -- a decoder
+  # accepts a BINARY_EVENT declaring attachments that never arrive, so the
+  # reconstructor buffer is held forever. RUNTIME exposure, not dev-only:
+  # @nestjs/websockets -> @nestjs/platform-socket.io -> socket.io in apps/api,
+  # which serves the dispatch gateway.
+  # Override is the LAST step, not the first: socket.io declares "~4.2.4" which
+  # already admits 4.2.7, and 4.2.7 published 2026-07-15 so no release-age
+  # cooldown applies. An in-range `pnpm update socket.io-parser --depth Infinity`
+  # was tried first and correctly reported "Already up to date" -- pnpm 11 seeds
+  # preferredVersions from the lockfile (11.10 release notes, #10662), so a
+  # frozen transitive pin never re-resolves on its own. pnpm 11 itself now
+  # recommends overrides for transitive-only deps (#12744). REMOVE this entry
+  # once socket.io ships a release whose own floor is >=4.2.7.
+  socket.io-parser: ">=4.2.7"
   ws: ">=8.20.1"
   protobufjs: ">=8.2.0"
   "@expo/dom-webview": "55.0.6"
@@ -153,6 +168,26 @@ overrides:
   # 6.x path the 7.x pin above intentionally left alone). Dev-only (Release
   # CI job). Scoped to the vulnerable 6.x range so other majors are untouched.
   "undici@<6.27.0": ">=6.27.0"
+  # GHSA-4cwx-7wf7-3272: undici <8.9.0 cross-user information disclosure and
+  # parse-time crash via degenerate private cache directives. DEV-ONLY --
+  # pnpm audit --prod is clean; reached only via @semantic-release/* and
+  # testcontainers, both devDependencies, so nothing shipped is exposed.
+  # It blocks merges solely because ci.yml:214 runs pnpm audit unscoped.
+  # Distinct 8.x window, so the 6.x/7.x entries above keep their own lines;
+  # bounded so no consumer is dragged across a major.
+  "undici@>=8.0.0 <8.9.0": ">=8.9.0"
+  # GHSA-7p8r-x3mc-p8w7: fast-uri <3.1.5 host confusion -- a backslash is
+  # accepted as an authority introducer, so a crafted URI parses to an
+  # unexpected host. PRODUCTION-reachable, verified with pnpm audit --prod:
+  # apps/ops-web -> @sentry/nextjs -> @sentry/webpack-plugin -> webpack ->
+  # schema-utils -> ajv -> fast-uri (dev paths via commitlint/stryker too).
+  # ajv declares "^3.0.1" which already admits 3.1.5, but the lockfile froze
+  # 3.1.4 and pnpm 11 seeds preferredVersions from the lockfile, so it never
+  # re-resolves on its own (11.10 notes, #10662) -- an in-range update was
+  # tried first and reported "Already up to date". Bounded selector so no
+  # future consumer is dragged across a major (the js-yaml lesson above).
+  # REMOVE once ajv ships a release whose own floor is >=3.1.5.
+  "fast-uri@>=3.0.0 <3.1.5": ">=3.1.5"
 # Accepted-risk allowlist (pnpm 11 filters audit by GHSA, not CVE).
 auditConfig:
   ignoreGhsas:
@@ -164,6 +199,18 @@ auditConfig:
     # would risk the Image pipeline for a code path we never execute. Revisit
     # and remove when next bumps its sharp range to admit >=0.35.0. (2026-07)
     - GHSA-f88m-g3jw-g9cj
+    # GHSA-4cwx-7wf7-3272: undici <8.9.0 cross-user information disclosure
+    # and parse-time crash via degenerate private cache directives.
+    # DEV-ONLY, verified: pnpm audit --prod is clean of it. Reached only via
+    # @semantic-release/* and @actions/http-client -- the Release CI job
+    # talking to the GitHub API. No shipped artifact contains undici.
+    # NOT fixable by an override: pnpm resolves ONE shared undici copy
+    # (pnpm why: Found 1 version) and consumers declare ^6.23.0 / ^7.0.0,
+    # so forcing >=8.9.0 would violate those ranges. The override at
+    # undici@>=8.0.0 <8.9.0 IS recorded in the lockfile and correctly
+    # declined. Bumping @semantic-release/* is the real fix and belongs
+    # to a dependency-update PR. Revisit then. (2026-08)
+    - GHSA-4cwx-7wf7-3272
 minimumReleaseAgeExclude:
   - tmp@0.2.6 || 0.2.7
   - '@grpc/grpc-js@1.14.4'
