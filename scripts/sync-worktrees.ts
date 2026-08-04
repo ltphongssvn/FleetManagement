@@ -17,17 +17,16 @@
 //   3. Entry point guarded (import.meta) so importing in tests runs nothing.
 //
 // Run: pnpm exec turbo run sync:worktrees   (root-scoped //# task)
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  buildProbeEnv,
-  classifyDepsCandidate,
-  interpretDepsProbe,
-  joinProbeStreams,
-  type DepsProbe,
-} from './worktree-deps-status.js';
+import { classifyDepsCandidate } from './worktree-deps-status.js';
+// TIER 2 lives in its own adapter now: deps:reconcile is a second shell that
+// needs the same probe, and neither copying it nor exporting it from this
+// git-sync module was acceptable. See worktree-deps-probe.ts for the three
+// historical fixes it carries.
+import { probeDeps } from './worktree-deps-probe.js';
 
 // ------------------------------- CORE (pure) -------------------------------
 export interface WorktreeState {
@@ -210,7 +209,6 @@ function runAction(wt: Worktree, act: Action, dryRun: boolean, t: Tally): void {
 // carries a map of absolute package paths, but git worktree move does not
 // rewrite it (pnpm issue 10081), so those keys can point at a directory that
 // no longer exists -- observed in this very worktree after its rename.
-export const DEPS_PROBE_TIMEOUT_MS = 120_000;
 const WORKSPACE_STATE_REL = 'node_modules/.pnpm-workspace-state-v1.json';
 export function readValidationTimestampMs(root: string): { present: boolean; ts: number } {
   const f = join(root, WORKSPACE_STATE_REL);
@@ -292,41 +290,6 @@ function reportDeps(wt: Worktree, t: Tally, verbose: boolean): void {
     C.yellow + 'DRIFT' + C.reset + '  ' + label(wt) +
       ' (deps: ' + probe.reason + ')' + String.fromCharCode(10),
   );
-}
-// Reuses pnpm own checkDepsStatus via the verify flag, WITHOUT changing the
-// repo-wide setting and without adding a dependency. spawnSync (not
-// execFileSync) so a non-zero exit is data, not a throw; a timeout yields a
-// null status, which interpretDepsProbe treats as stale, never as a pass.
-//
-// env is SANITIZED: this runs inside a pnpm process, and a child inherits
-// npm_config_* from its parent. Env config outranks the --config. flag, so an
-// inherited npm_config_verify_deps_before_run=warn would silently downgrade the
-// probe and make every stale worktree report healthy -- a green light produced
-// by the measurement rather than by the thing measured.
-function probeDeps(root: string): DepsProbe {
-  const r = spawnSync(
-    'pnpm',
-    [
-      '--config.verifyDepsBeforeRun=error',
-      '--reporter=ndjson',
-      'exec',
-      'true',
-    ],
-    {
-      cwd: root,
-      encoding: 'utf8',
-      timeout: DEPS_PROBE_TIMEOUT_MS,
-      env: buildProbeEnv(process.env),
-      killSignal: 'SIGTERM',
-    },
-  );
-  // r.stderr is typed string under encoding utf8, so no fallback is needed;
-  // adding one trips no-unnecessary-condition in the type-aware lint.
-  // BOTH streams: pnpm does not commit to one, and its own tracker documents
-  // WARN lines on stdout breaking --json parsing (issues 10200, 10923) plus
-  // verify-deps data on stdout even under --silent (issue 11636). Reading only
-  // stderr made every drifted worktree report no-diagnostic-output.
-  return interpretDepsProbe(r.status, joinProbeStreams(r.stderr, r.stdout));
 }
 export function main(argv: string[] = process.argv.slice(2)): number {
   const dryRun = argv.includes("--dry-run");
