@@ -305,3 +305,18 @@ export {
   parseDispatchRosterSplit,
   isRosterPartitionValid,
 } from './dispatch-roster-split-contract.js';
+
+// Build-provenance contract: what a deployed service reports about ITSELF.
+// Exported from the barrel because all four consumers import from the package
+// ROOT -- the api health controller, the ops-web version route, the worker boot
+// heartbeat, and the CI gate that parses the payload. A deep src path import is
+// what invites a second, drifting definition of the shape CI asserts against.
+export {
+  UNKNOWN_VERSION_FIELD,
+  WORKER_PROVENANCE_KEY,
+  WORKER_PROVENANCE_TTL_SECONDS,
+  DeployVersionSchema,
+  type DeployVersion,
+  type ProvenanceEnv,
+  buildDeployVersion,
+} from './deploy-version-contract.js';

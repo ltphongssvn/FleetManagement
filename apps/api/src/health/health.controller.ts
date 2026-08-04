@@ -2,10 +2,20 @@
 // Liveness vs Readiness split per Kubernetes convention:
 // - /health/live: process is up (no deps checked) - LB liveness probe
 // - /health/ready: deps reachable - LB readiness probe (excludes traffic if DB down)
-import { Controller, Get, Inject, Logger, ServiceUnavailableException } from '@nestjs/common';
+// - /health/version: build provenance - which COMMIT of THIS service is live
+// - /health/worker-version: build provenance of the WORKER (see below)
+import {
+  Controller, Get, Inject, Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { Pool } from 'pg';
+import { buildDeployVersion, DeployVersionSchema, type DeployVersion } from '@fleet/sync-protocol';
 import { PG_POOL } from '../database/database.tokens.js';
+import { WORKER_PROVENANCE_READER } from './worker-provenance.token.js';
 
+// api-only shapes: single-use, no second emitter, crossing no trust boundary,
+// so they stay plain TypeScript. Only the version payload is answered by more
+// than one service and parsed by CI, which is what makes it a shared contract.
 export interface LivenessStatus {
   readonly status: 'ok';
 }
@@ -15,39 +25,19 @@ export interface ReadinessStatus {
   readonly database: 'up' | 'down';
 }
 
-export interface VersionInfo {
-  readonly sha: string;
-  readonly shortSha: string;
-  readonly branch: string;
-  readonly buildTime: string;
-}
-
-// Read the first env var that holds a real value, treating BLANK as ABSENT.
-//
-// Docker substitutes an ARG that was never passed with the EMPTY STRING, so a
-// Dockerfile line of the form ENV GIT_SHA=<unpassed ARG> bakes a set-but-blank
-// variable into the image. Nullish coalescing counts blank as PRESENT, so that
-// baked empty value shadowed the SHA the platform injects at runtime and
-// /health/version reported an empty sha in production indefinitely -- the
-// deploy-verification tool could never confirm which commit was live.
-//
-// Trimming and discarding blanks is the only check that survives that, and it
-// covers a whitespace-only value for free. Fixed here rather than in the
-// Dockerfile because the reader must be correct for ANY platform whose build
-// does not forward the arg, not just for one Dockerfile spelling.
-function readEnvValue(names: readonly string[]): string | null {
-  for (const name of names) {
-    const raw = process.env[name];
-    if (typeof raw === 'string' && raw.trim().length > 0) return raw.trim();
-  }
-  return null;
-}
+/** Reads the worker's heartbeat. A one-method port, not an ioredis type: the
+ *  controller needs exactly one Redis capability, and narrowing it here keeps
+ *  the test double honest without stubbing a whole client. */
+export type WorkerProvenanceReader = () => Promise<string | null>;
 
 @Controller('health')
 export class HealthController {
   private readonly logger = new Logger(HealthController.name);
 
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    @Inject(WORKER_PROVENANCE_READER) private readonly readWorkerProvenance: WorkerProvenanceReader,
+  ) {}
 
   @Get('live')
   liveness(): LivenessStatus {
@@ -65,16 +55,55 @@ export class HealthController {
     }
   }
 
-  // Build-info self-report: minimal, unauthenticated (sha/branch/time only,
-  // no paths or dep versions). Lets a deploy-verification tool ask prod which
-  // commit is live. SHA injected by the platform (RAILWAY_GIT_COMMIT_SHA) or an
-  // explicit GIT_SHA; unknown off-platform.
-  @Get("version")
-  version(): VersionInfo {
-    const sha = readEnvValue(['GIT_SHA', 'RAILWAY_GIT_COMMIT_SHA']) ?? 'unknown';
-    const branch = readEnvValue(['GIT_BRANCH', 'RAILWAY_GIT_BRANCH']) ?? 'unknown';
-    const buildTime = readEnvValue(['BUILD_TIME']) ?? new Date().toISOString();
-    const shortSha = sha === 'unknown' ? 'unknown' : sha.slice(0, 7);
-    return { sha, shortSha, branch, buildTime };
+  // Build-info self-report: minimal, unauthenticated (sha/branch/time only, no
+  // paths or dep versions). Lets deploy-stamp --verify ask production which
+  // commit is live and FAIL THE DEPLOY when it is not the one just shipped --
+  // the check liveness cannot make, because /health/ready answers 200 from the
+  // PREVIOUS container after a failed deploy.
+  //
+  // The payload shape, the blank-vs-absent env rule and the GIT_* over
+  // RAILWAY_GIT_* precedence live in @fleet/sync-protocol: ops-web and the
+  // worker answer the SAME contract and one CI gate parses all three.
+  @Get('version')
+  version(): DeployVersion {
+    return buildDeployVersion(process.env, () => new Date().toISOString());
+  }
+
+  // The WORKER's provenance, read from the TTL'd heartbeat it writes to Redis
+  // at boot. The worker has no HTTP surface and no public Railway domain, so CI
+  // cannot probe it; this is how the worker deploy becomes verifiable at all
+  // (its deploy step was `sleep 30; railway logs ... || true` -- a gate that
+  // could not fail). The heartbeat proves the worker booted AND reached its
+  // dependencies, which a log line cannot.
+  //
+  // DELIBERATELY NOT PART OF /health/ready: readiness decides whether this
+  // instance receives traffic, so making it depend on the worker would pull api
+  // OUT of the load balancer during a worker outage. Here, failing closed costs
+  // nothing because nothing is routed on it.
+  //
+  // Every failure is distinct and 503, never a placeholder 200: an absent key
+  // (worker never booted, or died and its TTL lapsed), an unparseable value,
+  // and an unreachable Redis are all deploy failures, and collapsing them into
+  // a cheerful "unknown" is what lets a broken deploy look green. The raw
+  // stored value is never echoed back.
+  @Get('worker-version')
+  async workerVersion(): Promise<DeployVersion> {
+    let raw: string | null;
+    try {
+      raw = await this.readWorkerProvenance();
+    } catch (err) {
+      this.logger.error('Worker provenance read failed', err);
+      throw new ServiceUnavailableException('worker provenance could not be read');
+    }
+    if (raw === null) {
+      throw new ServiceUnavailableException(
+        'no worker provenance recorded: the worker has not booted, or its heartbeat expired',
+      );
+    }
+    try {
+      return DeployVersionSchema.parse(JSON.parse(raw));
+    } catch {
+      throw new ServiceUnavailableException('stored worker provenance is not valid');
+    }
   }
 }
