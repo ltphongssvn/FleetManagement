@@ -35,14 +35,21 @@
 // on a 9.7GiB box is -- the same SSOT that pins broad gates to concurrency 1.
 // Caveat recorded: pnpm store prune must never run while an install is running.
 import { z } from 'zod';
+import type { DepsProbe } from './worktree-deps-status.js';
 // ---------------------------- INPUT (tier 2 output) ------------------------
-// Structurally identical to DepsProbe in worktree-deps-status.ts and consumed
-// as trusted internal data: it is produced by a pure function in this repo,
-// already unit-tested, and the two-axis rule forbids re-validating that.
-export type DepsProbeInput =
-  | { kind: 'deps-ok' }
-  | { kind: 'deps-stale'; reason: string }
-  | { kind: 'toolchain-blocked'; reason: string };
+// DepsProbe is IMPORTED, never redeclared. An earlier draft of this file
+// hand-wrote a structurally identical union here and even documented it as
+// "structurally identical" -- a single-source-of-truth violation that no cheap
+// detector catches: the copy was exported AND used, so dead-code analysis saw
+// nothing, and it lived in a different module, so no duplicate-type lint
+// applied. A third member added to the probe union would have compiled on both
+// sides and diverged silently. Importing removes the possibility instead of
+// detecting the symptom.
+//
+// NOT Zod-validated, deliberately: this is trusted internal data produced by
+// interpretDepsProbe, a tested pure function in this repo. The two-axis rule
+// forbids re-validating already-typed internal data; runtime parsing belongs
+// only at the subprocess boundary below.
 export type ReconcilePlan =
   | { action: 'skip'; reason: 'deps-ok' | 'toolchain-blocked' }
   | { action: 'heal'; detail: string };
@@ -50,7 +57,7 @@ export type ReconcilePlan =
 // healing there is a guaranteed-failing retry on every run forever -- the
 // unbounded-retry anti-pattern. The version is never named here: tier 2 already
 // derived the toolchain-blocked discriminant, so the policy arrives as data.
-export function decideReconcile(probe: DepsProbeInput): ReconcilePlan {
+export function decideReconcile(probe: DepsProbe): ReconcilePlan {
   if (probe.kind === 'deps-ok') return { action: 'skip', reason: 'deps-ok' };
   if (probe.kind === 'toolchain-blocked') {
     return { action: 'skip', reason: 'toolchain-blocked' };

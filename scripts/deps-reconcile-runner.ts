@@ -30,10 +30,10 @@ import {
   healArgs,
   interpretHealResult,
   reconcileExitCode,
-  type DepsProbeInput,
+
   type ReconcileSummary,
 } from './deps-reconcile.js';
-import { buildProbeEnv, joinProbeStreams } from './worktree-deps-status.js';
+import { buildProbeEnv, joinProbeStreams, type DepsProbe } from './worktree-deps-status.js';
 // A heal is a frozen install: no resolution step, packages already in the
 // store. Five minutes is generous for the slowest cold worktree and still
 // finite, which is the point -- sync-worktrees.ts documents a 4h17m wedge
@@ -59,7 +59,7 @@ export type SpawnFn = (
 ) => SpawnOutcome;
 export interface ReconcileTarget {
   path: string;
-  probe: DepsProbeInput;
+  probe: DepsProbe;
 }
 export interface RunOptions {
   execute: boolean;
