@@ -87,14 +87,14 @@ export const PnpmNdjsonRecordSchema = z.object({
     message: z.string().optional(),
   }),
 });
-export type PnpmNdjsonRecord = z.infer<typeof PnpmNdjsonRecordSchema>;
+type PnpmNdjsonRecord = z.infer<typeof PnpmNdjsonRecordSchema>;
 // ---------------------------- OUTCOME --------------------------------------
 // source is reported alongside kind because the two are independently
 // actionable. A divergent verdict read from NDJSON is authoritative; the same
 // verdict read from prose means pnpm changed its output and the parser is
 // running on borrowed time; a timeout is not a reading at all. Collapsing them
 // into one field would hide from the operator which of those just happened.
-export type HealSource =
+type HealSource =
   | 'exit-zero'
   | 'ndjson'
   | 'prose-fallback'
@@ -149,13 +149,6 @@ export function interpretHealResult(
     source: 'unparseable',
     reason: first ?? 'heal failed with no diagnostic output',
   };
-}
-// ---------------------------- CONSENT --------------------------------------
-// Dry-run by default, matching every mutating task here (repair:*,
-// intake:redrive) and the 2026 remediation-CLI convention. Consent is explicit,
-// never ambient: an exact --execute and nothing else.
-export function resolveExecute(argv: readonly string[]): boolean {
-  return argv.includes('--execute');
 }
 // ---------------------------- EXIT -----------------------------------------
 // GRADED, and the vocabulary lives HERE so the driver cannot invent its own.

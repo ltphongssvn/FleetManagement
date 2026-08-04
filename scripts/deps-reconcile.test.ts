@@ -48,7 +48,6 @@ import {
   PnpmNdjsonRecordSchema,
   RECONCILE_EXIT,
   reconcileExitCode,
-  resolveExecute,
 } from './deps-reconcile.js';
 const NL = String.fromCharCode(10);
 // TIER 3. Consumes the SAME DepsProbe union tier 2 produces, so detection keeps
@@ -182,20 +181,6 @@ describe('interpretHealResult (outcome IS the classifier)', () => {
   it('always carries a non-empty reason on a non-reconciled outcome', () => {
     const out = interpretHealResult(1, '');
     expect(out.kind !== 'reconciled' && out.reason.length > 0).toBe(true);
-  });
-});
-// DRY-RUN BY DEFAULT, matching every mutating task here (repair:*,
-// intake:redrive) and the 2026 remediation-CLI convention: preview is default,
-// applying is opt-in. Consent is explicit, never ambient.
-describe('resolveExecute (dry-run is the default)', () => {
-  it('previews when no flag is given', () => {
-    expect(resolveExecute([])).toBe(false);
-  });
-  it('mutates ONLY on an explicit --execute', () => {
-    expect(resolveExecute(['--execute'])).toBe(true);
-  });
-  it('does not treat an unrelated flag as consent', () => {
-    expect(resolveExecute(['--verbose'])).toBe(false);
   });
 });
 // GRADED exit codes, matching pr:follow (0/1/2/3) and audit:ci-minutes (2).

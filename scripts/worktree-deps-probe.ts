@@ -53,7 +53,7 @@ import {
   joinProbeStreams,
   type DepsProbe,
 } from './worktree-deps-status.js';
-export const DEPS_PROBE_TIMEOUT_MS = 120_000;
+const DEPS_PROBE_TIMEOUT_MS = 120_000;
 // Reuses pnpm's own checkDepsStatus via the verify flag, WITHOUT changing the
 // repo-wide setting and without adding a dependency.
 export function probeDeps(root: string): DepsProbe {

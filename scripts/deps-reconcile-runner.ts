@@ -38,13 +38,13 @@ import { buildProbeEnv, joinProbeStreams, type DepsProbe } from './worktree-deps
 // store. Five minutes is generous for the slowest cold worktree and still
 // finite, which is the point -- sync-worktrees.ts documents a 4h17m wedge
 // caused by an unbounded child, and every spawn here must be incapable of it.
-export const HEAL_TIMEOUT_MS = 300_000;
+const HEAL_TIMEOUT_MS = 300_000;
 export interface SpawnOutcome {
   status: number | null;
   stdout: string;
   stderr: string;
 }
-export interface SpawnOptions {
+interface SpawnOptions {
   env: Record<string, string>;
   timeout: number;
   killSignal: 'SIGTERM';
