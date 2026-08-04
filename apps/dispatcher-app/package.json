@@ -8,6 +8,7 @@
     "android": "expo run:android",
     "check": "echo check is a turbo aggregate task -- run: pnpm exec turbo run check --filter=@fleet/dispatcher-app",
     "clean": "rimraf .expo dist .turbo coverage",
+    "eas-build-pre-install": "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @fleet/observability --filter @fleet/sync-protocol --filter @fleet/domain build",
     "ios": "expo run:ios",
     "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix",
@@ -23,7 +24,9 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "^55.0.11",
+    "@fleet/observability": "workspace:*",
     "@fleet/sync-protocol": "workspace:*",
+    "@sentry/react-native": "~7.11.0",
     "expo": "^55.0.26",
     "expo-auth-session": "~55.0.16",
     "expo-constants": "~55.0.16",
@@ -45,6 +48,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@sentry/cli": "2.58.4",
     "@types/react": "~19.2.14",
     "rimraf": "^6.0.1"
   }
