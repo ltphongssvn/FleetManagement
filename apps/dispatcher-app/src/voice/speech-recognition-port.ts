@@ -1,10 +1,10 @@
 // apps/dispatcher-app/src/voice/speech-recognition-port.ts
-// STT fact-gatherer (T17 D1b/D1c). Pure: the native module and the timer are
-// INJECTED, so every branch is unit-testable in the node lane with no device
-// and no coverage exclusion. Only speech-recognition-native.ts is excluded --
-// a few lines handing the real ExpoSpeechRecognitionModule and Platform.OS to
-// these functions. That module transitively loads expo-modules-core, which
-// cannot resolve off-device, and isolating that import is the point.
+// STT fact-gatherer (T17 D1b/D1c/D1d). Pure: the native module, the timer and
+// the timeout reporter are all INJECTED, so every branch is unit-testable in
+// the node lane with no device and no coverage exclusion. Only
+// speech-recognition-native.ts is excluded -- a few lines handing the real
+// ExpoSpeechRecognitionModule and Platform.OS to these functions. That module
+// transitively loads expo-modules-core, which cannot resolve off-device.
 //
 // This gathers; it never decides. assessVoiceCapability owns the verdict.
 /** The subset of ExpoSpeechRecognitionModule 3.1.3 this app consumes. A
@@ -36,6 +36,12 @@ export interface GatherSpeechFactsOptions {
   /** Injected so tests need no fake timers, whose leaked handles keep the node
    *  process alive after a suite passes. Defaults to a real timer. */
   delay?: (ms: number) => Promise<void>;
+  /** Called ONLY when the locale query exceeds the bound. Injected for the
+   *  same reason as the timer: the reporting decision stays in the pure port
+   *  where a test can execute it, instead of in the coverage-excluded adapter
+   *  where nothing could prove it fires. Sentry is attached at the
+   *  composition root, so this module needs no observability dependency. */
+  onLocaleQueryTimeout?: () => void;
 }
 // Matches COMMAND_DELIVERY_TIMEOUT_MS in apps/api/src/commands/command-policy.
 // ts, the repo's existing device-facing bound. getSupportedLocales is called
@@ -69,19 +75,21 @@ export function toSupportedPlatform(os: string): SupportedPlatform {
 // All three yield [], so voice dispatch still proceeds when the recognizer
 // reports available. Throwing would turn a slow engine into a dead feature.
 //
+// Only the HANG is reported. A rejection is already a distinguishable event --
+// package_not_found arrives as an error a caller could see -- and an empty
+// list is the normal answer on Android 12 and on any device not using
+// com.google.android.as. A hang is the one that LOOKS like success, so it is
+// the one worth a signal. Reporting every empty result would drown it.
+//
 // The losing promise is ABANDONED, not cancelled: 3.1.3 exposes no
 // AbortSignal on getSupportedLocales, so bounding the wait is what is
 // achievable. It is also what the caller needs.
-//
-// KNOWN GAP (D1d): a timeout is indistinguishable from a device that
-// legitimately enumerates nothing. Across a fleet that hides a wedged engine.
-// dispatcher-app has no observability wiring yet; @fleet/observability and
-// driver-app's sentry-bootstrap already exist on develop.
 async function localesOrEmpty(
   native: SpeechNativeModule,
   options: GatherSpeechFactsOptions,
 ): Promise<string[]> {
   const delay = options.delay ?? realDelay;
+  const onTimeout = options.onLocaleQueryTimeout ?? ((): void => undefined);
   const query = native
     .getSupportedLocales(
       options.androidRecognitionServicePackage === undefined
@@ -96,7 +104,10 @@ async function localesOrEmpty(
     // most devices.
     .then((supported) => supported.locales)
     .catch((): string[] => []);
-  const timeout = delay(LOCALE_QUERY_TIMEOUT_MS).then((): string[] => []);
+  const timeout = delay(LOCALE_QUERY_TIMEOUT_MS).then((): string[] => {
+    onTimeout();
+    return [];
+  });
   return Promise.race([query, timeout]);
 }
 export async function gatherSpeechFacts(
