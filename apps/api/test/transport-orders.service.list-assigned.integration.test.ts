@@ -12,12 +12,14 @@
 // Isolation: tx-injection per test (see helpers/with-tx-isolation.ts).
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { sql } from 'drizzle-orm';
+import { sql, and, eq } from 'drizzle-orm';
 import { TransportOrdersService } from '../src/transport-orders/transport-orders.service.js';
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
 import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
 import { driver, vehicle, customer, warehouse } from '../src/database/schema/reference.js';
 import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
+import { manifest } from '../src/database/schema/manifest.js';
+import { stop as stopTable } from '../src/database/schema/transport.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 async function seedActivePair(tx: TestTx, op: ReturnType<typeof createOperatorContext>): Promise<{
@@ -82,6 +84,7 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
         warehouseName: null,
         arrivedAt: null,
         departedAt: null,
+        hasManifest: false,
       });
       expect(row?.stops[1]).toEqual({
         sequence: 2,
@@ -90,6 +93,7 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
         warehouseName: null,
         arrivedAt: null,
         departedAt: null,
+        hasManifest: false,
       });
       // T9: once a stop has arrived/departed timestamps, the producer serializes them to ISO strings.
       await tx.execute(sql.raw(
@@ -166,6 +170,49 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
       expect(row?.customerName).toBeNull();
       expect(row?.pickupName).toBeNull();
       expect(row?.deliveryName).toBeNull();
+    });
+  });
+  it('marks a stop hasManifest once it has a committed manifest', async () => {
+    await withTxIsolation(testDb, async (tx) => {
+      const svc = new TransportOrdersService(tx as never);
+      const op = createOperatorContext();
+      const { operatorId, vehicleId } = await seedActivePair(tx, op);
+      const created = await svc.create({
+        externalRef: 'TO-MANIFEST-1',
+        stops: [
+          { sequence: 1, stopType: 'pickup' },
+          { sequence: 2, stopType: 'delivery' },
+        ],
+        roadRun: { assignedOperatorId: operatorId, assignedAssetId: vehicleId },
+      }, op);
+      // Resolve stop 2 (delivery) stopId, then commit a manifest for it.
+      const [deliveryStop] = await tx
+        .select({ stopId: stopTable.stopId })
+        .from(stopTable)
+        .where(and(
+          eq(stopTable.transportOrderId, created.transportOrderId),
+          eq(stopTable.sequence, 2),
+        ));
+      if (!deliveryStop) throw new Error('delivery stop not found');
+      const before = await svc.listAssigned(op);
+      const beforeStops = before.rows[0]?.stops ?? [];
+      expect(beforeStops.every((st) => !st.hasManifest)).toBe(true);
+      await tx.insert(manifest).values({
+        companyId: op.companyId,
+        businessUnitId: op.businessUnitId,
+        depotId: op.depotId,
+        legalEntityId: op.legalEntityId,
+        transportOrderId: created.transportOrderId,
+        manifestCorrelationId: randomUUID(),
+        stopId: deliveryStop.stopId,
+        state: 'committed',
+      });
+      const after = await svc.listAssigned(op);
+      const afterStops = after.rows[0]?.stops ?? [];
+      const s1 = afterStops.find((st) => st.sequence === 1);
+      const s2 = afterStops.find((st) => st.sequence === 2);
+      expect(s2?.hasManifest).toBe(true);
+      expect(s1?.hasManifest).toBe(false);
     });
   });
   it('excludes road runs assigned to a different operator', async () => {

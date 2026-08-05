@@ -21,11 +21,12 @@
 // screen no longer runs its own useEffect/useState fetch or manual refetch.
 import type { JSX } from 'react';
 import { useRouter, type Href } from 'expo-router';
-import { ActivityIndicator, FlatList, Pressable, Text, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, Text, View, StyleSheet } from 'react-native';
 import { useAssignments } from '../../src/assignments/use-assignments.js';
 import { presentAssignmentStops } from '../../src/assignments/assignment-stops-presenter.js';
 import { roadRunStateLabelVi } from '../../src/assignments/road-run-state-label.js';
 import { captureHrefForStop } from '../../src/assignments/capture-href.js';
+import { evaluateCaptureSequence } from '../../src/assignments/capture-sequence-guard.js';
 import { presentApiError } from '../../src/errors/present-api-error.js';
 import { formatVnDateUS } from '../../src/config/vn-locale.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
@@ -103,6 +104,17 @@ export default function Assignments(): JSX.Element {
                   <Pressable
                     key={st.key}
                     onPress={() => {
+                      // Enforce in-order proof capture (2026 POD standard).
+                      // Skipping ahead is blocked with Vietnamese guidance
+                      // naming the stop to photograph first.
+                      const guard = evaluateCaptureSequence(
+                        st.sequence,
+                        stops.map((g) => ({ sequence: g.sequence, hasManifest: g.done, label: g.label })),
+                      );
+                      if (!guard.allowed) {
+                        Alert.alert('Chua dung thu tu', guard.message ?? '');
+                        return;
+                      }
                       router.push(
                         captureHrefForStop(item.transportOrderId, {
                           sequence: st.sequence,

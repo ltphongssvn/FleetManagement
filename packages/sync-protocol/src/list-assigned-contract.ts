@@ -27,6 +27,11 @@ export const ListAssignedRowStopSchema = z.object({
   warehouseName: z.union([z.string(), z.null()]),
   arrivedAt: z.union([z.string(), z.null()]),
   departedAt: z.union([z.string(), z.null()]),
+  // driver-min-interaction: server-authoritative per-stop proof-photo state
+  // (a committed manifest exists for this stop). Drives the photo-implies-
+  // completion signal and the capture-sequence guard. Optional with a false
+  // default so older API responses without the field still parse.
+  hasManifest: z.boolean().default(false),
 });
 export type ListAssignedRowStop = z.infer<typeof ListAssignedRowStopSchema>;
 

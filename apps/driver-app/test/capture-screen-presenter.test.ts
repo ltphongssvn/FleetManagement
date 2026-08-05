@@ -22,13 +22,13 @@ describe('capture-screen-presenter', () => {
     expect(v.busy).toBe(false);
   });
 
-  it('spooled: shows preview, upload enabled, capture relabeled to retake', () => {
+  it('spooled: shows preview, upload enabled, capture button hidden (no retake)', () => {
     const v = presentCapture(spooled());
     expect(v.testID).toBe('capture-spooled');
     expect(v.previewUri).toBe('file:///m.jpg');
     expect(v.uploadButton.visible).toBe(true);
     expect(v.uploadButton.disabled).toBe(false);
-    expect(v.captureButton.label).toMatch(/Chụp lại/i);
+    expect(v.captureButton.visible).toBe(false);
     expect(v.busy).toBe(false);
   });
 

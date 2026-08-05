@@ -22,6 +22,10 @@ export interface StopRow {
   readonly warehouseName: string | null;
   readonly arrivedAt: string | null;
   readonly departedAt: string | null;
+  // driver-min-interaction: server-authoritative committed-manifest
+  // state for this stop. Drives photo-implies-completion + the
+  // capture-sequence guard. Defaults false for older API responses.
+  readonly hasManifest?: boolean;
 }
 export interface AssignmentRow {
   readonly transportOrderId: string;
@@ -66,6 +70,7 @@ function parseStop(raw: unknown): StopRow {
     warehouseName: nullableStr(s['warehouseName'], 'warehouseName'),
     arrivedAt: nullableStr(s['arrivedAt'], 'arrivedAt'),
     departedAt: nullableStr(s['departedAt'], 'departedAt'),
+    hasManifest: s['hasManifest'] === true,
   };
 }
 function parseRow(raw: unknown): AssignmentRow {

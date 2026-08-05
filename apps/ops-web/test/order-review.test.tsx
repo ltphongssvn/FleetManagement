@@ -26,8 +26,8 @@ const row: ListAssignedRow = {
   pickupName: 'North Pickup Dock',
   deliveryName: 'South Delivery Bay',
   stops: [
-    { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-01T08:00:00.000Z', warehouseName: 'North Pickup Dock', arrivedAt: null, departedAt: null },
-    { sequence: 2, stopType: 'delivery', plannedAt: null, warehouseName: 'South Delivery Bay', arrivedAt: null, departedAt: null },
+    { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-01T08:00:00.000Z', warehouseName: 'North Pickup Dock', arrivedAt: null, departedAt: null, hasManifest: false },
+    { sequence: 2, stopType: 'delivery', plannedAt: null, warehouseName: 'South Delivery Bay', arrivedAt: null, departedAt: null, hasManifest: false },
   ],
 };
 describe('OrderReview', () => {
