@@ -39,7 +39,19 @@
 // docker, and it runs ONLY as the entrypoint (isMain).
 import { z } from 'zod';
 import { spawnSync } from 'node:child_process';
-
+import {
+  classifyStackAge,
+  inspectStartedAtArgs,
+  oldestStartedAt,
+  psIdsArgsForProject,
+  STACK_AGE_EXIT,
+  stackAgeExitCode,
+} from './stack-age.js';
+import {
+  formatAgeReport,
+  parseReclaimArgv,
+  summarizeStackAges,
+} from './reclaim-mode.js';
 // Axis-1 trust boundary: docker CLI output is external input, validated here
 // once. Compose emits more fields than these; unknown keys are ignored rather
 // than rejected so a future docker release cannot break the reclaim.
@@ -114,7 +126,44 @@ function runningFleetProjects(): readonly string[] {
   return fleetProjectsFrom(r.stdout);
 }
 
-function main(): number {
+/** Oldest StartedAt across one project's containers, or null when it has none.
+ *  Both reads FAIL CLOSED: a docker error throws rather than yielding null,
+ *  because "no containers" and "could not ask" must never look alike -- that
+ *  equivalence is what let seven containers idle unnoticed. */
+function oldestStartFor(project: string): string | null {
+  const ps = spawnSync('docker', [...psIdsArgsForProject(project)], { encoding: 'utf-8' });
+  if (ps.status !== 0) {
+    throw new Error('docker ps failed for ' + project + ': ' + ps.stderr);
+  }
+  const ids = ps.stdout.split(NL).map((l) => l.trim()).filter((l) => l.length > 0);
+  if (ids.length === 0) return null;
+  const inspect = spawnSync('docker', [...inspectStartedAtArgs(ids)], { encoding: 'utf-8' });
+  if (inspect.status !== 0) {
+    throw new Error('docker inspect failed for ' + project + ': ' + inspect.stderr);
+  }
+  return oldestStartedAt(inspect.stdout);
+}
+
+/** REPORT ONLY. Reads, classifies, prints, stops nothing. */
+function reportMode(ttlHours: number): number {
+  const now = new Date();
+  const ages = runningFleetProjects().map((project) =>
+    classifyStackAge({ project, startedAt: oldestStartFor(project), now, ttlHours }),
+  );
+  if (ages.length === 0) {
+    process.stdout.write('[docker:reclaim] no fleet projects running' + NL);
+    return STACK_AGE_EXIT.ok;
+  }
+  for (const line of formatAgeReport(ages)) process.stdout.write(line + NL);
+  const s = summarizeStackAges(ages);
+  process.stdout.write(
+    NL + 'Summary: ' + String(s.fresh) + ' fresh, ' + String(s.idle) + ' idle, ' +
+    String(s.stale) + ' stale  (ttl ' + String(ttlHours) + 'h, REPORT ONLY -- nothing stopped)' + NL,
+  );
+  return stackAgeExitCode(s);
+}
+
+function reclaimMode(): number {
   const cfg = defaultReclaimConfig;
   const projects = runningFleetProjects();
 
@@ -145,6 +194,32 @@ function main(): number {
     );
   }
   return v.exitCode;
+}
+
+function main(): number {
+  let argv;
+  try {
+    argv = parseReclaimArgv(process.argv.slice(2));
+  } catch (err) {
+    process.stderr.write((err instanceof Error ? err.message : String(err)) + NL);
+    process.stderr.write(
+      'usage: turbo run docker:reclaim -- [--report] [--ttl-hours <n>]' + NL,
+    );
+    return STACK_AGE_EXIT.usage;
+  }
+  // Docker errors are OPERATIONAL: an unreachable daemon is a predicted
+  // condition, not a programmer error, so it resolves to a graded exit with a
+  // one-line reason rather than a stack trace. The THROW itself stays -- a
+  // failed read must never degrade to "nothing is running", which is the
+  // equivalence that let seven containers idle unnoticed -- but the operator
+  // sees a verdict, not a trace.
+  try {
+    return argv.report ? reportMode(argv.ttlHours) : reclaimMode();
+  } catch (err) {
+    const reason = err instanceof Error ? (err.message.split(NL)[0] ?? err.message) : String(err);
+    process.stderr.write('[docker:reclaim] FAILED -- ' + reason + NL);
+    return STACK_AGE_EXIT.usage;
+  }
 }
 
 const isMain = process.argv[1]?.endsWith('docker-reclaim.ts') ?? false;
