@@ -135,6 +135,26 @@ repos:
         types_or: [ts, tsx]
   - repo: local
     hooks:
+      - id: sync-develop-guard
+        name: Sync-Down Guard (Pre-push, blocks a branch behind origin/develop)
+        # Enforcement half of the conflict-prevention system: fails the push
+        # when the current feature branch is behind origin/develop, so a stale
+        # branch can never reach gh pr create. The dev runs
+        #   pnpm exec turbo run sync:develop
+        # (which creates the merge commit BEFORE the next push, so it is
+        # included) then pushes again. It is a GATE, not an auto-merge: a hook
+        # that merged mid-push would create a commit the in-flight push cannot
+        # send, pushing the branch stale -- the exact drift being prevented.
+        # Runs FIRST among pre-push hooks so a stale push is rejected before
+        # the expensive build/coverage gates. Degrades open on fetch failure
+        # (offline) and is bypassable for genuine infra-only pushes with
+        # git push --no-verify.
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm exec tsx scripts/sync-develop-guard.ts; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+  - repo: local
+    hooks:
       - id: pnpm-build-push
         name: pnpm Build Verification (Pre-push)
         entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm -r --if-present build; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
