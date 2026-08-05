@@ -20,14 +20,10 @@
 // only tracked changes, encoding untracked files onto a third parent that
 // git show --stat does not traverse. The snapshot reported success while
 // omitting the new source files that were the entire substance of two slices.
-// Had that been trusted, closing the worktrees would have destroyed exactly
-// the work the snapshot was taken to protect.
 //
 // HENCE THE COUNT GATE. verifyPreservation demands EQUALITY between observed
 // dirty files and committed files. Not "at least" -- a surplus means the scope
-// was wrong just as a shortfall means work was dropped. That gate is what
-// caught the stash loss, so it is encoded as a permanent property of the tool
-// rather than left as something an operator must remember to check.
+// was wrong just as a shortfall means work was dropped.
 import { z } from 'zod';
 const NL = String.fromCharCode(10);
 // ---------------------------- porcelain parsing ----------------------------
@@ -38,9 +34,8 @@ export interface DirtyEntry {
 }
 // git status --porcelain=v1 --untracked-files=all. Column 1 is the INDEX
 // status, column 2 the worktree status: a staged modification reads "M " and
-// an unstaged one " M". Both are losable, so both count -- but the
-// distinction is preserved because it is exactly what stash treated
-// differently, and a future reader deserves to see that it was considered.
+// an unstaged one " M". Both are losable, so both count -- but the distinction
+// is preserved because it is exactly what stash treated differently.
 // Paths are taken from index 3 to end WITHOUT splitting on whitespace: real
 // paths here contain parentheses and could contain spaces.
 export function parseDirtyEntries(stdout: string): DirtyEntry[] {
@@ -67,6 +62,11 @@ export type PreservationPlan =
   | { action: 'skip'; reason: 'clean' }
   | { action: 'refuse'; reason: 'detached' }
   | { action: 'preserve'; fileCount: number };
+// IDEMPOTENCY falls out of this: a worktree already preserved is clean, so a
+// re-run skips it. That matters because a sweep can abort partway -- the 2026
+// batch guidance is explicit that operations with side effects must be safe to
+// re-run rather than reprocessing completed work.
+//
 // A detached worktree is REFUSED rather than preserved: a commit made on a
 // detached HEAD is reachable by no ref, so "preserving" there would produce
 // exactly the silent loss this tool exists to prevent.
@@ -85,10 +85,6 @@ export type PreservationVerdict =
   | { kind: 'verified' }
   | { kind: 'shortfall'; missing: number }
   | { kind: 'surplus'; extra: number };
-// EQUALITY, deliberately. A shortfall means files were dropped; a surplus
-// means the commit swept in something outside the observed scope. Either way
-// the operation did not do what it reported, and reporting success would be
-// the confident zero this repo refuses everywhere else.
 export function verifyPreservation(count: PreservationCount): PreservationVerdict {
   const c = PreservationCountSchema.parse(count);
   if (c.committed < c.expected) return { kind: 'shortfall', missing: c.expected - c.committed };
@@ -100,8 +96,6 @@ export interface CommitMessageInput {
   branch: string;
   fileCount: number;
 }
-// The message must defend itself against a future reader who finds a WIP
-// commit on a branch and wonders whether it was meant to ship.
 export function commitMessageFor(input: CommitMessageInput): string {
   return (
     'wip: preserve ' + String(input.fileCount) + ' uncommitted file(s) on ' + input.branch + NL + NL +
@@ -117,28 +111,37 @@ export function commitMessageFor(input: CommitMessageInput): string {
 export interface PreserveOptions {
   execute: boolean;
 }
-// Dry-run by default, matching deps:reconcile, repair:* and intake:redrive.
 export function resolvePreserveExecute(options: PreserveOptions): boolean {
   return options.execute;
 }
 // ---------------------------- exit vocabulary ------------------------------
-// 2 stays RESERVED for usage per universal CLI convention. SHORTFALL dominates
-// every other outcome because it is the only one that means work may already
-// be gone -- a refusal is a safe stop, a shortfall is a possible loss.
+// FOUR distinct outcomes because the operator's next action differs for each.
+// The 2026 Node practice is to separate OPERATIONAL errors -- a git command
+// that failed -- from every other condition and handle them at runtime rather
+// than crashing, so an errored worktree gets its own count and its own code.
+//
+// DOMINANCE, and the reasoning is about where the WORK is:
+//   shortfall  files may be GONE                     -- outranks everything
+//   failed     git errored; work still uncommitted   -- unresolved but intact
+//   refused    safe stop; nothing attempted          -- lowest
+// 2 stays RESERVED for usage per universal CLI convention.
 export const PRESERVE_EXIT = {
   ok: 0,
   refused: 1,
   usage: 2,
   shortfall: 3,
+  failed: 4,
 } as const;
 export interface PreserveSummary {
   preserved: number;
   refused: number;
+  failed: number;
   shortfall: number;
   skipped: number;
 }
 export function preserveExitCode(s: PreserveSummary): number {
   if (s.shortfall > 0) return PRESERVE_EXIT.shortfall;
+  if (s.failed > 0) return PRESERVE_EXIT.failed;
   if (s.refused > 0) return PRESERVE_EXIT.refused;
   return PRESERVE_EXIT.ok;
 }
