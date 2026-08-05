@@ -6,7 +6,10 @@
 // 1-1 parity with the Lệnh điều xe - Tải thùng form: every stop the dispatcher
 // created (1..N pickup warehouses + delivery) renders in sequence. Pickups are
 // numbered 1-based independently of delivery interleaving ('Kho nhận hàng N');
-// deliveries render as 'Kho giao hàng'. A stop is done once departedAt is set.
+// deliveries render as 'Kho giao hàng'. A stop is DONE once its proof photo
+// (a committed manifest) exists -- the 2026 POD standard derives stop
+// completion from captured proof, not a departure timestamp (drivers here
+// never mark departures). done drives both the checkmark and remaining.
 //
 // Each row also carries the capture-route descriptor so the card can deep-link
 // to the per-warehouse proof screen (/capture?stopKind=...&stopIndex=...):
@@ -48,7 +51,7 @@ export function presentAssignmentStops(stops: readonly StopRow[]): readonly Assi
       sequence: s.sequence,
       label,
       warehouseName: s.warehouseName ?? NO_WAREHOUSE,
-      done: s.departedAt !== null,
+      done: s.hasManifest === true,
       stopKind,
       stopIndex,
     };

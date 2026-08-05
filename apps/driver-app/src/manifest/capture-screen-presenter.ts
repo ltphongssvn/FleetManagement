@@ -101,7 +101,9 @@ export function presentCapture(state: CaptureState): CaptureViewModel {
         busy: false,
         stopKind,
         stopDisplayIndex,
-        captureButton: { visible: true, disabled: false, label: 'Chụp lại' },
+        // driver-min-interaction: no retake (Chụp lại) -- one fewer decision
+        // per photo. After capture the only action is Tải lên.
+        captureButton: HIDDEN_CAPTURE,
         uploadButton: { visible: true, disabled: false, label: 'Tải lên' },
         resetButton: HIDDEN_RESET,
       };
@@ -114,7 +116,7 @@ export function presentCapture(state: CaptureState): CaptureViewModel {
         busy: true,
         stopKind,
         stopDisplayIndex,
-        captureButton: { visible: true, disabled: true, label: 'Chụp lại' },
+        captureButton: HIDDEN_CAPTURE,
         uploadButton: { visible: true, disabled: true, label: 'Đang tải…' },
         resetButton: HIDDEN_RESET,
       };
