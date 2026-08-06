@@ -30,6 +30,7 @@ import { eq, and, asc, desc, isNull, inArray, ilike, count, type SQL } from 'dri
 import type { FleetDb } from '../database/database.module.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { transportOrder, stop, roadRun, roadRunTransportOrder } from '../database/schema/transport.js';
+import { manifest } from '../database/schema/manifest.js';
 import { vehicle, customer, cargoType, warehouse, driver } from '../database/schema/reference.js';
 import { driverVehicleAssignment } from '../database/schema/driver-vehicle-assignment.js';
 import { appendTriWrite } from '../database/append-tri-write.js';
@@ -223,6 +224,7 @@ export class TransportOrdersService {
         warehouseName: warehouse.name,
         arrivedAt: stop.arrivedAt,
         departedAt: stop.departedAt,
+        stopId: stop.stopId,
       })
       .from(stop)
       .leftJoin(warehouse, eq(warehouse.warehouseId, stop.yardId))
@@ -231,6 +233,17 @@ export class TransportOrdersService {
         eq(stop.transportOrderId, head.transportOrderId),
       ))
       .orderBy(asc(stop.sequence));
+    const committedStopRows = await this.db
+      .select({ stopId: manifest.stopId })
+      .from(manifest)
+      .where(and(
+        eq(manifest.companyId, op.companyId),
+        eq(manifest.transportOrderId, head.transportOrderId),
+        eq(manifest.state, 'committed'),
+      ));
+    const committedStopIdSet = new Set(
+      committedStopRows.map((m) => m.stopId).filter((id): id is string => id !== null),
+    );
     const stops = stopRows.map((s) => ({
       sequence: s.sequence,
       stopType: s.stopType,
@@ -238,6 +251,7 @@ export class TransportOrdersService {
       warehouseName: s.warehouseName,
       arrivedAt: s.arrivedAt ? s.arrivedAt.toISOString() : null,
       departedAt: s.departedAt ? s.departedAt.toISOString() : null,
+      hasManifest: committedStopIdSet.has(s.stopId),
     }));
     const pickupName = stops.find((x) => x.stopType.toLowerCase() === 'pickup')?.warehouseName ?? null;
     const drops = stops.filter((x) => {
@@ -277,7 +291,7 @@ export class TransportOrdersService {
     if (opts.states !== undefined) conditions.push(inArray(roadRun.state, [...opts.states]));
     if (opts.transportOrderId !== undefined) conditions.push(eq(transportOrder.transportOrderId, opts.transportOrderId));
     if (opts.search !== undefined) conditions.push(ilike(customer.name, '%' + opts.search + '%'));
-    const orderByClause = opts.orderByCompletedDesc === true ? desc(roadRun.completedAt) : asc(roadRun.plannedStartAt);
+    const orderByClause = (opts.orderByCompletedDesc ?? false) ? desc(roadRun.completedAt) : asc(roadRun.plannedStartAt);
     const base = this.db
       .select({
         transportOrderId: transportOrder.transportOrderId,
@@ -313,6 +327,7 @@ export class TransportOrdersService {
             warehouseName: warehouse.name,
             arrivedAt: stop.arrivedAt,
             departedAt: stop.departedAt,
+            stopId: stop.stopId,
           })
           .from(stop)
           .leftJoin(warehouse, eq(warehouse.warehouseId, stop.yardId))
@@ -321,6 +336,23 @@ export class TransportOrdersService {
             inArray(stop.transportOrderId, transportOrderIds),
           ))
           .orderBy(asc(stop.sequence));
+    // driver-min-interaction: which stops have a COMMITTED proof photo.
+    // The completion signal + capture-sequence guard both need per-stop photo
+    // state, which only the server knows (manifest.state). Project it per stop
+    // as hasManifest by collecting stopIds with a committed manifest.
+    const manifestStopRows = transportOrderIds.length === 0
+      ? []
+      : await this.db
+          .select({ stopId: manifest.stopId })
+          .from(manifest)
+          .where(and(
+            eq(manifest.companyId, op.companyId),
+            inArray(manifest.transportOrderId, transportOrderIds),
+            eq(manifest.state, 'committed'),
+          ));
+    const committedStopIds = new Set(
+      manifestStopRows.map((m) => m.stopId).filter((id): id is string => id !== null),
+    );
     interface StopRow {
       sequence: number;
       stopType: string;
@@ -328,6 +360,7 @@ export class TransportOrdersService {
       warehouseName: string | null;
       arrivedAt: Date | null;
       departedAt: Date | null;
+      stopId: string | null;
     }
     const stopsByOrder = new Map<string, StopRow[]>();
     for (const sr of stopRows) {
@@ -339,6 +372,7 @@ export class TransportOrdersService {
         warehouseName: sr.warehouseName,
         arrivedAt: sr.arrivedAt,
         departedAt: sr.departedAt,
+        stopId: sr.stopId,
       });
       stopsByOrder.set(sr.transportOrderId, list);
     }
@@ -379,6 +413,7 @@ export class TransportOrdersService {
           warehouseName: s.warehouseName,
           arrivedAt: s.arrivedAt ? s.arrivedAt.toISOString() : null,
           departedAt: s.departedAt ? s.departedAt.toISOString() : null,
+          hasManifest: committedStopIds.has(s.stopId),
         })),
       };
     });

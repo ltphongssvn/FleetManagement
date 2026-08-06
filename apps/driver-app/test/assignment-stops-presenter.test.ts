@@ -35,11 +35,15 @@ describe('presentAssignmentStops (multi-stop parity)', () => {
     const vm = presentAssignmentStops([{ sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: null, arrivedAt: null, departedAt: null }]);
     expect(vm[0]?.warehouseName).toBe('— Chưa có kho —');
   });
-  it('marks a stop completed when departedAt is set', () => {
-    const vm = presentAssignmentStops([{ sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: 'Kho A', arrivedAt: '2026-05-10T08:30:00Z', departedAt: '2026-05-10T08:45:00Z' }]);
+  it('marks a stop DONE when it has a committed manifest (proof photo)', () => {
+    const vm = presentAssignmentStops([{ sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: 'Kho A', arrivedAt: null, departedAt: null, hasManifest: true }]);
     expect(vm[0]?.done).toBe(true);
   });
-  it('marks a stop not-done when departedAt is null', () => {
+  it('marks a stop not-done when it has no committed manifest', () => {
+    const vm = presentAssignmentStops([{ sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: 'Kho A', arrivedAt: null, departedAt: null, hasManifest: false }]);
+    expect(vm[0]?.done).toBe(false);
+  });
+  it('treats a stop with hasManifest omitted as not-done (back-compat)', () => {
     const vm = presentAssignmentStops(stops);
     expect(vm[0]?.done).toBe(false);
   });
