@@ -87,7 +87,7 @@ export function containerRuntimeUnavailableMessage(): string {
     '[gate:coverage] no container runtime -- stopping before the sweep.',
     '',
     'apps/api test:coverage starts a Postgres container via Testcontainers,',
-    'recursive run cannot pass without a reachable Docker daemon.',
+    'so the recursive run cannot pass without a reachable Docker daemon.',
     '',
     'Remedy (WSL interop is disabled here, so run this from PowerShell):',
     '  docker desktop start; Start-Sleep -Seconds 45; docker desktop status',
