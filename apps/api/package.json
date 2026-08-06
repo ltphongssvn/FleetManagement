@@ -33,6 +33,7 @@
     "repair:ghost-runs": "tsx src/scripts/repair-ghost-runs.ts",
     "audit:device-registry": "tsx src/scripts/audit-device-registry.ts",
     "audit:assignment-uniqueness": "tsx src/scripts/audit-assignment-uniqueness.ts",
+    "smoke:copilot-llm": "tsx src/scripts/smoke-copilot-llm.ts",
     "db:check": "drizzle-kit check",
     "test:changed": "vitest run --changed HEAD~1",
     "test:mutation": "stryker run"

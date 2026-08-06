@@ -167,6 +167,13 @@
       "persistent": false,
       "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
     },
+    "smoke:copilot-llm": {
+      "description": "Live smoke check of the copilot LLM boundary: drives the REAL adapter with the REAL DraftSchema-derived JSON Schema against Anthropic, then re-parses each reply with the same DraftSchema the planner uses. Exists because its ABSENCE shipped an HTTP 500 to a dispatcher: the adapter carried 100 percent unit coverage while every test fed it an ALREADY-RESOLVED value, so nothing ever asked whether a real model reply parses -- the model returned a markdown fence and JSON.parse threw. The 2026 testing pyramid puts exactly this cheap deterministic check at the base; the expensive judge-style evals that people do run would not have caught it. Non-zero exit when any utterance fails to yield JSON, so it gates a release rather than merely printing. Network read only, MUTATES NOTHING. cache:false (live network, no cacheable output). passThroughEnv exposes the key + model under strict envMode. Run: railway run --service api -- pnpm exec turbo run smoke:copilot-llm --filter=@fleet/api.",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["ANTHROPIC_API_KEY", "COPILOT_LLM_MODEL"]
+    },
     "inspect:order-state": {
       "description": "Read-only diagnostic: print a transport order actual server-side state (transport_order row, linked road_run states + started_at/completed_at, last 20 fleet_audit_log events) resolved by --ref. Boots the standalone ProjectionRebuildModule (config + database). MUTATES NOTHING. Live DB read: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run inspect:order-state --filter=@fleet/api -- --ref XTT.07-020.",
       "dependsOn": ["build"],

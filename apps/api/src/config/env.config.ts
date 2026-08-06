@@ -66,13 +66,20 @@ export const EnvSchema = z.object({
   // unbound and the planner falls back to clarify (fail-safe, mirroring the
   // KEYCLOAK_MONITOR_CLIENT_SECRET gating). Empty string (compose ${VAR:-}) is
   // coerced to undefined so a blank interpolation reads as absent, not as a
-  // present-but-invalid key. COPILOT_LLM_MODEL is the technical best-fit default
-  // for strict-JSON + sub-600ms; env-overridable for a model A/B.
+  // present-but-invalid key. COPILOT_LLM_MODEL pins a DATED SNAPSHOT, not the
+  // bare id: Anthropic documents that for generations BEFORE 4.6 a dateless id
+  // is a convenience ALIAS resolving to whichever snapshot is current, and only
+  // 4.6+ dateless ids are themselves pinned. Haiku 4.5 is pre-4.6, so the bare
+  // id floats -- the model under production could change without a deploy, and
+  // with at least 60 days notice before retirement (after which requests fail)
+  // an alias gives no way to tell which side of that line you are on until
+  // something breaks. Pinning buys reproducibility and an auditable upgrade;
+  // still env-overridable for a model A/B with zero code change.
   ANTHROPIC_API_KEY: z.preprocess(
     (v) => (v === '' ? undefined : v),
     z.string().min(1).optional(),
   ),
-  COPILOT_LLM_MODEL: z.string().min(1).default('claude-haiku-4-5'),
+  COPILOT_LLM_MODEL: z.string().min(1).default('claude-haiku-4-5-20251001'),
   // Intake-lag regression guard (Jun-24 incident class): pages via Sentry
   // fatal when the OLDEST verifying manifest exceeds this age -- any break in
   // the intake loop (auth, queue, worker, relay) becomes loud within one

@@ -17,10 +17,10 @@ const BASE = {
 };
 
 describe('env: copilot LLM adapter surface', () => {
-  it('defaults COPILOT_LLM_MODEL to claude-haiku-4-5 with no key set', () => {
+  it('defaults COPILOT_LLM_MODEL with no key set', () => {
     const c = validateEnv({ ...BASE });
     expect(c.ANTHROPIC_API_KEY).toBeUndefined();
-    expect(c.COPILOT_LLM_MODEL).toBe('claude-haiku-4-5');
+    expect(c.COPILOT_LLM_MODEL).toBe('claude-haiku-4-5-20251001');
   });
 
   it('accepts an explicit key + model override (A/B path)', () => {
@@ -32,6 +32,18 @@ describe('env: copilot LLM adapter surface', () => {
   it('treats empty ANTHROPIC_API_KEY as absent (compose blank-string interpolation)', () => {
     const c = validateEnv({ ...BASE, ANTHROPIC_API_KEY: '' });
     expect(c.ANTHROPIC_API_KEY).toBeUndefined();
-    expect(c.COPILOT_LLM_MODEL).toBe('claude-haiku-4-5');
+    expect(c.COPILOT_LLM_MODEL).toBe('claude-haiku-4-5-20251001');
+  });
+
+  // Anthropic documents that for generations BEFORE 4.6 a dateless id is a
+  // convenience ALIAS resolving to whichever dated snapshot is current; only
+  // 4.6+ dateless ids are themselves pinned. Haiku 4.5 is pre-4.6, so the bare
+  // id floats. Anthropic gives at least 60 days notice before retirement and
+  // requests past that date fail -- with an alias you cannot tell which side of
+  // that line you are on until production starts failing. This asserts the
+  // SHAPE, so a future edit back to a bare alias fails here rather than in prod.
+  it('pins a DATED snapshot, never a floating alias', () => {
+    const c = validateEnv({ ...BASE });
+    expect(c.COPILOT_LLM_MODEL).toMatch(/-[0-9]{8}$/);
   });
 });

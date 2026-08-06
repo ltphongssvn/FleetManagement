@@ -1,46 +1,58 @@
 // apps/api/src/copilot/anthropic-copilot-llm.adapter.ts
 // Claude Haiku 4.5 adapter behind CopilotLlmPort (the palette LLM boundary).
 // Raw fetch, no SDK -- the house pattern (workers/.../gemini-vlm-extractor.ts,
-// whose comment notes "GPT/Claude adapters are config away"). Model choice is
-// technical: 2026 structured-output benchmarks rank Haiku 4.5 best for strict
-// JSON + instruction-following at sub-600ms TTFT, matching this task (one
-// Vietnamese command -> strict DraftSchema, user-facing Ctrl+K).
+// whose comment notes that GPT/Claude adapters are config away).
 //
-// PURE TRANSPORT: text in -> Anthropic Messages call -> the model's raw JSON
-// returned as `unknown`. It defines NO draft schema (the planner owns
-// DraftSchema, the single SSOT) and performs NO trust logic. The one untrusted
-// boundary it DOES own is the Anthropic HTTP response envelope, which is
-// Zod-parsed (never cast) before the assistant text is read.
+// PURE TRANSPORT: text plus a caller-supplied JSON Schema in -> Anthropic
+// Messages call -> the model raw JSON out as unknown. It defines NO draft
+// schema and performs NO trust logic. The planner owns DraftSchema (the single
+// SSOT); it derives the wire schema from that SSOT and validates the reply
+// against it. This adapter only forwards a schema it does not own.
 //
-// Error split (mirrors the worker extractor): non-2xx -> throw (the /plan route
-// surfaces it); a 2xx whose envelope is malformed -> throw (contract breach).
-// A well-formed envelope whose TEXT is non-JSON returns that raw string as
-// unknown -> the planner's DraftSchema rejects it -> clarify. The adapter never
-// itself decides a draft is invalid.
+// STRUCTURED OUTPUTS: the schema travels as output_config.format, which moves
+// the constraint from the prompt into the SAMPLER -- the provider compiles it
+// into a grammar and cannot emit tokens that violate it. Prompting alone left
+// every token sampled from the full vocabulary, so a markdown fence reached
+// JSON.parse and became an HTTP 500 for the dispatcher.
+//
+// The one untrusted boundary this file owns is the Anthropic HTTP response
+// envelope, Zod-parsed and never cast.
+//
+// Error policy. Non-2xx throws, and the thrown message CARRIES THE RESPONSE
+// BODY: Anthropic answers 400 with an invalid_request_error naming the exact
+// offending schema keyword, and discarding it once forced a bespoke probe to
+// rediscover what the API had already said. A malformed 2xx envelope also
+// throws (contract breach). Both are EXECUTION errors the planner catches and
+// degrades to clarify. A well-formed 2xx whose text is somehow not JSON
+// returns that raw text as unknown so DraftSchema rejects it and the palette
+// clarifies -- a model quirk must never become a 500.
 import { z } from 'zod';
 import type { CopilotLlmPort } from './copilot-planner.service.js';
 
 // Anthropic Messages response envelope (untrusted external input). Only the
 // fields we read are modelled; unknown sibling fields are ignored (not strict)
-// so provider-additive changes do not break us, but the shape we depend on is
-// enforced.
+// so provider-additive changes do not break us, while the shape we depend on
+// is enforced.
 const AnthropicTextBlockSchema = z.object({ type: z.literal('text'), text: z.string() });
 const AnthropicMessageResponseSchema = z.object({
   content: z.array(z.union([AnthropicTextBlockSchema, z.object({ type: z.string() })])).min(1),
 });
 
+// No schema prose here BY DESIGN. The shape travels as a JSON Schema in
+// output_config.format, carrying per-field descriptions generated from the
+// planner DraftSchema. Restating it here would duplicate the SSOT and let the
+// two drift -- precisely the class of bug that produced a draft with invented
+// keys.
 const SYSTEM_PROMPT = [
-  'You convert ONE Vietnamese dispatcher command into a strict JSON draft.',
-  'Respond with ONLY minified JSON, no prose, no markdown fences.',
-  'Schema: {"summaryVi":"<short Vietnamese summary>","commands":[...]} where each command is EITHER',
-  '{"type":"create_driver","fullName":"<name>","phone":"<digits>"}',
-  'OR {"type":"assign_driver_to_vehicle","driverName":"<name>","vehiclePlate":"<plate as written>"}.',
-  'Use only these two command types. Do NOT invent ids, passwords, or fields.',
-  'commands must have at least one entry. If the request is unclear, still return your best strict-JSON guess.',
+  'You convert ONE Vietnamese dispatcher command into a structured draft.',
+  'The response shape is supplied out-of-band and enforced during generation.',
+  'Do NOT invent ids or passwords.',
+  'If the request is unclear, still return your best guess.',
 ].join(' ');
 
 const MAX_TOKENS = 1024;
 const ANTHROPIC_VERSION = '2023-06-01';
+const MAX_ERROR_BODY_CHARS = 500;
 
 export interface AnthropicCopilotLlmConfig {
   readonly apiKey: string;
@@ -52,7 +64,7 @@ export interface AnthropicCopilotLlmConfig {
 export class AnthropicCopilotLlmAdapter implements CopilotLlmPort {
   constructor(private readonly config: AnthropicCopilotLlmConfig) {}
 
-  async proposeDraft(text: string): Promise<unknown> {
+  async proposeDraft(text: string, jsonSchema: Record<string, unknown>): Promise<unknown> {
     const fetchFn = this.config.fetchFn ?? globalThis.fetch;
     const base = this.config.baseUrl ?? 'https://api.anthropic.com';
     const res = await fetchFn(base + '/v1/messages', {
@@ -68,10 +80,28 @@ export class AnthropicCopilotLlmAdapter implements CopilotLlmPort {
         temperature: 0,
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: text }],
+        output_config: { format: { type: 'json_schema', schema: jsonSchema } },
       }),
     });
     if (!res.ok) {
-      throw new Error('anthropic messages HTTP ' + String(res.status) + ' ' + res.statusText);
+      // Read the body BEFORE throwing. It is the diagnosis: a 400 names the
+      // rejected schema keyword, a 429 carries the retry hint. Truncated so a
+      // large payload cannot flood the log, and never containing the api key
+      // (which travels in a header, not the body).
+      let detail: string;
+      try {
+        detail = (await res.text()).slice(0, MAX_ERROR_BODY_CHARS);
+      } catch {
+        detail = '(body unreadable)';
+      }
+      throw new Error(
+        'anthropic messages HTTP ' +
+          String(res.status) +
+          ' ' +
+          res.statusText +
+          ' -- ' +
+          detail,
+      );
     }
     // Untrusted boundary: Zod-validate the envelope, never cast.
     const envelope = AnthropicMessageResponseSchema.parse(await res.json());
@@ -81,7 +111,10 @@ export class AnthropicCopilotLlmAdapter implements CopilotLlmPort {
     if (firstText === undefined) {
       throw new Error('anthropic messages response contained no text block');
     }
-    // Return the model draft verbatim as unknown; the planner strict-parses it.
-    return JSON.parse(firstText.text) as unknown;
+    try {
+      return JSON.parse(firstText.text) as unknown;
+    } catch {
+      return firstText.text as unknown;
+    }
   }
 }

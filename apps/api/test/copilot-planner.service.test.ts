@@ -4,6 +4,7 @@
 // proposes an UNTRUSTED draft that is Zod-parsed and RESOLVED against the
 // catalog (plate/name -> ids). Ambiguity or misses -> clarify, never guess.
 import { describe, expect, it, vi } from 'vitest';
+import { Logger } from '@nestjs/common';
 import type { OperatorContext } from '@fleet/domain';
 import {
   CopilotPlannerService,
@@ -168,5 +169,61 @@ describe('@fleet/api CopilotPlannerService', () => {
     const svc = new CopilotPlannerService(catalog(), undefined);
     const out = await svc.plan('điều phối lại toàn bộ đội xe', OP);
     expect(out.kind).toBe('clarify');
+  });
+  // RED 1 -- EXECUTION-error class. 2026 practice splits semantic errors (a
+  // bad shape, covered above) from execution errors (provider 429/5xx,
+  // network, parse throw). Production answered HTTP 500 because the port call
+  // was unguarded and a rejection propagated out of plan(). The palette
+  // already owns a rule-based fallback, so a failure in the OPTIONAL
+  // enrichment path must degrade to it, never take the endpoint down.
+  it('clarifies when the LLM port REJECTS (provider failure, not a bad shape)', async () => {
+    const llm: CopilotLlmPort = {
+      proposeDraft: vi.fn(() => Promise.reject(new Error('anthropic messages HTTP 529'))),
+    };
+    const svc = new CopilotPlannerService(catalog(), llm);
+    const out = await svc.plan('Thêm tài xế Nguyễn Văn B 0900000456', OP);
+    expect(out.kind).toBe('clarify');
+  });
+
+  // RED 2 -- the fallback must NOT become a silent misfire. The documented
+  // 2026 failure mode is a system that logs success while serving a fallback
+  // nobody tested; a degraded path leaving no trace is exactly why this took a
+  // live production request to discover. Degrading is necessary; silence is not.
+  it('LOGS the provider failure when it degrades to clarify', async () => {
+    const llm: CopilotLlmPort = {
+      proposeDraft: vi.fn(() => Promise.reject(new Error('anthropic messages HTTP 529'))),
+    };
+    const svc = new CopilotPlannerService(catalog(), llm);
+    const spy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    await svc.plan('Thêm tài xế Nguyễn Văn B 0900000456', OP);
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  // RED 3 -- ONE SSOT drives BOTH the sampler grammar and the validator. The
+  // planner owns DraftSchema and hands the port a JSON Schema derived from it,
+  // so the adapter can constrain generation without ever defining a schema of
+  // its own. z.strictObject yields additionalProperties false, which the
+  // provider requires for structured outputs.
+  it('hands the port a JSON Schema derived from DraftSchema', async () => {
+    const llm = llmReturning({
+      summaryVi: 'Sẽ tạo tài xế',
+      commands: [{ type: 'create_driver', fullName: 'Nguyễn Văn B', phone: '0900000456' }],
+    });
+    const svc = new CopilotPlannerService(catalog(), llm);
+    await svc.plan('Thêm tài xế Nguyễn Văn B 0900000456', OP);
+    const calls = (llm.proposeDraft as unknown as {
+      mock: { calls: [string, Record<string, unknown>][] };
+    }).mock.calls;
+    const first = calls[0];
+    expect(first).toBeDefined();
+    const schema = first?.[1];
+    expect(schema).toBeDefined();
+    if (schema === undefined) throw new Error('expected a schema argument');
+    expect(schema['type']).toBe('object');
+    expect(schema['additionalProperties']).toBe(false);
+    expect(Object.keys(schema['properties'] as object)).toEqual(
+      expect.arrayContaining(['summaryVi', 'commands']),
+    );
   });
 });
