@@ -59,6 +59,27 @@ export const WORKER_PROVENANCE_KEY = 'fleet:worker:provenance';
  *  so an expired key must read as ABSENT and fail closed. */
 export const WORKER_PROVENANCE_TTL_SECONDS = 900;
 
+/** 5 minutes: how often the LIVE worker re-writes the key above.
+ *
+ *  WHY RENEWAL EXISTS. The heartbeat was written ONCE, at boot, with the TTL
+ *  above. That is a deploy-window marker, not a heartbeat: it expired 15
+ *  minutes after boot whether the process was healthy or dead, so the reader
+ *  was wrong in BOTH directions -- PRESENT for 15 minutes after a worker that
+ *  died at minute one, ABSENT for a worker that had been consuming jobs all
+ *  day. Observed in production on 2026-08-06: /health/worker-version answered
+ *  503 thirty-nine minutes after a SUCCESSFUL worker deploy.
+ *
+ *  WHY THIS RATIO. The liveness rule is timeout ~= 3x the renewal interval:
+ *  long enough that one missed renewal (a Redis blip, a GC pause) is not read
+ *  as a death, short enough that a real death is detected inside one window.
+ *  900 / 300 = 3, so two consecutive renewals can fail and the third still
+ *  lands before expiry.
+ *
+ *  Renewing faster buys nothing: detection latency is bounded by the TTL, not
+ *  by the write rate, and every extra write is chatter against the Redis the
+ *  queues depend on. */
+export const WORKER_PROVENANCE_REFRESH_SECONDS = 300;
+
 /** Environment as the service actually receives it: every value optional,
  *  because CLI-only Railway deploys never inject the RAILWAY_* names and a
  *  local run stamps nothing at all. */

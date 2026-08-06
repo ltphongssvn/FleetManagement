@@ -315,6 +315,7 @@ export {
   UNKNOWN_VERSION_FIELD,
   WORKER_PROVENANCE_KEY,
   WORKER_PROVENANCE_TTL_SECONDS,
+  WORKER_PROVENANCE_REFRESH_SECONDS,
   DeployVersionSchema,
   type DeployVersion,
   type ProvenanceEnv,

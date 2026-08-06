@@ -27,6 +27,7 @@ import {
   buildDeployVersion,
   WORKER_PROVENANCE_KEY,
   WORKER_PROVENANCE_TTL_SECONDS,
+  WORKER_PROVENANCE_REFRESH_SECONDS,
   type DeployVersion,
   type ProvenanceEnv,
 } from '@fleet/sync-protocol';
@@ -34,7 +35,7 @@ import {
 // The key and TTL live in the shared contract, not here: the api reads this
 // same key on /health/worker-version, so a local copy would be a second
 // definition of a value two services must agree on exactly.
-export { WORKER_PROVENANCE_KEY, WORKER_PROVENANCE_TTL_SECONDS };
+export { WORKER_PROVENANCE_KEY, WORKER_PROVENANCE_TTL_SECONDS, WORKER_PROVENANCE_REFRESH_SECONDS };
 
 /** The worker's provenance, from the same builder api and ops-web use. */
 export function buildBootProvenance(env: ProvenanceEnv, now: () => string): DeployVersion {
@@ -59,4 +60,22 @@ export function bootProvenanceSetArgs(version: DeployVersion): BootProvenanceSet
     'EX',
     String(WORKER_PROVENANCE_TTL_SECONDS),
   ] as const;
+}
+
+/** The renewal cadence in MILLISECONDS -- the unit setInterval takes.
+ *
+ *  WHY A FUNCTION AND NOT A CONSTANT. The seconds value is the contract both
+ *  services agree on; the millisecond form is a local presentation of it. A
+ *  second exported constant could drift from its own source, so the conversion
+ *  lives in one place and is derived, never restated.
+ *
+ *  WHY RENEWAL AT ALL. The heartbeat used to be written ONCE at boot with a
+ *  900s TTL, which made it a deploy-window marker rather than a liveness
+ *  signal: it expired 15 minutes after boot whether the worker was healthy or
+ *  dead. Production proved it on 2026-08-06 -- /health/worker-version answered
+ *  503 thirty-nine minutes after a successful worker deploy, with the worker's
+ *  actual state unknown either way. Renewing on an interval makes ABSENT mean
+ *  what the reader has always claimed it means. */
+export function provenanceRefreshIntervalMs(): number {
+  return WORKER_PROVENANCE_REFRESH_SECONDS * 1000;
 }
