@@ -85,7 +85,7 @@ overrides:
   "@vitest/coverage-v8": "4.1.5"
   "@vitest/coverage-istanbul": "4.1.5"
   fast-xml-builder: ">=1.1.7"
-  next: ">=16.2.5"
+  next: ">=16.2.11"
   "@opentelemetry/auto-instrumentations-node": ">=0.75.0"
   "@opentelemetry/sdk-node": ">=0.217.0"
   # GHSA-45rx-2jwx-cxfr (CVE-2026-59892): propagator-jaeger <2.9.0 uncaught URIError DoS on malformed uber-trace-id header. sdk-node 0.217.0 pins it to EXACT 2.7.1, so re-resolve cannot reach the patch -- scoped override is the last-resort fix.
@@ -154,3 +154,4 @@ minimumReleaseAgeExclude:
   - '@opentelemetry/propagator-jaeger@2.9.0'
   - fast-uri@3.1.3 || 3.1.4 || 4.0.1 || 4.1.1
   - sharp@0.35.0
+  - next@16.2.11
