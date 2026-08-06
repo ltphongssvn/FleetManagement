@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.config.ts"
+  },
+  "mutate": [
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
+    "!**/test/**",
+    "!**/dist/**",
+    "!src/polyfills/install-fetch-polyfill.ts",
+    "!src/voice/speech-recognition-native.ts"
+  ],
+  "thresholds": {
+    "high": 95,
+    "low": 85,
+    "break": 90
+  },
+  "incremental": true,
+  "incrementalFile": ".stryker-tmp/incremental.json",
+  "reporters": [
+    "progress",
+    "clear-text",
+    "html"
+  ],
+  "concurrency": 4,
+  "timeoutMS": 15000,
+  "coverageAnalysis": "perTest",
+  "plugins": [
+    "@stryker-mutator/vitest-runner"
+  ]
+}
