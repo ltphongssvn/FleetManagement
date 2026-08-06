@@ -96,6 +96,15 @@ export const DriverMeResponseSchema = z.object({
 });
 export type DriverMeResponse = z.infer<typeof DriverMeResponseSchema>;
 
+// --- Device: self-enrollment (POST /devices/enroll) ------------------------
+// Mirrors apps/api/src/device/device-enrollment.controller.ts, which returns
+// the enrolled device id. Driver-JWT gated: the operator identity comes from
+// the caller token, never the body.
+export const EnrollDeviceResponseSchema = z.object({
+  deviceId: z.string(),
+});
+export type EnrollDeviceResponse = z.infer<typeof EnrollDeviceResponseSchema>;
+
 // --- Admin: reset-password verify (driver /auth/login by phone+password) ----
 export const AccessTokenResponseSchema = z.object({
   accessToken: z.string().optional(),
