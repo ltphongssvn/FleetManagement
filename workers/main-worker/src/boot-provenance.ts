@@ -27,6 +27,7 @@ import {
   buildDeployVersion,
   WORKER_PROVENANCE_KEY,
   WORKER_PROVENANCE_TTL_SECONDS,
+  WORKER_PROVENANCE_REFRESH_SECONDS,
   type DeployVersion,
   type ProvenanceEnv,
 } from '@fleet/sync-protocol';
@@ -34,7 +35,7 @@ import {
 // The key and TTL live in the shared contract, not here: the api reads this
 // same key on /health/worker-version, so a local copy would be a second
 // definition of a value two services must agree on exactly.
-export { WORKER_PROVENANCE_KEY, WORKER_PROVENANCE_TTL_SECONDS };
+export { WORKER_PROVENANCE_KEY, WORKER_PROVENANCE_TTL_SECONDS, WORKER_PROVENANCE_REFRESH_SECONDS };
 
 /** The worker's provenance, from the same builder api and ops-web use. */
 export function buildBootProvenance(env: ProvenanceEnv, now: () => string): DeployVersion {
@@ -59,4 +60,72 @@ export function bootProvenanceSetArgs(version: DeployVersion): BootProvenanceSet
     'EX',
     String(WORKER_PROVENANCE_TTL_SECONDS),
   ] as const;
+}
+
+/** The renewal cadence in MILLISECONDS -- the unit setInterval takes.
+ *
+ *  WHY A FUNCTION AND NOT A CONSTANT. The seconds value is the contract both
+ *  services agree on; the millisecond form is a local presentation of it. A
+ *  second exported constant could drift from its own source, so the conversion
+ *  lives in one place and is derived, never restated.
+ *
+ *  WHY RENEWAL AT ALL. The heartbeat used to be written ONCE at boot with a
+ *  900s TTL, which made it a deploy-window marker rather than a liveness
+ *  signal: it expired 15 minutes after boot whether the worker was healthy or
+ *  dead. Production proved it on 2026-08-06 -- /health/worker-version answered
+ *  503 thirty-nine minutes after a successful worker deploy, with the worker's
+ *  actual state unknown either way. Renewing on an interval makes ABSENT mean
+ *  what the reader has always claimed it means. */
+export function provenanceRefreshIntervalMs(): number {
+  return WORKER_PROVENANCE_REFRESH_SECONDS * 1000;
+}
+
+/** Handle for a running renewal loop. `stop` exists so a test can end it and a
+ *  shutdown path could, if it ever needed to, without reaching for the timer. */
+export interface ProvenanceRenewal {
+  stop: () => void;
+}
+
+/** Start the heartbeat: write once immediately, then re-write every intervalMs.
+ *
+ *  THE WRITE IS INJECTED, and that is the point. The previous tests pinned only
+ *  the CONSTANTS -- refresh < ttl, the ms conversion -- and every one of them
+ *  still passed if the setInterval were deleted outright. They asserted intent,
+ *  not behaviour, which is the same error that shipped a --reporter=dot "fix"
+ *  whose flag never reached the tool. With the write as a parameter, a fake
+ *  timer can advance time and observe that the call ACTUALLY REPEATS.
+ *
+ *  ERRORS ARE SWALLOWED PER TICK, never allowed to escape. A throw inside a
+ *  setInterval callback surfaces as an uncaught exception; depending on the
+ *  process handlers that either kills the worker or silently ends the loop, and
+ *  a heartbeat that stops after one Redis blip reads as a DEAD WORKER forever
+ *  after. One failed renewal must cost one missed beat and nothing more -- the
+ *  TTL is sized at 3x the interval precisely so that is survivable.
+ *
+ *  unref(): provenance is a REPORTING concern and must never be the reason this
+ *  process stays alive. The worker's SIGTERM path closes queues and exits; a
+ *  referenced timer would keep the event loop alive and turn a clean shutdown
+ *  into a timeout kill. */
+export function startProvenanceRenewal(
+  write: (first: boolean) => void,
+  intervalMs: number,
+): ProvenanceRenewal {
+  const safeWrite = (first: boolean): void => {
+    try {
+      write(first);
+    } catch {
+      // Deliberately silent here: the injected write owns its own logging, and
+      // a reporting failure must not become a second failure channel.
+    }
+  };
+  safeWrite(true);
+  const timer = setInterval(() => {
+    safeWrite(false);
+  }, intervalMs);
+  timer.unref();
+  return {
+    stop: (): void => {
+      clearInterval(timer);
+    },
+  };
 }

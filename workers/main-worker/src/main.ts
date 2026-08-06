@@ -24,7 +24,7 @@ import { S3ExtractionObjectStore } from './extraction/s3-extraction-object-store
 import { GeminiVlmExtractor } from './extraction/gemini-vlm-extractor.js';
 import type { ExtractionObjectStore, VlmExtractorPort } from './extraction/extraction-flow.js';
 import { logEvent } from './logger.js';
-import { buildBootProvenance, bootProvenanceSetArgs } from './boot-provenance.js';
+import { buildBootProvenance, bootProvenanceSetArgs, provenanceRefreshIntervalMs, startProvenanceRenewal } from './boot-provenance.js';
 
 function bootstrap(): void {
   const config = loadConfig();
@@ -140,17 +140,39 @@ function bootstrap(): void {
   // REPORTING concern. A Redis hiccup must never stop the worker from consuming
   // jobs, so a failure is logged and swallowed -- the deploy check then sees an
   // absent key and fails closed, which is the correct signal.
+  //
+  // RENEWED, not written once. A single boot write with a TTL is a deploy-window
+  // marker, not a heartbeat: the key expired 15 minutes after boot whether the
+  // process was healthy or dead, so the reader was wrong in BOTH directions --
+  // PRESENT for 15 minutes after a worker that died at minute one, ABSENT for a
+  // worker that had been consuming jobs all day. Production proved it on
+  // 2026-08-06: /health/worker-version answered 503 thirty-nine minutes after a
+  // SUCCESSFUL worker deploy. Re-writing on an interval makes an absent key mean
+  // what this comment has always claimed it means.
   const provenance = buildBootProvenance(process.env, () => new Date().toISOString());
-  void deadLetterQueue.client
-    .then((redis) => redis.set(...bootProvenanceSetArgs(provenance)))
-    .then(() => {
-      logEvent('info', 'boot provenance recorded', { sha: provenance.shortSha, branch: provenance.branch });
-    })
-    .catch((err: unknown) => {
-      logEvent('error', 'boot provenance write failed', {
-        error: err instanceof Error ? err.message : String(err),
+  const writeProvenance = (first: boolean): void => {
+    void deadLetterQueue.client
+      .then((redis) => redis.set(...bootProvenanceSetArgs(provenance)))
+      .then(() => {
+        // Only the first write is announced. Logging every renewal would emit a
+        // line every 5 minutes forever, drowning the signal this exists to give.
+        if (first) {
+          logEvent('info', 'boot provenance recorded', { sha: provenance.shortSha, branch: provenance.branch });
+        }
+      })
+      .catch((err: unknown) => {
+        logEvent('error', 'boot provenance write failed', {
+          error: err instanceof Error ? err.message : String(err),
+        });
       });
-    });
+  };
+  // The loop lives in boot-provenance.ts behind an injected write, so a fake
+  // timer can prove the call ACTUALLY REPEATS -- and so the tested seam and the
+  // shipped behaviour are the same code, not two implementations that agree
+  // only by inspection. It also owns the unref() and the per-tick error
+  // swallow: a throw inside a timer callback would otherwise end the heartbeat
+  // after one Redis blip, which reads as a dead worker forever after.
+  startProvenanceRenewal(writeProvenance, provenanceRefreshIntervalMs());
 
   const shutdown = async (): Promise<void> => {
     await Promise.all(workers.map((w) => w.close()));
