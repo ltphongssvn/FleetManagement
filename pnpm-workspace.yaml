@@ -184,8 +184,18 @@ auditConfig:
     # would risk the Image pipeline for a code path we never execute. Revisit
     # and remove when next bumps its sharp range to admit >=0.35.0. (2026-07)
     - GHSA-f88m-g3jw-g9cj
-    # GHSA-4cwx-7wf7-3272 / GHSA-rgw5-rvv9-x895: undici 8.x cache-interceptor
-    # cross-user disclosure in SHARED-CACHE mode. Patched >=8.9.0.
+    # TWO DISTINCT ADVISORIES, listed together only because both are
+    # dev-only and neither can be cleared by the override alone.
+    #
+    # GHSA-4cwx-7wf7-3272 -- undici <8.9.0 cache-interceptor cross-user
+    # disclosure in SHARED-CACHE mode. Patched >=8.9.0.
+    # GHSA-rgw5-rvv9-x895 -- brace-expansion DoS via unbounded intermediate
+    # arrays, bypassing the CVE-2026-14257 mitigation. Patched >=5.0.9, and
+    # the floor at the brace-expansion override above already resolves that
+    # version. The ignore is still REQUIRED: removing it makes pnpm audit
+    # exit 1 (verified A/B on an otherwise identical tree), so the advisory
+    # is reported against the tree even with the patched version resolved.
+    # An earlier revision of this comment attributed BOTH ids to undici.
     #
     # DEV-ONLY, verified by evidence not intuition: `pnpm audit --prod` reports
     # undici nowhere. Every path in `pnpm why undici` terminates in
