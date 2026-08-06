@@ -16,10 +16,17 @@ import { useActionState, useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import { useRouter } from 'next/navigation';
 import { createOrder, type CreateOrderState } from './create-order.action';
+import { VnDateField } from './ui/VnDateField';
 import { ComboboxField } from './ui/ComboboxField';
 import { FieldError, type CreateOrderFormProps } from './CreateOrderForm';
 
 const slotCls = 'inline-block min-w-[9rem] align-baseline';
+// Date entry (t65, 2026): the three date slots are VnDateField, not native
+// date inputs. The native control draws mm/dd/yyyy and an English calendar
+// from the BROWSER locale and cannot be overridden from application code, so
+// it was the last English surface on this Vietnamese-only form. VnDateField
+// submits the SAME ISO yyyy-mm-dd through a hidden input under the same name,
+// so the create-order action and its z.iso.date() contract are untouched.
 const dateSlotCls = 'inline-block rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 align-baseline focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20';
 
 export function NaturalLanguageCreateForm({
@@ -93,7 +100,7 @@ export function NaturalLanguageCreateForm({
           live region on the board instead, which outlives the drawer. */}
       <div className='flex flex-wrap items-baseline gap-x-1 gap-y-2'>
         <span>{lead}</span>
-        <input id='plannedStartAt' name='plannedStartAt' type='date' required aria-label={vi ? 'Ngày điều xe' : 'Dispatch date'} className={dateSlotCls} />
+        <VnDateField id='plannedStartAt' name='plannedStartAt' required label={vi ? 'Ngày điều xe' : 'Dispatch date'} className={dateSlotCls} />
         <span>{vi ? 'hãy làm lệnh điều xe' : 'create a dispatch order for truck'}</span>
         <span className={slotCls}>
           <ComboboxField id='vehiclePlate' name='vehiclePlate' options={pairedVehicles} placeholder={ph('số xe', 'truck')} value={vehicleValue} onChange={onVehicleChange} />
@@ -112,7 +119,7 @@ export function NaturalLanguageCreateForm({
           <ComboboxField id='customer' name='customer' options={customers} placeholder={ph('khách hàng', 'customer')} submitValue='id' />
         </span>
         <span>{vi ? '. Tài xế tới kho nhận hàng ngày' : '. Pick up on'}</span>
-        <input id='pickupAt' name='pickupAt' type='date' required aria-label={vi ? 'Ngày nhận hàng' : 'Pickup date'} className={dateSlotCls} />
+        <VnDateField id='pickupAt' name='pickupAt' required label={vi ? 'Ngày nhận hàng' : 'Pickup date'} className={dateSlotCls} />
         <span>{vi ? 'tại' : 'at'}</span>
         {pickupRows.map((n) => {
           const whId = 'pickupWarehouse_' + String(n);
@@ -138,7 +145,7 @@ export function NaturalLanguageCreateForm({
           <span aria-hidden='true'>+</span> {vi ? 'thêm kho giao hàng' : 'add unloading warehouse'}
         </button>
         <span>{vi ? '. Khách cần nhận hàng ngày' : '. Customer delivery date'}</span>
-        <input id='deliveryAt' name='deliveryAt' type='date' required aria-label={vi ? 'Ngày giao hàng' : 'Delivery date'} className={dateSlotCls} />
+        <VnDateField id='deliveryAt' name='deliveryAt' required label={vi ? 'Ngày giao hàng' : 'Delivery date'} className={dateSlotCls} />
         <span>.</span>
       </div>
       <FieldError msg={errs.pickupWarehouses} />

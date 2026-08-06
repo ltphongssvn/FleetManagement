@@ -6,6 +6,14 @@
 // anchor. No client-side Excel library — all .xlsx generation happens
 // server-side via ExcelJS, keeping the browser bundle small.
 //
+// Date entry (t65, 2026): the two range fields are VnDateField, not native
+// date inputs. The native control renders mm/dd/yyyy and an English calendar
+// from the BROWSER locale, which application code cannot override, so it was
+// the one surface on this screen still showing English to a Vietnamese-only
+// dispatcher. VnDateField reports the SAME ISO yyyy-mm-dd string through
+// onValueChange that the native onChange produced, so the from/to state, the
+// both-ends-set rule below and the ExportDateRange contract are unchanged.
+//
 // Day-range (Feature 4, 2026): two optional VN-local date inputs (Từ ngày /
 // Đến ngày). When BOTH are set, the chosen inclusive [from, to] range is passed
 // to the action, which forwards it to the API to bound the export by planned
@@ -13,6 +21,7 @@
 'use client';
 import { useState, useTransition } from 'react';
 import { exportOrdersExcel } from './export-orders-excel.action';
+import { VnDateField } from './ui/VnDateField';
 import type { ExportDateRange } from '@fleet/sync-protocol';
 const MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 function triggerDownload(bodyBase64: string, filename: string): void {
@@ -58,22 +67,20 @@ export function ExportOrdersExcelButton(): React.ReactElement {
     <span className='inline-flex items-center gap-2'>
       <label className='flex items-center gap-1 text-sm text-slate-600'>
         <span>Từ ngày</span>
-        <input
-          type='date'
-          data-testid='export-range-from'
-          value={from}
-          onChange={(e) => { setFrom(e.target.value); }}
-          className='rounded border border-slate-300 px-2 py-1 text-sm'
+        <VnDateField
+          name='exportRangeFrom'
+          label='Từ ngày'
+          testId='export-range-from'
+          onValueChange={setFrom}
         />
       </label>
       <label className='flex items-center gap-1 text-sm text-slate-600'>
         <span>Đến ngày</span>
-        <input
-          type='date'
-          data-testid='export-range-to'
-          value={to}
-          onChange={(e) => { setTo(e.target.value); }}
-          className='rounded border border-slate-300 px-2 py-1 text-sm'
+        <VnDateField
+          name='exportRangeTo'
+          label='Đến ngày'
+          testId='export-range-to'
+          onValueChange={setTo}
         />
       </label>
       <button

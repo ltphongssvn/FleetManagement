@@ -67,21 +67,22 @@ import { type CreateOrderFormProps } from './CreateOrderForm';
 import { NaturalLanguageCreateForm } from './NaturalLanguageCreateForm';
 import { ExportOrdersExcelButton } from './ExportOrdersExcelButton';
 import { buildLookup, formatOrderRef } from './labels';
-import type { RoadRunStatusGroup } from '@fleet/sync-protocol';
+import { formatVnDate, type RoadRunStatusGroup } from '@fleet/sync-protocol';
 import type { DispatchBoardRoadRun } from './types';
 import { StopSlotHeaders, StopSlotCells, STOP_SLOT_COL_COUNT } from './board-stops';
 import { ManualNetWeightEditor } from './ManualNetWeightEditor';
 import { useRefetchOnFocus } from '../../lib/use-refetch-on-focus';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
-const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-US', {
-  dateStyle: 'medium',
-});
+// Ngay du kien is rendered by the shared @fleet/sync-protocol formatter.
+// The local Intl.DateTimeFormat this replaces was wrong twice over: it used
+// the en-US locale on a Vietnamese-only product (Jul 19, 2026 instead of
+// 19/07/2026), and it declared NO timeZone, so it formatted in whatever zone
+// the runtime happened to be in. On a UTC server an evening Vietnam instant
+// therefore rendered the PREVIOUS calendar day, and the RSC server render
+// could disagree with the client hydration render of the same row.
+// formatVnDate pins both axes in the contract and returns the same em-dash
+// fallback used by the other cells for a null or unparseable instant.
 const DASH = '—';
-function formatPlannedStart(iso: string | null): string {
-  if (iso === null) return DASH;
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? DASH : PLANNED_FORMATTER.format(d);
-}
 function formatCustomer(name: string | null): string {
   return name === null || name === '' ? DASH : name;
 }
@@ -432,7 +433,7 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                   <td className='px-3 py-2' data-testid={'dispatch-board-cargo-' + formatOrderRef(r.transportOrderRefs)}>{formatCustomer(r.cargoName)}</td>
                   <td className='px-3 py-2'>{resolveLabel(r.driverName, r.assignedOperatorId, driverLookup)}</td>
                   <td className='px-3 py-2'>{resolveLabel(r.vehiclePlate, r.assignedAssetId, vehicleLookup)}</td>
-                  <td className='px-3 py-2'>{formatPlannedStart(r.plannedStartAt)}</td>
+                  <td className='px-3 py-2'>{formatVnDate(r.plannedStartAt)}</td>
                   <td className='px-3 py-2'>{r.stopCount}</td>
                   <td className='px-3 py-2 tabular-nums' data-testid={'dispatch-board-weightdiff-' + formatOrderRef(r.transportOrderRefs)}>{formatWeightDiff(r.weightDiffKg)}</td>
                   <StopSlotCells primaryRef={formatOrderRef(r.transportOrderRefs)} stops={r.stops} onEnterNetWeight={(manifestId) => { setEditingManifestId(manifestId); }} />

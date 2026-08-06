@@ -287,3 +287,47 @@ export {
   type DriverDbStatusFacts,
   classifyDriverDbStatus,
 } from './co-so-du-lieu-contract.js';
+
+// Vietnamese date PRESENTATION contract (2026). One locale, one timezone, one
+// set of Intl options and one pair of Excel numFmt tokens for every surface
+// that renders a date to a human. Machine keys (en-CA ISO grouping keys in
+// owner-metrics / trip-history-grouping) are deliberately out of scope.
+export {
+  VN_LOCALE,
+  VN_TIME_ZONE,
+  VN_DATE_FALLBACK,
+  VN_DATE_STYLES,
+  vnDateStyleSchema,
+  type VnDateStyle,
+  VN_DATE_INTL_OPTIONS,
+  VN_LONG_DAY_WORD,
+  VN_LONG_MONTH_WORD,
+  VN_LONG_YEAR_WORD,
+  VN_EXCEL_DATE_NUMFMT,
+  VN_EXCEL_DATETIME_NUMFMT,
+  FORBIDDEN_UI_DATE_LOCALES,
+  type ForbiddenUiDateLocale,
+  isVnDateString,
+  isVnDateTimeString,
+  vnDateStringSchema,
+  type VnDateString,
+  vnDateTimeStringSchema,
+  type VnDateTimeString,
+} from './vn-date-format-contract.js';
+
+// The formatters themselves. Every human-facing date in ops-web, api,
+// driver-app and owner-app must come from these three functions rather than a
+// locally constructed Intl.DateTimeFormat, so locale, timezone and field order
+// can never drift apart again.
+export {
+  type VnDateInput,
+  formatVnDate,
+  formatVnDateTime,
+  formatVnDateLong,
+  // Field bridge for the app-owned Vietnamese date input that replaces the
+  // native control, whose displayed format is browser-locale-owned and not
+  // overridable from application code. The ISO value these produce is what
+  // the existing wire schemas already expect, so no server contract moves.
+  parseVnDateToIso,
+  isoToVnDate,
+} from './vn-date-format.js';

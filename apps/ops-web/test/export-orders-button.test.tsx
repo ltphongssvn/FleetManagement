@@ -73,8 +73,16 @@ describe('@fleet/ops-web - ExportOrdersExcelButton', () => {
     render(<ExportOrdersExcelButton />);
     const from = screen.getByTestId('export-range-from');
     const to = screen.getByTestId('export-range-to');
-    await userEvent.type(from, '2026-05-01');
-    await userEvent.type(to, '2026-05-31');
+    // The dispatcher types VIETNAMESE (dd/mm/yyyy) into these fields now: they
+    // are VnDateField, not native date inputs, because the native control
+    // renders mm/dd/yyyy and an English calendar from the browser locale and
+    // cannot be overridden from application code. The assertion below is
+    // deliberately unchanged: the action must still receive ISO yyyy-mm-dd, so
+    // this test now proves the conversion end to end rather than just passing
+    // the same string through. Previously it typed the ISO text directly and
+    // therefore could not have caught a broken conversion at all.
+    await userEvent.type(from, '01/05/2026');
+    await userEvent.type(to, '31/05/2026');
     await userEvent.click(screen.getByRole('button', { name: /xu.t excel/i }));
     await waitFor(() => {
       expect(exportOrdersExcel).toHaveBeenCalledWith({ from: '2026-05-01', to: '2026-05-31' });

@@ -24,7 +24,11 @@
 // supersedes it. The submit button is now the sole footer action.
 //
 // T8 (2026): date-only dispatcher inputs. Ngày điều xe / Ngày nhận hàng /
-// Ngày giao hàng render as type='date' (HTML5 date picker, no time). The
+// Ngày giao hàng render as VnDateField (t65, 2026), NOT the HTML5 date picker.
+// The native control draws mm/dd/yyyy and an English Su Mo Tu calendar from
+// the BROWSER locale, which no lang attribute, stylesheet or JS hook can
+// override, so it could never be Vietnamese. VnDateField shows dd/mm/yyyy and
+// submits the same ISO value through a hidden input under the same name. The
 // underlying server action's Zod contract enforces YYYY-MM-DD via
 // z.iso.date(); the time component is promoted to UTC midnight only when
 // the action forwards to the api, so the api wire contract is unchanged.
@@ -33,6 +37,7 @@ import { useActionState, useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import { useRouter } from 'next/navigation';
 import { createOrder, type CreateOrderState } from './create-order.action';
+import { VnDateField } from './ui/VnDateField';
 import { ComboboxField } from './ui/ComboboxField';
 import { t, type Locale } from '@/lib/i18n';
 export interface DriverOption { readonly id: string; readonly label: string }
@@ -161,7 +166,7 @@ export function CreateOrderForm({
           </div>
           <div>
             <label htmlFor='plannedStartAt' className={labelCls}>{tx('orderForm.orderDate')}</label>
-            <input id='plannedStartAt' name='plannedStartAt' type='date' required className={inputMt} />
+            <VnDateField id='plannedStartAt' name='plannedStartAt' required label={tx('orderForm.orderDate')} className={inputMt} />
           </div>
         </div>
       </div>
@@ -218,7 +223,7 @@ export function CreateOrderForm({
         <p className='mb-3 text-xs text-slate-500'>{tx('orderForm.maxPickupsHint')}</p>
         <div className='mb-4'>
           <label htmlFor='pickupAt' className={labelCls}>{tx('orderForm.pickupDate')}</label>
-          <input id='pickupAt' name='pickupAt' type='date' required className={inputMt} />
+          <VnDateField id='pickupAt' name='pickupAt' required label={tx('orderForm.pickupDate')} className={inputMt} />
           <FieldError msg={errs.pickupAt} />
         </div>
         <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
@@ -249,7 +254,7 @@ export function CreateOrderForm({
         <p className='mb-3 text-xs text-slate-500'>{tx('orderForm.deliveryHint')}</p>
         <div className='mb-4'>
           <label htmlFor='deliveryAt' className={labelCls}>{tx('orderForm.deliveryDate')}</label>
-          <input id='deliveryAt' name='deliveryAt' type='date' required className={inputMt} />
+          <VnDateField id='deliveryAt' name='deliveryAt' required label={tx('orderForm.deliveryDate')} className={inputMt} />
           <FieldError msg={errs.deliveryAt} />
         </div>
         <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>

@@ -11,16 +11,17 @@
 // from arrivedAt/departedAt (2026 DSD/timeline UX: confirm-then-record, show
 // the actual time when done). The stops list has labelled columns.
 import type { JSX } from 'react';
+import { formatVnDate } from '@fleet/sync-protocol';
 import type { ListAssignedRow, ListAssignedRowStop } from './types';
 function dash(value: string | null): string {
   return value !== null && value !== '' ? value : '—';
 }
-function formatDateTime(iso: string | null): string {
-  if (iso === null) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' });
-}
+// Dates come from the shared @fleet/sync-protocol formatter. The local
+// formatDateTime this replaces was misnamed (it never rendered a time) and
+// pinned the en-US locale, so Ngày tạo lệnh and every stop Ngày dự kiến read
+// May 30, 2026 on a Vietnamese-only detail view. formatVnDate keeps the same
+// Asia/Ho_Chi_Minh pinning and the same em-dash fallback for a null or
+// unparseable instant, so only the rendered shape changes.
 // T8: per-type slot labels mirroring the create form's fixed slots.
 function slotLabelsFor(stops: readonly ListAssignedRowStop[]): readonly string[] {
   // 2026: when there is exactly one delivery stop on this order, render the
@@ -45,7 +46,7 @@ function slotLabelsFor(stops: readonly ListAssignedRowStop[]): readonly string[]
 function stopStatusOf(s: ListAssignedRowStop): string {
   const done = s.departedAt ?? s.arrivedAt;
   if (done === null) return 'Chưa tới';
-  return 'Đã hoàn thành ' + formatDateTime(done);
+  return 'Đã hoàn thành ' + formatVnDate(done);
 }
 export interface OrderReviewProps {
   readonly order: ListAssignedRow;
@@ -78,7 +79,7 @@ export function OrderReview({ order }: OrderReviewProps): JSX.Element {
         </div>
         <div>
           <dt className='font-medium text-slate-500'>Ngày tạo lệnh</dt>
-          <dd data-testid='order-review-created-at' className='mt-1 text-slate-900'>{formatDateTime(order.createdAt)}</dd>
+          <dd data-testid='order-review-created-at' className='mt-1 text-slate-900'>{formatVnDate(order.createdAt)}</dd>
         </div>
         <div>
           <dt className='font-medium text-slate-500'>Trạng thái</dt>
@@ -98,7 +99,7 @@ export function OrderReview({ order }: OrderReviewProps): JSX.Element {
             <li key={s.sequence} data-testid='order-review-stop' className='grid grid-cols-12 items-center gap-2 px-4 py-3 text-sm'>
               <span className='col-span-4 font-medium text-slate-700'>{slotLabels[i]}</span>
               <span data-testid='order-review-stop-warehouse' className='col-span-4 text-slate-700'>{dash(s.warehouseName)}</span>
-              <span className='col-span-2 text-slate-500'>{formatDateTime(s.plannedAt)}</span>
+              <span className='col-span-2 text-slate-500'>{formatVnDate(s.plannedAt)}</span>
               <span data-testid='order-review-stop-status' className='col-span-2 text-slate-700'>{stopStatusOf(s)}</span>
             </li>
           ))}

@@ -17,7 +17,7 @@
 // no node (no em-dash leak). Outside-in TDD: board-stops-warehouse-name.test.tsx.
 import type { JSX } from 'react';
 import type { DispatchBoardStop } from './types';
-import type { ExtractionFailureReason } from '@fleet/sync-protocol';
+import { formatVnDate, type ExtractionFailureReason } from '@fleet/sync-protocol';
 
 export const PICKUP_SLOTS = [1, 2, 3, 4] as const;
 export const DELIVERY_SLOTS = [1] as const;
@@ -35,19 +35,19 @@ const REASON_VI: Record<ExtractionFailureReason, string> = {
   non_standard_format: 'phiếu không chuẩn',
 };
 
-const STATUS_FORMATTER = new Intl.DateTimeFormat('en-US', {
-  timeZone: 'Asia/Ho_Chi_Minh',
-  year: 'numeric',
-  month: 'short',
-  day: 'numeric',
-});
+// The completion date comes from the shared @fleet/sync-protocol formatter.
+// The local formatter this replaces already pinned Asia/Ho_Chi_Minh, so the
+// day boundary was correct here; what was wrong was the en-US locale with
+// month: short, which printed Jun 1, 2026 into a Vietnamese-only board.
+// Routing through formatVnDate also removes the near-miss risk of one
+// surface drifting to a different field width than the others.
 
 export function stopStatusOf(s: DispatchBoardStop): string {
   const done = s.departedAt ?? s.arrivedAt;
   if (done === null) return 'Chưa tới';
   const d = new Date(done);
   if (Number.isNaN(d.getTime())) return 'Chưa tới';
-  return 'Đã hoàn thành ' + STATUS_FORMATTER.format(d);
+  return 'Đã hoàn thành ' + formatVnDate(d);
 }
 
 export function stopForSlot(

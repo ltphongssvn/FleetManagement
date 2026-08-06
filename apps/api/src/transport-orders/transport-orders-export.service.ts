@@ -56,7 +56,7 @@ import { cargoType, customer, driver, vehicle } from '../database/schema/referen
 import { roadRunTransportOrder, stop, transportOrder } from '../database/schema/transport.js';
 import { manifest, uploadSession } from '../database/schema/manifest.js';
 import { warehouse } from '../database/schema/reference.js';
-import { netWeightKgSchema, computeWeightDiffKg, LENH_DIEU_XE_EXPORT_HEADERS, EXPORT_PICKUP_SLOTS, EXPORT_DELIVERY_SLOTS, type ExportDateRange, type WeightDiffStop } from '@fleet/sync-protocol';
+import { netWeightKgSchema, computeWeightDiffKg, formatVnDate, VN_EXCEL_DATE_NUMFMT, LENH_DIEU_XE_EXPORT_HEADERS, EXPORT_PICKUP_SLOTS, EXPORT_DELIVERY_SLOTS, type ExportDateRange, type WeightDiffStop } from '@fleet/sync-protocol';
 import { transportOrderExportLog } from '../database/schema/transport-order-export-log.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 export type ExportTrigger = 'manual' | 'login' | 'logout';
@@ -96,11 +96,34 @@ interface ExportRow {
 const PICKUP_SLOTS = EXPORT_PICKUP_SLOTS;
 const DELIVERY_SLOTS = EXPORT_DELIVERY_SLOTS;
 const DASH = '—';
-const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Asia/Ho_Chi_Minh',
-  dateStyle: 'medium',
-  timeStyle: 'short',
-});
+// Ngay du kien cell value. The formatter this replaces produced en-GB TEXT
+// (24 May 2026, 15:00), which was wrong three ways: an English month in a
+// Vietnamese-only export, a TIME in a column the board renders date-only,
+// and above all a STRING where the owner needs a sortable, filterable,
+// date-mathable value. A text cell defeats the purpose of exporting data.
+//
+// The value written is a Date pinned to UTC MIDNIGHT of the Vietnamese
+// calendar day. That indirection is required: ExcelJS derives the workbook
+// serial number from the value UTC parts, so handing it the raw instant
+// would put an evening Vietnam departure (17:30Z) on the PREVIOUS day in
+// the sheet while the dispatch board shows the next one -- two documents
+// about the same trip disagreeing by a day. Resolving the VN wall-clock
+// date through the shared formatter first, then rebuilding it as a UTC
+// midnight Date, makes the sheet and the board agree by construction.
+//
+// Display is a COLUMN numFmt applied below, not a per-cell format, so a row
+// appended by any future code path inherits it and cannot drift.
+function plannedDateCell(instant: Date | null): Date | string {
+  if (instant === null) return DASH;
+  const vn = formatVnDate(instant);
+  if (vn === DASH) return DASH;
+  const parts = vn.split('/');
+  const day = Number(parts[0]);
+  const month = Number(parts[1]);
+  const year = Number(parts[2]);
+  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) return DASH;
+  return new Date(Date.UTC(year, month - 1, day));
+}
 // Mirrors board-stops.tsx stopForSlot: nth stop of a type, 1-based slot index.
 function stopForSlot(stops: readonly ExportStop[], stopType: 'pickup' | 'delivery', slotIndex: number): ExportStop | undefined {
   const ofType = stops
@@ -369,7 +392,7 @@ export class TransportOrdersExportService {
     ws.getRow(1).font = { bold: true };
     for (const r of rows) {
       const primaryRef = r.transportOrderRefs[0] ?? DASH;
-      const planned = r.plannedStartAt ? PLANNED_FORMATTER.format(r.plannedStartAt) : DASH;
+      const planned = plannedDateCell(r.plannedStartAt);
       ws.addRow([
         primaryRef,
         statusCell(r.state),
@@ -389,7 +412,17 @@ export class TransportOrdersExportService {
       ]);
     }
     ws.columns.forEach((c) => { c.width = 22; });
-    const ab = await wb.xlsx.writeBuffer();
+    // Column-level date mask for Ngay du kien. Excel numFmt tokens are a
+    // separate, locale-independent, lower-case grammar from the Intl options
+    // the UI uses, which is why the SSOT exports both spellings of the same
+    // shape. Styling the COLUMN rather than each cell means every existing
+    // and future row in it is covered.
+    const plannedColumn = ws.getColumn(LENH_DIEU_XE_EXPORT_HEADERS.indexOf('Ngày dự kiến') + 1);
+    plannedColumn.numFmt = VN_EXCEL_DATE_NUMFMT;
+    // useStyles must be explicit: recent ExcelJS versions default it off when
+    // writing a buffer, and the numFmt above would be silently dropped, so the
+    // owner would open real Date cells rendered as bare serial numbers.
+    const ab = await wb.xlsx.writeBuffer({ useStyles: true });
     return Buffer.from(ab as ArrayBuffer);
   }
 }
