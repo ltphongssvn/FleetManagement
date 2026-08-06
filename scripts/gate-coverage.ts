@@ -56,7 +56,46 @@ export const GATE_COVERAGE_EXIT = {
   ok: 0,
   coverage: 1,
   merge: 3,
+  runtime: 4,
 } as const;
+/** Whether this sweep needs a container runtime at all.
+ *
+ *  apps/api test:coverage starts a Postgres testcontainer, so the answer is
+ *  yes for the recursive gate. It is a function rather than a constant because
+ *  the fact belongs to the sweep's composition, not to this module. */
+export function needsContainerRuntime(): boolean {
+  return true;
+}
+/** The probe. `info` answers only when the daemon is reachable and costs no
+ *  image pull, no container and no network -- `run` would pay part of the very
+ *  cost the probe exists to avoid. */
+export function containerRuntimeProbeArgs(): readonly string[] {
+  return ['docker', 'info'];
+}
+/** Actionable guidance, not a stack trace.
+ *
+ *  With Docker Desktop down the gate previously ran eleven workspaces to
+ *  completion -- about four minutes and some 2500 passing tests -- then died at
+ *  the twelfth with `spawnSync docker EIO` followed by ~200 lines of 0%
+ *  threshold errors naming every file in apps/api and none of the cause.
+ *
+ *  The remedy names PowerShell deliberately: WSL interop is disabled on this
+ *  host, so `docker desktop start` is not reachable from the shell running this
+ *  gate, and advice that omits that sends the operator in a circle. */
+export function containerRuntimeUnavailableMessage(): string {
+  return [
+    '[gate:coverage] no container runtime -- stopping before the sweep.',
+    '',
+    'apps/api test:coverage starts a Postgres container via Testcontainers,',
+    'recursive run cannot pass without a reachable Docker daemon.',
+    '',
+    'Remedy (WSL interop is disabled here, so run this from PowerShell):',
+    '  docker desktop start; Start-Sleep -Seconds 45; docker desktop status',
+    '',
+    'Then re-run the push. Nothing was skipped for any other reason: the',
+    'eleven non-api workspaces were not started rather than left broken.',
+  ].join(String.fromCharCode(10));
+}
 export interface GateStepResults {
   coverage: number;
   merge: number;
@@ -83,6 +122,19 @@ function replay(logPath: string, label: string): void {
   }
 }
 function main(): number {
+  // Preflight first, before the log fd and before the lock: a runtime that is
+  // absent now will still be absent in four minutes, and discovering it at the
+  // twelfth workspace costs the eleven that had nothing wrong with them.
+  if (needsContainerRuntime()) {
+    const [probeCmd, ...probeRest] = containerRuntimeProbeArgs();
+    const probe = spawnSync(probeCmd ?? 'docker', probeRest, { stdio: 'ignore' });
+    // Fail closed on any non-zero answer, including a spawn error: an
+    // unreadable probe is not evidence that the daemon is up.
+    if (probe.error !== undefined || probe.status !== 0) {
+      process.stderr.write(containerRuntimeUnavailableMessage() + NL);
+      return GATE_COVERAGE_EXIT.runtime;
+    }
+  }
   const cacheDir = join(homedir(), '.cache', 'fleetmanagement');
   mkdirSync(cacheDir, { recursive: true });
   const lockPath = join(cacheDir, 'gate.lock');
