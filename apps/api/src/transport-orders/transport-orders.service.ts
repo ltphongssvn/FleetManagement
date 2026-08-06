@@ -218,6 +218,7 @@ export class TransportOrdersService {
     const stopRows = await this.db
       .select({
         transportOrderId: stop.transportOrderId,
+        stopId: stop.stopId,
         sequence: stop.sequence,
         stopType: stop.stopType,
         plannedAt: stop.plannedAt,
@@ -232,6 +233,7 @@ export class TransportOrdersService {
         eq(stop.transportOrderId, head.transportOrderId),
       ))
       .orderBy(asc(stop.sequence));
+    const proofStopIds = await this.computeStopsWithProof(op, [head.transportOrderId]);
     const stops = stopRows.map((s) => ({
       sequence: s.sequence,
       stopType: s.stopType,
@@ -239,6 +241,7 @@ export class TransportOrdersService {
       warehouseName: s.warehouseName,
       arrivedAt: s.arrivedAt ? s.arrivedAt.toISOString() : null,
       departedAt: s.departedAt ? s.departedAt.toISOString() : null,
+      hasManifest: proofStopIds.has(s.stopId),
     }));
     const pickupName = stops.find((x) => x.stopType.toLowerCase() === 'pickup')?.warehouseName ?? null;
     const drops = stops.filter((x) => {
@@ -299,6 +302,31 @@ export class TransportOrdersService {
     }
     return result;
   }
+  // Per-stop committed-proof signal for the delivery-capture gate. Returns
+  // the set of stopIds with at least one manifest in a photo-received state
+  // (same threshold the cancel-lock trusts). ONE grouped query for N orders,
+  // mirroring computeCancelEligibility. A stop absent from the set has no
+  // committed proof photo yet.
+  private async computeStopsWithProof(
+    op: OperatorContext,
+    transportOrderIds: readonly string[],
+  ): Promise<Set<string>> {
+    const result = new Set<string>();
+    if (transportOrderIds.length === 0) return result;
+    const rows = await this.db
+      .select({ stopId: manifest.stopId })
+      .from(manifest)
+      .where(and(
+        eq(manifest.companyId, op.companyId),
+        inArray(manifest.transportOrderId, [...transportOrderIds]),
+        inArray(manifest.state, [...MANIFEST_PHOTO_RECEIVED_STATES]),
+      ))
+      .groupBy(manifest.stopId);
+    for (const r of rows) {
+      if (r.stopId !== null) result.add(r.stopId);
+    }
+    return result;
+  }
   // Shared driver-row builder: the ONE query + enrichment behind listAssigned,
   // listCompleted, findById and tripHistory. Always operator-scoped +
   // company-scoped; the caller narrows by state / single-id / search, chooses
@@ -341,6 +369,7 @@ export class TransportOrdersService {
       : await this.db
           .select({
             transportOrderId: stop.transportOrderId,
+            stopId: stop.stopId,
             sequence: stop.sequence,
             stopType: stop.stopType,
             plannedAt: stop.plannedAt,
@@ -356,6 +385,7 @@ export class TransportOrdersService {
           ))
           .orderBy(asc(stop.sequence));
     interface StopRow {
+      stopId: string;
       sequence: number;
       stopType: string;
       plannedAt: Date | null;
@@ -367,6 +397,7 @@ export class TransportOrdersService {
     for (const sr of stopRows) {
       const list = stopsByOrder.get(sr.transportOrderId) ?? [];
       list.push({
+        stopId: sr.stopId,
         sequence: sr.sequence,
         stopType: sr.stopType,
         plannedAt: sr.plannedAt,
@@ -389,6 +420,7 @@ export class TransportOrdersService {
       return last?.warehouseName ?? null;
     };
     const cancelMap = await this.computeCancelEligibility(op, transportOrderIds);
+    const proofStopIds = await this.computeStopsWithProof(op, transportOrderIds);
     return rows.map((r) => {
       const stops = stopsByOrder.get(r.transportOrderId) ?? [];
       return {
@@ -416,6 +448,7 @@ export class TransportOrdersService {
           warehouseName: s.warehouseName,
           arrivedAt: s.arrivedAt ? s.arrivedAt.toISOString() : null,
           departedAt: s.departedAt ? s.departedAt.toISOString() : null,
+          hasManifest: proofStopIds.has(s.stopId),
         })),
       };
     });

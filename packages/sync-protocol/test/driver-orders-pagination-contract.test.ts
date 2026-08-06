@@ -50,6 +50,7 @@ const row: ListAssignedRow = {
       warehouseName: 'Chơn Chính',
       arrivedAt: null,
       departedAt: null,
+      hasManifest: false,
     },
   ],
 };

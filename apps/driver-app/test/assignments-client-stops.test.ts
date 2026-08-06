@@ -1,11 +1,12 @@
 // apps/driver-app/test/assignments-client-stops.test.ts
-// outside-in strict TDD RED: driver-app parity with the Lệnh điều xe - Tải thùng
+// outside-in strict TDD: driver-app parity with the Lệnh điều xe - Tải thùng
 // dispatch workflow. The form creates 1..N pickup warehouses + a delivery
-// (multi-stop). The API ListAssignedRow already carries the full stops[] array
-// (sequence/stopType/plannedAt/warehouseName/arrivedAt/departedAt). The mobile
-// AssignmentsClient.parseRow must preserve every stop in sequence, not collapse
-// to a single pickupName/deliveryName. Business invariant: 1-1 match between
-// driver-app and the dispatch form workflow.
+// (multi-stop). The API ListAssignedRow carries the full stops[] array
+// (sequence/stopType/plannedAt/warehouseName/arrivedAt/departedAt/hasManifest).
+// The mobile AssignmentsClient.parseRow must preserve every stop in sequence,
+// not collapse to a single pickupName/deliveryName. hasManifest is the per-stop
+// committed-proof signal the delivery-capture gate consumes; it defaults false
+// for pre-gate payloads (back-compat).
 import { describe, it, expect, vi } from 'vitest';
 import { AssignmentsClient } from '../src/assignments/assignments-client.js';
 const multiStopRow = {
@@ -14,10 +15,10 @@ const multiStopRow = {
   plate: '62H-99999', orderRef: 'XTT.05-007', customerName: 'ABC',
   pickupName: 'Kho nhận 1', deliveryName: 'Kho giao',
   stops: [
-    { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-10T08:00:00Z', warehouseName: 'Kho nhận 1', arrivedAt: null, departedAt: null },
-    { sequence: 2, stopType: 'pickup', plannedAt: '2026-05-10T09:00:00Z', warehouseName: 'Kho nhận 2', arrivedAt: null, departedAt: null },
-    { sequence: 3, stopType: 'pickup', plannedAt: '2026-05-10T10:00:00Z', warehouseName: 'Kho nhận 3', arrivedAt: null, departedAt: null },
-    { sequence: 4, stopType: 'delivery', plannedAt: '2026-05-10T14:00:00Z', warehouseName: 'Kho giao', arrivedAt: null, departedAt: null },
+    { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-10T08:00:00Z', warehouseName: 'Kho nhận 1', arrivedAt: null, departedAt: null, hasManifest: true },
+    { sequence: 2, stopType: 'pickup', plannedAt: '2026-05-10T09:00:00Z', warehouseName: 'Kho nhận 2', arrivedAt: null, departedAt: null, hasManifest: false },
+    { sequence: 3, stopType: 'pickup', plannedAt: '2026-05-10T10:00:00Z', warehouseName: 'Kho nhận 3', arrivedAt: null, departedAt: null, hasManifest: false },
+    { sequence: 4, stopType: 'delivery', plannedAt: '2026-05-10T14:00:00Z', warehouseName: 'Kho giao', arrivedAt: null, departedAt: null, hasManifest: false },
   ],
 };
 function clientFor(payload: unknown): AssignmentsClient {
@@ -38,6 +39,19 @@ describe('AssignmentsClient multi-stop parity (Lệnh điều xe workflow)', () 
     expect(s0?.plannedAt).toBe('2026-05-10T08:00:00Z');
     expect(s0?.arrivedAt).toBe(null);
     expect(s0?.departedAt).toBe(null);
+  });
+  it('preserves per-stop hasManifest committed-proof signal', async () => {
+    const rows = await clientFor({ rows: [multiStopRow] }).list();
+    expect(rows[0]?.stops.map((s) => s.hasManifest)).toEqual([true, false, false, false]);
+  });
+  it('defaults hasManifest to false when the field is absent (back-compat)', async () => {
+    const legacyStop = { sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: null, arrivedAt: null, departedAt: null };
+    const rows = await clientFor({ rows: [{ ...multiStopRow, stops: [legacyStop] }] }).list();
+    expect(rows[0]?.stops[0]?.hasManifest).toBe(false);
+  });
+  it('rejects when a stop hasManifest is present but not a boolean', async () => {
+    const bad = { ...multiStopRow, stops: [{ sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: null, arrivedAt: null, departedAt: null, hasManifest: 'yes' }] };
+    await expect(clientFor({ rows: [bad] }).list()).rejects.toThrow(/hasManifest/);
   });
   it('defaults stops to empty array when omitted (backward-compatible)', async () => {
     const legacy = { transportOrderId: 'to', roadRunId: 'r', state: 's', plannedStartAt: null, startedAt: null, completedAt: null, plate: null, orderRef: null, customerName: null, pickupName: null, deliveryName: null };

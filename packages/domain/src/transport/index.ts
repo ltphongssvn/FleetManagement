@@ -30,3 +30,15 @@ export {
   type CancelOrderInput,
   CancelOrderInputSchema,
 } from './cancel-order-input.js';
+export {
+  type StopRole,
+  StopRoleSchema,
+  STOP_ROLES,
+  classifyStopRole,
+} from './stop-role.js';
+export {
+  evaluateDeliveryGate,
+  type DeliveryGateStop,
+  type DeliveryGateResult,
+  type DeliveryGateBlockedReason,
+} from './delivery-capture-gate.js';

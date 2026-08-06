@@ -48,6 +48,14 @@ export {
   CANCEL_REASONS,
   type CancelOrderInput,
   CancelOrderInputSchema,
+  type StopRole,
+  StopRoleSchema,
+  STOP_ROLES,
+  classifyStopRole,
+  evaluateDeliveryGate,
+  type DeliveryGateStop,
+  type DeliveryGateResult,
+  type DeliveryGateBlockedReason,
 } from './transport/index.js';
 export {
   UPLOAD_SESSION_STATES,

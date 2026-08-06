@@ -15,17 +15,30 @@
 // warehouse). Passing the descriptor is required: a bare /capture link renders
 // the invalid_stop screen.
 //
+// Delivery-capture gate (2026 phase-gate invariant), enforced as UX in TWO ways:
+//   - PREVENTION (describeCaptureLock, at render): a delivery stop whose pickups
+//     are not all photographed shows a visibly LOCKED button with a short
+//     Vietnamese guidance caption, so the driver is taught the correct procedure
+//     BEFORE tapping (2026 mobile-UX: prevent the error, do not just scold it).
+//   - FALLBACK (decideCapturePress, on tap): if tapped anyway, a Vietnamese
+//     educational Alert explains what to do and which pickups remain.
+// Both consult the shared @fleet/domain rule; the 'remaining' auto-advance count
+// is sourced from hasManifest (committed-proof truth), not departedAt. The
+// server commit endpoint re-enforces the same rule, so this is the UX layer of a
+// one-rule / two-surface enforcement. Pickups are order-independent.
+//
 // Server state — the list and the lifecycle transitions — is owned by the
 // useAssignments TanStack Query hook: useQuery for the list, useMutation for
 // accept/start/complete with automatic list invalidation on success. This
 // screen no longer runs its own useEffect/useState fetch or manual refetch.
 import type { JSX } from 'react';
 import { useRouter, type Href } from 'expo-router';
-import { ActivityIndicator, FlatList, Pressable, Text, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, Text, View, StyleSheet } from 'react-native';
 import { useAssignments } from '../../src/assignments/use-assignments.js';
 import { presentAssignmentStops } from '../../src/assignments/assignment-stops-presenter.js';
 import { roadRunStateLabelVi } from '../../src/assignments/road-run-state-label.js';
 import { captureHrefForStop } from '../../src/assignments/capture-href.js';
+import { decideCapturePress, describeCaptureLock } from '../../src/assignments/card-capture-press.js';
 import { presentApiError } from '../../src/errors/present-api-error.js';
 import { formatVnDateUS } from '../../src/config/vn-locale.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
@@ -87,22 +100,31 @@ export default function Assignments(): JSX.Element {
               {item.customerName ? <Text style={styles.detail}>Khách hàng: {item.customerName}</Text> : null}
               {item.plate ? <Text style={styles.detail}>Số xe: {item.plate}</Text> : null}
               {/* Each stop is a capture (proof) button: tapping opens the
-                  per-warehouse manifest-photo screen for that exact stop. */}
+                  per-warehouse manifest-photo screen for that exact stop. A
+                  delivery whose pickups are incomplete renders LOCKED with a
+                  guidance caption (prevention); tapping it anyway shows the
+                  educational Alert (fallback). */}
               {(() => {
                 const stops = presentAssignmentStops(item.stops);
-                // driver-min-interaction: photos still to capture BEFORE the one
-                // the driver is about to take; rides the href so capture can
-                // auto-advance the lifecycle (photo-implies-progress).
-                const remaining = stops.filter((s) => !s.done).length;
                 return stops.map((st) => {
                 const captureLabel =
                   st.stopKind === 'loading'
                     ? 'Chụp ảnh phiếu nhận hàng - ' + st.label
                     : 'Chụp ảnh phiếu giao hàng - ' + st.label;
+                // Render-time lock: is this stop's capture currently gated?
+                const lock = describeCaptureLock(item.stops, st.sequence);
                 return (
                   <Pressable
                     key={st.key}
                     onPress={() => {
+                      // Route the tap through the shared delivery-capture gate.
+                      // The decision sources 'remaining' from hasManifest and
+                      // blocks a premature delivery capture with a VN Alert.
+                      const decision = decideCapturePress(item.stops, st.sequence);
+                      if (decision.action === 'block') {
+                        Alert.alert(decision.alertTitle, decision.alertMessage);
+                        return;
+                      }
                       router.push(
                         captureHrefForStop(item.transportOrderId, {
                           sequence: st.sequence,
@@ -110,19 +132,26 @@ export default function Assignments(): JSX.Element {
                           stopIndex: st.stopIndex,
                           roadRunId: item.roadRunId,
                           runState: item.state,
-                          remaining,
+                          remaining: decision.remainingWithoutProof,
                         }) as Href,
                       );
                     }}
                     accessibilityRole={'button'}
                     accessibilityLabel={captureLabel}
-                    style={({ pressed }) => [styles.stopButton, pressed && styles.stopButtonPressed]}
+                    accessibilityState={{ disabled: lock.locked }}
+                    style={({ pressed }) => [
+                      styles.stopButton,
+                      lock.locked && styles.stopButtonLocked,
+                      pressed && styles.stopButtonPressed,
+                    ]}
                   >
                     <Text style={styles.stopButtonText}>
-                      {st.label}: {st.warehouseName}{st.done ? ' ✓' : ''}
+                      {st.label}: {st.warehouseName}{st.done ? ' ✓' : ''}{lock.locked ? ' 🔒' : ''}
                     </Text>
-                    <Text style={styles.stopButtonHint}>
-                      {st.stopKind === 'loading' ? 'Chụp ảnh phiếu nhận hàng' : 'Chụp ảnh phiếu giao hàng'}
+                    <Text style={lock.locked ? styles.stopButtonLockHint : styles.stopButtonHint}>
+                      {lock.locked
+                        ? lock.hint
+                        : st.stopKind === 'loading' ? 'Chụp ảnh phiếu nhận hàng' : 'Chụp ảnh phiếu giao hàng'}
                     </Text>
                   </Pressable>
                 );
@@ -184,9 +213,18 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     marginTop: spacing.sm,
   },
+  // Locked delivery capture: dimmed + amber-bordered so it reads as
+  // not-yet-available rather than broken. The caption explains why.
+  stopButtonLocked: {
+    backgroundColor: colors.amber50,
+    borderColor: colors.amber500,
+    opacity: 0.85,
+  },
   stopButtonPressed: { backgroundColor: colors.slate200 },
   stopButtonText: { ...typography.caption, color: colors.slate900, fontWeight: '600' },
   stopButtonHint: { ...typography.caption, color: colors.indigo600, marginTop: 2 },
+  // Guidance caption under a locked button (amber to match the locked state).
+  stopButtonLockHint: { ...typography.caption, color: colors.amber700, marginTop: 2, fontWeight: '600' },
   actionBtn: {
     backgroundColor: colors.indigo600,
     borderRadius: radius.md,

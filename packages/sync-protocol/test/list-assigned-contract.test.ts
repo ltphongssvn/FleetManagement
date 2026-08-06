@@ -53,6 +53,16 @@ describe('@fleet/sync-protocol - ListAssignedRowStopSchema', () => {
     const r = ListAssignedRowStopSchema.safeParse(stop);
     expect(r.success).toBe(true);
   });
+  it('defaults hasManifest to false when absent (back-compat: older payloads still parse)', () => {
+    const r = ListAssignedRowStopSchema.safeParse(stop);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.hasManifest).toBe(false);
+  });
+  it('carries hasManifest true when the stop has a committed proof photo', () => {
+    const r = ListAssignedRowStopSchema.safeParse({ ...stop, hasManifest: true });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.hasManifest).toBe(true);
+  });
   it('accepts null timestamps (not-yet-arrived stop)', () => {
     const r = ListAssignedRowStopSchema.safeParse({ ...stop, plannedAt: null, warehouseName: null });
     expect(r.success).toBe(true);

@@ -71,6 +71,19 @@ export class UploadSessionMissingManifestError extends ManifestError {
   }
 }
 
+export class DeliveryCaptureGateError extends ManifestError {
+  constructor(
+    public readonly transportOrderId: string,
+    public readonly remainingPickupNames: readonly string[],
+  ) {
+    super(
+      'Cannot capture the delivery photo for transport order ' + transportOrderId +
+      ' until every pickup has a committed photo; still missing: ' +
+      remainingPickupNames.join(', '),
+    );
+  }
+}
+
 export class StopNotOnTransportOrderError extends Error {
   constructor(
     public readonly transportOrderId: string,

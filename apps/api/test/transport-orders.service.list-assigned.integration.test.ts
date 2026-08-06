@@ -1,23 +1,24 @@
 // apps/api/test/transport-orders.service.list-assigned.integration.test.ts
-// PGlite integration: exercises listAssigned() — assigned-row query,
+// PGlite integration: exercises listAssigned() -- assigned-row query,
 // empty-result branch, stop grouping, row enrichment (plate, orderRef,
-// customer + pickup/delivery warehouse names), tenancy isolation.
+// customer + pickup/delivery warehouse names), tenancy isolation, and the
+// per-stop hasManifest committed-proof signal (2026 delivery-capture gate).
 //
 // 2026 invariant change: every order now carries a roadRun + active
 // driver-vehicle pair. So 'plate' is always populated from the assigned
 // vehicle. Only customer + pickup/delivery warehouse names remain nullable
-// (when the order omits customerId or stops omit yardId). The nullable-
-// enrichment test now asserts only customerName + pickup/deliveryName.
+// (when the order omits customerId or stops omit yardId).
 //
 // Isolation: tx-injection per test (see helpers/with-tx-isolation.ts).
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { sql } from 'drizzle-orm';
+import { sql, eq, asc } from 'drizzle-orm';
 import { TransportOrdersService } from '../src/transport-orders/transport-orders.service.js';
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
 import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
 import { driver, vehicle, customer, warehouse } from '../src/database/schema/reference.js';
 import { manifest } from '../src/database/schema/manifest.js';
+import { stop } from '../src/database/schema/transport.js';
 import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
@@ -83,6 +84,7 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
         warehouseName: null,
         arrivedAt: null,
         departedAt: null,
+        hasManifest: false,
       });
       expect(row?.stops[1]).toEqual({
         sequence: 2,
@@ -91,6 +93,7 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
         warehouseName: null,
         arrivedAt: null,
         departedAt: null,
+        hasManifest: false,
       });
       // T9: once a stop has arrived/departed timestamps, the producer serializes them to ISO strings.
       await tx.execute(sql.raw(
@@ -148,10 +151,6 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
     });
   });
   it('enrichment fields are null when no customer or yardId is supplied', async () => {
-    // After the 2026 invariant change, plate is always populated (vehicle is
-    // mandatory). The remaining nullable enrichment branches are customer
-    // (no customerId on the order) and pickup/delivery warehouse (no yardId
-    // on the stops).
     await withTxIsolation(testDb, async (tx) => {
       const svc = new TransportOrdersService(tx as never);
       const op = createOperatorContext();
@@ -182,6 +181,54 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
       }, op1);
       const result = await svc.listAssigned(op2);
       expect(result.rows).toEqual([]);
+    });
+  });
+  it('stamps hasManifest per stop: true only on the stop whose committed manifest is joined by stopId', async () => {
+    await withTxIsolation(testDb, async (tx) => {
+      const svc = new TransportOrdersService(tx as never);
+      const op = createOperatorContext();
+      const { operatorId, vehicleId } = await seedActivePair(tx, op);
+      const created = await svc.create({
+        stops: [
+          { sequence: 1, stopType: 'pickup' },
+          { sequence: 2, stopType: 'delivery' },
+        ],
+        roadRun: { assignedOperatorId: operatorId, assignedAssetId: vehicleId },
+      }, op);
+      const tn = { companyId: op.companyId, businessUnitId: op.businessUnitId, depotId: op.depotId, legalEntityId: op.legalEntityId };
+      // Resolve the pickup stop id (sequence 1) via the Drizzle builder so the manifest joins to it.
+      const stopIdRows = await tx.select({ stopId: stop.stopId, sequence: stop.sequence })
+        .from(stop)
+        .where(eq(stop.transportOrderId, created.transportOrderId))
+        .orderBy(asc(stop.sequence));
+      const pickupStopId = stopIdRows[0]?.stopId;
+      if (pickupStopId === undefined) throw new Error('no pickup stop seeded');
+      await tx.insert(manifest).values({ ...tn, transportOrderId: created.transportOrderId, stopId: pickupStopId, manifestCorrelationId: randomUUID(), state: 'committed' });
+      const result = await svc.listAssigned(op);
+      const stops = result.rows[0]?.stops ?? [];
+      expect(stops).toHaveLength(2);
+      expect(stops.find((x) => x.sequence === 1)?.hasManifest).toBe(true);
+      expect(stops.find((x) => x.sequence === 2)?.hasManifest).toBe(false);
+    });
+  });
+  it('hasManifest stays false for a stop whose only manifest is in a non-received state (rejected/aborted)', async () => {
+    await withTxIsolation(testDb, async (tx) => {
+      const svc = new TransportOrdersService(tx as never);
+      const op = createOperatorContext();
+      const { operatorId, vehicleId } = await seedActivePair(tx, op);
+      const created = await svc.create({
+        stops: [{ sequence: 1, stopType: 'pickup' }],
+        roadRun: { assignedOperatorId: operatorId, assignedAssetId: vehicleId },
+      }, op);
+      const tn = { companyId: op.companyId, businessUnitId: op.businessUnitId, depotId: op.depotId, legalEntityId: op.legalEntityId };
+      const stopIdRows = await tx.select({ stopId: stop.stopId })
+        .from(stop)
+        .where(eq(stop.transportOrderId, created.transportOrderId));
+      const stopId = stopIdRows[0]?.stopId;
+      if (stopId === undefined) throw new Error('no stop seeded');
+      await tx.insert(manifest).values({ ...tn, transportOrderId: created.transportOrderId, stopId, manifestCorrelationId: randomUUID(), state: 'rejected' });
+      const result = await svc.listAssigned(op);
+      expect(result.rows[0]?.stops[0]?.hasManifest).toBe(false);
     });
   });
   it('sets canCancel=false + photos_received on a row whose order has a received manifest', async () => {

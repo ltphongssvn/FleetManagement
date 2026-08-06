@@ -1,9 +1,14 @@
 // apps/api/test/manifest.negotiate-stop-association.integration.test.ts
-// outside-in strict TDD RED: /upload/negotiate accepts an optional stop ref
-// (ManifestStopRefSchema from @fleet/sync-protocol — Zod-first single source
-// of truth) and persists the resolved stop PK onto manifest.stop_id so the
-// dispatch board can render the per-stop Phiếu Cân proof link. Capture-time
-// tagging is the only reliable association (contract line 9-10).
+// /upload/negotiate accepts an optional stop ref (ManifestStopRefSchema from
+// @fleet/sync-protocol -- Zod-first single source of truth) and persists the
+// resolved stop PK onto manifest.stop_id so the dispatch board can render the
+// per-stop Phieu Can proof link. Capture-time tagging is the only reliable
+// association (contract line 9-10).
+//
+// 2026 delivery-capture gate interaction: negotiating an upload for the DELIVERY
+// stop is now blocked until every pickup carries a committed photo. The delivery
+// case below therefore seeds a committed pickup proof first -- otherwise the
+// scenario would be an invalid business state that the gate (correctly) rejects.
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
@@ -36,6 +41,14 @@ async function seedTransportOrderWithStops(): Promise<void> {
       (${STOP_ID_SEQ1}::uuid, ${OP.companyId}::uuid, ${OP.businessUnitId}::uuid, ${OP.depotId}::uuid, ${OP.legalEntityId}::uuid, ${TRANSPORT_ORDER_ID}::uuid, 1, 'pickup'),
       (${STOP_ID_SEQ2}::uuid, ${OP.companyId}::uuid, ${OP.businessUnitId}::uuid, ${OP.depotId}::uuid, ${OP.legalEntityId}::uuid, ${TRANSPORT_ORDER_ID}::uuid, 2, 'delivery')
     ON CONFLICT DO NOTHING
+  `);
+}
+
+// Satisfy the delivery-capture gate: attach a committed proof photo to a stop.
+async function commitProofFor(stopId: string): Promise<void> {
+  await testDb.db.execute(sql`
+    INSERT INTO manifest (manifest_id, company_id, business_unit_id, depot_id, legal_entity_id, transport_order_id, manifest_correlation_id, stop_id, state)
+    VALUES (${randomUUID()}::uuid, ${OP.companyId}::uuid, ${OP.businessUnitId}::uuid, ${OP.depotId}::uuid, ${OP.legalEntityId}::uuid, ${TRANSPORT_ORDER_ID}::uuid, ${randomUUID()}::uuid, ${stopId}::uuid, 'committed')
   `);
 }
 
@@ -83,6 +96,9 @@ describe('@fleet/api - negotiateUpload persists manifest.stop_id from stop ref',
   });
 
   it('resolves stop: {stopSequence: 2} to the stop PK and persists manifest.stop_id', async () => {
+    // The delivery-capture gate requires every pickup to have a committed photo
+    // before the delivery stop can be negotiated.
+    await commitProofFor(STOP_ID_SEQ1);
     const negotiated = await service.negotiateUpload({
       manifestCorrelationId: randomUUID(),
       transportOrderId: TRANSPORT_ORDER_ID,

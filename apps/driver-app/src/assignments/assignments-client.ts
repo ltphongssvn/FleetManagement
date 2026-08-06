@@ -12,6 +12,16 @@
 // sequence so the driver app workflow is a 1-1 match with the form. The legacy
 // pickupName/deliveryName remain (first pickup / last drop) for backward
 // compatibility, but stops[] is the authoritative ordered list.
+//
+// Each stop carries hasManifest: the per-stop committed-proof signal (2026
+// delivery-capture gate). Defaults false for pre-gate payloads; the gate blocks
+// delivery capture until every pickup stop has hasManifest === true.
+//
+// NOTE (schema-first backlog, Axis-2): StopRow + parseStop hand-mirror
+// ListAssignedRowStopSchema in @fleet/sync-protocol. This is the same
+// cross-boundary duplication tracked for ops-web (P0-#2). The forward fix is to
+// parse via the shared schema at this boundary; deferred to keep this gate arc
+// scoped. hasManifest is threaded through the existing hand-parser to match.
 import { DriverCompletedPageResponseSchema } from '@fleet/sync-protocol';
 import type { DriverCompletedPageQuery, DriverCompletedPageResponse } from '@fleet/sync-protocol';
 export type FetchFn = typeof globalThis.fetch;
@@ -22,6 +32,7 @@ export interface StopRow {
   readonly warehouseName: string | null;
   readonly arrivedAt: string | null;
   readonly departedAt: string | null;
+  readonly hasManifest: boolean;
 }
 export interface AssignmentRow {
   readonly transportOrderId: string;
@@ -54,6 +65,14 @@ function nullableStr(v: unknown, name: string): string | null {
   if (typeof v === 'string') return v;
   throw new Error('AssignmentRow: ' + name + ' must be string|null');
 }
+// Tolerant boolean parse for the per-stop committed-proof flag: absent/undefined
+// degrades to false (back-compat with pre-gate payloads), a present non-boolean
+// is a contract violation and rejects at the boundary.
+function boolWithDefault(v: unknown, name: string): boolean {
+  if (v === undefined) return false;
+  if (typeof v === 'boolean') return v;
+  throw new Error('StopRow: ' + name + ' must be boolean');
+}
 function parseStop(raw: unknown): StopRow {
   if (typeof raw !== 'object' || raw === null) throw new Error('StopRow: not an object');
   const s = raw as Record<string, unknown>;
@@ -66,6 +85,7 @@ function parseStop(raw: unknown): StopRow {
     warehouseName: nullableStr(s['warehouseName'], 'warehouseName'),
     arrivedAt: nullableStr(s['arrivedAt'], 'arrivedAt'),
     departedAt: nullableStr(s['departedAt'], 'departedAt'),
+    hasManifest: boolWithDefault(s['hasManifest'], 'hasManifest'),
   };
 }
 function parseRow(raw: unknown): AssignmentRow {

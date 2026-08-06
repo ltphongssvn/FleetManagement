@@ -19,13 +19,16 @@ import { stop, transportOrder } from '../database/schema/transport.js';
 import { BLOB_STORE, type IBlobStore } from '../storage/storage-provider.interface.js';
 import type { Env } from '../config/env.config.js';
 import type { NegotiateUploadInput, NegotiateUploadResponse, CommitUploadInput, CommitUploadResponse } from './manifest.dto.js';
-import { ManifestInsertFailedError, TransportOrderNotOwnedError, UploadSessionInsertFailedError, UploadSessionMissingManifestError, UploadSessionNotFoundError, UploadSessionInvalidStateError, ManifestStateInvalidTransitionError, StopNotOnTransportOrderError } from './manifest.errors.js';
+import { ManifestInsertFailedError, TransportOrderNotOwnedError, UploadSessionInsertFailedError, UploadSessionMissingManifestError, UploadSessionNotFoundError, UploadSessionInvalidStateError, ManifestStateInvalidTransitionError, StopNotOnTransportOrderError, DeliveryCaptureGateError } from './manifest.errors.js';
 
 import {
   UPLOAD_SESSION_COMMITTABLE_STATES,
   UPLOAD_SESSION_FINALIZABLE_STATES,
   MANIFEST_VERIFIABLE_STATES,
   MANIFEST_FINALIZABLE_STATES,
+  MANIFEST_PHOTO_RECEIVED_STATES,
+  evaluateDeliveryGate,
+  classifyStopRole,
   type ManifestRejectionReason,
 } from '@fleet/domain';
 import type { OperatorContext } from '../auth/operator-context.js';
@@ -54,6 +57,12 @@ export class ManifestService {
     return this.db.transaction(async (tx) => {
       await this.assertTransportOrderOwnership(tx, input.transportOrderId, op);
       const stopId = await this.resolveStopRef(tx, input.transportOrderId, input.stop ?? null, op);
+      // AUTHORITATIVE delivery-capture phase-gate: block a delivery-stop upload
+      // until every pickup has a committed proof photo. Same @fleet/domain rule
+      // the driver-app card enforces for UX; here it is the real enforcement
+      // (the client Alert is bypassable). Runs before any manifest/session row
+      // or presigned URL is created.
+      if (stopId !== null) await this.assertDeliveryGate(tx, input.transportOrderId, stopId, op);
       const manifestRow = await this.findOrCreateManifest(tx, input, stopId, op);
       const key = this.buildS3Key(op, manifestRow.manifestId, input.manifestCorrelationId, input.contentType);
       const presigned = await this.blobs.presignUpload({ key, contentType: input.contentType, ttlSeconds: this.presignTtlSeconds });
@@ -83,6 +92,54 @@ export class ManifestService {
         expiresAt: presigned.expiresAt.toISOString(),
       };
     });
+  }
+
+  // Authoritative server enforcement of the delivery-capture phase-gate. Loads
+  // every stop on the order plus its committed-proof state (a manifest in a
+  // photo-received state joined by stopId -- the same threshold the cancel-lock
+  // and the read-side hasManifest trust), then applies the shared
+  // evaluateDeliveryGate rule. Throws DeliveryCaptureGateError (-> 409) when the
+  // target is a delivery stop and any pickup still lacks a committed photo.
+  // Pickups are order-independent; a pickup target is always allowed. Runs
+  // inside the negotiate tx, before any row/URL is created.
+  private async assertDeliveryGate(
+    tx: Tx,
+    transportOrderId: string,
+    targetStopId: string,
+    op: OperatorContext,
+  ): Promise<void> {
+    const stopRows = await tx
+      .select({ stopId: stop.stopId, sequence: stop.sequence, stopType: stop.stopType })
+      .from(stop)
+      .where(and(
+        eq(stop.transportOrderId, transportOrderId),
+        eq(stop.companyId, op.companyId),
+      ));
+    const target = stopRows.find((srow) => srow.stopId === targetStopId);
+    // Only a delivery target is gated; unknown/pickup targets pass through
+    // (the rule itself fail-safes an unknown stopType to pickup).
+    if (target === undefined || classifyStopRole(target.stopType) !== 'delivery') return;
+    const proofRows = await tx
+      .select({ stopId: manifest.stopId })
+      .from(manifest)
+      .where(and(
+        eq(manifest.transportOrderId, transportOrderId),
+        eq(manifest.companyId, op.companyId),
+        inArray(manifest.state, [...MANIFEST_PHOTO_RECEIVED_STATES]),
+      ));
+    const proofStopIds = new Set(proofRows.map((r) => r.stopId).filter((id): id is string => id !== null));
+    const gate = evaluateDeliveryGate(
+      stopRows.map((srow) => ({
+        sequence: srow.sequence,
+        stopType: srow.stopType,
+        warehouseName: 'Kho nhận hàng ' + String(srow.sequence),
+        hasManifest: proofStopIds.has(srow.stopId),
+      })),
+      target.sequence,
+    );
+    if (!gate.allowed) {
+      throw new DeliveryCaptureGateError(transportOrderId, gate.remainingPickupNames);
+    }
   }
 
   private async findOrCreateManifest(tx: Tx, input: NegotiateUploadInput, stopId: string | null, op: OperatorContext): Promise<{ manifestId: string }> {
@@ -170,7 +227,6 @@ export class ManifestService {
       .limit(1);
     if (!row) throw new TransportOrderNotOwnedError(transportOrderId, op.companyId);
   }
-
   /**
    * Mark a previously negotiated upload as ready for verification.
    * Transitions upload_session: initiated/uploading -> verifying (atomic).

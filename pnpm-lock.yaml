@@ -323,6 +323,9 @@ importers:
       '@expo/metro-runtime':
         specifier: ^55.0.11
         version: 55.0.11(@expo/dom-webview@55.0.6)(expo@55.0.26)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.7(supports-color@8.1.1))(@types/react@19.2.14)(react@19.2.0)(supports-color@8.1.1))(react@19.2.0)
+      '@fleet/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@fleet/observability':
         specifier: workspace:*
         version: link:../../packages/observability

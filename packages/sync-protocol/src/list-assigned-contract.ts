@@ -27,6 +27,11 @@ export const ListAssignedRowStopSchema = z.object({
   warehouseName: z.union([z.string(), z.null()]),
   arrivedAt: z.union([z.string(), z.null()]),
   departedAt: z.union([z.string(), z.null()]),
+  // Per-stop committed-proof signal (2026 delivery-capture gate). True
+  // when the API found a manifest in a photo-received state joined on
+  // this stopId. Tolerant default false so pre-gate payloads still parse
+  // and the client treats an un-signalled stop as not-yet-photographed.
+  hasManifest: z.boolean().default(false),
 });
 export type ListAssignedRowStop = z.infer<typeof ListAssignedRowStopSchema>;
 

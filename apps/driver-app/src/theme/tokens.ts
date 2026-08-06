@@ -40,7 +40,12 @@ export const colors = {
   red600: '#dc2626',
   red700: '#b91c1c',
   green600: '#059669',
+  // amber (Tailwind amber-*). amber50/amber700 back the "not yet available"
+  // locked-action surface (e.g. the delivery-capture button while pickups are
+  // incomplete): a calm advisory tone, deliberately NOT the red error palette.
+  amber50: '#fffbeb',
   amber500: '#f59e0b',
+  amber700: '#b45309',
 } as const;
 
 // 4px spacing scale (matches Tailwind's spacing rhythm).
