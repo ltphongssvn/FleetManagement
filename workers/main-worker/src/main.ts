@@ -24,7 +24,7 @@ import { S3ExtractionObjectStore } from './extraction/s3-extraction-object-store
 import { GeminiVlmExtractor } from './extraction/gemini-vlm-extractor.js';
 import type { ExtractionObjectStore, VlmExtractorPort } from './extraction/extraction-flow.js';
 import { logEvent } from './logger.js';
-import { buildBootProvenance, bootProvenanceSetArgs, provenanceRefreshIntervalMs } from './boot-provenance.js';
+import { buildBootProvenance, bootProvenanceSetArgs, provenanceRefreshIntervalMs, startProvenanceRenewal } from './boot-provenance.js';
 
 function bootstrap(): void {
   const config = loadConfig();
@@ -166,13 +166,13 @@ function bootstrap(): void {
         });
       });
   };
-  writeProvenance(true);
-  // unref(): provenance is a REPORTING concern and must never be the reason this
-  // process stays alive. Without it, a worker asked to shut down would linger
-  // until the next tick.
-  setInterval(() => {
-    writeProvenance(false);
-  }, provenanceRefreshIntervalMs()).unref();
+  // The loop lives in boot-provenance.ts behind an injected write, so a fake
+  // timer can prove the call ACTUALLY REPEATS -- and so the tested seam and the
+  // shipped behaviour are the same code, not two implementations that agree
+  // only by inspection. It also owns the unref() and the per-tick error
+  // swallow: a throw inside a timer callback would otherwise end the heartbeat
+  // after one Redis blip, which reads as a dead worker forever after.
+  startProvenanceRenewal(writeProvenance, provenanceRefreshIntervalMs());
 
   const shutdown = async (): Promise<void> => {
     await Promise.all(workers.map((w) => w.close()));
