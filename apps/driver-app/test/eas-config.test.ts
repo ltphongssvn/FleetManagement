@@ -7,6 +7,7 @@ interface EasJson {
     development: { developmentClient: boolean; env: Record<string, string> };
     preview: { channel: string; android: { buildType: string }; env: Record<string, string> };
     production: { channel: string; autoIncrement: boolean; env: Record<string, string> };
+    e2e: { channel: string; android: { buildType: string }; env: Record<string, string> };
   };
   update?: unknown;
 }
@@ -23,7 +24,7 @@ interface PkgJson {
 const eas = JSON.parse(readFileSync(resolve(__dirname, '../eas.json'), 'utf8')) as EasJson;
 const app = JSON.parse(readFileSync(resolve(__dirname, '../app.json'), 'utf8')) as AppJson;
 const pkg = JSON.parse(readFileSync(resolve(__dirname, '../package.json'), 'utf8')) as PkgJson;
-const PROFILES = ['development', 'preview', 'production'] as const;
+const PROFILES = ['development', 'preview', 'production', 'e2e'] as const;
 describe('@fleet/driver-app - EAS config', () => {
   it('separates preview and production update channels', () => {
     expect(eas.build.preview.channel).toBe('preview');
@@ -56,7 +57,23 @@ describe('@fleet/driver-app - EAS config', () => {
   it('runtimeVersion policy is configured', () => {
     expect(app.expo.runtimeVersion.policy).toBeDefined();
   });
+  // driver-app-ota arc: a dedicated e2e profile lets the Maestro release build
+  // (--profile e2e) stay on the embedded bundle with a localhost API, while the
+  // preview profile the 100 drivers install gets OTA. app.config.ts keys
+  // updates.enabled=false off EAS_BUILD_PROFILE=e2e; without this profile that
+  // branch is unreachable.
+  it('defines a dedicated e2e build profile', () => {
+    expect(eas.build.e2e, 'an e2e profile must exist for the Maestro release build').toBeDefined();
+  });
+  it('e2e profile targets localhost over adb-reverse (the emulator E2E contract)', () => {
+    expect(eas.build.e2e.env['EXPO_PUBLIC_API_URL']).toBe('http://localhost:3000');
+  });
+  it('e2e profile emits an APK (sideloadable onto the emulator) and stamps APP_ENV=e2e', () => {
+    expect(eas.build.e2e.android.buildType).toBe('apk');
+    expect(eas.build.e2e.env['APP_ENV']).toBe('e2e');
+  });
 });
+
 // Sentry iOS build-phase safety in a pnpm monorepo (sentry-react-native#4939):
 // the Xcode 'Upload Debug Symbols to Sentry' run-script phase resolves
 // @sentry/cli/package.json via Node require.resolve UNCONDITIONALLY, before it

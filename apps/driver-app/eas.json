@@ -37,6 +37,20 @@
       },
       "node": "22.20.0"
     },
+    "e2e": {
+      "distribution": "internal",
+      "channel": "preview",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "APP_ENV": "e2e",
+        "EXPO_PUBLIC_API_URL": "http://localhost:3000",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "SENTRY_ALLOW_FAILURE": "true"
+      },
+      "node": "22.20.0"
+    },
     "production": {
       "channel": "production",
       "autoIncrement": true,
