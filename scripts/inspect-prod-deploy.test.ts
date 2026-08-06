@@ -23,11 +23,11 @@ describe("computeDeployVerdict", () => {
 
   it("surfaces aheadCount in the rendered lines", () => {
     const v = computeDeployVerdict({ fixInBase: true, fixInLive: false, aheadCount: 3 });
-    expect(v.lines.join(String.fromCharCode(10))).toContain("3");
+    expect(v.lines.join(nl)).toContain("3");
   });
 
   it("always emits the RAILWAY MANUAL CHECK reminder", () => {
     const v = computeDeployVerdict({ fixInBase: true, fixInLive: true, aheadCount: 0 });
-    expect(v.lines.join(String.fromCharCode(10))).toContain("RAILWAY MANUAL CHECK");
+    expect(v.lines.join(nl)).toContain("RAILWAY MANUAL CHECK");
   });
 });
