@@ -18,6 +18,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import type { AdminDeviceRow, DeviceBindingStatus } from '@fleet/sync-protocol';
 import { DataTable } from '@/features/admin/DataTable';
 import { StatusBadge } from '@/features/admin/StatusBadge';
+import { RowActionMenu } from '@/features/admin/RowActionMenu';
 import { presentDeviceBindingStatus } from '@/features/admin/device-binding.presenter';
 import { AdminDevicesClient } from '@/features/admin/admin-devices-client';
 import { vnExceptionMessage } from '@/features/errors/present-problem';
@@ -140,30 +141,23 @@ export function DevicesApprovalSection(
       cell: (ctx) => {
         const row = ctx.row.original;
         return (
-          <div className='flex gap-2'>
-            {row.bindingStatus !== 'active' ? (
-              <button
-                type='button'
-                disabled={busy}
-                data-testid={'device-activate-' + row.deviceId}
-                onClick={() => { void handleActivate(row.deviceId); }}
-                className='rounded bg-emerald-600 px-3 py-1 text-sm text-white hover:bg-emerald-700 disabled:bg-gray-400'
-              >
-                Duyệt
-              </button>
-            ) : null}
-            {row.bindingStatus !== 'revoked' ? (
-              <button
-                type='button'
-                disabled={busy}
-                data-testid={'device-revoke-' + row.deviceId}
-                onClick={() => { void handleRevoke(row.deviceId); }}
-                className='rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700 disabled:bg-gray-400'
-              >
-                Thu hồi
-              </button>
-            ) : null}
-          </div>
+          <RowActionMenu
+            label={'Thao tác cho thiết bị ' + row.platform}
+            actions={[
+              ...(row.bindingStatus !== 'active' ? [{
+                key: 'activate',
+                label: 'Duyệt',
+                disabled: busy,
+                onSelect: () => { void handleActivate(row.deviceId); },
+              }] : []),
+              ...(row.bindingStatus !== 'revoked' ? [{
+                key: 'revoke',
+                label: 'Thu hồi',
+                disabled: busy,
+                onSelect: () => { void handleRevoke(row.deviceId); },
+              }] : []),
+            ]}
+          />
         );
       },
     },

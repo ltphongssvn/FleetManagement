@@ -96,8 +96,59 @@ export const DriverMeResponseSchema = z.object({
 });
 export type DriverMeResponse = z.infer<typeof DriverMeResponseSchema>;
 
+// --- Device: self-enrollment (POST /devices/enroll) ------------------------
+// Mirrors apps/api/src/device/device-enrollment.controller.ts, which returns
+// the enrolled device id. Driver-JWT gated: the operator identity comes from
+// the caller token, never the body.
+export const EnrollDeviceResponseSchema = z.object({
+  deviceId: z.string(),
+});
+export type EnrollDeviceResponse = z.infer<typeof EnrollDeviceResponseSchema>;
+
 // --- Admin: reset-password verify (driver /auth/login by phone+password) ----
 export const AccessTokenResponseSchema = z.object({
   accessToken: z.string().optional(),
 });
 export type AccessTokenResponse = z.infer<typeof AccessTokenResponseSchema>;
+
+// --- Manifest upload + extraction (T33 phieu-can manual weight) -----------
+// Mirror the SSOT envelopes in @fleet/sync-protocol manifest-response-contract
+// (NegotiateUploadResponse / CommitUploadResponse) plus the two worker-callback
+// acks, so the e2e seed validates each hop at the boundary instead of casting.
+export const NegotiateUploadResponseSchema = z.object({
+  uploadSessionId: z.string(),
+  url: z.string(),
+  key: z.string(),
+  bucket: z.string(),
+  expiresAt: z.string(),
+});
+export type NegotiateUploadResponse = z.infer<typeof NegotiateUploadResponseSchema>;
+
+export const CommitUploadResponseSchema = z.object({
+  uploadSessionId: z.string(),
+  manifestId: z.string(),
+  state: z.string(),
+  rejectionReasonCode: z.string().optional(),
+});
+export type CommitUploadResponse = z.infer<typeof CommitUploadResponseSchema>;
+
+// POST /upload/intake-result ack: manifest transitions to committed/rejected.
+export const IntakeResultResponseSchema = z.object({
+  manifestId: z.string(),
+  state: z.string(),
+});
+export type IntakeResultResponse = z.infer<typeof IntakeResultResponseSchema>;
+
+// POST /upload/extraction-result ack: carries the terminal extraction status.
+export const ExtractionResultResponseSchema = z.object({
+  manifestId: z.string(),
+  status: z.string(),
+});
+export type ExtractionResultResponse = z.infer<typeof ExtractionResultResponseSchema>;
+
+// PATCH /upload/manual-net-weight ack: status is always manual on success.
+export const ManualNetWeightResponseSchema = z.object({
+  manifestId: z.string(),
+  status: z.string(),
+});
+export type ManualNetWeightResponse = z.infer<typeof ManualNetWeightResponseSchema>;

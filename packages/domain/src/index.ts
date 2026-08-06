@@ -26,6 +26,9 @@ export {
   personNameMatchKey,
   DriverNameSchema,
   type DriverName,
+  suggestDistinctDriverName,
+  DISTINCT_NAME_SUFFIXES,
+  type DistinctNameSuffix,
 } from './identity/index.js';
 export {
   type TransportOrderState,
@@ -47,6 +50,10 @@ export {
   ROAD_RUN_STATE_TONE,
   groupCompletedTripsByMonth,
   type TripMonthGroup,
+  VN_TIME_ZONE,
+  vnDayOf,
+  vnDayWindowUtc,
+  type VnDayWindow,
   type CancelReason,
   CancelReasonSchema,
   CANCEL_REASONS,

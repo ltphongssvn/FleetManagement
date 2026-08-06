@@ -33,15 +33,49 @@ describe('@fleet/api - local pre-push hooks mirror remote CI coverage gate', () 
   it('does not define a separate plain pnpm-test-push hook (the coverage hook is the canonical pre-push test gate)', () => {
     expect(yaml).not.toMatch(/id:\s*pnpm-test-push\b/);
   });
-  // 2026 fix: pnpm -r defaults to UNBOUNDED workspace concurrency, fanning
-  // out every package test:coverage at once. The api parallel project caps
-  // at maxWorkers per package, but summed across packages this oversubscribes
-  // the host into CPU swap; testcontainers/PGlite hooks then time out and the
-  // gate fails on contention, not regression. Bound the workspace fan-out.
-  it('bounds pnpm workspace concurrency on the coverage hook to avoid CPU starvation', () => {
-    const covLine = yaml.split(NL).find((l) => /pnpm -r .*test:coverage/.test(l));
-    expect(covLine, 'coverage hook entry must exist').toBeDefined();
-    expect(covLine).toMatch(/--workspace-concurrency[= ]1\b/);
+  // 2026 fix, RELOCATED not weakened. pnpm -r defaults to UNBOUNDED workspace
+  // concurrency, fanning out every package test:coverage at once. The api
+  // parallel project caps at maxWorkers per package, but summed across packages
+  // this oversubscribes the host into CPU swap; testcontainers/PGlite hooks then
+  // time out and the gate fails on CONTENTION, not regression.
+  //
+  // That bound now lives in scripts/gate-coverage.ts (coverageArgs), because the
+  // hook stopped being an inline bash string: it streamed every workspace's
+  // vitest output through pre-commit's captured pipe until the pipe filled and
+  // the framework died with BlockingIOError [Errno 11], aborting pushes while
+  // the tests were PASSING.
+  //
+  // ARCHITECTURE TESTS ARE STRUCTURAL; BEHAVIOUR BELONGS IN UNIT TESTS. This
+  // guard asserts the CHAIN -- hook reaches the registered task, task maps to
+  // the committed script -- and scripts/gate-coverage.test.ts asserts the argv
+  // the script actually emits. The previous version string-matched YAML for
+  // both, so relocating the invocation left the behavioural half no subject.
+  //
+  // NO CONDITIONAL LOGIC HERE, deliberately. A guard shaped as "if the YAML
+  // still has the line, check it, else skip" stops asserting the moment the
+  // shape changes -- which is the failure mode it exists to prevent.
+  it('routes the coverage gate through the registered task, not an inline bash string', () => {
+    const covHook = yaml.split(NL).find((l) => /entry:.*gate:coverage/.test(l));
+    expect(covHook, 'pre-push coverage hook must invoke the gate:coverage task').toBeDefined();
+    expect(
+      covHook,
+      'the hook must stay THIN: no inline flock/pnpm -r pipeline in YAML',
+    ).not.toMatch(/flock|pnpm -r/);
+  });
+  it('maps gate:coverage to the committed script, so the argv is unit-testable', () => {
+    const pkgPath = resolve(here, '../../../package.json');
+    const pkg: unknown = JSON.parse(readFileSync(pkgPath, 'utf8'));
+    const scripts = (pkg as { scripts?: Record<string, string> }).scripts ?? {};
+    expect(scripts['gate:coverage'], 'gate:coverage must be a registered root script').toBeDefined();
+    expect(scripts['gate:coverage']).toContain('scripts/gate-coverage.ts');
+  });
+  it('the gate script still bounds workspace concurrency (the invariant itself)', () => {
+    const gatePath = resolve(here, '../../../scripts/gate-coverage.ts');
+    const gate = readFileSync(gatePath, 'utf8');
+    expect(
+      gate,
+      'unbounded pnpm -r fan-out oversubscribes the host and fails the gate on contention',
+    ).toMatch(/--workspace-concurrency=1/);
   });
 });
 describe('@fleet/api - coverage config is a single all-parallel project on the shared container', () => {
