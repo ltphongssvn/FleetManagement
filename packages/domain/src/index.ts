@@ -114,6 +114,10 @@ export {
   type RolloutState,
   type RolloutPhase,
 } from './delivery/rollout-controller.js';
+export {
+  updateHistories,
+  type RolloutHistories,
+} from './delivery/rollout-history.js';
 
 // T33: phieu-can STANDARD FORMAT SSOT + the pure goods-kg derivation rule.
 // Exported from the barrel because every consumer (worker extraction policy,
