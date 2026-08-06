@@ -79,3 +79,53 @@ export function bootProvenanceSetArgs(version: DeployVersion): BootProvenanceSet
 export function provenanceRefreshIntervalMs(): number {
   return WORKER_PROVENANCE_REFRESH_SECONDS * 1000;
 }
+
+/** Handle for a running renewal loop. `stop` exists so a test can end it and a
+ *  shutdown path could, if it ever needed to, without reaching for the timer. */
+export interface ProvenanceRenewal {
+  stop: () => void;
+}
+
+/** Start the heartbeat: write once immediately, then re-write every intervalMs.
+ *
+ *  THE WRITE IS INJECTED, and that is the point. The previous tests pinned only
+ *  the CONSTANTS -- refresh < ttl, the ms conversion -- and every one of them
+ *  still passed if the setInterval were deleted outright. They asserted intent,
+ *  not behaviour, which is the same error that shipped a --reporter=dot "fix"
+ *  whose flag never reached the tool. With the write as a parameter, a fake
+ *  timer can advance time and observe that the call ACTUALLY REPEATS.
+ *
+ *  ERRORS ARE SWALLOWED PER TICK, never allowed to escape. A throw inside a
+ *  setInterval callback surfaces as an uncaught exception; depending on the
+ *  process handlers that either kills the worker or silently ends the loop, and
+ *  a heartbeat that stops after one Redis blip reads as a DEAD WORKER forever
+ *  after. One failed renewal must cost one missed beat and nothing more -- the
+ *  TTL is sized at 3x the interval precisely so that is survivable.
+ *
+ *  unref(): provenance is a REPORTING concern and must never be the reason this
+ *  process stays alive. The worker's SIGTERM path closes queues and exits; a
+ *  referenced timer would keep the event loop alive and turn a clean shutdown
+ *  into a timeout kill. */
+export function startProvenanceRenewal(
+  write: (first: boolean) => void,
+  intervalMs: number,
+): ProvenanceRenewal {
+  const safeWrite = (first: boolean): void => {
+    try {
+      write(first);
+    } catch {
+      // Deliberately silent here: the injected write owns its own logging, and
+      // a reporting failure must not become a second failure channel.
+    }
+  };
+  safeWrite(true);
+  const timer = setInterval(() => {
+    safeWrite(false);
+  }, intervalMs);
+  timer.unref();
+  return {
+    stop: (): void => {
+      clearInterval(timer);
+    },
+  };
+}
