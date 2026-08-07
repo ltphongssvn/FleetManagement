@@ -55,6 +55,7 @@
     "audit:ci-minutes": "tsx scripts/ci/ci-minutes-fetch.ts",
     "worktree:close": "tsx scripts/worktree-close-cli.ts",
     "deps:reconcile": "tsx scripts/deps-reconcile-cli.ts",
+    "git:merge-drivers": "tsx scripts/git-merge-drivers.ts",
     "inspect:prod-deploy": "tsx scripts/inspect-prod-deploy.ts",
     "pr:follow": "tsx scripts/pr-follow.ts",
     "pr:automerge": "tsx scripts/pr-automerge.ts",
