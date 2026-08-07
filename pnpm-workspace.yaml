@@ -123,23 +123,41 @@ overrides:
   '@babel/core@<=7.29.0': ^7.29.1
   '@opentelemetry/core@<2.8.0': ^2.8.0
   form-data@>=4.0.0 <4.0.6: ^4.0.6
-  # GHSA-pm4m-ph32-ghv5: js-yaml >=5.0.0 <=5.2.1 exponential parsing time in flow
-  # collections (DoS). NO package in this tree declares js-yaml 5.x -- every
-  # requester asks for 4.x (cosmiconfig ^4.1.0, semantic-release 4.1.1, jsdom
-  # ^4.1.0, istanbul-lib-instrument ^3.13.1). The 5.x copies existed ONLY because
-  # commit 950e4e7 changed this override value from the bounded ^4.1.2 to an
-  # UNBOUNDED >=4.3.0, and pnpm overrides are unconditional: they rewrite every
-  # declaration even when the consumer range cannot admit the result (pnpm#12794).
-  # So >=4.3.0 dragged cosmiconfig from ^4.1.0 across a major into 5.x, importing
-  # an advisory the tree was never exposed to. The bounded caret restores the
-  # original intent: satisfy GHSA-52cp-r559-cp3m (patched >=4.3.0) while staying
-  # inside major 4, which is outside the 5.x advisory range entirely. Fixing the
-  # cause removes the need for any 5.x floor.
-  # NOTE: supersedes a59ba17 on develop, which pinned js-yaml@<5.2.2 to >=5.2.2.
-  # That selector also matches cosmiconfig ^4.1.0 and so repeats the cross-major
-  # drag, and it needs a minimumReleaseAge exclusion for a package published 1.5h
-  # earlier. Bounding to major 4 removes both the drag and the exclusion.
-  "js-yaml@<4.3.0": "^4.3.0"
+  # GHSA-5p4m-2wfm-xmqj (CVE-2026-59870, 4.x line): !!omap resolution is
+  # quadratic -- omapTag.addItem() does a linear duplicate-key scan on every
+  # insertion, so a small crafted ordered-map document stalls yaml.load() for
+  # seconds. Patched 4.3.1; the advisory records the 5.x fix was NOT backported,
+  # which is why 4.x needed its own release. PRODUCTION-reachable: CI's
+  # `pnpm audit --prod` flags it via apps/api -> drizzle-orm -> expo-sqlite ->
+  # expo -> @expo/cli, so ignoreGhsas is not available -- it must actually move.
+  #
+  # CONVERGENCE OVERRIDE (pnpm 11.13+, the "pkg@" empty-range form), not a
+  # hand-bounded selector. This is the fourth stale-floor in this file, and the
+  # cause is always the same: a regular override fires only when the consumer's
+  # DECLARED range is a strict SUBSET of the selector (pnpm#6878). cosmiconfig
+  # declares ^4.1.0 = >=4.1.0 <5.0.0-0; a selector bounded at the advisory edge
+  # (<4.3.1 = >=0.0.0 <4.3.1) is not a superset, so the entry sits in the
+  # lockfile looking applied while the resolution stays vulnerable. Verified
+  # here: <4.3.0 went inert the moment 4.3.0 resolved, and a <4.3.1 attempt left
+  # `pnpm why` reporting 4.3.0 after both --lockfile-only and a targeted update.
+  #
+  # The empty-range form moves the compatibility test from author-time to
+  # RESOLUTION time: pnpm rewrites an edge only when 4.3.1 satisfies that edge's
+  # own range. cosmiconfig ^4.1.0 converges; @istanbuljs/load-nyc-config ^3.13.1
+  # is left alone automatically -- no hand-computed major bound to get wrong, and
+  # a future dependent declaring a different-but-compatible range is covered too.
+  # It also self-reports: when every declared range admits something newer, pnpm
+  # warns the override is stale and names the version, so the next advisory is
+  # caught here rather than by a red CI gate.
+  #
+  # Supersedes the earlier bounded-caret entry, whose comment recorded that an
+  # UNBOUNDED >=4.3.0 once dragged cosmiconfig ^4.1.0 across a major into 5.x
+  # and imported GHSA-pm4m-ph32-ghv5. The convergence form cannot do that: an
+  # exact 4.3.1 never satisfies a 5.x range, so 5.x edges are untouched by
+  # construction rather than by a selector the author remembered to bound.
+  #
+  # REMOVE once cosmiconfig and jsdom floor their own js-yaml ranges at >=4.3.1.
+  "js-yaml@": "4.3.1"
   protobufjs@>=8.0.0 <=8.5.0: ^8.5.1
   protobufjs@>=8.2.0 <=8.4.2: ^8.4.3
   tmp@>=0.2.6 <0.2.7: ^0.2.7
@@ -222,7 +240,7 @@ minimumReleaseAgeExclude:
   - protobufjs@8.4.3 || 8.5.1 || 8.6.5 || 8.6.6
   - form-data@4.0.6
   - vite@8.0.16
-  - js-yaml@4.3.0
+  - js-yaml@4.3.0 || 4.3.1
   - '@babel/core@7.29.1'
   - '@opentelemetry/core@2.8.0'
   - multer@2.2.0
