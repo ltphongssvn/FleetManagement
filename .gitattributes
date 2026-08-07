@@ -1,0 +1,11 @@
+# Merge behaviour for GENERATED files.
+#
+# These files are produced by tooling, not written by hand. They churn on
+# every regeneration (timestamps, shifted line numbers), so parallel branches
+# conflict on content that carries no meaning. The keep-theirs driver resolves
+# them to the incoming side; the generating task then refreshes them locally.
+#
+# The driver DISCARDS one side, so never add hand-written source here. Run
+# pnpm exec turbo run git:merge-drivers to register the driver body, which
+# lives in git config and therefore cannot be versioned in this file.
+.secrets.baseline merge=keep-theirs

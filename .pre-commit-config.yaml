@@ -149,8 +149,20 @@ repos:
         # enforce the 90/90/90/90 per-file gate via the same merge logic
         # CI uses across its 4 shards. Non-api packages run their own
         # test:coverage in the same -r pass so their per-package thresholds
-        # are still enforced. A real failure at any step exits non-zero.
-        entry: bash -c 'mkdir -p "$HOME/.cache/fleetmanagement"; if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then flock -w 7200 "$HOME/.cache/fleetmanagement/gate.lock" bash -c "pnpm -r --workspace-concurrency=1 --if-present test:coverage && node scripts/merge-coverage.mjs apps/api/coverage/merged"; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
+        # THIN BY DESIGN. This entry used to inline flock, the recursive
+        # coverage run and the merge step as a ~300-character bash string --
+        # untested, and unreachable by //#test:scripts. It streamed every
+        # workspace's vitest output through pre-commit's captured pipe, and
+        # twice on 2026-08-05 the pipe filled and the framework died with
+        #   BlockingIOError: [Errno 11] write could not complete without blocking
+        # aborting a push while the tests were PASSING.
+        #
+        # The gate now lives in scripts/gate-coverage.ts, where its argv is
+        # unit-tested: the flock wait, --workspace-concurrency=1, the quiet
+        # reporter that keeps the pipe from filling, and the same 90/90/90/90
+        # merge. One place to change behaviour, and a test that fails if
+        # someone drops the lock or weakens the run.
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm run gate:coverage; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
         stages: [pre-push]
