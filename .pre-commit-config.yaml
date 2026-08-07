@@ -117,13 +117,13 @@ repos:
     hooks:
       - id: pnpm-lint
         name: pnpm Lint (CI Mirror)
-        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm -r --if-present lint; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm exec turbo run lint; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
         types_or: [ts, tsx, javascript, jsx]
       - id: pnpm-typecheck
         name: pnpm Typecheck (CI Mirror)
-        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm -r --if-present typecheck; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm exec turbo run typecheck; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
         types_or: [ts, tsx]
@@ -137,7 +137,7 @@ repos:
     hooks:
       - id: pnpm-build-push
         name: pnpm Build Verification (Pre-push)
-        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm -r --if-present build; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm exec turbo run build; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
         stages: [pre-push]
