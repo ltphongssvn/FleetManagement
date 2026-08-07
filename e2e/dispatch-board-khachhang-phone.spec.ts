@@ -25,12 +25,25 @@
 // dispatch-board-row-navigation.spec.ts cleanupSeeded/cleanupPair). 2026
 // practice is explicit: each test operates on its own data set, created per
 // test and deleted in an after hook, at a cost of a few hundred milliseconds.
+//
+// READ-MODEL SETTLE (2026-08-07, a SECOND and distinct cause). Cleanup fixed
+// cross-spec pollution, yet this spec kept failing -- reproduced locally on a
+// clean isolated stack, red on both the first attempt and the retry with fresh
+// seeds each time. The create returns on the WRITE commit while the row still
+// travels outbox -> relay -> BullMQ -> projection, and the page holds a render
+// taken before it existed: DispatchView shows an optimistic row built from the
+// action result (externalRef only, no customerName), and the single
+// router.refresh() fires while the projection is still catching up, with no
+// second attempt. Asserting a server-derived field therefore raced two async
+// hops against a fixed 15s locator budget. settleBoardAfterCreate replaces that
+// race with a statement about what must be true first.
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { dockerPsql } from './helpers/docker-exec';
 import { z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
 import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
+import { settleBoardAfterCreate } from './helpers/wait-for-projection';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
@@ -194,6 +207,11 @@ test.describe.serial('Lệnh điều xe board: Khách hàng shows Số điện t
     const match = /XTT[.][0-9]+-[0-9]+/.exec(bannerText);
     if (!match) throw new Error('create banner carried no XTT external_ref: ' + bannerText);
     createdRef = match[0];
+
+    // Settle the board against its own endpoint before asserting anything
+    // server-derived: the optimistic row carries externalRef only, and the one
+    // router.refresh() already fired against a projection that had not caught up.
+    await settleBoardAfterCreate(page, request, seed.token, createdRef);
 
     // INVARIANT 1: the created order's customer name shows in the board
     // (proves the row reconciled, so the phone assertion is meaningful).

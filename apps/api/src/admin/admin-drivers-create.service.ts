@@ -30,7 +30,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { DRIZZLE_DB } from "../database/database.tokens.js";
 import type { FleetDb } from "../database/database.module.js";
 import { driver, type Driver } from "../database/schema/reference.js";
-import { normalizeDisplayName, personNameMatchKey } from "@fleet/domain";
+import { normalizeDisplayName, personNameMatchKey, suggestDistinctDriverName } from "@fleet/domain";
 import {
   isPgUniqueViolation,
   isPgUniqueViolationOnConstraintInChain,
@@ -126,10 +126,24 @@ export class AdminDriversCreateService {
           .returning();
         if (rebornByPhone) return rebornByPhone;
       }
-      const conflictDetail = byName
-        ? 'Tài xế ' + JSON.stringify(fullName) + ' đã tồn tại'
-        : 'Số điện thoại ' + JSON.stringify(input.phone) + ' đã tồn tại';
-      throw new ConflictException(conflictDetail);
+      if (!byName) {
+        throw new ConflictException('Số điện thoại ' + JSON.stringify(input.phone) + ' đã tồn tại');
+      }
+      // A name conflict is NOT necessarily an error: Vietnamese driver names
+      // repeat, so the dispatcher may be registering a genuinely second person.
+      // A bare "đã tồn tại" leaves them no sanctioned way to do that, and the
+      // improvised workarounds (trailing space, stray dot, pasted invisible)
+      // are what create a SECOND IDENTITY for the FIRST human. So name the
+      // exact spelling to use. Suffixes already taken are read from the ACTIVE
+      // rows sharing this base, matched with the same fold as the unique index.
+      const activeNames = await this.db.select({ fullName: driver.fullName }).from(driver)
+        .where(and(eq(driver.companyId, input.companyId), eq(driver.active, true)));
+      const suggestion = suggestDistinctDriverName(fullName, activeNames.map((r) => r.fullName));
+      throw new ConflictException(
+        suggestion === null
+          ? 'Tài xế ' + JSON.stringify(fullName) + ' đã tồn tại'
+          : 'Tài xế ' + JSON.stringify(fullName) + ' đã tồn tại. Nếu là người khác, hãy đăng ký tên ' + JSON.stringify(suggestion),
+      );
     }
   }
 }

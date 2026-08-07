@@ -122,6 +122,44 @@ export default tseslint.config(
     },
   },
 
+  // Forbid raw process.env inside Nest MODULES: configuration must come through
+  // the validated boundary (ConfigService over EnvSchema), never the raw object.
+  //
+  // THE DEFECT THIS PREVENTS. eas-inbound.module.ts read
+  //   new Redis(process.env["REDIS_URL"] ?? "redis://localhost:6379", ...)
+  // while its sibling auth.module.ts read
+  //   config.getOrThrow("REDIS_URL")
+  // Two faults in one line: the raw read skips the z.url() validation
+  // env.config.ts performs at the trust boundary, and it restates a default
+  // that schema already owns. A malformed REDIS_URL passed silently, and a
+  // misconfigured production would quietly dial localhost instead of failing.
+  //
+  // AST SELECTORS, NOT TEXT MATCHING. A grep-style guard false-positives on the
+  // words "process.env" in a comment and false-negatives on process["env"].
+  // Both member-access forms are matched here: property.name for dot access,
+  // property.value for the computed form.
+  //
+  // SCOPED TO *.module.ts ON PURPOSE. Legitimate raw readers exist and must
+  // keep working: observability/*-bootstrap.ts runs via `node --import` BEFORE
+  // the Nest container exists, and src/scripts/* are standalone CLI entrypoints
+  // with no DI container. A blanket ban would fire on correct code, which is
+  // how a rule earns a blanket eslint-disable.
+  {
+    files: ["apps/*/src/**/*.module.ts", "workers/*/src/**/*.module.ts"],
+    rules: {
+      "no-restricted-syntax": ["error",
+        {
+          selector: "MemberExpression[object.name='process'][property.name='env']",
+          message: "Read config via ConfigService (validated by EnvSchema), not raw process.env.",
+        },
+        {
+          selector: "MemberExpression[object.name='process'][property.value='env']",
+          message: "Read config via ConfigService (validated by EnvSchema), not raw process.env.",
+        },
+      ],
+    },
+  },
+
   // Custom rule overrides
   {
     rules: {

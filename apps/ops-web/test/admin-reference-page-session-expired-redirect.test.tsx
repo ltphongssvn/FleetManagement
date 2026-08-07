@@ -87,7 +87,8 @@ describe('ReferenceAdminPage on idle-expired session (401)', () => {
     const user = userEvent.setup();
     await screen.findAllByText('ACME');
     const sec = customerSection();
-    await user.click(within(sec).getByRole('button', { name: 'Sửa SĐT' }));
+    await user.click(within(sec).getByRole('button', { name: /Thao tác/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sửa SĐT' }));
     await user.click(within(sec).getByRole('button', { name: 'Lưu' }));
     await waitFor(() => { expect(navigateToSessionRefreshMock).toHaveBeenCalled(); });
   });

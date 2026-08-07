@@ -192,43 +192,49 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
         const row = ctx.row.original;
         const phone = rowPhone(row);
         const isEditing = editingId === row.id;
-        return (
-          <span className='flex items-center gap-2'>
-            {isCustomers && !isEditing ? (
-              <button
-                type='button'
-                disabled={busy}
-                onClick={() => { startEdit(row.id, phone); }}
-                className='rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600'
-              >
-                Sửa SĐT
-              </button>
-            ) : null}
-            {isCustomers && isEditing ? (
-              <button
-                type='button'
-                disabled={busy}
-                onClick={() => { void saveEdit(row.id, row.label); }}
-                className='rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700'
-              >
-                Lưu
-              </button>
-            ) : null}
-            <RowActionMenu
-              label={'Thao tác cho ' + row.label}
-              actions={[
-                {
-                  key: 'delete',
-                  label: 'Xóa',
-                  destructive: true,
-                  disabled: busy,
-                  confirmLabel: 'Xóa ' + quote(row.label) + ' ?',
-                  onSelect: () => { void del(row.id); },
-                },
-              ]}
-            />
-          </span>
-        );
+          return (
+            <span className='flex items-center gap-2'>
+              {isCustomers && isEditing ? (
+                <>
+                  <button
+                    type='button'
+                    disabled={busy}
+                    onClick={() => { void saveEdit(row.id, row.label); }}
+                    className='rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700'
+                  >
+                    Lưu
+                  </button>
+                  <button
+                    type='button'
+                    disabled={busy}
+                    onClick={() => { setEditingId(null); setEditPhone(''); }}
+                    className='rounded border px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-40'
+                  >
+                    Hủy
+                  </button>
+                </>
+              ) : null}
+              <RowActionMenu
+                label={'Thao tác cho ' + row.label}
+                actions={[
+                  ...(isCustomers && !isEditing ? [{
+                    key: 'edit-phone',
+                    label: 'Sửa SĐT',
+                    disabled: busy,
+                    onSelect: () => { startEdit(row.id, phone); },
+                  }] : []),
+                  {
+                    key: 'delete',
+                    label: 'Xóa',
+                    destructive: true,
+                    disabled: busy,
+                    confirmLabel: 'Xóa ' + quote(row.label) + ' ?',
+                    onSelect: () => { void del(row.id); },
+                  },
+                ]}
+              />
+            </span>
+          );
       },
     });
     return cols;

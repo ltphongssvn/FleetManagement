@@ -14,8 +14,21 @@ services:
       - "${FLEET_PORT_POSTGRES:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql
+    # -h 127.0.0.1 is load-bearing, not cosmetic. The docker-entrypoint
+    # does an INTERNAL start for initdb/setup that listens on the unix
+    # socket only (listen_addresses=localhost), then restarts the real
+    # server. A socket-only pg_isready passes against THAT instance, or
+    # inside the restart window, so compose reports healthy while the
+    # next TCP connection gets 57P03 the database system is starting up --
+    # which is how the api container died on its first Drizzle migration
+    # (run 30947120064). PostgreSQL BUG #15222 documents the same window.
+    # Forcing TCP means the check cannot see the init-time server at all,
+    # and the SELECT 1 proves the target role and database actually work,
+    # not merely that a socket answers.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fleet -d fleet"]
+      test:
+        - CMD-SHELL
+        - pg_isready -h 127.0.0.1 -U fleet -d fleet && psql -h 127.0.0.1 -U fleet -d fleet -c "SELECT 1"
       interval: 5s
       timeout: 5s
       retries: 20
