@@ -11,8 +11,10 @@ import {
   formatSweepSummary,
   protectedIntegrationPaths,
   PROTECTED_INTEGRATION_BRANCHES,
+  withBranch,
   type SweepOutcome,
 } from "./sweep-worktrees-cli.js";
+import { planSweep } from "./sweep-worktrees.js";
 
 describe("parseSweepArgv: pure flag parsing", () => {
   it("defaults dryRun to false with no flags", () => {
@@ -81,5 +83,69 @@ describe("formatSweepSummary: auditable operator report", () => {
     expect(out).toContain("removed=0");
     expect(out).toContain("refused=0");
     expect(out).toContain("kept=0");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Detached worktrees.
+//
+// git worktree list --porcelain reports a detached worktree with NO branch line,
+// so parseWorktreePorcelain yields branch: null -- WorktreeEntry declares
+// branch: string | null for exactly this case. But SweepEntrySchema requires
+// branch: z.string().min(1) and planSweep PARSES its input, so handing entries
+// straight through makes the whole sweep THROW the moment one detached worktree
+// exists anywhere in the estate. Two type errors reported this
+// (sweep-worktrees-cli.ts:156 and :157) and nothing caught them, because
+// scripts/ had never been typechecked.
+//
+// Fixed by parsing at the boundary rather than validating downstream: a type
+// guard narrows WorktreeEntry to WorktreeBranchEntry, and a detached worktree is
+// filtered out before it can become a candidate. It is not a cast -- a cast
+// would silence the compiler and keep the runtime throw.
+//
+// Excluding them is also correct on the merits, not merely convenient: a
+// detached worktree has no branch to delete and no upstream to compare, so every
+// close guard that reasons about a branch is meaningless for it. Today it is
+// caught downstream by the no-upstream refusal, which is defence in depth
+// working by accident. This makes the exclusion deliberate.
+describe("withBranch: detached worktrees never enter the sweep", () => {
+  const MIXED = [
+    { path: "/c/FleetManagement", branch: "develop" },
+    { path: "/c/t7-device-binding", branch: "feature/device-binding" },
+    { path: "/c/detached-bisect", branch: null },
+  ];
+
+  it("drops the detached entry and keeps the rest", () => {
+    expect(withBranch(MIXED)).toEqual([
+      { path: "/c/FleetManagement", branch: "develop" },
+      { path: "/c/t7-device-binding", branch: "feature/device-binding" },
+    ]);
+  });
+
+  it("returns an empty list when every worktree is detached", () => {
+    expect(withBranch([{ path: "/c/a", branch: null }])).toEqual([]);
+  });
+
+  it("is a pass-through when nothing is detached", () => {
+    const all = [{ path: "/c/a", branch: "x" }];
+    expect(withBranch(all)).toEqual(all);
+  });
+
+  it("protectedIntegrationPaths accepts its output without a cast", () => {
+    expect(protectedIntegrationPaths(withBranch(MIXED))).toEqual([
+      "/c/FleetManagement",
+    ]);
+  });
+
+  it("planSweep parses the filtered entries instead of throwing", () => {
+    // entries[0] is the primary clone and is always excluded by planSweep.
+    expect(() => planSweep({ entries: withBranch(MIXED), protectedPaths: [] })).not.toThrow();
+    expect(planSweep({ entries: withBranch(MIXED), protectedPaths: [] }).candidates)
+      .toEqual(["/c/t7-device-binding"]);
+  });
+
+  it("planSweep THROWS on an unfiltered detached entry -- the bug this prevents", () => {
+    const unfiltered = MIXED as unknown as { path: string; branch: string }[];
+    expect(() => planSweep({ entries: unfiltered, protectedPaths: [] })).toThrow();
   });
 });
