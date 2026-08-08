@@ -42,13 +42,21 @@ export interface AndroidPlan {
   readonly packageId: string;
   readonly reverse: { readonly from: string; readonly to: string };
 }
+/** The port the api is actually served on, from the configured URL. */
+export function apiPort(c: StackUpConfig): string {
+  return new URL(c.apiUrl).port || '3000';
+}
+
 export function androidPlan(c: StackUpConfig): AndroidPlan {
   return {
     avd: c.avd,
     device: c.device,
     apkPath: c.apkPath,
     packageId: c.driverPackageId,
-    reverse: { from: 'tcp:3000', to: 'tcp:3000' },
+    // Derived from the api URL, never hardcoded: on a worktree using 3010 a
+    // fixed tcp:3000 forwarded the WRONG port and the driver app silently
+    // talked to another worktree's api.
+    reverse: { from: 'tcp:' + apiPort(c), to: 'tcp:' + apiPort(c) },
   };
 }
 
@@ -61,6 +69,40 @@ export const defaultConfig: StackUpConfig = stackUpConfigSchema.parse({
   apkPath: 'apps/driver-app/android/app/build/outputs/apk/release/app-release.apk',
   driverPackageId: 'com.fleetmanagement.driver',
 });
+// Local dev override: compose-identity.ts writes per-worktree ports into .env,
+// which docker compose reads but this process does not. stack:up therefore
+// probed localhost:3000 whatever the worktree used, and reported a healthy
+// stack belonging to ANOTHER worktree -- or a live one as broken.
+//
+// The environment is a PARAMETER, not process.env read inside: the function is
+// then pure and unit-testable, and callers stay explicit about where the values
+// come from. Falls back to defaultConfig field by field, so CI (1:1 port
+// mapping, none of these set) is unaffected.
+export function envConfig(env: Readonly<Record<string, string | undefined>>): StackUpConfig {
+  const port = (k: string, fallback: string): string => {
+    const v = env[k];
+    return v !== undefined && v.length > 0 ? v : fallback;
+  };
+  const project = env['FLEET_COMPOSE_PROJECT'];
+  return stackUpConfigSchema.parse({
+    ...defaultConfig,
+    composeProject: project !== undefined && project.length > 0 ? project : defaultConfig.composeProject,
+    apiUrl: 'http://localhost:' + port('FLEET_PORT_API', '3000'),
+    opsWebUrl: 'http://localhost:' + port('FLEET_PORT_OPS_WEB', '3001'),
+    includeAndroid: env['FLEET_SKIP_ANDROID'] === '1' ? false : defaultConfig.includeAndroid,
+  });
+}
+
+/** Load .env into a plain map for envConfig. Side-effecting, entrypoint only. */
+export function loadWorktreeEnv(): Readonly<Record<string, string | undefined>> {
+  try {
+    process.loadEnvFile('.env');
+  } catch {
+    /* no .env: defaults apply */
+  }
+  return process.env;
+}
+
 
 // ---- side-effecting helpers (entrypoint only) ----
 function sh(cmd: string, args: string[], opts: { quiet?: boolean } = {}): void {
@@ -118,7 +160,7 @@ async function bootEmulator(plan: AndroidPlan): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const c = defaultConfig;
+  const c = envConfig(loadWorktreeEnv());
   const services = composeServices(c);
   const built = services.filter((svc) => ['api', 'worker', 'ops-web'].includes(svc));
   // MANDATORY build sequence (no exceptions): cached layers have shipped stale
