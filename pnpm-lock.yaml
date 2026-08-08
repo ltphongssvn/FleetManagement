@@ -420,6 +420,9 @@ importers:
         specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
+      '@fleet/test-fixtures':
+        specifier: workspace:*
+        version: link:../../packages/test-fixtures
       '@sentry/cli':
         specifier: 2.58.4
         version: 2.58.4(supports-color@8.1.1)
