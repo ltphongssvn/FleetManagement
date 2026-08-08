@@ -27,6 +27,14 @@ import { classifyDepsCandidate } from './worktree-deps-status.js';
 // git-sync module was acceptable. See worktree-deps-probe.ts for the three
 // historical fixes it carries.
 import { probeDeps } from './worktree-deps-probe.js';
+// Terminal numbers are allocated from the REMOTE, not from the worktrees below:
+// this census is per-machine, and the t78 collision came from reading it as if
+// it were global. See terminal-registry.ts.
+import {
+  listTerminalRefsArgs,
+  parseTerminalRefs,
+  formatTerminalCensus,
+} from './terminal-registry.js';
 
 // ------------------------------- CORE (pure) -------------------------------
 export interface WorktreeState {
@@ -300,6 +308,11 @@ export function main(argv: string[] = process.argv.slice(2)): number {
   const verboseDeps = argv.includes("--verbose-deps");
   process.stdout.write(C.dim + "Fetching origin (prune)..." + C.reset + String.fromCharCode(10));
   git(["fetch", "--all", "--prune"]);
+  // refs/terminals/* is NOT in the default fetch refspec, so --all does not
+  // bring it. Without this the registry reads as empty, which is
+  // indistinguishable from "nothing claimed" and would re-issue terminal 1.
+  // allowFail: an older remote without the namespace must not break the sync.
+  git(["fetch", "origin", "+refs/terminals/*:refs/remotes/origin/terminals/*"], { allowFail: true });
   const t: Tally = { ff: 0, synced: 0, ahead: 0, published: 0, tracked: 0, blocked: 0, detached: 0, depsOk: 0, depsStale: 0, toolchainBlocked: 0 };
   for (const wt of listWorktrees()) {
     try {
@@ -313,6 +326,15 @@ export function main(argv: string[] = process.argv.slice(2)): number {
       process.stderr.write(C.red + "BLOCK" + C.reset + "  " + label(wt) + " (" + msg + ")" + String.fromCharCode(10));
     }
   }
+  // Printed with the census because this output IS where terminal numbers are
+  // read from. Leaving it out would mean the correct number exists but nobody
+  // sees it, and the local high-water gets reused out of habit.
+  process.stdout.write(
+    String.fromCharCode(10) + C.dim +
+      formatTerminalCensus(parseTerminalRefs(
+        git(listTerminalRefsArgs(), { allowFail: true }).split(String.fromCharCode(10)).filter((l) => l.length > 0),
+      )) + C.reset + String.fromCharCode(10),
+  );
   process.stdout.write(
     String.fromCharCode(10) + C.dim + "Summary:" + C.reset + " " +
       C.green + String(t.ff) + " ff" + C.reset + ", " + String(t.synced) + " synced" + ", " +
