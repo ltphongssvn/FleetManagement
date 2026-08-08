@@ -73,7 +73,23 @@ export default tseslint.config(
       "vitest/no-disabled-tests": "warn",
       "vitest/no-identical-title": "error",
       "vitest/expect-expect": ["error", { assertFunctionNames: ["expect", "expectTypeOf", "fc.assert"] }],
-      "vitest/valid-expect": "error",
+      // maxArgs: 2 because VITEST -- unlike Jest -- supports a second argument to
+      // expect() carrying a custom failure message: expect(value, "why").toBe(x).
+      // The rule's minArgs/maxArgs both default to 1, the count vanilla Jest
+      // expect supports, so the default configuration reports every Vitest
+      // message argument as "Expect takes at most 1 argument". That is a known
+      // false positive for Vitest (vitest-dev/eslint-plugin-vitest#503, fixed in
+      // PR #518; oxc-project/oxc#18851 tracks the same gap in oxlint), and the
+      // options exist precisely for runtimes whose expect takes more arguments.
+      //
+      // WHY THIS MATTERS HERE RATHER THAN BEING WAIVED. The guard specs under
+      // scripts/*.guard.test.ts carry their diagnostics in that argument: a
+      // guard that fails without naming the offending package, subpath and
+      // condition costs the next reader an investigation. Dropping the messages
+      // to satisfy a false positive would degrade every guard in the repo to
+      // "expected false to be true". Verified working: the messages appear in
+      // full during mutation verification of the RN-resolution guard.
+      "vitest/valid-expect": ["error", { maxArgs: 2 }],
     },
   },
   // e2e specs live under e2e/ and are NOT in any app/package tsconfig include,
