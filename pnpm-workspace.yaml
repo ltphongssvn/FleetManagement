@@ -163,6 +163,10 @@ overrides:
   tmp@>=0.2.6 <0.2.7: ^0.2.7
   vite: ">=8.0.16"
   multer: ">=2.2.0"
+  # GHSA-2v37-7h3g-55p8: nanoid <3.3.17 loops forever when a custom generator
+  # is called with size zero. Same optional-Expo-peer chain, via postcss and
+  # @react-navigation. Bounded so majors 4+ are untouched.
+  "nanoid@<3.3.17": ">=3.3.17"
   # GHSA-vmh5-mc38-953g: undici 7.23.0-7.27.x SOCKS5 ProxyAgent TLS bypass.
   # Transitive via @semantic-release/github + testcontainers; scoped to the
   # vulnerable 7.x range so undici 6.x (via @semantic-release/npm) is untouched.
@@ -202,6 +206,29 @@ auditConfig:
     # would risk the Image pipeline for a code path we never execute. Revisit
     # and remove when next bumps its sharp range to admit >=0.35.0. (2026-07)
     - GHSA-f88m-g3jw-g9cj
+    # GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq: image-size <=2.0.2 infinite
+    # loops in the ICNS, JXL and HEIF parsers.
+    #
+    # NO PATCH EXISTS. The advisory names >=2.0.3, but 2.0.3 is UNPUBLISHED --
+    # the latest release is 2.0.2, so an override fails the install outright
+    # with ERR_PNPM_NO_MATCHING_VERSION. This was attempted and reverted.
+    #
+    # NOT REACHABLE, verified rather than assumed (three facts): drizzle-orm
+    # declares expo-sqlite with peerDependenciesMeta {"optional": true};
+    # apps/api declares NO expo or react-native dependency (expo-server-sdk is
+    # push notifications, a different package); and the api source never
+    # imports expo-sqlite. The chain
+    # api -> drizzle-orm -> expo-sqlite -> expo -> metro -> image-size
+    # exists only because pnpm materialises an OPTIONAL peer in the graph.
+    # metro is a bundler and is absent from the shipped api image, so the
+    # vulnerable parsers are never loaded, let alone fed an image.
+    #
+    # 2026 practice for an unpatched advisory is an explicit, documented
+    # acceptance with a revisit condition -- an accepted risk differs from an
+    # overlooked one. REMOVE as soon as image-size 2.0.3 publishes; recheck
+    # weekly, since patches usually land within days of an advisory.
+    - GHSA-w3rx-r6r6-pgpr
+    - GHSA-5p2g-fcmc-qvqq
     # TWO DISTINCT ADVISORIES, listed together only because both are
     # dev-only and neither can be cleared by the override alone.
     #
