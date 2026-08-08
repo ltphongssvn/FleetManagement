@@ -6,24 +6,31 @@
 // revoke, save-phone, delete, reset-password). Rows here are CONFIGURED
 // (assigned vehicle + registered device) so the attention queue is empty
 // and the rows land in the DataTable, not the Can xu ly triage list.
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react';
+//
+// Fixtures are PARSED through AdminDriverRowSchema rather than cast with
+// `as`. A cast blindfolds the compiler: if the wire contract gains a required
+// field, a cast keeps this file green while production breaks. Parsing fails
+// the factory instead -- and it immediately caught a real defect, the devices
+// entry was missing the required `platform` field.
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { AdminDriverRow } from '@fleet/sync-protocol';
+import { AdminDriverRowSchema, type AdminDriverRow } from '@fleet/sync-protocol';
 import { DriversAdminSection, type DriversAdminClient } from '@/features/admin/DriversAdminSection';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => undefined }) }));
 vi.mock('@/features/admin/revalidate-dispatch.action', () => ({ revalidateDispatch: vi.fn().mockResolvedValue(undefined) }));
 
 function makeConfiguredRow(id: string, name: string): AdminDriverRow {
-  return {
+  return AdminDriverRowSchema.parse({
     driverId: id,
     fullName: name,
     phone: '090' + id,
+    operatorId: 'op-' + id,
     assignedVehicle: { vehicleId: 'v' + id, plate: '62H ' + id },
     assignmentId: 'a' + id,
-    devices: [{ deviceId: 'dev-' + id, appVersion: '1.0.0', lastSeenAt: null }],
-  } as AdminDriverRow;
+    devices: [{ deviceId: 'dev-' + id, platform: 'android', appVersion: '1.0.0', lastSeenAt: null }],
+  });
 }
 
 
@@ -42,6 +49,13 @@ function fakeClient(rows: readonly AdminDriverRow[]): DriversAdminClient {
 beforeEach(() => {
   cleanup();
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ items: [] }) }) as unknown as typeof fetch);
+});
+
+// Hermetic teardown: an un-restored global fetch stub leaks into every other
+// file the parallel runner schedules next.
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('DriversAdminSection configured list via DataTable', () => {
@@ -68,12 +82,30 @@ describe('DriversAdminSection configured list via DataTable', () => {
   });
 
   it('filters the configured list through the DataTable search box', async () => {
+    const user = userEvent.setup();
     const rows = [makeConfiguredRow('1', 'Nguyen Van A'), makeConfiguredRow('2', 'Tran Van B')];
     render(<DriversAdminSection client={fakeClient(rows)} />);
     await waitFor(() => { expect(screen.getByText('Nguyen Van A')).toBeInTheDocument(); });
-    fireEvent.change(screen.getByTestId('datatable-search'), { target: { value: 'Tran' } });
+    await user.type(screen.getByTestId('datatable-search'), 'Tran');
     await waitFor(() => { expect(screen.queryByText('Nguyen Van A')).not.toBeInTheDocument(); });
     expect(screen.getByText('Tran Van B')).toBeInTheDocument();
+  });
+
+  it('drops the dead Phan cong xe column from the configured table', async () => {
+    // A configured row is assigned BY CONSTRUCTION: partitionRows routes any
+    // row whose classifyDriverAttention yields VEHICLE_UNASSIGNED to the Can
+    // xu ly queue, and the API derives assignedVehicle and assignmentId from
+    // the same active-assignment row (admin-drivers-list.service.ts). So the
+    // assign cell could only ever render empty here once revoke moved into
+    // the row menu -- the column was pure dead width. Assign controls remain
+    // in the queue, where an unassigned driver actually needs them.
+    render(<DriversAdminSection client={fakeClient([makeConfiguredRow('3', 'Le Van C')])} />);
+    await waitFor(() => { expect(screen.getByText('Le Van C')).toBeInTheDocument(); });
+    expect(screen.queryByRole('columnheader', { name: 'Phân công xe' })).toBeNull();
+    expect(screen.queryByTestId('driver-assign-vehicle-3')).toBeNull();
+    // the columns that carry real content survive
+    expect(screen.getByRole('columnheader', { name: 'Xe được giao' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Thao tác' })).toBeInTheDocument();
   });
 
 });

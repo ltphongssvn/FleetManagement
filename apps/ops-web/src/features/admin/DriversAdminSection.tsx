@@ -110,9 +110,6 @@ function DriverDevicesCell({ row }: CellContext<AdminDriverRow, unknown>): JSX.E
     </span>
   );
 }
-function DriverAssignCell({ row }: CellContext<AdminDriverRow, unknown>): JSX.Element {
-  return useDriverRowRenderers().renderAssignControls(row.original);
-}
 function DriverOpsCell({ row }: CellContext<AdminDriverRow, unknown>): JSX.Element {
   return useDriverRowRenderers().renderOpsControls(row.original);
 }
@@ -124,7 +121,6 @@ const CONFIGURED_COLUMNS: ColumnDef<AdminDriverRow>[] = [
     cell: DriverVehicleCell,
   },
   { id: 'devices', header: 'Thiết bị', cell: DriverDevicesCell },
-  { id: 'assign', header: 'Phân công xe', cell: DriverAssignCell },
   { id: 'ops', header: 'Thao tác', cell: DriverOpsCell },
 ];
 export function DriversAdminSection({ client: injected }: { client?: DriversAdminClient } = {}): JSX.Element {
