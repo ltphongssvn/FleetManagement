@@ -64,22 +64,39 @@ function readPkg(relDir: string): PkgJson | null {
   return existsSync(p) ? (JSON.parse(readFileSync(p, 'utf8')) as PkgJson) : null;
 }
 
+/**
+ * Package name for an app directory. The segment is bound and guarded rather
+ * than indexed inline: noUncheckedIndexedAccess types split()[1] as
+ * string | undefined, and the house pattern for that is a guarded bind, not a
+ * ?? fallback that adds a branch no input can reach.
+ */
+function packageNameFor(appDir: string): string {
+  const leaf = appDir.split('/')[1];
+  return leaf === undefined ? appDir : '@fleet/' + leaf;
+}
+
 const APPS = EAS_APPS.filter((a) => readPkg(a) !== null).map((app) => ({
   app,
+  pkg: packageNameFor(app),
   hook: readPkg(app)?.scripts?.['eas-build-pre-install'] ?? '',
 }));
+
+interface FilterTarget {
+  pkg: string;
+  topological: boolean;
+}
 
 /**
  * Every --filter target in a hook, paired with whether it carries the ^...
  * topological selector. A target WITHOUT the selector is an enumeration.
  */
-function filterTargets(hook: string): Array<{ pkg: string; topological: boolean }> {
-  const out: Array<{ pkg: string; topological: boolean }> = [];
+function filterTargets(hook: string): FilterTarget[] {
+  const out: FilterTarget[] = [];
   const re = /--filter[= ](@fleet\/[a-z0-9-]+)(\^?\.\.\.)?/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(hook)) !== null) {
     const pkg = m[1];
-    if (!pkg) continue;
+    if (pkg === undefined) continue;
     out.push({ pkg, topological: m[2] === '^...' });
   }
   return out;
@@ -106,13 +123,11 @@ describe('EAS pre-install hook is graph-derived', () => {
     ).toEqual([]);
   });
 
-  it.each(APPS)('$app hook uses its own topological selector', ({ app, hook }) => {
-    const self = '@fleet/' + app.split('/')[1];
-    const targets = filterTargets(hook);
+  it.each(APPS)('$app hook uses its own topological selector', ({ app, pkg, hook }) => {
     expect(
-      targets.some((t) => t.pkg === self && t.topological),
+      filterTargets(hook).some((t) => t.pkg === pkg && t.topological),
       app + ' hook must build its graph dependencies via: ' +
-        'pnpm exec turbo run build --filter=' + self + '^...',
+        'pnpm exec turbo run build --filter=' + pkg + '^...',
     ).toBe(true);
   });
 
