@@ -32,6 +32,29 @@ export interface TurboBumpPlan {
   readonly noop: boolean;
 }
 
+// The slice of the root manifest this script depends on. `turbo` is declared as
+// a NAMED optional property, not Record<string, string>.
+//
+// WHY NOT Record (2026-08-08). The previous shape was
+//   { devDependencies?: Record<string, string> }
+// read as `pkg.devDependencies?.turbo`, which is TS4111 under
+// noPropertyAccessFromIndexSignature: Record<string, string> is the DYNAMIC-key
+// form, and dot access on an index signature is exactly what that flag rejects.
+// Switching to `devDependencies?.['turbo']` would have compiled while leaving
+// the real weakness in place -- nothing constrains the key, so a typo like
+// ['turbi'] typechecks, reads undefined, and this script then prints
+// "REFUSED: no turbo devDependency found in package.json", blaming the manifest
+// for a mistake in this file.
+//
+// Naming the key is the fix, not the access syntax. An interface with a named
+// optional property carries no index signature, so dot access is legal AND a
+// misspelling is a compile error. Widening to Record<string, any> would have
+// been the opposite move: it silences the compiler by discarding type safety.
+// Other devDependencies are irrelevant here; this script reads exactly one.
+interface RootManifestTurboSlice {
+  readonly devDependencies?: { readonly turbo?: string };
+}
+
 // A semver range operator we know how to preserve across a bump. Anything else
 // (workspace:, an empty string, a URL) is refused rather than guessed at.
 const RANGE_PREFIXES = ['^', '~'] as const;
@@ -72,9 +95,7 @@ function run(cmd: string, args: string[]): string {
 }
 
 function currentTurboSpec(): string {
-  const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
-    devDependencies?: Record<string, string>;
-  };
+  const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as RootManifestTurboSlice;
   return pkg.devDependencies?.turbo ?? 'NOT SET';
 }
 

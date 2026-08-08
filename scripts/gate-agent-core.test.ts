@@ -111,9 +111,16 @@ describe('summarizeTurboRun', () => {
     expect(s.attempted).toBe(1);
     expect(s.cached).toBe(1);
     expect(s.tasks).toHaveLength(1);
-    expect(s.tasks[0].taskId).toBe('@fleet/domain#typecheck');
-    expect(s.tasks[0].durationMs).toBe(42);
-    expect(s.tasks[0].cacheStatus).toBe('HIT');
+    // Bound and guarded, not optional-chained: the length assertion above is the
+    // premise, so a missing row is a real regression that must fail by name
+    // rather than as "expected undefined to be ...". House pattern, and it
+    // removes the undefined that noUncheckedIndexedAccess reports as TS2532.
+    const [task] = s.tasks;
+    expect(task, 'summarizeTurboRun returned no task row to inspect').toBeDefined();
+    if (task === undefined) return;
+    expect(task.taskId).toBe('@fleet/domain#typecheck');
+    expect(task.durationMs).toBe(42);
+    expect(task.cacheStatus).toBe('HIT');
   });
   it('fails CLOSED on a payload with no execution block', () => {
     expect(() => summarizeTurboRun({ tasks: [] })).toThrow();
