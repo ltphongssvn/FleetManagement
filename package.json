@@ -92,7 +92,7 @@
     "prettier": "^3.8.3",
     "semantic-release": "^25.0.3",
     "tsx": "^4.21.0",
-    "turbo": "^2.10.8",
+    "turbo": "^2.10.9",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.58.2",
     "vite": ">=8.0.16",

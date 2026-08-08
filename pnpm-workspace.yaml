@@ -163,6 +163,10 @@ overrides:
   tmp@>=0.2.6 <0.2.7: ^0.2.7
   vite: ">=8.0.16"
   multer: ">=2.2.0"
+  # GHSA-2v37-7h3g-55p8: nanoid <3.3.17 loops forever when a custom generator
+  # is called with size zero. Same optional-Expo-peer chain, via postcss and
+  # @react-navigation. Bounded so majors 4+ are untouched.
+  "nanoid@<3.3.17": ">=3.3.17"
   # GHSA-vmh5-mc38-953g: undici 7.23.0-7.27.x SOCKS5 ProxyAgent TLS bypass.
   # Transitive via @semantic-release/github + testcontainers; scoped to the
   # vulnerable 7.x range so undici 6.x (via @semantic-release/npm) is untouched.
@@ -202,6 +206,36 @@ auditConfig:
     # would risk the Image pipeline for a code path we never execute. Revisit
     # and remove when next bumps its sharp range to admit >=0.35.0. (2026-07)
     - GHSA-f88m-g3jw-g9cj
+    # GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq: image-size <=2.0.2 infinite
+    # loops in the ICNS, JXL and HEIF parsers.
+    #
+    # NO PATCH EXISTS. The advisory names >=2.0.3, but 2.0.3 is UNPUBLISHED --
+    # the latest release is 2.0.2, so an override fails the install outright
+    # with ERR_PNPM_NO_MATCHING_VERSION. This was attempted and reverted.
+    #
+    # NOT REACHABLE, verified rather than assumed (three facts): drizzle-orm
+    # declares expo-sqlite with peerDependenciesMeta {"optional": true};
+    # apps/api declares NO expo or react-native dependency (expo-server-sdk is
+    # push notifications, a different package); and the api source never
+    # imports expo-sqlite. The chain
+    # api -> drizzle-orm -> expo-sqlite -> expo -> metro -> image-size
+    # exists only because pnpm materialises an OPTIONAL peer in the graph.
+    # metro is a bundler and is absent from the shipped api image, so the
+    # vulnerable parsers are never loaded, let alone fed an image.
+    #
+    # CORROBORATED FROM THE SHIPPED ARTIFACT, not only from the graph: building
+    # Dockerfile.api's exact tree (pnpm --filter=@fleet/api deploy --prod
+    # --no-optional) yields 0 image-size directories, 0 metro, 0 Expo SDK, and
+    # pnpm audit --prod run INSIDE that tree reports no known vulnerabilities.
+    # Probe validated against positive controls (drizzle-orm, pg, @nestjs/core,
+    # zod all present), so the zeros are absence, not a broken search.
+    #
+    # 2026 practice for an unpatched advisory is an explicit, documented
+    # acceptance with a revisit condition -- an accepted risk differs from an
+    # overlooked one. REMOVE as soon as image-size 2.0.3 publishes; recheck
+    # weekly, since patches usually land within days of an advisory.
+    - GHSA-w3rx-r6r6-pgpr
+    - GHSA-5p2g-fcmc-qvqq
     # TWO DISTINCT ADVISORIES, listed together only because both are
     # dev-only and neither can be cleared by the override alone.
     #
@@ -266,27 +300,6 @@ auditConfig:
     # a security-control change must be attributable, not buried in a feature PR.
     #
     # REMOVE once metro floors its own image-size range at >=2.0.3.
-    - GHSA-w3rx-r6r6-pgpr
-    - GHSA-5p2g-fcmc-qvqq
-    # GHSA-2v37-7h3g-55p8 -- nanoid <3.3.17, a custom generator loops forever when
-    # size is zero. Same expo subtree, same artifact evidence as image-size above:
-    # 0 nanoid directories in the `pnpm deploy --prod --no-optional` tree, and
-    # `pnpm audit --prod` inside it reports no known vulnerabilities.
-    #
-    # AN OVERRIDE WAS TRIED FIRST AND FAILED, recorded so nobody repeats it. The
-    # convergence form "nanoid@": "3.3.17" was the obvious fix -- postcss@8.5.21
-    # declares ^3.3.16, which 3.3.17 satisfies -- but `pnpm why` still reported
-    # 3.3.16 after --lockfile-only. Exactly the shape the js-yaml comment warns
-    # about: the entry sits in the lockfile looking applied while the resolution
-    # stays put. A release-age cooldown was ruled out by evidence: no global
-    # minimumReleaseAge is configured, 3.3.17 is published (pnpm view confirms),
-    # and adding a minimumReleaseAgeExclude entry changed nothing. The remaining
-    # consumers are @react-navigation/* under expo-router, which the shipped api
-    # never contains.
-    #
-    # REMOVE once postcss and @react-navigation floor their own nanoid ranges at
-    # >=3.3.17, or once the ci.yml audit is scoped to the deploy artifact.
-    - GHSA-2v37-7h3g-55p8
 minimumReleaseAgeExclude:
   - tmp@0.2.6 || 0.2.7
   - '@grpc/grpc-js@1.14.4'
@@ -299,17 +312,16 @@ minimumReleaseAgeExclude:
   - multer@2.2.0
   - undici@6.27.0 || 7.28.0 || 8.9.0 || 8.10.0
   - brace-expansion@5.0.9
-  - fast-uri@3.1.5
+  - fast-uri@3.1.3 || 3.1.4 || 3.1.5 || 4.0.1 || 4.1.1
   - socket.io-parser@4.2.7
-  - '@turbo/darwin-64@2.10.2 || 2.10.3 || 2.10.8'
-  - '@turbo/darwin-arm64@2.10.2 || 2.10.3 || 2.10.8'
-  - '@turbo/linux-64@2.10.2 || 2.10.3 || 2.10.8'
-  - '@turbo/linux-arm64@2.10.2 || 2.10.3 || 2.10.8'
-  - '@turbo/windows-64@2.10.2 || 2.10.3 || 2.10.8'
-  - '@turbo/windows-arm64@2.10.2 || 2.10.3 || 2.10.8'
-  - turbo@2.10.2 || 2.10.3 || 2.10.8
+  - '@turbo/darwin-64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9'
+  - '@turbo/darwin-arm64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9'
+  - '@turbo/linux-64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9'
+  - '@turbo/linux-arm64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9'
+  - '@turbo/windows-64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9'
+  - '@turbo/windows-arm64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9'
+  - turbo@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9
   - body-parser@2.3.0
   - '@opentelemetry/propagator-jaeger@2.9.0'
-  - fast-uri@3.1.3 || 3.1.4 || 4.0.1 || 4.1.1
   - sharp@0.35.0
   - next@16.2.11
