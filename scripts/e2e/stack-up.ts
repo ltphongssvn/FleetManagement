@@ -127,8 +127,25 @@ async function waitHttp(url: string, timeoutMs = 180_000): Promise<void> {
   console.error(`❌ readiness timeout for ${url}: ${last}`); process.exit(1);
 }
 
+// ANDROID_HOME first, then ANDROID_SDK_ROOT, then the conventional home path.
+// That order is Android's own documented rule -- ANDROID_HOME wins when set,
+// ANDROID_SDK_ROOT is the fallback -- and it is current: ANDROID_SDK_ROOT was
+// briefly the preferred name around 2018-2021 (hence the Bazel/Flutter issues
+// arguing the reverse), but the deprecation flipped back and ANDROID_HOME is
+// the preferred variable as of 2026. Do not "modernise" this precedence.
+//
+// Bracket notation because process.env is an index signature (TS4111 under
+// noPropertyAccessFromIndexSignature); behaviour is unchanged.
+//
+// KNOWN GAP, not fixed here: Android's rule also falls through when
+// ANDROID_HOME is DEFINED BUT INVALID, whereas ?? accepts any non-empty string.
+// Closing that needs a filesystem check inside this helper, which is a
+// behaviour change in untested side-effecting code -- out of scope for a
+// type-debt burn-down. Note also that envConfig above takes the environment as
+// a PARAMETER for exactly this testability reason; sdkBin is the one function
+// in this file that reads process.env directly.
 function sdkBin(name: string): string {
-  const home = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT ?? `${homedir()}/Android/Sdk`;
+  const home = process.env['ANDROID_HOME'] ?? process.env['ANDROID_SDK_ROOT'] ?? `${homedir()}/Android/Sdk`;
   const sub = name === 'emulator' ? `emulator/${name}` : `platform-tools/${name}`;
   return `${home}/${sub}`;
 }

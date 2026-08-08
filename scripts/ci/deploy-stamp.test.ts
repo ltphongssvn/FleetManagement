@@ -14,6 +14,15 @@
 // variable before each railway up, then ASSERT it back from /health/version --
 // 2026 practice is that provenance is stamped from the builder and verified
 // automatically in a gate, never confirmed by hand.
+//
+// INDEXED ACCESS IS BOUND AND GUARDED (2026-08-08). cmds[0][2] was TS2532 under
+// noUncheckedIndexedAccess. Optional chaining (cmds[0]?.[2]) was rejected: if a
+// regression dropped a command the assertion would report "expected undefined
+// to be GIT_BRANCH=main" instead of naming the real fault, and it would encode
+// "this element might be absent" into a test whose entire premise is that it is
+// not. Binding the row and asserting it exists is the house pattern (t63
+// literal-guard, t15 assignment-audit): a real guard that fails legibly, and it
+// removes the undefined from the type so the index that follows is legal.
 import { describe, it, expect } from 'vitest';
 import {
   buildStampVariables,
@@ -61,8 +70,12 @@ describe('railwayVariablesArgs', () => {
   });
   it('sorts variables so the emitted command sequence is reproducible', () => {
     const cmds = railwayVariablesArgs('api', vars);
-    expect(cmds[0][2]).toBe('GIT_BRANCH=main');
-    expect(cmds[1][2]).toBe('GIT_SHA=' + SHA);
+    const [first, second] = cmds;
+    expect(first, 'expected a first command to inspect').toBeDefined();
+    expect(second, 'expected a second command to inspect').toBeDefined();
+    if (first === undefined || second === undefined) return;
+    expect(first[2]).toBe('GIT_BRANCH=main');
+    expect(second[2]).toBe('GIT_SHA=' + SHA);
   });
   it('never emits the legacy --set flag', () => {
     const flat = railwayVariablesArgs('api', vars).flat();

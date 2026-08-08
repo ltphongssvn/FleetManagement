@@ -9,6 +9,13 @@
 // Pure, unit-tested exports: opsWebE2EEnvSchema, readinessTargets.
 // Side-effecting main() runs ONLY when this file is the entrypoint, so the
 // test suite can import the pure parts without spawning Playwright.
+//
+// ENV READS USE BRACKET NOTATION (2026-08-08). process.env is an index
+// signature, so dot access is TS4111 under noPropertyAccessFromIndexSignature.
+// The reads below feed the schema parse, which is already the correct shape --
+// only the access syntax changes. The flag stops a typo'd name from silently
+// reading undefined, which here would surface as a confusing "invalid url"
+// rather than "you did not set E2E_BASE_URL".
 import { z } from 'zod';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -55,9 +62,9 @@ async function waitForTarget(url: string, timeoutMs = 120_000): Promise<void> {
 
 async function main(): Promise<void> {
   const env = opsWebE2EEnvSchema.parse({
-    E2E_BASE_URL: process.env.E2E_BASE_URL,
-    E2E_API_URL: process.env.E2E_API_URL,
-    E2E_OPS_PASSWORD: process.env.E2E_OPS_PASSWORD,
+    E2E_BASE_URL: process.env['E2E_BASE_URL'],
+    E2E_API_URL: process.env['E2E_API_URL'],
+    E2E_OPS_PASSWORD: process.env['E2E_OPS_PASSWORD'],
   });
   for (const target of readinessTargets(env)) {
     process.stdout.write(`[e2e:ops-web] waiting for ${target} ...\n`);
