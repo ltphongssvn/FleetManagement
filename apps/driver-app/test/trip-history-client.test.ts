@@ -4,14 +4,37 @@
 // boundary. Months come pre-grouped by the API (shared @fleet/domain helper),
 // so the driver app no longer groups client-side.
 import { describe, it, expect, vi } from 'vitest';
+import { createListAssignedRow } from '@fleet/test-fixtures';
 import { AssignmentsClient, type AssignmentRow } from '../src/assignments/assignments-client.js';
+
+// Built THROUGH ListAssignedRowSchema. The previous hand-written literal was
+// missing externalRef, createdAt, cargoName, driverName, canCancel and
+// cancelBlockedReason -- the SAME six fields the hand-rolled parser dropped, so
+// fixture and parser agreed with each other while neither matched the wire. A
+// factory cannot drift: a row that stops satisfying the contract fails at
+// construction.
 function completedRow(id: string, completedAt: string): AssignmentRow {
-  return {
-    transportOrderId: 'to-' + id, roadRunId: 'rr-' + id, state: 'completed',
-    plannedStartAt: null, startedAt: null, completedAt,
-    plate: null, orderRef: id, customerName: null, pickupName: null, deliveryName: null, stops: [],
-  };
+  return createListAssignedRow({
+    transportOrderId: 'to-' + id,
+    roadRunId: 'rr-' + id,
+    state: 'completed',
+    plannedStartAt: null,
+    startedAt: null,
+    completedAt,
+    plate: null,
+    orderRef: id,
+    customerName: null,
+    pickupName: null,
+    deliveryName: null,
+    stops: [],
+  });
 }
+// Rejection assertions below check THAT a malformed payload throws, not the
+// wording: the messages they used to match ('months must be array',
+// 'AssignmentRow: not an object') came from parseMonth/parseRow, which this
+// refactor deleted in favour of the shared contract. Zod reports structured
+// issues instead, so matching its prose would just re-couple these tests to a
+// new implementation detail.
 describe('AssignmentsClient.tripHistory', () => {
   it('GETs /transport-orders/trip-history with the bearer token', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
@@ -54,12 +77,12 @@ describe('AssignmentsClient.tripHistory', () => {
   it('rejects when the response is not an object', async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(null) });
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
-    await expect(client.tripHistory()).rejects.toThrow(/not an object/);
+    await expect(client.tripHistory()).rejects.toThrow();
   });
   it('rejects when months is not an array', async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ months: 'nope' }) });
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
-    await expect(client.tripHistory()).rejects.toThrow(/months must be array/);
+    await expect(client.tripHistory()).rejects.toThrow();
   });
   it('rejects when a month is missing a numeric count', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
@@ -75,7 +98,7 @@ describe('AssignmentsClient.tripHistory', () => {
       json: () => Promise.resolve({ months: [{ monthKey: '2026-03', label: 'Thg 3 2026', count: 0, trips: 'nope' }] }),
     });
     const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
-    await expect(client.tripHistory()).rejects.toThrow(/trips must be array/);
+    await expect(client.tripHistory()).rejects.toThrow();
   });
   it('awaits an async bearerToken provider', async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ months: [] }) });
