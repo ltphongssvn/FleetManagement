@@ -6,10 +6,20 @@
 // when required checks come from repository rulesets (community #162623), where
 // --auto enables but never fires. Instead it polls and merges synchronously once
 // green. When the branch is BEHIND (the develop-protection ruleset requires up to
-// date), it updates the branch and re-polls rather than stalling. Three pure
-// decisions are tested: decideAutoMerge (one-time precondition guard),
-// decideMergeReady (per-poll MERGE/UPDATE/WAIT/BLOCKED), and the shared
-// summarizeChecks green semantics reused from pr-follow.ts.
+// date), it updates the branch and re-polls rather than stalling.
+//
+// FIXTURE SHAPE CHANGED (PR #511 fix). Checks were previously modelled as
+// {name, state} -- the shape `gh pr checks --json name,state` returns. That
+// endpoint buckets CANCELLED into a failure-shaped state (cli/cli#7551), which is
+// how PR #511 was reported BLOCKED while carrying zero failures. The source is
+// now `gh pr view --json statusCheckRollup`, so a check is {name, status,
+// conclusion} and an in-flight run is conclusion:null rather than a pending
+// state string.
+//
+// Four pure decisions are tested: decideAutoMerge (one-time precondition guard),
+// decideMergeReady (per-poll MERGE/UPDATE/RERUN/WAIT/BLOCKED), the summarizeChecks
+// green semantics, and the RERUN path that exists so a superseded run is re-run
+// instead of blocking a healthy PR.
 import { describe, it, expect } from 'vitest';
 import {
   decideAutoMerge,
@@ -70,10 +80,13 @@ describe('decideAutoMerge precondition guard', () => {
 });
 
 const green3: CheckRun[] = [
-  { name: 'CI', state: 'SUCCESS' },
-  { name: 'Coverage gate', state: 'SUCCESS' },
-  { name: 'promote', state: 'SKIPPED' },
+  { name: 'CI', status: 'COMPLETED', conclusion: 'SUCCESS' },
+  { name: 'Coverage gate', status: 'COMPLETED', conclusion: 'SUCCESS' },
+  { name: 'promote', status: 'COMPLETED', conclusion: 'SKIPPED' },
 ];
+
+// An in-flight run: statusCheckRollup reports conclusion null until it concludes.
+const inFlight: CheckRun = { name: 'slow', status: 'IN_PROGRESS', conclusion: null };
 
 describe('decideMergeReady per-poll decision', () => {
   it('MERGES when every check is green and the PR is CLEAN', () => {
@@ -92,17 +105,20 @@ describe('decideMergeReady per-poll decision', () => {
   });
 
   it('WAITS when a check is still pending, even if mergeState is CLEAN', () => {
-    const checks: CheckRun[] = [...green3, { name: 'slow', state: 'IN_PROGRESS' }];
+    const checks: CheckRun[] = [...green3, inFlight];
     expect(decideMergeReady(summarizeChecks(checks), 'CLEAN').action).toBe('WAIT');
   });
 
   it('does NOT update when BEHIND but a check is still pending -- checks come first', () => {
-    const checks: CheckRun[] = [...green3, { name: 'slow', state: 'IN_PROGRESS' }];
+    const checks: CheckRun[] = [...green3, inFlight];
     expect(decideMergeReady(summarizeChecks(checks), 'BEHIND').action).toBe('WAIT');
   });
 
   it('BLOCKS when a required check has failed', () => {
-    const checks: CheckRun[] = [...green3, { name: 'flaky', state: 'FAILURE' }];
+    const checks: CheckRun[] = [
+      ...green3,
+      { name: 'flaky', status: 'COMPLETED', conclusion: 'FAILURE' },
+    ];
     const d = decideMergeReady(summarizeChecks(checks), 'CLEAN');
     expect(d.action).toBe('BLOCKED');
     expect(d.reason.toLowerCase()).toContain('failed');
@@ -122,7 +138,52 @@ describe('decideMergeReady per-poll decision', () => {
   });
 });
 
-describe('summarizeChecks green semantics (reused from pr-follow)', () => {
+// The PR #511 scenario, end to end through the decision core. Two jobs cancelled
+// by concurrency, four skipped downstream, three green, ZERO failures. The old
+// code reported BLOCKED here and stranded a healthy PR for a day.
+describe('decideMergeReady RERUN path (the PR #511 regression)', () => {
+  const pr511: CheckRun[] = [
+    { name: 'Install / Build / Lint / Typecheck', status: 'COMPLETED', conclusion: 'CANCELLED' },
+    { name: 'Security guards (secrets + prod topology)', status: 'COMPLETED', conclusion: 'CANCELLED' },
+    { name: 'API tests (shard 1/4)', status: 'COMPLETED', conclusion: 'SKIPPED' },
+    { name: 'Coverage gate', status: 'COMPLETED', conclusion: 'SKIPPED' },
+    { name: 'Enforce reference variables', status: 'COMPLETED', conclusion: 'SUCCESS' },
+    { name: 'GitGuardian Security Checks', status: 'COMPLETED', conclusion: 'SUCCESS' },
+  ];
+
+  it('does NOT block -- nothing actually failed', () => {
+    expect(decideMergeReady(summarizeChecks(pr511), 'CLEAN').action).not.toBe('BLOCKED');
+  });
+
+  it('RERUNS instead, naming the superseded checks', () => {
+    const d = decideMergeReady(summarizeChecks(pr511), 'CLEAN');
+    expect(d.action).toBe('RERUN');
+    expect(d.reason).toContain('Install / Build / Lint / Typecheck');
+  });
+
+  it('does not merge on a cancelled check either -- indeterminate is not green', () => {
+    expect(decideMergeReady(summarizeChecks(pr511), 'CLEAN').action).not.toBe('MERGE');
+  });
+
+  it('a real failure alongside a cancellation BLOCKS rather than rerunning', () => {
+    const checks: CheckRun[] = [
+      ...pr511,
+      { name: 'unit tests', status: 'COMPLETED', conclusion: 'FAILURE' },
+    ];
+    expect(decideMergeReady(summarizeChecks(checks), 'CLEAN').action).toBe('BLOCKED');
+  });
+
+  it('STALE and TIMED_OUT take the same path as CANCELLED', () => {
+    const checks: CheckRun[] = [
+      { name: 'aged out', status: 'COMPLETED', conclusion: 'STALE' },
+      { name: 'slow job', status: 'COMPLETED', conclusion: 'TIMED_OUT' },
+      ...green3,
+    ];
+    expect(decideMergeReady(summarizeChecks(checks), 'CLEAN').action).toBe('RERUN');
+  });
+});
+
+describe('summarizeChecks green semantics', () => {
   it('is green only when settled, no failures, and at least one check exists', () => {
     expect(summarizeChecks(green3).green).toBe(true);
     expect(summarizeChecks([]).green).toBe(false);
@@ -130,12 +191,23 @@ describe('summarizeChecks green semantics (reused from pr-follow)', () => {
 
   it('treats SKIPPED and NEUTRAL as passing, not failing', () => {
     const checks: CheckRun[] = [
-      { name: 'a', state: 'SKIPPED' },
-      { name: 'b', state: 'NEUTRAL' },
-      { name: 'c', state: 'SUCCESS' },
+      { name: 'a', status: 'COMPLETED', conclusion: 'SKIPPED' },
+      { name: 'b', status: 'COMPLETED', conclusion: 'NEUTRAL' },
+      { name: 'c', status: 'COMPLETED', conclusion: 'SUCCESS' },
     ];
     const s = summarizeChecks(checks);
     expect(s.green).toBe(true);
     expect(s.failed.length).toBe(0);
+  });
+
+  it('a cancelled check is neither passed nor failed', () => {
+    const checks: CheckRun[] = [
+      ...green3,
+      { name: 'superseded', status: 'COMPLETED', conclusion: 'CANCELLED' },
+    ];
+    const s = summarizeChecks(checks);
+    expect(s.failed).toEqual([]);
+    expect(s.indeterminate).toEqual(['superseded']);
+    expect(s.green).toBe(false);
   });
 });

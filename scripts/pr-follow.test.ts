@@ -6,10 +6,18 @@
 // Railway. With hundreds of PRs, following that chain by hand is what strands
 // them. Every decision here is pure so the chain logic is testable without a
 // network, matching the house pattern used by host-gate and inspect-prod-deploy.
+//
+// CHECK FIXTURE SHAPE CHANGED (PR #511 fix). Checks were modelled as
+// {name, state} -- the shape `gh pr checks --json name,state` returns, whose
+// bucketed output makes CANCELLED indistinguishable from FAILURE (cli/cli#7551).
+// The source is now `gh pr view --json statusCheckRollup`, so a check is
+// {name, status, conclusion}. RUN fixtures below are unchanged: workflow-run
+// conclusions are a separate, lowercase enum and were always modelled correctly.
 import { describe, it, expect } from 'vitest';
 import {
   summarizeChecks,
   runStateFor,
+  runStateFromConclusion,
   deployRunAfter,
   computeVerdict,
   RunRecordSchema,
@@ -33,12 +41,18 @@ describe('CheckRunSchema / RunRecordSchema (trust boundary)', () => {
   it('parses the gh JSON shape', () => {
     expect(() => RunRecordSchema.parse(run())).not.toThrow();
     expect(() => CheckRunSchema.parse({
-      name: 'CI/Build', state: 'SUCCESS',
+      name: 'CI/Build', status: 'COMPLETED', conclusion: 'SUCCESS',
     })).not.toThrow();
   });
 
   it('rejects a malformed record rather than guessing', () => {
     expect(() => RunRecordSchema.parse(run({ databaseId: 'nope' }))).toThrow();
+  });
+
+  it('rejects an unknown check conclusion rather than guessing a verdict', () => {
+    expect(() => CheckRunSchema.parse({
+      name: 'CI/Build', status: 'COMPLETED', conclusion: 'BANANA',
+    })).toThrow();
   });
 
   it('accepts a null conclusion for an in-flight run', () => {
@@ -50,8 +64,8 @@ describe('CheckRunSchema / RunRecordSchema (trust boundary)', () => {
 describe('summarizeChecks', () => {
   it('is green when every check succeeded', () => {
     const s = summarizeChecks([
-      { name: 'CI/Build', state: 'SUCCESS' },
-      { name: 'CI/Tests', state: 'SUCCESS' },
+      { name: 'CI/Build', status: 'COMPLETED', conclusion: 'SUCCESS' },
+      { name: 'CI/Tests', status: 'COMPLETED', conclusion: 'SUCCESS' },
     ]);
     expect(s.green).toBe(true);
     expect(s.settled).toBe(true);
@@ -61,16 +75,16 @@ describe('summarizeChecks', () => {
   it('treats SKIPPED and NEUTRAL as non-failing', () => {
     // The promote dispatcher legitimately reports SKIPPED on a PR.
     const s = summarizeChecks([
-      { name: 'CI/Dispatch promote', state: 'SKIPPED' },
-      { name: 'CI/Build', state: 'NEUTRAL' },
+      { name: 'CI/Dispatch promote', status: 'COMPLETED', conclusion: 'SKIPPED' },
+      { name: 'CI/Build', status: 'COMPLETED', conclusion: 'NEUTRAL' },
     ]);
     expect(s.green).toBe(true);
   });
 
   it('is unsettled while any check is still running', () => {
     const s = summarizeChecks([
-      { name: 'CI/Build', state: 'SUCCESS' },
-      { name: 'CI/E2E', state: 'IN_PROGRESS' },
+      { name: 'CI/Build', status: 'COMPLETED', conclusion: 'SUCCESS' },
+      { name: 'CI/E2E', status: 'IN_PROGRESS', conclusion: null },
     ]);
     expect(s.settled).toBe(false);
     expect(s.green).toBe(false);
@@ -79,19 +93,63 @@ describe('summarizeChecks', () => {
 
   it('names every failure at once, not just the first', () => {
     const s = summarizeChecks([
-      { name: 'CI/Build', state: 'FAILURE' },
-      { name: 'CI/E2E', state: 'TIMED_OUT' },
-      { name: 'CI/Lint', state: 'SUCCESS' },
+      { name: 'CI/Build', status: 'COMPLETED', conclusion: 'FAILURE' },
+      { name: 'CI/Types', status: 'COMPLETED', conclusion: 'STARTUP_FAILURE' },
+      { name: 'CI/Lint', status: 'COMPLETED', conclusion: 'SUCCESS' },
     ]);
     expect(s.settled).toBe(true);
     expect(s.green).toBe(false);
-    expect(s.failed).toEqual(['CI/Build', 'CI/E2E']);
+    expect(s.failed).toEqual(['CI/Build', 'CI/Types']);
+  });
+
+  // This assertion INVERTS a previous one, deliberately. The old spec put
+  // TIMED_OUT in `failed`, which is the PR #511 defect in miniature: a check that
+  // ran out of wall clock says nothing about whether the code is correct, so
+  // treating it as a failure blocks a healthy PR. Do not "restore" this.
+  it('classifies CANCELLED, STALE and TIMED_OUT as indeterminate, not failed', () => {
+    const s = summarizeChecks([
+      { name: 'CI/Build', status: 'COMPLETED', conclusion: 'CANCELLED' },
+      { name: 'CI/E2E', status: 'COMPLETED', conclusion: 'TIMED_OUT' },
+      { name: 'CI/Old', status: 'COMPLETED', conclusion: 'STALE' },
+      { name: 'CI/Lint', status: 'COMPLETED', conclusion: 'SUCCESS' },
+    ]);
+    expect(s.failed).toEqual([]);
+    expect(s.indeterminate).toEqual(['CI/Build', 'CI/E2E', 'CI/Old']);
+    expect(s.green).toBe(false);
+    expect(s.needsRerun).toBe(true);
   });
 
   it('is not green when there are no checks at all', () => {
     // Zero checks means the gate has not registered yet; calling that green
     // would let the follower march past an ungated PR.
     expect(summarizeChecks([]).green).toBe(false);
+  });
+});
+
+// The follower OBSERVES; it never acts. So an outcome carrying no verdict maps to
+// 'pending' -- keep watching -- and never to 'failed', which computeVerdict would
+// turn into a hard exit 1 on a pipeline that was never broken.
+describe('runStateFromConclusion', () => {
+  it('maps a successful run to success', () => {
+    expect(runStateFromConclusion('success')).toBe('success');
+  });
+
+  it('maps genuine run failures to failed', () => {
+    expect(runStateFromConclusion('failure')).toBe('failed');
+    expect(runStateFromConclusion('startup_failure')).toBe('failed');
+  });
+
+  it('maps a CANCELLED run to pending, never failed', () => {
+    expect(runStateFromConclusion('cancelled')).toBe('pending');
+  });
+
+  it('maps stale and timed_out runs to pending', () => {
+    expect(runStateFromConclusion('stale')).toBe('pending');
+    expect(runStateFromConclusion('timed_out')).toBe('pending');
+  });
+
+  it('maps an unreadable conclusion to pending rather than inventing a failure', () => {
+    expect(runStateFromConclusion('banana')).toBe('pending');
   });
 });
 
@@ -122,6 +180,15 @@ describe('runStateFor', () => {
 
   it('reports failed for a failing conclusion', () => {
     expect(runStateFor(runs, 'CI', 'c'.repeat(40))).toBe('failed');
+  });
+
+  // The develop-gates false alarm: a run superseded by cancel-in-progress must
+  // not be reported as a failed phase.
+  it('reports pending, not failed, for a run cancelled by concurrency', () => {
+    const cancelled = RunRecordSchema.parse(run({
+      workflowName: 'CI', headSha: 'd'.repeat(40), conclusion: 'cancelled',
+    }));
+    expect(runStateFor([cancelled], 'CI', 'd'.repeat(40))).toBe('pending');
   });
 
   it('prefers the newest run when a workflow was re-run for the same sha', () => {
