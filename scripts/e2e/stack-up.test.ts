@@ -11,6 +11,8 @@ import {
   composeServices,
   readinessProbes,
   androidPlan,
+  envConfig,
+  defaultConfig,
 } from './stack-up.ts';
 
 const base = {
@@ -82,5 +84,56 @@ describe('androidPlan', () => {
     expect(a.avd).toBe('fleet_e2e');
     expect(a.apkPath).toMatch(/app-release\.apk$/);
     expect(a.reverse).toEqual({ from: 'tcp:3000', to: 'tcp:3000' });
+  });
+});
+
+// ---- per-worktree port derivation ----
+// compose-identity.ts writes FLEET_PORT_* into each worktree's .env so parallel
+// stacks do not fight over 3000/3001. docker compose reads that file; this
+// process does not, so stack:up probed localhost:3000 regardless and reported a
+// healthy stack belonging to ANOTHER worktree -- or a dead one as broken.
+describe('envConfig', () => {
+  const base = {
+    FLEET_COMPOSE_PROJECT: 'fleet-abc123def456',
+    FLEET_PORT_API: '3010',
+    FLEET_PORT_OPS_WEB: '3011',
+  };
+
+  it('derives the probe URLs from the worktree ports', () => {
+    const c = envConfig(base);
+    expect(c.apiUrl).toBe('http://localhost:3010');
+    expect(c.opsWebUrl).toBe('http://localhost:3011');
+  });
+
+  it('derives the compose project so it targets this worktree stack', () => {
+    expect(envConfig(base).composeProject).toBe('fleet-abc123def456');
+  });
+
+  // CI maps ports 1:1 and sets none of these, so an absent env must leave the
+  // committed defaults untouched -- the fallback is what keeps CI unaffected.
+  it('falls back to defaultConfig when nothing is set', () => {
+    const c = envConfig({});
+    expect(c.apiUrl).toBe(defaultConfig.apiUrl);
+    expect(c.opsWebUrl).toBe(defaultConfig.opsWebUrl);
+    expect(c.composeProject).toBe(defaultConfig.composeProject);
+  });
+
+  it('honours FLEET_SKIP_ANDROID for a web-only run', () => {
+    expect(envConfig({ FLEET_SKIP_ANDROID: '1' }).includeAndroid).toBe(false);
+  });
+});
+
+// androidPlan hardcoded tcp:3000 while envConfig derives the API port, so on a
+// worktree using 3010 adb reverse forwarded the WRONG port and the driver app
+// silently talked to another worktree's api -- the same class this arc fixes,
+// one function over.
+describe('androidPlan port derivation', () => {
+  it('reverses the port the api is actually on', () => {
+    const plan = androidPlan(envConfig({ FLEET_PORT_API: '3010' }));
+    expect(plan.reverse).toStrictEqual({ from: 'tcp:3010', to: 'tcp:3010' });
+  });
+
+  it('still reverses 3000 under the CI defaults', () => {
+    expect(androidPlan(defaultConfig).reverse).toStrictEqual({ from: 'tcp:3000', to: 'tcp:3000' });
   });
 });
