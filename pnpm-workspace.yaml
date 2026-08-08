@@ -223,6 +223,13 @@ auditConfig:
     # metro is a bundler and is absent from the shipped api image, so the
     # vulnerable parsers are never loaded, let alone fed an image.
     #
+    # CORROBORATED FROM THE SHIPPED ARTIFACT, not only from the graph: building
+    # Dockerfile.api's exact tree (pnpm --filter=@fleet/api deploy --prod
+    # --no-optional) yields 0 image-size directories, 0 metro, 0 Expo SDK, and
+    # pnpm audit --prod run INSIDE that tree reports no known vulnerabilities.
+    # Probe validated against positive controls (drizzle-orm, pg, @nestjs/core,
+    # zod all present), so the zeros are absence, not a broken search.
+    #
     # 2026 practice for an unpatched advisory is an explicit, documented
     # acceptance with a revisit condition -- an accepted risk differs from an
     # overlooked one. REMOVE as soon as image-size 2.0.3 publishes; recheck
@@ -261,6 +268,38 @@ auditConfig:
     # floor their undici ranges at >=8.9.0. REMOVE this entry once they do.
     - GHSA-4cwx-7wf7-3272
     - GHSA-rgw5-rvv9-x895
+    # GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq -- image-size <=2.0.2 infinite
+    # loops in the ICNS, JXL and HEIF parsers. Patched 2.0.3.
+    #
+    # NO OVERRIDE CAN MOVE IT. metro@0.83.7 declares image-size ^1.0.2. A
+    # convergence override is inert by construction (an exact 2.0.3 never satisfies
+    # ^1.0.2) and a bounded floor would drag metro across a major -- the exact
+    # failure the js-yaml comment above records, where an unbounded floor dragged
+    # cosmiconfig into 5.x and imported a NEW advisory.
+    #
+    # NOT SHIPPED -- verified from the ARTIFACT, not inferred from the graph. It
+    # reaches the workspace audit only via apps/api -> drizzle-orm -> expo-sqlite
+    # -> expo -> metro, where expo-sqlite is a drizzle-orm OPTIONAL PEER that pnpm
+    # installs regardless (pnpm#11155). Dockerfile.api builds with
+    # `pnpm --filter=@fleet/api deploy --prod --no-optional`, which prunes that
+    # subtree. Probe of that exact tree: 0 image-size dirs, 0 metro, 0 Expo SDK
+    # (only expo-server-sdk, a genuine push dep), and `pnpm audit --prod` run
+    # INSIDE it reports "No known vulnerabilities found". Probe validated against
+    # positive controls -- drizzle-orm, pg, @nestjs/core, zod all found -- so the
+    # zeros are absence, not a broken search. This is a VEX-style exploitability
+    # statement: gate on what ships, not on the whole graph (2026 practice).
+    #
+    # A "-" peer-removal override on drizzle-orm>expo-sqlite was tried first and
+    # did NOT fire: pnpm why was byte-identical after re-resolution. driver-app
+    # imports drizzle-orm/expo-sqlite directly, so that edge is load-bearing there.
+    #
+    # ROOT FIX, tracked separately: scope the BLOCKING audit in ci.yml to the
+    # deploy artifact rather than the workspace graph. Seven of the last ten
+    # commits to this file are floor raises for advisories that never ship. Not
+    # done here because it needs a job reorder (the audit runs before Build) --
+    # a security-control change must be attributable, not buried in a feature PR.
+    #
+    # REMOVE once metro floors its own image-size range at >=2.0.3.
 minimumReleaseAgeExclude:
   - tmp@0.2.6 || 0.2.7
   - '@grpc/grpc-js@1.14.4'

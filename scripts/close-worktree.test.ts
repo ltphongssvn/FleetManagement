@@ -7,10 +7,13 @@
 // + colocated test (compose-identity.ts), run by test:scripts = vitest run scripts.
 // Contract (Zod-first, Axis-1 boundary):
 //  - WorktreeCloseInputSchema: path, branch, hasUpstream, aheadOfRemote,
-//    dirtyFileCount, containedInIntegration, isPrimaryClone.
+//    dirtyFileCount, containedInIntegration, isPrimaryClone, retired, idleHours.
 //  - decideClose(input): pure verdict { action, reasons }; refuses on any loss
 //    risk, mirroring the sync-worktrees.ts precedent (refuse, never force).
 //  - closePlan(verdict, input): pure argv list; never emits --force / -D / -f.
+// NOTE (2026-07-28): the base fixture sets idleHours: 999 (well past the recency
+// threshold) so these pre-recency assertions exercise their intended dimension;
+// the recency guard itself is covered in close-worktree-recency.test.ts.
 
 import { describe, it, expect } from 'vitest';
 import {
@@ -27,6 +30,7 @@ const clean = {
   dirtyFileCount: 0,
   containedInIntegration: true,
   isPrimaryClone: false,
+  idleHours: 999,
 };
 
 describe('close-worktree: Zod contract at the trust boundary', () => {

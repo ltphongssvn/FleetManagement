@@ -16,6 +16,9 @@
 //    git branch -d. The branch is preserved deliberately (it survives on
 //    origin as history); deleting the local ref is exactly what must not
 //    happen. This is stronger than relying on -d refusing on containment.
+// NOTE (2026-07-28): RETIRED_BASE sets idleHours: 999 (past the recency
+// threshold) so the retired-dimension assertions are not masked by the recency
+// guard, which is covered separately in close-worktree-recency.test.ts.
 import { describe, it, expect } from 'vitest';
 import {
   decideClose,
@@ -32,6 +35,7 @@ const RETIRED_BASE: WorktreeCloseInput = {
   containedInIntegration: false,
   isPrimaryClone: false,
   retired: true,
+  idleHours: 999,
 };
 describe('decideClose: retired branches', () => {
   it('defaults retired to false so existing callers are unchanged', () => {
