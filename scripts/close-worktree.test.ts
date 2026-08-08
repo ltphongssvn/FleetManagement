@@ -14,15 +14,36 @@
 // NOTE (2026-07-28): the base fixture sets idleHours: 999 (well past the recency
 // threshold) so these pre-recency assertions exercise their intended dimension;
 // the recency guard itself is covered in close-worktree-recency.test.ts.
+//
+// FIXTURE VIA THE FACTORY (2026-08-08). `clean` was a hand-written object
+// literal restating the schema field by field. When the arc that added `retired`
+// and `idleHours` landed, the literal went stale and every decideClose(clean)
+// call became a TS2345 -- 15 of the 58 errors the //#typecheck:scripts ratchet
+// records, all from ONE fixture. That is the documented reason the factory
+// shape exists: a new field is adjusted in a single default instead of at every
+// call site. makeCloseInput is an Object Mother taking Partial overrides rather
+// than proliferating named variants, so it does not accrete the bloat that
+// pattern is criticised for.
+//
+// WHY NOT `satisfies`. The 2026 advice for plain fixtures is `satisfies`, which
+// validates shape without widening. It would be a DOWNGRADE here: it is
+// compile-time only, whereas makeCloseInput parses through
+// WorktreeCloseInputSchema and so enforces the runtime invariants these very
+// tests exercise (non-negative, integer counters).
+//
+// The contract tests below still spread the baseline and override one field
+// with a malformed value on purpose: that is what proves the boundary rejects
+// it. Those assertions are unchanged.
 
 import { describe, it, expect } from 'vitest';
 import {
   WorktreeCloseInputSchema,
   decideClose,
   closePlan,
+  makeCloseInput,
 } from './close-worktree.js';
 
-const clean = {
+const clean = makeCloseInput({
   path: '/home/u/code/wt-alpha',
   branch: 'feature/order-status-groups',
   hasUpstream: true,
@@ -31,7 +52,7 @@ const clean = {
   containedInIntegration: true,
   isPrimaryClone: false,
   idleHours: 999,
-};
+});
 
 describe('close-worktree: Zod contract at the trust boundary', () => {
   it('accepts a well-formed input', () => {

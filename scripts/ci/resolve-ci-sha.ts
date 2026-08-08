@@ -22,6 +22,17 @@
 // The pure exports below are INTENTIONALLY free of I/O: no spawnSync, no fetch,
 // no process.exit. The git call and the GitHub API call live in side-effecting
 // helpers used only by main(), so the resolution rules stay unit-testable.
+//
+// ENV READS USE BRACKET NOTATION (2026-08-08). process.env is typed as an index
+// signature, so dot access is TS4111 under noPropertyAccessFromIndexSignature.
+// Bracket notation is the sanctioned form, not a workaround: the flag exists to
+// keep the access syntax consistent with how the property is declared, and
+// without it TypeScript silently accepts reads of variables that are not
+// defined -- a typo'd env name would resolve to undefined and take the graceful
+// skip path below, hiding a misconfigured workflow. typescript-eslint's
+// dot-notation rule explicitly permits bracket access when this flag is on, so
+// the two tools agree. Disabling the flag (the commonly-suggested "fix") would
+// clear the error by deleting the check.
 
 import { z } from 'zod';
 import { spawnSync } from 'node:child_process';
@@ -114,12 +125,16 @@ function tryGetParentSha(currentSha: string): string | null {
 //   GITHUB_TOKEN         the job token (needs actions:read)
 //   GITHUB_RUN_ID        the current run, excluded from the search
 //   DEPLOY_WORKFLOW_FILE the workflow file name to scope the query
+//
+// These stay raw reads with a guard rather than a Zod schema on purpose: every
+// one is OPTIONAL, and their absence is a supported state that degrades to the
+// parent window. ciEnvSchema validates the inputs main() REQUIRES.
 function tryGetLastDeployedSha(currentSha: string): string | null {
-  const apiUrl = process.env.GITHUB_API_URL;
-  const repo = process.env.GITHUB_REPOSITORY;
-  const token = process.env.GITHUB_TOKEN;
-  const runId = process.env.GITHUB_RUN_ID;
-  const workflowFile = process.env.DEPLOY_WORKFLOW_FILE;
+  const apiUrl = process.env['GITHUB_API_URL'];
+  const repo = process.env['GITHUB_REPOSITORY'];
+  const token = process.env['GITHUB_TOKEN'];
+  const runId = process.env['GITHUB_RUN_ID'];
+  const workflowFile = process.env['DEPLOY_WORKFLOW_FILE'];
   if (!apiUrl || !repo || !token || !workflowFile) {
     console.error('resolve-ci-sha: last-deployed lookup skipped (missing api/repo/token/workflow env)');
     return null;
@@ -174,9 +189,9 @@ function tryGetLastDeployedSha(currentSha: string): string | null {
 // BASE_SHA=\$(pnpm run --silent ci:resolve-sha).
 function main(): void {
   const parsed = ciEnvSchema.safeParse({
-    GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME,
-    GITHUB_SHA: process.env.GITHUB_SHA,
-    WORKFLOW_RUN_HEAD_SHA: process.env.WORKFLOW_RUN_HEAD_SHA,
+    GITHUB_EVENT_NAME: process.env['GITHUB_EVENT_NAME'],
+    GITHUB_SHA: process.env['GITHUB_SHA'],
+    WORKFLOW_RUN_HEAD_SHA: process.env['WORKFLOW_RUN_HEAD_SHA'],
   });
   if (!parsed.success) {
     console.error('resolve-ci-sha: invalid env: ' + JSON.stringify(parsed.error.issues));

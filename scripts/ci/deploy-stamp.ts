@@ -133,10 +133,22 @@ async function runMain(): Promise<void> {
     const service = flag(argv, '--service') ?? '';
     const branch = flag(argv, '--branch') ?? '';
     const vars = buildStampVariables(sha, branch, new Date().toISOString());
-    for (const cmd of railwayVariablesArgs(service, vars)) {
+    // Spread, not cast (2026-08-08). StampVariables is an INTERFACE with three
+    // named properties, so it carries no index signature and is not assignable
+    // to Readonly<Record<string, string>> (TS2345). Adding an index signature
+    // would re-admit arbitrary keys and lose the guarantee that exactly
+    // GIT_SHA/GIT_BRANCH/BUILD_TIME are stamped; an `as` cast would silence the
+    // compiler by asserting a shape the type does not have. A spread produces a
+    // real Record whose values are still checked, and the named interface keeps
+    // doing its job at the buildStampVariables boundary above.
+    for (const cmd of railwayVariablesArgs(service, { ...vars })) {
       const shown = cmd.join(' ');
       console.error('deploy-stamp: railway ' + shown);
-      const r = spawnSync('railway', cmd as string[], { stdio: 'inherit' });
+      // Copy, not cast: cmd is readonly by design and spawnSync's types demand
+      // a mutable array. `cmd as string[]` laundered that away -- the aliasing
+      // hole where a callee may mutate values the caller believes frozen. The
+      // copy is the honest conversion and costs one array per variable.
+      const r = spawnSync('railway', [...cmd], { stdio: 'inherit' });
       if (r.status !== 0) {
         console.error('deploy-stamp: stamping failed for ' + service);
         process.exit(1);

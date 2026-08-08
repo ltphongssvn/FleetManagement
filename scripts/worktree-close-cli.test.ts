@@ -5,10 +5,20 @@
 // selection, and the operator report. Pure planners describe WHAT to run; the
 // side-effecting main() is entrypoint-only and never imported here.
 // Precedent: scripts/e2e/stack-e2e-isolated.test.ts.
+//
+// FIXTURE VIA THE FACTORY (2026-08-08). The report fixture was a hand-written
+// literal restating WorktreeCloseInput field by field. When `retired` and
+// `idleHours` were added to the schema it went stale, and its three uses became
+// three of the 58 errors the //#typecheck:scripts ratchet records -- the same
+// defect, from the same cause, as the one in close-worktree.test.ts.
+// makeCloseInput builds the baseline through WorktreeCloseInputSchema.parse, so
+// a newly required field is absorbed in one default instead of breaking every
+// call site.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { makeCloseInput } from './close-worktree.js';
 import {
   listWorktreesArgs,
   upstreamArgs,
@@ -76,7 +86,7 @@ describe('worktree-close-cli: target selection', () => {
 });
 
 describe('worktree-close-cli: operator report', () => {
-  const input = {
+  const input = makeCloseInput({
     path: '/home/u/code/t16-wt1-order-status-groups',
     branch: 'feature/order-status-groups',
     hasUpstream: true,
@@ -84,7 +94,7 @@ describe('worktree-close-cli: operator report', () => {
     dirtyFileCount: 0,
     containedInIntegration: true,
     isPrimaryClone: false,
-  };
+  });
   it('names the branch and the verdict on a remove', () => {
     const out = formatCloseReport({ action: 'remove', reasons: [] }, input);
     expect(out).toContain('feature/order-status-groups');
