@@ -31,7 +31,21 @@
 //      observed live as a deploy run labelled with the develop back-merge SHA.
 //      The sanctioned correlation is therefore the first workflow_run-triggered
 //      deploy created after the gating main E2E completed.
+//
+// A THIRD rule, added after PR #511: a CANCELLED outcome is not a FAILED one.
+// This file previously collapsed both check and run conclusions with
+// `conclusion === 'success' ? 'success' : 'failed'`, so a run superseded by
+// `concurrency: cancel-in-progress` (correct CI configuration, and guaranteed on
+// every rapid second push) was reported as a hard FAILED phase with exit 1. The
+// classification now lives in check-conclusion.ts, shared with pr-automerge.ts --
+// the two files previously held verbatim duplicate PASSING_CHECK_STATES sets and
+// carried the identical bug in both copies. Checks are read from
+// statusCheckRollup, never `gh pr checks`, whose bucketed output destroys the
+// distinction before this code can see it (cli/cli#7551); a guard test enforces
+// that.
 import { z } from 'zod';
+import { CheckRunSchema, runVerdictFor, summarizeRollup } from './check-conclusion.js';
+import type { CheckRun, RollupSummary } from './check-conclusion.js';
 
 export const DEPLOY_WORKFLOW = 'Deploy to Railway';
 export const RELEASE_WORKFLOW = 'Release';
@@ -40,11 +54,10 @@ export const CI_WORKFLOW = 'CI';
 
 // ---- trust boundary (Axis 1): everything gh hands us is parsed ----
 
-export const CheckRunSchema = z.object({
-  name: z.string(),
-  state: z.string(),
-});
-export type CheckRun = z.infer<typeof CheckRunSchema>;
+// Axis 2: the check shape is owned by check-conclusion.ts, so pr-follow.ts and
+// pr-automerge.ts cannot drift apart again. Re-exported for the existing spec.
+export { CheckRunSchema };
+export type { CheckRun };
 
 export const RunRecordSchema = z.object({
   databaseId: z.number().int(),
@@ -62,41 +75,38 @@ export const CheckListSchema = z.array(CheckRunSchema);
 
 // ---- pure decision core ----
 
-// A check that is finished and not a failure. SKIPPED and NEUTRAL are normal
-// here: the promote dispatcher reports SKIPPED on a feature PR by design.
-const PASSING_CHECK_STATES = new Set(['SUCCESS', 'SKIPPED', 'NEUTRAL']);
-const PENDING_CHECK_STATES = new Set([
-  'PENDING', 'QUEUED', 'IN_PROGRESS', 'WAITING', 'REQUESTED', 'EXPECTED',
-]);
-
-export interface CheckSummary {
-  readonly total: number;
-  readonly pending: readonly string[];
-  readonly failed: readonly string[];
-  readonly settled: boolean;
-  readonly green: boolean;
-}
+export type CheckSummary = RollupSummary;
 
 export function summarizeChecks(checks: readonly CheckRun[]): CheckSummary {
-  const pending: string[] = [];
-  const failed: string[] = [];
-  for (const c of checks) {
-    const state = c.state.toUpperCase();
-    if (PENDING_CHECK_STATES.has(state)) pending.push(c.name);
-    else if (!PASSING_CHECK_STATES.has(state)) failed.push(c.name);
-  }
-  const settled = pending.length === 0;
-  // Zero checks is NOT green: the gate has not registered yet, and treating an
-  // ungated PR as passing is the confident-zero hazard this tool exists to kill.
-  const green = settled && failed.length === 0 && checks.length > 0;
-  return { total: checks.length, pending, failed, settled, green };
+  return summarizeRollup(checks);
 }
 
+// 'indeterminate' is deliberately absent: this tool OBSERVES, it does not act, so
+// a superseded run maps to 'pending' -- keep watching until a run with a real
+// verdict appears. Reporting 'failed' there is what produced a false exit 1.
 export type RunState = 'absent' | 'pending' | 'success' | 'failed';
 
 function shaMatches(a: string, b: string): boolean {
   if (a.length < 7 || b.length < 7) return false;
   return a === b || a.startsWith(b) || b.startsWith(a);
+}
+
+// Shared by every run-conclusion read in this file, so the mapping cannot drift
+// between the develop-gates path and the deploy path (it did: lines 114 and 310
+// on origin/develop held two independent copies of the same collapse).
+export function runStateFromConclusion(conclusion: unknown): RunState {
+  switch (runVerdictFor(conclusion)) {
+    case 'pass':
+      return 'success';
+    case 'fail':
+      return 'failed';
+    // A cancelled, stale or timed-out run says nothing about the code, and
+    // unclassifiable data says nothing at all. Neither is evidence of failure.
+    case 'indeterminate':
+    case 'pending':
+    case 'unclassified':
+      return 'pending';
+  }
 }
 
 export function runStateFor(
@@ -111,7 +121,7 @@ export function runStateFor(
   const newest = matches[0];
   if (newest === undefined) return 'absent';
   if (newest.status !== 'completed') return 'pending';
-  return newest.conclusion === 'success' ? 'success' : 'failed';
+  return runStateFromConclusion(newest.conclusion);
 }
 
 // See correlation rule 2 in the header: SHA matching is impossible for this run.
@@ -212,9 +222,16 @@ function listRuns(branch: string): readonly RunRecord[] {
   return parseJsonAs(raw, RunListSchema, []);
 }
 
+// statusCheckRollup, never `gh pr checks`: the latter returns gh's bucketed
+// rendering in which CANCELLED is indistinguishable from FAILURE, which is how
+// PR #511 was reported as failing while carrying zero failures.
 function listChecks(prNumber: number): readonly CheckRun[] {
-  const raw = sh('gh', ['pr', 'checks', String(prNumber), '--json', 'name,state']);
-  return parseJsonAs(raw, CheckListSchema, []);
+  const raw = sh('gh', ['pr', 'view', String(prNumber), '--json', 'statusCheckRollup']);
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw) as unknown; } catch { return []; }
+  const obj = parsed as Record<string, unknown>;
+  const res = CheckListSchema.safeParse(obj['statusCheckRollup']);
+  return res.success ? res.data : [];
 }
 
 const prStateSchema = z.object({
@@ -265,6 +282,9 @@ function evaluate(cfg: FollowConfig): readonly PhaseResult[] {
   const out: PhaseResult[] = [];
   const checks = listChecks(cfg.prNumber);
   const sum = summarizeChecks(checks);
+  // Indeterminate checks fall through to 'pending' by construction: they are in
+  // neither `green` nor `failed`, so a superseded check keeps the follower
+  // watching instead of declaring the PR broken.
   out.push({
     phase: 'pr-checks',
     state: sum.green ? 'success' : sum.failed.length > 0 ? 'failed' : 'pending',
@@ -272,6 +292,12 @@ function evaluate(cfg: FollowConfig): readonly PhaseResult[] {
   if (sum.failed.length > 0) {
     console.log('     failing: ' + sum.failed.join(', '));
     return out;
+  }
+  if (sum.indeterminate.length > 0) {
+    console.log('     superseded (needs re-run): ' + sum.indeterminate.join(', '));
+  }
+  if (sum.unclassified.length > 0) {
+    console.log('     UNREADABLE checks: ' + sum.unclassified.join(', '));
   }
 
   const pr = prState(cfg.prNumber);
@@ -307,7 +333,7 @@ function evaluate(cfg: FollowConfig): readonly PhaseResult[] {
   const depState: RunState =
     dep === null ? 'absent'
       : dep.status !== 'completed' ? 'pending'
-        : dep.conclusion === 'success' ? 'success' : 'failed';
+        : runStateFromConclusion(dep.conclusion);
   out.push({ phase: 'deploy', state: depState });
   if (dep !== null) {
     console.log('     deploy run: ' + String(dep.databaseId) + ' (' + dep.status + ')');
