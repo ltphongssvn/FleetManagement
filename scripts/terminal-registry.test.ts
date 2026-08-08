@@ -30,6 +30,7 @@ import {
   listTerminalRefsArgs,
   claimTerminalArgs,
   claimBlobContent,
+  formatTerminalCensus,
 } from './terminal-registry.js';
 
 describe('terminalRefName', () => {
@@ -164,5 +165,29 @@ describe('claimBlobContent', () => {
   it('rejects empty provenance', () => {
     expect(() => claimBlobContent('', '2026-08-08T00:00:00.000Z')).toThrow();
     expect(() => claimBlobContent('macbook', '')).toThrow();
+  });
+});
+
+// ---- census wiring ----
+// The registry is only useful if the number reaches the operator. sync:worktrees
+// prints the census that terminal numbers are read from, so the ceiling belongs
+// in its summary -- otherwise the correct answer exists but nobody sees it, and
+// the local high-water gets used again out of habit.
+describe('formatTerminalCensus', () => {
+  it('states the next terminal so it can be read straight from the census', () => {
+    expect(formatTerminalCensus([89, 90])).toContain('next terminal: t91');
+  });
+
+  it('reports how many terminals are published, across machines', () => {
+    expect(formatTerminalCensus([89, 90])).toContain('2 published');
+  });
+
+  // An empty registry is AMBIGUOUS: either nothing was ever claimed, or the
+  // refs were never fetched. Saying "t1" flatly would re-issue a burned number,
+  // so the line must flag it rather than answer confidently.
+  it('warns instead of confidently answering t1 when the registry is empty', () => {
+    const s = formatTerminalCensus([]);
+    expect(s).toMatch(/not fetched|no terminals/i);
+    expect(s).not.toContain('next terminal: t1');
   });
 });

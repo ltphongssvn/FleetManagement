@@ -122,3 +122,23 @@ export function claimTerminalArgs(terminal: number, blobSha: string): string[] {
   const ref = terminalRefName(terminal);
   return ['push', '--force-with-lease=' + ref + ':', 'origin', blobSha + ':' + ref];
 }
+
+/** One census line for sync:worktrees.
+ *
+ *  The registry only helps if the number reaches the operator. sync:worktrees
+ *  prints the census that terminal numbers have always been read from, so the
+ *  ceiling belongs in its summary -- otherwise the correct answer exists and
+ *  nobody sees it, and the local high-water gets reused out of habit.
+ *
+ *  An EMPTY registry is ambiguous: either nothing was ever claimed, or the
+ *  terminal refs were never fetched (they are not in the default refspec).
+ *  Answering "t1" flatly would re-issue a burned number, so this warns instead
+ *  -- the same fail-closed posture the rest of these tasks take. */
+export function formatTerminalCensus(published: readonly number[]): string {
+  if (published.length === 0) {
+    return 'Terminals: no terminals published (registry empty, or refs/terminals/* not fetched)';
+  }
+  const next = nextTerminalNumber(published);
+  return 'Terminals: ' + String(published.length) + ' published, highest t' +
+    String(Math.max(...published)) + ' -- next terminal: t' + String(next);
+}
