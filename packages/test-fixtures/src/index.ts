@@ -30,3 +30,12 @@ export {
   createPgUniqueViolation,
   createWrappedError,
 } from './pg-error-fixtures.js';
+
+// Build-provenance fixtures. A commit sha hand-written as a readable literal
+// is not a sha, and a suite asserting against one proves nothing -- see
+// provenance-fixtures.ts for the defect this removes.
+export {
+  testSha,
+  testShortSha,
+  INVALID_SHA_FIXTURES,
+} from './provenance-fixtures.js';

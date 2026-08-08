@@ -287,3 +287,37 @@ export {
   type DriverDbStatusFacts,
   classifyDriverDbStatus,
 } from './co-so-du-lieu-contract.js';
+
+// Dispatched-vs-idle driver roster split for the Bang dieu phoi xe owner panel.
+// Exported from the barrel because every consumer (api service, ops-web loader,
+// panel component, E2E) imports from the package ROOT; a deep src path import
+// is what invites a downstream re-declaration of the partition rule.
+export {
+  IDLE_REASONS,
+  IdleReasonSchema,
+  type IdleReason,
+  DispatchedDriverRowSchema,
+  type DispatchedDriverRow,
+  IdleDriverRowSchema,
+  type IdleDriverRow,
+  DispatchRosterSplitSchema,
+  type DispatchRosterSplit,
+  parseDispatchRosterSplit,
+  isRosterPartitionValid,
+} from './dispatch-roster-split-contract.js';
+
+// Build-provenance contract: what a deployed service reports about ITSELF.
+// Exported from the barrel because all four consumers import from the package
+// ROOT -- the api health controller, the ops-web version route, the worker boot
+// heartbeat, and the CI gate that parses the payload. A deep src path import is
+// what invites a second, drifting definition of the shape CI asserts against.
+export {
+  UNKNOWN_VERSION_FIELD,
+  WORKER_PROVENANCE_KEY,
+  WORKER_PROVENANCE_TTL_SECONDS,
+  WORKER_PROVENANCE_REFRESH_SECONDS,
+  DeployVersionSchema,
+  type DeployVersion,
+  type ProvenanceEnv,
+  buildDeployVersion,
+} from './deploy-version-contract.js';
