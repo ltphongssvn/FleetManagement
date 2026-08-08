@@ -6,6 +6,10 @@
 // Pure planners are unit-tested; main() runs ONLY as entrypoint so the contract
 // test imports the pure parts without spawning git.
 // Precedent: scripts/e2e/stack-e2e-isolated.ts.
+//
+// RECENCY (2026-07-28): the driver now also gathers the per-worktree HEAD reflog
+// (reflogArgs) and derives idleHours via parseReflogIdleHours, so decideClose can
+// refuse an actively-developed worktree even when merged and clean.
 
 import { execFileSync } from 'node:child_process';
 import { decideClose, closePlan, type CloseVerdict, type WorktreeCloseInput } from './close-worktree.js';
@@ -13,6 +17,7 @@ import {
   parseWorktreePorcelain,
   parseAheadBehind,
   countDirtyFiles,
+  parseReflogIdleHours,
   resolveCloseInput,
   type WorktreeEntry,
 } from './worktree-close.js';
@@ -40,6 +45,12 @@ export function dirtyArgs(): string[] {
 
 export function containmentArgs(integrationRef: string): string[] {
   return ['rev-list', '--count', integrationRef + '..HEAD'];
+}
+
+// Most-recent per-worktree HEAD reflog entry with a unix-epoch date, so the
+// driver can derive idle hours (liveness). -1 = only the newest entry.
+export function reflogArgs(): string[] {
+  return ['reflog', '--date=unix', '-1'];
 }
 
 // ---- pure argv parsing ----
@@ -88,12 +99,14 @@ export function formatCloseReport(verdict: CloseVerdict, input: WorktreeCloseInp
   }
   // State is printed for EVERY verdict, not just refusals: a permitted
   // retired close must visibly state why it was allowed (retired=true with
-  // contained=false), so the operator can audit the decision.
+  // contained=false), so the operator can audit the decision. idleH is floored
+  // to whole hours for a readable state line.
   lines.push('state: ahead=' + String(input.aheadOfRemote) +
     ' dirty=' + String(input.dirtyFileCount) +
     ' upstream=' + String(input.hasUpstream) +
     ' contained=' + String(input.containedInIntegration) +
-    ' retired=' + String(input.retired));
+    ' retired=' + String(input.retired) +
+    ' idleH=' + String(Math.floor(input.idleHours)));
   return lines.join(NL);
 }
 
@@ -123,6 +136,10 @@ function mainWorktreeClose(): number {
   const ahead = upstream.length > 0
     ? parseAheadBehind(git(aheadBehindArgs(upstream), entry.path)).ahead
     : 0;
+  const idleHours = parseReflogIdleHours(
+    gitAllowFail(reflogArgs(), entry.path),
+    Math.floor(Date.now() / 1000),
+  );
   const input = resolveCloseInput({
     path: entry.path,
     branch: entry.branch,
@@ -132,6 +149,7 @@ function mainWorktreeClose(): number {
     dirtyFileCount: countDirtyFiles(git(dirtyArgs(), entry.path)),
     containedInIntegration: Number(git(containmentArgs(INTEGRATION_REF), entry.path)) === 0,
     retired: argv.retired,
+    idleHours,
   });
   const verdict = decideClose(input);
   process.stdout.write(formatCloseReport(verdict, input) + NL);
