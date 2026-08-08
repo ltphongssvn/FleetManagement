@@ -387,6 +387,10 @@
       "cache": false,
       "persistent": false
     },
+    "//#worktree:sweep": {
+      "description": "Root-level task: batch-close every merged worktree in the estate in one rediscoverable op. Prefix //# ensures repo-root-only (it spans all worktrees). Composes the pure planSweep candidate selector (scripts/sweep-worktrees.ts) with the EXISTING worktree:close pipeline -- decideClose/closePlan/resolveCloseInput are imported verbatim, never reimplemented, so a swept close is byte-identical to a single worktree:close and inherits every guard: it REFUSES per-candidate on primary-clone, no-upstream, unpushed, dirty, or unmerged (not contained in origin/develop). State is gathered AT ATTEMPT TIME, so a branch a concurrent terminal advanced since any census is re-checked and correctly refused -- the reason the sweep drives the guard rather than pre-trusting a snapshot. --dry-run prints the per-candidate verdict + a removed/refused/kept footer without mutating. Complements worktree:close (one path) and sync:worktrees (fast-forward, no removal). Pure core + report are unit-tested under //#test:scripts; only the driver touches git. Never passes --force/-D/-f. cache:false (side-effecting git mutation, no cacheable output). Run: pnpm exec turbo run worktree:sweep [-- --dry-run].",
+      "cache": false
+    },
     "//#graph": {
       "description": "Root-level task: generate pipeline DAG visualization (Mermaid for ADR/docs). Prefix '//#' ensures repo-root-only. For live operational inspection prefer 'turbo devtools' (2.7+) — browser-based package/task graph.",
       "cache": false

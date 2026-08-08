@@ -13,6 +13,12 @@
 //  * resolveCloseInput threads retired through to the Zod boundary;
 //  * the operator report shows retired in the state line, so a permitted close
 //    visibly states WHY it was allowed.
+// NOTE (2026-07-28): BASE is a ResolveCloseInputParams literal (driver-input
+// shape, distinct from the schema WorktreeCloseInput). idleHours: 999 keeps it
+// past the recency threshold so the retired-dimension assertions are not masked
+// by the recency guard. This shape appears in only two files, so an inline
+// baseline is proportionate -- the makeCloseInput factory covers the schema
+// output shape where duplication actually proliferated.
 import { describe, it, expect } from 'vitest';
 import { parseCloseArgv, formatCloseReport } from './worktree-close-cli.js';
 import { resolveCloseInput } from './worktree-close.js';
@@ -25,6 +31,7 @@ const BASE = {
   ahead: 0,
   dirtyFileCount: 0,
   containedInIntegration: false,
+  idleHours: 999,
 };
 describe('parseCloseArgv: pure flag parsing', () => {
   it('reads the path with no flags and defaults retired to false', () => {

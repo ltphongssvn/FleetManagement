@@ -18,8 +18,26 @@
 // preserved on purpose (it survives on origin as history), so the local ref
 // must not be deleted. Omitting the command is stronger than trusting -d to
 // refuse on containment.
+//
+// RECENCY guard (2026-07-28): a worktree can be ancestry-contained, PR-merged,
+// clean, and have no open PR -- yet still be the LIVE working directory a
+// terminal is actively coding in, in the gap between one slice merging and the
+// next being pushed (near-miss: t20-wt1-twelve-factor-audit, ahead=0, PR #440
+// merged, but its per-worktree HEAD reflog showed activity 1h prior). The
+// driver computes idleHours from git reflog --date=unix -1 (the 2026 liveness
+// primitive -- real git activity, immune to the fs-mtime noise of pnpm install /
+// editor autosave / build artifacts). recent is a LOSS-RISK guard: it refuses
+// even a retired close, because active work is active regardless of merge intent.
+// FAIL-SAFE DEFAULT (Saltzer-Schroeder / arc42 interlock): the hazard is
+// deleting live work, so idleHours defaults to 0 (recent) -- a caller that omits
+// the signal fails safe by refusing, never fails open by deleting.
 
 import { z } from 'zod';
+
+// Hours since the last per-worktree HEAD reflog entry below which a worktree is
+// treated as actively developed and protected. 24h is the 2026 convention; a
+// named constant so it is tunable and rediscoverable.
+export const RECENT_IDLE_THRESHOLD_HOURS = 24;
 
 export const WorktreeCloseInputSchema = z.object({
   path: z.string().min(1),
@@ -30,6 +48,9 @@ export const WorktreeCloseInputSchema = z.object({
   containedInIntegration: z.boolean(),
   isPrimaryClone: z.boolean(),
   retired: z.boolean().default(false),
+  // Fail-safe default 0 (recent -> protected): missing liveness data must never
+  // permit a delete. Drivers always supply the real reflog-derived value.
+  idleHours: z.number().min(0).default(0),
 });
 
 export type WorktreeCloseInput = z.infer<typeof WorktreeCloseInputSchema>;
@@ -39,6 +60,7 @@ export const CLOSE_REFUSAL_REASONS = [
   'no-upstream',
   'unpushed',
   'dirty',
+  'recent',
   'unmerged',
 ] as const;
 
@@ -58,6 +80,10 @@ export function decideClose(raw: WorktreeCloseInput): CloseVerdict {
   if (!input.hasUpstream) reasons.push('no-upstream');
   if (input.aheadOfRemote > 0) reasons.push('unpushed');
   if (input.dirtyFileCount > 0) reasons.push('dirty');
+  // recent is a loss-risk guard: active work is active even for a retired close,
+  // so it is NOT waived by retired (unlike unmerged below). Strict < so exactly
+  // at the threshold counts as stale (removable).
+  if (input.idleHours < RECENT_IDLE_THRESHOLD_HOURS) reasons.push('recent');
   // retired waives ONLY this one: the branch is intentionally not merged.
   // Written in the ! idiom the root-scripts lint (#400) enforces.
   if (!input.containedInIntegration && !input.retired) reasons.push('unmerged');
@@ -74,4 +100,28 @@ export function closePlan(verdict: CloseVerdict, input: WorktreeCloseInput): str
     plan.push(['git', 'branch', '-d', input.branch]);
   }
   return plan;
+}
+
+// Test-fixture factory (2026 builder pattern, co-located with the schema so a
+// new field is defaulted in ONE place, never a shotgun edit across test files).
+// Default state is a STALE, clean, pushed, merged, non-primary worktree -- i.e.
+// the removable baseline -- so each test overrides ONLY the dimension it
+// exercises. idleHours defaults to 999 (well past RECENT_IDLE_THRESHOLD_HOURS)
+// so recency never masks an unrelated assertion; a recency test overrides it.
+// Returns a parsed WorktreeCloseInput so fixtures cannot drift from the schema.
+export function makeCloseInput(
+  overrides: Partial<WorktreeCloseInput> = {},
+): WorktreeCloseInput {
+  return WorktreeCloseInputSchema.parse({
+    path: '/home/u/code/wt-fixture',
+    branch: 'feature/fixture',
+    hasUpstream: true,
+    aheadOfRemote: 0,
+    dirtyFileCount: 0,
+    containedInIntegration: true,
+    isPrimaryClone: false,
+    retired: false,
+    idleHours: 999,
+    ...overrides,
+  });
 }
