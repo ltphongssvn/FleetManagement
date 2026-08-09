@@ -60,10 +60,27 @@ export type CheckConclusion = z.infer<typeof CheckConclusionSchema>;
 
 // Axis 1: parsed at the gh trust boundary. `conclusion` is null while a run is
 // still in flight, which is a distinct case from every concluded outcome.
+// "Not concluded yet" has THREE wire spellings, and only one was accepted.
+// GitHub returns null for an in-flight run, the EMPTY STRING for some queued
+// checks, and omits the key entirely in others. The enum is closed, so a single
+// entry spelled '' rejected the WHOLE rollup array: safeParse returned [] and
+// pr:automerge logged "could not parse statusCheckRollup; re-reading" on every
+// poll until every check had settled -- 11 consecutive polls on PR #528, 7 on
+// #526. The retry masked it as network flakiness.
+//
+// Normalised at the boundary rather than teaching each consumer three
+// spellings: they all mean pending, and a caller forced to branch on the
+// difference would just move the bug one layer up. The enum stays CLOSED -- an
+// unrecognised conclusion is still a contract violation, since silently
+// treating an unknown verdict as pending is how a real failure gets merged.
+const UNCONCLUDED: ReadonlySet<unknown> = new Set(['', null, undefined]);
 export const CheckRunSchema = z.object({
   name: z.string(),
   status: z.string(),
-  conclusion: CheckConclusionSchema.nullable(),
+  conclusion: z.preprocess(
+    (v) => (UNCONCLUDED.has(v) ? null : v),
+    CheckConclusionSchema.nullable(),
+  ),
 });
 export type CheckRun = z.infer<typeof CheckRunSchema>;
 
