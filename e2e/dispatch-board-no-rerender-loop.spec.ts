@@ -10,7 +10,7 @@
 // success banner. Converged board: bounded. Looping board: unbounded.
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { loginAs, mintToken } from './helpers/auth';
-import { z } from 'zod';
+import { type z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
 import { execSync } from 'node:child_process';
 import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';

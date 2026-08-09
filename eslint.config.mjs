@@ -125,6 +125,72 @@ export default tseslint.config(
       },
     },
   },
+  // LINT-AS-ARCHITECTURE: E2E timing budgets live in ONE module, never in a spec.
+  //
+  // THE DEFECT THIS PREVENTS, with receipts. Six spec files each declared their
+  // own `const ROW_VISIBILITY_BUDGET_MS = 15_000`, copy-pasted. That is why a
+  // July budget raise on the khachhang specs healed nothing: the other four kept
+  // their own copies and kept failing, and the same seeded-row flake recurred
+  // across five-plus sessions (2026-08-02, 08-06 on PR #505, 08-08 on PR #532),
+  // alternating between dispatch-board-driver-vehicle-display and
+  // manual-net-weight-entry.
+  //
+  // Raising a budget was never the fix -- the root cause is an unwaited
+  // read-model hop, and helpers/wait-for-projection.ts is the answer (see PR
+  // #514). But the DUPLICATION is what made the treadmill possible: it
+  // guaranteed that even a correct change could only reach one caller at a time.
+  //
+  // A comment in a helper is documentation, which people do not read, and a
+  // review note is reactive and inconsistent. Encoding it as a rule turns the
+  // architectural decision into a machine-checked constraint that fails the
+  // build -- caught at CI time, not weeks later in production. AST selector, not
+  // a text match: `const ROW_VISIBILITY_BUDGET_MS` in a comment must not trip
+  // this, and a rename to any other budget-shaped identifier must still trip it.
+  //
+  // The message is written as an instruction, because it is the first thing the
+  // next author reads when they trip it.
+  //
+  // NAMED EXACTLY, and the precision was earned. The first draft matched
+  // /_BUDGET_MS$/ -- any budget-shaped identifier -- and immediately flagged
+  // RECOVERY_BUDGET_MS in dispatch-order-button-state-recovery.spec.ts. That
+  // constant is NOT a row-visibility budget: it bounds how long the create
+  // drawer may take to close after submit, which is that spec's own business
+  // invariant. Forcing it through the SSOT would have renamed a drawer-close
+  // budget into a row-visibility one and coupled two unrelated invariants --
+  // the same collapsing of distinct meanings that keeping
+  // OPTIMISTIC_RENDER_BUDGET_MS separate from ROW_VISIBILITY_BUDGET_MS exists
+  // to prevent.
+  //
+  // This is the documented failure mode of lint-as-architecture: a rule that
+  // flags legitimate uses generates false positives and gets DISABLED, and a
+  // guard developers switch off protects nothing. The remedy is to state the
+  // forbidden pattern precisely rather than to carve per-file
+  // eslint-disable escapes, which ESLint itself says must not be the default
+  // way to resolve a violation.
+  //
+  // MAINTENANCE COST, accepted knowingly: naming the constants means a THIRD
+  // budget added to helpers/budgets.ts must be added to this selector too, or
+  // the rule silently stops covering it. That is the trade for not flagging
+  // correct code.
+  {
+    files: ["e2e/**/*.spec.ts"],
+    rules: {
+      "no-restricted-syntax": ["error",
+        {
+          selector: "VariableDeclarator[id.name=/^(ROW_VISIBILITY_BUDGET_MS|OPTIMISTIC_RENDER_BUDGET_MS)$/]",
+          message:
+            "E2E timing budgets are declared once in e2e/helpers/budgets.ts -- " +
+            "import ROW_VISIBILITY_BUDGET_MS or OPTIMISTIC_RENDER_BUDGET_MS " +
+            "instead of declaring a per-spec copy. Six copies of this constant " +
+            "are why the seeded-row flake survived a budget raise. If an " +
+            "assertion needs a LARGER budget to pass, it is racing an async " +
+            "pipeline: call settleBoardAfterCreate from helpers/wait-for-projection " +
+            "before asserting a server-derived field, rather than waiting longer.",
+        },
+      ],
+    },
+  },
+
   // Forbid test imports in production code
   {
     files: ["apps/*/src/**/*.ts", "workers/*/src/**/*.ts", "packages/*/src/**/*.ts"],

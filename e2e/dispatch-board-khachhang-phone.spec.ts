@@ -37,19 +37,19 @@
 // second attempt. Asserting a server-derived field therefore raced two async
 // hops against a fixed 15s locator budget. settleBoardAfterCreate replaces that
 // race with a statement about what must be true first.
-import { test, expect, type APIRequestContext } from '@playwright/test';
+import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { dockerPsql } from './helpers/docker-exec';
-import { z } from 'zod';
+import { type z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
 import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 import { settleBoardAfterCreate } from './helpers/wait-for-projection';
+import { ROW_VISIBILITY_BUDGET_MS } from './helpers/budgets';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
-const ROW_VISIBILITY_BUDGET_MS = 15_000;
 
-async function pickCombobox(page: import('@playwright/test').Page, inputId: string, optionLabel: string): Promise<void> {
+async function pickCombobox(page: Page, inputId: string, optionLabel: string): Promise<void> {
   const input = page.locator('#' + inputId);
   await expect(input).toBeVisible({ timeout: 15_000 });
   await expect(input).toBeEditable({ timeout: 15_000 });

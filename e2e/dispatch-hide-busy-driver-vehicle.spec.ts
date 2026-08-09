@@ -26,7 +26,7 @@
 // labels + are torn down in afterEach (no live /reference leak).
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
-import { z } from 'zod';
+import { type z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, ReferenceListResponseSchema } from './helpers/contracts';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
@@ -98,7 +98,7 @@ function insertRoadRun(operatorId: string, assetId: string, state: string): stri
   // psql -tA on an INSERT ... RETURNING emits the returned value AND a status
   // line (INSERT 0 1). Take only the first non-empty line (the uuid) so the
   // later completed-state UPDATE targets a clean road_run_id.
-  const firstLine = r.stdout.split(String.fromCharCode(10)).map((l) => l.trim()).filter((l) => l.length > 0)[0];
+  const firstLine = r.stdout.split(String.fromCharCode(10)).map((l) => l.trim()).find((l) => l.length > 0);
   if (firstLine === undefined) throw new Error('road_run insert returned no id: ' + r.stdout);
   return firstLine;
 }
