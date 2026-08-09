@@ -48,6 +48,7 @@
 // entrypoint touches gh, the same split as pr-follow.ts.
 import { z } from 'zod';
 import { CheckRunSchema, summarizeRollup } from './check-conclusion.js';
+import { classifyRollup, describeRollupFailure } from './check-rollup-source.js';
 import type { CheckRun, RollupSummary } from './check-conclusion.js';
 
 // ---- trust boundary (Axis 1): everything gh hands us is parsed ----
@@ -180,17 +181,25 @@ function sh(cmd: string, args: readonly string[]): { out: string; code: number }
   return { out: r.stdout + r.stderr, code: r.status ?? 1 };
 }
 
-// A rollup we could not parse is NOT an empty rollup. Returning [] for both made
-// a malformed gh response indistinguishable from a PR with no checks registered,
-// which decideMergeReady renders as an indefinite WAIT until TIMEOUT. null lets
-// the caller keep waiting without ever mistaking garbage for a settled state.
-function listChecks(prNumber: number): readonly CheckRun[] | null {
+// Classification lives in check-rollup-source.ts, which separates NOT-READY-YET
+// from BROKEN. This previously collapsed both into one null, and the loop then
+// printed "could not parse statusCheckRollup; re-reading" for either.
+//
+// On PR #530 that fired FIFTEEN times across two check cycles of a healthy run:
+// GitHub had simply not created check runs for the new head SHA yet. Nothing was
+// unparseable and nothing needed reporting. The SAME branch fires for states
+// that NEVER resolve -- a fine-grained-PAT permissions failure makes gh emit
+// "Resource not accessible by personal access token" instead of JSON
+// (cli/cli#12597) -- and those spin to TIMEOUT behind a reassuring message.
+//
+// That is the documented anti-pattern twice over: a poll loop whose not-ready
+// state is indistinguishable from its broken state has no clear failure mode,
+// and retries that mask the initial error context hide the root cause in the
+// logs. Transient failures are retried; PERMANENT ones (auth, contract
+// violations) are surfaced immediately, because retrying cannot fix them.
+function readRollup(prNumber: number): ReturnType<typeof classifyRollup> {
   const r = sh('gh', ['pr', 'view', String(prNumber), '--json', 'statusCheckRollup']);
-  let raw: unknown;
-  try { raw = JSON.parse(r.out) as unknown; } catch { return null; }
-  const obj = raw as Record<string, unknown>;
-  const res = CheckListSchema.safeParse(obj['statusCheckRollup']);
-  return res.success ? res.data : null;
+  return classifyRollup(r.out);
 }
 
 function viewPr(prNumber: number): { pr: PrView | null; mergeStateStatus: string } {
@@ -234,17 +243,31 @@ function main(): number {
   const deadline = Date.now() + cfg.timeoutMinutes * 60_000;
   let reruns = 0;
   for (;;) {
-    const checks = listChecks(cfg.prNumber);
+    const rollup = readRollup(cfg.prNumber);
     const view = viewPr(cfg.prNumber);
     if (view.pr !== null && view.pr.state.toUpperCase() === 'MERGED') {
       process.stdout.write('[pr:automerge] PR #' + String(cfg.prNumber) + ' is merged.' + nl);
       return 0;
     }
-    if (checks === null) {
+    if (rollup.kind === 'unparseable') {
+      // PERMANENT, not transient: a shape violation is a permissions failure or a
+      // changed gh contract, and no amount of waiting fixes either. Surface it
+      // with the Zod issues attached rather than spinning to TIMEOUT behind a
+      // message that says "re-reading" as though the run were healthy. The
+      // MESSAGE is built in the core (describeRollupFailure), so this shell stays
+      // orchestration-only and the wording is unit-tested with no I/O.
+      process.stderr.write('[pr:automerge] BLOCKED -- ' +
+        describeRollupFailure(rollup.issues) + nl);
+      return 1;
+    }
+    if (rollup.kind === 'none-yet') {
+      // TRANSIENT and expected: GitHub has not created check runs for this head
+      // SHA yet. Named as such so a healthy early poll no longer reads as a parse
+      // failure -- the fifteen-line noise on PR #530.
       process.stdout.write('--- ' + new Date().toISOString() +
-        ' --- WAIT: could not parse statusCheckRollup; re-reading.' + nl);
+        ' --- WAIT: no check runs created for this head SHA yet.' + nl);
     } else {
-      const ready = decideMergeReady(summarizeChecks(checks), view.mergeStateStatus);
+      const ready = decideMergeReady(summarizeChecks(rollup.runs), view.mergeStateStatus);
       process.stdout.write('--- ' + new Date().toISOString() + ' --- ' + ready.action +
         ': ' + ready.reason + nl);
       if (ready.action === 'BLOCKED') {
