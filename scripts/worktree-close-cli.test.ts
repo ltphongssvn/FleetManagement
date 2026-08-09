@@ -132,3 +132,58 @@ describe('worktree-close-cli: the op is registered, not ad hoc', () => {
     expect(pkg).toContain('scripts/worktree-close-cli.ts');
   });
 });
+
+// ---- selectTarget matches by RESOLVED path, not by string equality ----
+// worktree:close refused `../t89-wt1-turbo-2-10-9` -- a path that resolves to a
+// real worktree root -- because selectTarget compared strings literally. The
+// error then printed the absolute paths it wanted, so the operator had to
+// re-run the same command with a different spelling of the same directory.
+//
+// Every other caller of a worktree path in this repo accepts what the shell
+// hands it (`../name` is what tab-completion produces from the canonical root),
+// so requiring the absolute form is a papercut with a loss-risk edge: an
+// operator who assumes a relative path was accepted may believe a worktree was
+// closed when the command actually exited 1.
+//
+// Resolution stays PURE: cwd is a parameter, never read from process, so the
+// function remains unit-testable without a filesystem.
+describe('selectTarget path resolution', () => {
+  const entries = [
+    { path: '/Users/dev/code/FleetManagement', branch: 'develop' },
+    { path: '/Users/dev/code/t89-wt1-turbo', branch: 'chore/turbo' },
+  ];
+
+  it('accepts the absolute path (unchanged behaviour)', () => {
+    expect(selectTarget(entries, '/Users/dev/code/t89-wt1-turbo', '/Users/dev/code/FleetManagement').branch)
+      .toBe('chore/turbo');
+  });
+
+  // The reported defect: this is what tab-completion produces from the root.
+  it('accepts a RELATIVE path that resolves to a worktree root', () => {
+    expect(selectTarget(entries, '../t89-wt1-turbo', '/Users/dev/code/FleetManagement').branch)
+      .toBe('chore/turbo');
+  });
+
+  it('accepts a path with a redundant segment', () => {
+    expect(selectTarget(entries, '/Users/dev/code/./t89-wt1-turbo', '/Users/dev/code/FleetManagement').branch)
+      .toBe('chore/turbo');
+  });
+
+  it('accepts a trailing slash', () => {
+    expect(selectTarget(entries, '/Users/dev/code/t89-wt1-turbo/', '/Users/dev/code/FleetManagement').branch)
+      .toBe('chore/turbo');
+  });
+
+  // Resolution must not become a wildcard: a genuinely unknown path still
+  // throws, and the message still lists the known roots so the operator can see
+  // what IS available.
+  it('still throws for a path that is not a worktree root', () => {
+    expect(() => selectTarget(entries, '../nope', '/Users/dev/code/FleetManagement'))
+      .toThrow(/not a worktree root/);
+  });
+
+  it('names the known roots in the failure, as before', () => {
+    expect(() => selectTarget(entries, '../nope', '/Users/dev/code/FleetManagement'))
+      .toThrow(/t89-wt1-turbo/);
+  });
+});
