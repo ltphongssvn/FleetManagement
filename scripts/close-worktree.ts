@@ -14,10 +14,9 @@
 // waives ONLY the unmerged reason. Every loss-risk guard (primary-clone,
 // no-upstream, unpushed, dirty) still refuses, because retiring a branch does
 // not make losing work acceptable. A retired close yields its own verdict,
-// remove-keep-branch, whose plan omits git branch -d entirely: the branch is
+// remove-keep-branch, whose plan omits the branch delete entirely: the branch is
 // preserved on purpose (it survives on origin as history), so the local ref
-// must not be deleted. Omitting the command is stronger than trusting -d to
-// refuse on containment.
+// must not be deleted.
 //
 // RECENCY guard (2026-07-28): a worktree can be ancestry-contained, PR-merged,
 // clean, and have no open PR -- yet still be the LIVE working directory a
@@ -31,6 +30,35 @@
 // FAIL-SAFE DEFAULT (Saltzer-Schroeder / arc42 interlock): the hazard is
 // deleting live work, so idleHours defaults to 0 (recent) -- a caller that omits
 // the signal fails safe by refusing, never fails open by deleting.
+//
+// ONE ROOT CLASS, THREE INSTANCES (2026-08-09). aheadOfRemote is measured
+// against the BRANCH'S OWN upstream, which goes stale the moment a PR merges and
+// the branch is later synced down from develop. Asking how a branch compares to
+// its own ref answers the wrong question; the one that matters is whether the
+// work is in the INTEGRATION branch:
+//   sync:worktrees  -- reported "ahead 117; nothing to pull" on a merged branch
+//   worktree:close  -- refused "unpushed" while contained=true (fixed below)
+//   git branch -d   -- refuses unless merged to HEAD *or its upstream* (fixed
+//                      below by not delegating the question to it at all)
+//
+// UNPUSHED MEANS WORK COULD BE LOST. The predicate was `aheadOfRemote > 0`
+// alone, so closing t1-wt2-cf-beacon-no-transform refused with ahead=117
+// contained=true idleH=604 -- 117 commits already in origin/develop, nothing to
+// lose, 25 days idle, and yet uncloseable. Six sibling worktrees sat the same
+// way. Loss now requires BOTH conditions.
+//
+// THE PLAN DELETES WITH -D, AND THAT IS THE SAFER OPTION HERE. The live run
+// proved -d cannot do this job: it failed with "not fully merged" while git
+// itself printed "even though it is merged to HEAD", because the branch's own
+// remote ref was stale. That crash left the worktree REMOVED and the branch ref
+// alive -- a partially applied plan, strictly worse than refusing. decideClose
+// has already proved ancestry against origin/develop, a stronger and correctly
+// referenced check than -d performs, and the `remove` verdict is issued ONLY
+// when containedInIntegration is true (a retired close yields remove-keep-branch
+// and emits no delete at all). So -D under a remove verdict cannot lose work.
+// The invariant that replaces "never force": a branch delete NEVER appears in a
+// plan the core did not clear. `git worktree remove` keeps no force flag --
+// discarding an unclean tree was never cleared by the core.
 
 import { z } from 'zod';
 
@@ -78,7 +106,11 @@ export function decideClose(raw: WorktreeCloseInput): CloseVerdict {
   }
   const reasons: CloseRefusalReason[] = [];
   if (!input.hasUpstream) reasons.push('no-upstream');
-  if (input.aheadOfRemote > 0) reasons.push('unpushed');
+  // Loss requires BOTH: commits the branch's own remote lacks, AND those commits
+  // not being in the integration branch either. Containment is what makes the
+  // remote-distance harmless. Deliberately NOT waived by retired: a retired
+  // branch with uncontained local-only commits still has work to lose.
+  if (input.aheadOfRemote > 0 && !input.containedInIntegration) reasons.push('unpushed');
   if (input.dirtyFileCount > 0) reasons.push('dirty');
   // recent is a loss-risk guard: active work is active even for a retired close,
   // so it is NOT waived by retired (unlike unmerged below). Strict < so exactly
@@ -94,10 +126,14 @@ export function decideClose(raw: WorktreeCloseInput): CloseVerdict {
 
 export function closePlan(verdict: CloseVerdict, input: WorktreeCloseInput): string[][] {
   if (verdict.action === 'refuse') return [];
+  // No --force: discarding an unclean working tree was never cleared by the core.
   const plan: string[][] = [['git', 'worktree', 'remove', input.path]];
   // remove-keep-branch deliberately stops here: the retired branch ref stays.
   if (verdict.action === 'remove') {
-    plan.push(['git', 'branch', '-d', input.branch]);
+    // -D, not -d: see the header. The core proved containment against the
+    // integration branch; -d re-asks that question against the branch's own
+    // upstream and refuses on a stale ref, which crashed the plan mid-flight.
+    plan.push(['git', 'branch', '-D', input.branch]);
   }
   return plan;
 }
