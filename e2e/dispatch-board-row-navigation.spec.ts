@@ -21,7 +21,7 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { dockerPsql } from './helpers/docker-exec';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
-import { z } from 'zod';
+import { type z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, CreateTransportOrderResponseSchema } from './helpers/contracts';
 import { waitForBoardReady } from './helpers/create-order';
 
