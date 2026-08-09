@@ -12,6 +12,7 @@
 // refuse an actively-developed worktree even when merged and clean.
 
 import { execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
 import { decideClose, closePlan, type CloseVerdict, type WorktreeCloseInput } from './close-worktree.js';
 import {
   parseWorktreePorcelain,
@@ -78,8 +79,29 @@ export function parseCloseArgv(argv: readonly string[]): CloseArgv {
 
 // ---- pure selection + report ----
 
-export function selectTarget(entries: readonly WorktreeEntry[], path: string): WorktreeEntry {
-  const hit = entries.find((e) => e.path === path);
+// Matches by RESOLVED path, never by string equality. The old comparison
+// refused `../t89-wt1-turbo` -- a path that resolves to a real worktree root --
+// and then printed the absolute paths it wanted, so the operator re-ran the
+// same command with a different spelling of the same directory. `../name` is
+// what tab-completion produces from the canonical root, so requiring the
+// absolute form is a papercut with a loss-risk edge: an operator who assumes
+// the relative path worked may believe a worktree was closed when the command
+// exited 1.
+//
+// cwd is a PARAMETER, defaulted, not read from process inside: resolve() is
+// pure given a cwd, so the function stays unit-testable with no filesystem and
+// no cwd juggling in tests. Trailing separators and '.' segments normalise
+// away for free, which is why those cases are covered too.
+//
+// Resolution is not a wildcard -- an unknown path still throws, and the message
+// still lists the known roots.
+export function selectTarget(
+  entries: readonly WorktreeEntry[],
+  path: string,
+  cwd: string = process.cwd(),
+): WorktreeEntry {
+  const want = resolve(cwd, path);
+  const hit = entries.find((e) => resolve(e.path) === want);
   if (hit === undefined) {
     throw new Error('not a worktree root: ' + path + NL + 'known roots:' + NL +
       entries.map((e) => '  ' + e.path).join(NL));
