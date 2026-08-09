@@ -69,6 +69,7 @@
     "typecheck:scripts": "tsc --noEmit -p scripts/tsconfig.json",
     "lint:scripts": "eslint scripts --max-warnings=0",
     "eas:ios:device": "pnpm exec turbo run eas:build:ios:interactive --filter=@fleet/driver-app --ui=tui",
+    "eas:freshness": "tsx scripts/eas-build-freshness-gate.ts",
     "lint:e2e": "eslint e2e --max-warnings=0",
     "lint:e2e:fix": "eslint e2e --fix",
     "lint:scripts:fix": "eslint scripts --fix",
