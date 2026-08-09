@@ -26,7 +26,7 @@
 // offending path instead of surfacing as an undefined downstream.
 import { randomBytes } from 'node:crypto';
 import type { APIRequestContext, APIResponse } from '@playwright/test';
-import { z } from 'zod';
+import { type z } from 'zod';
 import {
   parseJson,
   AssignmentResponseSchema,
