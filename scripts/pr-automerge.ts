@@ -49,6 +49,7 @@
 import { z } from 'zod';
 import { CheckRunSchema, summarizeRollup } from './check-conclusion.js';
 import { classifyRollup, describeRollupFailure } from './check-rollup-source.js';
+import { parseGhJson } from './pr-follow.js';
 import type { CheckRun, RollupSummary } from './check-conclusion.js';
 
 // ---- trust boundary (Axis 1): everything gh hands us is parsed ----
@@ -176,9 +177,15 @@ export const automergeConfigSchema = z.object({
 });
 export type AutomergeConfig = z.infer<typeof automergeConfigSchema>;
 
-function sh(cmd: string, args: readonly string[]): { out: string; code: number } {
+// STDOUT IS DATA; STDERR IS DIAGNOSTICS -- never joined. Returning
+// `r.stdout + r.stderr` meant a transient gh message landed in front of the
+// JSON, and readRollup then classified it as `unparseable` -> exit 1, reporting
+// a PERMANENT contract violation for a dropped connection. The identical join
+// crashed pr-follow.ts outright on PR #550 and cost eas-build-freshness-gate an
+// ACQUISITION_FAILED verdict against a healthy account.
+function sh(cmd: string, args: readonly string[]): { out: string; err: string; code: number } {
   const r = spawnSync(cmd, [...args], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
-  return { out: r.stdout + r.stderr, code: r.status ?? 1 };
+  return { out: r.stdout, err: r.stderr, code: r.status ?? 1 };
 }
 
 // Classification lives in check-rollup-source.ts, which separates NOT-READY-YET
@@ -207,9 +214,14 @@ function viewPr(prNumber: number): { pr: PrView | null; mergeStateStatus: string
     'pr', 'view', String(prNumber),
     '--json', 'number,state,isDraft,mergeable,mergeStateStatus,autoMergeRequest',
   ]);
-  let raw: unknown;
-  try { raw = JSON.parse(r.out) as unknown; } catch { return { pr: null, mergeStateStatus: 'UNKNOWN' }; }
-  const obj = raw as Record<string, unknown>;
+  // A transient read is NOT an unresolved merge state. Distinguishing them is
+  // why parseGhJson exists; the caller already re-polls on a null pr.
+  const parsed = parseGhJson(r.out);
+  if (parsed.kind !== 'ok') {
+    process.stdout.write('[pr:automerge] gh unreadable (will retry): ' + parsed.raw + nl);
+    return { pr: null, mergeStateStatus: 'UNKNOWN' };
+  }
+  const obj = parsed.value as Record<string, unknown>;
   const normalised = {
     number: obj['number'],
     state: obj['state'],

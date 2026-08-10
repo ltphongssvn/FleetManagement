@@ -75,6 +75,51 @@ export const CheckListSchema = z.array(CheckRunSchema);
 
 // ---- pure decision core ----
 
+/** Outcome of reading a `gh --json` payload.
+ *
+ *  `unreadable` is deliberately NOT an error state the caller must handle by
+ *  giving up: it means "we learned nothing THIS poll", and the follow loop
+ *  already knows how to wait. Distinguishing it from a real answer is the whole
+ *  point -- collapsing the two is what let a dropped connection masquerade as a
+ *  finished pipeline phase. */
+export type GhJson =
+  | { readonly kind: 'ok'; readonly value: unknown }
+  | { readonly kind: 'unreadable'; readonly raw: string };
+
+/** Longest excerpt of an unreadable payload to keep. Enough to identify a gh
+ *  error line, short enough that a stray HTML error page cannot flood a log
+ *  that is printed every 30 seconds for an hour. */
+const UNREADABLE_EXCERPT_CHARS = 300;
+
+/** Parse a `gh --json` payload without ever throwing.
+ *
+ *  THE CRASH THIS REPLACES (PR #550, 2026-08-10): gh emitted
+ *    error connecting to api.github.com
+ *  to STDERR, sh() concatenated it onto stdout, and prState called
+ *  JSON.parse(raw || '{}') with no guard -- the only one of three JSON call
+ *  sites in this file lacking a try/catch. The SyntaxError propagated and
+ *  killed the watcher seven minutes into a twenty-five minute pipeline. Running
+ *  it again immediately reported DEPLOYED, so the condition was transient and
+ *  retrying was the correct response the tool denied itself.
+ *
+ *  Empty, whitespace and JSON `null` are all unreadable rather than ok: the old
+ *  `raw || '{}'` substituted a VALID but meaningless object, which parses
+ *  cleanly and is then indistinguishable from a genuine answer. */
+export function parseGhJson(raw: string): GhJson {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return { kind: 'unreadable', raw: '(empty output)' };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed) as unknown;
+  } catch {
+    return { kind: 'unreadable', raw: trimmed.slice(0, UNREADABLE_EXCERPT_CHARS) };
+  }
+  if (parsed === null) {
+    return { kind: 'unreadable', raw: trimmed.slice(0, UNREADABLE_EXCERPT_CHARS) };
+  }
+  return { kind: 'ok', value: parsed };
+}
+
 export type CheckSummary = RollupSummary;
 
 export function summarizeChecks(checks: readonly CheckRun[]): CheckSummary {
@@ -202,15 +247,21 @@ export const followConfigSchema = z.object({
 });
 export type FollowConfig = z.infer<typeof followConfigSchema>;
 
-function sh(cmd: string, args: readonly string[]): string {
+// STDOUT IS DATA; STDERR IS DIAGNOSTICS. Returning `r.stdout + r.stderr` put a
+// gh connection error in front of the JSON and crashed prState (PR #550). The
+// identical idiom cost eas-build-freshness-gate an ACQUISITION_FAILED verdict
+// against a healthy account, where eas-cli writes an upgrade banner to stderr.
+// Callers that parse read `.out`; callers that only need text still may, but
+// they must never hand `.err` to a parser.
+function sh(cmd: string, args: readonly string[]): { out: string; err: string } {
   const r = spawnSync(cmd, [...args], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
-  return r.stdout + r.stderr;
+  return { out: r.stdout, err: r.stderr };
 }
 
 function parseJsonAs<T>(raw: string, schema: z.ZodType<T>, fallback: T): T {
-  let parsed: unknown;
-  try { parsed = JSON.parse(raw) as unknown; } catch { return fallback; }
-  const res = schema.safeParse(parsed);
+  const parsed = parseGhJson(raw);
+  if (parsed.kind !== 'ok') return fallback;
+  const res = schema.safeParse(parsed.value);
   return res.success ? res.data : fallback;
 }
 
@@ -218,7 +269,7 @@ function listRuns(branch: string): readonly RunRecord[] {
   const raw = sh('gh', [
     'run', 'list', '--branch', branch, '--limit', '40',
     '--json', 'databaseId,workflowName,status,conclusion,headSha,createdAt,event',
-  ]);
+  ]).out;
   return parseJsonAs(raw, RunListSchema, []);
 }
 
@@ -226,10 +277,10 @@ function listRuns(branch: string): readonly RunRecord[] {
 // rendering in which CANCELLED is indistinguishable from FAILURE, which is how
 // PR #511 was reported as failing while carrying zero failures.
 function listChecks(prNumber: number): readonly CheckRun[] {
-  const raw = sh('gh', ['pr', 'view', String(prNumber), '--json', 'statusCheckRollup']);
-  let parsed: unknown;
-  try { parsed = JSON.parse(raw) as unknown; } catch { return []; }
-  const obj = parsed as Record<string, unknown>;
+  const raw = sh('gh', ['pr', 'view', String(prNumber), '--json', 'statusCheckRollup']).out;
+  const parsed = parseGhJson(raw);
+  if (parsed.kind !== 'ok') return [];
+  const obj = parsed.value as Record<string, unknown>;
   const res = CheckListSchema.safeParse(obj['statusCheckRollup']);
   return res.success ? res.data : [];
 }
@@ -240,8 +291,14 @@ const prStateSchema = z.object({
 });
 
 function prState(prNumber: number): { merged: boolean; mergeSha: string | null } {
-  const raw = sh('gh', ['pr', 'view', String(prNumber), '--json', 'state,mergeCommit']);
-  const res = prStateSchema.safeParse(JSON.parse(raw || '{}') as unknown);
+  const r = sh('gh', ['pr', 'view', String(prNumber), '--json', 'state,mergeCommit']);
+  const parsed = parseGhJson(r.out);
+  if (parsed.kind !== 'ok') {
+    // Transient, not terminal: report what gh said and let the loop poll again.
+    console.log('     gh unreadable (will retry): ' + parsed.raw);
+    return { merged: false, mergeSha: null };
+  }
+  const res = prStateSchema.safeParse(parsed.value);
   if (!res.success) return { merged: false, mergeSha: null };
   const merged = res.data.state === 'MERGED';
   const oid = res.data.mergeCommit?.oid ?? null;
@@ -253,11 +310,11 @@ function prState(prNumber: number): { merged: boolean; mergeSha: string | null }
 // a different commit than our merge SHA.
 function promotedShaFor(mergeSha: string, baseBranch: string): string | null {
   sh('git', ['fetch', 'origin', '--prune', '--quiet']);
-  const contains = sh('git', ['branch', '-r', '--contains', mergeSha]);
+  const contains = sh('git', ['branch', '-r', '--contains', mergeSha]).out;
   if (!contains.split(String.fromCharCode(10)).some((l) => l.trim() === 'origin/' + baseBranch)) {
     return null;
   }
-  const head = sh('git', ['rev-parse', 'origin/' + baseBranch]).trim();
+  const head = sh('git', ['rev-parse', 'origin/' + baseBranch]).out.trim();
   return head.length >= 7 ? head : null;
 }
 
