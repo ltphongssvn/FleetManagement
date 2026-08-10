@@ -23,6 +23,7 @@
     "web": "expo start --web",
     "eas:builds": "pnpm dlx eas-cli@20.5.1 build:list --platform all --limit 10 --non-interactive",
     "eas:build:ios": "pnpm dlx eas-cli@20.5.1 build --platform ios --profile preview --non-interactive",
+    "eas:build:ios:interactive": "pnpm dlx eas-cli@20.5.1 build --platform ios --profile preview",
     "eas:build:android": "pnpm dlx eas-cli@20.5.1 build --platform android --profile preview --non-interactive"
   },
   "engines": {
