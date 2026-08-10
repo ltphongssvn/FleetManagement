@@ -72,7 +72,16 @@ export default tseslint.config(
       "vitest/no-focused-tests": "error",
       "vitest/no-disabled-tests": "warn",
       "vitest/no-identical-title": "error",
-      "vitest/expect-expect": ["error", { assertFunctionNames: ["expect", "expectTypeOf", "fc.assert"] }],
+      // assertFunctionNames extends the rule's notion of "an assertion" to
+      // custom helpers, which is the documented mechanism rather than a
+      // per-file eslint-disable. expectRefused narrows a discriminated union
+      // BEFORE reading its payload: writing expect(d.reason) inline against
+      // BootstrapDecision is a type error, and a cast would assert the shape
+      // the author expected while narrowing PROVES it. Without this entry the
+      // rule reports "Test has no assertions" for every refusal case -- a false
+      // positive that pressures the author to inline the cast and lose the
+      // proof, which is exactly how a sound guard gets switched off.
+      "vitest/expect-expect": ["error", { assertFunctionNames: ["expect", "expectTypeOf", "fc.assert", "expectRefused"] }],
       // maxArgs: 2 because VITEST -- unlike Jest -- supports a second argument to
       // expect() carrying a custom failure message: expect(value, "why").toBe(x).
       // The rule's minArgs/maxArgs both default to 1, the count vanilla Jest
