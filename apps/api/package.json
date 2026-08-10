@@ -35,7 +35,8 @@
     "audit:assignment-uniqueness": "tsx src/scripts/audit-assignment-uniqueness.ts",
     "db:check": "drizzle-kit check",
     "test:changed": "vitest run --changed HEAD~1",
-    "test:mutation": "stryker run"
+    "test:mutation": "stryker run",
+    "audit:driver-roster": "tsx src/scripts/audit-driver-roster.ts"
   },
   "engines": {
     "node": ">=22.0.0 <25.0.0"
