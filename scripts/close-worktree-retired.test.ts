@@ -47,6 +47,7 @@ const RETIRED_BASE: WorktreeCloseInput = {
   containedInIntegration: false,
   isPrimaryClone: false,
   retired: true,
+  done: false,
   idleHours: 999,
 };
 describe('decideClose: retired branches', () => {
