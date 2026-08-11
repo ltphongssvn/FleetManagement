@@ -33,8 +33,20 @@ const EXEMPT = new Set([
 // preferred over broadly exempting the file or obscuring the SQL via concatenation.
 //   * fleet-app-role-privileges.integration.test.ts asserts the least-privilege runtime
 //     role (fleet_app) is DENIED DROP TABLE / ALTER TABLE (SQLSTATE 42501).
+//   * driver-canonical-repair.integration.test.ts verifies the REPAIR half of
+//     migration 20260810180000. It does not define schema: it READS that
+//     migration file and replays its own statements, having first dropped the
+//     constraints the migration adds -- which is precisely the PRE-migration
+//     state a production database is in when the migration runs. Without that,
+//     the non-canonical fixtures could not be inserted and the test would be
+//     vacuous. The DDL is therefore the SUBJECT under test, exactly as the
+//     role-privileges file above asserts DDL is denied. Listed here rather
+//     than moved into a helper on purpose: relocating the statements would
+//     hide them from this scan without the guard knowing, which is the
+//     obscure-the-SQL evasion this allowlist exists to make unnecessary.
 const DDL_ASSERTION_EXEMPT = new Set([
   'fleet-app-role-privileges.integration.test.ts',
+  'driver-canonical-repair.integration.test.ts',
 ]);
 
 const FORBIDDEN_DDL = /\b(CREATE\s+TABLE|CREATE\s+TYPE|DROP\s+TABLE|ALTER\s+TABLE)\b/i;

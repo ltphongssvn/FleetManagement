@@ -167,6 +167,13 @@
       "persistent": false,
       "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
     },
+    "audit:driver-roster": {
+      "description": "READ-ONLY audit of the driver roster -- the instrument built to answer a dispatcher report that deleting a driver from the Can xu ly queue left the row on screen forever, while the SAME display name renders twice on the page. Runs the unit-tested auditDriverRoster classifier against live driver rows and prints: active/inactive counts; EXACT active-name collisions, which driver_company_active_name_ci_uq (UNIQUE on (company_id, lower(full_name)) WHERE active) makes IMPOSSIBLE, so observing one is positive evidence the index is absent or INVALID rather than merely of duplicate data; FOLDED collisions, names equal only after NFC normalization and whitespace collapsing, which slip past that index legitimately because lower() folds case but never normalizes composition -- and Vietnamese diacritics are exactly where NFD appears, since iOS keyboards emit decomposed sequences and Windows emits composed; soft-deleted drivers still holding an unrevoked assignment, meaning the soft-delete cascade did not run; and phones a soft-deleted row has reserved against re-registration, because driver_company_phone_uq is a PLAIN unique and not partial on active -- the asymmetry 2026 partial-index guidance names as the classic soft-delete trap. --introspect instead prints whether the driver indexes exist and are VALID in prod (pg_index.indisvalid), the drift check that tells you whether Postgres was ASKED to block a duplicate and failed, or was never asked at all. NO mutation, no --execute: this task exists to produce evidence before any fix is authored, never to repair. Live DB read: cache:false -- a cached verdict is a stale verdict, which is the exact failure it investigates. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run audit:driver-roster --filter=@fleet/api [-- --introspect].",
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+    },
     "inspect:order-state": {
       "description": "Read-only diagnostic: print a transport order actual server-side state (transport_order row, linked road_run states + started_at/completed_at, last 20 fleet_audit_log events) resolved by --ref. Boots the standalone ProjectionRebuildModule (config + database). MUTATES NOTHING. Live DB read: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run inspect:order-state --filter=@fleet/api -- --ref XTT.07-020.",
       "dependsOn": ["build"],
