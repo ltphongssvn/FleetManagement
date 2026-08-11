@@ -53,11 +53,31 @@ function migrationStatements(): string[] {
 }
 
 async function dropConstraints(): Promise<void> {
-  // Return the table to its PRE-migration shape so non-canonical rows can be
-  // inserted, which is the whole point of the fixture.
+  // Restore the EXACT pre-migration schema, not merely a permissive one.
+  //
+  // The first version of this helper only DROPPED things, which made the
+  // fixtures insertable and the tests pass -- against a schema state that
+  // never occurs. Production runs the migration with the OLD lower(full_name)
+  // unique index and the OLD plain phone unique STILL PRESENT, and that is
+  // precisely what broke it: canonicalizing the trailing-space row makes it
+  // collide with its bare twin under that old index, raising 23505 INSIDE the
+  // migration transaction. The API exited 1 during maybeMigrate and production
+  // was down until DB_AUTO_MIGRATE was set false.
+  //
+  // A migration test must reproduce the schema the migration will ENCOUNTER.
+  // Dropping a constraint to make a fixture insertable silently changes the
+  // thing under test.
   await testDb.db.execute(sql`ALTER TABLE driver DROP CONSTRAINT IF EXISTS driver_full_name_canonical`);
   await testDb.db.execute(sql`DROP INDEX IF EXISTS driver_company_active_name_ci_uq`);
   await testDb.db.execute(sql`DROP INDEX IF EXISTS driver_company_active_phone_uq`);
+  // Drop the phone constraint too before recreating it: the cloned template
+  // still carries it on a fresh database, and the migration drops it only on
+  // the runs that have already executed. Idempotent setup, so beforeEach can
+  // run this whether or not a prior test applied the migration.
+  await testDb.db.execute(sql`ALTER TABLE driver DROP CONSTRAINT IF EXISTS driver_company_phone_uq`);
+  // Recreate the pre-migration indexes verbatim.
+  await testDb.db.execute(sql`CREATE UNIQUE INDEX driver_company_active_name_ci_uq ON driver (company_id, lower(full_name)) WHERE active = true`);
+  await testDb.db.execute(sql`ALTER TABLE driver ADD CONSTRAINT driver_company_phone_uq UNIQUE (company_id, phone)`);
 }
 
 async function applyRepair(): Promise<void> {
