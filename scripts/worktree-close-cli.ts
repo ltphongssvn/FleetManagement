@@ -59,6 +59,10 @@ export function reflogArgs(): string[] {
 export interface CloseArgv {
   path: string | null;
   retired: boolean;
+  // DONE (2026-08-11): the operator declaring this session finished. Waives
+  // ONLY the recency guard, and only for work already contained in the
+  // integration branch -- decideClose enforces that pairing, not this parser.
+  done: boolean;
 }
 
 // Pure so flag handling is unit-tested without spawning git. --retired is
@@ -67,14 +71,17 @@ export interface CloseArgv {
 export function parseCloseArgv(argv: readonly string[]): CloseArgv {
   let path: string | null = null;
   let retired = false;
+  let done = false;
   for (const arg of argv) {
     if (arg === '--retired') {
       retired = true;
+    } else if (arg === '--done') {
+      done = true;
     } else if (!arg.startsWith('--') && path === null && arg.length > 0) {
       path = arg;
     }
   }
-  return { path, retired };
+  return { path, retired, done };
 }
 
 // ---- pure selection + report ----
@@ -128,6 +135,7 @@ export function formatCloseReport(verdict: CloseVerdict, input: WorktreeCloseInp
     ' upstream=' + String(input.hasUpstream) +
     ' contained=' + String(input.containedInIntegration) +
     ' retired=' + String(input.retired) +
+    ' done=' + String(input.done) +
     ' idleH=' + String(Math.floor(input.idleHours)));
   return lines.join(NL);
 }
@@ -149,7 +157,7 @@ function mainWorktreeClose(): number {
   const argv = parseCloseArgv(process.argv.slice(2));
   const target = argv.path;
   if (target === null) {
-    process.stderr.write('usage: turbo run worktree:close -- <worktree-path> [--retired]' + NL);
+    process.stderr.write('usage: turbo run worktree:close -- <worktree-path> [--retired] [--done]' + NL);
     return 2;
   }
   const entries = parseWorktreePorcelain(git(listWorktreesArgs()));
@@ -171,6 +179,7 @@ function mainWorktreeClose(): number {
     dirtyFileCount: countDirtyFiles(git(dirtyArgs(), entry.path)),
     containedInIntegration: Number(git(containmentArgs(INTEGRATION_REF), entry.path)) === 0,
     retired: argv.retired,
+    done: argv.done,
     idleHours,
   });
   const verdict = decideClose(input);
