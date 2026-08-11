@@ -1,8 +1,37 @@
 // apps/api/src/database/seeds/reference-seed.ts
 // Seed reference tables from VẬN CHUYỂN Xe Thùng PDFs.
 // Idempotent via ON CONFLICT DO NOTHING on unique constraints.
+//
+// DRIVER NAMES ARE NORMALIZED AND CONFLICT-TARGETED (2026-08-10). This seed
+// caused a production incident that a dispatcher experienced as "I delete the
+// driver and it comes back forever":
+//
+//   The real NGUYEN AN BINH DUC was stored with a TRAILING SPACE (a row
+//   predating normalizeDisplayName). This loop inserted the canonical literal
+//   RAW -- fullName: t.driverName, no schema -- with a bare
+//   onConflictDoNothing() carrying NO TARGET. lower(full_name) therefore did
+//   not match, no conflict was detected, and a SECOND active row was created:
+//   name only, no phone, no vehicle, no device. main.ts runs this seed on
+//   EVERY boot when DB_AUTO_MIGRATE=true, and its isProduction flag gates only
+//   the login driver, never the TRUCKS loop. Soft-deleting the twin set
+//   active=false, which drops it out of the partial unique index, so the next
+//   deploy inserted it again.
+//
+// Two changes close it at the source. Names now pass through
+// normalizeDisplayName, the same domain SSOT the create/update services use,
+// so the seed cannot introduce a non-canonical spelling. And the driver insert
+// declares its conflict target explicitly, so ON CONFLICT resolves against the
+// driver identity rather than silently degrading to a blind insert.
+//
+// This is defense in depth, not the only guard: migration 20260810180000 adds
+// a CHECK that REFUSES a non-canonical full_name outright, and the unique index
+// now folds over the canonical form. Normalizing here matters because the seed
+// runs BEFORE the app listens -- a future edit adding a stray space would
+// otherwise fail the CHECK and take the API down at boot rather than being
+// quietly corrected.
 import bcrypt from 'bcryptjs';
 import type { FleetDb } from '../database.module.js';
+import { normalizeDisplayName } from '@fleet/domain';
 import { driver, vehicle, customer, cargoType, warehouse, orderSequence } from '../schema/reference.js';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 const TENANCY = {
@@ -84,24 +113,32 @@ export async function seedReference(db: FleetDb, opts: SeedOptions = {}): Promis
   const loginDrivers = opts.isProduction === true ? [] : LOGIN_DRIVERS;
   for (const d of loginDrivers) {
     const passwordHash = await bcrypt.hash(d.password, 10);
+    const fullName = normalizeDisplayName(d.fullName);
     // Upsert on the (company_id, phone) unique constraint so a pre-existing
     // row with a stale password hash is corrected on every boot — the seed
     // is authoritative for the pilot login driver's credentials.
     await db.insert(driver).values({
       ...TENANCY,
-      fullName: d.fullName,
+      fullName,
       phone: d.phone,
       passwordHash,
       operatorId: d.operatorId,
     }).onConflictDoUpdate({
       target: [driver.companyId, driver.phone],
-      set: { fullName: d.fullName, passwordHash, operatorId: d.operatorId, active: true },
+      set: { fullName, passwordHash, operatorId: d.operatorId, active: true },
     });
   }
   for (const t of TRUCKS) {
     await db.insert(vehicle).values({ ...TENANCY, plate: t.plate, vehicleType: 'box_truck' }).onConflictDoNothing();
     if (t.driverName) {
-      await db.insert(driver).values({ ...TENANCY, fullName: t.driverName }).onConflictDoNothing();
+      // Normalize before writing, and TARGET the conflict. The previous bare
+      // onConflictDoNothing() named no target, so it could not resolve against
+      // the driver identity at all -- which is how a look-alike twin was
+      // inserted on every boot. Targeting (company_id, full_name) makes the
+      // do-nothing meaningful now that both sides are canonical.
+      await db.insert(driver)
+        .values({ ...TENANCY, fullName: normalizeDisplayName(t.driverName) })
+        .onConflictDoNothing({ target: [driver.companyId, driver.fullName] });
     }
   }
   for (const w of PICKUP_WAREHOUSES) {
