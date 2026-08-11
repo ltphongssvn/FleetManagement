@@ -38,25 +38,28 @@ describe('parseCloseArgv: pure flag parsing', () => {
     expect(parseCloseArgv(['/home/u/code/t4-wt6'])).toEqual({
       path: '/home/u/code/t4-wt6',
       retired: false,
+      done: false,
     });
   });
   it('reads --retired after the path', () => {
     expect(parseCloseArgv(['/home/u/code/t4-wt6', '--retired'])).toEqual({
       path: '/home/u/code/t4-wt6',
       retired: true,
+      done: false,
     });
   });
   it('reads --retired before the path (order independent)', () => {
     expect(parseCloseArgv(['--retired', '/home/u/code/t4-wt6'])).toEqual({
       path: '/home/u/code/t4-wt6',
       retired: true,
+      done: false,
     });
   });
   it('returns a null path when only the flag is given', () => {
     expect(parseCloseArgv(['--retired']).path).toBe(null);
   });
   it('returns a null path for empty argv', () => {
-    expect(parseCloseArgv([])).toEqual({ path: null, retired: false });
+    expect(parseCloseArgv([])).toEqual({ path: null, retired: false, done: false });
   });
   it('ignores an unknown flag rather than treating it as the path', () => {
     expect(parseCloseArgv(['--wat', '/p']).path).toBe('/p');
