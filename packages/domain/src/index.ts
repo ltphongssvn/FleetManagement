@@ -29,6 +29,11 @@ export {
   suggestDistinctDriverName,
   DISTINCT_NAME_SUFFIXES,
   type DistinctNameSuffix,
+  FLEET_ROLES,
+  FLEET_OWNER_ROLE,
+  FleetRoleSchema,
+  hasFleetRole,
+  type FleetRole,
 } from './identity/index.js';
 export {
   type TransportOrderState,

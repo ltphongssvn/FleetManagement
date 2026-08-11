@@ -31,3 +31,11 @@ export {
   DISTINCT_NAME_SUFFIXES,
   type DistinctNameSuffix,
 } from './distinct-person-name.js';
+
+export {
+  FLEET_ROLES,
+  FLEET_OWNER_ROLE,
+  FleetRoleSchema,
+  hasFleetRole,
+  type FleetRole,
+} from './fleet-role.js';
