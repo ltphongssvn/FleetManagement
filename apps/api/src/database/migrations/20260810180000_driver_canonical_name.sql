@@ -1,5 +1,6 @@
 -- apps/api/src/database/migrations/20260810180000_driver_canonical_name.sql
--- Canonical driver.full_name: repair the data, then make the defect impossible.
+-- Canonical driver.full_name: resolve collisions, repair the data, then make
+-- the defect impossible.
 --
 -- INCIDENT. Two ACTIVE rows existed for one human, NGUYEN AN BINH DUC. The only
 -- difference was a single TRAILING SPACE on the real driver's row. The unique
@@ -21,30 +22,37 @@
 -- app keeps normalizing, so a well-behaved caller never sees this constraint --
 -- it exists to catch the callers we do not control.
 --
--- ORDER IS LOAD-BEARING: repair BEFORE constrain. Adding the index or the CHECK
--- first would fail against live production rows.
+-- ORDER IS LOAD-BEARING, AND THE FIRST CUT GOT IT WRONG. That version
+-- canonicalized first and deactivated collisions second. Against production
+-- that UPDATE trimmed "...DUC " into "...DUC" -- the bare twin's exact name --
+-- while the OLD lower(full_name) index was still live, so it raised 23505
+-- INSIDE the migration transaction. The API exited 1 during maybeMigrate and
+-- production was down until DB_AUTO_MIGRATE was set false. The collision was
+-- created by the statement BEFORE the statement that resolves it.
+--
+-- Deferring the constraint is not available here: SET CONSTRAINTS applies only
+-- to CONSTRAINTS, and this is a partial expression INDEX, which cannot be
+-- deferred. Deferral would also move the error to commit time and make it
+-- harder to localize. Reordering is the correct fix: resolve first, then
+-- rewrite, so no intermediate state ever violates the live index.
 
--- Step 1: canonicalize every existing name in place. NFC-compose, collapse
--- internal whitespace runs to one space, trim the ends. Accents and case are
--- deliberately preserved -- diacritics are meaning in Vietnamese, and the fold
--- to lower() belongs in the index, not in storage.
-UPDATE driver
-SET full_name = btrim(regexp_replace(normalize(full_name, NFC), '\s+', ' ', 'g'))
-WHERE full_name IS DISTINCT FROM btrim(regexp_replace(normalize(full_name, NFC), '\s+', ' ', 'g'));
-
---> statement-breakpoint
-
--- Step 2: the repair above can make two ACTIVE rows collide that previously did
--- not (exactly the production case: the trailing-space row now equals its bare
--- twin). Keep ONE active row per (company_id, canonical-folded name) and
--- soft-delete the rest. The survivor is chosen by operational richness, NOT by
--- age: the row an operator actually uses is the one carrying a phone, a live
--- vehicle assignment and a registered device. Deactivating that one instead
--- would strand a working driver, so created_at is only the final tiebreak.
+-- Step 1: deactivate ACTIVE rows that WOULD collide once names are
+-- canonicalized. Partitioning is by the CANONICAL fold computed on the fly --
+-- not by the current lower(full_name) -- because the collision only exists in
+-- the post-canonicalization world. Keeping exactly one active row per group
+-- means the Step 2 rewrite cannot violate the live index.
+--
+-- The survivor is chosen by operational richness, NOT by age: the row an
+-- operator actually uses is the one carrying a phone, an operator id and a live
+-- vehicle assignment. In production the BARE twin was created FIRST, so an
+-- age-based tiebreak would have deactivated the working driver and stranded a
+-- real person's phone, vehicle and device. created_at is only the final
+-- tiebreak, for rows that are otherwise indistinguishable.
 WITH ranked AS (
   SELECT d.driver_id,
          row_number() OVER (
-           PARTITION BY d.company_id, lower(d.full_name)
+           PARTITION BY d.company_id,
+                        lower(btrim(regexp_replace(normalize(d.full_name, NFC), '\s+', ' ', 'g')))
            ORDER BY
              (d.phone IS NOT NULL) DESC,
              (d.operator_id IS NOT NULL) DESC,
@@ -58,6 +66,17 @@ WITH ranked AS (
 UPDATE driver
 SET active = false
 WHERE driver_id IN (SELECT driver_id FROM ranked WHERE rn > 1);
+
+--> statement-breakpoint
+
+-- Step 2: canonicalize every remaining name in place. NFC-compose, collapse
+-- internal whitespace runs to one space, trim the ends. Accents and case are
+-- deliberately preserved -- diacritics are meaning in Vietnamese, and the fold
+-- to lower() belongs in the index, not in storage. Safe now: Step 1 guarantees
+-- no two ACTIVE rows share a canonical fold, so no rewrite can collide.
+UPDATE driver
+SET full_name = btrim(regexp_replace(normalize(full_name, NFC), '\s+', ' ', 'g'))
+WHERE full_name IS DISTINCT FROM btrim(regexp_replace(normalize(full_name, NFC), '\s+', ' ', 'g'));
 
 --> statement-breakpoint
 

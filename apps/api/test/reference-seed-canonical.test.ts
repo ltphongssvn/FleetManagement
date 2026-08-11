@@ -98,11 +98,23 @@ describe('seedReference - canonical driver names', () => {
     expect(code).not.toContain('fullName: t.driverName');
   });
 
-  it('targets the driver conflict instead of a blind do-nothing', async () => {
+  it('names NO conflict target for the reference driver insert', async () => {
+    // This assertion is INVERTED from its first form, and the inversion is the
+    // lesson. It originally demanded a target be present, which a fake db
+    // happily satisfied -- while Postgres rejected that same target with 42P10,
+    // there is no unique or exclusion constraint matching the ON CONFLICT
+    // specification, because the name index is an EXPRESSION index over the
+    // canonical fold and no index on (company_id, full_name) exists. The seed
+    // runs at BOOT, so that error was the API exiting 1, not a failed query.
+    // A bare do-nothing lets ANY unique violation be the no-op, which keeps the
+    // seed decoupled from index internals. reference-seed.integration.test.ts
+    // is what actually proves it against a real database; this only pins the
+    // shape so the coupling cannot be reintroduced by edit.
     const captured: CapturedInsert[] = [];
     await seedReference(makeFakeDb(captured), { isProduction: true });
     const refDriver = captured.find((c) => c.table === 'driver');
     expect(refDriver).toBeDefined();
-    expect(refDriver?.target).toBeDefined();
+    expect(refDriver?.conflict).toBe('do-nothing');
+    expect(refDriver?.target).toBeUndefined();
   });
 });
