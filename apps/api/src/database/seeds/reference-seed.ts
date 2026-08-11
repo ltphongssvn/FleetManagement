@@ -30,6 +30,7 @@
 // otherwise fail the CHECK and take the API down at boot rather than being
 // quietly corrected.
 import bcrypt from 'bcryptjs';
+import { sql } from 'drizzle-orm';
 import type { FleetDb } from '../database.module.js';
 import { normalizeDisplayName } from '@fleet/domain';
 import { driver, vehicle, customer, cargoType, warehouse, orderSequence } from '../schema/reference.js';
@@ -124,21 +125,33 @@ export async function seedReference(db: FleetDb, opts: SeedOptions = {}): Promis
       passwordHash,
       operatorId: d.operatorId,
     }).onConflictDoUpdate({
+      // The phone index became PARTIAL (WHERE active = true AND phone IS NOT
+      // NULL) in migration 20260810180000, and Postgres only infers a partial
+      // index as the arbiter when the statement predicate IMPLIES the index
+      // predicate. Without targetWhere this upsert raised 42P10 at boot -- a
+      // pre-existing line broken by the index change, not by this seed.
       target: [driver.companyId, driver.phone],
+      targetWhere: sql`active = true AND phone IS NOT NULL`,
       set: { fullName, passwordHash, operatorId: d.operatorId, active: true },
     });
   }
   for (const t of TRUCKS) {
     await db.insert(vehicle).values({ ...TENANCY, plate: t.plate, vehicleType: 'box_truck' }).onConflictDoNothing();
     if (t.driverName) {
-      // Normalize before writing, and TARGET the conflict. The previous bare
-      // onConflictDoNothing() named no target, so it could not resolve against
-      // the driver identity at all -- which is how a look-alike twin was
-      // inserted on every boot. Targeting (company_id, full_name) makes the
-      // do-nothing meaningful now that both sides are canonical.
+      // Normalize before writing; BARE do-nothing on purpose. The name index is
+      // an EXPRESSION index over the canonical fold, and Postgres infers the
+      // arbiter index from the target -- so naming (company_id, full_name)
+      // matches NO index and raises 42P10, which at boot is the API process
+      // exiting 1 rather than a failed query. Restating the canonical
+      // expression here would re-couple the seed to index internals and break
+      // boot again on the next index change. With no target, ANY unique
+      // violation is a no-op, which is exactly what a seed wants. This became
+      // correct only once both sides are canonical: the original defect was
+      // never a missing target, it was that the twin violated NOTHING because
+      // the keys differed.
       await db.insert(driver)
         .values({ ...TENANCY, fullName: normalizeDisplayName(t.driverName) })
-        .onConflictDoNothing({ target: [driver.companyId, driver.fullName] });
+        .onConflictDoNothing();
     }
   }
   for (const w of PICKUP_WAREHOUSES) {
