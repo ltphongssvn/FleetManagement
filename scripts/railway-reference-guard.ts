@@ -61,6 +61,41 @@ const ConfigSchema = z.object({
 });
 type Config = z.infer<typeof ConfigSchema>;
 
+/**
+ * Shape of `railway environment config --json`, validated at the trust boundary.
+ *
+ * WHY THIS EXISTS (2026-08-08). extractServiceVariables previously walked this
+ * payload with four `as` casts and dot-access on Record<string, unknown>, which
+ * is three TS4111s and, more importantly, an unvalidated boundary: the response
+ * contract lived in the prose comment above rather than in code. If Railway
+ * renamed `variables` or nested `value` differently, every cast would still
+ * "succeed", the extractor would return an empty map, and the guard would print
+ * "OK — scanned 0 service(s)" and pass a deploy it never actually inspected.
+ * A guard that cannot fail is not a guard.
+ *
+ * LOOSE, NOT STRICT, ON PURPOSE. This is a third-party payload we do not
+ * control. A strict schema would throw the moment Railway adds a field,
+ * breaking the deploy gate for a non-reason. The 2026 practice for external API
+ * responses is to validate only the fields you actually read and let the rest
+ * pass through, which is what looseObject does. This guard reads exactly three:
+ * services -> variables -> value.
+ *
+ * A variable entry is either a bare string or an object carrying `value`; both
+ * forms are accepted, matching the previous hand-rolled behaviour.
+ */
+const VariableEntrySchema = z.union([
+  z.string(),
+  z.looseObject({ value: z.string().optional() }),
+]);
+
+const ServiceSchema = z.looseObject({
+  variables: z.record(z.string(), VariableEntrySchema).optional(),
+});
+
+const EnvironmentConfigSchema = z.looseObject({
+  services: z.record(z.string(), ServiceSchema).optional(),
+});
+
 interface Violation {
   service: string;
   variable: string;
@@ -75,9 +110,12 @@ function fail(message: string, code: number): never {
 }
 
 function loadConfig(): Config {
-  const path = process.env.RAILWAY_GUARD_CONFIG
-    ? resolve(process.cwd(), process.env.RAILWAY_GUARD_CONFIG)
-    : DEFAULT_CONFIG;
+  // Bracket notation: process.env is an index signature, so dot access is TS4111
+  // under noPropertyAccessFromIndexSignature. The flag keeps access syntax
+  // consistent with the declaration and stops a typo'd name silently reading
+  // undefined.
+  const override = process.env['RAILWAY_GUARD_CONFIG'];
+  const path = override ? resolve(process.cwd(), override) : DEFAULT_CONFIG;
   let raw: string;
   try {
     raw = readFileSync(path, 'utf8');
@@ -212,7 +250,8 @@ function redact(value: string): string {
 
 /** Resolve a service UUID to a friendly name via the config map (exact, else prefix). */
 function resolveServiceName(uuid: string, map: Record<string, string>): string {
-  if (map[uuid]) return map[uuid];
+  const exact = map[uuid];
+  if (exact !== undefined) return exact;
   for (const [key, name] of Object.entries(map)) {
     if (uuid.startsWith(key)) return name;
   }
@@ -222,29 +261,36 @@ function resolveServiceName(uuid: string, map: Record<string, string>): string {
 /**
  * Extract { serviceName -> { varName -> rawValue } } from the environment config.
  * Services are keyed by UUID; each has a `variables` map of `{ value: string }`.
+ *
+ * The payload is PARSED, not cast. A shape mismatch hard-fails at exit 2 rather
+ * than yielding an empty map: an unreadable contract means the guard cannot do
+ * its job, and silently reporting "0 services scanned" would pass a deploy that
+ * was never inspected. That is distinct from the transient-read failures above,
+ * which legitimately soft-skip.
  */
 function extractServiceVariables(
   env: unknown,
   nameMap: Record<string, string>,
 ): Map<string, Map<string, string>> {
   const result = new Map<string, Map<string, string>>();
-  const root = env as Record<string, unknown> | null;
-  const services = root?.services as Record<string, unknown> | undefined;
-  if (!services || typeof services !== 'object') return result;
+  const parsed = EnvironmentConfigSchema.safeParse(env);
+  if (!parsed.success) {
+    fail(
+      'railway environment config did not match the expected shape; the guard cannot ' +
+        'verify anything and refuses to report a vacuous pass: ' + parsed.error.message,
+      2,
+    );
+  }
+  const services = parsed.data.services;
+  if (!services) return result;
 
   for (const [uuid, svc] of Object.entries(services)) {
-    const svcObj = svc as Record<string, unknown>;
-    const vars = svcObj.variables as Record<string, unknown> | undefined;
-    if (!vars || typeof vars !== 'object') continue;
+    const vars = svc.variables;
+    if (!vars) continue;
     const name = resolveServiceName(uuid, nameMap);
     const bag = new Map<string, string>();
     for (const [key, v] of Object.entries(vars)) {
-      let value: string | undefined;
-      if (typeof v === 'string') value = v;
-      else if (v && typeof v === 'object') {
-        const vo = v as Record<string, unknown>;
-        if (typeof vo.value === 'string') value = vo.value;
-      }
+      const value = typeof v === 'string' ? v : v.value;
       if (typeof value === 'string') bag.set(key, value);
     }
     result.set(name, bag);

@@ -1,49 +1,110 @@
 // scripts/e2e/stack-stop.ts
-// Data-safe teardown of the fleet-pilot compose stack. STANDING RULE: never
-// leave the 8-service stack idle holding ~1-2Gi resident on this 9.7Gi WSL box
-// -- stop it after use. compose stop (NOT down) halts every container so its
-// process memory is released, while networks + named volumes + container state
-// survive for an instant on-demand restart (stack:restart / stack:up). SSOT =
-// stackStopConfigSchema (fail-fast), composeProject pinned to the same
-// 'fleet-pilot' identity stack-up.ts uses so this targets the exact same
-// containers regardless of which worktree's compose file resolved them. The
-// planner (stopComposeArgs) is pure + unit-tested; main() runs ONLY as the
-// entrypoint (isEntry), so the contract test imports the pure parts without
-// spawning docker -- identical discipline to stack-up.ts.
-import { z } from 'zod';
+// Data-safe teardown of every running fleet compose stack.
+//
+// STANDING RULE: never leave a fleet stack idle holding resident RAM -- stop it
+// after use. This task exists to enforce that and, until now, could not.
+//
+// THE BUG THIS FIXES: composeProject was pinned to 'fleet-pilot', matching the
+// identity stack-up.ts hardcoded at the time. compose-identity.ts later began
+// injecting a per-worktree project (fleet-<key>) into each worktree's .env, so
+// this planned `docker compose -p fleet-pilot stop` against a project that was
+// not running. Stopping an empty project is not an error, so spawnSync returned
+// 0, the task printed STACK STOPPED, and exited 0 -- while seven containers
+// from a stack:up two days earlier stayed resident the entire time. The
+// hardcoded default is DELETED rather than corrected: a fixed identity in this
+// API surface is the defect itself.
+//
+// Discovery is delegated to docker-reclaim.ts, which reads project names from
+// `docker compose ls --format json` (compose reports its own names; container
+// names are never parsed -- hyphenated services like ops-web and mock-oauth2
+// break every split, and a fleet-<hex> pattern silently skips fleet-pilot).
+// One source of truth for WHICH projects exist, consumed by both tasks.
+//
+// SCOPE: deliberately `stop`, never `down`/-v -- containers halt and release
+// memory while named volumes, networks and container state survive for an
+// instant restart. Deliberately no cache pruning either: that is
+// //#docker:reclaim's job, and the two tasks stay distinct so the light "I'm
+// done for now" op cannot quietly delete build cache.
+//
+// FAILS CLOSED. The verdict comes from re-reading the projects AFTER stopping,
+// never from the stop commands' exit codes, and an unreadable daemon throws
+// rather than parsing to an empty list -- because "nothing is running" is
+// exactly what a broken read looks like.
+//
+// Pure planners (stopComposeArgs, stackStopVerdict) are unit-tested under
+// //#test:scripts; only main() touches docker, and it runs ONLY as entrypoint.
 import { spawnSync } from 'node:child_process';
+import { fleetProjectsFrom } from './docker-reclaim.js';
 
-export const stackStopConfigSchema = z.object({
-  composeProject: z.string().min(1),
-});
-export type StackStopConfig = z.infer<typeof stackStopConfigSchema>;
+// A compose project raised by this repo: 'fleet-' plus the 12-hex worktree key
+// (compose-identity.ts composeProject), or the legacy shared 'fleet-pilot'.
+// Discovery already filters to the fleet- prefix; this is the fail-fast for a
+// value that could not be one of ours, which would stop nothing and look green.
+const FLEET_PROJECT = /^fleet-(pilot|[0-9a-f]{12})$/;
 
-// Same project identity as stack-up.ts (-p fleet-pilot).
-export const defaultStopConfig: StackStopConfig = stackStopConfigSchema.parse({
-  composeProject: 'fleet-pilot',
-});
-
-// Pure planner: the exact docker argv for a state-preserving stop, scoped to the
-// project by -p. Deliberately 'stop' (retains containers/volumes/networks) and
-// NEVER 'down'/-v, so a restart is instant and no data is destroyed.
-export function stopComposeArgs(c: StackStopConfig): readonly string[] {
-  return ['compose', '-p', c.composeProject, 'stop'];
+/** Data-safe stop argv for ONE discovered project. Throws on a foreign name. */
+export function stopComposeArgs(project: string): readonly string[] {
+  if (!FLEET_PROJECT.test(project)) {
+    throw new Error('refusing to stop a non-fleet compose project: ' + JSON.stringify(project));
+  }
+  return ['compose', '-p', project, 'stop'];
 }
 
-// ---- side-effecting entrypoint ----
-function main(): void {
-  const c = defaultStopConfig;
-  const args = stopComposeArgs(c);
-  console.log('stopping compose project ' + c.composeProject + ' (data-safe; volumes + state retained) ...');
-  const r = spawnSync('docker', [...args], { encoding: 'utf-8', stdio: 'inherit' });
+export interface StackStopVerdict {
+  readonly verdict: 'STOPPED' | 'INCOMPLETE';
+  readonly survivors: readonly string[];
+  readonly exitCode: number;
+}
+
+/** Post-condition verdict: survivors are read AFTER stopping, and fail the task. */
+export function stackStopVerdict(survivors: readonly string[]): StackStopVerdict {
+  return survivors.length === 0
+    ? { verdict: 'STOPPED', survivors: [], exitCode: 0 }
+    : { verdict: 'INCOMPLETE', survivors: [...survivors], exitCode: 1 };
+}
+
+/* v8 ignore start -- side-effecting driver; the planners above are unit-tested */
+const NL = String.fromCharCode(10);
+
+function runningFleetProjects(): readonly string[] {
+  const r = spawnSync('docker', ['compose', 'ls', '--format', 'json'], { encoding: 'utf-8' });
   if (r.status !== 0) {
-    console.error('docker ' + args.join(' ') + ' failed');
+    throw new Error('docker compose ls failed: ' + r.stderr);
+  }
+  return fleetProjectsFrom(r.stdout);
+}
+
+function main(): number {
+  const projects = runningFleetProjects();
+  if (projects.length === 0) {
+    process.stderr.write('[stack:stop] no fleet projects running' + NL);
+  }
+  for (const project of projects) {
+    process.stderr.write('[stack:stop] stopping ' + project + ' (data-safe; volumes + state retained)' + NL);
+    spawnSync('docker', [...stopComposeArgs(project)], { stdio: 'inherit' });
+  }
+
+  const v = stackStopVerdict(runningFleetProjects());
+  if (v.verdict === 'STOPPED') {
+    process.stderr.write(
+      '[stack:stop] STOPPED -- restart on demand: pnpm run stack:restart (or stack:up)' + NL,
+    );
+  } else {
+    process.stderr.write('[stack:stop] INCOMPLETE -- still running: ' + v.survivors.join(', ') + NL);
+  }
+  return v.exitCode;
+}
+
+const isMain = process.argv[1] !== undefined && import.meta.url === 'file://' + process.argv[1];
+if (isMain) {
+  try {
+    process.exit(main());
+  } catch (e) {
+    process.stderr.write(
+      '[stack:stop] CANNOT VERIFY -- ' + (e instanceof Error ? e.message : String(e)) + NL +
+      'The Docker daemon is unreachable, so no claim about idle stacks can be made.' + NL,
+    );
     process.exit(1);
   }
-  console.log('STACK STOPPED - restart on demand: pnpm run stack:restart (or stack:up)');
 }
-
-const isEntry = process.argv[1] !== undefined && import.meta.url === 'file://' + process.argv[1];
-if (isEntry) {
-  main();
-}
+/* v8 ignore stop */

@@ -21,6 +21,7 @@
 // by the API (never a raw bucket path), so the private bucket is never exposed.
 import { z } from 'zod';
 import { EXTRACTION_FAILURE_REASONS } from './extraction-vocabulary.js';
+import { ProofUrlSchema } from './proof-url.js';
 
 export const STOP_TYPES = ['pickup', 'delivery'] as const;
 export type StopType = typeof STOP_TYPES[number];
@@ -93,7 +94,17 @@ export function computeWeightDiffKg(stops: readonly WeightDiffStop[]): WeightDif
  *  .strict(): this is the API-authored outgoing shape, validated server-side. */
 export const StopProofSchema = z.object({
   manifestId: z.guid(),
-  photoUrl: z.url(),
+  // ProofUrlSchema, NOT a bare z.url(). Zod documents z.url() as "quite
+  // permissive" -- it delegates to the native URL constructor, so mailto:,
+  // data:, file: and javascript: all parse successfully. Verified against zod
+  // 4.4.3 in this repo rather than assumed: a RED test asserting rejection
+  // failed on every one of them.
+  //
+  // ops-web renders this value directly into an anchor href (board-stops.tsx),
+  // so an unconstrained scheme is stored XSS. The scheme allowlist lives in
+  // proof-url.ts as one definition, so the API-authored outgoing shape and the
+  // ops-web client-parsed shape can never disagree about what is renderable.
+  photoUrl: ProofUrlSchema,
   capturedAt: z.iso.datetime(),
   // EXPAND-only (phieu-can net-weight extraction): net goods weight in kg parsed
   // from the committed Phieu Can by the extraction worker. optional => old
@@ -156,7 +167,13 @@ export type DispatchStopView = z.infer<typeof DispatchStopViewSchema>;
  *  DispatchStopViewSchema on purpose (the projection emits ISO strings the loader
  *  does not re-validate as .datetime()), proof nullable + defaulted so a pre-proof
  *  API still parses, and the API's per-stop stopId is silently dropped (this read
- *  projection does not use it) — preserving the former non-strict loader shape. */
+ *  projection does not use it) — preserving the former non-strict loader shape.
+ *
+ *  TOLERANCE HAS A LIMIT. Dropping unknown KEYS is the Postel property this shape
+ *  wants. Accepting an unvalidated VALUE in a known field is not tolerance, it is
+ *  an unchecked read -- and this is the shape ops-web actually parses before
+ *  rendering proof.photoUrl into an href, so it is the boundary that protects the
+ *  sink. The nested StopProofSchema enforces the scheme allowlist here too. */
 export const DispatchBoardStopSchema = z.object({
   sequence: z.number().int(),
   stopType: z.string(),

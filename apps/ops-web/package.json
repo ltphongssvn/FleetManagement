@@ -44,6 +44,7 @@
   },
   "devDependencies": {
     "@fleet/design-tokens": "workspace:*",
+    "@fleet/test-fixtures": "workspace:*",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@tailwindcss/postcss": "^4.2.4",

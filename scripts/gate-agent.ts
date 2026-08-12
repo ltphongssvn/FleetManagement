@@ -132,9 +132,19 @@ function main(): void {
       outcome = summarizeTurboRun(newestSummary(process.cwd()));
     } catch (err) {
       // Fail closed: an unreadable summary is never reported as a pass.
+      //
+      // process.exit is typed never, so this branch terminates: no trailing
+      // return is needed, and `outcome` is still definitely-assigned below. A
+      // `return;` sat here until 2026-08-08 -- a workaround from when TS did not
+      // narrow after a call to a never-returning METHOD
+      // (microsoft/TypeScript#56049), and process.exit is a method on process.
+      // That gap is fixed, which is exactly why the compiler began reporting the
+      // workaround itself as TS7027 unreachable. Removed rather than suppressed
+      // via allowUnreachableCode, which would have hidden genuinely dead code
+      // across the whole tree. The identical removal in inspect-prod-deploy.ts
+      // was verified by compiling first: no possibly-undefined error resurfaced.
       advance('run.failed', { reason: (err as Error).message });
       process.exit(code ?? 1);
-      return;
     }
     advance(outcome.exitCode === 0 ? 'run.completed' : 'run.failed', {
       runExitCode: outcome.exitCode,

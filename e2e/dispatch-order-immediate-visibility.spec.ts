@@ -16,22 +16,21 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { dockerPsql } from './helpers/docker-exec';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
-import { z } from 'zod';
+import { type z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
 import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
+import { OPTIMISTIC_RENDER_BUDGET_MS } from './helpers/budgets';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 
-// Hard ceiling between 'created' banner appearing and the row being visible
-// in the board. 1s is well below what a user would notice as a 'stale page'
-// problem (the threshold beyond which dispatchers reach for F5).
-// 500ms — sub-perceptual threshold. This is achievable only with optimistic
-// UI rendering (industry-standard 2026 pattern for CQRS read-model lag).
-// Renders the just-created row from local client state immediately when
-// the server action returns status='created'; the eventually-consistent
-// dispatch_board projection reconciles in the background via router.refresh.
-const ROW_VISIBILITY_BUDGET_MS = 500;
+// The budget is OPTIMISTIC_RENDER_BUDGET_MS from helpers/budgets, and it is
+// deliberately NOT the generous board budget the other specs use: 500ms is a
+// sub-perceptual threshold achievable only with optimistic UI rendering (the
+// 2026 pattern for CQRS read-model lag), and this spec asserts elapsedMs
+// against it, so the number IS the invariant rather than a safety margin.
+// Keeping the two separate means a future raise of the board budget cannot
+// silently let the optimistic row take fifteen seconds and still pass here.
 
 async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
@@ -151,8 +150,8 @@ test.describe('created order immediate visibility on dispatch board (T3)', () =>
 
     const t0 = Date.now();
     const row = page.getByTestId('dispatch-board-row-' + externalRef).first();
-    await expect(row, 'new row must appear without manual refresh').toBeVisible({ timeout: ROW_VISIBILITY_BUDGET_MS });
+    await expect(row, 'new row must appear without manual refresh').toBeVisible({ timeout: OPTIMISTIC_RENDER_BUDGET_MS });
     const elapsedMs = Date.now() - t0;
-    expect(elapsedMs).toBeLessThanOrEqual(ROW_VISIBILITY_BUDGET_MS);
+    expect(elapsedMs).toBeLessThanOrEqual(OPTIMISTIC_RENDER_BUDGET_MS);
   });
 });

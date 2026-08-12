@@ -29,6 +29,7 @@ import {
   type IosAppAttestOutcome,
 } from './ios-app-attest-verifier.js';
 import type { AttestationOutcome } from './attestation-verification-policy.js';
+import type { AttestationPlatform } from './platform.js';
 export type VerifyAndroidFn = typeof verifyAndroidKeyAttestation;
 export type VerifyIosFn = typeof verifyIosAppAttest;
 export interface AttestationServiceDeps {
@@ -40,7 +41,11 @@ export interface AttestationServiceDeps {
   readonly iosBundles: readonly string[];
 }
 export interface AttestationRequest {
-  readonly platform: 'android' | 'ios';
+  // Derives from the SSOT (platform.ts), like the securityLevel/environment
+  // siblings above. Written out by hand it was a second declaration of a
+  // vocabulary AttestationPlatformSchema already owns, free to drift from the
+  // controller that parses this request.
+  readonly platform: AttestationPlatform;
   readonly token: string;
   readonly expectedNonce: string;
   readonly keyId?: string;

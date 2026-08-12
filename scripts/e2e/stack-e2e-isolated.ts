@@ -209,7 +209,7 @@ function mainIsolatedE2E(): number {
     // back to the kc.e2e.example placeholder while this stack redirects to its own
     // mock-oauth2 -> the spec fails on a config mismatch, not a product defect.
     OIDC_AUTHORIZATION_ENDPOINT: e2eEnv.OIDC_AUTHORIZATION_ENDPOINT,
-    E2E_OPS_PASSWORD: process.env.E2E_OPS_PASSWORD ?? 'unused-token-auth',
+    E2E_OPS_PASSWORD: process.env['E2E_OPS_PASSWORD'] ?? 'unused-token-auth',
   };
   process.stderr.write('[isolated-e2e] ops-web-runner @ ' + e2eEnv.E2E_BASE_URL + ' (api ' + e2eEnv.E2E_API_URL + ')' + String.fromCharCode(10));
   const testCode = sh('pnpm', ['exec', 'tsx', 'scripts/e2e/ops-web-runner.ts', ...passthrough], childEnv);

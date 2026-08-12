@@ -62,13 +62,21 @@ describe('evaluateHostReadiness', () => {
     expect(r.ready).toBe(false);
     expect(r.problems.join(' ')).toContain('GiB');
   });
+  // Spreads `healthy` like every sibling case (2026-08-08). This was the one
+  // test that hand-built a full snapshot literal, so when availableDiskGiB was
+  // added to HostSnapshot it went stale here and nowhere else -- TS2345, the
+  // same drift class as the close-worktree fixtures. Overriding only the three
+  // axes under test also keeps the assertion honest: healthy's 120GiB disk is
+  // deliberately NOT a fourth problem, which is exactly the distinction the
+  // 'names disk alongside every other problem' case below draws by setting disk
+  // to 0.2 and expecting 4.
   it('reports EVERY problem at once, not just the first', () => {
     const r = evaluateHostReadiness({
+      ...healthy,
       load1: 19.27,
       cores: 8,
       availableGiB: 0.3,
       testContainerNames: ['fleet-pg-test-12f2574406eb'],
-      ownContainerName: 'fleet-pg-test-50d50c60da41',
     });
     expect(r.ready).toBe(false);
     expect(r.problems).toHaveLength(3);
