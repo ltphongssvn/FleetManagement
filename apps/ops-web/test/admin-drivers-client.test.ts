@@ -51,7 +51,10 @@ describe("AdminDriversClient.list", () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve([
-        { driverId: "d1", fullName: "A", operatorId: null, assignedVehicle: null, assignmentId: null, devices: [] },
+        // phone was ABSENT here. The contract types it z.string().nullable(),
+        // and nullable is not optional -- the key must be present. It passed
+        // only because list() cast instead of parsing.
+        { driverId: "d1", fullName: "A", phone: null, operatorId: null, assignedVehicle: null, assignmentId: null, devices: [] },
       ]),
     });
     const client = new AdminDriversClient({ fetchFn: fetchFn as never });

@@ -148,6 +148,19 @@ export {
 export {
   ExtractionFailureReasonSchema,
 } from './extraction-vocabulary.js';
+
+// Leaf SSOT for what a Phieu Can PROOF URL may be. Exported from the barrel
+// because the value crosses a rendering boundary: ops-web parses it off the
+// network and puts it straight into an anchor href, so every surface that
+// produces or consumes a proof link must agree on the scheme allowlist. A deep
+// src path import is what invites a second, weaker definition -- and the weaker
+// definition here is a bare z.url(), which Zod documents as permissive enough to
+// accept javascript: and data:.
+export {
+  PROOF_URL_PROTOCOL,
+  ProofUrlSchema,
+  type ProofUrl,
+} from './proof-url.js';
 export {
   exportDayKeySchema,
   type ExportDayKey,

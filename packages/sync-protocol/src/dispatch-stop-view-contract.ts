@@ -21,6 +21,7 @@
 // by the API (never a raw bucket path), so the private bucket is never exposed.
 import { z } from 'zod';
 import { EXTRACTION_FAILURE_REASONS } from './extraction-vocabulary.js';
+import { ProofUrlSchema } from './proof-url.js';
 
 // STOP TYPE VOCABULARY -- the values actually PERSISTED in stop.stop_type.
 //
@@ -164,7 +165,17 @@ export function computeWeightDiffKg(stops: readonly WeightDiffStop[]): WeightDif
  *  .strict(): this is the API-authored outgoing shape, validated server-side. */
 export const StopProofSchema = z.object({
   manifestId: z.guid(),
-  photoUrl: z.url(),
+  // ProofUrlSchema, NOT a bare z.url(). Zod documents z.url() as "quite
+  // permissive" -- it delegates to the native URL constructor, so mailto:,
+  // data:, file: and javascript: all parse successfully. Verified against zod
+  // 4.4.3 in this repo rather than assumed: a RED test asserting rejection
+  // failed on every one of them.
+  //
+  // ops-web renders this value directly into an anchor href (board-stops.tsx),
+  // so an unconstrained scheme is stored XSS. The scheme allowlist lives in
+  // proof-url.ts as one definition, so the API-authored outgoing shape and the
+  // ops-web client-parsed shape can never disagree about what is renderable.
+  photoUrl: ProofUrlSchema,
   capturedAt: z.iso.datetime(),
   // EXPAND-only (phieu-can net-weight extraction): net goods weight in kg parsed
   // from the committed Phieu Can by the extraction worker. optional => old
@@ -229,11 +240,21 @@ export type DispatchStopView = z.infer<typeof DispatchStopViewSchema>;
  *  API still parses, and the API's per-stop stopId is silently dropped (this read
  *  projection does not use it) — preserving the former non-strict loader shape.
  *
- *  stopType is the SSOT enum, NOT z.string(). It was z.string() until the stop-type
- *  vocabulary arc: tolerance about UNKNOWN KEYS is the Postel property this shape
- *  wants, but tolerance about a KNOWN FIELD'S VALUE is just an unvalidated read.
- *  Widening STOP_TYPES to the four persisted values is what makes enforcing it here
- *  safe -- the previous two-value union would have rejected live dropoff rows. */
+ *  TOLERANCE HAS A LIMIT, and this shape has hit it twice. Dropping unknown KEYS
+ *  is the Postel property it wants. Accepting an unvalidated VALUE in a KNOWN
+ *  field is not tolerance -- it is an unchecked read, and this is the shape
+ *  ops-web actually parses before rendering, so it is the boundary that protects
+ *  every downstream sink. Two independent arcs found the same lesson here:
+ *
+ *    - stopType was z.string(), enforcing nothing. It is now the SSOT enum.
+ *      Widening STOP_TYPES to the four PERSISTED values is what made enforcing
+ *      it safe: the previous two-value union would have rejected live dropoff
+ *      rows outright.
+ *    - photoUrl was a bare z.url(), which Zod documents as permissive enough to
+ *      accept javascript: and data:. The nested StopProofSchema now enforces the
+ *      http(s) scheme allowlist here too, guarding the anchor href ops-web
+ *      renders it into.
+ */
 export const DispatchBoardStopSchema = z.object({
   sequence: z.number().int(),
   stopType: StopTypeSchema,
