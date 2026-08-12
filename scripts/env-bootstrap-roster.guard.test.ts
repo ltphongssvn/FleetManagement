@@ -9,8 +9,8 @@
 // shape as terminal-registry.ts: correct code nobody invoked.
 //
 // The failure is not hypothetical. On 2026-08-11 a fourth machine joined the
-// estate and the roster still held one key, with two machines marked PENDING in
-// a comment -- prose doing the job of an assertion.
+// estate and the roster still held one key, with two machines named in a
+// comment as not-yet-added -- prose doing the job of an assertion.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -22,6 +22,17 @@ import {
 } from './env-bootstrap.js';
 
 const ROOT = join(import.meta.dirname, '..');
+
+/** The age public-key shape, matched ANYWHERE in a line. Distinct from the
+ *  anchored check below: this one harvests keys out of rendered YAML, where
+ *  each key sits indented inside a folded scalar rather than at column zero. */
+const AGE_RECIPIENT_ANYWHERE = /age1[02-9ac-hj-np-z]{58}/g;
+
+/** Prefix identifying a roster line as a key rather than a comment or blank.
+ *  A literal prefix, not an anchored regex: eslint's
+ *  prefer-string-starts-ends-with rejects /^.../.test(), and startsWith says
+ *  what is meant without the reader parsing a pattern for anchors. */
+const AGE_PREFIX = 'age1';
 
 function read(relative: string): string {
   return readFileSync(join(ROOT, relative), 'utf-8');
@@ -42,7 +53,7 @@ describe('.sops.yaml cannot drift from the recipient roster', () => {
 
   it('adds no recipient the roster does not name', () => {
     const roster = parseRecipients(read(RECIPIENTS_FILE));
-    const inConfig = read(SOPS_CONFIG_FILE).match(/age1[02-9ac-hj-np-z]{58}/g) ?? [];
+    const inConfig = read(SOPS_CONFIG_FILE).match(AGE_RECIPIENT_ANYWHERE) ?? [];
     expect([...inConfig].sort()).toEqual([...roster].sort());
   });
 });
@@ -55,7 +66,7 @@ describe('the roster itself stays safe and legible', () => {
   it('names the host behind every key, so revocation knows what it revokes', () => {
     const lines = read(RECIPIENTS_FILE).split(String.fromCharCode(10));
     lines.forEach((line, i) => {
-      if (!/^age1/.test(line.trim())) return;
+      if (!line.trim().startsWith(AGE_PREFIX)) return;
       const above = (lines[i - 1] ?? '').trim();
       expect(above.startsWith('#')).toBe(true);
     });
