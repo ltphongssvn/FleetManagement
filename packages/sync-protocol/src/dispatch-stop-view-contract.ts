@@ -22,8 +22,72 @@
 import { z } from 'zod';
 import { EXTRACTION_FAILURE_REASONS } from './extraction-vocabulary.js';
 
-export const STOP_TYPES = ['pickup', 'delivery'] as const;
-export type StopType = typeof STOP_TYPES[number];
+// STOP TYPE VOCABULARY -- the values actually PERSISTED in stop.stop_type.
+//
+// This array documents REALITY, not an aspiration. A production census
+// (SELECT DISTINCT stop_type FROM stop) returns FOUR values: pickup, delivery,
+// dropoff, return. The previous declaration listed only two, and three defects
+// followed from that gap:
+//
+//   1. computeWeightDiffKg matched stopType === 'delivery' by direct equality,
+//      its comment asserting that was exhaustive. Every order whose delivery leg
+//      is typed 'dropoff' returned null -- indistinguishable from the legitimate
+//      "weight not extracted yet" null, so the Chenh lech column was silently
+//      blank for those orders with nothing to indicate why.
+//   2. Three call sites independently aliased delivery || dropoff, which is the
+//      per-call-site duplication the SSOT rule exists to forbid.
+//   3. Two read paths CAST a raw DB string into this union rather than parsing
+//      it, silencing the compiler exactly where validation was required.
+//
+// WHY WIDEN RATHER THAN MIGRATE THE DATA. 2026 expand-contract guidance is
+// explicit: widen in place, never narrow directly. Rewriting live dropoff/return
+// rows down to two values would destroy a real distinction -- a RETURNED load is
+// not a DELIVERED load -- and returns would silently become billable. So the
+// vocabulary records what is stored, and MEANING is derived on top of it.
+export const STOP_TYPES = Object.freeze(['pickup', 'delivery', 'dropoff', 'return'] as const);
+export type StopType = (typeof STOP_TYPES)[number];
+
+/** Parses an untrusted stop_type. The column is varchar(32) with no database
+ *  constraint, so every read from it crosses a trust boundary and must be parsed
+ *  rather than asserted. z.enum matches literally -- no trim, no case folding --
+ *  and those absences are the property: 'Delivery' is not 'delivery'. */
+export const StopTypeSchema = z.enum(STOP_TYPES);
+
+// STOP ROLE -- the SEMANTIC classification consumers branch on, distinct from the
+// persisted spelling above. Two concepts, deliberately separate: adding a synonym
+// to the vocabulary must not require every consumer to learn it.
+//
+// 'return' is its OWN role and is never folded into 'delivery'. A returned load
+// travelled back rather than reaching the customer, so treating it as a delivery
+// would make it billable and would corrupt the pickup-vs-delivery reconciliation.
+export const STOP_ROLES = Object.freeze(['pickup', 'delivery', 'return'] as const);
+export type StopRole = (typeof STOP_ROLES)[number];
+
+export const StopRoleSchema = z.enum(STOP_ROLES);
+
+/** TOTAL classification of a persisted stop type into its semantic role.
+ *
+ *  'dropoff' folds onto 'delivery': the two are spellings of the same leg, which
+ *  is why three call sites had each grown their own alias. That aliasing now
+ *  lives here, once.
+ *
+ *  EXHAUSTIVE BY CONSTRUCTION: the switch covers the StopType union with no
+ *  default branch, so adding a fifth value to STOP_TYPES makes this function
+ *  non-exhaustive and FAILS THE BUILD until someone decides what it means. A new
+ *  stop type can therefore never silently fall through to a wrong role -- the
+ *  same compile-time guarantee deriveGoodsKg documents for phieu can layouts.
+ *  A default branch would defeat exactly that, so there is none. */
+export function classifyStopRole(stopType: StopType): StopRole {
+  switch (stopType) {
+    case 'pickup':
+      return 'pickup';
+    case 'delivery':
+    case 'dropoff':
+      return 'delivery';
+    case 'return':
+      return 'return';
+  }
+}
 
 // Road-run lifecycle vocabulary. SSOT is @fleet/domain RoadRunStateSchema
 // (packages/domain/src/transport/road-run-state.ts); inlined here (NOT imported)
@@ -59,7 +123,7 @@ export type WeightDiffKg = z.infer<typeof weightDiffKgSchema>;
  *  never diverge. extractedNetWeightKg is a true blank (null) when unknown, never
  *  0, so an absent weight forces the whole diff to null rather than skewing it. */
 export const WeightDiffStopSchema = z.object({
-  stopType: z.enum(STOP_TYPES),
+  stopType: StopTypeSchema,
   extractedNetWeightKg: z.union([netWeightKgSchema, z.null()]),
 }).strict();
 export type WeightDiffStop = z.infer<typeof WeightDiffStopSchema>;
@@ -72,22 +136,29 @@ export type WeightDiffStop = z.infer<typeof WeightDiffStopSchema>;
  *  missing-data best practice). Pure + dependency-free; the SINGLE definition
  *  shared by GET /dispatch/board and the Excel export so the two never diverge. */
 export function computeWeightDiffKg(stops: readonly WeightDiffStop[]): WeightDiffKg | null {
-  // stopType is the STOP_TYPES literal union (pickup | delivery) per the schema,
-  // so direct equality is exhaustive — no normalization or other-leg aliasing.
-  const pickups = stops.filter((s) => s.stopType === 'pickup');
-  const delivery = stops.find((s) => s.stopType === 'delivery');
+  // Legs are resolved through classifyStopRole, NOT by comparing stopType
+  // directly. The previous implementation matched stopType === 'delivery' and
+  // its comment claimed that was exhaustive -- it was not: a delivery leg
+  // persisted as 'dropoff' matched nothing, so this returned null and the board
+  // showed a blank Chenh lech indistinguishable from an unextracted weight.
+  //
+  // 'return' is deliberately EXCLUDED from both sides. A returned load neither
+  // counts as picked up for the customer nor as delivered, so including it in
+  // either total would misstate the reconciliation.
+  const roled = stops.map((s) => ({ role: classifyStopRole(s.stopType), kg: s.extractedNetWeightKg }));
+  const pickups = roled.filter((s) => s.role === 'pickup');
+  const delivery = roled.find((s) => s.role === 'delivery');
   if (pickups.length === 0 || delivery === undefined) return null;
-  const deliveryKg = delivery.extractedNetWeightKg;
+  const deliveryKg = delivery.kg;
   if (deliveryKg === null) return null;
   let pickupTotal = 0;
   for (const p of pickups) {
-    const kg = p.extractedNetWeightKg;
+    const kg = p.kg;
     if (kg === null) return null;
     pickupTotal += kg;
   }
   return deliveryKg - pickupTotal;
 }
-
 
 /** Proof of capture for a stop: the committed manifest + a presigned GET URL.
  *  .strict(): this is the API-authored outgoing shape, validated server-side. */
@@ -128,7 +199,7 @@ export type StopProof = z.infer<typeof StopProofSchema>;
 export const DispatchStopViewSchema = z.object({
   stopId: z.guid(),
   sequence: z.number().int().positive(),
-  stopType: z.enum(STOP_TYPES),
+  stopType: StopTypeSchema,
   warehouseName: z.union([z.string(), z.null()]),
   // Preserved from the pre-existing DispatchBoardStop shape (EXPAND-only): the
   // board still shows arrival/departure; proof is ADDED, nothing removed, so old
@@ -156,10 +227,16 @@ export type DispatchStopView = z.infer<typeof DispatchStopViewSchema>;
  *  DispatchStopViewSchema on purpose (the projection emits ISO strings the loader
  *  does not re-validate as .datetime()), proof nullable + defaulted so a pre-proof
  *  API still parses, and the API's per-stop stopId is silently dropped (this read
- *  projection does not use it) — preserving the former non-strict loader shape. */
+ *  projection does not use it) — preserving the former non-strict loader shape.
+ *
+ *  stopType is the SSOT enum, NOT z.string(). It was z.string() until the stop-type
+ *  vocabulary arc: tolerance about UNKNOWN KEYS is the Postel property this shape
+ *  wants, but tolerance about a KNOWN FIELD'S VALUE is just an unvalidated read.
+ *  Widening STOP_TYPES to the four persisted values is what makes enforcing it here
+ *  safe -- the previous two-value union would have rejected live dropoff rows. */
 export const DispatchBoardStopSchema = z.object({
   sequence: z.number().int(),
-  stopType: z.string(),
+  stopType: StopTypeSchema,
   warehouseName: z.union([z.string(), z.null()]),
   arrivedAt: z.union([z.string(), z.null()]),
   departedAt: z.union([z.string(), z.null()]),
