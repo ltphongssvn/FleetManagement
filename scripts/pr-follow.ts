@@ -211,6 +211,63 @@ export interface VerdictResult {
   readonly exitCode: number;
 }
 
+/** A workflow that FAILED for this SHA, with the run id needed to reach it.
+ *
+ *  WHY THIS EXISTS. develop-gates aggregates CI and E2E into one boolean, so
+ *  a failure printed only the phase name. When a boot crash made E2E fail,
+ *  the report said nothing more than FAILED at develop-gates -- which cannot
+ *  distinguish a failed unit test from a container that never started, and
+ *  those need completely different first moves. pr-checks already prints its
+ *  failing check names; the aggregated phases simply never got the same
+ *  treatment. 2026 CI-observability guidance is explicit that reporting a
+ *  failed job WITHOUT saying where the fault lies is the defect, not the
+ *  baseline. */
+export interface FailedWorkflow {
+  readonly workflowName: string;
+  readonly databaseId: number;
+}
+
+/** The newest run per workflow that is COMPLETED and verdict-fail.
+ *
+ *  Reuses runStateFor rather than re-deriving the conclusion mapping, so a
+ *  cancelled run stays non-failing here exactly as it does in every other
+ *  phase (the PR #511 lesson), and a re-run that succeeded clears the older
+ *  failure because only the newest run per workflow is considered. */
+export function failedWorkflowsFor(
+  runs: readonly RunRecord[],
+  workflowNames: readonly string[],
+  headSha: string,
+): readonly FailedWorkflow[] {
+  const out: FailedWorkflow[] = [];
+  for (const name of workflowNames) {
+    if (runStateFor(runs, name, headSha) !== 'failed') continue;
+    const newest = runs
+      .filter((r) => r.workflowName === name && shaMatches(r.headSha, headSha))
+      .slice()
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
+    if (newest !== undefined) out.push({ workflowName: name, databaseId: newest.databaseId });
+  }
+  return out;
+}
+
+/** The run URL an operator opens. A run id alone still costs a search. */
+export function runUrl(repo: string, databaseId: number): string {
+  return 'https://github.com/' + repo + '/actions/runs/' + String(databaseId);
+}
+
+/** The failure line. Falls back to the phase alone when no workflow detail
+ *  is available (promoted, pr-merged), so the message never regresses. */
+export function describeFailure(
+  phase: PhaseName,
+  failed: readonly FailedWorkflow[],
+  repo: string,
+): string {
+  if (failed.length === 0) return 'FAILED at ' + phase;
+  const NL2 = String.fromCharCode(10);
+  const lines = failed.map((f) => '  ' + f.workflowName + ': ' + runUrl(repo, f.databaseId));
+  return 'FAILED at ' + phase + ' -- ' + String(failed.length) + ' workflow(s) failed:' + NL2 + lines.join(NL2);
+}
+
 export function computeVerdict(results: readonly PhaseResult[]): VerdictResult {
   const firstFailed = results.find((r) => r.state === 'failed');
   if (firstFailed !== undefined) {
@@ -326,6 +383,16 @@ function completedAt(runs: readonly RunRecord[], workflow: string, sha: string):
   return m === undefined ? null : m.createdAt;
 }
 
+// owner/name for run URLs. Read from gh so a fork or rename cannot produce a
+// link that 404s; falls back to the remote path when gh is unavailable.
+function repoSlug(): string {
+  const fromGh = sh('gh', ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner']).out.trim();
+  if (fromGh.length > 0) return fromGh;
+  const url = sh('git', ['remote', 'get-url', 'origin']).out.trim();
+  const m = /[:/]([^/:]+\/[^/]+?)(?:\.git)?$/.exec(url);
+  return m?.[1] ?? '';
+}
+
 function report(results: readonly PhaseResult[]): void {
   const icon = (s: RunState): string =>
     s === 'success' ? '\u2705' : s === 'failed' ? '\u274c' : s === 'pending' ? '\u23f3' : '\u2b1c';
@@ -335,8 +402,15 @@ function report(results: readonly PhaseResult[]): void {
   }
 }
 
+// The failing workflows discovered during the last evaluate(), so main() can
+// print WHERE to look. Module-scoped rather than threaded through the return
+// type: evaluate() has eight early returns, and changing all of them invites
+// exactly the kind of partial edit this arc keeps finding.
+let lastFailures: readonly FailedWorkflow[] = [];
+
 function evaluate(cfg: FollowConfig): readonly PhaseResult[] {
   const out: PhaseResult[] = [];
+  lastFailures = [];
   const checks = listChecks(cfg.prNumber);
   const sum = summarizeChecks(checks);
   // Indeterminate checks fall through to 'pending' by construction: they are in
@@ -368,6 +442,9 @@ function evaluate(cfg: FollowConfig): readonly PhaseResult[] {
     ci === 'failed' || e2e === 'failed' ? 'failed'
       : ci === 'success' && e2e === 'success' ? 'success'
         : 'pending';
+  if (gates === 'failed') {
+    lastFailures = failedWorkflowsFor(devRuns, [CI_WORKFLOW, E2E_WORKFLOW], pr.mergeSha);
+  }
   out.push({ phase: 'develop-gates', state: gates });
   if (gates !== 'success') return out;
 
@@ -379,6 +456,8 @@ function evaluate(cfg: FollowConfig): readonly PhaseResult[] {
   out.push({ phase: 'release', state: runStateFor(mainRuns, RELEASE_WORKFLOW, mainSha) });
   const mainE2e = runStateFor(mainRuns, E2E_WORKFLOW, mainSha);
   out.push({ phase: 'main-e2e', state: mainE2e });
+  const mainFailures = failedWorkflowsFor(mainRuns, [RELEASE_WORKFLOW, E2E_WORKFLOW], mainSha);
+  if (mainFailures.length > 0) lastFailures = mainFailures;
   if (mainE2e !== 'success') return out;
 
   const gateAt = completedAt(mainRuns, E2E_WORKFLOW, mainSha);
@@ -394,6 +473,9 @@ function evaluate(cfg: FollowConfig): readonly PhaseResult[] {
   out.push({ phase: 'deploy', state: depState });
   if (dep !== null) {
     console.log('     deploy run: ' + String(dep.databaseId) + ' (' + dep.status + ')');
+    if (depState === 'failed') {
+      lastFailures = [{ workflowName: DEPLOY_WORKFLOW, databaseId: dep.databaseId }];
+    }
   }
   return out;
 }
@@ -416,7 +498,8 @@ function main(): void {
     if (v.verdict !== 'WAITING') {
       console.log(v.verdict === 'DEPLOYED'
         ? 'DEPLOYED: PR #' + String(cfg.prNumber) + ' is live on Railway.'
-        : 'FAILED at ' + String(v.at) + ' -- PR #' + String(cfg.prNumber) + ' did NOT reach production.');
+        : describeFailure(v.at ?? 'deploy', lastFailures, repoSlug())
+          + String.fromCharCode(10) + 'PR #' + String(cfg.prNumber) + ' did NOT reach production.');
       process.exit(v.exitCode);
     }
     if (Date.now() >= deadline) {
