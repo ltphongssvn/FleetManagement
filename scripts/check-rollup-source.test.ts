@@ -163,3 +163,67 @@ describe('describeRollupFailure', () => {
     expect(msg).toContain('statusCheckRollup');
   });
 });
+
+// ---- EXECUTION FAILURE IS NOT A CONTENT FAILURE ----
+// pr:automerge exited 1 on PR #565 with:
+//   BLOCKED -- statusCheckRollup did not match the expected shape, which does
+//   not resolve by retrying: (root): not_json -- response was not JSON:
+// Note the empty tail: gh produced NO bytes. The macOS gh TLS flake
+// (cli/cli#13352) made the very next call fail with "x509: certificate signed
+// by unknown authority" while curl to api.github.com returned 200 throughout --
+// the chain was genuine, only gh's Go path faltered. Two retries later the same
+// command succeeded, which is the definition of transient.
+//
+// unparseable's contract says it "does NOT resolve by waiting". It did.
+//
+// This is the SAME defect this file already fixed one layer up: joining stderr
+// into stdout "meant a transient gh message landed in front of the JSON, and
+// readRollup then classified it as unparseable -> exit 1, reporting a PERMANENT
+// contract violation for a dropped connection". Splitting the streams removed
+// the prefix and left the empty case behind.
+//
+// THE FIX IS NOT TO GUESS FROM THE STRING. A subprocess result is a TRIPLE --
+// stdout, stderr, status -- and 2026 practice is to classify on the status,
+// never to infer failure from output shape alone. Empty stdout with a non-zero
+// exit is an EXECUTION failure (retry); a well-formed payload is a CONTENT
+// question (parse it). Node/Bun even document binaries exiting 0 with empty
+// stdout, "indistinguishable from a successful child that printed nothing", so
+// an empty-with-exit-0 is treated as none-yet rather than an error.
+describe('classifyRollup: execution failures are transient', () => {
+  it('classifies empty stdout with a non-zero exit as unavailable', () => {
+    expect(classifyRollup('', { exitCode: 1, stderr: 'x509: certificate signed by unknown authority' }).kind)
+      .toBe('unavailable');
+  });
+
+  it('carries the stderr so an operator can see WHY it was unavailable', () => {
+    const c = classifyRollup('', { exitCode: 1, stderr: 'tls: failed to verify certificate' });
+    if (c.kind !== 'unavailable') throw new Error('expected unavailable');
+    expect(c.reason).toContain('tls');
+  });
+
+  // Exit 0 with no bytes is not an error: the documented ambiguous case.
+  it('treats empty stdout with exit 0 as none-yet, not a failure', () => {
+    expect(classifyRollup('', { exitCode: 0, stderr: '' }).kind).toBe('none-yet');
+  });
+
+  // A non-zero exit that still produced a valid payload is answered, not broken.
+  it('prefers a well-formed payload over a non-zero exit', () => {
+    expect(classifyRollup('{"statusCheckRollup":[]}', { exitCode: 1, stderr: 'warning' }).kind)
+      .toBe('none-yet');
+  });
+
+  // CONTENT failures stay terminal. Widening the transient bucket to cover
+  // garbage would resurrect the spin-to-TIMEOUT-behind-a-reassuring-message bug
+  // this module exists to kill.
+  it('still classifies non-empty garbage as unparseable', () => {
+    expect(classifyRollup('Resource not accessible by personal access token', { exitCode: 1, stderr: '' }).kind)
+      .toBe('unparseable');
+  });
+
+  // Back-compat: the options argument is optional, so existing callers and the
+  // cases above keep their meaning.
+  it('defaults to the content-only reading when no exec context is given', () => {
+    expect(classifyRollup('{"statusCheckRollup":[]}').kind).toBe('none-yet');
+    expect(classifyRollup('42').kind).toBe('unparseable');
+  });
+});

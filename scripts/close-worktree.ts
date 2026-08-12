@@ -76,6 +76,11 @@ export const WorktreeCloseInputSchema = z.object({
   containedInIntegration: z.boolean(),
   isPrimaryClone: z.boolean(),
   retired: z.boolean().default(false),
+  // DONE (2026-08-11): explicit operator declaration that the session on this
+  // worktree is finished. Waives ONLY the recency guard, and only when the
+  // work is contained in the integration branch. Defaults false, so every
+  // existing caller is unchanged and the guard stays on by default.
+  done: z.boolean().default(false),
   // Fail-safe default 0 (recent -> protected): missing liveness data must never
   // permit a delete. Drivers always supply the real reflog-derived value.
   idleHours: z.number().min(0).default(0),
@@ -115,7 +120,20 @@ export function decideClose(raw: WorktreeCloseInput): CloseVerdict {
   // recent is a loss-risk guard: active work is active even for a retired close,
   // so it is NOT waived by retired (unlike unmerged below). Strict < so exactly
   // at the threshold counts as stale (removable).
-  if (input.idleHours < RECENT_IDLE_THRESHOLD_HOURS) reasons.push('recent');
+  //
+  // done + contained waives it, and ONLY that combination. idleHours is a
+  // PROXY for work-may-be-in-flight; containment is DIRECT EVIDENCE the work
+  // is finished and pushed. A proxy must not outrank direct evidence -- but
+  // containment alone cannot waive it either, because the t20 near-miss this
+  // guard was built for was ALSO contained. So the operator supplies the one
+  // fact neither git nor a clock can know -- that the session is over -- and
+  // the machine still requires its own evidence before honouring it.
+  // Invoking the flag IS the operator deciding (deps:reconcile doctrine).
+  // Observed cost of not having this: t106-wt1-driver-delete-audit finished
+  // with every PR merged and production verified, and was uncloseable purely
+  // because the operator was still at the keyboard.
+  const recencyWaived = input.done && input.containedInIntegration;
+  if (input.idleHours < RECENT_IDLE_THRESHOLD_HOURS && !recencyWaived) reasons.push('recent');
   // retired waives ONLY this one: the branch is intentionally not merged.
   // Written in the ! idiom the root-scripts lint (#400) enforces.
   if (!input.containedInIntegration && !input.retired) reasons.push('unmerged');
@@ -157,6 +175,7 @@ export function makeCloseInput(
     containedInIntegration: true,
     isPrimaryClone: false,
     retired: false,
+    done: false,
     idleHours: 999,
     ...overrides,
   });

@@ -1,5 +1,5 @@
 // scripts/check-rollup-source.ts
-// Pure classifier for a `gh pr view --json statusCheckRollup` payload.
+// Pure classifier for a `gh pr view --json statusCheckRollup` invocation.
 //
 // THE DEFECT THIS FIXES. pr-automerge's listChecks did
 //   return res.success ? res.data : null;
@@ -31,6 +31,35 @@
 // has a conclusion; CheckRunSchema already types conclusion as nullable, so
 // in-flight runs parse cleanly and summarise as pending. This module sits one
 // layer above that: whether the rollup exists at all.
+//
+// EXECUTION FAILURE IS NOT CONTENT FAILURE (the fourth state). pr:automerge
+// exited 1 on PR #565 with
+//   BLOCKED -- ... does not resolve by retrying: (root): not_json -- response
+//   was not JSON:
+// and an EMPTY tail: gh produced no bytes. The macOS gh TLS flake
+// (cli/cli#13352) made the next call fail with "x509: certificate signed by
+// unknown authority" while curl to api.github.com returned 200 throughout, and
+// two retries later the same command succeeded. It resolved by waiting, which
+// is precisely what `unparseable` promises cannot happen.
+//
+// That is the SAME defect this file already fixed one layer up. Joining stderr
+// into stdout "meant a transient gh message landed in front of the JSON, and
+// readRollup then classified it as unparseable -> exit 1, reporting a PERMANENT
+// contract violation for a dropped connection." Splitting the streams removed
+// the prefix and left the empty case behind.
+//
+// So the caller now passes the whole subprocess RESULT, not just a string: a
+// process outcome is a triple (stdout, stderr, status), and classifying on the
+// status is the 2026 convention -- never infer failure from output shape alone.
+// Empty stdout with a NON-ZERO exit is an execution failure and is retried;
+// empty stdout with exit 0 is the documented ambiguous case (Node and Bun both
+// note binaries that exit 0 having printed nothing, "indistinguishable from a
+// successful child that printed nothing"), so it stays none-yet rather than
+// becoming a spurious error. A well-formed payload wins regardless of exit
+// code: gh warns on stderr and still answers.
+//
+// The exec context is OPTIONAL so a caller with only a string keeps the
+// content-only reading, and every existing test keeps its meaning.
 
 import { z } from 'zod';
 import { CheckRunSchema, type CheckRun } from './check-conclusion.ts';
@@ -51,6 +80,16 @@ export interface RollupNoneYet {
 }
 
 /**
+ * The gh invocation itself did not produce an answer -- no stdout and a
+ * non-zero exit. A dropped connection, a TLS flake, a killed process. TRANSIENT:
+ * resolves by retrying, and must never be reported as a contract violation.
+ */
+export interface RollupUnavailable {
+  readonly kind: 'unavailable';
+  readonly reason: string;
+}
+
+/**
  * The payload did not match the schema: not JSON at all, a scalar where an
  * array belongs, or a run violating CheckRunSchema. Does NOT resolve by
  * waiting, and carries the issues so the caller can say what broke.
@@ -66,7 +105,17 @@ export interface RollupIssue {
   readonly message: string;
 }
 
-export type RollupClassification = RollupChecks | RollupNoneYet | RollupUnparseable;
+export type RollupClassification =
+  | RollupChecks
+  | RollupNoneYet
+  | RollupUnavailable
+  | RollupUnparseable;
+
+/** How the gh subprocess ended. Optional: absent means classify on content. */
+export interface RollupExec {
+  readonly exitCode: number;
+  readonly stderr: string;
+}
 
 const CheckListSchema = z.array(CheckRunSchema);
 
@@ -101,13 +150,31 @@ export function describeRollupFailure(issues: readonly RollupIssue[]): string {
 }
 
 /**
- * Classify the raw stdout of `gh pr view --json statusCheckRollup`.
+ * Classify one `gh pr view --json statusCheckRollup` invocation.
  *
- * Absent / null / empty are all none-yet: GitHub expresses "no runs created"
- * in each of those ways depending on timing, and none of them is malformed.
- * Everything else that fails the schema is unparseable, with issues attached.
+ * Absent / null / empty-array are all none-yet: GitHub expresses "no runs
+ * created" in each of those ways depending on timing, and none is malformed.
+ * Empty stdout with a non-zero exit is unavailable (transient). Everything else
+ * that fails the schema is unparseable, with issues attached.
  */
-export function classifyRollup(raw: string): RollupClassification {
+export function classifyRollup(raw: string, exec?: RollupExec): RollupClassification {
+  // Order matters: an EXECUTION failure is decided before any attempt to read
+  // content, because there is no content to read and JSON.parse('') would
+  // otherwise mis-file it as a contract violation.
+  if (raw.trim().length === 0) {
+    if (exec !== undefined && exec.exitCode !== 0) {
+      const why = exec.stderr.trim();
+      return {
+        kind: 'unavailable',
+        reason: 'gh exited ' + String(exec.exitCode) + ' with no output' +
+          (why.length > 0 ? ': ' + why.slice(0, 200) : ''),
+      };
+    }
+    // Exit 0 (or unknown) with no bytes: ambiguous by documentation, so treat it
+    // as "nothing to report yet" and poll again rather than fail the run.
+    return { kind: 'none-yet' };
+  }
+
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw) as unknown;
