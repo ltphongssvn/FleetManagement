@@ -19,6 +19,18 @@
 # -> exit 2 before any step runs). Therefore every run: block here MUST use RAW
 # dollar-paren command substitution, RAW double quotes and RAW && continuations — never
 # backslash-escaped. apps/api/test/ci-workflow-shell-parse.test.ts enforces this.
+#
+# FAILURE DIAGNOSTICS ARE CAPTURED BY THE STEP THAT FAILS (2026-08-11 incident).
+# docker compose up ABORTS ITS OWN STEP the moment a dependency container exits,
+# so a log dump placed in the NEXT step never runs, and the trailing
+# if: failure() dump fires several steps too late to matter. BOTH existed here,
+# and when the API exited 1 inside maybeMigrate the job printed exactly one line
+# -- dependency failed to start: container fleet-pilot-api-1 exited (1) -- and
+# nothing else. Diagnosing that crash required linking the Railway CLI and
+# reading production deploy logs, for a failure CI had reproduced perfectly and
+# then discarded. Evidence must be captured by the step that fails; a follow-up
+# step is a supplement, never a capture strategy.
+# Guarded by apps/api/test/ci-workflow-failure-diagnostics.test.ts.
 name: E2E (Playwright)
 on:
   push:
@@ -53,10 +65,23 @@ jobs:
           openssl ec -in /tmp/ec-priv.pem -pubout -out /tmp/jwt-pub.pem
           python3 .github/scripts/write-e2e-env.py
 
+      # Bringup dumps its OWN diagnostics: this step is where a boot crash kills
+      # the job, so it is the only place the evidence is still reachable. Every
+      # diagnostic is || true so a missing container or docker hiccup can never
+      # mask the real failure, and the step still exits 1 afterwards.
       - name: Bring up the Compose stack (no cache)
         run: |
           docker compose build --no-cache api ops-web
-          docker compose up -d postgres redis mock-oauth2 localstack api worker ops-web
+          if ! docker compose up -d postgres redis mock-oauth2 localstack api worker ops-web; then
+            echo '::group::container state (docker ps -a)'
+            docker ps -a || true
+            echo '::endgroup::'
+            echo '::group::container logs'
+            docker compose logs --tail 200 api ops-web worker postgres mock-oauth2 || true
+            echo '::endgroup::'
+            echo '::error::compose bringup failed -- container state and logs above'
+            exit 1
+          fi
       - name: Wait for stack health
         run: |
           for i in $(seq 1 60); do
@@ -66,7 +91,8 @@ jobs:
             fi
             if [ "$i" -eq 60 ]; then
               echo "stack did not become ready"
-              docker compose logs --tail 50 api ops-web
+              docker ps -a || true
+              docker compose logs --tail 200 api ops-web worker postgres mock-oauth2 || true
               exit 1
             fi
             sleep 5
@@ -83,9 +109,14 @@ jobs:
           # playwright.config.ts placeholder and mismatch the real redirect.
           OIDC_AUTHORIZATION_ENDPOINT: http://localhost:8080/fleet/authorize
         run: pnpm test:e2e
+      # Supplement, never the only capture: this covers failures AFTER bringup
+      # (a Playwright crash, a mid-run container death). ps -a comes first,
+      # because a container that already exited explains more than its log tail.
       - name: Dump container logs on failure
         if: failure()
-        run: docker compose logs --tail 100 api ops-web postgres mock-oauth2
+        run: |
+          docker ps -a || true
+          docker compose logs --tail 200 api ops-web worker postgres mock-oauth2 || true
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v6
