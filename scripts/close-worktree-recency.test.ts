@@ -39,6 +39,7 @@ const REMOVABLE: WorktreeCloseInput = {
   containedInIntegration: true,
   isPrimaryClone: false,
   retired: false,
+  done: false,
   idleHours: 999,
 };
 

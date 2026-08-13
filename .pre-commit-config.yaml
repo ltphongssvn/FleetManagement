@@ -63,7 +63,30 @@ repos:
     rev: v1.5.0
     hooks:
       - id: detect-secrets
-        args: ['--baseline', '.secrets.baseline']
+        # --exclude-lines skips a SHAPE that is structurally not a secret,
+        # wherever it appears. age PUBLIC keys are tracked in git ON PURPOSE
+        # (.age-recipients is the recipient SSOT, .sops.yaml is generated from
+        # it), and publishing one grants nothing -- that is the premise of the
+        # scheme. Without this they land as Base64HighEntropyString findings.
+        #
+        # Baselining them instead would be a treadmill: the recipient list GROWS
+        # by design, so every laptop ever added mints another finding, another
+        # refresh and another audit round, forever, for values published
+        # deliberately. A baseline crowded with benign entries is one nobody
+        # reads, which is how a real finding slips past.
+        #
+        # SCOPE IS DELIBERATELY NARROW. Only the PUBLIC shape (age1 + 58 bech32
+        # chars) is excluded. AGE-SECRET-KEY-* is NOT and must never be: a
+        # private identity in tracked source is a genuine incident, and both
+        # this plugin and the detect-private-key hook below must keep their shot
+        # at it. The pattern is length-anchored so a short age-prefixed string
+        # is still scanned.
+        #
+        # MUST STAY IN SYNC with EXCLUDE_LINE_PATTERNS in scripts/secrets-baseline.ts:
+        # that task writes the baseline this hook then enforces, so a drift means
+        # the task produces a baseline the hook rejects. Asserted by
+        # scripts/secrets-baseline-age-keys.test.ts under //#test:scripts.
+        args: ['--baseline', '.secrets.baseline', '--exclude-lines', 'age1[02-9ac-hj-np-z]{58}']
         exclude: (?x)(
             pnpm-lock\.yaml|
             .*\.lock|

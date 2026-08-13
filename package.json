@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Intermodal Fleet Platform — pnpm/Turborepo monorepo root",
-  "packageManager": "pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee",
+  "packageManager": "pnpm@11.21.0+sha512.521705bce689924eac72f5a3587122f362689ef6571e55ba80076fd637c11132ecffada26fad4ea79c485bfddbfd3d5a2a5b05805a77e893de71ec8a6cca3bb1",
   "engines": {
     "node": ">=22.0.0 <25.0.0",
     "pnpm": ">=11.0.0 <12.0.0"
@@ -66,6 +66,9 @@
     "prod:db-url": "tsx scripts/prod-db-url.ts",
     "guard:local-secrets": "tsx scripts/local-secret-guard.ts",
     "guard:local-secrets:baseline": "tsx scripts/local-secret-guard-baseline.ts",
+    "env:decrypt": "tsx scripts/env-bootstrap-cli.ts decrypt",
+    "env:encrypt": "tsx scripts/env-bootstrap-cli.ts encrypt",
+    "env:recipients": "tsx scripts/env-bootstrap-cli.ts recipients",
     "typecheck:scripts": "tsc --noEmit -p scripts/tsconfig.json",
     "lint:scripts": "eslint scripts --max-warnings=0",
     "eas:ios:device": "pnpm exec turbo run eas:build:ios:interactive --filter=@fleet/driver-app --ui=tui",
@@ -105,6 +108,7 @@
     "typescript-eslint": "^8.58.2",
     "vite": ">=8.0.16",
     "vitest": "^4.1.4",
+    "yaml": "^2.9.0",
     "zod": "catalog:"
   }
 }

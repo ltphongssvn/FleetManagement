@@ -29,6 +29,28 @@
 // flags the line), they scatter across files, and they drift silently. Use a
 // pragma only for a one-off line; use this task for a repo-wide refresh.
 //
+// WHY A LINE EXCLUSION RATHER THAN A BASELINE ENTRY, for age PUBLIC keys.
+// Added 2026-08-10 after the SOPS/age bootstrap arc: detect-secrets flagged
+// seven Base64HighEntropyString findings, every one an age PUBLIC key in
+// .sops.yaml or a test fixture. Publishing an age public key grants nothing --
+// that is the entire premise of the scheme, and the recipient list is tracked
+// in git ON PURPOSE.
+//
+// Baselining them would have worked and would have been a treadmill: the
+// recipient list GROWS by design, so every laptop ever added to
+// .age-recipients would mint another high-entropy finding, another refresh and
+// another audit round, forever, for values published deliberately. A baseline
+// crowded with benign entries is one nobody reads, which is how a real finding
+// slips past. detect-secrets has the right layer for a structurally-non-secret
+// shape -- filters, added expressly to weed out false positives -- and
+// --exclude-lines is its config-only form: declared once, applies to every file
+// and every future key.
+//
+// The exclusion is deliberately narrow. ONLY the age PUBLIC key shape is
+// excluded; AGE-SECRET-KEY-* is NOT, and must never be. A private identity in
+// tracked source is a genuine incident, and both the PrivateKeyDetector plugin
+// and the detect-private-key hook must keep their shot at it.
+//
 // NOT A SUPPRESSION TOOL. A real credential must be REMOVED and rotated, never
 // baselined. Run the audit mode before committing a refreshed baseline so every
 // new entry has been looked at by a human:
@@ -56,8 +78,22 @@ export const EXCLUDE_PATTERNS: readonly string[] = [
   '[.]secrets[.]baseline',
 ];
 
+// An age recipient is bech32: the literal prefix age1 then 58 characters from
+// the bech32 charset (no 1, b, i or o). Length-anchored, so a short age-prefixed
+// string is not excluded, and prefix-anchored on age1, so AGE-SECRET-KEY-* --
+// the PRIVATE half -- can never match and stays fully scannable.
+export const AGE_PUBLIC_KEY_PATTERN = 'age1[02-9ac-hj-np-z]{58}';
+
+// Line-level exclusions: shapes that are structurally NOT secrets wherever they
+// appear. Distinct from EXCLUDE_PATTERNS, which skips whole FILES.
+export const EXCLUDE_LINE_PATTERNS: readonly string[] = [AGE_PUBLIC_KEY_PATTERN];
+
 function excludeArgs(): string[] {
   return ['--exclude-files', EXCLUDE_PATTERNS.join('|')];
+}
+
+function excludeLineArgs(): string[] {
+  return ['--exclude-lines', EXCLUDE_LINE_PATTERNS.join('|')];
 }
 
 // Refresh the baseline IN PLACE. Passing --baseline preserves the is_secret
@@ -65,7 +101,7 @@ function excludeArgs(): string[] {
 // 'detect-secrets scan > .secrets.baseline' silently discards every one of
 // them, which is why this task never redirects output.
 export function scanArgs(baseline: string): string[] {
-  return ['scan', '--baseline', baseline, ...excludeArgs()];
+  return ['scan', '--baseline', baseline, ...excludeArgs(), ...excludeLineArgs()];
 }
 
 // Walk the baseline interactively so each finding is labelled a true or false
