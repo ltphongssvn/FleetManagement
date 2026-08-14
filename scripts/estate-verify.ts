@@ -29,6 +29,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { z } from 'zod';
+import { EstateActionSchema, actionForVerdict, exitCodeFor } from './estate-action.js';
+import { reasonsAcross } from './estate-reasons-across.js';
 
 /** One worktree, as observed from git. Parsed at the boundary, never cast. */
 // strictObject, not object: this literal is assembled by gatherOne from git
@@ -272,16 +274,11 @@ export function estateTelemetry(
   digest: string | null = null,
   sourceDigest: string | null = null,
 ): EstateTelemetry {
-  const seen = new Set<EstateReason>();
-  for (const p of v.problems) {
-    for (const r of p.reasons) seen.add(r);
-  }
-  // Declaration order, not insertion order: a consumer diffing two runs must
-  // not see a change because the estate happened to be walked differently.
-  const reasons = ESTATE_REASONS.filter((r) => seen.has(r));
+  const reasons = reasonsAcross(v.problems);
   return {
     "event.name": "fleet.estate.verified",
     schema_version: ESTATE_SCHEMA_VERSION,
+    agent_action: actionForVerdict(reasons),
     ...severityFor(v),
     ...(trace ?? {}),
     ...(digest === null ? {} : { estate_digest: digest }),
@@ -494,6 +491,7 @@ export function unreadableEstateEvent(
   return {
     'event.name': 'fleet.estate.unreadable',
     schema_version: ESTATE_SCHEMA_VERSION,
+    agent_action: 'REPAIR_TOOLING',
     severity_text: 'ERROR',
     severity_number: 17,
     ...(trace ?? {}),
@@ -568,19 +566,19 @@ export function decideEstate(
       return {
         kind: 'unreadable',
         event: unreadableEstateEvent('git-failed', trace),
-        exitCode: 3,
+        exitCode: exitCodeFor('REPAIR_TOOLING'),
       };
     case 'no-records':
       return {
         kind: 'unreadable',
         event: unreadableEstateEvent('no-records', trace, g.sourceDigest),
-        exitCode: 3,
+        exitCode: exitCodeFor('REPAIR_TOOLING'),
       };
     case 'record-rejected':
       return {
         kind: 'unreadable',
         event: unreadableEstateEvent('record-rejected', trace, g.sourceDigest),
-        exitCode: 3,
+        exitCode: exitCodeFor('REPAIR_TOOLING'),
       };
     case 'states': {
       const actual = estateDigest(g.states);
@@ -591,14 +589,14 @@ export function decideEstate(
         return {
           kind: 'stale',
           event: estateStaleEvent(expectDigest, actual, trace),
-          exitCode: 4,
+          exitCode: exitCodeFor('REREAD_ESTATE'),
         };
       }
       const verdict = classifyEstate(g.states);
       return {
         kind: 'verified',
         event: estateTelemetry(verdict, trace, actual, g.sourceDigest),
-        exitCode: verdict.clean ? 0 : 1,
+        exitCode: exitCodeFor(actionForVerdict(reasonsAcross(verdict.problems))),
         verdict,
       };
     }
@@ -636,6 +634,7 @@ export function estateStaleEvent(
     // WARN, not ERROR: nothing is broken. The caller's view is simply out of
     // date, which is a normal outcome in a concurrent estate and is recovered
     // by re-reading, exactly as a 412 is.
+    agent_action: 'REREAD_ESTATE',
     severity_text: 'WARN',
     severity_number: 13,
     ...(trace ?? {}),
@@ -686,6 +685,12 @@ const EventBaseShape = {
   schema_version: z.literal(ESTATE_SCHEMA_VERSION),
   trace_id: z.string().optional(),
   span_id: z.string().optional(),
+  // WHAT THE CALLER MAY DO, beside what was observed. An orchestrator reading
+  // this stream off a collector never sees an exit code, so without this field
+  // it has to re-derive the policy from attributes -- a second implementation
+  // of the rule, waiting to disagree with the first. assert-parses.ts has
+  // carried agent_action for the same reason since it was written.
+  agent_action: EstateActionSchema,
   // The span this run was a CHILD of. Present whenever a parent supplied a
   // traceparent, so a collector can nest this task under the run that invoked it.
   parent_span_id: z.string().optional(),
