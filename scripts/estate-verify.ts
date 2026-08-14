@@ -204,6 +204,14 @@ export function classifyEstate(states: readonly WorktreeState[]): EstateVerdict 
       problems.push({ path: s.path, branch: s.branch, reasons });
     }
   }
+  // SORTED BY PATH, matching estateDigest's normalisation. The loop above walks
+  // states in git's listing order, so an unchanged estate could yield the same
+  // estate_digest (which sorts) while body.problems came out ordered
+  // differently -- and a consumer diffing two events would see a change that
+  // never happened. This is the same rule already applied to `reasons`:
+  // declaration order, never walk order.
+  problems.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+
   // Destructured, never cast: `first` proves the array is non-empty to the
   // compiler, so the dirty arm is constructed without asserting anything.
   const [first, ...rest] = problems;

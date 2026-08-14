@@ -1088,3 +1088,114 @@ describe('newSpanId', () => {
     expect(newSpanId(() => Buffer.alloc(8))).toMatch(/^[0-9a-f]{16}$/);
   });
 });
+
+// ---- determinism and order-independence, for CLEAN estates too ----
+// Only the problem paths were order-checked. That left the classifier's two
+// most basic invariants unasserted -- idempotence and commutativity, which the
+// property-testing literature calls "free invariants" precisely because a pure
+// function should have them for nothing.
+//
+// It also hid a real inconsistency: estateDigest SORTS by path, so the digest
+// was order-independent, while classifyEstate pushed problems in git's listing
+// order. An unchanged estate could therefore produce the same estate_digest
+// with a differently-ordered body.problems, and a consumer diffing two events
+// would see a change that never happened. classifyEstate now sorts, and these
+// pin it.
+//
+// Exhaustive permutation rather than random generation: the input space that
+// matters here is a handful of worktrees, so every ordering is cheaper AND
+// stronger than sampling it.
+function permutations<T>(xs: readonly T[]): T[][] {
+  if (xs.length <= 1) return [[...xs]];
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += 1) {
+    const rest = [...xs.slice(0, i), ...xs.slice(i + 1)];
+    const head = xs[i];
+    if (head === undefined) continue;
+    for (const p of permutations(rest)) out.push([head, ...p]);
+  }
+  return out;
+}
+
+describe('classifyEstate: free invariants', () => {
+  const CLEAN_A = createWorktreeState({ path: '/c/a', branch: 'x' });
+  const CLEAN_B = createWorktreeState({ path: '/c/b', branch: 'y' });
+  const CLEAN_C = createWorktreeState({ path: '/c/c', branch: 'z' });
+  const DIRTY_A = createWorktreeState({ path: '/c/a', dirtyFileCount: 1 });
+  const DIRTY_B = createWorktreeState({ path: '/c/b', stashCount: 2 });
+  const STRUCT_C = createWorktreeState({ path: '/c/c', prunable: true });
+
+  // IDEMPOTENCE: the same input classified twice is the same verdict. A pure
+  // function has this for free -- unless it mutates its input or reads a clock.
+  it('is deterministic across repeated calls on a CLEAN estate', () => {
+    const states = [CLEAN_A, CLEAN_B, CLEAN_C];
+    expect(classifyEstate(states)).toEqual(classifyEstate(states));
+  });
+
+  it('is deterministic across repeated calls on an unclean estate', () => {
+    const states = [DIRTY_A, CLEAN_B, STRUCT_C];
+    expect(classifyEstate(states)).toEqual(classifyEstate(states));
+  });
+
+  // COMMUTATIVITY over EVERY ordering, clean estates included -- the case the
+  // existing tests skipped entirely.
+  it('gives the identical verdict for every ordering of a CLEAN estate', () => {
+    const orderings = permutations([CLEAN_A, CLEAN_B, CLEAN_C]);
+    expect(orderings).toHaveLength(6);
+    const first = classifyEstate(orderings[0] ?? []);
+    for (const o of orderings) {
+      expect(classifyEstate(o)).toEqual(first);
+    }
+  });
+
+  it('gives the identical verdict for every ordering of an unclean estate', () => {
+    const orderings = permutations([DIRTY_A, DIRTY_B, STRUCT_C]);
+    const first = classifyEstate(orderings[0] ?? []);
+    for (const o of orderings) {
+      expect(classifyEstate(o)).toEqual(first);
+    }
+  });
+
+  it('gives the identical verdict for every MIXED ordering', () => {
+    const orderings = permutations([DIRTY_A, CLEAN_B, STRUCT_C]);
+    const first = classifyEstate(orderings[0] ?? []);
+    for (const o of orderings) {
+      expect(classifyEstate(o)).toEqual(first);
+    }
+  });
+
+  // The inconsistency this found: the digest sorted, the verdict did not.
+  it('orders problems the SAME way estateDigest orders its input', () => {
+    for (const o of permutations([DIRTY_B, STRUCT_C, DIRTY_A])) {
+      const v = classifyEstate(o);
+      expect(v.problems.map((p) => p.path)).toEqual(['/c/a', '/c/b', '/c/c']);
+    }
+  });
+
+  // The consequence a consumer actually sees: same estate, same event, whatever
+  // order git happened to list the worktrees in.
+  it('emits a byte-identical event for every ordering', () => {
+    const orderings = permutations([DIRTY_A, DIRTY_B, STRUCT_C]);
+    const events = orderings.map((o) =>
+      JSON.stringify(estateTelemetry(classifyEstate(o), null, estateDigest(o))),
+    );
+    expect(new Set(events).size).toBe(1);
+  });
+
+  // A pure function must not consume its argument.
+  it('does not mutate the array it was given', () => {
+    const states = [DIRTY_B, CLEAN_A, STRUCT_C];
+    const before = states.map((s) => s.path);
+    classifyEstate(states);
+    expect(states.map((s) => s.path)).toEqual(before);
+  });
+
+  // Identity-ish: adding a CLEAN worktree changes the count and nothing else.
+  it('adding a clean worktree leaves the problem set untouched', () => {
+    const withOut = classifyEstate([DIRTY_A]);
+    const withClean = classifyEstate([DIRTY_A, CLEAN_B]);
+    expect(withClean.problems).toEqual(withOut.problems);
+    expect(withClean.checked).toBe(withOut.checked + 1);
+    expect(withClean.clean).toBe(false);
+  });
+});
