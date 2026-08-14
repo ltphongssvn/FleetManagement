@@ -26,7 +26,7 @@
 // in ONE place, never a shotgun edit across test files. Fixture drift is not
 // hypothetical here -- admin-drivers-client fixtures omitted six required
 // fields and passed only because the call site cast instead of parsing.
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { z } from 'zod';
 
@@ -260,7 +260,7 @@ export function describeEstate(v: EstateVerdict): string {
 
 export function estateTelemetry(
   v: EstateVerdict,
-  trace: TraceContext | null = null,
+  trace: SpanContext | null = null,
   digest: string | null = null,
   sourceDigest: string | null = null,
 ): EstateTelemetry {
@@ -480,7 +480,7 @@ export type EstateEvent =
 
 export function unreadableEstateEvent(
   reason: UnreadableReason,
-  trace: TraceContext | null = null,
+  trace: SpanContext | null = null,
   sourceDigest: string | null = null,
 ): EstateUnreadableEvent {
   return {
@@ -552,7 +552,7 @@ function unreachable(x: never): never {
  *  what to exit with. No git, no stdout, no clock. */
 export function decideEstate(
   g: EstateGathered,
-  trace: TraceContext | null = null,
+  trace: SpanContext | null = null,
   expectDigest: string | null = null,
 ): EstateDecision {
   switch (g.kind) {
@@ -620,7 +620,7 @@ export function decideEstate(
 export function estateStaleEvent(
   expectedDigest: string,
   actualDigest: string,
-  trace: TraceContext | null = null,
+  trace: SpanContext | null = null,
 ): EstateStaleEvent {
   return {
     'event.name': 'fleet.estate.stale',
@@ -678,6 +678,9 @@ const EventBaseShape = {
   schema_version: z.literal(ESTATE_SCHEMA_VERSION),
   trace_id: z.string().optional(),
   span_id: z.string().optional(),
+  // The span this run was a CHILD of. Present whenever a parent supplied a
+  // traceparent, so a collector can nest this task under the run that invoked it.
+  parent_span_id: z.string().optional(),
 } as const;
 
 export const EstateTelemetrySchema = z.strictObject({
@@ -742,3 +745,52 @@ export const EstateEventSchema = z.discriminatedUnion('event.name', [
 export type EstateTelemetry = z.infer<typeof EstateTelemetrySchema>;
 export type EstateUnreadableEvent = z.infer<typeof EstateUnreadableEventSchema>;
 export type EstateStaleEvent = z.infer<typeof EstateStaleEventSchema>;
+
+/** A span of our own, inside the caller's trace.
+ *
+ *  traceContextFrom returns what the PARENT sent, and every event copied that
+ *  span_id verbatim -- so these events claimed to belong to the parent's span
+ *  and this task never appeared as an operation of its own. W3C is explicit
+ *  that a child generates a NEW span id and records the received one as its
+ *  parent; copying it upward is how a trace ends up with a hole exactly where
+ *  the work happened.
+ *
+ *  OTel's CLI semantic conventions cover precisely this shape -- short-lived
+ *  programs that end their execution -- with span kind INTERNAL and an error
+ *  status when the exit code is non-zero. The events carry the ids rather than
+ *  a span-event API, because OTel deprecated span events in March 2026 in
+ *  favour of "events as logs correlated with the current span".
+ *
+ *  No SDK, no exporter, no collector dependency: a short-lived CLI that stands
+ *  up an OTLP pipeline to emit one span pays startup and network cost for a
+ *  process measured in milliseconds, which is the over-instrumentation the
+ *  guidance warns against. Emitting correct ids on the NDJSON lets a collector
+ *  that already reads this stream assemble the span.
+ *
+ *  randomBytes, not Math.random: span ids must not collide across concurrent
+ *  runs, and two laptops sweeping the same estate run this task simultaneously. */
+export interface SpanContext {
+  readonly trace_id: string;
+  readonly span_id: string;
+  readonly parent_span_id?: string;
+}
+
+/** 8 bytes hex, per W3C. Never all-zero, which the spec calls invalid. */
+export function newSpanId(rand: () => Buffer = () => randomBytes(8)): string {
+  const id = rand().toString('hex');
+  return /^0+$/.test(id) ? '0'.repeat(15) + '1' : id;
+}
+
+/** Build this run's span context: same trace as the parent when one was
+ *  supplied, a fresh span either way, and the parent recorded when present. */
+export function spanContextFor(
+  parent: TraceContext | null,
+  newId: () => string = newSpanId,
+): SpanContext | null {
+  if (parent === null) return null;
+  return {
+    trace_id: parent.trace_id,
+    span_id: newId(),
+    parent_span_id: parent.span_id,
+  };
+}

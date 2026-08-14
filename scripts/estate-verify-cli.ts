@@ -35,6 +35,7 @@ import {
   describeEstate,
   digestOf,
   toWorktreeState,
+  spanContextFor,
   traceContextFrom,
   type EstateDecision,
   type EstateGathered,
@@ -213,7 +214,10 @@ function mainEstateVerify(): number {
 
   // INHERITED trace context, never invented. Present only when a parent -- CI,
   // gate:agent, an orchestrator -- exported a W3C traceparent.
-  const trace = traceContextFrom(process.env['TRACEPARENT']);
+  // A span of OUR OWN inside the caller's trace. Copying the parent's span_id
+  // would attribute this task's events to the parent's span, leaving a hole in
+  // the trace exactly where the work happened.
+  const trace = spanContextFor(traceContextFrom(process.env['TRACEPARENT']));
   const decision = decideEstate(gatherEstate(), trace, argv.expectDigest);
 
   process.stdout.write(JSON.stringify(decision.event) + NL);

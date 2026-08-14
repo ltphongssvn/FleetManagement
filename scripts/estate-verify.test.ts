@@ -29,6 +29,8 @@ import {
   toWorktreeState,
   severityFor,
   traceContextFrom,
+  spanContextFor,
+  newSpanId,
   estateDigest,
   digestOf,
   REASON_KIND,
@@ -1029,5 +1031,60 @@ describe('vocabularies are declared once', () => {
   // is stronger than a compile-only `reasons?: never`.
   it('a worktree state carrying `reasons` is REJECTED, not stripped', () => {
     expect(() => createWorktreeState({ reasons: ['dirty'] } as never)).toThrow();
+  });
+});
+
+// ---- a span of our own, inside the caller's trace ----
+// Every event copied the PARENT's span_id verbatim, so this task's events
+// claimed to belong to the parent's span and estate:verify never appeared as an
+// operation of its own -- a trace with a hole exactly where the work happened.
+// W3C is explicit that a child generates a NEW span id and records the received
+// one as its parent.
+describe('spanContextFor', () => {
+  const PARENT = { trace_id: 'a'.repeat(32), span_id: 'b'.repeat(16) };
+  const FIXED = (): string => 'c'.repeat(16);
+
+  it('keeps the caller trace_id, so both belong to ONE trace', () => {
+    expect(spanContextFor(PARENT, FIXED)?.trace_id).toBe(PARENT.trace_id);
+  });
+
+  // The defect: this used to be the parent's span id.
+  it('generates a NEW span_id rather than reusing the parent', () => {
+    expect(spanContextFor(PARENT, FIXED)?.span_id).not.toBe(PARENT.span_id);
+  });
+
+  it('records the parent so a collector can nest the span', () => {
+    expect(spanContextFor(PARENT, FIXED)?.parent_span_id).toBe(PARENT.span_id);
+  });
+
+  // No parent means no trace to join; inventing one correlates nothing.
+  it('stays null when no parent supplied a traceparent', () => {
+    expect(spanContextFor(null, FIXED)).toBeNull();
+  });
+
+  it('rides onto the emitted event', () => {
+    const e = estateTelemetry(classifyEstate([CLEAN]), spanContextFor(PARENT, FIXED));
+    expect(e.trace_id).toBe(PARENT.trace_id);
+    expect(e.span_id).toBe('c'.repeat(16));
+    expect(e.parent_span_id).toBe(PARENT.span_id);
+    expect(EstateEventSchema.safeParse(e).success).toBe(true);
+  });
+});
+
+describe('newSpanId', () => {
+  it('is 16 lowercase hex characters, per W3C', () => {
+    expect(newSpanId()).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  // Concurrency is real here: two laptops sweep the same estate at once.
+  it('does not repeat across many draws', () => {
+    const ids = new Set(Array.from({ length: 500 }, () => newSpanId()));
+    expect(ids.size).toBe(500);
+  });
+
+  // The W3C spec calls an all-zero span id invalid, so it must never be emitted.
+  it('never returns the all-zero id the spec forbids', () => {
+    expect(newSpanId(() => Buffer.alloc(8))).not.toBe('0'.repeat(16));
+    expect(newSpanId(() => Buffer.alloc(8))).toMatch(/^[0-9a-f]{16}$/);
   });
 });
