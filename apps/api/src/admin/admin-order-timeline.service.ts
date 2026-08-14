@@ -6,6 +6,7 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import type { OrderTimeline, OrderTimelineEvent } from '@fleet/sync-protocol';
+import { CancelReasonSchema } from '@fleet/domain';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { transportOrder, stop, roadRun, roadRunTransportOrder } from '../database/schema/transport.js';
@@ -37,7 +38,14 @@ export class AdminOrderTimelineService {
       events.push({
         eventType: 'order_cancelled',
         at: order.cancelledAt.toISOString(),
-        reason: order.cancellationReason,
+        // PARSED, not cast. cancellationReason is a plain text column, so it is
+        // external input to this process even though the database is ours: rows
+        // predate the vocabulary, and nothing at the DB level constrains it.
+        // A value outside the vocabulary is legacy or corrupt data, not a
+        // reason, so it degrades to null -- which the contract already admits
+        // for pre-vocabulary rows -- rather than being asserted through and
+        // surfacing to an admin consumer as if it were canonical.
+        reason: CancelReasonSchema.safeParse(order.cancellationReason).data ?? null,
         note: order.cancellationNote,
       });
     }

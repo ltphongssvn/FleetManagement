@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm';
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
 import { SyncService } from '../src/sync/sync.service.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
+import { createSyncCursor } from '@fleet/sync-protocol';
 let testDb: PgliteTestDb;
 describe('PGLite smoke', () => {
   // No per-hook timeout override: PGLite WASM init takes ~10s isolated but
@@ -25,7 +26,7 @@ describe('PGLite smoke', () => {
   it('runs SyncService.processSync against real schema', async () => {
     const op = createOperatorContext();
     const svc = new SyncService(testDb.db as never);
-    const res = await svc.processSync({ cursor: '0', actions: [] }, op);
+    const res = await svc.processSync({ cursor: createSyncCursor('0'), actions: [] }, op);
     expect(res.status).toBe('ok');
   });
 });

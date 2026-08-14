@@ -5,7 +5,11 @@
 // migrations. Ordering is (enrolledAt, deviceId) so pagination is deterministic.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { AdminDeviceListResponseSchema, ADMIN_DEVICE_PAGE_SIZE_DEFAULT } from '@fleet/sync-protocol';
+import {
+  AdminDeviceListResponseSchema,
+  ADMIN_DEVICE_PAGE_SIZE_DEFAULT,
+  type DeviceBindingStatus,
+} from '@fleet/sync-protocol';
 import { AdminDeviceBindingService } from '../src/admin/admin-device-binding.service.js';
 import { deviceRegistry } from '../src/database/schema/device.js';
 import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
@@ -16,7 +20,9 @@ describe('AdminDeviceBindingService (pglite)', () => {
   let testDb: PgliteTestDb;
   let service: AdminDeviceBindingService;
   let deviceId: string;
-  async function seed(companyId: string, status: string, operatorId: string): Promise<string> {
+  // status typed to the VOCABULARY, not string: the column now declares its enum,
+  // so a seed can no longer write a lifecycle state the contract rejects.
+  async function seed(companyId: string, status: DeviceBindingStatus, operatorId: string): Promise<string> {
     const r = await testDb.db.insert(deviceRegistry).values({
       companyId,
       businessUnitId: '00000000-0000-0000-0000-000000000002',
