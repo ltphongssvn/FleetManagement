@@ -402,10 +402,33 @@ export function severityFor(v: EstateVerdict, readable = true): EstateSeverity {
  *  fabricated correlation id is worse than none, because it looks like
  *  provenance and carries none.
  */
-export interface TraceContext {
-  readonly trace_id: string;
-  readonly span_id: string;
-}
+/** SCHEMA-FIRST, and Axis 1: the raw traceparent arrives from process.env,
+ *  which the two-axis rule names as a trust boundary alongside HTTP bodies and
+ *  query strings. It was validated by a hand-rolled regex plus two all-zero
+ *  string checks -- ad-hoc validation at exactly the boundary the rule says
+ *  must parse.
+ *
+ *  Axis 2 as well: trace_id and span_id were declared THREE times -- here, on
+ *  SpanContext, and again in EventBaseShape. One schema now; the others derive.
+ *
+ *  W3C fixes both formats, and declares an all-zero id invalid. */
+const TRACE_ID = /^[0-9a-f]{32}$/;
+const SPAN_ID = /^[0-9a-f]{16}$/;
+const ALL_ZERO = /^0+$/;
+const notAllZero = (v: string): boolean => !ALL_ZERO.test(v);
+
+export const TraceContextSchema = z.strictObject({
+  trace_id: z.string().regex(TRACE_ID).refine(notAllZero, 'trace_id must not be all zero'),
+  span_id: z.string().regex(SPAN_ID).refine(notAllZero, 'span_id must not be all zero'),
+});
+export type TraceContext = z.infer<typeof TraceContextSchema>;
+
+/** This run's span: a TraceContext plus the parent it descends from. Extended
+ *  from the same schema rather than re-declaring the two ids. */
+export const SpanContextSchema = TraceContextSchema.extend({
+  parent_span_id: z.string().regex(SPAN_ID).optional(),
+});
+export type SpanContext = z.infer<typeof SpanContextSchema>;
 
 const TRACEPARENT = /^00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}$/;
 
@@ -414,10 +437,11 @@ export function traceContextFrom(raw: string | undefined): TraceContext | null {
   const m = TRACEPARENT.exec(raw.trim());
   if (m === null) return null;
   const [, traceId, spanId] = m;
-  if (traceId === undefined || spanId === undefined) return null;
-  // All-zero ids are explicitly invalid in the W3C spec.
-  if (/^0+$/.test(traceId) || /^0+$/.test(spanId)) return null;
-  return { trace_id: traceId, span_id: spanId };
+  // PARSED, not hand-checked. The regex above splits the header; the schema
+  // decides whether the parts are a valid context, so the all-zero rule lives
+  // in ONE place rather than being re-tested at each call site.
+  const parsed = TraceContextSchema.safeParse({ trace_id: traceId, span_id: spanId });
+  return parsed.success ? parsed.data : null;
 }
 
 /** sha256 of any text, hex. Shared so the snapshot digest and the source
@@ -726,8 +750,11 @@ const EventBaseShape = {
   // unsigned. A runner WITH an identity -- CI with OIDC -- attributes the run
   // through the trace it supplies.
   producer: z.literal(ESTATE_PRODUCER),
-  trace_id: z.string().optional(),
-  span_id: z.string().optional(),
+  // DERIVED from TraceContextSchema: the two ids were declared here as loose
+  // strings while the context schema constrained them, so an event could carry
+  // an id the context would have rejected.
+  trace_id: TraceContextSchema.shape.trace_id.optional(),
+  span_id: TraceContextSchema.shape.span_id.optional(),
   // WHAT THE CALLER MAY DO, beside what was observed. An orchestrator reading
   // this stream off a collector never sees an exit code, so without this field
   // it has to re-derive the policy from attributes -- a second implementation
@@ -743,7 +770,7 @@ const EventBaseShape = {
   agent_action: EstateActionSchema,
   // The span this run was a CHILD of. Present whenever a parent supplied a
   // traceparent, so a collector can nest this task under the run that invoked it.
-  parent_span_id: z.string().optional(),
+  parent_span_id: SpanContextSchema.shape.parent_span_id,
 } as const;
 
 export const EstateTelemetrySchema = z.strictObject({
@@ -838,11 +865,6 @@ export type EstateStaleEvent = z.infer<typeof EstateStaleEventSchema>;
  *
  *  randomBytes, not Math.random: span ids must not collide across concurrent
  *  runs, and two laptops sweeping the same estate run this task simultaneously. */
-export interface SpanContext {
-  readonly trace_id: string;
-  readonly span_id: string;
-  readonly parent_span_id?: string;
-}
 
 /** 8 bytes hex, per W3C. Never all-zero, which the spec calls invalid. */
 export function newSpanId(rand: () => Buffer = () => randomBytes(8)): string {
