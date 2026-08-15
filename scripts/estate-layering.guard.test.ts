@@ -40,6 +40,7 @@ const ARC = [
   'estate-action',
   'estate-verify',
   'estate-verify-cli',
+  'estate-attestation',
 ] as const;
 
 /** Local module specifiers imported by a file, as bare names. Matches the
