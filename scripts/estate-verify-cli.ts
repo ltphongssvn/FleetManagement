@@ -30,13 +30,20 @@
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { z } from 'zod';
 import {
   digestOf,
+  DigestSchema,
   type EstateGathered,
 } from './estate-verify.js';
 import { estateLineFor, runEstateVerify } from './estate-run.js';
 import { estateStreams } from './estate-streams.js';
-import { gatherOneFrom, type GatheredOne, type GitOutcome } from './estate-gather.js';
+import {
+  gatherOneFrom,
+  type GatheredOne,
+  type GitOutcome,
+  type WorktreeRecord,
+} from './estate-gather.js';
 
 // Re-exported under its original name: the rendering moved to the envelope so
 // both surfaces share one wording, and a caller that imported it from here
@@ -45,11 +52,23 @@ export { estateLineFor as estateLine };
 
 const NL = String.fromCharCode(10);
 
-export interface EstateArgv {
-  /** If-Match: act only if the estate is still this digest. */
-  readonly expectDigest: string | null;
-  readonly quiet: boolean;
-}
+/** What the CLI was asked to do. SCHEMA-FIRST at the argv boundary.
+ *
+ *  parseArgs owns the SURFACE -- flag syntax, unknown-flag rejection -- and
+ *  Zod owns the CONTRACT. That split is the 2026 pattern, and the gap it fills
+ *  is exactly what bit here: parseArgs happily accepts --expect-digest=garbage
+ *  as a string, and the garbage then fails the comparison in decideEstate,
+ *  producing STALE and REREAD_ESTATE. That tells the operator the estate moved
+ *  when the truth is the digest is malformed -- a remedy that can never work,
+ *  and for an agent an unbounded retry loop.
+ *
+ *  A bad flag VALUE is a usage error, exit 2, exactly as a bad flag NAME
+ *  already is. */
+export const EstateArgvSchema = z.strictObject({
+  quiet: z.boolean(),
+  expectDigest: DigestSchema.nullable(),
+});
+export type EstateArgv = z.infer<typeof EstateArgvSchema>;
 
 // strict is the default, so a typo throws rather than yielding a confident
 // no-op -- the failure deps-reconcile-cli.ts documents and worktree:sweep hit.
@@ -63,7 +82,14 @@ export function parseEstateArgv(argv: readonly string[]): EstateArgv {
     allowPositionals: false,
     strict: true,
   });
-  return { quiet: values.quiet, expectDigest: values['expect-digest'] ?? null };
+  // parse, not safeParse: parseEstateArgv already throws for a bad flag name
+  // and the caller turns any throw into exit 2 with the usage line. A bad flag
+  // VALUE takes the same path, so the two kinds of usage error are reported
+  // identically rather than one of them becoming a verdict.
+  return EstateArgvSchema.parse({
+    quiet: values.quiet,
+    expectDigest: values['expect-digest'] ?? null,
+  });
 }
 
 /** One worktree record from `git worktree list --porcelain`. Blank-line
@@ -71,9 +97,9 @@ export function parseEstateArgv(argv: readonly string[]): EstateArgv {
  *  detached one carries no `branch` line at all. */
 export function parseWorktreeRecords(
   porcelain: string,
-): readonly { path: string; branch: string; locked: boolean; prunable: boolean }[] {
-  const out: { path: string; branch: string; locked: boolean; prunable: boolean }[] = [];
-  let cur: { path: string; branch: string; locked: boolean; prunable: boolean } | null = null;
+): readonly WorktreeRecord[] {
+  const out: WorktreeRecord[] = [];
+  let cur: WorktreeRecord | null = null;
   for (const line of porcelain.split(NL)) {
     if (line.startsWith('worktree ')) {
       if (cur !== null) out.push(cur);
@@ -125,7 +151,7 @@ function gitOutcome(args: readonly string[], cwd?: string): GitOutcome {
   }
 }
 
-function gatherOne(rec: ReturnType<typeof parseWorktreeRecords>[number]): GatheredOne {
+function gatherOne(rec: WorktreeRecord): GatheredOne {
   // READ FIRST, DECIDE SECOND. Every reading is captured with its exit code
   // intact, then handed to a pure function that knows which failures are
   // normal and which are defects. countLines lives there too, so it can only

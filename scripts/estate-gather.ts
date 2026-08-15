@@ -24,11 +24,19 @@
 import { z } from 'zod';
 import { toWorktreeState, type WorktreeState } from './estate-verify.js';
 
-/** What ONE git invocation produced.
- *
- *  Schema-first: this crosses the boundary between the spawning shell and this
- *  pure core, and the whole point is that a caller cannot hand us a shape that
- *  conflates the two cases. */
+/** One record from `git worktree list --porcelain`, BEFORE the per-worktree
+ *  readings are taken. The shape was hand-written four times -- the parser's
+ *  return type, its accumulator, its cursor, and this function's parameter --
+ *  which is the duplication the schema-first rule names, across a module
+ *  boundary at that. */
+export const WorktreeRecordSchema = z.strictObject({
+  path: z.string(),
+  branch: z.string(),
+  locked: z.boolean(),
+  prunable: z.boolean(),
+});
+export type WorktreeRecord = z.infer<typeof WorktreeRecordSchema>;
+
 export const GitOutcomeSchema = z.discriminatedUnion('ok', [
   z.strictObject({ ok: z.literal(true), out: z.string() }),
   z.strictObject({ ok: z.literal(false) }),
@@ -71,8 +79,7 @@ function countLines(s: string): number {
  *  zero and the zero was reported as cleanliness; now it produces git-failed,
  *  which the decider turns into exit 3 and REPAIR_TOOLING. */
 export function gatherOneFrom(
-  rec: { readonly path: string; readonly branch: string;
-         readonly prunable: boolean; readonly locked: boolean },
+  rec: WorktreeRecord,
   readings: WorktreeReadings,
 ): GatheredOne {
   // status and stash are REQUIRED. Empty output from them is meaningful; a

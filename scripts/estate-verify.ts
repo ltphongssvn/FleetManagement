@@ -447,6 +447,15 @@ export function traceContextFrom(raw: string | undefined): TraceContext | null {
 /** sha256 of any text, hex. Shared so the snapshot digest and the source
  *  digest are provably the same function -- two hashes computed two ways is a
  *  discrepancy waiting to be misread. */
+/** A sha256 content address, as this task produces and accepts them.
+ *
+ *  SSOT: estate_digest and source_digest were bare z.string() on the event
+ *  while digestOf can only ever yield 64 lowercase hex, and --expect-digest
+ *  accepted any string at all. Three spellings of one shape, the loosest of
+ *  which is the one a caller passes in. */
+export const DigestSchema = z.string().regex(/^[0-9a-f]{64}$/, 'must be a sha256 hex digest');
+export type Digest = z.infer<typeof DigestSchema>;
+
 export function digestOf(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
@@ -786,8 +795,8 @@ export const EstateTelemetrySchema = z.strictObject({
   // named is one a downstream PDP cannot re-verify -- and re-verification is
   // exactly what --expect-digest exists to make possible. Optional here was a
   // type admitting an unbindable action.
-  estate_digest: z.string(),
-  source_digest: z.string().optional(),
+  estate_digest: DigestSchema,
+  source_digest: DigestSchema.optional(),
   attributes: z.strictObject({
     clean: z.boolean(),
     checked: z.number().int().nonnegative(),
@@ -805,7 +814,7 @@ export const EstateUnreadableEventSchema = z.strictObject({
   ...EventBaseShape,
   severity_text: z.literal('ERROR'),
   severity_number: z.literal(17),
-  source_digest: z.string().optional(),
+  source_digest: DigestSchema.optional(),
   attributes: z.strictObject({ reason: z.enum(UNREADABLE_REASONS) }),
 });
 
@@ -815,8 +824,8 @@ export const EstateStaleEventSchema = z.strictObject({
   severity_text: z.literal('WARN'),
   severity_number: z.literal(13),
   attributes: z.strictObject({
-    expected_digest: z.string(),
-    estate_digest: z.string(),
+    expected_digest: DigestSchema,
+    estate_digest: DigestSchema,
   }),
 });
 

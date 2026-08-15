@@ -158,3 +158,47 @@ describe('parseWorktreeRecords: zero records is not an empty estate', () => {
     expect(parseWorktreeRecords(real).length).toBeGreaterThan(0);
   });
 });
+
+// ---- a malformed digest is a USAGE error, not a stale estate ----
+// parseArgs owns the SURFACE and rejects an unknown flag NAME. It does not
+// look at VALUES, so --expect-digest=garbage parsed happily as a string --
+// and the garbage then failed the comparison in decideEstate, producing STALE
+// and REREAD_ESTATE. That tells the operator the estate moved when the truth
+// is that the digest is malformed: a remedy that can never succeed, and for an
+// agent an unbounded retry loop, since re-reading never makes garbage match.
+//
+// Zod owns the CONTRACT, which is the 2026 split. A bad flag VALUE now takes
+// the same path as a bad flag NAME: throw, exit 2, usage line.
+describe('--expect-digest is validated, not merely accepted', () => {
+  const REAL = 'a'.repeat(64);
+
+  it('accepts a well-formed sha256 digest', () => {
+    expect(parseEstateArgv(['--expect-digest=' + REAL]).expectDigest).toBe(REAL);
+  });
+
+  it('accepts its absence, since the precondition is opt-in', () => {
+    expect(parseEstateArgv([]).expectDigest).toBeNull();
+  });
+
+  // Each of these previously became a STALE verdict instead of a usage error.
+  it('THROWS on a digest that is not a digest', () => {
+    for (const bad of ['garbage', '', 'abc', 'A'.repeat(64), 'g'.repeat(64)]) {
+      expect(() => parseEstateArgv(['--expect-digest=' + bad])).toThrow();
+    }
+  });
+
+  it('THROWS on a digest of the wrong length', () => {
+    expect(() => parseEstateArgv(['--expect-digest=' + 'a'.repeat(63)])).toThrow();
+    expect(() => parseEstateArgv(['--expect-digest=' + 'a'.repeat(65)])).toThrow();
+  });
+
+  // Uppercase hex is the sharp one: it LOOKS like a digest, and would have
+  // compared unequal against our lowercase output forever.
+  it('THROWS on uppercase hex, which would never match our own output', () => {
+    expect(() => parseEstateArgv(['--expect-digest=' + 'A1B2'.repeat(16)])).toThrow();
+  });
+
+  it('still rejects an unknown flag, as it always did', () => {
+    expect(() => parseEstateArgv(['--expect-diggest=' + REAL])).toThrow();
+  });
+});
