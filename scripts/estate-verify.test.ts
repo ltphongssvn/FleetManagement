@@ -54,6 +54,13 @@ import {
 // only because the call site cast instead of parsing.
 const CLEAN = createWorktreeState({ path: '/c/t1-wt1-x', branch: 'feat/x' });
 
+// Every verdict is ABOUT a snapshot, so every verified event carries that
+// snapshot's address. The digest is required now rather than optional: a
+// recommendation whose evidence cannot be named is one no downstream policy
+// decision point could re-verify, and re-verification is exactly what
+// --expect-digest exists to make possible.
+const DIGEST = estateDigest([CLEAN]);
+
 describe('classifyEstate', () => {
   it('reports clean when every worktree is clean', () => {
     const v = classifyEstate([CLEAN]);
@@ -155,7 +162,7 @@ describe('createWorktreeState: fixtures cannot drift from the contract', () => {
 // from the same verdict rather than parsed back out of it.
 describe('estateTelemetry', () => {
   it('reports a clean estate as structured fields', () => {
-    const t = estateTelemetry(classifyEstate([CLEAN, CLEAN]));
+    const t = estateTelemetry(classifyEstate([CLEAN, CLEAN]), null, DIGEST);
     expect(t["event.name"]).toBe("fleet.estate.verified");
     expect(t.attributes.clean).toBe(true);
     expect(t.attributes.checked).toBe(2);
@@ -167,7 +174,7 @@ describe('estateTelemetry', () => {
     const t = estateTelemetry(classifyEstate([
       createWorktreeState({ path: '/c/a', dirtyFileCount: 1 }),
       createWorktreeState({ path: '/c/b', prunable: true }),
-    ]));
+    ]), null, DIGEST);
     expect(t.attributes.clean).toBe(false);
     expect(t.attributes.unclean_count).toBe(2);
     expect(t.attributes.reasons).toEqual(["dirty", "prunable"]);
@@ -177,7 +184,7 @@ describe('estateTelemetry', () => {
     const t = estateTelemetry(classifyEstate([
       createWorktreeState({ path: '/c/a', stashCount: 1 }),
       createWorktreeState({ path: '/c/b', stashCount: 2 }),
-    ]));
+    ]), null, DIGEST);
     expect(t.attributes.reasons).toEqual(["stash"]);
   });
 
@@ -187,7 +194,7 @@ describe('estateTelemetry', () => {
     const t = estateTelemetry(classifyEstate([
       createWorktreeState({ path: '/c/a', locked: true }),
       createWorktreeState({ path: '/c/b', dirtyFileCount: 1 }),
-    ]));
+    ]), null, DIGEST);
     expect(t.attributes.reasons).toEqual(["dirty", "locked"]);
   });
 
@@ -195,13 +202,13 @@ describe('estateTelemetry', () => {
   // two renderings of ONE verdict.
   it('agrees with the prose rendering of the same verdict', () => {
     const v = classifyEstate([createWorktreeState({ dirtyFileCount: 1 })]);
-    const t = estateTelemetry(v);
+    const t = estateTelemetry(v, null, DIGEST);
     expect(t.attributes.clean).toBe(v.clean);
     expect(describeEstate(v).includes("NOT clean")).not.toBe(t.attributes.clean);
   });
 
   it('serialises to JSON without loss', () => {
-    const t = estateTelemetry(classifyEstate([createWorktreeState({ stashCount: 1 })]));
+    const t = estateTelemetry(classifyEstate([createWorktreeState({ stashCount: 1 })]), null, DIGEST);
     expect(JSON.parse(JSON.stringify(t))).toEqual(t);
   });
 });
@@ -295,7 +302,7 @@ describe('unreadableEstateEvent', () => {
   it('carries its own event name, so the discriminant is the name', () => {
     expect(unreadableEstateEvent('git-failed')['event.name'])
       .toBe('fleet.estate.unreadable');
-    expect(estateTelemetry(classifyEstate([]))['event.name'])
+    expect(estateTelemetry(classifyEstate([]), null, DIGEST)['event.name'])
       .toBe('fleet.estate.verified');
   });
 
@@ -312,7 +319,7 @@ describe('unreadableEstateEvent', () => {
   });
 
   it('cannot be mistaken for a clean estate', () => {
-    const clean = estateTelemetry(classifyEstate([]));
+    const clean = estateTelemetry(classifyEstate([]), null, DIGEST);
     const unreadable = unreadableEstateEvent('git-failed');
     expect(clean.attributes.clean).toBe(true);
     expect('clean' in unreadable.attributes).toBe(false);
@@ -412,7 +419,7 @@ describe('severityFor', () => {
   });
 
   it('rides on the emitted event, not only on the helper', () => {
-    expect(estateTelemetry(classifyEstate([CLEAN])).severity_text).toBe('INFO');
+    expect(estateTelemetry(classifyEstate([CLEAN]), null, DIGEST).severity_text).toBe('INFO');
     expect(unreadableEstateEvent('git-failed').severity_text).toBe('ERROR');
   });
 });
@@ -447,12 +454,12 @@ describe('traceContextFrom', () => {
   });
 
   it('omits the fields entirely when there is no parent context', () => {
-    const t = estateTelemetry(classifyEstate([CLEAN]), null);
+    const t = estateTelemetry(classifyEstate([CLEAN]), null, DIGEST);
     expect('trace_id' in t).toBe(false);
   });
 
   it('carries an inherited context onto the event', () => {
-    const t = estateTelemetry(classifyEstate([CLEAN]), traceContextFrom(VALID));
+    const t = estateTelemetry(classifyEstate([CLEAN]), traceContextFrom(VALID), DIGEST);
     expect(t.trace_id).toBe('4bf92f3577b34da6a3ce929d0e0e4736');
     expect(t.span_id).toBe('00f067aa0ba902b7');
   });
@@ -588,12 +595,12 @@ describe('digestOf and source_digest', () => {
   });
 
   it('rides on the event when supplied', () => {
-    const t = estateTelemetry(classifyEstate([]), null, null, digestOf('raw'));
+    const t = estateTelemetry(classifyEstate([]), null, DIGEST, digestOf('raw'));
     expect(t.source_digest).toBe(digestOf('raw'));
   });
 
   it('is omitted when not supplied, never fabricated', () => {
-    expect('source_digest' in estateTelemetry(classifyEstate([]))).toBe(false);
+    expect('source_digest' in estateTelemetry(classifyEstate([]), null, DIGEST)).toBe(false);
   });
 
   // The discrimination the pair exists for.
@@ -655,10 +662,10 @@ describe('REASON_KIND and kindsFor', () => {
   it('separates a merely dirty worktree from a broken one on the event', () => {
     const wip = estateTelemetry(classifyEstate([
       createWorktreeState({ path: '/c/a', dirtyFileCount: 3 }),
-    ]));
+    ]), null, DIGEST);
     const broken = estateTelemetry(classifyEstate([
       createWorktreeState({ path: '/c/b', prunable: true }),
-    ]));
+    ]), null, DIGEST);
     expect(wip.attributes.kinds).toEqual(['work-in-progress']);
     expect(broken.attributes.kinds).toEqual(['structural']);
   });
@@ -667,7 +674,7 @@ describe('REASON_KIND and kindsFor', () => {
     const t = estateTelemetry(classifyEstate([
       createWorktreeState({ path: '/c/a', dirtyFileCount: 1 }),
       createWorktreeState({ path: '/c/b', locked: true }),
-    ]));
+    ]), null, DIGEST);
     expect(t.attributes.kinds).toEqual(['work-in-progress', 'structural']);
   });
 });
@@ -865,7 +872,7 @@ describe('ESTATE_SCHEMA_VERSION', () => {
   // The whole point of one constant: a bump cannot land on some events and
   // miss others.
   it('rides on EVERY variant, not just the common one', () => {
-    const verified = estateTelemetry(classifyEstate([CLEAN]));
+    const verified = estateTelemetry(classifyEstate([CLEAN]), null, DIGEST);
     const unreadable = unreadableEstateEvent('git-failed');
     const stale = estateStaleEvent(digestOf('a'), digestOf('b'));
     expect(verified.schema_version).toBe(ESTATE_SCHEMA_VERSION);
@@ -875,7 +882,7 @@ describe('ESTATE_SCHEMA_VERSION', () => {
 
   it('is identical across variants, since they share one contract revision', () => {
     const versions = new Set([
-      estateTelemetry(classifyEstate([CLEAN])).schema_version,
+      estateTelemetry(classifyEstate([CLEAN]), null, DIGEST).schema_version,
       unreadableEstateEvent('no-records').schema_version,
       estateStaleEvent(digestOf('a'), digestOf('b')).schema_version,
     ]);
@@ -883,7 +890,7 @@ describe('ESTATE_SCHEMA_VERSION', () => {
   });
 
   it('survives serialisation, so a subscriber reads it off the wire', () => {
-    const t = JSON.parse(JSON.stringify(estateTelemetry(classifyEstate([CLEAN]))));
+    const t = JSON.parse(JSON.stringify(estateTelemetry(classifyEstate([CLEAN]), null, DIGEST)));
     expect(t.schema_version).toBe(ESTATE_SCHEMA_VERSION);
   });
 
@@ -891,7 +898,7 @@ describe('ESTATE_SCHEMA_VERSION', () => {
   // version identifies its revision. Conflating them is how a rename gets
   // mistaken for a compatible change.
   it('is carried alongside event.name, not encoded into it', () => {
-    const t = estateTelemetry(classifyEstate([CLEAN]));
+    const t = estateTelemetry(classifyEstate([CLEAN]), null, DIGEST);
     expect(t['event.name']).toBe('fleet.estate.verified');
     expect(t['event.name'].includes(ESTATE_SCHEMA_VERSION)).toBe(false);
   });
@@ -910,7 +917,7 @@ describe('EstateEventSchema: what we emit parses against what we declare', () =>
   const TRACE = { trace_id: 'a'.repeat(32), span_id: 'b'.repeat(16) };
 
   it('accepts a clean verdict event', () => {
-    const r = EstateEventSchema.safeParse(estateTelemetry(classifyEstate(STATES)));
+    const r = EstateEventSchema.safeParse(estateTelemetry(classifyEstate(STATES), null, DIGEST));
     expect(r.success).toBe(true);
   });
 
@@ -949,7 +956,7 @@ describe('EstateEventSchema: what we emit parses against what we declare', () =>
   // strictObject: an unrecognised key is a producer typo, and the contract must
   // catch it rather than let a consumer discover it.
   it('REJECTS an event carrying a key the contract does not declare', () => {
-    const e = { ...estateTelemetry(classifyEstate(STATES)), surprise: 1 };
+    const e = { ...estateTelemetry(classifyEstate(STATES), null, DIGEST), surprise: 1 };
     expect(EstateEventSchema.safeParse(e).success).toBe(false);
   });
 
@@ -957,12 +964,12 @@ describe('EstateEventSchema: what we emit parses against what we declare', () =>
   // stamped with any other version fails to parse. A consumer pinned to 1.0.0
   // cannot be handed a 2.0.0 payload by accident.
   it('REJECTS an event stamped with a different schema version', () => {
-    const e = { ...estateTelemetry(classifyEstate(STATES)), schema_version: '2.0.0' };
+    const e = { ...estateTelemetry(classifyEstate(STATES), null, DIGEST), schema_version: '2.0.0' };
     expect(EstateEventSchema.safeParse(e).success).toBe(false);
   });
 
   it('REJECTS an unknown event name rather than accepting it loosely', () => {
-    const e = { ...estateTelemetry(classifyEstate(STATES)), 'event.name': 'fleet.estate.other' };
+    const e = { ...estateTelemetry(classifyEstate(STATES), null, DIGEST), 'event.name': 'fleet.estate.other' };
     expect(EstateEventSchema.safeParse(e).success).toBe(false);
   });
 
@@ -992,7 +999,7 @@ describe('vocabularies are declared once', () => {
     for (const k of REASON_KINDS) {
       const e = estateTelemetry(classifyEstate([
         createWorktreeState({ path: '/c/a', ...(k === 'structural' ? { locked: true } : { dirtyFileCount: 1 }) }),
-      ]));
+      ]), null, DIGEST);
       expect(e.attributes.kinds).toContain(k);
       expect(EstateEventSchema.safeParse(e).success).toBe(true);
     }
@@ -1009,19 +1016,19 @@ describe('vocabularies are declared once', () => {
   // The schema must reject a kind the vocabulary does not contain, or deriving
   // it bought nothing.
   it('REJECTS a kind outside the vocabulary', () => {
-    const e = estateTelemetry(classifyEstate([createWorktreeState({ dirtyFileCount: 1 })]));
+    const e = estateTelemetry(classifyEstate([createWorktreeState({ dirtyFileCount: 1 })]), null, DIGEST);
     const tampered = { ...e, attributes: { ...e.attributes, kinds: ['invented'] } };
     expect(EstateEventSchema.safeParse(tampered).success).toBe(false);
   });
 
   it('REJECTS a reason outside the vocabulary', () => {
-    const e = estateTelemetry(classifyEstate([createWorktreeState({ dirtyFileCount: 1 })]));
+    const e = estateTelemetry(classifyEstate([createWorktreeState({ dirtyFileCount: 1 })]), null, DIGEST);
     const tampered = { ...e, attributes: { ...e.attributes, reasons: ['dirtyy'] } };
     expect(EstateEventSchema.safeParse(tampered).success).toBe(false);
   });
 
   it('REJECTS a severity outside the vocabulary', () => {
-    const e = estateTelemetry(classifyEstate([CLEAN]));
+    const e = estateTelemetry(classifyEstate([CLEAN]), null, DIGEST);
     expect(EstateEventSchema.safeParse({ ...e, severity_text: 'TRACE' }).success).toBe(false);
     expect(EstateEventSchema.safeParse({ ...e, severity_number: 5 }).success).toBe(false);
   });
@@ -1063,7 +1070,7 @@ describe('spanContextFor', () => {
   });
 
   it('rides onto the emitted event', () => {
-    const e = estateTelemetry(classifyEstate([CLEAN]), spanContextFor(PARENT, FIXED));
+    const e = estateTelemetry(classifyEstate([CLEAN]), spanContextFor(PARENT, FIXED), DIGEST);
     expect(e.trace_id).toBe(PARENT.trace_id);
     expect(e.span_id).toBe('c'.repeat(16));
     expect(e.parent_span_id).toBe(PARENT.span_id);
@@ -1197,5 +1204,76 @@ describe('classifyEstate: free invariants', () => {
     expect(withClean.problems).toEqual(withOut.problems);
     expect(withClean.checked).toBe(withOut.checked + 1);
     expect(withClean.clean).toBe(false);
+  });
+});
+
+// ---- the recommendation is advisory, never authorization ----
+// agent_action tells a consumer what this tool RECOMMENDS given what it saw. It
+// is not permission to act, and a consumer treating PROCEED as consent is the
+// confused-deputy failure 2026 agent-governance work names directly: no field a
+// tool emits is self-authorizing, and a capability gate is not an authorization
+// decision. The policy decision point sits OUTSIDE this tool.
+//
+// What the tool owes that PDP is a recommendation BOUND TO ITS EVIDENCE. A
+// decision is not execution authority until it can be tied to the exact state
+// it was computed from -- so estate_digest is required on a verdict, and the
+// pair (agent_action, estate_digest) is re-verifiable by handing the digest
+// back through --expect-digest. Optional evidence was a type admitting an
+// action nobody downstream could check.
+describe('the recommendation is bound to its evidence', () => {
+  const STATES = [createWorktreeState({ path: '/c/a', dirtyFileCount: 1 })];
+  const SNAPSHOT = estateDigest(STATES);
+
+  it('a verdict always names the snapshot it was computed from', () => {
+    const e = estateTelemetry(classifyEstate(STATES), null, SNAPSHOT);
+    expect(e.estate_digest).toBe(SNAPSHOT);
+  });
+
+  // The binding, stated as the property that makes it useful: the digest on the
+  // event is exactly what a caller hands back to re-verify.
+  it('the emitted digest is the one --expect-digest accepts', () => {
+    const decided = decideEstate({
+      kind: 'states', states: STATES, sourceDigest: digestOf('raw'),
+    });
+    if (decided.kind !== 'verified') throw new Error('expected verified');
+    const replayed = decideEstate(
+      { kind: 'states', states: STATES, sourceDigest: digestOf('raw') },
+      null,
+      decided.event.estate_digest,
+    );
+    expect(replayed.kind).toBe('verified');
+  });
+
+  // And the same binding REFUSES once the estate has moved, which is what makes
+  // the recommendation checkable rather than merely advisory-in-name.
+  it('a recommendation cannot be replayed against a moved estate', () => {
+    const decided = decideEstate({
+      kind: 'states', states: STATES, sourceDigest: digestOf('raw'),
+    });
+    if (decided.kind !== 'verified') throw new Error('expected verified');
+    const moved = [createWorktreeState({ path: '/c/a', dirtyFileCount: 99 })];
+    const replayed = decideEstate(
+      { kind: 'states', states: moved, sourceDigest: digestOf('raw') },
+      null,
+      decided.event.estate_digest,
+    );
+    expect(replayed.kind).toBe('stale');
+    expect(replayed.event.agent_action).toBe('REREAD_ESTATE');
+  });
+
+  // Every event a subscriber can act on carries an action; the verdict path
+  // additionally carries the evidence. An unreadable estate has no snapshot to
+  // address, which is why it carries no digest and recommends REPAIR_TOOLING.
+  it('an unreadable estate recommends repair and names no snapshot', () => {
+    const e = unreadableEstateEvent('git-failed');
+    expect(e.agent_action).toBe('REPAIR_TOOLING');
+    expect('estate_digest' in e).toBe(false);
+  });
+
+  it('a stale estate names BOTH digests, so the caller can diff its plan', () => {
+    const e = estateStaleEvent(digestOf('planned'), SNAPSHOT);
+    expect(e.agent_action).toBe('REREAD_ESTATE');
+    expect(e.attributes.expected_digest).toBe(digestOf('planned'));
+    expect(e.attributes.estate_digest).toBe(SNAPSHOT);
   });
 });

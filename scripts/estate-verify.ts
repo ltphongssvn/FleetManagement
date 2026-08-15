@@ -271,7 +271,11 @@ export function describeEstate(v: EstateVerdict): string {
 export function estateTelemetry(
   v: EstateVerdict,
   trace: SpanContext | null = null,
-  digest: string | null = null,
+  // REQUIRED, no default. A verdict is always ABOUT a specific snapshot, and
+  // the recommendation this event carries is derived from that snapshot alone.
+  // A nullable digest let a caller build a verdict whose evidence could not be
+  // named, which is an action no downstream PDP could re-verify.
+  digest: string,
   sourceDigest: string | null = null,
 ): EstateTelemetry {
   const reasons = reasonsAcross(v.problems);
@@ -281,7 +285,7 @@ export function estateTelemetry(
     agent_action: actionForVerdict(reasons),
     ...severityFor(v),
     ...(trace ?? {}),
-    ...(digest === null ? {} : { estate_digest: digest }),
+    estate_digest: digest,
     ...(sourceDigest === null ? {} : { source_digest: sourceDigest }),
     attributes: {
       clean: v.clean,
@@ -690,6 +694,13 @@ const EventBaseShape = {
   // it has to re-derive the policy from attributes -- a second implementation
   // of the rule, waiting to disagree with the first. assert-parses.ts has
   // carried agent_action for the same reason since it was written.
+  // ADVISORY, NEVER AUTHORIZATION. This is what the tool RECOMMENDS given what
+  // it observed; it is not permission to act. 2026 agent-governance guidance is
+  // explicit that no field a tool emits is self-authorizing, and that a
+  // capability gate is not an authorization decision -- a consumer treating
+  // PROCEED as consent is the confused-deputy failure. The policy decision
+  // point sits OUTSIDE this tool; what the tool owes it is a recommendation
+  // bound to the evidence it was derived from, which estate_digest supplies.
   agent_action: EstateActionSchema,
   // The span this run was a CHILD of. Present whenever a parent supplied a
   // traceparent, so a collector can nest this task under the run that invoked it.
@@ -703,7 +714,12 @@ export const EstateTelemetrySchema = z.strictObject({
   severity_number: z.union([z.literal(9), z.literal(13), z.literal(17)]),
   // Literals, not z.enum: z.enum is string-only. The union mirrors
   // SEVERITY_NUMBERS, and the guard test below proves they agree.
-  estate_digest: z.string().optional(),
+  // REQUIRED on a verdict, because the recommendation above is derived from
+  // THIS snapshot and nothing else. A recommendation whose evidence cannot be
+  // named is one a downstream PDP cannot re-verify -- and re-verification is
+  // exactly what --expect-digest exists to make possible. Optional here was a
+  // type admitting an unbindable action.
+  estate_digest: z.string(),
   source_digest: z.string().optional(),
   attributes: z.strictObject({
     clean: z.boolean(),
