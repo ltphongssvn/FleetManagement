@@ -425,6 +425,11 @@ export const UNREADABLE_REASONS = Object.freeze([
   'git-failed',
   'no-records',
   'record-rejected',
+  // The classifier itself threw. NOT merged into git-failed: that names a
+  // subprocess that failed, which is an expected condition with a known
+  // remedy, while this names OUR OWN defect and the remedy is a code fix.
+  // Collapsing the two would let a bug hide behind an operational excuse.
+  'threw',
 ] as const);
 export type UnreadableReason = (typeof UNREADABLE_REASONS)[number];
 
@@ -627,7 +632,7 @@ export function estateStaleEvent(
  *
  *  ONE constant, referenced by all three variants, so a bump cannot land on
  *  some events and miss others. */
-export const ESTATE_SCHEMA_VERSION = '1.0.0';
+export const ESTATE_SCHEMA_VERSION = '1.1.0';
 export type EstateSchemaVersion = typeof ESTATE_SCHEMA_VERSION;
 
 /** RUNTIME schema for everything this task emits.

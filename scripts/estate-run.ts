@@ -29,6 +29,7 @@
 // different VCS) drives the same decision path.
 import {
   decideEstate,
+  unreadableEstateEvent,
   describeEstate,
   spanContextFor,
   traceContextFrom,
@@ -37,7 +38,7 @@ import {
   type EstateGathered,
 } from './estate-verify.js';
 import { estateStatement, type EstateStatement } from './estate-attestation.js';
-import { mayProceed, type EstateAction } from './estate-action.js';
+import { exitCodeFor, mayProceed, type EstateAction } from './estate-action.js';
 
 /** What a caller asks for. Every field is data: no argv, no environment, no
  *  streams. The CLI derives this from argv; a runtime builds it directly. */
@@ -83,7 +84,32 @@ export interface EstateRunResult {
  *  git, which the v8-ignore around mainEstateVerify previously made impossible. */
 export function runEstateVerify(request: EstateRunRequest): EstateRunResult {
   const trace = spanContextFor(traceContextFrom(request.traceparent));
-  const decision = decideEstate(request.gather(), trace, request.expectDigest ?? null);
+  let decision: EstateDecision;
+  try {
+    decision = decideEstate(request.gather(), trace, request.expectDigest ?? null);
+  } catch {
+    // FAIL CLOSED. Anything that escapes gather or decide is a defect, and a
+    // defect means the estate is UNKNOWN -- never clean. Without this the
+    // throw escaped mainEstateVerify, node printed a stack trace, and the
+    // process exited 1: the code that means "readable estate, work in
+    // progress". Worse, the contract is exactly one NDJSON event on stdout and
+    // a crash emitted NONE, so a subscriber saw silence -- and the fail-safe
+    // principle is that the absence of a valid signal must default to the safe
+    // position, not to consent.
+    //
+    // The boundary lives HERE, at the single entry point both surfaces use, so
+    // there is no path around it and no caller has to remember it.
+    //
+    // The error itself is deliberately NOT carried into the event: a message
+    // may quote a path, a branch or subprocess output, and this event is
+    // published. The reason code says a defect occurred; the stack belongs on
+    // stderr where the operator reads it.
+    decision = {
+      kind: 'unreadable',
+      event: unreadableEstateEvent('threw', trace),
+      exitCode: exitCodeFor('REPAIR_TOOLING'),
+    };
+  }
   const action = decision.event.agent_action;
   return {
     event: decision.event,

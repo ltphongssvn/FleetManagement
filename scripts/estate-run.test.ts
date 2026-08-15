@@ -160,3 +160,93 @@ describe('the statement travels with the result', () => {
     expect(runEstateVerify({ gather: () => ({ kind: 'git-failed' }) }).statement).toBeNull();
   });
 });
+
+// ---- a throw is UNKNOWN, never clean ----
+// The try/catch in mainEstateVerify wrapped ONLY argv parsing, so anything
+// thrown by gather or decide escaped: node printed a stack trace and the
+// process exited 1 -- the code that means "readable estate, work in progress".
+// A crash is not that. It is an estate nobody read.
+//
+// The sharper half is what a SUBSCRIBER saw. The contract is exactly one NDJSON
+// event on stdout, and a crash emitted none at all. Fail-safe design is
+// explicit that "the absence of a valid active signal defaults to the safe
+// position" -- so silence must never be read as consent, and the only way to
+// guarantee that is to always emit something.
+//
+// The boundary sits at the single entry point both surfaces use, so there is no
+// path around it and no caller has to remember it.
+describe('a throw is UNKNOWN, never clean', () => {
+  const exploding = (): never => {
+    throw new Error('gather blew up with /Users/secret/path in the message');
+  };
+
+  it('returns a result instead of propagating the throw', () => {
+    expect(() => runEstateVerify({ gather: exploding })).not.toThrow();
+  });
+
+  it('reports the estate as unreadable, not as a verdict', () => {
+    const r = runEstateVerify({ gather: exploding });
+    expect(r.decision.kind).toBe('unreadable');
+    expect(r.event['event.name']).toBe('fleet.estate.unreadable');
+  });
+
+  // Exit 3 is REPAIR_TOOLING. Exit 1 -- what a bare crash produced -- means a
+  // readable estate with work in flight, which is a different and lesser claim.
+  it('exits 3, the code for an estate that could not be read', () => {
+    expect(runEstateVerify({ gather: exploding }).exitCode).toBe(3);
+  });
+
+  it('REFUSES to let the session close', () => {
+    const r = runEstateVerify({ gather: exploding });
+    expect(r.action).toBe('REPAIR_TOOLING');
+    expect(r.mayProceed).toBe(false);
+  });
+
+  // A crash is OUR defect; git-failed is an expected operational condition with
+  // a known remedy. Collapsing them would let a bug hide behind an excuse.
+  it('names the defect as its own reason, distinct from a failed subprocess', () => {
+    const r = runEstateVerify({ gather: exploding });
+    if (r.event['event.name'] !== 'fleet.estate.unreadable') throw new Error('expected unreadable');
+    expect(r.event.attributes.reason).toBe('threw');
+  });
+
+  it('still emits ONE schema-valid event, so a subscriber never sees silence', () => {
+    const r = runEstateVerify({ gather: exploding });
+    expect(EstateEventSchema.safeParse(r.event).success).toBe(true);
+  });
+
+  // The event is published, and an error message can quote a path, a branch or
+  // subprocess output. The reason code says a defect occurred; the stack stays
+  // on stderr where the operator reads it.
+  it('leaks nothing from the error message into the published event', () => {
+    const wire = JSON.stringify(runEstateVerify({ gather: exploding }).event);
+    expect(wire).not.toContain('/Users/secret/path');
+    expect(wire).not.toContain('blew up');
+  });
+
+  it('makes no attestation about an estate it never read', () => {
+    expect(runEstateVerify({ gather: exploding }).statement).toBeNull();
+  });
+
+  // Correlation must survive the failure, or the one run an operator most needs
+  // to find is the one that cannot be tied to its parent.
+  it('keeps the caller trace context across the boundary', () => {
+    const r = runEstateVerify({ gather: exploding, traceparent: TRACEPARENT });
+    expect(r.event.trace_id).toBe('4bf92f3577b34da6a3ce929d0e0e4736');
+    expect(r.event.parent_span_id).toBe('00f067aa0ba902b7');
+  });
+
+  // Not only Error: a throw can be any value at all, and a boundary that only
+  // catches Error is a boundary with a hole in it.
+  it('catches a thrown value that is not an Error', () => {
+    for (const thrown of ['a string', 42, null, undefined, { odd: true }]) {
+      // Throwing a non-Error is precisely the case under test: JavaScript
+      // permits throwing any value, so a boundary catching only Error has a
+      // hole. The rule is right about production code, not about this.
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      const r = runEstateVerify({ gather: () => { throw thrown; } });
+      expect(r.exitCode).toBe(3);
+      expect(r.mayProceed).toBe(false);
+    }
+  });
+});
