@@ -62,6 +62,11 @@ const CLEAN = createWorktreeState({ path: '/c/t1-wt1-x', branch: 'feat/x' });
 // --expect-digest exists to make possible.
 const DIGEST = estateDigest([CLEAN]);
 
+// A FIXED instant. The events now carry a timestamp, and a test that read the
+// real clock would make the byte-identical-event assertions flap. Pinning it is
+// exactly why the clock is injected rather than read inside the core.
+const AT = '2026-01-01T00:00:00.000Z';
+
 // The rendering is multi-line, so asserting the WHOLE sentence makes the
 // separator part of the contract too.
 const NL = String.fromCharCode(10);
@@ -217,7 +222,7 @@ describe('createWorktreeState: fixtures cannot drift from the contract', () => {
 // from the same verdict rather than parsed back out of it.
 describe('estateTelemetry', () => {
   it('reports a clean estate as structured fields', () => {
-    const t = estateTelemetry(classifyEstate([CLEAN, CLEAN]), null, DIGEST);
+    const t = estateTelemetry(classifyEstate([CLEAN, CLEAN]), null, DIGEST, AT);
     expect(t["event.name"]).toBe("fleet.estate.verified");
     expect(t.attributes.clean).toBe(true);
     expect(t.attributes.checked).toBe(2);
@@ -229,7 +234,7 @@ describe('estateTelemetry', () => {
     const t = estateTelemetry(classifyEstate([
       createWorktreeState({ path: '/c/a', dirtyFileCount: 1 }),
       createWorktreeState({ path: '/c/b', prunable: true }),
-    ]), null, DIGEST);
+    ]), null, DIGEST, AT);
     expect(t.attributes.clean).toBe(false);
     expect(t.attributes.unclean_count).toBe(2);
     expect(t.attributes.reasons).toEqual(reasons("dirty", "prunable"));
@@ -239,7 +244,7 @@ describe('estateTelemetry', () => {
     const t = estateTelemetry(classifyEstate([
       createWorktreeState({ path: '/c/a', stashCount: 1 }),
       createWorktreeState({ path: '/c/b', stashCount: 2 }),
-    ]), null, DIGEST);
+    ]), null, DIGEST, AT);
     expect(t.attributes.reasons).toEqual(reasons("stash"));
   });
 
@@ -249,7 +254,7 @@ describe('estateTelemetry', () => {
     const t = estateTelemetry(classifyEstate([
       createWorktreeState({ path: '/c/a', locked: true }),
       createWorktreeState({ path: '/c/b', dirtyFileCount: 1 }),
-    ]), null, DIGEST);
+    ]), null, DIGEST, AT);
     expect(t.attributes.reasons).toEqual(reasons("dirty", "locked"));
   });
 
@@ -257,13 +262,13 @@ describe('estateTelemetry', () => {
   // two renderings of ONE verdict.
   it('agrees with the prose rendering of the same verdict', () => {
     const v = classifyEstate([createWorktreeState({ dirtyFileCount: 1 })]);
-    const t = estateTelemetry(v, null, DIGEST);
+    const t = estateTelemetry(v, null, DIGEST, AT);
     expect(t.attributes.clean).toBe(v.clean);
     expect(describeEstate(v).includes("NOT clean")).not.toBe(t.attributes.clean);
   });
 
   it('serialises to JSON without loss', () => {
-    const t = estateTelemetry(classifyEstate([createWorktreeState({ stashCount: 1 })]), null, DIGEST);
+    const t = estateTelemetry(classifyEstate([createWorktreeState({ stashCount: 1 })]), null, DIGEST, AT);
     expect(JSON.parse(JSON.stringify(t))).toEqual(t);
   });
 });
@@ -355,27 +360,27 @@ describe('WorktreeStateSchema: strict about its own keys', () => {
 // being reversed.
 describe('unreadableEstateEvent', () => {
   it('carries its own event name, so the discriminant is the name', () => {
-    expect(unreadableEstateEvent('git-failed')['event.name'])
+    expect(unreadableEstateEvent('git-failed', AT)['event.name'])
       .toBe('fleet.estate.unreadable');
-    expect(estateTelemetry(classifyEstate([]), null, DIGEST)['event.name'])
+    expect(estateTelemetry(classifyEstate([]), null, DIGEST, AT)['event.name'])
       .toBe('fleet.estate.verified');
   });
 
   it('is always ERROR severity', () => {
-    expect(unreadableEstateEvent('no-records').severity_text).toBe('ERROR');
-    expect(unreadableEstateEvent('no-records').severity_number).toBe(17);
+    expect(unreadableEstateEvent('no-records', AT).severity_text).toBe('ERROR');
+    expect(unreadableEstateEvent('no-records', AT).severity_number).toBe(17);
   });
 
   // The information the single shared payload used to lose.
   it('names WHICH failure occurred', () => {
     for (const r of UNREADABLE_REASONS) {
-      expect(unreadableEstateEvent(r).attributes.reason).toBe(r);
+      expect(unreadableEstateEvent(r, AT).attributes.reason).toBe(r);
     }
   });
 
   it('cannot be mistaken for a clean estate', () => {
-    const clean = estateTelemetry(classifyEstate([]), null, DIGEST);
-    const unreadable = unreadableEstateEvent('git-failed');
+    const clean = estateTelemetry(classifyEstate([]), null, DIGEST, AT);
+    const unreadable = unreadableEstateEvent('git-failed', AT);
     expect(clean.attributes.clean).toBe(true);
     expect('clean' in unreadable.attributes).toBe(false);
   });
@@ -383,19 +388,20 @@ describe('unreadableEstateEvent', () => {
   it('carries inherited trace context when present, omits it otherwise', () => {
     const withTrace = unreadableEstateEvent(
       'git-failed',
+      AT,
       { trace_id: 'a'.repeat(32), span_id: 'b'.repeat(16) },
     );
     expect(withTrace.trace_id).toBe('a'.repeat(32));
-    expect('trace_id' in unreadableEstateEvent('git-failed')).toBe(false);
+    expect('trace_id' in unreadableEstateEvent('git-failed', AT)).toBe(false);
   });
 
   it('carries the source digest when the porcelain was readable', () => {
-    expect(unreadableEstateEvent('no-records', null, digestOf('raw')).source_digest)
+    expect(unreadableEstateEvent('no-records', AT, null, digestOf('raw')).source_digest)
       .toBe(digestOf('raw'));
   });
 
   it('serialises to JSON without loss', () => {
-    const t = unreadableEstateEvent('record-rejected');
+    const t = unreadableEstateEvent('record-rejected', AT);
     expect(JSON.parse(JSON.stringify(t))).toEqual(t);
   });
 });
@@ -474,8 +480,8 @@ describe('severityFor', () => {
   });
 
   it('rides on the emitted event, not only on the helper', () => {
-    expect(estateTelemetry(classifyEstate([CLEAN]), null, DIGEST).severity_text).toBe('INFO');
-    expect(unreadableEstateEvent('git-failed').severity_text).toBe('ERROR');
+    expect(estateTelemetry(classifyEstate([CLEAN]), null, DIGEST, AT).severity_text).toBe('INFO');
+    expect(unreadableEstateEvent('git-failed', AT).severity_text).toBe('ERROR');
   });
 });
 
@@ -509,12 +515,12 @@ describe('traceContextFrom', () => {
   });
 
   it('omits the fields entirely when there is no parent context', () => {
-    const t = estateTelemetry(classifyEstate([CLEAN]), null, DIGEST);
+    const t = estateTelemetry(classifyEstate([CLEAN]), null, DIGEST, AT);
     expect('trace_id' in t).toBe(false);
   });
 
   it('carries an inherited context onto the event', () => {
-    const t = estateTelemetry(classifyEstate([CLEAN]), traceContextFrom(VALID), DIGEST);
+    const t = estateTelemetry(classifyEstate([CLEAN]), traceContextFrom(VALID), DIGEST, AT);
     expect(t.trace_id).toBe('4bf92f3577b34da6a3ce929d0e0e4736');
     expect(t.span_id).toBe('00f067aa0ba902b7');
   });
@@ -613,12 +619,12 @@ describe('estateDigest', () => {
   });
 
   it('rides on the emitted event when supplied', () => {
-    const t = estateTelemetry(classifyEstate([A]), null, estateDigest([A]));
+    const t = estateTelemetry(classifyEstate([A]), null, estateDigest([A]), AT);
     expect(t.estate_digest).toBe(estateDigest([A]));
   });
 
   it('is omitted when there was no snapshot to address', () => {
-    expect('estate_digest' in unreadableEstateEvent('no-records')).toBe(false);
+    expect('estate_digest' in unreadableEstateEvent('no-records', AT)).toBe(false);
   });
 });
 
@@ -650,12 +656,12 @@ describe('digestOf and source_digest', () => {
   });
 
   it('rides on the event when supplied', () => {
-    const t = estateTelemetry(classifyEstate([]), null, DIGEST, digestOf('raw'));
+    const t = estateTelemetry(classifyEstate([]), null, DIGEST, AT, digestOf('raw'));
     expect(t.source_digest).toBe(digestOf('raw'));
   });
 
   it('is omitted when not supplied, never fabricated', () => {
-    expect('source_digest' in estateTelemetry(classifyEstate([]), null, DIGEST)).toBe(false);
+    expect('source_digest' in estateTelemetry(classifyEstate([]), null, DIGEST, AT)).toBe(false);
   });
 
   // The discrimination the pair exists for.
@@ -663,13 +669,13 @@ describe('digestOf and source_digest', () => {
     const raw = 'worktree /c/a';
     const before = estateTelemetry(
       classifyEstate([createWorktreeState({ path: '/c/a' })]),
-      null, estateDigest([createWorktreeState({ path: '/c/a' })]), digestOf(raw),
+      null, estateDigest([createWorktreeState({ path: '/c/a' })]), AT, digestOf(raw),
     );
     const after = estateTelemetry(
       classifyEstate([createWorktreeState({ path: '/c/a', dirtyFileCount: 1 })]),
       null,
       estateDigest([createWorktreeState({ path: '/c/a', dirtyFileCount: 1 })]),
-      digestOf(raw),
+      AT, digestOf(raw),
     );
     expect(after.source_digest).toBe(before.source_digest);
     expect(after.estate_digest).not.toBe(before.estate_digest);
@@ -717,10 +723,10 @@ describe('REASON_KIND and kindsFor', () => {
   it('separates a merely dirty worktree from a broken one on the event', () => {
     const wip = estateTelemetry(classifyEstate([
       createWorktreeState({ path: '/c/a', dirtyFileCount: 3 }),
-    ]), null, DIGEST);
+    ]), null, DIGEST, AT);
     const broken = estateTelemetry(classifyEstate([
       createWorktreeState({ path: '/c/b', prunable: true }),
-    ]), null, DIGEST);
+    ]), null, DIGEST, AT);
     expect(wip.attributes.kinds).toEqual(['work-in-progress']);
     expect(broken.attributes.kinds).toEqual(['structural']);
   });
@@ -729,7 +735,7 @@ describe('REASON_KIND and kindsFor', () => {
     const t = estateTelemetry(classifyEstate([
       createWorktreeState({ path: '/c/a', dirtyFileCount: 1 }),
       createWorktreeState({ path: '/c/b', locked: true }),
-    ]), null, DIGEST);
+    ]), null, DIGEST, AT);
     expect(t.attributes.kinds).toEqual(['work-in-progress', 'structural']);
   });
 });
@@ -927,9 +933,9 @@ describe('ESTATE_SCHEMA_VERSION', () => {
   // The whole point of one constant: a bump cannot land on some events and
   // miss others.
   it('rides on EVERY variant, not just the common one', () => {
-    const verified = estateTelemetry(classifyEstate([CLEAN]), null, DIGEST);
-    const unreadable = unreadableEstateEvent('git-failed');
-    const stale = estateStaleEvent(digestOf('a'), digestOf('b'));
+    const verified = estateTelemetry(classifyEstate([CLEAN]), null, DIGEST, AT);
+    const unreadable = unreadableEstateEvent('git-failed', AT);
+    const stale = estateStaleEvent(digestOf('a'), digestOf('b'), AT);
     expect(verified.schema_version).toBe(ESTATE_SCHEMA_VERSION);
     expect(unreadable.schema_version).toBe(ESTATE_SCHEMA_VERSION);
     expect(stale.schema_version).toBe(ESTATE_SCHEMA_VERSION);
@@ -937,15 +943,15 @@ describe('ESTATE_SCHEMA_VERSION', () => {
 
   it('is identical across variants, since they share one contract revision', () => {
     const versions = new Set([
-      estateTelemetry(classifyEstate([CLEAN]), null, DIGEST).schema_version,
-      unreadableEstateEvent('no-records').schema_version,
-      estateStaleEvent(digestOf('a'), digestOf('b')).schema_version,
+      estateTelemetry(classifyEstate([CLEAN]), null, DIGEST, AT).schema_version,
+      unreadableEstateEvent('no-records', AT).schema_version,
+      estateStaleEvent(digestOf('a'), digestOf('b'), AT).schema_version,
     ]);
     expect(versions.size).toBe(1);
   });
 
   it('survives serialisation, so a subscriber reads it off the wire', () => {
-    const t = JSON.parse(JSON.stringify(estateTelemetry(classifyEstate([CLEAN]), null, DIGEST)));
+    const t = JSON.parse(JSON.stringify(estateTelemetry(classifyEstate([CLEAN]), null, DIGEST, AT)));
     expect(t.schema_version).toBe(ESTATE_SCHEMA_VERSION);
   });
 
@@ -953,7 +959,7 @@ describe('ESTATE_SCHEMA_VERSION', () => {
   // version identifies its revision. Conflating them is how a rename gets
   // mistaken for a compatible change.
   it('is carried alongside event.name, not encoded into it', () => {
-    const t = estateTelemetry(classifyEstate([CLEAN]), null, DIGEST);
+    const t = estateTelemetry(classifyEstate([CLEAN]), null, DIGEST, AT);
     expect(t['event.name']).toBe('fleet.estate.verified');
     expect(t['event.name'].includes(ESTATE_SCHEMA_VERSION)).toBe(false);
   });
@@ -972,24 +978,24 @@ describe('EstateEventSchema: what we emit parses against what we declare', () =>
   const TRACE = { trace_id: 'a'.repeat(32), span_id: 'b'.repeat(16) };
 
   it('accepts a clean verdict event', () => {
-    const r = EstateEventSchema.safeParse(estateTelemetry(classifyEstate(STATES), null, DIGEST));
+    const r = EstateEventSchema.safeParse(estateTelemetry(classifyEstate(STATES), null, DIGEST, AT));
     expect(r.success).toBe(true);
   });
 
   it('accepts an unclean verdict event, digests and all', () => {
     const v = classifyEstate([createWorktreeState({ path: '/c/a', dirtyFileCount: 2 })]);
-    const e = estateTelemetry(v, TRACE, estateDigest(STATES), digestOf('raw'));
+    const e = estateTelemetry(v, TRACE, estateDigest(STATES), AT, digestOf('raw'));
     expect(EstateEventSchema.safeParse(e).success).toBe(true);
   });
 
   it('accepts every unreadable reason', () => {
     for (const reason of UNREADABLE_REASONS) {
-      expect(EstateEventSchema.safeParse(unreadableEstateEvent(reason)).success).toBe(true);
+      expect(EstateEventSchema.safeParse(unreadableEstateEvent(reason, AT)).success).toBe(true);
     }
   });
 
   it('accepts a stale event', () => {
-    const e = estateStaleEvent(digestOf('a'), digestOf('b'), TRACE);
+    const e = estateStaleEvent(digestOf('a'), digestOf('b'), AT, TRACE);
     expect(EstateEventSchema.safeParse(e).success).toBe(true);
   });
 
@@ -1011,7 +1017,7 @@ describe('EstateEventSchema: what we emit parses against what we declare', () =>
   // strictObject: an unrecognised key is a producer typo, and the contract must
   // catch it rather than let a consumer discover it.
   it('REJECTS an event carrying a key the contract does not declare', () => {
-    const e = { ...estateTelemetry(classifyEstate(STATES), null, DIGEST), surprise: 1 };
+    const e = { ...estateTelemetry(classifyEstate(STATES), null, DIGEST, AT), surprise: 1 };
     expect(EstateEventSchema.safeParse(e).success).toBe(false);
   });
 
@@ -1019,12 +1025,12 @@ describe('EstateEventSchema: what we emit parses against what we declare', () =>
   // stamped with any other version fails to parse. A consumer pinned to 1.0.0
   // cannot be handed a 2.0.0 payload by accident.
   it('REJECTS an event stamped with a different schema version', () => {
-    const e = { ...estateTelemetry(classifyEstate(STATES), null, DIGEST), schema_version: '2.0.0' };
+    const e = { ...estateTelemetry(classifyEstate(STATES), null, DIGEST, AT), schema_version: '2.0.0' };
     expect(EstateEventSchema.safeParse(e).success).toBe(false);
   });
 
   it('REJECTS an unknown event name rather than accepting it loosely', () => {
-    const e = { ...estateTelemetry(classifyEstate(STATES), null, DIGEST), 'event.name': 'fleet.estate.other' };
+    const e = { ...estateTelemetry(classifyEstate(STATES), null, DIGEST, AT), 'event.name': 'fleet.estate.other' };
     expect(EstateEventSchema.safeParse(e).success).toBe(false);
   });
 
@@ -1032,9 +1038,9 @@ describe('EstateEventSchema: what we emit parses against what we declare', () =>
   // so JSON serialisation cannot introduce a shape the contract rejects.
   it('accepts the SERIALISED form, which is what a consumer actually reads', () => {
     for (const e of [
-      estateTelemetry(classifyEstate(STATES), TRACE, estateDigest(STATES), digestOf('r')),
-      unreadableEstateEvent('no-records', TRACE, digestOf('r')),
-      estateStaleEvent(digestOf('a'), digestOf('b'), TRACE),
+      estateTelemetry(classifyEstate(STATES), TRACE, estateDigest(STATES), AT, digestOf('r')),
+      unreadableEstateEvent('no-records', AT, TRACE, digestOf('r')),
+      estateStaleEvent(digestOf('a'), digestOf('b'), AT, TRACE),
     ]) {
       expect(EstateEventSchema.safeParse(JSON.parse(JSON.stringify(e))).success).toBe(true);
     }
@@ -1054,7 +1060,7 @@ describe('vocabularies are declared once', () => {
     for (const k of REASON_KINDS) {
       const e = estateTelemetry(classifyEstate([
         createWorktreeState({ path: '/c/a', ...(k === 'structural' ? { locked: true } : { dirtyFileCount: 1 }) }),
-      ]), null, DIGEST);
+      ]), null, DIGEST, AT);
       expect(e.attributes.kinds).toContain(k);
       expect(EstateEventSchema.safeParse(e).success).toBe(true);
     }
@@ -1071,19 +1077,19 @@ describe('vocabularies are declared once', () => {
   // The schema must reject a kind the vocabulary does not contain, or deriving
   // it bought nothing.
   it('REJECTS a kind outside the vocabulary', () => {
-    const e = estateTelemetry(classifyEstate([createWorktreeState({ dirtyFileCount: 1 })]), null, DIGEST);
+    const e = estateTelemetry(classifyEstate([createWorktreeState({ dirtyFileCount: 1 })]), null, DIGEST, AT);
     const tampered = { ...e, attributes: { ...e.attributes, kinds: ['invented'] } };
     expect(EstateEventSchema.safeParse(tampered).success).toBe(false);
   });
 
   it('REJECTS a reason outside the vocabulary', () => {
-    const e = estateTelemetry(classifyEstate([createWorktreeState({ dirtyFileCount: 1 })]), null, DIGEST);
+    const e = estateTelemetry(classifyEstate([createWorktreeState({ dirtyFileCount: 1 })]), null, DIGEST, AT);
     const tampered = { ...e, attributes: { ...e.attributes, reasons: ['dirtyy'] } };
     expect(EstateEventSchema.safeParse(tampered).success).toBe(false);
   });
 
   it('REJECTS a severity outside the vocabulary', () => {
-    const e = estateTelemetry(classifyEstate([CLEAN]), null, DIGEST);
+    const e = estateTelemetry(classifyEstate([CLEAN]), null, DIGEST, AT);
     expect(EstateEventSchema.safeParse({ ...e, severity_text: 'TRACE' }).success).toBe(false);
     expect(EstateEventSchema.safeParse({ ...e, severity_number: 5 }).success).toBe(false);
   });
@@ -1125,7 +1131,7 @@ describe('spanContextFor', () => {
   });
 
   it('rides onto the emitted event', () => {
-    const e = estateTelemetry(classifyEstate([CLEAN]), spanContextFor(PARENT, FIXED), DIGEST);
+    const e = estateTelemetry(classifyEstate([CLEAN]), spanContextFor(PARENT, FIXED), DIGEST, AT);
     expect(e.trace_id).toBe(PARENT.trace_id);
     expect(e.span_id).toBe('c'.repeat(16));
     expect(e.parent_span_id).toBe(PARENT.span_id);
@@ -1239,7 +1245,7 @@ describe('classifyEstate: free invariants', () => {
   it('emits a byte-identical event for every ordering', () => {
     const orderings = permutations([DIRTY_A, DIRTY_B, STRUCT_C]);
     const events = orderings.map((o) =>
-      JSON.stringify(estateTelemetry(classifyEstate(o), null, estateDigest(o))),
+      JSON.stringify(estateTelemetry(classifyEstate(o), null, estateDigest(o), AT)),
     );
     expect(new Set(events).size).toBe(1);
   });
@@ -1280,7 +1286,7 @@ describe('the recommendation is bound to its evidence', () => {
   const SNAPSHOT = estateDigest(STATES);
 
   it('a verdict always names the snapshot it was computed from', () => {
-    const e = estateTelemetry(classifyEstate(STATES), null, SNAPSHOT);
+    const e = estateTelemetry(classifyEstate(STATES), null, SNAPSHOT, AT);
     expect(e.estate_digest).toBe(SNAPSHOT);
   });
 
@@ -1320,13 +1326,13 @@ describe('the recommendation is bound to its evidence', () => {
   // additionally carries the evidence. An unreadable estate has no snapshot to
   // address, which is why it carries no digest and recommends REPAIR_TOOLING.
   it('an unreadable estate recommends repair and names no snapshot', () => {
-    const e = unreadableEstateEvent('git-failed');
+    const e = unreadableEstateEvent('git-failed', AT);
     expect(e.agent_action).toBe('REPAIR_TOOLING');
     expect('estate_digest' in e).toBe(false);
   });
 
   it('a stale estate names BOTH digests, so the caller can diff its plan', () => {
-    const e = estateStaleEvent(digestOf('planned'), SNAPSHOT);
+    const e = estateStaleEvent(digestOf('planned'), SNAPSHOT, AT);
     expect(e.agent_action).toBe('REREAD_ESTATE');
     expect(e.attributes.expected_digest).toBe(digestOf('planned'));
     expect(e.attributes.estate_digest).toBe(SNAPSHOT);

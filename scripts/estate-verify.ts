@@ -300,12 +300,17 @@ export function estateTelemetry(
   // A nullable digest let a caller build a verdict whose evidence could not be
   // named, which is an action no downstream PDP could re-verify.
   digest: string,
+  // The instant, INJECTED. An audit record needs a timestamp, and a pure core
+  // must not read a clock -- so the shell supplies it and a test pins it.
+  timestamp: string,
   sourceDigest: string | null = null,
 ): EstateTelemetry {
   const reasons = reasonsAcross(v.problems);
   return {
     "event.name": "fleet.estate.verified",
     schema_version: ESTATE_SCHEMA_VERSION,
+    timestamp,
+    producer: ESTATE_PRODUCER,
     agent_action: actionForVerdict(reasons),
     ...severityFor(v),
     ...(trace ?? {}),
@@ -357,10 +362,20 @@ export function toWorktreeState(raw: unknown): WorktreeState | null {
 export const SEVERITY_TEXTS = Object.freeze(['INFO', 'WARN', 'ERROR'] as const);
 export const SEVERITY_NUMBERS = Object.freeze([9, 13, 17] as const);
 
-export interface EstateSeverity {
-  readonly severity_text: (typeof SEVERITY_TEXTS)[number];
-  readonly severity_number: (typeof SEVERITY_NUMBERS)[number];
-}
+/** SCHEMA-FIRST. This was a hand-written interface paralleling the severity
+ *  fields already declared in the event schemas, and the numeric union below
+ *  re-listed what SEVERITY_NUMBERS declares -- one contract, three
+ *  declarations, with a guard test existing only to prove they agreed. A test
+ *  that exists to prove two declarations agree is the duplication itself.
+ *
+ *  One schema derived from the as-const arrays; the type follows by z.infer. */
+export const EstateSeveritySchema = z.strictObject({
+  severity_text: z.enum(SEVERITY_TEXTS),
+  // z.literal accepts the array in Zod 4, so the vocabulary is derived rather
+  // than re-listed member by member.
+  severity_number: z.literal(SEVERITY_NUMBERS),
+});
+export type EstateSeverity = z.infer<typeof EstateSeveritySchema>;
 
 export function severityFor(v: EstateVerdict, readable = true): EstateSeverity {
   // Unreadable outranks unclean: a verdict we could not compute is a tooling
@@ -480,12 +495,15 @@ export type EstateEvent =
 
 export function unreadableEstateEvent(
   reason: UnreadableReason,
+  timestamp: string,
   trace: SpanContext | null = null,
   sourceDigest: string | null = null,
 ): EstateUnreadableEvent {
   return {
     'event.name': 'fleet.estate.unreadable',
     schema_version: ESTATE_SCHEMA_VERSION,
+    timestamp,
+    producer: ESTATE_PRODUCER,
     agent_action: 'REPAIR_TOOLING',
     severity_text: 'ERROR',
     severity_number: 17,
@@ -555,24 +573,27 @@ export function decideEstate(
   g: EstateGathered,
   trace: SpanContext | null = null,
   expectDigest: string | null = null,
+  // Threaded, never read here: decideEstate stays pure and the shell decides
+  // what "now" means.
+  timestamp = '1970-01-01T00:00:00.000Z',
 ): EstateDecision {
   switch (g.kind) {
     case 'git-failed':
       return {
         kind: 'unreadable',
-        event: unreadableEstateEvent('git-failed', trace),
+        event: unreadableEstateEvent('git-failed', timestamp, trace),
         exitCode: exitCodeFor('REPAIR_TOOLING'),
       };
     case 'no-records':
       return {
         kind: 'unreadable',
-        event: unreadableEstateEvent('no-records', trace, g.sourceDigest),
+        event: unreadableEstateEvent('no-records', timestamp, trace, g.sourceDigest),
         exitCode: exitCodeFor('REPAIR_TOOLING'),
       };
     case 'record-rejected':
       return {
         kind: 'unreadable',
-        event: unreadableEstateEvent('record-rejected', trace, g.sourceDigest),
+        event: unreadableEstateEvent('record-rejected', timestamp, trace, g.sourceDigest),
         exitCode: exitCodeFor('REPAIR_TOOLING'),
       };
     case 'states': {
@@ -583,14 +604,14 @@ export function decideEstate(
       if (expectDigest !== null && expectDigest !== actual) {
         return {
           kind: 'stale',
-          event: estateStaleEvent(expectDigest, actual, trace),
+          event: estateStaleEvent(expectDigest, actual, timestamp, trace),
           exitCode: exitCodeFor('REREAD_ESTATE'),
         };
       }
       const verdict = classifyEstate(g.states);
       return {
         kind: 'verified',
-        event: estateTelemetry(verdict, trace, actual, g.sourceDigest),
+        event: estateTelemetry(verdict, trace, actual, timestamp, g.sourceDigest),
         exitCode: exitCodeFor(actionForVerdict(reasonsAcross(verdict.problems))),
         verdict,
       };
@@ -621,6 +642,7 @@ export function decideEstate(
 export function estateStaleEvent(
   expectedDigest: string,
   actualDigest: string,
+  timestamp: string,
   trace: SpanContext | null = null,
 ): EstateStaleEvent {
   return {
@@ -629,6 +651,8 @@ export function estateStaleEvent(
     // WARN, not ERROR: nothing is broken. The caller's view is simply out of
     // date, which is a normal outcome in a concurrent estate and is recovered
     // by re-reading, exactly as a 412 is.
+    timestamp,
+    producer: ESTATE_PRODUCER,
     agent_action: 'REREAD_ESTATE',
     severity_text: 'WARN',
     severity_number: 13,
@@ -657,7 +681,11 @@ export function estateStaleEvent(
  *
  *  ONE constant, referenced by all three variants, so a bump cannot land on
  *  some events and miss others. */
-export const ESTATE_SCHEMA_VERSION = '1.1.0';
+export const ESTATE_SCHEMA_VERSION = '1.2.0';
+
+/** WHAT produced the record. A literal, so a consumer can pin it and a typo
+ *  cannot masquerade as a different tool. */
+export const ESTATE_PRODUCER = 'estate:verify';
 export type EstateSchemaVersion = typeof ESTATE_SCHEMA_VERSION;
 
 /** RUNTIME schema for everything this task emits.
@@ -678,6 +706,26 @@ export type EstateSchemaVersion = typeof ESTATE_SCHEMA_VERSION;
  *  own typo, the same argument WorktreeStateSchema makes. */
 const EventBaseShape = {
   schema_version: z.literal(ESTATE_SCHEMA_VERSION),
+  // WHEN. An audit record without a timestamp cannot be placed in a sequence,
+  // and every 2026 checklist names it in the minimum field set. ISO 8601 UTC
+  // with millisecond precision, which is what those checklists specify.
+  //
+  // The clock is INJECTED, never read here: the core stays pure, the shell
+  // supplies the instant, and a test can pin it. That is the same split the
+  // gather function already uses.
+  timestamp: z.iso.datetime(),
+  // WHAT decided. The tool that produced this record, so a reader holding a
+  // stream from several producers can attribute one line to one tool.
+  //
+  // NOT a human or machine ACTOR, deliberately. This runs on a laptop with no
+  // verifiable identity to assert, and 2026 audit guidance is blunt that a
+  // wrong or ambiguous identity is a failed control -- "a shared service
+  // account ran the action, so who is ambiguous". An unverifiable identity
+  // claim in an audit record is worse than its absence: it reads as evidence
+  // and carries none, the identical argument that keeps the in-toto Statement
+  // unsigned. A runner WITH an identity -- CI with OIDC -- attributes the run
+  // through the trace it supplies.
+  producer: z.literal(ESTATE_PRODUCER),
   trace_id: z.string().optional(),
   span_id: z.string().optional(),
   // WHAT THE CALLER MAY DO, beside what was observed. An orchestrator reading
@@ -701,10 +749,11 @@ const EventBaseShape = {
 export const EstateTelemetrySchema = z.strictObject({
   'event.name': z.literal('fleet.estate.verified'),
   ...EventBaseShape,
-  severity_text: z.enum(SEVERITY_TEXTS),
-  severity_number: z.union([z.literal(9), z.literal(13), z.literal(17)]),
-  // Literals, not z.enum: z.enum is string-only. The union mirrors
-  // SEVERITY_NUMBERS, and the guard test below proves they agree.
+  // DERIVED from EstateSeveritySchema, not re-listed. The numbers were spelled
+  // out here AND in SEVERITY_NUMBERS, so a guard test existed only to prove the
+  // two agreed -- which is the duplication, not a defence against it.
+  severity_text: EstateSeveritySchema.shape.severity_text,
+  severity_number: EstateSeveritySchema.shape.severity_number,
   // REQUIRED on a verdict, because the recommendation above is derived from
   // THIS snapshot and nothing else. A recommendation whose evidence cannot be
   // named is one a downstream PDP cannot re-verify -- and re-verification is

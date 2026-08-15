@@ -34,6 +34,11 @@ function gathering(...states: readonly ReturnType<typeof createWorktreeState>[])
 
 const TRACEPARENT = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
 
+// A FIXED instant, injected on both sides of any comparison. The events carry a
+// timestamp now, so a test reading the real clock would compare two different
+// moments and flap -- which is precisely why the clock is a parameter.
+const AT = '2026-01-01T00:00:00.000Z';
+
 describe('runEstateVerify: the whole path, without spawning git', () => {
   it('reaches a verdict from injected facts alone', () => {
     const r = runEstateVerify({ gather: gathering(CLEAN) });
@@ -49,7 +54,7 @@ describe('runEstateVerify: the whole path, without spawning git', () => {
   });
 
   it('halts on work in progress', () => {
-    const r = runEstateVerify({ gather: gathering(DIRTY) });
+    const r = runEstateVerify({ gather: gathering(DIRTY), now: () => AT });
     expect(r.action).toBe('HALT_WORK_IN_PROGRESS');
     expect(r.exitCode).toBe(1);
     expect(r.mayProceed).toBe(false);
@@ -95,7 +100,7 @@ describe('runEstateVerify: the whole path, without spawning git', () => {
 // derivation is how a CLI and a runtime come to disagree about the same run.
 describe('both surfaces read one computation', () => {
   it('gives the exit code the decision reached, never a recomputed one', () => {
-    const r = runEstateVerify({ gather: gathering(DIRTY) });
+    const r = runEstateVerify({ gather: gathering(DIRTY), now: () => AT });
     expect(r.exitCode).toBe(r.decision.exitCode);
   });
 
@@ -105,7 +110,7 @@ describe('both surfaces read one computation', () => {
   });
 
   it('gives the same line the CLI prints', () => {
-    const r = runEstateVerify({ gather: gathering(DIRTY) });
+    const r = runEstateVerify({ gather: gathering(DIRTY), now: () => AT });
     expect(r.line).toBe(estateLineFor(r.decision));
   });
 
@@ -123,8 +128,10 @@ describe('both surfaces read one computation', () => {
   });
 
   it('renders the same decision the pure decider would', () => {
-    const r = runEstateVerify({ gather: gathering(DIRTY) });
-    const direct = decideEstate({ kind: 'states', states: [DIRTY], sourceDigest: SRC });
+    const r = runEstateVerify({ gather: gathering(DIRTY), now: () => AT });
+    const direct = decideEstate(
+      { kind: 'states', states: [DIRTY], sourceDigest: SRC }, null, null, AT,
+    );
     expect(r.event).toEqual(direct.event);
   });
 });

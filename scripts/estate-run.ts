@@ -51,6 +51,10 @@ export interface EstateRunRequest {
    *  rather than read from the environment, so a runtime holding a trace in
    *  memory does not have to stuff it into process.env to be heard. */
   readonly traceparent?: string | undefined;
+  /** The clock, INJECTED. Defaults to the real one so a caller need not care,
+   *  but a test pins it and the pure core never reads it. This is the same
+   *  seam gather uses, for the same reason. */
+  readonly now?: () => string;
 }
 
 /** Everything either surface needs, computed once.
@@ -84,9 +88,10 @@ export interface EstateRunResult {
  *  git, which the v8-ignore around mainEstateVerify previously made impossible. */
 export function runEstateVerify(request: EstateRunRequest): EstateRunResult {
   const trace = spanContextFor(traceContextFrom(request.traceparent));
+  const at = (request.now ?? (() => new Date().toISOString()))();
   let decision: EstateDecision;
   try {
-    decision = decideEstate(request.gather(), trace, request.expectDigest ?? null);
+    decision = decideEstate(request.gather(), trace, request.expectDigest ?? null, at);
   } catch {
     // FAIL CLOSED. Anything that escapes gather or decide is a defect, and a
     // defect means the estate is UNKNOWN -- never clean. Without this the
@@ -106,7 +111,7 @@ export function runEstateVerify(request: EstateRunRequest): EstateRunResult {
     // stderr where the operator reads it.
     decision = {
       kind: 'unreadable',
-      event: unreadableEstateEvent('threw', trace),
+      event: unreadableEstateEvent('threw', at, trace),
       exitCode: exitCodeFor('REPAIR_TOOLING'),
     };
   }

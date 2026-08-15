@@ -87,6 +87,7 @@ function stateFor(raised: readonly EstateReason[], path = '/c/a'): WorktreeState
 }
 
 const SRC = digestOf('worktree /c/a');
+const AT = '2026-01-01T00:00:00.000Z';
 
 describe('every combination of reasons, derived from the vocabulary', () => {
   it('enumerates 2^N subsets, so the space grows with the vocabulary', () => {
@@ -187,7 +188,7 @@ describe('the end-to-end path, over every combination', () => {
 describe('the emitted event, over every combination', () => {
   function eventFor(raised: readonly EstateReason[]): ReturnType<typeof estateTelemetry> {
     const state = stateFor(raised);
-    return estateTelemetry(classifyEstate([state]), null, estateDigest([state]));
+    return estateTelemetry(classifyEstate([state]), null, estateDigest([state]), AT);
   }
 
   it('carries exactly the raised reasons', () => {
