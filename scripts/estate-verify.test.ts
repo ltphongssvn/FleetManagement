@@ -33,6 +33,7 @@ import {
   newSpanId,
   estateDigest,
   digestOf,
+  DigestSchema,
   REASON_KIND,
   kindsFor,
   ESTATE_REASONS,
@@ -1336,5 +1337,65 @@ describe('the recommendation is bound to its evidence', () => {
     expect(e.agent_action).toBe('REREAD_ESTATE');
     expect(e.attributes.expected_digest).toBe(digestOf('planned'));
     expect(e.attributes.estate_digest).toBe(SNAPSHOT);
+  });
+});
+
+// ---- the only way to get a Digest is to parse one ----
+// Validating --expect-digest closed the ARGV door and left the others open:
+// decideEstate is exported, and runEstateVerify is the envelope built for
+// in-process agents. An agent could hand either an uppercase digest and get
+// STALE with REREAD_ESTATE -- advice that can never succeed, because re-reading
+// never makes a malformed digest match.
+//
+// The root fix is nominal typing, which this file already uses for
+// WorktreeState: a z.infer of an UNBRANDED string is just string, so the type
+// bought nothing. Branded, the compiler refuses an unparsed string outright --
+// "impossible to call this function with an unvalidated string" -- at zero
+// runtime cost, since the brand is erased.
+//
+// The directives below ARE the assertion: each fails the BUILD if its line
+// ever starts compiling, which is precisely the regression worth pinning.
+describe('a digest cannot be conjured from a string', () => {
+  const STATES = [createWorktreeState({ path: '/c/a', branch: 'x' })];
+  const GATHERED = {
+    kind: 'states', states: STATES, sourceDigest: digestOf('raw'),
+  } as const;
+
+  it('REFUSES a raw string as --expect-digest, at compile time', () => {
+    // @ts-expect-error a plain string is not a parsed Digest
+    decideEstate(GATHERED, null, 'a'.repeat(64));
+    expect(true).toBe(true);
+  });
+
+  it('REFUSES an uppercase digest, the case that looked valid', () => {
+    // @ts-expect-error uppercase hex never matches our lowercase output
+    decideEstate(GATHERED, null, 'A1B2'.repeat(16));
+    expect(true).toBe(true);
+  });
+
+  it('ACCEPTS one that came through the schema', () => {
+    const d = decideEstate(GATHERED, null, DigestSchema.parse('a'.repeat(64)));
+    expect(d.kind).toBe('stale');
+  });
+
+  it('ACCEPTS one produced by our own hashing', () => {
+    const d = decideEstate(GATHERED, null, estateDigest(STATES));
+    expect(d.kind).toBe('verified');
+  });
+
+  // The runtime half: parsing is what refuses, and it refuses the same set the
+  // CLI boundary does -- one rule, not two.
+  it('REJECTS at runtime exactly what it refuses at compile time', () => {
+    for (const bad of ['garbage', '', 'A1B2'.repeat(16), 'a'.repeat(63)]) {
+      expect(DigestSchema.safeParse(bad).success).toBe(false);
+    }
+    expect(DigestSchema.safeParse('a'.repeat(64)).success).toBe(true);
+  });
+
+  // Our own output must satisfy the contract we publish, or the brand is a lie.
+  it('every digest this task produces parses as one', () => {
+    expect(DigestSchema.safeParse(digestOf('anything')).success).toBe(true);
+    expect(DigestSchema.safeParse(estateDigest(STATES)).success).toBe(true);
+    expect(DigestSchema.safeParse(estateDigest([])).success).toBe(true);
   });
 });

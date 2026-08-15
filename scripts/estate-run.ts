@@ -27,6 +27,7 @@
 // parameter, so this module spawns nothing and stays testable without a repo,
 // and a caller that already holds the states (a replay, a simulation, a
 // different VCS) drives the same decision path.
+import type { Digest } from './estate-verify.js';
 import {
   decideEstate,
   unreadableEstateEvent,
@@ -46,7 +47,7 @@ export interface EstateRunRequest {
   /** Learn what git has to say. Injected so this module spawns nothing. */
   readonly gather: () => EstateGathered;
   /** If-Match: act only if the estate is still this digest. */
-  readonly expectDigest?: string | null;
+  readonly expectDigest?: Digest | null;
   /** A W3C traceparent from the parent, when one exists. Passed as a VALUE
    *  rather than read from the environment, so a runtime holding a trace in
    *  memory does not have to stuff it into process.env to be heard. */

@@ -299,11 +299,11 @@ export function estateTelemetry(
   // the recommendation this event carries is derived from that snapshot alone.
   // A nullable digest let a caller build a verdict whose evidence could not be
   // named, which is an action no downstream PDP could re-verify.
-  digest: string,
+  digest: Digest,
   // The instant, INJECTED. An audit record needs a timestamp, and a pure core
   // must not read a clock -- so the shell supplies it and a test pins it.
   timestamp: string,
-  sourceDigest: string | null = null,
+  sourceDigest: Digest | null = null,
 ): EstateTelemetry {
   const reasons = reasonsAcross(v.problems);
   return {
@@ -453,11 +453,26 @@ export function traceContextFrom(raw: string | undefined): TraceContext | null {
  *  while digestOf can only ever yield 64 lowercase hex, and --expect-digest
  *  accepted any string at all. Three spellings of one shape, the loosest of
  *  which is the one a caller passes in. */
-export const DigestSchema = z.string().regex(/^[0-9a-f]{64}$/, 'must be a sha256 hex digest');
+export const DigestSchema = z.string()
+  .regex(/^[0-9a-f]{64}$/, 'must be a sha256 hex digest')
+  // BRANDED, exactly as WorktreeState is, and for the identical reason: a
+  // z.infer of an unbranded string IS string, so the type bought nothing and
+  // every digest parameter still accepted any string at all. Validating only
+  // at the argv boundary left the OTHER doors open -- decideEstate is
+  // exported, and runEstateVerify is the envelope built for in-process
+  // agents, so an agent could pass uppercase hex and loop on REREAD_ESTATE
+  // forever. Branding makes that a COMPILE error instead: a caller must parse
+  // to obtain one, and parsing is the only constructor.
+  //
+  // Zero runtime cost -- the brand is a phantom property erased at compile
+  // time, so this is enforcement without a check on every call.
+  .brand<'Digest'>();
 export type Digest = z.infer<typeof DigestSchema>;
 
-export function digestOf(text: string): string {
-  return createHash("sha256").update(text).digest("hex");
+export function digestOf(text: string): Digest {
+  // parse, not a cast: the brand is only sound if the value went through the
+  // schema, and our own output must satisfy the contract we publish.
+  return DigestSchema.parse(createHash('sha256').update(text).digest('hex'));
 }
 
 /** Content-addressable digest of the estate SNAPSHOT.
@@ -480,7 +495,7 @@ export function digestOf(text: string): string {
  *  a laptop. Signing belongs there, as its own arc. A digest still gives
  *  integrity against accidental drift, which is the failure actually reachable
  *  here. */
-export function estateDigest(states: readonly WorktreeState[]): string {
+export function estateDigest(states: readonly WorktreeState[]): Digest {
   const lines = [...states]
     .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
     .map((s) => [
@@ -530,7 +545,7 @@ export function unreadableEstateEvent(
   reason: UnreadableReason,
   timestamp: string,
   trace: SpanContext | null = null,
-  sourceDigest: string | null = null,
+  sourceDigest: Digest | null = null,
 ): EstateUnreadableEvent {
   return {
     'event.name': 'fleet.estate.unreadable',
@@ -556,12 +571,12 @@ export function unreadableEstateEvent(
  *  decideClose and decideMergeReady already use in this repo. */
 export type EstateGathered =
   | { readonly kind: 'git-failed' }
-  | { readonly kind: 'no-records'; readonly sourceDigest: string }
-  | { readonly kind: 'record-rejected'; readonly sourceDigest: string }
+  | { readonly kind: 'no-records'; readonly sourceDigest: Digest }
+  | { readonly kind: 'record-rejected'; readonly sourceDigest: Digest }
   | {
       readonly kind: 'states';
       readonly states: readonly WorktreeState[];
-      readonly sourceDigest: string;
+      readonly sourceDigest: Digest;
     };
 
 /** A DISCRIMINATED decision, so a verdict exists exactly when there is one.
@@ -605,7 +620,7 @@ function unreachable(x: never): never {
 export function decideEstate(
   g: EstateGathered,
   trace: SpanContext | null = null,
-  expectDigest: string | null = null,
+  expectDigest: Digest | null = null,
   // Threaded, never read here: decideEstate stays pure and the shell decides
   // what "now" means.
   timestamp = '1970-01-01T00:00:00.000Z',
@@ -673,8 +688,8 @@ export function decideEstate(
  *  to fix a worktree or a tool. */
 
 export function estateStaleEvent(
-  expectedDigest: string,
-  actualDigest: string,
+  expectedDigest: Digest,
+  actualDigest: Digest,
   timestamp: string,
   trace: SpanContext | null = null,
 ): EstateStaleEvent {
