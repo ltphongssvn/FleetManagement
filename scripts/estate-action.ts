@@ -23,7 +23,7 @@
 // from ACTION_EXIT and actionForVerdict below. Declaring them separately is how
 // a tool ends up exiting 0 while telling a subscriber to halt.
 import { z } from 'zod';
-import { REASON_KIND, type EstateReason } from './estate-verify.js';
+import { REASON_KIND, type EstateReason } from './estate-vocabulary.js';
 
 /** What a caller may do next. Named for the ACTION, not the observation: a
  *  consumer should not have to know that clean:false means "stop". */

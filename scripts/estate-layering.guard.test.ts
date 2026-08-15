@@ -1,66 +1,112 @@
 // scripts/estate-layering.guard.test.ts
-// GUARD: the domain must stay unaware of presentation.
+// ARCHITECTURAL GUARD: the estate arc's modules form a DAG, and the vocabulary
+// is its leaf.
 //
-// Fowler's Separated Presentation gives the test, and it is about DIRECTION,
-// not files: "keep presentation code and domain code in separate layers with
-// the domain code unaware of presentation code". He is equally explicit that
-// "the layers are a logical and not a physical construct ... physical
-// separation is not required (and a bad idea if not necessary)", so splitting
-// estate-verify.ts in two would be cosmetic.
+// WHY. estate-verify.ts imported estate-action.ts for the action schema while
+// estate-action.ts imported estate-verify.ts back for REASON_KIND. A second
+// cycle ran through estate-reasons-across.ts. Both typechecked, both linted,
+// and both passed 1249 tests -- which is precisely the hazard. ESM resolves the
+// import graph statically and evaluates children before parents, so a
+// module-scope binding read across a cycle throws only when the load order puts
+// the reader first.
 //
-// The direction currently holds, but only by convention -- nothing stops a
-// future edit from having classifyEstate embed a formatted message, at which
-// point the verdict carries prose and every consumer inherits an English
-// dependency. This asserts it structurally, reading the AST rather than the
-// text, so a mention inside a COMMENT cannot trip it.
+// The read was real: EventBaseShape is a top-level const in estate-verify.ts
+// that reads EstateActionSchema out of the cycle. 2026 guidance names the
+// failure mode exactly -- it "appears or disappears based on load order, which
+// changes when any import is added anywhere in the graph", and the diagnostic
+// is that adding a console.log moves it. Nothing in a normal gate can see that.
+//
+// The documented fix is a third module both sides import from, and the
+// documented ENFORCEMENT is a cycle check in CI. This is that check, written as
+// a test rather than a new dependency: the graph is four files, so walking it
+// here is cheaper and more precise than adding madge to the toolchain.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import ts from 'typescript';
+import { join } from 'node:path';
 
-const DOMAIN = 'scripts/estate-verify.ts';
+const ROOT = join(import.meta.dirname, '..');
 
-/** Identifiers referenced inside one function's body. */
-function identifiersIn(path: string, fnName: string): ReadonlySet<string> {
-  const sf = ts.createSourceFile(
-    path, readFileSync(path, 'utf8'), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS,
-  );
-  const names = new Set<string>();
-  const collect = (node: ts.Node): void => {
-    if (ts.isIdentifier(node)) names.add(node.text);
-    ts.forEachChild(node, collect);
-  };
-  const visit = (node: ts.Node): void => {
-    if (ts.isFunctionDeclaration(node) && node.name?.text === fnName && node.body) {
-      collect(node.body);
-    }
-    ts.forEachChild(node, visit);
-  };
-  ts.forEachChild(sf, visit);
-  return names;
+/** The modules of this arc. The vocabulary is listed FIRST because it is the
+ *  leaf everything else may depend on. */
+const ARC = [
+  'estate-vocabulary',
+  'estate-action',
+  'estate-verify',
+  'estate-verify-cli',
+] as const;
+
+/** Local module specifiers imported by a file, as bare names. Matches the
+ *  './name.js' form this arc uses; a bare package like zod is deliberately not
+ *  matched, since only local edges can form a cycle within the arc. */
+function localImports(module: string): readonly string[] {
+  const source = readFileSync(join(ROOT, 'scripts', module + '.ts'), 'utf-8');
+  const found = source.match(/from '\.\/[a-z0-9-]+\.js'/g) ?? [];
+  return found.map((m) => m.slice("from './".length, -".js'".length));
 }
 
-describe('estate layering: domain is unaware of presentation', () => {
-  // The renderings. Either may depend on the domain; neither may be depended on.
-  const PRESENTATION = ['describeEstate', 'estateTelemetry', 'unreadableEstateTelemetry'];
-
-  for (const fn of ['classifyEstate', 'reasonsFor', 'kindsFor', 'estateDigest']) {
-    it(`${fn} references no presentation function`, () => {
-      const used = identifiersIn(DOMAIN, fn);
-      const leaked = PRESENTATION.filter((p) => used.has(p));
-      expect(leaked).toEqual([]);
-    });
+/** Every module reachable from a start point, following local edges. */
+function reachableFrom(start: string): ReadonlySet<string> {
+  const seen = new Set<string>();
+  const queue = [...localImports(start)];
+  while (queue.length > 0) {
+    const next = queue.pop();
+    if (next === undefined || seen.has(next)) continue;
+    seen.add(next);
+    queue.push(...localImports(next));
   }
+  return seen;
+}
 
-  // The permitted direction, asserted so the guard cannot pass by finding
-  // nothing at all -- a guard that would pass on an empty file proves nothing.
-  it('presentation IS allowed to depend on the domain', () => {
-    const used = identifiersIn(DOMAIN, 'describeEstate');
-    expect(used.size).toBeGreaterThan(0);
+describe('the estate arc is a DAG', () => {
+  // THE DEFECT THIS CLOSES. Stated as reachability rather than as a list of
+  // known pairs, so a cycle introduced through a NEW module is caught too.
+  it('has no module in the estate arc importing itself, however indirectly', () => {
+    for (const module of ARC) {
+      expect([module, [...reachableFrom(module)]]).toEqual([module, expect.not.arrayContaining([module])]);
+    }
   });
 
-  it('the domain functions it guards actually exist', () => {
-    for (const fn of ['classifyEstate', 'reasonsFor', 'kindsFor', 'estateDigest']) {
-      expect(identifiersIn(DOMAIN, fn).size).toBeGreaterThan(0);
+  it('names every module of the arc, so a new one cannot escape the check', () => {
+    for (const module of ARC) {
+      expect(() => localImports(module)).not.toThrow();
     }
+  });
+});
+
+describe('the vocabulary is the leaf', () => {
+  // A leaf cannot participate in a cycle, which is what makes it safe as the
+  // neutral ground both sides import from.
+  it('imports no local module at all', () => {
+    expect(localImports('estate-vocabulary')).toEqual([]);
+  });
+
+  it('is reachable from the core, since the core derives its events from it', () => {
+    expect([...reachableFrom('estate-verify')]).toContain('estate-vocabulary');
+  });
+
+  it('is reachable from the action policy, which classifies by reason kind', () => {
+    expect([...reachableFrom('estate-action')]).toContain('estate-vocabulary');
+  });
+});
+
+describe('the layers run one way', () => {
+  // The policy states what a caller may DO; it must not depend on how a verdict
+  // is rendered or on the driver that spawns git.
+  it('the action policy does not import the core', () => {
+    expect(localImports('estate-action')).not.toContain('estate-verify');
+  });
+
+  it('the action policy does not import the driver', () => {
+    expect(localImports('estate-action')).not.toContain('estate-verify-cli');
+  });
+
+  // The core is pure: it may not reach for the shell.
+  it('the core does not import the driver', () => {
+    expect(localImports('estate-verify')).not.toContain('estate-verify-cli');
+  });
+
+  // And the driver sits on top of both, which is the only legal direction.
+  it('the driver imports the core, never the reverse', () => {
+    expect(localImports('estate-verify-cli')).toContain('estate-verify');
   });
 });

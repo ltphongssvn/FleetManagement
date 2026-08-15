@@ -30,7 +30,32 @@ import { createHash, randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { z } from 'zod';
 import { EstateActionSchema, actionForVerdict, exitCodeFor } from './estate-action.js';
-import { reasonsAcross } from './estate-reasons-across.js';
+import {
+  ESTATE_REASONS,
+  EstateProblemSchema,
+  REASON_KIND,
+  REASON_KINDS,
+  kindsFor,
+  reasonsAcross,
+  type EstateProblem,
+  type EstateReason,
+  type ReasonKind,
+} from './estate-vocabulary.js';
+
+// RE-EXPORTED, not re-declared. The vocabulary lives in the leaf so this module
+// and estate-action.ts can both read it without importing each other; every
+// existing consumer still resolves these names from here.
+export {
+  ESTATE_REASONS,
+  EstateProblemSchema,
+  REASON_KIND,
+  REASON_KINDS,
+  kindsFor,
+  reasonsAcross,
+  type EstateProblem,
+  type EstateReason,
+  type ReasonKind,
+};
 
 /** One worktree, as observed from git. Parsed at the boundary, never cast. */
 // strictObject, not object: this literal is assembled by gatherOne from git
@@ -109,32 +134,6 @@ export const WorktreeStateSchema = z.strictObject({
 // the anti-pattern that boundary exists to prevent". Branding moves the
 // guarantee to the type system instead of paying for it on every call.
 export type WorktreeState = z.infer<typeof WorktreeStateSchema>;
-
-/** Why one worktree is not clean. Codes, never prose: callers branch on these
- *  and the operator report is derived from them. */
-export const ESTATE_REASONS = [
-  'dirty',
-  'unpushed',
-  'stash',
-  'prunable',
-  'locked',
-] as const;
-export type EstateReason = (typeof ESTATE_REASONS)[number];
-
-/** One unclean worktree, as reported. Cross-boundary: it is emitted inside
- *  body.problems and parsed by agents, so the SCHEMA is the SSOT and the type
- *  derives from it. It was previously hand-written beside an inline strictObject
- *  in the event schema -- the same shape declared twice.
- *
- *  .readonly() so the inferred arrays match how the core builds them; without
- *  it z.infer yields a mutable array and a readonly source will not assign. */
-export const EstateProblemSchema = z.strictObject({
-  path: z.string(),
-  branch: z.string(),
-  reasons: z.array(z.enum(ESTATE_REASONS)).readonly(),
-}).readonly();
-export type EstateProblem = z.infer<typeof EstateProblemSchema>;
-
 
 /** A DISCRIMINATED verdict, so an invalid combination cannot be built.
  *
@@ -416,44 +415,6 @@ export function estateDigest(states: readonly WorktreeState[]): string {
       String(s.stashCount), String(s.prunable), String(s.locked),
     ].join('\u0000'));
   return digestOf(lines.join("\u0001"));
-}
-
-/** What KIND of problem a reason is, because the two kinds have different
- *  owners and different remediations.
- *
- *  work-in-progress -- dirty, unpushed, stash. The operator has work in flight
- *  and the fix is to finish it: commit, push, pop. No tool should act on these,
- *  and worktree:close already refuses on every one of them.
- *
- *  structural -- prunable, locked. The worktree itself is defective or
- *  deliberately held: prunable means the gitdir points nowhere and
- *  `git worktree prune` repairs it, while locked means someone locked it on
- *  purpose and unlocking needs their reason, not a sweep.
- *
- *  A router previously had to hardcode the reason list to tell these apart.
- *  Declared as a TOTAL Record, so adding a reason without classifying it is a
- *  compile error -- the discipline check-conclusion.ts uses for its verdict
- *  table. */
-export type ReasonKind = (typeof REASON_KINDS)[number];
-
-export const REASON_KIND: Record<EstateReason, ReasonKind> = {
-  dirty: 'work-in-progress',
-  unpushed: 'work-in-progress',
-  stash: 'work-in-progress',
-  prunable: 'structural',
-  locked: 'structural',
-};
-
-/** The kind vocabulary, as const so ONE declaration serves the type, the
- *  ordering, and the runtime schema. Hand-listing these in the event schema
- *  would let ReasonKind gain a value the validator never learns about. */
-export const REASON_KINDS = ['work-in-progress', 'structural'] as const;
-
-/** The kinds present across an estate, in declaration order and de-duplicated,
- *  so a consumer branches on TWO values rather than learning five reasons. */
-export function kindsFor(reasons: readonly EstateReason[]): readonly ReasonKind[] {
-  const seen = new Set(reasons.map((r) => REASON_KIND[r]));
-  return REASON_KINDS.filter((k) => seen.has(k));
 }
 
 /** Why the estate could not be read. Codes, so a router acts without parsing
