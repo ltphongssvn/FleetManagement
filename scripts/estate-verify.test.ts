@@ -19,6 +19,11 @@
 // "only the error code ... which made it difficult to diagnose". One line per
 // worktree carrying ALL its reasons, never just the first, or the operator goes
 // round the loop once per problem.
+//
+// THE DECIDER LIVES IN estate-decide.test.ts. Those suites moved out when
+// decideEstate began consuming a versioned observation event: they are a
+// different subject from the classifier, the schemas and the rendering, and
+// this file had reached 1405 lines covering all four.
 import { describe, it, expect } from 'vitest';
 import {
   classifyEstate,
@@ -33,7 +38,6 @@ import {
   newSpanId,
   estateDigest,
   digestOf,
-  DigestSchema,
   SpanIdSchema,
   TimestampSchema,
   TraceContextSchema,
@@ -43,7 +47,6 @@ import {
   ESTATE_REASONS,
   unreadableEstateEvent,
   UNREADABLE_REASONS,
-  decideEstate,
   ESTATE_SCHEMA_VERSION,
   EstateEventSchema,
   REASON_KINDS,
@@ -745,181 +748,6 @@ describe('REASON_KIND and kindsFor', () => {
   });
 });
 
-// ---- the driver's decisions, now reachable ----
-// These three fail-closed paths were decided inline in mainEstateVerify, which
-// lives under a v8-ignore because it spawns git -- so "git threw, so emit
-// git-failed and exit 3" was verified by reading the code and nothing else.
-// Moving the instantiation up a level and testing the INTERACTION is the 2026
-// answer for subprocess-bearing CLIs, and the split decideClose and
-// decideMergeReady already use here.
-describe('decideEstate', () => {
-  const DIGEST = digestOf('worktree /c/a');
-
-  it('git-failed emits the unreadable event and exits 3', () => {
-    const d = decideEstate({ kind: 'git-failed' });
-    expect(d.exitCode).toBe(3);
-    expect(d.event['event.name']).toBe('fleet.estate.unreadable');
-    expect(d.kind).toBe('unreadable');
-  });
-
-  // The confident zero: git exited 0 and produced nothing parseable.
-  it('no-records exits 3, never 0', () => {
-    const d = decideEstate({ kind: 'no-records', sourceDigest: DIGEST });
-    expect(d.exitCode).toBe(3);
-    expect(d.kind).toBe('unreadable');
-  });
-
-  it('record-rejected exits 3 rather than reporting over the survivors', () => {
-    const d = decideEstate({ kind: 'record-rejected', sourceDigest: DIGEST });
-    expect(d.exitCode).toBe(3);
-    expect(d.kind).toBe('unreadable');
-  });
-
-  // Each unreadable path names ITSELF, which the single shared payload could not.
-  it('each unreadable path carries its own reason', () => {
-    expect(decideEstate({ kind: 'git-failed' }).event.attributes)
-      .toEqual({ reason: 'git-failed' });
-    expect(decideEstate({ kind: 'no-records', sourceDigest: DIGEST }).event.attributes)
-      .toEqual({ reason: 'no-records' });
-    expect(decideEstate({ kind: 'record-rejected', sourceDigest: DIGEST }).event.attributes)
-      .toEqual({ reason: 'record-rejected' });
-  });
-
-  it('a clean estate exits 0 and carries a verdict', () => {
-    const d = decideEstate({ kind: 'states', states: [CLEAN], sourceDigest: DIGEST });
-    expect(d.exitCode).toBe(0);
-    expect(d.event['event.name']).toBe('fleet.estate.verified');
-    if (d.kind !== 'verified') throw new Error('expected verified');
-    expect(d.verdict.clean).toBe(true);
-  });
-
-  it('an unclean estate exits 1, distinct from unreadable', () => {
-    const d = decideEstate({
-      kind: 'states',
-      states: [createWorktreeState({ path: '/c/a', dirtyFileCount: 1 })],
-      sourceDigest: DIGEST,
-    });
-    expect(d.exitCode).toBe(1);
-    if (d.kind !== 'verified') throw new Error('expected verified');
-    expect(d.verdict.clean).toBe(false);
-  });
-
-  // git-failed has no porcelain to address, so it cannot carry a source digest.
-  it('carries the source digest only when the porcelain was readable', () => {
-    const gf = decideEstate({ kind: 'git-failed' }).event;
-    if (gf['event.name'] !== 'fleet.estate.unreadable') throw new Error('expected unreadable');
-    expect(gf.source_digest).toBeUndefined();
-    const nr = decideEstate({ kind: 'no-records', sourceDigest: DIGEST }).event;
-    if (nr['event.name'] !== 'fleet.estate.unreadable') throw new Error('expected unreadable');
-    expect(nr.source_digest)
-      .toBe(DIGEST);
-  });
-
-  it('passes inherited trace context through to the event', () => {
-    const trace = TraceContextSchema.parse({ trace_id: 'a'.repeat(32), span_id: 'b'.repeat(16) });
-    expect(decideEstate({ kind: 'git-failed' }, trace).event.trace_id).toBe('a'.repeat(32));
-    expect(
-      decideEstate({ kind: 'states', states: [CLEAN], sourceDigest: DIGEST }, trace)
-        .event.trace_id,
-    ).toBe('a'.repeat(32));
-  });
-
-  // A verdict is present ONLY when one was computed, so a caller cannot render
-  // prose about an estate that was never read.
-  it('never returns a verdict on an unreadable path', () => {
-    for (const g of [
-      { kind: 'git-failed' } as const,
-      { kind: 'no-records', sourceDigest: DIGEST } as const,
-      { kind: 'record-rejected', sourceDigest: DIGEST } as const,
-    ]) {
-      expect(decideEstate(g).kind).toBe('unreadable');
-    }
-  });
-});
-
-// ---- compare-and-swap: bind an action to the estate it was planned against ----
-// estate_digest let a caller RECORD what it observed; nothing let it BIND an
-// action to that observation, so the caller re-ran and compared digests itself
-// -- and a check performed separately from the act is exactly the split
-// compare-and-swap closes. Two laptops and many worktrees mutate this estate
-// concurrently, so a plan made at digest X can execute against a world at Y.
-//
-// This is If-Match / 412, value-based rather than a version counter: the digest
-// IS the content, so it cannot drift from what it describes.
-describe('decideEstate: --expect-digest precondition', () => {
-  const STATES = [createWorktreeState({ path: '/c/a', branch: 'x' })];
-  const SRC = digestOf('worktree /c/a');
-  const CURRENT = estateDigest(STATES);
-
-  it('proceeds when the estate is still the one that was planned against', () => {
-    const d = decideEstate(
-      { kind: 'states', states: STATES, sourceDigest: SRC }, null, CURRENT,
-    );
-    expect(d.exitCode).toBe(0);
-    expect(d.event['event.name']).toBe('fleet.estate.verified');
-  });
-
-  it('REFUSES with exit 4 when the estate moved underneath', () => {
-    const d = decideEstate(
-      { kind: 'states', states: STATES, sourceDigest: SRC }, null, digestOf('stale'),
-    );
-    expect(d.exitCode).toBe(4);
-    expect(d.event['event.name']).toBe('fleet.estate.stale');
-    expect(d.kind).toBe('stale');
-  });
-
-  // Both digests, so the caller can diff its plan against reality rather than
-  // re-deriving what it thought it knew.
-  it('names both the expected and the actual digest', () => {
-    const stale = digestOf('stale');
-    const d = decideEstate(
-      { kind: 'states', states: STATES, sourceDigest: SRC }, null, stale,
-    );
-    if (d.event['event.name'] !== 'fleet.estate.stale') throw new Error('expected stale');
-    expect(d.event.attributes.expected_digest).toBe(stale);
-    expect(d.event.attributes.estate_digest).toBe(CURRENT);
-  });
-
-  // Omitted means "I did not plan against anything", which must behave exactly
-  // as before -- an opt-in precondition, like If-Match.
-  it('is opt-in: omitting it changes nothing', () => {
-    const withOut = decideEstate({ kind: 'states', states: STATES, sourceDigest: SRC });
-    const withNull = decideEstate(
-      { kind: 'states', states: STATES, sourceDigest: SRC }, null, null,
-    );
-    expect(withOut.exitCode).toBe(0);
-    expect(withNull.exitCode).toBe(0);
-  });
-
-  // The check runs BEFORE the verdict, so a dirty estate that also moved
-  // reports the staleness -- re-reading is the fix, not cleaning worktrees.
-  it('staleness outranks uncleanliness, because re-reading comes first', () => {
-    const dirty = [createWorktreeState({ path: '/c/a', dirtyFileCount: 3 })];
-    const d = decideEstate(
-      { kind: 'states', states: dirty, sourceDigest: SRC }, null, digestOf('stale'),
-    );
-    expect(d.exitCode).toBe(4);
-  });
-
-  // An unreadable estate cannot be compared at all: there is no digest to
-  // match, so the precondition must not mask the more serious failure.
-  it('never masks an unreadable estate', () => {
-    const d = decideEstate({ kind: 'git-failed' }, null, digestOf('anything'));
-    expect(d.exitCode).toBe(3);
-    expect(d.event['event.name']).toBe('fleet.estate.unreadable');
-  });
-
-  it('exit 4 is distinct from every other outcome', () => {
-    const codes = new Set([
-      decideEstate({ kind: 'states', states: STATES, sourceDigest: SRC }).exitCode,
-      decideEstate({ kind: 'states', states: [createWorktreeState({ dirtyFileCount: 1 })], sourceDigest: SRC }).exitCode,
-      decideEstate({ kind: 'git-failed' }).exitCode,
-      decideEstate({ kind: 'states', states: STATES, sourceDigest: SRC }, null, digestOf('x')).exitCode,
-    ]);
-    expect(codes).toEqual(new Set([0, 1, 3, 4]));
-  });
-});
-
 // ---- every event carries its schema version ----
 // event.name says WHICH event; schema_version says which REVISION of that
 // payload, which a name cannot express. Without it a consumer cannot tell a
@@ -978,6 +806,9 @@ describe('ESTATE_SCHEMA_VERSION', () => {
 // changed. 2026 guidance calls for exactly this contract assertion: make the
 // relationship executable so a schema and its validator cannot drift silently,
 // failing the build rather than a live run.
+//
+// The DECIDER's own coverage of this property lives in estate-decide.test.ts,
+// beside the function that produces those events.
 describe('EstateEventSchema: what we emit parses against what we declare', () => {
   const STATES = [createWorktreeState({ path: '/c/a', branch: 'x' })];
   const TRACE = TraceContextSchema.parse({ trace_id: 'a'.repeat(32), span_id: 'b'.repeat(16) });
@@ -1004,21 +835,6 @@ describe('EstateEventSchema: what we emit parses against what we declare', () =>
     expect(EstateEventSchema.safeParse(e).success).toBe(true);
   });
 
-  // Every event the DECIDER can produce, not just the ones constructed by hand.
-  it('accepts every decision the decider can reach', () => {
-    const SRC = digestOf('raw');
-    const decisions = [
-      decideEstate({ kind: 'git-failed' }),
-      decideEstate({ kind: 'no-records', sourceDigest: SRC }),
-      decideEstate({ kind: 'record-rejected', sourceDigest: SRC }),
-      decideEstate({ kind: 'states', states: STATES, sourceDigest: SRC }),
-      decideEstate({ kind: 'states', states: STATES, sourceDigest: SRC }, null, digestOf('x')),
-    ];
-    for (const d of decisions) {
-      expect(EstateEventSchema.safeParse(d.event).success).toBe(true);
-    }
-  });
-
   // strictObject: an unrecognised key is a producer typo, and the contract must
   // catch it rather than let a consumer discover it.
   it('REJECTS an event carrying a key the contract does not declare', () => {
@@ -1030,7 +846,7 @@ describe('EstateEventSchema: what we emit parses against what we declare', () =>
   // stamped with any other version fails to parse. A consumer pinned to 1.0.0
   // cannot be handed a 2.0.0 payload by accident.
   it('REJECTS an event stamped with a different schema version', () => {
-    const e = { ...estateTelemetry(classifyEstate(STATES), null, DIGEST, AT), schema_version: '2.0.0' };
+    const e = { ...estateTelemetry(classifyEstate(STATES), null, DIGEST, AT), schema_version: '9.9.9' };
     expect(EstateEventSchema.safeParse(e).success).toBe(false);
   });
 
@@ -1270,136 +1086,5 @@ describe('classifyEstate: free invariants', () => {
     expect(withClean.problems).toEqual(withOut.problems);
     expect(withClean.checked).toBe(withOut.checked + 1);
     expect(withClean.clean).toBe(false);
-  });
-});
-
-// ---- the recommendation is advisory, never authorization ----
-// agent_action tells a consumer what this tool RECOMMENDS given what it saw. It
-// is not permission to act, and a consumer treating PROCEED as consent is the
-// confused-deputy failure 2026 agent-governance work names directly: no field a
-// tool emits is self-authorizing, and a capability gate is not an authorization
-// decision. The policy decision point sits OUTSIDE this tool.
-//
-// What the tool owes that PDP is a recommendation BOUND TO ITS EVIDENCE. A
-// decision is not execution authority until it can be tied to the exact state
-// it was computed from -- so estate_digest is required on a verdict, and the
-// pair (agent_action, estate_digest) is re-verifiable by handing the digest
-// back through --expect-digest. Optional evidence was a type admitting an
-// action nobody downstream could check.
-describe('the recommendation is bound to its evidence', () => {
-  const STATES = [createWorktreeState({ path: '/c/a', dirtyFileCount: 1 })];
-  const SNAPSHOT = estateDigest(STATES);
-
-  it('a verdict always names the snapshot it was computed from', () => {
-    const e = estateTelemetry(classifyEstate(STATES), null, SNAPSHOT, AT);
-    expect(e.estate_digest).toBe(SNAPSHOT);
-  });
-
-  // The binding, stated as the property that makes it useful: the digest on the
-  // event is exactly what a caller hands back to re-verify.
-  it('the emitted digest is the one --expect-digest accepts', () => {
-    const decided = decideEstate({
-      kind: 'states', states: STATES, sourceDigest: digestOf('raw'),
-    });
-    if (decided.kind !== 'verified') throw new Error('expected verified');
-    const replayed = decideEstate(
-      { kind: 'states', states: STATES, sourceDigest: digestOf('raw') },
-      null,
-      decided.event.estate_digest,
-    );
-    expect(replayed.kind).toBe('verified');
-  });
-
-  // And the same binding REFUSES once the estate has moved, which is what makes
-  // the recommendation checkable rather than merely advisory-in-name.
-  it('a recommendation cannot be replayed against a moved estate', () => {
-    const decided = decideEstate({
-      kind: 'states', states: STATES, sourceDigest: digestOf('raw'),
-    });
-    if (decided.kind !== 'verified') throw new Error('expected verified');
-    const moved = [createWorktreeState({ path: '/c/a', dirtyFileCount: 99 })];
-    const replayed = decideEstate(
-      { kind: 'states', states: moved, sourceDigest: digestOf('raw') },
-      null,
-      decided.event.estate_digest,
-    );
-    expect(replayed.kind).toBe('stale');
-    expect(replayed.event.agent_action).toBe('REREAD_ESTATE');
-  });
-
-  // Every event a subscriber can act on carries an action; the verdict path
-  // additionally carries the evidence. An unreadable estate has no snapshot to
-  // address, which is why it carries no digest and recommends REPAIR_TOOLING.
-  it('an unreadable estate recommends repair and names no snapshot', () => {
-    const e = unreadableEstateEvent('git-failed', AT);
-    expect(e.agent_action).toBe('REPAIR_TOOLING');
-    expect('estate_digest' in e).toBe(false);
-  });
-
-  it('a stale estate names BOTH digests, so the caller can diff its plan', () => {
-    const e = estateStaleEvent(digestOf('planned'), SNAPSHOT, AT);
-    expect(e.agent_action).toBe('REREAD_ESTATE');
-    expect(e.attributes.expected_digest).toBe(digestOf('planned'));
-    expect(e.attributes.estate_digest).toBe(SNAPSHOT);
-  });
-});
-
-// ---- the only way to get a Digest is to parse one ----
-// Validating --expect-digest closed the ARGV door and left the others open:
-// decideEstate is exported, and runEstateVerify is the envelope built for
-// in-process agents. An agent could hand either an uppercase digest and get
-// STALE with REREAD_ESTATE -- advice that can never succeed, because re-reading
-// never makes a malformed digest match.
-//
-// The root fix is nominal typing, which this file already uses for
-// WorktreeState: a z.infer of an UNBRANDED string is just string, so the type
-// bought nothing. Branded, the compiler refuses an unparsed string outright --
-// "impossible to call this function with an unvalidated string" -- at zero
-// runtime cost, since the brand is erased.
-//
-// The directives below ARE the assertion: each fails the BUILD if its line
-// ever starts compiling, which is precisely the regression worth pinning.
-describe('a digest cannot be conjured from a string', () => {
-  const STATES = [createWorktreeState({ path: '/c/a', branch: 'x' })];
-  const GATHERED = {
-    kind: 'states', states: STATES, sourceDigest: digestOf('raw'),
-  } as const;
-
-  it('REFUSES a raw string as --expect-digest, at compile time', () => {
-    // @ts-expect-error a plain string is not a parsed Digest
-    decideEstate(GATHERED, null, 'a'.repeat(64));
-    expect(true).toBe(true);
-  });
-
-  it('REFUSES an uppercase digest, the case that looked valid', () => {
-    // @ts-expect-error uppercase hex never matches our lowercase output
-    decideEstate(GATHERED, null, 'A1B2'.repeat(16));
-    expect(true).toBe(true);
-  });
-
-  it('ACCEPTS one that came through the schema', () => {
-    const d = decideEstate(GATHERED, null, DigestSchema.parse('a'.repeat(64)));
-    expect(d.kind).toBe('stale');
-  });
-
-  it('ACCEPTS one produced by our own hashing', () => {
-    const d = decideEstate(GATHERED, null, estateDigest(STATES));
-    expect(d.kind).toBe('verified');
-  });
-
-  // The runtime half: parsing is what refuses, and it refuses the same set the
-  // CLI boundary does -- one rule, not two.
-  it('REJECTS at runtime exactly what it refuses at compile time', () => {
-    for (const bad of ['garbage', '', 'A1B2'.repeat(16), 'a'.repeat(63)]) {
-      expect(DigestSchema.safeParse(bad).success).toBe(false);
-    }
-    expect(DigestSchema.safeParse('a'.repeat(64)).success).toBe(true);
-  });
-
-  // Our own output must satisfy the contract we publish, or the brand is a lie.
-  it('every digest this task produces parses as one', () => {
-    expect(DigestSchema.safeParse(digestOf('anything')).success).toBe(true);
-    expect(DigestSchema.safeParse(estateDigest(STATES)).success).toBe(true);
-    expect(DigestSchema.safeParse(estateDigest([])).success).toBe(true);
   });
 });

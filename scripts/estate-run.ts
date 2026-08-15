@@ -1,12 +1,11 @@
 // scripts/estate-run.ts
-// THE ENVELOPE: one call from a request to a result, with no transport in it.
+// THE ENVELOPE: one call from an observation to a result, with no transport.
 //
 // WHY THIS EXISTS. decideEstate was pure and importable, but the step BEFORE it
 // -- spawn git, parse porcelain, build states -- lived module-private inside
 // estate-verify-cli.ts, under a v8-ignore, fused into a main() that also read
 // process.argv, wrote two streams and returned an exit code. So the path from
-// "a repo on disk" to an EstateDecision was reachable only by SPAWNING THE
-// PROCESS.
+// "a repo on disk" to a decision was reachable only by SPAWNING THE PROCESS.
 //
 // That left an in-process agent runtime two options and both are bad: shell out
 // and parse stdout, or import decideEstate and re-implement gathering. 2026
@@ -18,25 +17,29 @@
 // stdout, stderr and the exit code, which is all a CLI should own. A runtime
 // calls runEstateVerify directly and reads the same fields the CLI prints.
 //
-// NO NEW TRANSPORT. Not an MCP server: the guidance is equally clear that a
-// well-built CLI already serves any agent, any shell and any CI job, while an
-// MCP host pays a context tax loading tool schemas every turn. What was missing
-// was never a protocol -- it was an exported function.
+// NO NEW TRANSPORT. Not an MCP server: a well-built CLI already serves any
+// agent, any shell and any CI job, while an MCP host pays a context tax loading
+// tool schemas every turn. What was missing was never a protocol -- it was an
+// exported function.
 //
-// GATHERING IS INJECTED, not imported. The runner takes the git reader as a
-// parameter, so this module spawns nothing and stays testable without a repo,
-// and a caller that already holds the states (a replay, a simulation, a
-// different VCS) drives the same decision path.
-import { TimestampSchema, type Digest } from './estate-verify.js';
+// GATHERING IS INJECTED, and it now returns a VERSIONED OBSERVATION rather than
+// an internal shape. That matters precisely because the function is injected:
+// an in-process agent supplies it, and the old {kind:'states', states,
+// sourceDigest} let it pair states from one estate with a digest from anywhere,
+// since nothing bound the two. observeEstate derives both from the same
+// porcelain bytes, so the evidence a verdict names is evidence rather than a
+// claim.
 import {
+  TimestampSchema,
   decideEstate,
   unreadableEstateEvent,
   describeEstate,
   spanContextFor,
   traceContextFrom,
+  type Digest,
   type EstateDecision,
   type EstateEvent,
-  type EstateGathered,
+  type EstateObservation,
 } from './estate-verify.js';
 import { estateStatement, type EstateStatement } from './estate-attestation.js';
 import { exitCodeFor, mayProceed, type EstateAction } from './estate-action.js';
@@ -44,8 +47,11 @@ import { exitCodeFor, mayProceed, type EstateAction } from './estate-action.js';
 /** What a caller asks for. Every field is data: no argv, no environment, no
  *  streams. The CLI derives this from argv; a runtime builds it directly. */
 export interface EstateRunRequest {
-  /** Learn what git has to say. Injected so this module spawns nothing. */
-  readonly gather: () => EstateGathered;
+  /** Learn what git has to say, as a versioned observation event. Injected so
+   *  this module spawns nothing -- and typed as an EVENT so an injected gather
+   *  cannot hand the decider a digest and states that describe different
+   *  worlds. */
+  readonly gather: () => EstateObservation;
   /** If-Match: act only if the estate is still this digest. */
   readonly expectDigest?: Digest | null;
   /** A W3C traceparent from the parent, when one exists. Passed as a VALUE
@@ -53,8 +59,7 @@ export interface EstateRunRequest {
    *  memory does not have to stuff it into process.env to be heard. */
   readonly traceparent?: string | undefined;
   /** The clock, INJECTED. Defaults to the real one so a caller need not care,
-   *  but a test pins it and the pure core never reads it. This is the same
-   *  seam gather uses, for the same reason. */
+   *  but a test pins it and the pure core never reads it. */
   readonly now?: () => string;
 }
 
@@ -82,7 +87,7 @@ export interface EstateRunResult {
   readonly decision: EstateDecision;
 }
 
-/** Gather, decide, and render -- once, for whoever asked.
+/** Observe, decide, and render -- once, for whoever asked.
  *
  *  PURE given its gather function: no argv, no environment, no stdout, no
  *  clock. That is what makes the CLI's own behaviour testable without spawning
@@ -98,16 +103,21 @@ export function runEstateVerify(request: EstateRunRequest): EstateRunResult {
     decision = decideEstate(request.gather(), trace, request.expectDigest ?? null, at);
   } catch {
     // FAIL CLOSED. Anything that escapes gather or decide is a defect, and a
-    // defect means the estate is UNKNOWN -- never clean. Without this the
-    // throw escaped mainEstateVerify, node printed a stack trace, and the
-    // process exited 1: the code that means "readable estate, work in
-    // progress". Worse, the contract is exactly one NDJSON event on stdout and
-    // a crash emitted NONE, so a subscriber saw silence -- and the fail-safe
-    // principle is that the absence of a valid signal must default to the safe
-    // position, not to consent.
+    // defect means the estate is UNKNOWN -- never clean. Without this the throw
+    // escaped mainEstateVerify, node printed a stack trace, and the process
+    // exited 1: the code that means "readable estate, work in progress".
+    // Worse, the contract is exactly one NDJSON event on stdout and a crash
+    // emitted NONE, so a subscriber saw silence -- and the fail-safe principle
+    // is that the absence of a valid signal must default to the safe position,
+    // not to consent.
     //
     // The boundary lives HERE, at the single entry point both surfaces use, so
     // there is no path around it and no caller has to remember it.
+    //
+    // It also catches a REJECTED OBSERVATION: gather parses through
+    // EstateObservedSchema, so a malformed observation throws a ZodError rather
+    // than reaching the decider -- and lands here as 'threw', which is our own
+    // defect, not a git failure.
     //
     // The error itself is deliberately NOT carried into the event: a message
     // may quote a path, a branch or subprocess output, and this event is

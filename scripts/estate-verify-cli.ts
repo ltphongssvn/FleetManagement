@@ -1,8 +1,9 @@
 // scripts/estate-verify-cli.ts
-// Driver for estate:verify. Gathers live git state, hands it to the pure
-// decider, and writes the result twice -- once for a machine, once for a person.
+// Driver for estate:verify. Observes live git state, hands the OBSERVATION to
+// the pure decider, and writes the result twice -- once for a machine, once for
+// a person.
 //
-// GATHER, DECIDE, WRITE. Every fail-closed decision used to be made inline
+// OBSERVE, DECIDE, WRITE. Every fail-closed decision used to be made inline
 // here, under a v8-ignore because this function spawns git -- so "git threw, so
 // emit git-failed and exit 3" was verified by reading the code and nothing
 // else. The decision now lives in decideEstate, which is pure and exhaustively
@@ -10,6 +11,12 @@
 // decideClose and decideMergeReady already use, and the 2026 answer for
 // subprocess-bearing CLIs: move the instantiation up a level and make the
 // interaction the part under test.
+//
+// THE COMPOSITION ROOT. This is the only module that may spawn git, so it is
+// where the raw porcelain is read -- and it hands those BYTES to observeEstate
+// rather than parsing them itself. The constructor derives the digest and the
+// records from the same string, so this file cannot produce an observation
+// whose evidence disagrees with its states even by accident.
 //
 // STDOUT IS DATA; STDERR IS HUMANS. Exactly one NDJSON event on stdout and
 // nothing else, so a caller pipes to jq without stripping prose; the readable
@@ -24,46 +31,48 @@
 // expressed by returning an empty string.
 //
 // Every git call is execFileSync with an argv ARRAY and no shell -- the
-// documented single-API fix for command injection. Paths from porcelain are
-// canonicalised, then parsed through WorktreeStateSchema before any becomes a
-// cwd.
+// documented single-API fix for command injection.
 import { execFileSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { parseArgs } from 'node:util';
 import { z } from 'zod';
 import {
-  digestOf,
+  CorrelationIdSchema,
   DigestSchema,
-  type EstateGathered,
-} from './estate-verify.js';
+  TimestampSchema,
+  type EstateObservation,
+} from './estate-events.js';
 import { estateLineFor, runEstateVerify } from './estate-run.js';
 import { estateStreams } from './estate-streams.js';
 import {
-  gatherOneFrom,
-  type GatheredOne,
+  observeEstate,
+  parseWorktreeRecords,
+  unobservable,
   type GitOutcome,
+  type ObservationContext,
+  type WorktreeReadings,
   type WorktreeRecord,
 } from './estate-gather.js';
 
-// Re-exported under its original name: the rendering moved to the envelope so
-// both surfaces share one wording, and a caller that imported it from here
-// still resolves it.
+// Re-exported under their original names: the rendering moved to the envelope
+// and the porcelain parser moved to the observation boundary, so both share one
+// definition -- but a caller that imported either from here still resolves it.
 export { estateLineFor as estateLine };
+export { parseWorktreeRecords };
 
 const NL = String.fromCharCode(10);
 
 /** What the CLI was asked to do. SCHEMA-FIRST at the argv boundary.
  *
- *  parseArgs owns the SURFACE -- flag syntax, unknown-flag rejection -- and
- *  Zod owns the CONTRACT. That split is the 2026 pattern, and the gap it fills
- *  is exactly what bit here: parseArgs happily accepts --expect-digest=garbage
- *  as a string, and the garbage then fails the comparison in decideEstate,
+ *  parseArgs owns the SURFACE -- flag syntax, unknown-flag rejection -- and Zod
+ *  owns the CONTRACT. That split is the 2026 pattern, and the gap it fills is
+ *  exactly what bit here: parseArgs happily accepts --expect-digest=garbage as
+ *  a string, and the garbage then fails the comparison in decideEstate,
  *  producing STALE and REREAD_ESTATE. That tells the operator the estate moved
  *  when the truth is the digest is malformed -- a remedy that can never work,
  *  and for an agent an unbounded retry loop.
  *
- *  A bad flag VALUE is a usage error, exit 2, exactly as a bad flag NAME
- *  already is. */
+ *  A bad flag VALUE is a usage error, exit 2, exactly as a bad flag NAME is. */
 export const EstateArgvSchema = z.strictObject({
   quiet: z.boolean(),
   expectDigest: DigestSchema.nullable(),
@@ -92,40 +101,6 @@ export function parseEstateArgv(argv: readonly string[]): EstateArgv {
   });
 }
 
-/** One worktree record from `git worktree list --porcelain`. Blank-line
- *  separated; a record may carry bare `locked` / `prunable` markers, and a
- *  detached one carries no `branch` line at all. */
-export function parseWorktreeRecords(
-  porcelain: string,
-): readonly WorktreeRecord[] {
-  const out: WorktreeRecord[] = [];
-  let cur: WorktreeRecord | null = null;
-  for (const line of porcelain.split(NL)) {
-    if (line.startsWith('worktree ')) {
-      if (cur !== null) out.push(cur);
-      // Canonicalised HERE, before the schema sees it: porcelain is normally
-      // absolute, but resolve also flattens any .. segment or trailing slash so
-      // the same worktree can never appear under two spellings.
-      cur = {
-        path: resolve(line.slice('worktree '.length)),
-        branch: '(detached)',
-        locked: false,
-        prunable: false,
-      };
-    } else if (cur === null) {
-      continue;
-    } else if (line.startsWith('branch ')) {
-      cur.branch = line.slice('branch '.length).replace('refs/heads/', '');
-    } else if (line === 'locked' || line.startsWith('locked ')) {
-      cur.locked = true;
-    } else if (line === 'prunable' || line.startsWith('prunable ')) {
-      cur.prunable = true;
-    }
-  }
-  if (cur !== null) out.push(cur);
-  return out;
-}
-
 /* v8 ignore start -- side-effecting entrypoint; every decision above and in
    decideEstate is unit-tested */
 // stdio pipes BOTH child streams. Inheriting stderr let git narrate expected
@@ -151,54 +126,47 @@ function gitOutcome(args: readonly string[], cwd?: string): GitOutcome {
   }
 }
 
-function gatherOne(rec: WorktreeRecord): GatheredOne {
-  // READ FIRST, DECIDE SECOND. Every reading is captured with its exit code
-  // intact, then handed to a pure function that knows which failures are
-  // normal and which are defects. countLines lives there too, so it can only
-  // ever be applied to output that actually ran.
+/** The four readings one worktree needs. READ FIRST, DECIDE SECOND: every
+ *  reading is captured with its exit code intact, then handed to a pure
+ *  function that knows which failures are normal and which are defects. */
+function readingsFor(rec: WorktreeRecord): WorktreeReadings {
   const upstream = gitOutcome(
     ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
     rec.path,
   );
-  return gatherOneFrom(rec, {
+  return {
     upstream,
     ahead: upstream.ok && upstream.out.length > 0
       ? gitOutcome(["rev-list", "--count", upstream.out + "..HEAD"], rec.path)
       : { ok: false },
     status: gitOutcome(["status", "--porcelain=v1", "--untracked-files=all"], rec.path),
     stash: gitOutcome(["stash", "list"], rec.path),
-  });
+  };
 }
 
-/** Learn what git has to say. Returns FACTS only -- no verdict, no exit code. */
-function gatherEstate(): EstateGathered {
+/** Learn what git has to say, as a VERSIONED OBSERVATION.
+ *
+ *  The correlation id is fresh per run: this process is the root of its own
+ *  workflow, and inheriting one from a traceparent would conflate W3C trace
+ *  correlation with the event log's own. The two are distinct axes, which is
+ *  why the envelope carries both. */
+function observeLiveEstate(): EstateObservation {
+  const ctx: ObservationContext = {
+    correlationId: CorrelationIdSchema.parse(randomUUID()),
+    occurredAt: TimestampSchema.parse(new Date().toISOString()),
+  };
   let porcelain: string;
   try {
     porcelain = git(['worktree', 'list', '--porcelain']);
   } catch {
-    return { kind: 'git-failed' };
+    // NO PORCELAIN, so no digest: claiming one for evidence that does not exist
+    // would fabricate provenance, which is why unobservable takes it optionally
+    // and this path omits it.
+    return unobservable('git-failed', ctx);
   }
-  const sourceDigest = digestOf(porcelain);
-
-  const records = parseWorktreeRecords(porcelain);
-  // A CONFIDENT ZERO: git exited 0 yet produced no worktree record, and
-  // `git worktree list` in any valid repository lists at least the MAIN
-  // worktree. Zero is therefore never a legitimate answer.
-  if (records.length === 0) return { kind: 'no-records', sourceDigest };
-
-  const gathered = records.map(gatherOne);
-  // A GIT COMMAND THAT COULD NOT RUN is named as such, not folded into the
-  // schema-rejection reason: the remedies differ, and reporting a broken git
-  // as a malformed record would send the operator to the wrong place.
-  if (gathered.some((g) => g.kind === "git-failed")) return { kind: "git-failed" };
-  if (gathered.some((g) => g.kind === "rejected")) {
-    return { kind: "record-rejected", sourceDigest };
-  }
-  return {
-    kind: "states",
-    states: gathered.flatMap((g) => (g.kind === "state" ? [g.state] : [])),
-    sourceDigest,
-  };
+  // The BYTES go in, never a parsed list: observeEstate hashes and parses them
+  // together, so this file cannot pair a digest with unrelated states.
+  return observeEstate(porcelain, readingsFor, ctx);
 }
 
 function mainEstateVerify(): number {
@@ -212,15 +180,11 @@ function mainEstateVerify(): number {
   }
 
   // INHERITED trace context, never invented. Present only when a parent -- CI,
-  // gate:agent, an orchestrator -- exported a W3C traceparent.
-  // A span of OUR OWN inside the caller's trace. Copying the parent's span_id
-  // would attribute this task's events to the parent's span, leaving a hole in
-  // the trace exactly where the work happened.
-  // Gather, decide and render all happen in runEstateVerify, so this file owns
-  // only argv, the two streams and the exit code -- what a CLI should own. An
-  // in-process runtime calls the same function and reads the same fields.
+  // gate:agent, an orchestrator -- exported a W3C traceparent. Observe, decide
+  // and render all happen in runEstateVerify, so this file owns only argv, the
+  // two streams and the exit code -- what a CLI should own.
   const result = runEstateVerify({
-    gather: gatherEstate,
+    gather: observeLiveEstate,
     expectDigest: argv.expectDigest,
     traceparent: process.env['TRACEPARENT'],
   });

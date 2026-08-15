@@ -32,18 +32,24 @@
 // generator -- the SmallCheck model, also called bounded exhaustive testing. A
 // random generator samples this space and reports a percentage; walking it
 // proves the space.
+//
+// THE DECIDER TAKES AN OBSERVATION EVENT now, so these cases go through
+// observedFixture -- which parses against the same schema production does. A
+// {kind:'states'} literal could express an input observeEstate could never
+// produce; a fixture that parses cannot.
 import { describe, it, expect } from 'vitest';
-import { TimestampSchema } from './estate-verify.js';
 import {
   ESTATE_REASONS,
   EstateEventSchema,
   REASON_KIND,
+  TimestampSchema,
   classifyEstate,
   createWorktreeState,
   decideEstate,
   digestOf,
   estateDigest,
   estateTelemetry,
+  observedFixture,
   reasonsFor,
   type EstateReason,
   type WorktreeState,
@@ -142,9 +148,7 @@ describe('every combination of reasons, derived from the vocabulary', () => {
 // not through a synthetic reason array.
 describe('the end-to-end path, over every combination', () => {
   function actionFor(raised: readonly EstateReason[]): string {
-    return decideEstate({
-      kind: 'states', states: [stateFor(raised)], sourceDigest: SRC,
-    }).event.agent_action;
+    return decideEstate(observedFixture([stateFor(raised)], SRC)).event.agent_action;
   }
 
   it('recommends PROCEED only for the empty combination', () => {
@@ -180,7 +184,7 @@ describe('the end-to-end path, over every combination', () => {
 
   it('exits 0 for the clean combination and 1 for every other', () => {
     for (const raised of COMBINATIONS) {
-      const d = decideEstate({ kind: 'states', states: [stateFor(raised)], sourceDigest: SRC });
+      const d = decideEstate(observedFixture([stateFor(raised)], SRC));
       expect(d.exitCode).toBe(raised.length === 0 ? 0 : 1);
     }
   });

@@ -3,8 +3,8 @@
 // is not.
 //
 // WHY THIS EXISTS. Verifying the estate was three commands read by human eyes
-// -- `git worktree list`, `git stash list`, `git status --porcelain` -- which is
-// the shape worktree:close describes retiring: "a hand-rolled git idiom, not a
+// -- `git worktree list`, `git stash list`, `git status --porcelain` -- the
+// shape worktree:close describes retiring: "a hand-rolled git idiom, not a
 // captured op". It also nearly shipped a false report: the SWEEP's `unmerged`
 // refusal, not those three commands, is what revealed PR #565 was still OPEN
 // after it had been summarised as deployed.
@@ -14,28 +14,21 @@
 // stale worktree is a real defect -- GitLab records that "git 2.16 will fail
 // badly if there are stale worktrees" -- and the hand check could not see one.
 //
-// AXIS 1: this shape crosses a TRUST BOUNDARY. Every field is derived from git
-// subprocess output, so the schema is the SSOT and the driver PARSES into it
-// rather than assembling an object literal and asserting a TypeScript type. A
-// hand-written interface would let the shell hand this core a shape no
-// production path could produce, and the type would agree.
+// EVENT IN, DECISION OUT. decideEstate consumed {kind:'states', states,
+// sourceDigest} -- an internal shape with no event name, no schema version and
+// no parse step, which the 2026 agentic-loop rule names as forbidden by
+// example. It now consumes a versioned EstateObservation whose digest and
+// states were derived atomically from the same porcelain by the authorized
+// constructor in estate-gather. So the evidence a verdict names cannot have
+// come from somewhere other than the estate it describes.
 //
-// The factory parses too, so a fixture that stops satisfying the contract fails
-// AT CONSTRUCTION rather than in whichever test notices first. Co-located with
-// the schema for the reason close-worktree.ts states: a new field is defaulted
-// in ONE place, never a shotgun edit across test files. Fixture drift is not
-// hypothetical here -- admin-drivers-client fixtures omitted six required
-// fields and passed only because the call site cast instead of parsing.
-//
-// THE EVENT PRIMITIVES LIVE IN estate-events.ts, not here. DigestSchema,
-// digestOf, TimestampSchema, TraceIdSchema, SpanIdSchema, the schema version
-// and the producer were declared in BOTH files, which is the duplicate-type
-// -definition shape 2026 guidance calls TYPE DEBT -- it "accumulates silently",
-// "compounds", and is to be treated like a failing test rather than recorded
-// for later. They are imported and RE-EXPORTED below, so every consumer that
-// resolved them from here still does; only the declaration moved.
+// THE DOMAIN PRIMITIVES LIVE IN estate-events.ts. WorktreeStateSchema was
+// demoted there because the observation event carries it, and leaving it here
+// while estate-gather imports this module would have closed a CYCLE the moment
+// the decider began consuming observations. They are re-exported below, so
+// every consumer that resolved them from here still does; only the declaration
+// moved.
 import { randomBytes } from 'node:crypto';
-import { resolve } from 'node:path';
 import { z } from 'zod';
 import { EstateActionSchema, actionForVerdict, exitCodeFor } from './estate-action.js';
 import {
@@ -46,12 +39,19 @@ import {
   SpanIdSchema,
   TimestampSchema,
   TraceIdSchema,
+  UNOBSERVABLE_REASONS,
+  WorktreeStateSchema,
   digestOf,
+  observedFixture,
+  unobservableFixture,
   type Digest,
+  type EstateObservation,
   type EstateSchemaVersion,
   type SpanId,
   type Timestamp,
   type TraceId,
+  type UnobservableReason,
+  type WorktreeState,
 } from './estate-events.js';
 import {
   ESTATE_REASONS,
@@ -65,8 +65,8 @@ import {
   type ReasonKind,
 } from './estate-vocabulary.js';
 
-// RE-EXPORTED, not re-declared. The vocabulary lives in one leaf and the event
-// primitives in another, so this module and estate-action.ts can both read them
+// RE-EXPORTED, not re-declared. The vocabulary lives in one leaf and the shared
+// kernel in another, so this module and estate-action.ts can both read them
 // without importing each other; every existing consumer still resolves these
 // names from here.
 export {
@@ -87,116 +87,20 @@ export {
   SpanIdSchema,
   TimestampSchema,
   TraceIdSchema,
+  UNOBSERVABLE_REASONS,
+  WorktreeStateSchema,
   digestOf,
+  observedFixture,
+  unobservableFixture,
   type Digest,
+  type EstateObservation,
   type EstateSchemaVersion,
   type SpanId,
   type Timestamp,
   type TraceId,
+  type UnobservableReason,
+  type WorktreeState,
 };
-
-/** One worktree, as observed from git. Parsed at the boundary, never cast. */
-// strictObject, not object: this literal is assembled by gatherOne from git
-// output, so an unrecognised key means OUR OWN typo -- writing stashcount for
-// stashCount would otherwise be stripped in silence and read as 0, the exact
-// failure the MCP SDK records as "parameter name typos are silently dropped".
-// Deliberately the OPPOSITE choice from AdminDriverRowSchema, which is
-// looseObject because it parses a PRODUCER wire format where a newer server may
-// legitimately add fields. Same library, different boundary, different mode.
-// z.strictObject is the Zod 4 form; .strict() still works but is no longer
-// preferred.
-export const WorktreeStateSchema = z.strictObject({
-  // Git always reports an ABSOLUTE path here. Requiring one is not decoration:
-  // this value becomes the `cwd` of subsequent git calls, so a relative or
-  // control-character path signals a PARSE failure, not a worktree, and must
-  // never reach a subprocess. A newline is the sharp case -- porcelain output
-  // is line-oriented, so a path containing one silently desynchronises the
-  // parse (git escapes and quotes such characters, and offers -z precisely
-  // because of it). Injection itself is already closed one layer down: every
-  // call is execFileSync with an argv ARRAY and no shell, which is the
-  // documented single-API fix. This is defence in depth on top of that.
-  path: z.string().min(1)
-    .refine((v) => v.startsWith('/'), 'worktree path must be absolute')
-    .refine(
-      // CANONICAL FORM, enforced at the boundary. A path carrying .. segments or a
-      // trailing slash denotes the same worktree yet compares unequal, and 2026
-      // guidance is explicit that canonicalisation must precede validation --
-      // sanitising raw strings is how every traversal bypass works. t96 fixed the
-      // identical bug in worktree:close, where a literal string compare against
-      // porcelain output (always absolute) refused a valid target.
-      //
-      // Confinement to an "estate root" is deliberately NOT added: worktrees
-      // legitimately live outside the repo -- this one is a SIBLING of the clone --
-      // so a root check would reject every real path. git worktree list IS the
-      // allowlist, and a second one would compete with it.
-      (v) => v === resolve(v),
-      'worktree path must already be canonical',
-    )
-    .refine(
-      // A PREDICATE, not a regex. eslint's no-control-regex is right that a
-      // control character inside a pattern is usually accidental, and a
-      // suppression would be the treadmill answer -- but the rule is also right
-      // that a regex reads poorly for this intent. Checking code points states
-      // exactly what is meant and needs no exception.
-      (v) => {
-        // Indexed charCodeAt, NOT a spread or split(''). The lint rule is right
-        // that both mishandle rich characters -- but that concern is about
-        // DECOMPOSING text, and this asks a different question: does any UTF-16
-        // code unit fall in the control range. Every control character lives in
-        // the BMP, so a surrogate half can never be mistaken for one, and the
-        // check is exact without needing an exception.
-        for (let i = 0; i < v.length; i += 1) {
-          const code = v.charCodeAt(i);
-          if (code < 0x20 || code === 0x7f) return false;
-        }
-        return true;
-      },
-      'worktree path must not contain control characters',
-    ),
-  // NO CONTROL CHARACTERS, for the same reason path forbids them, and NOT
-  // symmetry for its own sake. This value is interpolated RAW into the
-  // operator sentence and written to stderr, so an ESC byte reaches a terminal
-  // unescaped. stdout happens to be safe because JSON.stringify escapes
-  // control bytes -- but relying on a serialiser's incidental behaviour is not
-  // a defence, and the prose path has no serialiser at all.
-  //
-  // 2026 has a run of CVEs in exactly this class: unescaped filenames in
-  // scanner output, log output in gh run view, and command injection through a
-  // BRANCH NAME, which is attacker-controllable in any shared repository.
-  // CWE-150. Git's own check-ref-format already forbids control bytes in ref
-  // names, so this is defence in depth on top of that -- the identical
-  // argument the path refinement makes.
-  //
-  // The concealment case is the one that matters for an agent: rendering hides
-  // these bytes from a person while a model reads the raw text.
-  branch: z.string().refine(
-    (v) => {
-      for (let i = 0; i < v.length; i += 1) {
-        const code = v.charCodeAt(i);
-        if (code < 0x20 || code === 0x7f) return false;
-      }
-      return true;
-    },
-    'branch must not contain control characters',
-  ),
-  dirtyFileCount: z.number().int().nonnegative(),
-  aheadOfRemote: z.number().int().nonnegative(),
-  stashCount: z.number().int().nonnegative(),
-  prunable: z.boolean(),
-  locked: z.boolean(),
-}).brand<"WorktreeState">();
-// BRANDED, so the type cannot be produced by writing an object literal. The
-// schema is the only constructor: a raw shape from JSON.parse or a hand-built
-// mock no longer satisfies WorktreeState, so "the driver forgot to parse"
-// becomes a COMPILE error instead of a runtime hazard.
-//
-// This is deliberately NOT a re-parse inside classifyEstate. Validating already
-// trusted internal data in every helper is the redundant-validation
-// anti-pattern the two-axis rule names, and eas-build-freshness states it
-// outright: "re-parsing already trusted internal data inside every helper is
-// the anti-pattern that boundary exists to prevent". Branding moves the
-// guarantee to the type system instead of paying for it on every call.
-export type WorktreeState = z.infer<typeof WorktreeStateSchema>;
 
 /** A DISCRIMINATED verdict, so an invalid combination cannot be built.
  *
@@ -208,9 +112,7 @@ export type WorktreeState = z.infer<typeof WorktreeStateSchema>;
  *
  *  The event is deliberately NOT embedded here. It is DERIVED from this
  *  verdict, and storing a derivation beside its source admits a verdict whose
- *  event disagrees with its own fields -- the duplicate-data hazard SSOT
- *  guidance describes. It would also force the domain to construct a
- *  presentation artifact, which the layering guard forbids. */
+ *  event disagrees with its own fields. */
 export type EstateVerdict =
   | {
       readonly clean: true;
@@ -257,9 +159,9 @@ export function reasonsFor(state: WorktreeState): readonly EstateReason[] {
 }
 
 /** Pure verdict over the whole estate. An EMPTY estate is clean, not an error:
- *  a fresh clone with no linked worktrees is a legitimate state. The DRIVER,
- *  not this function, is responsible for failing closed when git cannot be
- *  read at all -- an unreadable estate must never reach here looking empty. */
+ *  a fresh clone with no linked worktrees is a legitimate state. The OBSERVER,
+ *  not this function, is responsible for failing closed when git cannot be read
+ *  at all -- an unreadable estate must never reach here looking empty. */
 export function classifyEstate(states: readonly WorktreeState[]): EstateVerdict {
   const problems: EstateProblem[] = [];
   for (const s of states) {
@@ -272,8 +174,7 @@ export function classifyEstate(states: readonly WorktreeState[]): EstateVerdict 
   // states in git's listing order, so an unchanged estate could yield the same
   // estate_digest (which sorts) while body.problems came out ordered
   // differently -- and a consumer diffing two events would see a change that
-  // never happened. This is the same rule already applied to `reasons`:
-  // declaration order, never walk order.
+  // never happened.
   problems.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 
   // Destructured, never cast: `first` proves the array is non-empty to the
@@ -304,25 +205,15 @@ export function describeEstate(v: EstateVerdict): string {
 /** Machine-readable verdict. STRUCTURED TRUTH, emitted alongside the prose and
  *  DERIVED FROM THE SAME VERDICT -- never parsed back out of the sentence.
  *
- *  describeEstate alone made an orchestrator read English to learn whether the
- *  estate was clean, which is the failure gate:agent already names: it emits
- *  NDJSON per state transition precisely so a consumer never scrapes stdout.
- *
- *  OpenTelemetry Events shape, not an ad-hoc flat object. event.name is
- *  NAMESPACED and low-cardinality: the spec requires names be part of a
- *  namespace, forbids dynamic values in them, and treats the name as the
- *  identifier of the payload STRUCTURE.
- *
- *  ATTRIBUTES hold only queryable scalars; the unbounded per-worktree detail
- *  lives in BODY. The spec is explicit: avoid attributes with potentially
- *  unbounded values, and record those in the event body instead. */
+ *  OpenTelemetry Events shape: event.name is NAMESPACED and low-cardinality,
+ *  and identifies the payload STRUCTURE. ATTRIBUTES hold only queryable
+ *  scalars; the unbounded per-worktree detail lives in BODY, because backends
+ *  do not index inside complex attributes. */
 export function estateTelemetry(
   v: EstateVerdict,
   trace: SpanContext | null = null,
   // REQUIRED, no default. A verdict is always ABOUT a specific snapshot, and
   // the recommendation this event carries is derived from that snapshot alone.
-  // A nullable digest let a caller build a verdict whose evidence could not be
-  // named, which is an action no downstream PDP could re-verify.
   digest: Digest,
   // The instant, INJECTED. An audit record needs a timestamp, and a pure core
   // must not read a clock -- so the shell supplies it and a test pins it.
@@ -353,40 +244,33 @@ export function estateTelemetry(
 
 /** Parse one raw record into a WorktreeState, or null.
  *
- *  safeParse, NEVER parse. The driver previously called
- *  WorktreeStateSchema.parse inside its gather loop, so a record git produced
- *  that the schema rejects -- a future porcelain change, an unusual path, a
- *  marker line this parser mis-splits -- threw an uncaught ZodError. That is
- *  strictly worse than it sounds: the contract is EXACTLY ONE NDJSON event on
- *  stdout, and an uncaught throw emits a stack trace to stderr and NO event, so
+ *  safeParse, NEVER parse. A record git produced that the schema rejects would
+ *  otherwise throw an uncaught ZodError, and the contract is EXACTLY ONE NDJSON
+ *  event on stdout -- an uncaught throw emits a stack trace and NO event, so
  *  the fail-closed guarantee disappears in the one case it exists for.
  *
  *  Returns null rather than a partial state: a half-parsed worktree would be a
  *  guess, and guessing here means reporting a verdict about a worktree we could
- *  not actually read. The caller escalates to the unreadable verdict. */
+ *  not actually read. */
 export function toWorktreeState(raw: unknown): WorktreeState | null {
   const parsed = WorktreeStateSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
 }
 
 /** The severity vocabulary, as const for the same reason REASON_KINDS is: one
- *  declaration serves the type and the runtime schema, so a new level cannot
- *  exist in the type while the validator still rejects it. Numbers follow the
- *  OTel ranges -- INFO 9, WARN 13, ERROR 17, which are part of the Logs Data
- *  Model precisely so severity is not re-derived from payload fields by every
+ *  declaration serves the type and the runtime schema. Numbers follow the OTel
+ *  ranges -- INFO 9, WARN 13, ERROR 17, which are part of the Logs Data Model
+ *  precisely so severity is not re-derived from payload fields by every
  *  consumer. */
 export const SEVERITY_TEXTS = Object.freeze(['INFO', 'WARN', 'ERROR'] as const);
 export const SEVERITY_NUMBERS = Object.freeze([9, 13, 17] as const);
 
 /** SCHEMA-FIRST. This was a hand-written interface paralleling the severity
- *  fields already declared in the event schemas, and the numeric union below
- *  re-listed what SEVERITY_NUMBERS declares -- one contract, three
+ *  fields already declared in the event schemas -- one contract, three
  *  declarations, with a guard test existing only to prove they agreed. A test
  *  that exists to prove two declarations agree is the duplication itself. */
 export const EstateSeveritySchema = z.strictObject({
   severity_text: z.enum(SEVERITY_TEXTS),
-  // z.literal accepts the array in Zod 4, so the vocabulary is derived rather
-  // than re-listed member by member.
   severity_number: z.literal(SEVERITY_NUMBERS),
 });
 export type EstateSeverity = z.infer<typeof EstateSeveritySchema>;
@@ -404,29 +288,20 @@ export function severityFor(v: EstateVerdict, readable = true): EstateSeverity {
 
 /** W3C trace context, INHERITED not invented.
  *
- *  A trace_id this process generates for itself correlates nothing -- there is
- *  one event and one run. It becomes useful only when a PARENT supplies it, so
- *  an orchestrator can tie this verdict to the run that asked for it.
+ *  A trace_id this process generates for itself correlates nothing -- one run,
+ *  one event. It becomes useful only when a PARENT supplies it. Returns null
+ *  when absent or malformed rather than fabricating an id: a fabricated
+ *  correlation id looks like provenance and carries none.
  *
- *  Format: version-traceid-spanid-flags, e.g.
- *  00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
- *  Returns null when absent or malformed rather than fabricating an id: a
- *  fabricated correlation id is worse than none, because it looks like
- *  provenance and carries none.
- *
- *  SCHEMA-FIRST, and Axis 1: the raw traceparent arrives from process.env,
- *  which the two-axis rule names as a trust boundary. It was validated by a
- *  hand-rolled regex plus two all-zero string checks -- ad-hoc validation at
- *  exactly the boundary the rule says must parse. The two ids are DERIVED from
- *  the branded schemas in estate-events.ts, so there is one rule per id. */
+ *  The two ids are DERIVED from the branded schemas in the kernel, so there is
+ *  one rule per id rather than a hand-rolled regex at each boundary. */
 export const TraceContextSchema = z.strictObject({
   trace_id: TraceIdSchema,
   span_id: SpanIdSchema,
 });
 export type TraceContext = z.infer<typeof TraceContextSchema>;
 
-/** This run's span: a TraceContext plus the parent it descends from. Extended
- *  from the same schema rather than re-declaring the two ids. */
+/** This run's span: a TraceContext plus the parent it descends from. */
 export const SpanContextSchema = TraceContextSchema.extend({
   parent_span_id: SpanIdSchema.optional(),
 });
@@ -439,9 +314,9 @@ export function traceContextFrom(raw: string | undefined): TraceContext | null {
   const m = TRACEPARENT.exec(raw.trim());
   if (m === null) return null;
   const [, traceId, spanId] = m;
-  // PARSED, not hand-checked. The regex above splits the header; the schema
-  // decides whether the parts are a valid context, so the all-zero rule lives
-  // in ONE place rather than being re-tested at each call site.
+  // PARSED, not hand-checked. The regex splits the header; the schema decides
+  // whether the parts are a valid context, so the all-zero rule lives in ONE
+  // place rather than being re-tested at each call site.
   const parsed = TraceContextSchema.safeParse({ trace_id: traceId, span_id: spanId });
   return parsed.success ? parsed.data : null;
 }
@@ -449,26 +324,17 @@ export function traceContextFrom(raw: string | undefined): TraceContext | null {
 /** Content-addressable digest of the estate SNAPSHOT.
  *
  *  Lets a consumer say "this is the state I acted on" and re-derive it later,
- *  and distinguishes an unchanged estate from one that changed and changed
- *  back -- which a timestamp cannot.
+ *  and distinguishes an unchanged estate from one that changed and changed back
+ *  -- which a timestamp cannot.
  *
  *  DETERMINISM IS THE WHOLE VALUE, so the input is normalised before hashing:
- *  entries are sorted by path, and each is serialised with a FIXED field order
- *  rather than JSON.stringify over the object, whose key order follows
- *  insertion and would make the digest depend on how the driver happened to
- *  build the literal.
+ *  entries sorted by path, each serialised with a FIXED field order rather than
+ *  JSON.stringify, whose key order follows insertion and would make the digest
+ *  depend on how the driver happened to build the literal.
  *
- *  Lives HERE rather than in estate-events.ts because it depends on
- *  WorktreeState; moving it would invert the dependency and create a cycle. It
- *  calls the shared digestOf, so the snapshot digest and the source digest are
- *  provably the same computation.
- *
- *  NOT SIGNED, deliberately. A local tool signing its own output with a key it
- *  holds proves nothing: signer and verifier are the same principal, so anyone
- *  who can run the tool can forge the attestation. Keyless signing needs an
- *  ambient OIDC identity that exists in CI and not on a laptop. A digest still
- *  gives integrity against accidental drift, which is the failure actually
- *  reachable here. */
+ *  NOT SIGNED, deliberately. A local tool signing with a key it holds proves
+ *  nothing: signer and verifier are the same principal. Keyless signing needs
+ *  an ambient OIDC identity that exists in CI and not on a laptop. */
 export function estateDigest(states: readonly WorktreeState[]): Digest {
   const lines = [...states]
     .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
@@ -480,16 +346,14 @@ export function estateDigest(states: readonly WorktreeState[]): Digest {
 }
 
 /** Why the estate could not be read. Codes, so a router acts without parsing
- *  prose: git-failed means the subprocess itself failed; no-records means git
- *  exited 0 yet produced no worktree, which cannot happen in a valid repo;
- *  record-rejected means a record did not satisfy the schema. */
+ *  prose. This is the EMITTED vocabulary, a superset of the observation's:
+ *  'threw' names OUR OWN defect, which only the run envelope can detect. */
 export const UNREADABLE_REASONS = Object.freeze([
   'git-failed',
   'no-records',
   'record-rejected',
-  // The classifier itself threw. NOT merged into git-failed: that names a
-  // subprocess that failed, which is an expected condition with a known
-  // remedy, while this names OUR OWN defect and the remedy is a code fix.
+  // NOT merged into git-failed: that names a subprocess that failed, an
+  // expected condition with a known remedy, while this names a code defect.
   // Collapsing the two would let a bug hide behind an operational excuse.
   'threw',
 ] as const);
@@ -499,11 +363,8 @@ export type UnreadableReason = (typeof UNREADABLE_REASONS)[number];
  *
  *  A DISTINCT event per shape, not one event with awkward values. Both variants
  *  once carried "fleet.estate.verified", so a consumer told them apart by
- *  inferring from `clean:false, checked:0` -- the optional-properties bag the
- *  discriminated-union guidance warns about, where an invalid combination is
- *  representable and "unclean with zero problems" reads the same as "could not
- *  read". OTel says the same from the other side: an event name identifies a
- *  payload STRUCTURE, so a different structure needs a different name. */
+ *  inferring from `clean:false, checked:0` -- an invalid combination that reads
+ *  exactly like "could not read". */
 export type EstateEvent =
   | EstateTelemetry
   | EstateUnreadableEvent
@@ -529,32 +390,18 @@ export function unreadableEstateEvent(
   };
 }
 
-/** What the gather step LEARNED, as a closed set.
- *
- *  The driver's three fail-closed paths were decided inline in mainEstateVerify,
- *  which lives under a v8-ignore because it spawns git -- so "git threw, so emit
- *  git-failed and exit 3" was verified by reading the code and nothing else.
- *  2026 practice for subprocess-bearing CLIs is to move the instantiation up a
- *  level and make the INTERACTION the part under test. */
-export type EstateGathered =
-  | { readonly kind: 'git-failed' }
-  | { readonly kind: 'no-records'; readonly sourceDigest: Digest }
-  | { readonly kind: 'record-rejected'; readonly sourceDigest: Digest }
-  | {
-      readonly kind: 'states';
-      readonly states: readonly WorktreeState[];
-      readonly sourceDigest: Digest;
-    };
-
 /** A DISCRIMINATED decision, so a verdict exists exactly when there is one.
  *
- *  It previously paired `event: EstateEvent` with `verdict: EstateVerdict |
- *  null` as INDEPENDENT fields, which is the conflicting-flags shape: nothing
- *  tied them together, so the driver needed a "verdict missing for a verified
+ *  It previously paired `event` with `verdict: EstateVerdict | null` as
+ *  INDEPENDENT fields, so the driver needed a "verdict missing for a verified
  *  event" branch that could never run.
  *
  *  exitCode is narrowed PER VARIANT, so 3 belongs to unreadable and 4 to stale
- *  by construction rather than by convention. */
+ *  by construction rather than by convention. It is retained deliberately: the
+ *  agentic-loop rule forbids a decision crossing a boundary as an ANONYMOUS
+ *  result object, and the payload here IS the versioned event. Deriving the
+ *  exit code in the shell instead would be a SECOND implementation of a policy
+ *  that already lives in exitCodeFor -- the drift this arc keeps removing. */
 export type EstateDecision =
   | {
       readonly kind: 'unreadable';
@@ -574,43 +421,42 @@ export type EstateDecision =
     };
 
 function unreachable(x: never): never {
-  throw new Error('unhandled gather outcome: ' + JSON.stringify(x));
+  throw new Error('unhandled observation: ' + JSON.stringify(x));
 }
 
-/** The whole decision, pure. Takes what was learned, returns what to emit and
- *  what to exit with. No git, no stdout, no clock. */
+/** EVENT IN, DECISION OUT. Pure: no git, no stdout, no clock.
+ *
+ *  The parameter is a VERSIONED OBSERVATION rather than an internal shape, and
+ *  that is the whole point. The digest it carries was derived from the same
+ *  porcelain bytes as its states, by the one authorized constructor, so a
+ *  verdict cannot name evidence that came from somewhere else. Previously any
+ *  caller -- including the injected gather function an in-process agent
+ *  supplies -- could pair states from one estate with a digest from another. */
 export function decideEstate(
-  g: EstateGathered,
+  observation: EstateObservation,
   trace: SpanContext | null = null,
   expectDigest: Digest | null = null,
-  // Threaded, never read here: decideEstate stays pure and the shell decides
+  // Threaded, never read here: the decider stays pure and the shell decides
   // what "now" means.
   timestamp: Timestamp = TimestampSchema.parse('1970-01-01T00:00:00.000Z'),
 ): EstateDecision {
-  switch (g.kind) {
-    case 'git-failed':
+  switch (observation['event.name']) {
+    case 'fleet.estate.unobservable':
       return {
         kind: 'unreadable',
-        event: unreadableEstateEvent('git-failed', timestamp, trace),
+        event: unreadableEstateEvent(
+          observation.reason,
+          timestamp,
+          trace,
+          observation.source_digest ?? null,
+        ),
         exitCode: exitCodeFor('REPAIR_TOOLING'),
       };
-    case 'no-records':
-      return {
-        kind: 'unreadable',
-        event: unreadableEstateEvent('no-records', timestamp, trace, g.sourceDigest),
-        exitCode: exitCodeFor('REPAIR_TOOLING'),
-      };
-    case 'record-rejected':
-      return {
-        kind: 'unreadable',
-        event: unreadableEstateEvent('record-rejected', timestamp, trace, g.sourceDigest),
-        exitCode: exitCodeFor('REPAIR_TOOLING'),
-      };
-    case 'states': {
-      const actual = estateDigest(g.states);
-      // COMPARE-AND-SWAP, before any verdict is reported: a caller that pinned a
-      // digest is asking to act only on THAT estate, and reporting a verdict
-      // for a different one is the lost-update the check exists to prevent.
+    case 'fleet.estate.observed': {
+      const actual = estateDigest(observation.states);
+      // COMPARE-AND-SWAP, before any verdict is reported: a caller that pinned
+      // a digest is asking to act only on THAT estate, and reporting a verdict
+      // for a different one is the lost update the check exists to prevent.
       if (expectDigest !== null && expectDigest !== actual) {
         return {
           kind: 'stale',
@@ -618,36 +464,31 @@ export function decideEstate(
           exitCode: exitCodeFor('REREAD_ESTATE'),
         };
       }
-      const verdict = classifyEstate(g.states);
+      const verdict = classifyEstate(observation.states);
       return {
         kind: 'verified',
-        event: estateTelemetry(verdict, trace, actual, timestamp, g.sourceDigest),
+        event: estateTelemetry(
+          verdict, trace, actual, timestamp, observation.source_digest,
+        ),
         exitCode: exitCodeFor(actionForVerdict(reasonsAcross(verdict.problems))),
         verdict,
       };
     }
     default:
-      return unreachable(g);
+      return unreachable(observation);
   }
 }
 
 /** The estate moved between the read and the act.
  *
  *  estate_digest let a caller RECORD what it observed; nothing let it BIND an
- *  action to that observation. The caller had to re-run, re-parse, and compare
- *  digests itself -- and a check the caller performs separately from the act is
- *  exactly the split compare-and-swap exists to close: two laptops and many
- *  worktrees mutate this estate concurrently, so a plan made at digest X can be
- *  executed against a world already at Y.
- *
- *  This is the If-Match / 412 Precondition Failed shape, value-based rather
- *  than a version counter or timestamp: the digest IS the content, so it cannot
- *  drift from what it describes.
+ *  action to that observation. This is the If-Match / 412 shape, value-based
+ *  rather than a version counter: the digest IS the content, so it cannot drift
+ *  from what it describes.
  *
  *  A DISTINCT event, because it is neither a verdict nor an unreadable estate.
  *  The estate was read perfectly well -- it simply is not the one the caller
- *  planned against, and the remediation is to re-read and re-plan rather than
- *  to fix a worktree or a tool. */
+ *  planned against, and the remediation is to re-read rather than to repair. */
 export function estateStaleEvent(
   expectedDigest: Digest,
   actualDigest: Digest,
@@ -657,9 +498,8 @@ export function estateStaleEvent(
   return {
     'event.name': 'fleet.estate.stale',
     schema_version: ESTATE_SCHEMA_VERSION,
-    // WARN, not ERROR: nothing is broken. The caller's view is simply out of
-    // date, which is a normal outcome in a concurrent estate and is recovered
-    // by re-reading, exactly as a 412 is.
+    // WARN, not ERROR: nothing is broken. The caller's view is out of date,
+    // which is normal in a concurrent estate and is recovered by re-reading.
     timestamp,
     producer: ESTATE_PRODUCER,
     agent_action: 'REREAD_ESTATE',
@@ -674,63 +514,40 @@ export function estateStaleEvent(
  *
  *  The events are the published contract: they carry schema_version and an
  *  agent parses them. They were hand-written interfaces with no runtime
- *  artifact, so nothing executable connected what we DECLARE to what we EMIT,
- *  and nothing forced a version bump when the shape changed. 2026 guidance is
- *  to make that relationship executable -- a contract assertion so a schema and
- *  its validator cannot drift silently, failing the build rather than a live
- *  run.
- *
- *  Discriminated on event.name, matching the union it validates, so a parse
- *  failure names WHICH variant disagreed rather than reporting a vague union
- *  mismatch.
- *
- *  strictObject throughout: an unrecognised key in an event WE construct is our
- *  own typo, the same argument WorktreeStateSchema makes. */
+ *  artifact, so nothing executable connected what we DECLARE to what we EMIT.
+ *  Discriminated on event.name, so a parse failure names WHICH variant
+ *  disagreed. strictObject throughout: an unrecognised key in an event WE
+ *  construct is our own typo. */
 const EventBaseShape = {
   schema_version: z.literal(ESTATE_SCHEMA_VERSION),
-  // WHEN. An audit record without a timestamp cannot be placed in a sequence,
-  // and every 2026 checklist names it in the minimum field set. The clock is
-  // INJECTED, never read here: the core stays pure, the shell supplies the
-  // instant, and a test can pin it.
+  // WHEN. An audit record without a timestamp cannot be placed in a sequence.
+  // The clock is INJECTED, never read here.
   timestamp: TimestampSchema,
   // WHAT decided. The tool that produced this record, so a reader holding a
   // stream from several producers can attribute one line to one tool.
   producer: z.literal(ESTATE_PRODUCER),
-  // DERIVED from TraceContextSchema: the two ids were declared here as loose
-  // strings while the context schema constrained them, so an event could carry
-  // an id the context would have rejected.
   trace_id: TraceContextSchema.shape.trace_id.optional(),
   span_id: TraceContextSchema.shape.span_id.optional(),
-  // WHAT THE CALLER MAY DO, beside what was observed. An orchestrator reading
-  // this stream off a collector never sees an exit code, so without this field
-  // it has to re-derive the policy from attributes -- a second implementation
-  // of the rule, waiting to disagree with the first.
+  // WHAT THE CALLER MAY DO. An orchestrator reading this stream off a collector
+  // never sees an exit code, so without this field it re-derives the policy
+  // from attributes -- a second implementation waiting to disagree.
   //
-  // ADVISORY, NEVER AUTHORIZATION. This is what the tool RECOMMENDS given what
-  // it observed; it is not permission to act. 2026 agent-governance guidance is
-  // explicit that no field a tool emits is self-authorizing, and that a
-  // capability gate is not an authorization decision -- a consumer treating
-  // PROCEED as consent is the confused-deputy failure. The policy decision
-  // point sits OUTSIDE this tool; what the tool owes it is a recommendation
-  // bound to the evidence it was derived from, which estate_digest supplies.
+  // ADVISORY, NEVER AUTHORIZATION: no field a tool emits is self-authorizing,
+  // and a consumer treating PROCEED as consent is the confused-deputy failure.
+  // The policy decision point sits OUTSIDE this tool; what the tool owes it is
+  // a recommendation bound to the evidence estate_digest names.
   agent_action: EstateActionSchema,
-  // The span this run was a CHILD of. Present whenever a parent supplied a
-  // traceparent, so a collector can nest this task under the run that invoked it.
   parent_span_id: SpanContextSchema.shape.parent_span_id,
 } as const;
 
 export const EstateTelemetrySchema = z.strictObject({
   'event.name': z.literal('fleet.estate.verified'),
   ...EventBaseShape,
-  // DERIVED from EstateSeveritySchema, not re-listed. The numbers were spelled
-  // out here AND in SEVERITY_NUMBERS, so a guard test existed only to prove the
-  // two agreed -- which is the duplication, not a defence against it.
+  // DERIVED from EstateSeveritySchema, not re-listed.
   severity_text: EstateSeveritySchema.shape.severity_text,
   severity_number: EstateSeveritySchema.shape.severity_number,
-  // REQUIRED on a verdict, because the recommendation above is derived from
-  // THIS snapshot and nothing else. A recommendation whose evidence cannot be
-  // named is one a downstream PDP cannot re-verify -- and re-verification is
-  // exactly what --expect-digest exists to make possible.
+  // REQUIRED on a verdict: a recommendation whose evidence cannot be named is
+  // one a downstream PDP cannot re-verify.
   estate_digest: DigestSchema,
   source_digest: DigestSchema.optional(),
   attributes: z.strictObject({
@@ -772,30 +589,22 @@ export const EstateEventSchema = z.discriminatedUnion('event.name', [
 ]);
 
 /** The event types, DERIVED from the schemas above rather than hand-written
- *  beside them. They were interfaces declaring the same cross-boundary shapes
- *  the schemas declare -- one contract, two definitions, which is the
- *  duplication the schema-first rule forbids. Nine tests existed to prove the
- *  two agreed; with a single declaration there is nothing left to disagree. */
+ *  beside them. Nine tests once existed to prove the two agreed; with a single
+ *  declaration there is nothing left to disagree. */
 export type EstateTelemetry = z.infer<typeof EstateTelemetrySchema>;
 export type EstateUnreadableEvent = z.infer<typeof EstateUnreadableEventSchema>;
 export type EstateStaleEvent = z.infer<typeof EstateStaleEventSchema>;
 
 /** A span of our own, inside the caller's trace.
  *
- *  traceContextFrom returns what the PARENT sent, and every event copied that
- *  span_id verbatim -- so these events claimed to belong to the parent's span
- *  and this task never appeared as an operation of its own. W3C is explicit
- *  that a child generates a NEW span id and records the received one as its
- *  parent; copying it upward is how a trace ends up with a hole exactly where
- *  the work happened.
- *
- *  No SDK, no exporter, no collector dependency: a short-lived CLI that stands
- *  up an OTLP pipeline to emit one span pays startup and network cost for a
- *  process measured in milliseconds. Emitting correct ids on the NDJSON lets a
- *  collector that already reads this stream assemble the span.
+ *  Every event copied the PARENT's span_id verbatim, so this task's events
+ *  claimed to belong to the parent's span and never appeared as an operation of
+ *  their own -- a trace with a hole exactly where the work happened. W3C is
+ *  explicit that a child generates a NEW span id and records the received one
+ *  as its parent.
  *
  *  randomBytes, not Math.random: span ids must not collide across concurrent
- *  runs, and two laptops sweeping the same estate run this task simultaneously. */
+ *  runs, and two laptops sweep the same estate simultaneously. */
 export function newSpanId(rand: () => Buffer = () => randomBytes(8)): SpanId {
   const id = rand().toString('hex');
   return SpanIdSchema.parse(ALL_ZERO.test(id) ? '0'.repeat(15) + '1' : id);

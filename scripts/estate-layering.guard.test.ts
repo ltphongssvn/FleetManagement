@@ -1,6 +1,6 @@
 // scripts/estate-layering.guard.test.ts
 // ARCHITECTURAL GUARD: the estate arc's modules form a DAG, and its two leaves
-// are the vocabulary and the event primitives.
+// are the vocabulary and the shared kernel.
 //
 // WHY. estate-verify.ts imported estate-action.ts for the action schema while
 // estate-action.ts imported estate-verify.ts back for REASON_KIND. A second
@@ -21,6 +21,15 @@
 // a test rather than a new dependency: the graph is a handful of files, so
 // walking it here is cheaper and more precise than adding madge to the
 // toolchain.
+//
+// STATE THE PROPERTY, NOT AN INCIDENTAL EDGE. One assertion here read
+// `localImports('estate-verify-cli')).toContain('estate-verify')` -- a DIRECT
+// edge -- and a legitimate refactor falsified it: the driver now reaches the
+// core through estate-run, which is the layering this arc was built to have.
+// The property worth guarding is DIRECTION, so it is stated as reachability
+// plus the negative that the core never imports the driver. An over-specified
+// guard fails on correct changes, and a guard that cries wolf is one somebody
+// eventually deletes.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { ACTION_EXIT, ESTATE_ACTIONS } from './estate-action.js';
@@ -30,7 +39,7 @@ import {
   SEVERITY_TEXTS,
   UNREADABLE_REASONS,
 } from './estate-verify.js';
-import { UNOBSERVABLE_REASONS } from './estate-gather.js';
+import { UNOBSERVABLE_REASONS } from './estate-events.js';
 import { join } from 'node:path';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -71,6 +80,14 @@ function reachableFrom(start: string): ReadonlySet<string> {
   return seen;
 }
 
+/** A module's source, for the declaration assertions below. Reading the TEXT is
+ *  deliberate: the question is where a name is DECLARED, and an import graph
+ *  cannot answer that -- a re-export looks identical to a declaration from the
+ *  outside, which is exactly the drift being guarded against. */
+function sourceOf(module: string): string {
+  return readFileSync(join(ROOT, 'scripts', module + '.ts'), 'utf-8');
+}
+
 describe('the estate arc is a DAG', () => {
   // THE DEFECT THIS CLOSES. Stated as reachability rather than as a list of
   // known pairs, so a cycle introduced through a NEW module is caught too.
@@ -103,20 +120,31 @@ describe('the vocabulary is the leaf', () => {
   });
 });
 
-// ---- the second leaf ----
-// The event primitives -- DigestSchema, digestOf, TimestampSchema, the two W3C
-// id schemas, the schema version and the producer -- were declared in
-// estate-verify.ts AND again in estate-events.ts while the observation event
-// was being built. Two declarations of one contract is the duplicate-type
-// -definition shape 2026 guidance calls TYPE DEBT: it "accumulates silently",
-// "compounds", and is to be treated like a failing test rather than recorded
-// for later. The declarations now live in the leaf and estate-verify.ts
-// re-exports them, so consumers resolve unchanged.
+// ---- the shared kernel ----
+// It holds the primitives (DigestSchema, digestOf, TimestampSchema, the two W3C
+// id schemas, the version, the producer), the WorktreeState schema, and the
+// OBSERVATION events.
 //
-// It MUST stay a leaf. The moment it imports anything from this arc it can
-// join a cycle, and the event schemas that extend its envelope are exactly the
+// Two separate defects put them here. First, the primitives were declared in
+// estate-verify.ts AND again in estate-events.ts -- the duplicate-type
+// -definition shape 2026 guidance calls TYPE DEBT, which "accumulates
+// silently", "compounds", and is to be treated like a failing test.
+//
+// Second and sharper: the decider must consume an OBSERVATION, and the
+// observation carries WorktreeState. With the state in estate-verify.ts and the
+// observation in estate-gather.ts -- which already imports estate-verify.ts --
+// wiring the decider would have closed a CYCLE. The 2026 techniques are
+// demotion, escalation, dependency inversion and merging; DEMOTION is the
+// honest one, because WorktreeStateSchema depends on nothing but zod and
+// node:path and was simply in the wrong module. The alternative considered and
+// rejected was typing the decider's parameter structurally so the observation
+// would satisfy it without an import -- dependency inversion done IMPLICITLY,
+// an undeclared contract no reader can see and no guard can enforce.
+//
+// It MUST stay a leaf. The moment it imports anything from this arc it can join
+// a cycle, and the schemas that extend its envelope are exactly the
 // module-scope reads that make a cycle throw on load order alone.
-describe('the event primitives are a leaf', () => {
+describe('the shared kernel is a leaf', () => {
   it('imports no local module at all', () => {
     expect(localImports('estate-events')).toEqual([]);
   });
@@ -129,20 +157,40 @@ describe('the event primitives are a leaf', () => {
     expect([...reachableFrom('estate-gather')]).toContain('estate-events');
   });
 
+  it('is reachable from the driver, which mints the observation context', () => {
+    expect([...reachableFrom('estate-verify-cli')]).toContain('estate-events');
+  });
+
   // The duplication that prompted the split must not come back: the core may
   // RE-EXPORT these names but must not DECLARE them.
   it('the core declares none of the primitives it re-exports', () => {
-    const source = readFileSync(join(ROOT, 'scripts', 'estate-verify.ts'), 'utf-8');
     for (const declaration of [
       'export const DigestSchema',
       'export function digestOf',
       'export const TimestampSchema',
       'export const TraceIdSchema',
       'export const SpanIdSchema',
+      'export const WorktreeStateSchema',
       'export const ESTATE_SCHEMA_VERSION',
       'export const ESTATE_PRODUCER',
     ]) {
-      expect([declaration, source.includes(declaration)]).toEqual([declaration, false]);
+      expect([declaration, sourceOf('estate-verify').includes(declaration)])
+        .toEqual([declaration, false]);
+    }
+  });
+
+  // And the observation boundary owns the CONSTRUCTOR, never the contract: the
+  // schemas live in the kernel so the decider can consume them without an
+  // upward import.
+  it('the observation boundary declares neither the state schema nor the observation schemas', () => {
+    for (const declaration of [
+      'export const WorktreeStateSchema',
+      'export const EstateObservedSchema',
+      'export const EstateUnobservableSchema',
+      'export const UNOBSERVABLE_REASONS',
+    ]) {
+      expect([declaration, sourceOf('estate-gather').includes(declaration)])
+        .toEqual([declaration, false]);
     }
   });
 });
@@ -158,20 +206,32 @@ describe('the layers run one way', () => {
     expect(localImports('estate-action')).not.toContain('estate-verify-cli');
   });
 
-  // The core is pure: it may not reach for the shell.
+  // The core is pure: it may not reach for the shell. THIS is the load-bearing
+  // half of the direction property -- a cycle needs the reverse edge, and this
+  // is the reverse edge.
   it('the core does not import the driver', () => {
     expect(localImports('estate-verify')).not.toContain('estate-verify-cli');
   });
 
   // Nor may it reach DOWN into the observation boundary: estate-gather imports
-  // the core for WorktreeState, so the reverse edge would be a cycle.
+  // the core for toWorktreeState, so the reverse edge would be a cycle. This is
+  // the edge the demotion exists to make unnecessary.
   it('the core does not import the observation boundary', () => {
     expect(localImports('estate-verify')).not.toContain('estate-gather');
   });
 
-  // And the driver sits on top of both, which is the only legal direction.
-  it('the driver imports the core, never the reverse', () => {
-    expect(localImports('estate-verify-cli')).toContain('estate-verify');
+  // And the driver sits ABOVE the core -- reachably, not necessarily directly.
+  // It reaches it through estate-run, which is the envelope both surfaces call,
+  // and that is the composition this arc was built to have. Asserting a direct
+  // edge would forbid exactly that refactor.
+  it('the driver sits above the core, however indirectly', () => {
+    expect([...reachableFrom('estate-verify-cli')]).toContain('estate-verify');
+  });
+
+  // The observation boundary is likewise reachable from the driver: the CLI
+  // spawns git and hands raw porcelain to the authorized constructor.
+  it('the driver reaches the observation boundary, which owns the constructor', () => {
+    expect([...reachableFrom('estate-verify-cli')]).toContain('estate-gather');
   });
 });
 

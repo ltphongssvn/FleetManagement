@@ -12,6 +12,12 @@
 // local tool signing with a key it holds proves nothing, because signer and
 // verifier are the same principal. These tests pin the ABSENCE as firmly as the
 // presence -- a future commit adding a local signature should fail here.
+//
+// THE DECIDER TAKES AN OBSERVATION EVENT now, so every decision here is built
+// from observedFixture or unobservableFixture. Both parse against the same
+// schema production does, so a test cannot construct an input observeEstate
+// could never produce -- which is what makes the subject digest below evidence
+// rather than a number a test happened to supply.
 import { describe, it, expect } from 'vitest';
 import type { EstateDecision } from './estate-verify.js';
 import {
@@ -26,6 +32,8 @@ import {
   decideEstate,
   digestOf,
   estateDigest,
+  observedFixture,
+  unobservableFixture,
 } from './estate-verify.js';
 
 const CLEAN = createWorktreeState({ path: '/c/a', branch: 'x' });
@@ -35,7 +43,7 @@ const SRC = digestOf('worktree /c/a');
 function verified(
   states: readonly ReturnType<typeof createWorktreeState>[],
 ): EstateDecision {
-  return decideEstate({ kind: 'states', states, sourceDigest: SRC });
+  return decideEstate(observedFixture(states, SRC));
 }
 
 describe('estateStatement: the shape the ecosystem verifies', () => {
@@ -111,7 +119,9 @@ describe('the predicate records the claim, not permission', () => {
   });
 
   // Both addresses, so a verifier can tell an estate that moved from a parser
-  // that changed underneath it.
+  // that changed underneath it. The source digest reaching the predicate is the
+  // one the OBSERVATION carried, so this also pins that the decider passes
+  // evidence through rather than re-deriving it.
   it('carries the source digest beside the subject digest', () => {
     expect(estateStatement(verified([CLEAN]))?.predicate.source_digest).toBe(SRC);
   });
@@ -120,15 +130,16 @@ describe('the predicate records the claim, not permission', () => {
 // A statement is a CLAIM ABOUT SOMETHING. The other two decisions have nothing
 // to make a claim about.
 describe('only a verified decision yields a statement', () => {
-  it('produces none for an unreadable estate, which has no snapshot to name', () => {
-    expect(estateStatement(decideEstate({ kind: 'git-failed' }))).toBeNull();
-    expect(estateStatement(decideEstate({ kind: 'no-records', sourceDigest: SRC }))).toBeNull();
-    expect(estateStatement(decideEstate({ kind: 'record-rejected', sourceDigest: SRC }))).toBeNull();
+  it('produces none for an unobservable estate, which has no snapshot to name', () => {
+    // git-failed carries NO source digest -- there was no porcelain to address.
+    expect(estateStatement(decideEstate(unobservableFixture('git-failed')))).toBeNull();
+    expect(estateStatement(decideEstate(unobservableFixture('no-records', SRC)))).toBeNull();
+    expect(estateStatement(decideEstate(unobservableFixture('record-rejected', SRC)))).toBeNull();
   });
 
   it('produces none for a stale estate, which is a refusal rather than a claim', () => {
     const stale = decideEstate(
-      { kind: 'states', states: [CLEAN], sourceDigest: SRC }, null, digestOf('planned'),
+      observedFixture([CLEAN], SRC), null, digestOf('planned'),
     );
     expect(stale.kind).toBe('stale');
     expect(estateStatement(stale)).toBeNull();

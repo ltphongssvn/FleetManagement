@@ -1,7 +1,7 @@
 // scripts/estate-run.test.ts
 // The envelope: one call, both surfaces, no transport.
 //
-// WHAT THIS MAKES POSSIBLE. gatherEstate and the whole gather-decide-render
+// WHAT THIS MAKES POSSIBLE. gatherEstate and the whole observe-decide-render
 // sequence used to live module-private inside estate-verify-cli.ts, under a
 // v8-ignore, fused into a main() that read process.argv and wrote two streams.
 // So the path from "a repo on disk" to a decision could only be exercised by
@@ -10,18 +10,24 @@
 // directly: the capability belongs in a library, and logic left in one surface
 // is duplicated when the second arrives, after which the two drift.
 //
-// Gathering is INJECTED, so every test below drives the real decision path
-// without spawning git, without a repo, and without touching argv.
+// GATHERING IS INJECTED, so every test below drives the real decision path
+// without spawning git, without a repo, and without touching argv. It now
+// returns a VERSIONED OBSERVATION rather than an internal shape, which matters
+// precisely BECAUSE it is injected: an in-process agent supplies this function,
+// and the old {kind:'states', states, sourceDigest} let it pair states from one
+// estate with a digest from anywhere, since nothing bound the two.
 import { describe, it, expect } from 'vitest';
 import { runEstateVerify, estateLineFor } from './estate-run.js';
-import { TimestampSchema } from './estate-verify.js';
 import {
   EstateEventSchema,
+  TimestampSchema,
   createWorktreeState,
   decideEstate,
   digestOf,
   estateDigest,
-  type EstateGathered,
+  observedFixture,
+  unobservableFixture,
+  UNOBSERVABLE_REASONS,
 } from './estate-verify.js';
 
 const CLEAN = createWorktreeState({ path: '/c/a', branch: 'x' });
@@ -30,7 +36,7 @@ const BROKEN = createWorktreeState({ path: '/c/c', prunable: true });
 const SRC = digestOf('worktree /c/a');
 
 function gathering(...states: readonly ReturnType<typeof createWorktreeState>[]) {
-  return (): EstateGathered => ({ kind: 'states', states, sourceDigest: SRC });
+  return () => observedFixture(states, SRC);
 }
 
 const TRACEPARENT = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
@@ -67,12 +73,17 @@ describe('runEstateVerify: the whole path, without spawning git', () => {
     expect(r.mayProceed).toBe(false);
   });
 
-  // The three fail-closed paths, now reachable without a broken repo.
-  it('carries every unreadable outcome through to exit 3', () => {
-    for (const kind of ['git-failed', 'no-records', 'record-rejected'] as const) {
-      const gather = (): EstateGathered =>
-        kind === 'git-failed' ? { kind } : { kind, sourceDigest: SRC };
-      const r = runEstateVerify({ gather });
+  // The fail-closed paths, DERIVED from the vocabulary so a new unobservable
+  // reason is covered without anyone remembering to add it here.
+  it('carries every unobservable outcome through to exit 3', () => {
+    for (const reason of UNOBSERVABLE_REASONS) {
+      const r = runEstateVerify({
+        // git-failed carries NO source digest: there was no porcelain to
+        // address, and claiming one would fabricate provenance.
+        gather: () => (reason === 'git-failed'
+          ? unobservableFixture(reason)
+          : unobservableFixture(reason, SRC)),
+      });
       expect(r.exitCode).toBe(3);
       expect(r.action).toBe('REPAIR_TOOLING');
       expect(r.mayProceed).toBe(false);
@@ -128,11 +139,11 @@ describe('both surfaces read one computation', () => {
     }
   });
 
+  // The SAME observation through both paths: the envelope must not transform
+  // what it hands the decider, or the two surfaces describe different runs.
   it('renders the same decision the pure decider would', () => {
     const r = runEstateVerify({ gather: gathering(DIRTY), now: () => AT });
-    const direct = decideEstate(
-      { kind: 'states', states: [DIRTY], sourceDigest: SRC }, null, null, AT,
-    );
+    const direct = decideEstate(observedFixture([DIRTY], SRC), null, null, AT);
     expect(r.event).toEqual(direct.event);
   });
 });
@@ -165,7 +176,8 @@ describe('the statement travels with the result', () => {
   });
 
   it('is absent when there is no snapshot to make a claim about', () => {
-    expect(runEstateVerify({ gather: () => ({ kind: 'git-failed' }) }).statement).toBeNull();
+    const r = runEstateVerify({ gather: () => unobservableFixture('git-failed') });
+    expect(r.statement).toBeNull();
   });
 });
 
@@ -182,7 +194,10 @@ describe('the statement travels with the result', () => {
 // guarantee that is to always emit something.
 //
 // The boundary sits at the single entry point both surfaces use, so there is no
-// path around it and no caller has to remember it.
+// path around it and no caller has to remember it. It now also catches a
+// REJECTED OBSERVATION: gather parses through the schema, so a malformed one
+// throws a ZodError rather than reaching the decider, and lands here as
+// 'threw' -- our own defect, distinct from a git failure.
 describe('a throw is UNKNOWN, never clean', () => {
   const exploding = (): never => {
     throw new Error('gather blew up with /Users/secret/path in the message');

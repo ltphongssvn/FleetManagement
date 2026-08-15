@@ -5,7 +5,7 @@
 // TWO JOBS, ONE MODULE, AND THAT COLOCATION IS THE POINT. This file owns the
 // porcelain parser AND the observation constructor, because an authorized
 // constructor must derive the digest and the parsed representation ATOMICALLY
-// from the same source. An earlier design took the parser as an injected
+// from the same source. An earlier design took the parser as an INJECTED
 // parameter to avoid moving it; that reopens the hole it closes -- a caller
 // could pass a parser returning records unrelated to the bytes being hashed,
 // producing an observation whose digest and states describe different worlds.
@@ -13,10 +13,19 @@
 // valid", and there must be no path that produces one without going through the
 // parser. An injection point IS such a path.
 //
-// parseWorktreeRecords moved here from estate-verify-cli.ts, which re-exports it
-// so its existing tests resolve unchanged -- the same re-export the driver
+// parseWorktreeRecords moved here from estate-verify-cli.ts, which re-exports
+// it so its existing tests resolve unchanged -- the same re-export the driver
 // already uses for estateLineFor. It was always pure; it was merely stranded in
 // the side-effecting driver, above the module that needed it.
+//
+// THE SCHEMAS AND THE ENVELOPE LIVE IN THE KERNEL. EstateObservedSchema,
+// EstateUnobservableSchema, ObservationContext and observationEnvelope are all
+// declared in estate-events.ts: the decider consumes the schemas and
+// estate-verify.ts must not import this module -- that edge would close a
+// cycle, since this module imports the core for toWorktreeState. The envelope
+// builder went with them because the test fixtures need it too, and two
+// envelope builders would be two chances to drift on the very fields that make
+// provenance readable.
 //
 // THE DEFECT THIS FILE ORIGINALLY CLOSED, still closed. gatherOne called a
 // helper that swallowed the exit code and returned '' on failure, and
@@ -27,20 +36,24 @@
 import { resolve } from 'node:path';
 import { z } from 'zod';
 import {
-  DigestSchema,
-  EventEnvelopeShape,
-  ESTATE_PRODUCER,
-  ESTATE_SCHEMA_VERSION,
+  EstateObservedSchema,
+  EstateUnobservableSchema,
   digestOf,
   eventIdFor,
-  type CorrelationId,
+  observationEnvelope,
   type Digest,
-  type EventId,
-  type SpanId,
-  type Timestamp,
-  type TraceId,
+  type EstateObservation,
+  type EstateUnobservable,
+  type ObservationContext,
+  type UnobservableReason,
+  type WorktreeState,
 } from './estate-events.js';
-import { WorktreeStateSchema, toWorktreeState, type WorktreeState } from './estate-verify.js';
+import { toWorktreeState } from './estate-verify.js';
+
+// Re-exported so a consumer that reaches for the observation context beside the
+// constructor that consumes it still resolves it here; the DECLARATION lives in
+// the kernel, where the fixtures can share it.
+export type { ObservationContext };
 
 /** One record from `git worktree list --porcelain`, BEFORE the per-worktree
  *  readings are taken. The shape was hand-written four times -- the parser's
@@ -166,89 +179,6 @@ export function gatherOneFrom(
   return state === null ? { kind: 'rejected' } : { kind: 'state', state };
 }
 
-/** WHY THE OBSERVATION COULD NOT BE MADE. Codes, so a router acts without
- *  parsing prose. Distinct from the estate being unclean: these say the estate
- *  was never read at all. */
-export const UNOBSERVABLE_REASONS = Object.freeze([
-  'git-failed',
-  'no-records',
-  'record-rejected',
-] as const);
-export type UnobservableReason = (typeof UNOBSERVABLE_REASONS)[number];
-
-/** THE OBSERVATION EVENT -- the fact the decider consumes.
- *
- *  It replaces {kind:'states', states, sourceDigest}, an internal shape with no
- *  event name, no schema version and no parse step, which the 2026 agentic-loop
- *  rule names as forbidden by example. The asymmetry was real: outputs were
- *  versioned events while the input was a bare object, so runEstateVerify --
- *  whose gather function is INJECTED, and therefore agent-supplied -- accepted
- *  states from one estate beside a digest from anywhere.
- *
- *  causation_id is null on an observation. That is meaningful rather than
- *  incidental: an observation is the ROOT of a causal chain, caused by the
- *  world and not by another event. */
-export const EstateObservedSchema = z.strictObject({
-  'event.name': z.literal('fleet.estate.observed'),
-  ...EventEnvelopeShape,
-  source_digest: DigestSchema,
-  states: z.array(WorktreeStateSchema).readonly(),
-});
-export type EstateObserved = z.infer<typeof EstateObservedSchema>;
-
-/** AN OBSERVATION THAT OBSERVED NOTHING is a different fact from an observation
- *  of an empty estate, and giving it its own event name is what keeps the two
- *  from sharing a shape. That confusion is the confident zero this whole arc
- *  exists to refuse: `git worktree list` in any valid repository lists at least
- *  the MAIN worktree, so zero records is never a legitimate answer.
- *
- *  source_digest is OPTIONAL here and required above, which is not sloppiness:
- *  a git command that could not run produced no porcelain, so there are no
- *  bytes to address. Claiming a digest for absent evidence would be fabricating
- *  provenance. */
-export const EstateUnobservableSchema = z.strictObject({
-  'event.name': z.literal('fleet.estate.unobservable'),
-  ...EventEnvelopeShape,
-  reason: z.enum(UNOBSERVABLE_REASONS),
-  source_digest: DigestSchema.optional(),
-});
-export type EstateUnobservable = z.infer<typeof EstateUnobservableSchema>;
-
-export const EstateObservationSchema = z.discriminatedUnion('event.name', [
-  EstateObservedSchema,
-  EstateUnobservableSchema,
-]);
-export type EstateObservation = z.infer<typeof EstateObservationSchema>;
-
-/** What every observation needs beside the git output: the correlation it
- *  belongs to, the clock, and any inherited trace context. Injected, so the
- *  constructor stays pure and a test pins every field. */
-export interface ObservationContext {
-  readonly correlationId: CorrelationId;
-  readonly occurredAt: Timestamp;
-  readonly traceId?: TraceId | undefined;
-  readonly spanId?: SpanId | undefined;
-  readonly parentSpanId?: SpanId | undefined;
-}
-
-function envelope(
-  ctx: ObservationContext,
-  eventId: EventId,
-): Record<string, unknown> {
-  return {
-    schema_version: ESTATE_SCHEMA_VERSION,
-    event_id: eventId,
-    correlation_id: ctx.correlationId,
-    // NULL: an observation is caused by the world, not by a prior event.
-    causation_id: null,
-    occurred_at: ctx.occurredAt,
-    producer: ESTATE_PRODUCER,
-    ...(ctx.traceId === undefined ? {} : { trace_id: ctx.traceId }),
-    ...(ctx.spanId === undefined ? {} : { span_id: ctx.spanId }),
-    ...(ctx.parentSpanId === undefined ? {} : { parent_span_id: ctx.parentSpanId }),
-  };
-}
-
 /** THE AUTHORIZED CONSTRUCTOR. The only way to mint an observation.
  *
  *  It takes the RAW PORCELAIN and nothing else about the estate, so the digest
@@ -259,7 +189,10 @@ function envelope(
  *  The per-worktree readings ARE injected, because taking them would mean
  *  spawning git from a pure module. That is a different boundary: readFor is
  *  called once per PARSED record, so it cannot introduce worktrees the
- *  porcelain never mentioned. The set of paths is fixed by the bytes. */
+ *  porcelain never mentioned. The set of paths is fixed by the bytes. What a
+ *  lying readFor can still do is misreport one worktree's dirtiness -- a real
+ *  residual, bounded by the fact that the SHAPE of the estate stays bound to
+ *  the digest. */
 export function observeEstate(
   porcelain: string,
   readFor: (rec: WorktreeRecord) => WorktreeReadings,
@@ -289,7 +222,7 @@ export function observeEstate(
   const eventId = eventIdFor('fleet.estate.observed', sourceDigest);
   return EstateObservedSchema.parse({
     'event.name': 'fleet.estate.observed',
-    ...envelope(ctx, eventId),
+    ...observationEnvelope(ctx, eventId),
     source_digest: sourceDigest,
     states,
   });
@@ -307,7 +240,7 @@ export function unobservable(
   const eventId = eventIdFor('fleet.estate.unobservable', reason + (sourceDigest ?? ''));
   return EstateUnobservableSchema.parse({
     'event.name': 'fleet.estate.unobservable',
-    ...envelope(ctx, eventId),
+    ...observationEnvelope(ctx, eventId),
     reason,
     ...(sourceDigest === undefined ? {} : { source_digest: sourceDigest }),
   });

@@ -13,6 +13,12 @@
 // dependency producing stdout text is now an injection vector. A tool whose
 // stdout is EXACTLY one machine-readable line, asserted, cannot carry such a
 // payload without a test failing.
+//
+// THE GATHER FUNCTION NOW RETURNS AN EVENT. These fixtures go through
+// observedFixture and unobservableFixture, which parse against the same schema
+// production does -- so a test cannot express an observation observeEstate
+// could never produce, and the {kind:'states'} literal that used to stand in
+// for one is gone.
 import { describe, it, expect } from 'vitest';
 import { estateStreams, type EstateStreams } from './estate-streams.js';
 import { runEstateVerify } from './estate-run.js';
@@ -21,7 +27,9 @@ import {
   EstateProblemSchema,
   createWorktreeState,
   digestOf,
-  type EstateGathered,
+  observedFixture,
+  unobservableFixture,
+  UNOBSERVABLE_REASONS,
 } from './estate-verify.js';
 
 const CLEAN = createWorktreeState({ path: '/c/a', branch: 'x' });
@@ -33,7 +41,7 @@ function streamsFor(
   ...states: readonly ReturnType<typeof createWorktreeState>[]
 ): EstateStreams {
   return estateStreams(runEstateVerify({
-    gather: (): EstateGathered => ({ kind: 'states', states, sourceDigest: SRC }),
+    gather: () => observedFixture(states, SRC),
   }));
 }
 
@@ -51,11 +59,16 @@ describe('stdout carries EXACTLY one line, and it is JSON', () => {
     expect(lines(streamsFor(CLEAN, DIRTY).stdout)).toHaveLength(1);
   });
 
-  it('writes one line for every unreadable outcome', () => {
-    for (const kind of ['git-failed', 'no-records', 'record-rejected'] as const) {
+  // DERIVED from the vocabulary rather than a hand-written list, so a new
+  // unobservable reason is covered without anyone remembering to add it.
+  it('writes one line for every unobservable outcome', () => {
+    for (const reason of UNOBSERVABLE_REASONS) {
       const s = estateStreams(runEstateVerify({
-        gather: (): EstateGathered =>
-          kind === 'git-failed' ? { kind } : { kind, sourceDigest: SRC },
+        // git-failed carries NO source digest: there was no porcelain to
+        // address, and claiming one would fabricate provenance.
+        gather: () => (reason === 'git-failed'
+          ? unobservableFixture(reason)
+          : unobservableFixture(reason, SRC)),
       }));
       expect(lines(s.stdout)).toHaveLength(1);
     }
@@ -127,7 +140,7 @@ describe('stderr is commentary, and --quiet silences only that', () => {
 
   it('writes NOTHING to stderr under --quiet', () => {
     const s = estateStreams(runEstateVerify({
-      gather: (): EstateGathered => ({ kind: 'states', states: [CLEAN], sourceDigest: SRC }),
+      gather: () => observedFixture([CLEAN], SRC),
     }), true);
     expect(s.stderr).toBe('');
   });
@@ -137,7 +150,7 @@ describe('stderr is commentary, and --quiet silences only that', () => {
   // zero this whole task exists to refuse.
   it('still writes the event to stdout under --quiet', () => {
     const s = estateStreams(runEstateVerify({
-      gather: (): EstateGathered => ({ kind: 'states', states: [CLEAN], sourceDigest: SRC }),
+      gather: () => observedFixture([CLEAN], SRC),
     }), true);
     expect(lines(s.stdout)).toHaveLength(1);
     expect(EstateEventSchema.safeParse(JSON.parse(s.stdout)).success).toBe(true);
