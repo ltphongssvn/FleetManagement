@@ -302,7 +302,7 @@ export function estateTelemetry(
   digest: Digest,
   // The instant, INJECTED. An audit record needs a timestamp, and a pure core
   // must not read a clock -- so the shell supplies it and a test pins it.
-  timestamp: string,
+  timestamp: Timestamp,
   sourceDigest: Digest | null = null,
 ): EstateTelemetry {
   const reasons = reasonsAcross(v.problems);
@@ -417,16 +417,33 @@ const SPAN_ID = /^[0-9a-f]{16}$/;
 const ALL_ZERO = /^0+$/;
 const notAllZero = (v: string): boolean => !ALL_ZERO.test(v);
 
+/** WHEN, as an instant this task records. Branded because it sits ADJACENT to
+ *  digest parameters in every event constructor, and that swap is not
+ *  hypothetical: two call sites in this arc passed a source digest into the
+ *  timestamp slot, and only a runtime schema caught it. The compiler catches
+ *  it now. */
+export const TimestampSchema = z.iso.datetime().brand<'Timestamp'>();
+export type Timestamp = z.infer<typeof TimestampSchema>;
+
+/** The two W3C ids, branded SEPARATELY. Both are lowercase hex differing only
+ *  in length, so structural typing lets a span id sit where a trace id belongs
+ *  and says nothing. Distinct brands make that a compile error -- the
+ *  cross-contamination case the rule names. TraceContextSchema DERIVES from
+ *  these rather than re-declaring the regexes, so there is one rule per id. */
+export const TraceIdSchema = z.string().regex(TRACE_ID).refine(notAllZero, 'trace_id must not be all zero').brand<'TraceId'>();
+export type TraceId = z.infer<typeof TraceIdSchema>;
+export const SpanIdSchema = z.string().regex(SPAN_ID).refine(notAllZero, 'span_id must not be all zero').brand<'SpanId'>();
+export type SpanId = z.infer<typeof SpanIdSchema>;
 export const TraceContextSchema = z.strictObject({
-  trace_id: z.string().regex(TRACE_ID).refine(notAllZero, 'trace_id must not be all zero'),
-  span_id: z.string().regex(SPAN_ID).refine(notAllZero, 'span_id must not be all zero'),
+  trace_id: TraceIdSchema,
+  span_id: SpanIdSchema,
 });
 export type TraceContext = z.infer<typeof TraceContextSchema>;
 
 /** This run's span: a TraceContext plus the parent it descends from. Extended
  *  from the same schema rather than re-declaring the two ids. */
 export const SpanContextSchema = TraceContextSchema.extend({
-  parent_span_id: z.string().regex(SPAN_ID).optional(),
+  parent_span_id: SpanIdSchema.optional(),
 });
 export type SpanContext = z.infer<typeof SpanContextSchema>;
 
@@ -453,6 +470,7 @@ export function traceContextFrom(raw: string | undefined): TraceContext | null {
  *  while digestOf can only ever yield 64 lowercase hex, and --expect-digest
  *  accepted any string at all. Three spellings of one shape, the loosest of
  *  which is the one a caller passes in. */
+
 export const DigestSchema = z.string()
   .regex(/^[0-9a-f]{64}$/, 'must be a sha256 hex digest')
   // BRANDED, exactly as WorktreeState is, and for the identical reason: a
@@ -543,7 +561,7 @@ export type EstateEvent =
 
 export function unreadableEstateEvent(
   reason: UnreadableReason,
-  timestamp: string,
+  timestamp: Timestamp,
   trace: SpanContext | null = null,
   sourceDigest: Digest | null = null,
 ): EstateUnreadableEvent {
@@ -623,7 +641,7 @@ export function decideEstate(
   expectDigest: Digest | null = null,
   // Threaded, never read here: decideEstate stays pure and the shell decides
   // what "now" means.
-  timestamp = '1970-01-01T00:00:00.000Z',
+  timestamp: Timestamp = TimestampSchema.parse('1970-01-01T00:00:00.000Z'),
 ): EstateDecision {
   switch (g.kind) {
     case 'git-failed':
@@ -690,7 +708,7 @@ export function decideEstate(
 export function estateStaleEvent(
   expectedDigest: Digest,
   actualDigest: Digest,
-  timestamp: string,
+  timestamp: Timestamp,
   trace: SpanContext | null = null,
 ): EstateStaleEvent {
   return {
@@ -761,7 +779,7 @@ const EventBaseShape = {
   // The clock is INJECTED, never read here: the core stays pure, the shell
   // supplies the instant, and a test can pin it. That is the same split the
   // gather function already uses.
-  timestamp: z.iso.datetime(),
+  timestamp: TimestampSchema,
   // WHAT decided. The tool that produced this record, so a reader holding a
   // stream from several producers can attribute one line to one tool.
   //
@@ -891,16 +909,16 @@ export type EstateStaleEvent = z.infer<typeof EstateStaleEventSchema>;
  *  runs, and two laptops sweeping the same estate run this task simultaneously. */
 
 /** 8 bytes hex, per W3C. Never all-zero, which the spec calls invalid. */
-export function newSpanId(rand: () => Buffer = () => randomBytes(8)): string {
+export function newSpanId(rand: () => Buffer = () => randomBytes(8)): SpanId {
   const id = rand().toString('hex');
-  return /^0+$/.test(id) ? '0'.repeat(15) + '1' : id;
+  return SpanIdSchema.parse(ALL_ZERO.test(id) ? '0'.repeat(15) + '1' : id);
 }
 
 /** Build this run's span context: same trace as the parent when one was
  *  supplied, a fresh span either way, and the parent recorded when present. */
 export function spanContextFor(
   parent: TraceContext | null,
-  newId: () => string = newSpanId,
+  newId: () => SpanId = newSpanId,
 ): SpanContext | null {
   if (parent === null) return null;
   return {

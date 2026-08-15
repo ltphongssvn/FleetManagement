@@ -33,6 +33,7 @@
 // random generator samples this space and reports a percentage; walking it
 // proves the space.
 import { describe, it, expect } from 'vitest';
+import { TimestampSchema } from './estate-verify.js';
 import {
   ESTATE_REASONS,
   EstateEventSchema,
@@ -87,7 +88,7 @@ function stateFor(raised: readonly EstateReason[], path = '/c/a'): WorktreeState
 }
 
 const SRC = digestOf('worktree /c/a');
-const AT = '2026-01-01T00:00:00.000Z';
+const AT = TimestampSchema.parse('2026-01-01T00:00:00.000Z');
 
 describe('every combination of reasons, derived from the vocabulary', () => {
   it('enumerates 2^N subsets, so the space grows with the vocabulary', () => {

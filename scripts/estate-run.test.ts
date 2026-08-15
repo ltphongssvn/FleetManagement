@@ -14,6 +14,7 @@
 // without spawning git, without a repo, and without touching argv.
 import { describe, it, expect } from 'vitest';
 import { runEstateVerify, estateLineFor } from './estate-run.js';
+import { TimestampSchema } from './estate-verify.js';
 import {
   EstateEventSchema,
   createWorktreeState,
@@ -37,7 +38,7 @@ const TRACEPARENT = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
 // A FIXED instant, injected on both sides of any comparison. The events carry a
 // timestamp now, so a test reading the real clock would compare two different
 // moments and flap -- which is precisely why the clock is a parameter.
-const AT = '2026-01-01T00:00:00.000Z';
+const AT = TimestampSchema.parse('2026-01-01T00:00:00.000Z');
 
 describe('runEstateVerify: the whole path, without spawning git', () => {
   it('reaches a verdict from injected facts alone', () => {

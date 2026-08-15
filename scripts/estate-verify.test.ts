@@ -34,6 +34,10 @@ import {
   estateDigest,
   digestOf,
   DigestSchema,
+  SpanIdSchema,
+  TimestampSchema,
+  TraceContextSchema,
+  type SpanId,
   REASON_KIND,
   kindsFor,
   ESTATE_REASONS,
@@ -66,7 +70,7 @@ const DIGEST = estateDigest([CLEAN]);
 // A FIXED instant. The events now carry a timestamp, and a test that read the
 // real clock would make the byte-identical-event assertions flap. Pinning it is
 // exactly why the clock is injected rather than read inside the core.
-const AT = '2026-01-01T00:00:00.000Z';
+const AT = TimestampSchema.parse('2026-01-01T00:00:00.000Z');
 
 // The rendering is multi-line, so asserting the WHOLE sentence makes the
 // separator part of the contract too.
@@ -390,7 +394,7 @@ describe('unreadableEstateEvent', () => {
     const withTrace = unreadableEstateEvent(
       'git-failed',
       AT,
-      { trace_id: 'a'.repeat(32), span_id: 'b'.repeat(16) },
+      TraceContextSchema.parse({ trace_id: 'a'.repeat(32), span_id: 'b'.repeat(16) }),
     );
     expect(withTrace.trace_id).toBe('a'.repeat(32));
     expect('trace_id' in unreadableEstateEvent('git-failed', AT)).toBe(false);
@@ -812,7 +816,7 @@ describe('decideEstate', () => {
   });
 
   it('passes inherited trace context through to the event', () => {
-    const trace = { trace_id: 'a'.repeat(32), span_id: 'b'.repeat(16) };
+    const trace = TraceContextSchema.parse({ trace_id: 'a'.repeat(32), span_id: 'b'.repeat(16) });
     expect(decideEstate({ kind: 'git-failed' }, trace).event.trace_id).toBe('a'.repeat(32));
     expect(
       decideEstate({ kind: 'states', states: [CLEAN], sourceDigest: DIGEST }, trace)
@@ -976,7 +980,7 @@ describe('ESTATE_SCHEMA_VERSION', () => {
 // failing the build rather than a live run.
 describe('EstateEventSchema: what we emit parses against what we declare', () => {
   const STATES = [createWorktreeState({ path: '/c/a', branch: 'x' })];
-  const TRACE = { trace_id: 'a'.repeat(32), span_id: 'b'.repeat(16) };
+  const TRACE = TraceContextSchema.parse({ trace_id: 'a'.repeat(32), span_id: 'b'.repeat(16) });
 
   it('accepts a clean verdict event', () => {
     const r = EstateEventSchema.safeParse(estateTelemetry(classifyEstate(STATES), null, DIGEST, AT));
@@ -1110,8 +1114,8 @@ describe('vocabularies are declared once', () => {
 // W3C is explicit that a child generates a NEW span id and records the received
 // one as its parent.
 describe('spanContextFor', () => {
-  const PARENT = { trace_id: 'a'.repeat(32), span_id: 'b'.repeat(16) };
-  const FIXED = (): string => 'c'.repeat(16);
+  const PARENT = TraceContextSchema.parse({ trace_id: 'a'.repeat(32), span_id: 'b'.repeat(16) });
+  const FIXED = (): SpanId => SpanIdSchema.parse('c'.repeat(16));
 
   it('keeps the caller trace_id, so both belong to ONE trace', () => {
     expect(spanContextFor(PARENT, FIXED)?.trace_id).toBe(PARENT.trace_id);

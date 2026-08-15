@@ -27,7 +27,7 @@
 // parameter, so this module spawns nothing and stays testable without a repo,
 // and a caller that already holds the states (a replay, a simulation, a
 // different VCS) drives the same decision path.
-import type { Digest } from './estate-verify.js';
+import { TimestampSchema, type Digest } from './estate-verify.js';
 import {
   decideEstate,
   unreadableEstateEvent,
@@ -89,7 +89,10 @@ export interface EstateRunResult {
  *  git, which the v8-ignore around mainEstateVerify previously made impossible. */
 export function runEstateVerify(request: EstateRunRequest): EstateRunResult {
   const trace = spanContextFor(traceContextFrom(request.traceparent));
-  const at = (request.now ?? (() => new Date().toISOString()))();
+  // PARSED at the boundary: the clock is caller-supplied, so its output is
+  // untrusted until the schema says otherwise -- and the branded Timestamp is
+  // what every event constructor now requires.
+  const at = TimestampSchema.parse((request.now ?? (() => new Date().toISOString()))());
   let decision: EstateDecision;
   try {
     decision = decideEstate(request.gather(), trace, request.expectDigest ?? null, at);
