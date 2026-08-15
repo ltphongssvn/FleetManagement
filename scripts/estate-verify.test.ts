@@ -45,6 +45,7 @@ import {
   SEVERITY_TEXTS,
   SEVERITY_NUMBERS,
   estateStaleEvent,
+  type EstateReason,
 } from './estate-verify.ts';
 
 // Built THROUGH the schema, never a hand-written literal typed against an
@@ -60,6 +61,19 @@ const CLEAN = createWorktreeState({ path: '/c/t1-wt1-x', branch: 'feat/x' });
 // decision point could re-verify, and re-verification is exactly what
 // --expect-digest exists to make possible.
 const DIGEST = estateDigest([CLEAN]);
+
+// The rendering is multi-line, so asserting the WHOLE sentence makes the
+// separator part of the contract too.
+const NL = String.fromCharCode(10);
+
+/** Expected reason lists, TYPED against the vocabulary. A bare string array
+ *  lets a typo like 'dirtyy' compile and fail at runtime with a confusing
+ *  diff; this makes it a COMPILE error, which is where a misspelled member
+ *  belongs. */
+function reasons(...rs: readonly EstateReason[]): readonly EstateReason[] {
+  return rs;
+}
+
 
 describe('classifyEstate', () => {
   it('reports clean when every worktree is clean', () => {
@@ -103,7 +117,7 @@ describe('classifyEstate', () => {
     const v = classifyEstate([
       { ...CLEAN, dirtyFileCount: 1, aheadOfRemote: 1, stashCount: 1 },
     ]);
-    expect(v.problems[0]?.reasons).toEqual(['dirty', 'unpushed', 'stash']);
+    expect(v.problems[0]?.reasons).toEqual(reasons('dirty', 'unpushed', 'stash'));
   });
 
   it('reports every unclean worktree, not just the first', () => {
@@ -116,15 +130,56 @@ describe('classifyEstate', () => {
   });
 });
 
-describe('describeEstate', () => {
-  it('names the worktree and the reasons on a failure', () => {
-    const out = describeEstate(classifyEstate([{ ...CLEAN, dirtyFileCount: 2 }]));
-    expect(out).toContain('/c/t1-wt1-x');
-    expect(out).toContain('dirty');
+// ---- the whole sentence, not a substring of it ----
+// `toContain("2")` passed on ANY string containing a 2 -- "12", "2026", or a
+// count that was simply wrong. That is the weak assertion mutation testing
+// exists to expose: the test ran the function and checked almost nothing, so a
+// defect in the count would have shipped green. Exact equality is the strongest
+// form; substring matchers are for when a PATTERN, not a value, is the point.
+describe("describeEstate", () => {
+  it("renders the failure line in full, worktree, branch and reasons", () => {
+    expect(describeEstate(classifyEstate([{ ...CLEAN, dirtyFileCount: 2 }]))).toBe(
+      "estate NOT clean: 1 of 1 worktree(s)" + NL +
+      "  /c/t1-wt1-x [feat/x] (dirty)",
+    );
   });
 
-  it('states how many were checked on success, never a bare OK', () => {
-    expect(describeEstate(classifyEstate([CLEAN, CLEAN]))).toContain('2');
+  it("names EVERY reason on the line, comma separated", () => {
+    expect(describeEstate(classifyEstate([
+      { ...CLEAN, dirtyFileCount: 1, aheadOfRemote: 1, stashCount: 1 },
+    ]))).toBe(
+      "estate NOT clean: 1 of 1 worktree(s)" + NL +
+      "  /c/t1-wt1-x [feat/x] (dirty,unpushed,stash)",
+    );
+  });
+
+  it("gives one line per unclean worktree, and none for the clean ones", () => {
+    expect(describeEstate(classifyEstate([
+      { ...CLEAN, path: "/c/a", dirtyFileCount: 1 },
+      CLEAN,
+      { ...CLEAN, path: "/c/b", stashCount: 1 },
+    ]))).toBe(
+      "estate NOT clean: 2 of 3 worktree(s)" + NL +
+      "  /c/a [feat/x] (dirty)" + NL +
+      "  /c/b [feat/x] (stash)",
+    );
+  });
+
+  // The count is the whole point: a bare OK cannot be told apart from a run
+  // that examined nothing. Asserting the SENTENCE means a wrong count fails,
+  // which toContain("2") did not.
+  it("states how many were checked on success, never a bare OK", () => {
+    expect(describeEstate(classifyEstate([CLEAN, CLEAN]))).toBe(
+      "estate clean: 2 worktree(s) checked, no dirty tree, " +
+      "no unpushed commits, no stash, none stale or locked",
+    );
+  });
+
+  it("counts an empty estate as zero rather than omitting the count", () => {
+    expect(describeEstate(classifyEstate([]))).toBe(
+      "estate clean: 0 worktree(s) checked, no dirty tree, " +
+      "no unpushed commits, no stash, none stale or locked",
+    );
   });
 });
 
@@ -177,7 +232,7 @@ describe('estateTelemetry', () => {
     ]), null, DIGEST);
     expect(t.attributes.clean).toBe(false);
     expect(t.attributes.unclean_count).toBe(2);
-    expect(t.attributes.reasons).toEqual(["dirty", "prunable"]);
+    expect(t.attributes.reasons).toEqual(reasons("dirty", "prunable"));
   });
 
   it('de-duplicates a reason shared by several worktrees', () => {
@@ -185,7 +240,7 @@ describe('estateTelemetry', () => {
       createWorktreeState({ path: '/c/a', stashCount: 1 }),
       createWorktreeState({ path: '/c/b', stashCount: 2 }),
     ]), null, DIGEST);
-    expect(t.attributes.reasons).toEqual(["stash"]);
+    expect(t.attributes.reasons).toEqual(reasons("stash"));
   });
 
   // Declaration order, never walk order: a consumer diffing two runs must not
@@ -195,7 +250,7 @@ describe('estateTelemetry', () => {
       createWorktreeState({ path: '/c/a', locked: true }),
       createWorktreeState({ path: '/c/b', dirtyFileCount: 1 }),
     ]), null, DIGEST);
-    expect(t.attributes.reasons).toEqual(["dirty", "locked"]);
+    expect(t.attributes.reasons).toEqual(reasons("dirty", "locked"));
   });
 
   // The whole point: prose and telemetry must never disagree, because they are
