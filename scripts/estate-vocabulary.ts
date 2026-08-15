@@ -74,7 +74,20 @@ export const REASON_KIND: Readonly<Record<EstateReason, ReasonKind>> = Object.fr
  *  it z.infer yields a mutable array and a readonly source will not assign. */
 export const EstateProblemSchema = z.strictObject({
   path: z.string(),
-  branch: z.string(),
+  // Same control-character refusal as WorktreeStateSchema.branch, and this is
+  // the shape actually PUBLISHED in body.problems and interpolated into the
+  // operator sentence. Validating only the input shape would leave the emitted
+  // one unguarded, which is where the bytes actually reach a terminal.
+  branch: z.string().refine(
+    (v) => {
+      for (let i = 0; i < v.length; i += 1) {
+        const code = v.charCodeAt(i);
+        if (code < 0x20 || code === 0x7f) return false;
+      }
+      return true;
+    },
+    'branch must not contain control characters',
+  ),
   reasons: z.array(z.enum(ESTATE_REASONS)).readonly(),
 }).readonly();
 export type EstateProblem = z.infer<typeof EstateProblemSchema>;

@@ -18,6 +18,7 @@ import { estateStreams, type EstateStreams } from './estate-streams.js';
 import { runEstateVerify } from './estate-run.js';
 import {
   EstateEventSchema,
+  EstateProblemSchema,
   createWorktreeState,
   digestOf,
   type EstateGathered,
@@ -140,5 +141,69 @@ describe('stderr is commentary, and --quiet silences only that', () => {
     }), true);
     expect(lines(s.stdout)).toHaveLength(1);
     expect(EstateEventSchema.safeParse(JSON.parse(s.stdout)).success).toBe(true);
+  });
+});
+
+// ---- a branch name is attacker-controllable, and stderr has no serialiser ----
+// "Pure computation, no direct security surface" is not quite true. This tool
+// reads branch names out of a shared repository and writes them to BOTH
+// streams. stdout survives by accident -- JSON.stringify escapes control bytes
+// to \u001b -- but the operator sentence interpolates the branch raw, so an ESC
+// byte would reach a terminal unescaped. The prose path has no serialiser at
+// all, and an incidental property of one is not a defence for the other.
+//
+// 2026 has a run of CVEs in exactly this class: unescaped filenames in scanner
+// output, log output in gh run view, ANSI poisoning of structured logs, and
+// command injection through a BRANCH NAME. CWE-150. The concealment case is
+// what matters for an agent: rendering hides these bytes from a person while a
+// model reads the raw text.
+//
+// Closed at the SCHEMA rather than by escaping at each write, so a value that
+// could carry the payload cannot be constructed at all -- and the two write
+// sites cannot each forget it separately.
+describe('a control character cannot reach either stream', () => {
+  const ESC = String.fromCharCode(27);
+
+  it('REFUSES to build a state whose branch carries an ESC byte', () => {
+    expect(() => createWorktreeState({ branch: 'feat/' + ESC + '[2J' })).toThrow();
+  });
+
+  it('REFUSES a branch carrying a newline, which would split the prose line', () => {
+    expect(() => createWorktreeState({ branch: 'feat/a' + NL + 'fake' })).toThrow();
+  });
+
+  it('REFUSES a branch carrying a NUL or DEL', () => {
+    expect(() => createWorktreeState({ branch: 'feat/' + String.fromCharCode(0) })).toThrow();
+    expect(() => createWorktreeState({ branch: 'feat/' + String.fromCharCode(127) })).toThrow();
+  });
+
+  // The refusal must not cost legitimate names: git allows plenty that looks
+  // exotic, and a guard that rejects real branches is a guard nobody keeps.
+  it('still accepts the branch names git actually produces', () => {
+    for (const branch of ['feat/x', 'release/1.2.3', '(detached)', 'fix/ăâî-ünïcode']) {
+      expect(() => createWorktreeState({ branch })).not.toThrow();
+    }
+  });
+
+  // The published shape, not only the input shape: body.problems is what a
+  // subscriber reads and what the sentence is built from.
+  it('REJECTS a published problem whose branch carries an ESC byte', () => {
+    expect(EstateProblemSchema.safeParse({
+      path: '/c/a', branch: 'feat/' + ESC + '[2J', reasons: ['dirty'],
+    }).success).toBe(false);
+  });
+
+  it('accepts a published problem with an ordinary branch', () => {
+    expect(EstateProblemSchema.safeParse({
+      path: '/c/a', branch: 'feat/x', reasons: ['dirty'],
+    }).success).toBe(true);
+  });
+
+  // The end-to-end property: neither stream can carry an escape, because no
+  // state carrying one can be constructed to reach them.
+  it('leaves both streams free of escapes for every buildable state', () => {
+    const s = streamsFor(CLEAN, DIRTY);
+    expect(s.stdout.includes(ESC)).toBe(false);
+    expect(s.stderr.includes(ESC)).toBe(false);
   });
 });

@@ -115,7 +115,32 @@ export const WorktreeStateSchema = z.strictObject({
       },
       'worktree path must not contain control characters',
     ),
-  branch: z.string(),
+  // NO CONTROL CHARACTERS, for the same reason path forbids them, and NOT
+  // symmetry for its own sake. This value is interpolated RAW into the
+  // operator sentence and written to stderr, so an ESC byte reaches a terminal
+  // unescaped. stdout happens to be safe because JSON.stringify escapes
+  // control bytes -- but relying on a serialiser's incidental behaviour is not
+  // a defence, and the prose path has no serialiser at all.
+  //
+  // 2026 has a run of CVEs in exactly this class: unescaped filenames in
+  // scanner output, log output in gh run view, and command injection through a
+  // BRANCH NAME, which is attacker-controllable in any shared repository.
+  // CWE-150. Git's own check-ref-format already forbids control bytes in ref
+  // names, so this is defence in depth on top of that -- the identical
+  // argument the path refinement makes.
+  //
+  // The concealment case is the one that matters for an agent: rendering hides
+  // these bytes from a person while a model reads the raw text.
+  branch: z.string().refine(
+    (v) => {
+      for (let i = 0; i < v.length; i += 1) {
+        const code = v.charCodeAt(i);
+        if (code < 0x20 || code === 0x7f) return false;
+      }
+      return true;
+    },
+    'branch must not contain control characters',
+  ),
   dirtyFileCount: z.number().int().nonnegative(),
   aheadOfRemote: z.number().int().nonnegative(),
   stashCount: z.number().int().nonnegative(),
