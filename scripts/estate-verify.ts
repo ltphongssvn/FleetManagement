@@ -26,10 +26,33 @@
 // in ONE place, never a shotgun edit across test files. Fixture drift is not
 // hypothetical here -- admin-drivers-client fixtures omitted six required
 // fields and passed only because the call site cast instead of parsing.
-import { createHash, randomBytes } from 'node:crypto';
+//
+// THE EVENT PRIMITIVES LIVE IN estate-events.ts, not here. DigestSchema,
+// digestOf, TimestampSchema, TraceIdSchema, SpanIdSchema, the schema version
+// and the producer were declared in BOTH files, which is the duplicate-type
+// -definition shape 2026 guidance calls TYPE DEBT -- it "accumulates silently",
+// "compounds", and is to be treated like a failing test rather than recorded
+// for later. They are imported and RE-EXPORTED below, so every consumer that
+// resolved them from here still does; only the declaration moved.
+import { randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { z } from 'zod';
 import { EstateActionSchema, actionForVerdict, exitCodeFor } from './estate-action.js';
+import {
+  ALL_ZERO,
+  DigestSchema,
+  ESTATE_PRODUCER,
+  ESTATE_SCHEMA_VERSION,
+  SpanIdSchema,
+  TimestampSchema,
+  TraceIdSchema,
+  digestOf,
+  type Digest,
+  type EstateSchemaVersion,
+  type SpanId,
+  type Timestamp,
+  type TraceId,
+} from './estate-events.js';
 import {
   ESTATE_REASONS,
   EstateProblemSchema,
@@ -42,9 +65,10 @@ import {
   type ReasonKind,
 } from './estate-vocabulary.js';
 
-// RE-EXPORTED, not re-declared. The vocabulary lives in the leaf so this module
-// and estate-action.ts can both read it without importing each other; every
-// existing consumer still resolves these names from here.
+// RE-EXPORTED, not re-declared. The vocabulary lives in one leaf and the event
+// primitives in another, so this module and estate-action.ts can both read them
+// without importing each other; every existing consumer still resolves these
+// names from here.
 export {
   ESTATE_REASONS,
   EstateProblemSchema,
@@ -55,6 +79,20 @@ export {
   type EstateProblem,
   type EstateReason,
   type ReasonKind,
+};
+export {
+  DigestSchema,
+  ESTATE_PRODUCER,
+  ESTATE_SCHEMA_VERSION,
+  SpanIdSchema,
+  TimestampSchema,
+  TraceIdSchema,
+  digestOf,
+  type Digest,
+  type EstateSchemaVersion,
+  type SpanId,
+  type Timestamp,
+  type TraceId,
 };
 
 /** One worktree, as observed from git. Parsed at the boundary, never cast. */
@@ -269,29 +307,15 @@ export function describeEstate(v: EstateVerdict): string {
  *  describeEstate alone made an orchestrator read English to learn whether the
  *  estate was clean, which is the failure gate:agent already names: it emits
  *  NDJSON per state transition precisely so a consumer never scrapes stdout.
- *  eas-build-freshness.ts states the same rule for its own verdict -- "machine
- *  consumers read these fields; the prose below is derived from the same
- *  verdict rather than being parsed by anything".
  *
- *  reasons is a flat, sorted, de-duplicated set of the CODES present across the
- *  estate, so a consumer can route on `dirty` or `prunable` without walking the
- *  per-worktree array; problems keeps the per-worktree detail for a human. */
-/** OpenTelemetry Events shape, not an ad-hoc flat object.
- *
- *  event.name is NAMESPACED and low-cardinality: the spec requires names be
- *  part of a namespace, forbids dynamic values in them, and treats the name as
- *  the identifier of the payload STRUCTURE. A bare "estate_verified" collides
- *  the moment any other tool emits one.
+ *  OpenTelemetry Events shape, not an ad-hoc flat object. event.name is
+ *  NAMESPACED and low-cardinality: the spec requires names be part of a
+ *  namespace, forbids dynamic values in them, and treats the name as the
+ *  identifier of the payload STRUCTURE.
  *
  *  ATTRIBUTES hold only queryable scalars; the unbounded per-worktree detail
  *  lives in BODY. The spec is explicit: avoid attributes with potentially
- *  unbounded values, and record those in the event body instead -- backends do
- *  not index inside complex attributes, so putting a 45-element array there
- *  makes it expensive and unqueryable at once.
- *
- *  Snake_case attribute keys follow the convention used throughout semconv
- *  (gen_ai.usage.input_tokens and friends). */
-
+ *  unbounded values, and record those in the event body instead. */
 export function estateTelemetry(
   v: EstateVerdict,
   trace: SpanContext | null = null,
@@ -337,11 +361,6 @@ export function estateTelemetry(
  *  stdout, and an uncaught throw emits a stack trace to stderr and NO event, so
  *  the fail-closed guarantee disappears in the one case it exists for.
  *
- *  2026 practice is explicit -- "throwing uncaught errors from validation is a
- *  sign of poor error handling"; parse suits trusted internal flows, safeParse
- *  suits untrusted input a caller must handle without crashing. Subprocess
- *  output is the second kind.
- *
  *  Returns null rather than a partial state: a half-parsed worktree would be a
  *  guess, and guessing here means reporting a verdict about a worktree we could
  *  not actually read. The caller escalates to the unreadable verdict. */
@@ -350,15 +369,12 @@ export function toWorktreeState(raw: unknown): WorktreeState | null {
   return parsed.success ? parsed.data : null;
 }
 
-/** OTel severity for a verdict. SeverityText and SeverityNumber are part of the
- *  Logs Data Model precisely so severity does not have to be re-derived from
- *  payload fields by every consumer -- a router should not need to know that
- *  `clean:false` means "warn". Numbers follow the spec's ranges: INFO 9,
- *  WARN 13, ERROR 17. */
 /** The severity vocabulary, as const for the same reason REASON_KINDS is: one
  *  declaration serves the type and the runtime schema, so a new level cannot
  *  exist in the type while the validator still rejects it. Numbers follow the
- *  OTel ranges -- INFO 9, WARN 13, ERROR 17. */
+ *  OTel ranges -- INFO 9, WARN 13, ERROR 17, which are part of the Logs Data
+ *  Model precisely so severity is not re-derived from payload fields by every
+ *  consumer. */
 export const SEVERITY_TEXTS = Object.freeze(['INFO', 'WARN', 'ERROR'] as const);
 export const SEVERITY_NUMBERS = Object.freeze([9, 13, 17] as const);
 
@@ -366,9 +382,7 @@ export const SEVERITY_NUMBERS = Object.freeze([9, 13, 17] as const);
  *  fields already declared in the event schemas, and the numeric union below
  *  re-listed what SEVERITY_NUMBERS declares -- one contract, three
  *  declarations, with a guard test existing only to prove they agreed. A test
- *  that exists to prove two declarations agree is the duplication itself.
- *
- *  One schema derived from the as-const arrays; the type follows by z.infer. */
+ *  that exists to prove two declarations agree is the duplication itself. */
 export const EstateSeveritySchema = z.strictObject({
   severity_text: z.enum(SEVERITY_TEXTS),
   // z.literal accepts the array in Zod 4, so the vocabulary is derived rather
@@ -392,48 +406,19 @@ export function severityFor(v: EstateVerdict, readable = true): EstateSeverity {
  *
  *  A trace_id this process generates for itself correlates nothing -- there is
  *  one event and one run. It becomes useful only when a PARENT supplies it, so
- *  an orchestrator can tie this verdict to the run that asked for it. That is
- *  what the W3C traceparent header is for, and gate:agent already carries one
- *  per state transition for the same reason.
+ *  an orchestrator can tie this verdict to the run that asked for it.
  *
  *  Format: version-traceid-spanid-flags, e.g.
  *  00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
  *  Returns null when absent or malformed rather than fabricating an id: a
  *  fabricated correlation id is worse than none, because it looks like
  *  provenance and carries none.
- */
-/** SCHEMA-FIRST, and Axis 1: the raw traceparent arrives from process.env,
- *  which the two-axis rule names as a trust boundary alongside HTTP bodies and
- *  query strings. It was validated by a hand-rolled regex plus two all-zero
- *  string checks -- ad-hoc validation at exactly the boundary the rule says
- *  must parse.
  *
- *  Axis 2 as well: trace_id and span_id were declared THREE times -- here, on
- *  SpanContext, and again in EventBaseShape. One schema now; the others derive.
- *
- *  W3C fixes both formats, and declares an all-zero id invalid. */
-const TRACE_ID = /^[0-9a-f]{32}$/;
-const SPAN_ID = /^[0-9a-f]{16}$/;
-const ALL_ZERO = /^0+$/;
-const notAllZero = (v: string): boolean => !ALL_ZERO.test(v);
-
-/** WHEN, as an instant this task records. Branded because it sits ADJACENT to
- *  digest parameters in every event constructor, and that swap is not
- *  hypothetical: two call sites in this arc passed a source digest into the
- *  timestamp slot, and only a runtime schema caught it. The compiler catches
- *  it now. */
-export const TimestampSchema = z.iso.datetime().brand<'Timestamp'>();
-export type Timestamp = z.infer<typeof TimestampSchema>;
-
-/** The two W3C ids, branded SEPARATELY. Both are lowercase hex differing only
- *  in length, so structural typing lets a span id sit where a trace id belongs
- *  and says nothing. Distinct brands make that a compile error -- the
- *  cross-contamination case the rule names. TraceContextSchema DERIVES from
- *  these rather than re-declaring the regexes, so there is one rule per id. */
-export const TraceIdSchema = z.string().regex(TRACE_ID).refine(notAllZero, 'trace_id must not be all zero').brand<'TraceId'>();
-export type TraceId = z.infer<typeof TraceIdSchema>;
-export const SpanIdSchema = z.string().regex(SPAN_ID).refine(notAllZero, 'span_id must not be all zero').brand<'SpanId'>();
-export type SpanId = z.infer<typeof SpanIdSchema>;
+ *  SCHEMA-FIRST, and Axis 1: the raw traceparent arrives from process.env,
+ *  which the two-axis rule names as a trust boundary. It was validated by a
+ *  hand-rolled regex plus two all-zero string checks -- ad-hoc validation at
+ *  exactly the boundary the rule says must parse. The two ids are DERIVED from
+ *  the branded schemas in estate-events.ts, so there is one rule per id. */
 export const TraceContextSchema = z.strictObject({
   trace_id: TraceIdSchema,
   span_id: SpanIdSchema,
@@ -461,38 +446,6 @@ export function traceContextFrom(raw: string | undefined): TraceContext | null {
   return parsed.success ? parsed.data : null;
 }
 
-/** sha256 of any text, hex. Shared so the snapshot digest and the source
- *  digest are provably the same function -- two hashes computed two ways is a
- *  discrepancy waiting to be misread. */
-/** A sha256 content address, as this task produces and accepts them.
- *
- *  SSOT: estate_digest and source_digest were bare z.string() on the event
- *  while digestOf can only ever yield 64 lowercase hex, and --expect-digest
- *  accepted any string at all. Three spellings of one shape, the loosest of
- *  which is the one a caller passes in. */
-
-export const DigestSchema = z.string()
-  .regex(/^[0-9a-f]{64}$/, 'must be a sha256 hex digest')
-  // BRANDED, exactly as WorktreeState is, and for the identical reason: a
-  // z.infer of an unbranded string IS string, so the type bought nothing and
-  // every digest parameter still accepted any string at all. Validating only
-  // at the argv boundary left the OTHER doors open -- decideEstate is
-  // exported, and runEstateVerify is the envelope built for in-process
-  // agents, so an agent could pass uppercase hex and loop on REREAD_ESTATE
-  // forever. Branding makes that a COMPILE error instead: a caller must parse
-  // to obtain one, and parsing is the only constructor.
-  //
-  // Zero runtime cost -- the brand is a phantom property erased at compile
-  // time, so this is enforcement without a check on every call.
-  .brand<'Digest'>();
-export type Digest = z.infer<typeof DigestSchema>;
-
-export function digestOf(text: string): Digest {
-  // parse, not a cast: the brand is only sound if the value went through the
-  // schema, and our own output must satisfy the contract we publish.
-  return DigestSchema.parse(createHash('sha256').update(text).digest('hex'));
-}
-
 /** Content-addressable digest of the estate SNAPSHOT.
  *
  *  Lets a consumer say "this is the state I acted on" and re-derive it later,
@@ -505,14 +458,17 @@ export function digestOf(text: string): Digest {
  *  insertion and would make the digest depend on how the driver happened to
  *  build the literal.
  *
+ *  Lives HERE rather than in estate-events.ts because it depends on
+ *  WorktreeState; moving it would invert the dependency and create a cycle. It
+ *  calls the shared digestOf, so the snapshot digest and the source digest are
+ *  provably the same computation.
+ *
  *  NOT SIGNED, deliberately. A local tool signing its own output with a key it
  *  holds proves nothing: signer and verifier are the same principal, so anyone
- *  who can run the tool can forge the attestation. 2026 guidance is explicit
- *  that a signing identity "should not be accessible to the build script", and
- *  keyless signing needs an ambient OIDC identity that exists in CI and not on
- *  a laptop. Signing belongs there, as its own arc. A digest still gives
- *  integrity against accidental drift, which is the failure actually reachable
- *  here. */
+ *  who can run the tool can forge the attestation. Keyless signing needs an
+ *  ambient OIDC identity that exists in CI and not on a laptop. A digest still
+ *  gives integrity against accidental drift, which is the failure actually
+ *  reachable here. */
 export function estateDigest(states: readonly WorktreeState[]): Digest {
   const lines = [...states]
     .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
@@ -539,21 +495,15 @@ export const UNREADABLE_REASONS = Object.freeze([
 ] as const);
 export type UnreadableReason = (typeof UNREADABLE_REASONS)[number];
 
-/** A DISTINCT event, not the verified event with awkward values.
+/** The closed set of events this task emits. event.name is the discriminant.
  *
- *  Both previously carried event.name "fleet.estate.verified", so a consumer
- *  told them apart by inferring from `clean:false, checked:0` -- the
- *  optional-properties bag the discriminated-union guidance warns about, where
- *  an invalid combination is representable and "unclean with zero problems"
- *  reads the same as "could not read". OTel says the same thing from the other
- *  side: an event name identifies a payload STRUCTURE, so a different structure
- *  needs a different name.
- *
- *  It also carries WHICH failure occurred. Three call sites previously emitted
- *  an identical payload, so the event could not distinguish a failed subprocess
- *  from an empty parse from a rejected record. */
-
-/** The closed set of events this task emits. event.name is the discriminant. */
+ *  A DISTINCT event per shape, not one event with awkward values. Both variants
+ *  once carried "fleet.estate.verified", so a consumer told them apart by
+ *  inferring from `clean:false, checked:0` -- the optional-properties bag the
+ *  discriminated-union guidance warns about, where an invalid combination is
+ *  representable and "unclean with zero problems" reads the same as "could not
+ *  read". OTel says the same from the other side: an event name identifies a
+ *  payload STRUCTURE, so a different structure needs a different name. */
 export type EstateEvent =
   | EstateTelemetry
   | EstateUnreadableEvent
@@ -585,8 +535,7 @@ export function unreadableEstateEvent(
  *  which lives under a v8-ignore because it spawns git -- so "git threw, so emit
  *  git-failed and exit 3" was verified by reading the code and nothing else.
  *  2026 practice for subprocess-bearing CLIs is to move the instantiation up a
- *  level and make the INTERACTION the part under test, which is the split
- *  decideClose and decideMergeReady already use in this repo. */
+ *  level and make the INTERACTION the part under test. */
 export type EstateGathered =
   | { readonly kind: 'git-failed' }
   | { readonly kind: 'no-records'; readonly sourceDigest: Digest }
@@ -602,12 +551,7 @@ export type EstateGathered =
  *  It previously paired `event: EstateEvent` with `verdict: EstateVerdict |
  *  null` as INDEPENDENT fields, which is the conflicting-flags shape: nothing
  *  tied them together, so the driver needed a "verdict missing for a verified
- *  event" branch that could never run. That is the defensive "should never
- *  happen" comment the make-illegal-states-unrepresentable literature names --
- *  easy to miss, easy to delete, and costly to test.
- *
- *  Splitting the variants deletes the branch instead of documenting it, and
- *  lets estateLine be exhaustive without a fallback.
+ *  event" branch that could never run.
  *
  *  exitCode is narrowed PER VARIANT, so 3 belongs to unreadable and 4 to stale
  *  by construction rather than by convention. */
@@ -692,9 +636,9 @@ export function decideEstate(
  *  estate_digest let a caller RECORD what it observed; nothing let it BIND an
  *  action to that observation. The caller had to re-run, re-parse, and compare
  *  digests itself -- and a check the caller performs separately from the act is
- *  exactly the split compare-and-swap exists to close: in this repo two laptops
- *  and many worktrees mutate the estate concurrently, so a plan made at digest
- *  X can be executed against a world already at Y.
+ *  exactly the split compare-and-swap exists to close: two laptops and many
+ *  worktrees mutate this estate concurrently, so a plan made at digest X can be
+ *  executed against a world already at Y.
  *
  *  This is the If-Match / 412 Precondition Failed shape, value-based rather
  *  than a version counter or timestamp: the digest IS the content, so it cannot
@@ -704,7 +648,6 @@ export function decideEstate(
  *  The estate was read perfectly well -- it simply is not the one the caller
  *  planned against, and the remediation is to re-read and re-plan rather than
  *  to fix a worktree or a tool. */
-
 export function estateStaleEvent(
   expectedDigest: Digest,
   actualDigest: Digest,
@@ -727,33 +670,6 @@ export function estateStaleEvent(
   };
 }
 
-/** Schema version, carried on EVERY event this task emits.
- *
- *  event.name says WHICH event; this says which REVISION of that event's
- *  payload, which a name cannot express. Without it a consumer cannot tell a
- *  field it does not recognise from a field that was removed, and 2026 guidance
- *  lists publishing different shapes of the same event without a version among
- *  the practices to avoid outright -- "impossible to debug".
- *
- *  Not hypothetical here: this arc already made a breaking change, moving the
- *  unreadable case off fleet.estate.verified onto its own name and shape. A
- *  consumer written against the earlier form would have broken with no signal.
- *
- *  SEMVER, and the rules are the usual ones: PATCH for documentation or
- *  metadata, MINOR for a backward-compatible addition such as a new optional
- *  attribute, MAJOR for anything a existing reader could misinterpret -- a
- *  removed field, a narrowed enum, or the same field meaning something new.
- *  A changed MEANING is major even when the shape is identical.
- *
- *  ONE constant, referenced by all three variants, so a bump cannot land on
- *  some events and miss others. */
-export const ESTATE_SCHEMA_VERSION = '1.2.0';
-
-/** WHAT produced the record. A literal, so a consumer can pin it and a typo
- *  cannot masquerade as a different tool. */
-export const ESTATE_PRODUCER = 'estate:verify';
-export type EstateSchemaVersion = typeof ESTATE_SCHEMA_VERSION;
-
 /** RUNTIME schema for everything this task emits.
  *
  *  The events are the published contract: they carry schema_version and an
@@ -773,24 +689,12 @@ export type EstateSchemaVersion = typeof ESTATE_SCHEMA_VERSION;
 const EventBaseShape = {
   schema_version: z.literal(ESTATE_SCHEMA_VERSION),
   // WHEN. An audit record without a timestamp cannot be placed in a sequence,
-  // and every 2026 checklist names it in the minimum field set. ISO 8601 UTC
-  // with millisecond precision, which is what those checklists specify.
-  //
-  // The clock is INJECTED, never read here: the core stays pure, the shell
-  // supplies the instant, and a test can pin it. That is the same split the
-  // gather function already uses.
+  // and every 2026 checklist names it in the minimum field set. The clock is
+  // INJECTED, never read here: the core stays pure, the shell supplies the
+  // instant, and a test can pin it.
   timestamp: TimestampSchema,
   // WHAT decided. The tool that produced this record, so a reader holding a
   // stream from several producers can attribute one line to one tool.
-  //
-  // NOT a human or machine ACTOR, deliberately. This runs on a laptop with no
-  // verifiable identity to assert, and 2026 audit guidance is blunt that a
-  // wrong or ambiguous identity is a failed control -- "a shared service
-  // account ran the action, so who is ambiguous". An unverifiable identity
-  // claim in an audit record is worse than its absence: it reads as evidence
-  // and carries none, the identical argument that keeps the in-toto Statement
-  // unsigned. A runner WITH an identity -- CI with OIDC -- attributes the run
-  // through the trace it supplies.
   producer: z.literal(ESTATE_PRODUCER),
   // DERIVED from TraceContextSchema: the two ids were declared here as loose
   // strings while the context schema constrained them, so an event could carry
@@ -800,8 +704,8 @@ const EventBaseShape = {
   // WHAT THE CALLER MAY DO, beside what was observed. An orchestrator reading
   // this stream off a collector never sees an exit code, so without this field
   // it has to re-derive the policy from attributes -- a second implementation
-  // of the rule, waiting to disagree with the first. assert-parses.ts has
-  // carried agent_action for the same reason since it was written.
+  // of the rule, waiting to disagree with the first.
+  //
   // ADVISORY, NEVER AUTHORIZATION. This is what the tool RECOMMENDS given what
   // it observed; it is not permission to act. 2026 agent-governance guidance is
   // explicit that no field a tool emits is self-authorizing, and that a
@@ -826,8 +730,7 @@ export const EstateTelemetrySchema = z.strictObject({
   // REQUIRED on a verdict, because the recommendation above is derived from
   // THIS snapshot and nothing else. A recommendation whose evidence cannot be
   // named is one a downstream PDP cannot re-verify -- and re-verification is
-  // exactly what --expect-digest exists to make possible. Optional here was a
-  // type admitting an unbindable action.
+  // exactly what --expect-digest exists to make possible.
   estate_digest: DigestSchema,
   source_digest: DigestSchema.optional(),
   attributes: z.strictObject({
@@ -869,17 +772,10 @@ export const EstateEventSchema = z.discriminatedUnion('event.name', [
 ]);
 
 /** The event types, DERIVED from the schemas above rather than hand-written
- *  beside them.
- *
- *  They were interfaces declaring the same cross-boundary shapes the schemas
- *  declare -- one contract, two definitions, which is the duplication the
- *  schema-first rule forbids. Nine tests existed to prove the two agreed; with
- *  a single declaration there is nothing left to disagree.
- *
- *  Axis 1 is unchanged: these are values WE construct, so nothing re-parses
- *  them in production. The schemas exist because the shape crosses a boundary
- *  (agents parse the NDJSON) and because tests assert what we emit matches what
- *  we publish -- not to re-validate trusted internal data. */
+ *  beside them. They were interfaces declaring the same cross-boundary shapes
+ *  the schemas declare -- one contract, two definitions, which is the
+ *  duplication the schema-first rule forbids. Nine tests existed to prove the
+ *  two agreed; with a single declaration there is nothing left to disagree. */
 export type EstateTelemetry = z.infer<typeof EstateTelemetrySchema>;
 export type EstateUnreadableEvent = z.infer<typeof EstateUnreadableEventSchema>;
 export type EstateStaleEvent = z.infer<typeof EstateStaleEventSchema>;
@@ -893,22 +789,13 @@ export type EstateStaleEvent = z.infer<typeof EstateStaleEventSchema>;
  *  parent; copying it upward is how a trace ends up with a hole exactly where
  *  the work happened.
  *
- *  OTel's CLI semantic conventions cover precisely this shape -- short-lived
- *  programs that end their execution -- with span kind INTERNAL and an error
- *  status when the exit code is non-zero. The events carry the ids rather than
- *  a span-event API, because OTel deprecated span events in March 2026 in
- *  favour of "events as logs correlated with the current span".
- *
  *  No SDK, no exporter, no collector dependency: a short-lived CLI that stands
  *  up an OTLP pipeline to emit one span pays startup and network cost for a
- *  process measured in milliseconds, which is the over-instrumentation the
- *  guidance warns against. Emitting correct ids on the NDJSON lets a collector
- *  that already reads this stream assemble the span.
+ *  process measured in milliseconds. Emitting correct ids on the NDJSON lets a
+ *  collector that already reads this stream assemble the span.
  *
  *  randomBytes, not Math.random: span ids must not collide across concurrent
  *  runs, and two laptops sweeping the same estate run this task simultaneously. */
-
-/** 8 bytes hex, per W3C. Never all-zero, which the spec calls invalid. */
 export function newSpanId(rand: () => Buffer = () => randomBytes(8)): SpanId {
   const id = rand().toString('hex');
   return SpanIdSchema.parse(ALL_ZERO.test(id) ? '0'.repeat(15) + '1' : id);

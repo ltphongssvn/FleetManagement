@@ -1,6 +1,6 @@
 // scripts/estate-layering.guard.test.ts
-// ARCHITECTURAL GUARD: the estate arc's modules form a DAG, and the vocabulary
-// is its leaf.
+// ARCHITECTURAL GUARD: the estate arc's modules form a DAG, and its two leaves
+// are the vocabulary and the event primitives.
 //
 // WHY. estate-verify.ts imported estate-action.ts for the action schema while
 // estate-action.ts imported estate-verify.ts back for REASON_KIND. A second
@@ -18,8 +18,9 @@
 //
 // The documented fix is a third module both sides import from, and the
 // documented ENFORCEMENT is a cycle check in CI. This is that check, written as
-// a test rather than a new dependency: the graph is four files, so walking it
-// here is cheaper and more precise than adding madge to the toolchain.
+// a test rather than a new dependency: the graph is a handful of files, so
+// walking it here is cheaper and more precise than adding madge to the
+// toolchain.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { ACTION_EXIT, ESTATE_ACTIONS } from './estate-action.js';
@@ -29,14 +30,16 @@ import {
   SEVERITY_TEXTS,
   UNREADABLE_REASONS,
 } from './estate-verify.js';
+import { UNOBSERVABLE_REASONS } from './estate-gather.js';
 import { join } from 'node:path';
 
 const ROOT = join(import.meta.dirname, '..');
 
-/** The modules of this arc. The vocabulary is listed FIRST because it is the
- *  leaf everything else may depend on. */
+/** The modules of this arc. The two LEAVES are listed first because everything
+ *  else may depend on them and they may depend on nothing. */
 const ARC = [
   'estate-vocabulary',
+  'estate-events',
   'estate-action',
   'estate-verify',
   'estate-verify-cli',
@@ -100,6 +103,50 @@ describe('the vocabulary is the leaf', () => {
   });
 });
 
+// ---- the second leaf ----
+// The event primitives -- DigestSchema, digestOf, TimestampSchema, the two W3C
+// id schemas, the schema version and the producer -- were declared in
+// estate-verify.ts AND again in estate-events.ts while the observation event
+// was being built. Two declarations of one contract is the duplicate-type
+// -definition shape 2026 guidance calls TYPE DEBT: it "accumulates silently",
+// "compounds", and is to be treated like a failing test rather than recorded
+// for later. The declarations now live in the leaf and estate-verify.ts
+// re-exports them, so consumers resolve unchanged.
+//
+// It MUST stay a leaf. The moment it imports anything from this arc it can
+// join a cycle, and the event schemas that extend its envelope are exactly the
+// module-scope reads that make a cycle throw on load order alone.
+describe('the event primitives are a leaf', () => {
+  it('imports no local module at all', () => {
+    expect(localImports('estate-events')).toEqual([]);
+  });
+
+  it('is reachable from the core, which re-exports its primitives', () => {
+    expect([...reachableFrom('estate-verify')]).toContain('estate-events');
+  });
+
+  it('is reachable from the observation boundary, which builds events from it', () => {
+    expect([...reachableFrom('estate-gather')]).toContain('estate-events');
+  });
+
+  // The duplication that prompted the split must not come back: the core may
+  // RE-EXPORT these names but must not DECLARE them.
+  it('the core declares none of the primitives it re-exports', () => {
+    const source = readFileSync(join(ROOT, 'scripts', 'estate-verify.ts'), 'utf-8');
+    for (const declaration of [
+      'export const DigestSchema',
+      'export function digestOf',
+      'export const TimestampSchema',
+      'export const TraceIdSchema',
+      'export const SpanIdSchema',
+      'export const ESTATE_SCHEMA_VERSION',
+      'export const ESTATE_PRODUCER',
+    ]) {
+      expect([declaration, source.includes(declaration)]).toEqual([declaration, false]);
+    }
+  });
+});
+
 describe('the layers run one way', () => {
   // The policy states what a caller may DO; it must not depend on how a verdict
   // is rendered or on the driver that spawns git.
@@ -114,6 +161,12 @@ describe('the layers run one way', () => {
   // The core is pure: it may not reach for the shell.
   it('the core does not import the driver', () => {
     expect(localImports('estate-verify')).not.toContain('estate-verify-cli');
+  });
+
+  // Nor may it reach DOWN into the observation boundary: estate-gather imports
+  // the core for WorktreeState, so the reverse edge would be a cycle.
+  it('the core does not import the observation boundary', () => {
+    expect(localImports('estate-verify')).not.toContain('estate-gather');
   });
 
   // And the driver sits on top of both, which is the only legal direction.
@@ -133,9 +186,6 @@ describe('the layers run one way', () => {
 // HALT_WORK_IN_PROGRESS, so a consumer reassigning one key silently rewrites
 // the policy every other consumer branches on -- and nothing in a type system
 // that has already compiled can see it.
-//
-// Asserted over the whole set rather than one by one, so a vocabulary added
-// later is covered without anyone remembering to add a test.
 describe('every exported vocabulary is frozen at RUNTIME, not only as const', () => {
   it('freezes the reason codes', () => {
     expect(Object.isFrozen(ESTATE_REASONS)).toBe(true);
@@ -163,6 +213,10 @@ describe('every exported vocabulary is frozen at RUNTIME, not only as const', ()
     expect(Object.isFrozen(UNREADABLE_REASONS)).toBe(true);
   });
 
+  it('freezes the unobservable reasons', () => {
+    expect(Object.isFrozen(UNOBSERVABLE_REASONS)).toBe(true);
+  });
+
   it('freezes both severity vocabularies', () => {
     expect(Object.isFrozen(SEVERITY_TEXTS)).toBe(true);
     expect(Object.isFrozen(SEVERITY_NUMBERS)).toBe(true);
@@ -173,7 +227,8 @@ describe('every exported vocabulary is frozen at RUNTIME, not only as const', ()
   it('freezes every vocabulary the arc exports', () => {
     const vocabularies = [
       ESTATE_REASONS, REASON_KINDS, REASON_KIND, ESTATE_ACTIONS,
-      ACTION_EXIT, UNREADABLE_REASONS, SEVERITY_TEXTS, SEVERITY_NUMBERS,
+      ACTION_EXIT, UNREADABLE_REASONS, UNOBSERVABLE_REASONS,
+      SEVERITY_TEXTS, SEVERITY_NUMBERS,
     ];
     for (const v of vocabularies) {
       expect(Object.isFrozen(v)).toBe(true);
