@@ -189,6 +189,35 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-push]
+      - id: estate-verify-push
+        name: Estate Verify (Pre-push, local estate only)
+        # LEVEL 5 of the load-bearing ladder: the task existed, was registered
+        # in turbo.jsonc with graded exits, failed closed, and emitted evidence
+        # -- and NOTHING INVOKED IT. A verdict nobody consumes is decorative,
+        # however sound its internals. This is the same hole ci.yml documents
+        # three times (//#lint:scripts, //#typecheck:scripts, //#lint:e2e):
+        # a check real in principle and absent in practice.
+        #
+        # PRE-PUSH, AND DELIBERATELY NOT CI. The estate it inspects is the
+        # LOCAL one -- dirty trees, stashes, unpushed commits across every
+        # worktree on this machine. A CI runner is a fresh shallow clone with
+        # exactly one worktree, so the verdict there is vacuous; wiring it into
+        # __ci_fast__ would be cargo-culting the shape of a gate. 2026 guidance
+        # splits precisely this way: environment-dependent local state belongs
+        # in the hook, while CI stays authoritative for what a laptop cannot
+        # reproduce. What CI already defends is the MECHANISM -- security-guards
+        # runs test:scripts, which covers all eight estate suites, so weakening
+        # the classifier turns the PR red (ladder level 8).
+        #
+        # The hook is bypassable with --no-verify, which is exactly why it is
+        # the LOCAL half of a pair rather than the whole control.
+        #
+        # Exit 1 (not clean) blocks the push; exit 3 (unreadable) blocks it too,
+        # because an estate that cannot be read must never be assumed clean.
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm exec turbo run estate:verify -- --quiet; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
       # NOTE: pnpm-test-mutation is intentionally NOT wired to pre-push.
       # Stryker mutation testing on apps/api takes ~34 minutes wall time
       # and on apps/ops-web ~7 minutes — combined with the other 5
