@@ -329,8 +329,8 @@ export function toWorktreeState(raw: unknown): WorktreeState | null {
  *  declaration serves the type and the runtime schema, so a new level cannot
  *  exist in the type while the validator still rejects it. Numbers follow the
  *  OTel ranges -- INFO 9, WARN 13, ERROR 17. */
-export const SEVERITY_TEXTS = ['INFO', 'WARN', 'ERROR'] as const;
-export const SEVERITY_NUMBERS = [9, 13, 17] as const;
+export const SEVERITY_TEXTS = Object.freeze(['INFO', 'WARN', 'ERROR'] as const);
+export const SEVERITY_NUMBERS = Object.freeze([9, 13, 17] as const);
 
 export interface EstateSeverity {
   readonly severity_text: (typeof SEVERITY_TEXTS)[number];
@@ -421,11 +421,11 @@ export function estateDigest(states: readonly WorktreeState[]): string {
  *  prose: git-failed means the subprocess itself failed; no-records means git
  *  exited 0 yet produced no worktree, which cannot happen in a valid repo;
  *  record-rejected means a record did not satisfy the schema. */
-export const UNREADABLE_REASONS = [
+export const UNREADABLE_REASONS = Object.freeze([
   'git-failed',
   'no-records',
   'record-rejected',
-] as const;
+] as const);
 export type UnreadableReason = (typeof UNREADABLE_REASONS)[number];
 
 /** A DISTINCT event, not the verified event with awkward values.

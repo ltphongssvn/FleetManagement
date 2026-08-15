@@ -29,19 +29,19 @@ import { z } from 'zod';
 
 /** Why one worktree is not clean. Codes, never prose: callers branch on these
  *  and the operator report is derived from them. */
-export const ESTATE_REASONS = [
+export const ESTATE_REASONS = Object.freeze([
   'dirty',
   'unpushed',
   'stash',
   'prunable',
   'locked',
-] as const;
+] as const);
 export type EstateReason = (typeof ESTATE_REASONS)[number];
 
-/** The kind vocabulary, as const so ONE declaration serves the type, the
- *  ordering, and the runtime schema. Hand-listing these in the event schema
- *  would let ReasonKind gain a value the validator never learns about. */
-export const REASON_KINDS = ['work-in-progress', 'structural'] as const;
+/** The kind vocabulary. FROZEN as well as as-const: `as const` is a COMPILE-
+ *  time guarantee only, so an exported array stays mutable at runtime. One
+ *  declaration serves the type, the ordering and the runtime schema. */
+export const REASON_KINDS = Object.freeze(['work-in-progress', 'structural'] as const);
 export type ReasonKind = (typeof REASON_KINDS)[number];
 
 /** What KIND of problem a reason is, because the two kinds have different
@@ -58,13 +58,13 @@ export type ReasonKind = (typeof REASON_KINDS)[number];
  *
  *  A TOTAL Record, so adding a reason without classifying it is a compile
  *  error -- the discipline check-conclusion.ts uses for its verdict table. */
-export const REASON_KIND: Record<EstateReason, ReasonKind> = {
+export const REASON_KIND: Readonly<Record<EstateReason, ReasonKind>> = Object.freeze({
   dirty: 'work-in-progress',
   unpushed: 'work-in-progress',
   stash: 'work-in-progress',
   prunable: 'structural',
   locked: 'structural',
-};
+});
 
 /** One unclean worktree, as reported. Cross-boundary: it is emitted inside
  *  body.problems and parsed by agents, so the SCHEMA is the SSOT and the type

@@ -22,6 +22,13 @@
 // here is cheaper and more precise than adding madge to the toolchain.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { ACTION_EXIT, ESTATE_ACTIONS } from './estate-action.js';
+import { ESTATE_REASONS, REASON_KIND, REASON_KINDS } from './estate-vocabulary.js';
+import {
+  SEVERITY_NUMBERS,
+  SEVERITY_TEXTS,
+  UNREADABLE_REASONS,
+} from './estate-verify.js';
 import { join } from 'node:path';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -108,5 +115,64 @@ describe('the layers run one way', () => {
   // And the driver sits on top of both, which is the only legal direction.
   it('the driver imports the core, never the reverse', () => {
     expect(localImports('estate-verify-cli')).toContain('estate-verify');
+  });
+});
+
+// ---- as const is a compile-time claim; freeze is the runtime one ----
+// ESTATE_ACTIONS was declared Object.freeze([...] as const) while the six other
+// vocabularies in this arc used a bare `as const`. That reads as the same
+// guarantee and is not: `as const` narrows the TYPE and does nothing at
+// runtime, so an exported array remained mutable by any consumer that imported
+// it.
+//
+// REASON_KIND is the sharp case. It is the SSOT deciding HALT_STRUCTURAL versus
+// HALT_WORK_IN_PROGRESS, so a consumer reassigning one key silently rewrites
+// the policy every other consumer branches on -- and nothing in a type system
+// that has already compiled can see it.
+//
+// Asserted over the whole set rather than one by one, so a vocabulary added
+// later is covered without anyone remembering to add a test.
+describe('every exported vocabulary is frozen at RUNTIME, not only as const', () => {
+  it('freezes the reason codes', () => {
+    expect(Object.isFrozen(ESTATE_REASONS)).toBe(true);
+  });
+
+  it('freezes the reason kinds', () => {
+    expect(Object.isFrozen(REASON_KINDS)).toBe(true);
+  });
+
+  // The policy table: mutable here means the work-in-progress/structural split
+  // is rewritable by anything that imports it.
+  it('freezes the reason-to-kind table', () => {
+    expect(Object.isFrozen(REASON_KIND)).toBe(true);
+  });
+
+  it('freezes the action vocabulary', () => {
+    expect(Object.isFrozen(ESTATE_ACTIONS)).toBe(true);
+  });
+
+  it('freezes the action-to-exit map', () => {
+    expect(Object.isFrozen(ACTION_EXIT)).toBe(true);
+  });
+
+  it('freezes the unreadable reasons', () => {
+    expect(Object.isFrozen(UNREADABLE_REASONS)).toBe(true);
+  });
+
+  it('freezes both severity vocabularies', () => {
+    expect(Object.isFrozen(SEVERITY_TEXTS)).toBe(true);
+    expect(Object.isFrozen(SEVERITY_NUMBERS)).toBe(true);
+  });
+
+  // The property stated once over everything, so a NEW vocabulary is covered
+  // the moment it joins this list rather than needing its own test.
+  it('freezes every vocabulary the arc exports', () => {
+    const vocabularies = [
+      ESTATE_REASONS, REASON_KINDS, REASON_KIND, ESTATE_ACTIONS,
+      ACTION_EXIT, UNREADABLE_REASONS, SEVERITY_TEXTS, SEVERITY_NUMBERS,
+    ];
+    for (const v of vocabularies) {
+      expect(Object.isFrozen(v)).toBe(true);
+    }
   });
 });
