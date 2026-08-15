@@ -31,16 +31,17 @@ import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import {
-  decideEstate,
-  describeEstate,
   digestOf,
   toWorktreeState,
-  spanContextFor,
-  traceContextFrom,
-  type EstateDecision,
   type EstateGathered,
   type WorktreeState,
 } from './estate-verify.js';
+import { estateLineFor, runEstateVerify } from './estate-run.js';
+
+// Re-exported under its original name: the rendering moved to the envelope so
+// both surfaces share one wording, and a caller that imported it from here
+// still resolves it.
+export { estateLineFor as estateLine };
 
 const NL = String.fromCharCode(10);
 
@@ -175,33 +176,6 @@ function gatherEstate(): EstateGathered {
   };
 }
 
-/** The human line, chosen by the EVENT's own discriminant.
- *
- *  Narrowing on `verdict === null` did not compile, and tsc was right: verdict
- *  and event are two independently narrowable fields, so knowing one says
- *  nothing about the other. event.name is the discriminant, and reading it is
- *  what makes the unreadable arm's `reason` reachable.
- *
- *  Pure, so the entrypoint below stays orchestration only. */
-export function estateLine(decision: EstateDecision): string {
-  switch (decision.kind) {
-    case 'stale':
-      // Named separately because the remediation differs: nothing is broken and
-      // no worktree needs attention -- the caller's view is out of date, and the
-      // fix is to re-read, exactly as a 412 tells a client to re-fetch.
-      return 'estate STALE: expected '
-        + decision.event.attributes.expected_digest.slice(0, 12)
-        + ', found ' + decision.event.attributes.estate_digest.slice(0, 12);
-    case 'unreadable':
-      return 'estate UNREADABLE: ' + decision.event.attributes.reason;
-    case 'verified':
-      // No default and no fallback: the switch is exhaustive over EstateDecision,
-      // so a new variant becomes a COMPILE error here rather than a silent
-      // fall-through to a 'should never happen' string.
-      return describeEstate(decision.verdict);
-  }
-}
-
 function mainEstateVerify(): number {
   let argv: EstateArgv;
   try {
@@ -217,13 +191,19 @@ function mainEstateVerify(): number {
   // A span of OUR OWN inside the caller's trace. Copying the parent's span_id
   // would attribute this task's events to the parent's span, leaving a hole in
   // the trace exactly where the work happened.
-  const trace = spanContextFor(traceContextFrom(process.env['TRACEPARENT']));
-  const decision = decideEstate(gatherEstate(), trace, argv.expectDigest);
+  // Gather, decide and render all happen in runEstateVerify, so this file owns
+  // only argv, the two streams and the exit code -- what a CLI should own. An
+  // in-process runtime calls the same function and reads the same fields.
+  const result = runEstateVerify({
+    gather: gatherEstate,
+    expectDigest: argv.expectDigest,
+    traceparent: process.env['TRACEPARENT'],
+  });
 
-  process.stdout.write(JSON.stringify(decision.event) + NL);
-  if (argv.quiet) return decision.exitCode;
-  process.stderr.write(estateLine(decision) + NL);
-  return decision.exitCode;
+  process.stdout.write(JSON.stringify(result.event) + NL);
+  if (argv.quiet) return result.exitCode;
+  process.stderr.write(result.line + NL);
+  return result.exitCode;
 }
 
 const isMain = process.argv[1]?.endsWith('estate-verify-cli.ts') ?? false;
