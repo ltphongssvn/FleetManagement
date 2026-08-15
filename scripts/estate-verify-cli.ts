@@ -32,12 +32,11 @@ import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import {
   digestOf,
-  toWorktreeState,
   type EstateGathered,
-  type WorktreeState,
 } from './estate-verify.js';
 import { estateLineFor, runEstateVerify } from './estate-run.js';
 import { estateStreams } from './estate-streams.js';
+import { gatherOneFrom, type GatheredOne, type GitOutcome } from './estate-gather.js';
 
 // Re-exported under its original name: the rendering moved to the envelope so
 // both surfaces share one wording, and a caller that imported it from here
@@ -115,38 +114,33 @@ function git(args: readonly string[], cwd?: string): string {
   }).trim();
 }
 
-function gitAllowFail(args: readonly string[], cwd?: string): string {
+// The EXIT CODE is preserved, not swallowed. Returning '' on failure made a
+// failed command indistinguishable from one that printed nothing, and
+// countLines('') is 0 -- so a failed git status read as a clean tree.
+function gitOutcome(args: readonly string[], cwd?: string): GitOutcome {
   try {
-    return git(args, cwd);
+    return { ok: true, out: git(args, cwd) };
   } catch {
-    return '';
+    return { ok: false };
   }
 }
 
-function countLines(s: string): number {
-  return s.length === 0 ? 0 : s.split(NL).length;
-}
-
-function gatherOne(rec: ReturnType<typeof parseWorktreeRecords>[number]): WorktreeState | null {
-  const upstream = gitAllowFail(
-    ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'],
+function gatherOne(rec: ReturnType<typeof parseWorktreeRecords>[number]): GatheredOne {
+  // READ FIRST, DECIDE SECOND. Every reading is captured with its exit code
+  // intact, then handed to a pure function that knows which failures are
+  // normal and which are defects. countLines lives there too, so it can only
+  // ever be applied to output that actually ran.
+  const upstream = gitOutcome(
+    ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
     rec.path,
   );
-  const ahead = upstream.length > 0
-    ? Number(gitAllowFail(['rev-list', '--count', upstream + '..HEAD'], rec.path) || '0')
-    : 0;
-  // toWorktreeState uses safeParse, so a record the schema rejects returns null
-  // instead of throwing an uncaught ZodError past the one-event contract.
-  return toWorktreeState({
-    path: rec.path,
-    branch: rec.branch,
-    dirtyFileCount: countLines(
-      gitAllowFail(['status', '--porcelain=v1', '--untracked-files=all'], rec.path),
-    ),
-    aheadOfRemote: Number.isFinite(ahead) ? ahead : 0,
-    stashCount: countLines(gitAllowFail(['stash', 'list'], rec.path)),
-    prunable: rec.prunable,
-    locked: rec.locked,
+  return gatherOneFrom(rec, {
+    upstream,
+    ahead: upstream.ok && upstream.out.length > 0
+      ? gitOutcome(["rev-list", "--count", upstream.out + "..HEAD"], rec.path)
+      : { ok: false },
+    status: gitOutcome(["status", "--porcelain=v1", "--untracked-files=all"], rec.path),
+    stash: gitOutcome(["stash", "list"], rec.path),
   });
 }
 
@@ -167,12 +161,16 @@ function gatherEstate(): EstateGathered {
   if (records.length === 0) return { kind: 'no-records', sourceDigest };
 
   const gathered = records.map(gatherOne);
-  if (gathered.some((s) => s === null)) {
-    return { kind: 'record-rejected', sourceDigest };
+  // A GIT COMMAND THAT COULD NOT RUN is named as such, not folded into the
+  // schema-rejection reason: the remedies differ, and reporting a broken git
+  // as a malformed record would send the operator to the wrong place.
+  if (gathered.some((g) => g.kind === "git-failed")) return { kind: "git-failed" };
+  if (gathered.some((g) => g.kind === "rejected")) {
+    return { kind: "record-rejected", sourceDigest };
   }
   return {
-    kind: 'states',
-    states: gathered.filter((s): s is WorktreeState => s !== null),
+    kind: "states",
+    states: gathered.flatMap((g) => (g.kind === "state" ? [g.state] : [])),
     sourceDigest,
   };
 }
