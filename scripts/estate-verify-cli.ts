@@ -37,6 +37,7 @@ import {
   type WorktreeState,
 } from './estate-verify.js';
 import { estateLineFor, runEstateVerify } from './estate-run.js';
+import { estateStreams } from './estate-streams.js';
 
 // Re-exported under its original name: the rendering moved to the envelope so
 // both surfaces share one wording, and a caller that imported it from here
@@ -200,9 +201,12 @@ function mainEstateVerify(): number {
     traceparent: process.env['TRACEPARENT'],
   });
 
-  process.stdout.write(JSON.stringify(result.event) + NL);
-  if (argv.quiet) return result.exitCode;
-  process.stderr.write(result.line + NL);
+  // WHICH BYTES GO WHERE is decided by estateStreams, which is pure and
+  // asserted: exactly one NDJSON line on stdout, prose on stderr. This file
+  // only performs the writes.
+  const streams = estateStreams(result, argv.quiet);
+  process.stdout.write(streams.stdout);
+  if (streams.stderr.length > 0) process.stderr.write(streams.stderr);
   return result.exitCode;
 }
 
