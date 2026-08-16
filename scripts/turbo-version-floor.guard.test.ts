@@ -16,10 +16,15 @@
 // test/ directory is executed by NO registered task and therefore gates nothing
 // -- verified empirically: turbo run test:scripts reports only scripts/ files.
 //
-// Assertion style: this repo forbids the 2-arg expect(value, message) form
-// (eslint vitest/valid-expect). Diagnostics therefore travel INSIDE the asserted
-// value as a labelled object, so a failure diff still names the pinned version
-// and the floor it violated instead of printing a bare boolean.
+// Assertion style: diagnostics travel INSIDE the asserted value as a labelled
+// object, so a failure diff names the pinned version and the floor it violated
+// instead of printing a bare boolean. NOTE (2026-08-08): this was originally a
+// WORKAROUND -- the repo's eslint config rejected the 2-arg
+// expect(value, message) form via vitest/valid-expect. That was a false
+// positive (Vitest, unlike Jest, supports a message argument; the rule defaults
+// minArgs/maxArgs to 1) and it was fixed at the config with maxArgs: 2. The
+// labelled-object style is kept here because it reads well and the assertions
+// pass; new specs may use either form.
 //
 // Raising the floor is deliberate: bump FLOOR in the SAME commit as the pin, so
 // the guard and the manifest move together and a downgrade fails the PR gate.
@@ -36,8 +41,20 @@ const repoRoot = resolve(here, '..');
 const FLOOR = [2, 10, 8] as const;
 const FLOOR_TEXT = FLOOR.join('.');
 
+// `turbo` is a NAMED optional property, not Record<string, string>.
+//
+// WHY NOT Record (2026-08-08). The previous shape read
+// `.devDependencies?.turbo` off a Record<string, string>, which is TS4111 under
+// noPropertyAccessFromIndexSignature -- Record<string, string> is the
+// dynamic-key form and dot access on an index signature is what the flag
+// rejects. Bracket access would have compiled while leaving the real weakness:
+// nothing constrains the key, so a typo would read undefined and this guard
+// would report MISSING, i.e. fail claiming the repo has no turbo pin when the
+// mistake is in the guard. Naming the key makes a misspelling a compile error
+// and removes the index signature the flag was objecting to. Mirrors the same
+// change in scripts/bump-turbo.ts, which reads the identical field.
 interface RootManifest {
-  readonly devDependencies?: Record<string, string>;
+  readonly devDependencies?: { readonly turbo?: string };
 }
 
 function turboSpec(): string {

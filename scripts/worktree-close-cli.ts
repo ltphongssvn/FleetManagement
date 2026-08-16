@@ -12,6 +12,7 @@
 // refuse an actively-developed worktree even when merged and clean.
 
 import { execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
 import { decideClose, closePlan, type CloseVerdict, type WorktreeCloseInput } from './close-worktree.js';
 import {
   parseWorktreePorcelain,
@@ -58,6 +59,10 @@ export function reflogArgs(): string[] {
 export interface CloseArgv {
   path: string | null;
   retired: boolean;
+  // DONE (2026-08-11): the operator declaring this session finished. Waives
+  // ONLY the recency guard, and only for work already contained in the
+  // integration branch -- decideClose enforces that pairing, not this parser.
+  done: boolean;
 }
 
 // Pure so flag handling is unit-tested without spawning git. --retired is
@@ -66,20 +71,44 @@ export interface CloseArgv {
 export function parseCloseArgv(argv: readonly string[]): CloseArgv {
   let path: string | null = null;
   let retired = false;
+  let done = false;
   for (const arg of argv) {
     if (arg === '--retired') {
       retired = true;
+    } else if (arg === '--done') {
+      done = true;
     } else if (!arg.startsWith('--') && path === null && arg.length > 0) {
       path = arg;
     }
   }
-  return { path, retired };
+  return { path, retired, done };
 }
 
 // ---- pure selection + report ----
 
-export function selectTarget(entries: readonly WorktreeEntry[], path: string): WorktreeEntry {
-  const hit = entries.find((e) => e.path === path);
+// Matches by RESOLVED path, never by string equality. The old comparison
+// refused `../t89-wt1-turbo` -- a path that resolves to a real worktree root --
+// and then printed the absolute paths it wanted, so the operator re-ran the
+// same command with a different spelling of the same directory. `../name` is
+// what tab-completion produces from the canonical root, so requiring the
+// absolute form is a papercut with a loss-risk edge: an operator who assumes
+// the relative path worked may believe a worktree was closed when the command
+// exited 1.
+//
+// cwd is a PARAMETER, defaulted, not read from process inside: resolve() is
+// pure given a cwd, so the function stays unit-testable with no filesystem and
+// no cwd juggling in tests. Trailing separators and '.' segments normalise
+// away for free, which is why those cases are covered too.
+//
+// Resolution is not a wildcard -- an unknown path still throws, and the message
+// still lists the known roots.
+export function selectTarget(
+  entries: readonly WorktreeEntry[],
+  path: string,
+  cwd: string = process.cwd(),
+): WorktreeEntry {
+  const want = resolve(cwd, path);
+  const hit = entries.find((e) => resolve(e.path) === want);
   if (hit === undefined) {
     throw new Error('not a worktree root: ' + path + NL + 'known roots:' + NL +
       entries.map((e) => '  ' + e.path).join(NL));
@@ -106,6 +135,7 @@ export function formatCloseReport(verdict: CloseVerdict, input: WorktreeCloseInp
     ' upstream=' + String(input.hasUpstream) +
     ' contained=' + String(input.containedInIntegration) +
     ' retired=' + String(input.retired) +
+    ' done=' + String(input.done) +
     ' idleH=' + String(Math.floor(input.idleHours)));
   return lines.join(NL);
 }
@@ -127,7 +157,7 @@ function mainWorktreeClose(): number {
   const argv = parseCloseArgv(process.argv.slice(2));
   const target = argv.path;
   if (target === null) {
-    process.stderr.write('usage: turbo run worktree:close -- <worktree-path> [--retired]' + NL);
+    process.stderr.write('usage: turbo run worktree:close -- <worktree-path> [--retired] [--done]' + NL);
     return 2;
   }
   const entries = parseWorktreePorcelain(git(listWorktreesArgs()));
@@ -149,6 +179,7 @@ function mainWorktreeClose(): number {
     dirtyFileCount: countDirtyFiles(git(dirtyArgs(), entry.path)),
     containedInIntegration: Number(git(containmentArgs(INTEGRATION_REF), entry.path)) === 0,
     retired: argv.retired,
+    done: argv.done,
     idleHours,
   });
   const verdict = decideClose(input);

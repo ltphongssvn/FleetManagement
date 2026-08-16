@@ -75,6 +75,51 @@ export const CheckListSchema = z.array(CheckRunSchema);
 
 // ---- pure decision core ----
 
+/** Outcome of reading a `gh --json` payload.
+ *
+ *  `unreadable` is deliberately NOT an error state the caller must handle by
+ *  giving up: it means "we learned nothing THIS poll", and the follow loop
+ *  already knows how to wait. Distinguishing it from a real answer is the whole
+ *  point -- collapsing the two is what let a dropped connection masquerade as a
+ *  finished pipeline phase. */
+export type GhJson =
+  | { readonly kind: 'ok'; readonly value: unknown }
+  | { readonly kind: 'unreadable'; readonly raw: string };
+
+/** Longest excerpt of an unreadable payload to keep. Enough to identify a gh
+ *  error line, short enough that a stray HTML error page cannot flood a log
+ *  that is printed every 30 seconds for an hour. */
+const UNREADABLE_EXCERPT_CHARS = 300;
+
+/** Parse a `gh --json` payload without ever throwing.
+ *
+ *  THE CRASH THIS REPLACES (PR #550, 2026-08-10): gh emitted
+ *    error connecting to api.github.com
+ *  to STDERR, sh() concatenated it onto stdout, and prState called
+ *  JSON.parse(raw || '{}') with no guard -- the only one of three JSON call
+ *  sites in this file lacking a try/catch. The SyntaxError propagated and
+ *  killed the watcher seven minutes into a twenty-five minute pipeline. Running
+ *  it again immediately reported DEPLOYED, so the condition was transient and
+ *  retrying was the correct response the tool denied itself.
+ *
+ *  Empty, whitespace and JSON `null` are all unreadable rather than ok: the old
+ *  `raw || '{}'` substituted a VALID but meaningless object, which parses
+ *  cleanly and is then indistinguishable from a genuine answer. */
+export function parseGhJson(raw: string): GhJson {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return { kind: 'unreadable', raw: '(empty output)' };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed) as unknown;
+  } catch {
+    return { kind: 'unreadable', raw: trimmed.slice(0, UNREADABLE_EXCERPT_CHARS) };
+  }
+  if (parsed === null) {
+    return { kind: 'unreadable', raw: trimmed.slice(0, UNREADABLE_EXCERPT_CHARS) };
+  }
+  return { kind: 'ok', value: parsed };
+}
+
 export type CheckSummary = RollupSummary;
 
 export function summarizeChecks(checks: readonly CheckRun[]): CheckSummary {
@@ -166,6 +211,63 @@ export interface VerdictResult {
   readonly exitCode: number;
 }
 
+/** A workflow that FAILED for this SHA, with the run id needed to reach it.
+ *
+ *  WHY THIS EXISTS. develop-gates aggregates CI and E2E into one boolean, so
+ *  a failure printed only the phase name. When a boot crash made E2E fail,
+ *  the report said nothing more than FAILED at develop-gates -- which cannot
+ *  distinguish a failed unit test from a container that never started, and
+ *  those need completely different first moves. pr-checks already prints its
+ *  failing check names; the aggregated phases simply never got the same
+ *  treatment. 2026 CI-observability guidance is explicit that reporting a
+ *  failed job WITHOUT saying where the fault lies is the defect, not the
+ *  baseline. */
+export interface FailedWorkflow {
+  readonly workflowName: string;
+  readonly databaseId: number;
+}
+
+/** The newest run per workflow that is COMPLETED and verdict-fail.
+ *
+ *  Reuses runStateFor rather than re-deriving the conclusion mapping, so a
+ *  cancelled run stays non-failing here exactly as it does in every other
+ *  phase (the PR #511 lesson), and a re-run that succeeded clears the older
+ *  failure because only the newest run per workflow is considered. */
+export function failedWorkflowsFor(
+  runs: readonly RunRecord[],
+  workflowNames: readonly string[],
+  headSha: string,
+): readonly FailedWorkflow[] {
+  const out: FailedWorkflow[] = [];
+  for (const name of workflowNames) {
+    if (runStateFor(runs, name, headSha) !== 'failed') continue;
+    const newest = runs
+      .filter((r) => r.workflowName === name && shaMatches(r.headSha, headSha))
+      .slice()
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
+    if (newest !== undefined) out.push({ workflowName: name, databaseId: newest.databaseId });
+  }
+  return out;
+}
+
+/** The run URL an operator opens. A run id alone still costs a search. */
+export function runUrl(repo: string, databaseId: number): string {
+  return 'https://github.com/' + repo + '/actions/runs/' + String(databaseId);
+}
+
+/** The failure line. Falls back to the phase alone when no workflow detail
+ *  is available (promoted, pr-merged), so the message never regresses. */
+export function describeFailure(
+  phase: PhaseName,
+  failed: readonly FailedWorkflow[],
+  repo: string,
+): string {
+  if (failed.length === 0) return 'FAILED at ' + phase;
+  const NL2 = String.fromCharCode(10);
+  const lines = failed.map((f) => '  ' + f.workflowName + ': ' + runUrl(repo, f.databaseId));
+  return 'FAILED at ' + phase + ' -- ' + String(failed.length) + ' workflow(s) failed:' + NL2 + lines.join(NL2);
+}
+
 export function computeVerdict(results: readonly PhaseResult[]): VerdictResult {
   const firstFailed = results.find((r) => r.state === 'failed');
   if (firstFailed !== undefined) {
@@ -202,15 +304,21 @@ export const followConfigSchema = z.object({
 });
 export type FollowConfig = z.infer<typeof followConfigSchema>;
 
-function sh(cmd: string, args: readonly string[]): string {
+// STDOUT IS DATA; STDERR IS DIAGNOSTICS. Returning `r.stdout + r.stderr` put a
+// gh connection error in front of the JSON and crashed prState (PR #550). The
+// identical idiom cost eas-build-freshness-gate an ACQUISITION_FAILED verdict
+// against a healthy account, where eas-cli writes an upgrade banner to stderr.
+// Callers that parse read `.out`; callers that only need text still may, but
+// they must never hand `.err` to a parser.
+function sh(cmd: string, args: readonly string[]): { out: string; err: string } {
   const r = spawnSync(cmd, [...args], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
-  return r.stdout + r.stderr;
+  return { out: r.stdout, err: r.stderr };
 }
 
 function parseJsonAs<T>(raw: string, schema: z.ZodType<T>, fallback: T): T {
-  let parsed: unknown;
-  try { parsed = JSON.parse(raw) as unknown; } catch { return fallback; }
-  const res = schema.safeParse(parsed);
+  const parsed = parseGhJson(raw);
+  if (parsed.kind !== 'ok') return fallback;
+  const res = schema.safeParse(parsed.value);
   return res.success ? res.data : fallback;
 }
 
@@ -218,7 +326,7 @@ function listRuns(branch: string): readonly RunRecord[] {
   const raw = sh('gh', [
     'run', 'list', '--branch', branch, '--limit', '40',
     '--json', 'databaseId,workflowName,status,conclusion,headSha,createdAt,event',
-  ]);
+  ]).out;
   return parseJsonAs(raw, RunListSchema, []);
 }
 
@@ -226,10 +334,10 @@ function listRuns(branch: string): readonly RunRecord[] {
 // rendering in which CANCELLED is indistinguishable from FAILURE, which is how
 // PR #511 was reported as failing while carrying zero failures.
 function listChecks(prNumber: number): readonly CheckRun[] {
-  const raw = sh('gh', ['pr', 'view', String(prNumber), '--json', 'statusCheckRollup']);
-  let parsed: unknown;
-  try { parsed = JSON.parse(raw) as unknown; } catch { return []; }
-  const obj = parsed as Record<string, unknown>;
+  const raw = sh('gh', ['pr', 'view', String(prNumber), '--json', 'statusCheckRollup']).out;
+  const parsed = parseGhJson(raw);
+  if (parsed.kind !== 'ok') return [];
+  const obj = parsed.value as Record<string, unknown>;
   const res = CheckListSchema.safeParse(obj['statusCheckRollup']);
   return res.success ? res.data : [];
 }
@@ -240,8 +348,14 @@ const prStateSchema = z.object({
 });
 
 function prState(prNumber: number): { merged: boolean; mergeSha: string | null } {
-  const raw = sh('gh', ['pr', 'view', String(prNumber), '--json', 'state,mergeCommit']);
-  const res = prStateSchema.safeParse(JSON.parse(raw || '{}') as unknown);
+  const r = sh('gh', ['pr', 'view', String(prNumber), '--json', 'state,mergeCommit']);
+  const parsed = parseGhJson(r.out);
+  if (parsed.kind !== 'ok') {
+    // Transient, not terminal: report what gh said and let the loop poll again.
+    console.log('     gh unreadable (will retry): ' + parsed.raw);
+    return { merged: false, mergeSha: null };
+  }
+  const res = prStateSchema.safeParse(parsed.value);
   if (!res.success) return { merged: false, mergeSha: null };
   const merged = res.data.state === 'MERGED';
   const oid = res.data.mergeCommit?.oid ?? null;
@@ -253,11 +367,11 @@ function prState(prNumber: number): { merged: boolean; mergeSha: string | null }
 // a different commit than our merge SHA.
 function promotedShaFor(mergeSha: string, baseBranch: string): string | null {
   sh('git', ['fetch', 'origin', '--prune', '--quiet']);
-  const contains = sh('git', ['branch', '-r', '--contains', mergeSha]);
+  const contains = sh('git', ['branch', '-r', '--contains', mergeSha]).out;
   if (!contains.split(String.fromCharCode(10)).some((l) => l.trim() === 'origin/' + baseBranch)) {
     return null;
   }
-  const head = sh('git', ['rev-parse', 'origin/' + baseBranch]).trim();
+  const head = sh('git', ['rev-parse', 'origin/' + baseBranch]).out.trim();
   return head.length >= 7 ? head : null;
 }
 
@@ -269,6 +383,16 @@ function completedAt(runs: readonly RunRecord[], workflow: string, sha: string):
   return m === undefined ? null : m.createdAt;
 }
 
+// owner/name for run URLs. Read from gh so a fork or rename cannot produce a
+// link that 404s; falls back to the remote path when gh is unavailable.
+function repoSlug(): string {
+  const fromGh = sh('gh', ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner']).out.trim();
+  if (fromGh.length > 0) return fromGh;
+  const url = sh('git', ['remote', 'get-url', 'origin']).out.trim();
+  const m = /[:/]([^/:]+\/[^/]+?)(?:\.git)?$/.exec(url);
+  return m?.[1] ?? '';
+}
+
 function report(results: readonly PhaseResult[]): void {
   const icon = (s: RunState): string =>
     s === 'success' ? '\u2705' : s === 'failed' ? '\u274c' : s === 'pending' ? '\u23f3' : '\u2b1c';
@@ -278,8 +402,15 @@ function report(results: readonly PhaseResult[]): void {
   }
 }
 
+// The failing workflows discovered during the last evaluate(), so main() can
+// print WHERE to look. Module-scoped rather than threaded through the return
+// type: evaluate() has eight early returns, and changing all of them invites
+// exactly the kind of partial edit this arc keeps finding.
+let lastFailures: readonly FailedWorkflow[] = [];
+
 function evaluate(cfg: FollowConfig): readonly PhaseResult[] {
   const out: PhaseResult[] = [];
+  lastFailures = [];
   const checks = listChecks(cfg.prNumber);
   const sum = summarizeChecks(checks);
   // Indeterminate checks fall through to 'pending' by construction: they are in
@@ -311,6 +442,9 @@ function evaluate(cfg: FollowConfig): readonly PhaseResult[] {
     ci === 'failed' || e2e === 'failed' ? 'failed'
       : ci === 'success' && e2e === 'success' ? 'success'
         : 'pending';
+  if (gates === 'failed') {
+    lastFailures = failedWorkflowsFor(devRuns, [CI_WORKFLOW, E2E_WORKFLOW], pr.mergeSha);
+  }
   out.push({ phase: 'develop-gates', state: gates });
   if (gates !== 'success') return out;
 
@@ -322,6 +456,8 @@ function evaluate(cfg: FollowConfig): readonly PhaseResult[] {
   out.push({ phase: 'release', state: runStateFor(mainRuns, RELEASE_WORKFLOW, mainSha) });
   const mainE2e = runStateFor(mainRuns, E2E_WORKFLOW, mainSha);
   out.push({ phase: 'main-e2e', state: mainE2e });
+  const mainFailures = failedWorkflowsFor(mainRuns, [RELEASE_WORKFLOW, E2E_WORKFLOW], mainSha);
+  if (mainFailures.length > 0) lastFailures = mainFailures;
   if (mainE2e !== 'success') return out;
 
   const gateAt = completedAt(mainRuns, E2E_WORKFLOW, mainSha);
@@ -337,6 +473,9 @@ function evaluate(cfg: FollowConfig): readonly PhaseResult[] {
   out.push({ phase: 'deploy', state: depState });
   if (dep !== null) {
     console.log('     deploy run: ' + String(dep.databaseId) + ' (' + dep.status + ')');
+    if (depState === 'failed') {
+      lastFailures = [{ workflowName: DEPLOY_WORKFLOW, databaseId: dep.databaseId }];
+    }
   }
   return out;
 }
@@ -359,7 +498,8 @@ function main(): void {
     if (v.verdict !== 'WAITING') {
       console.log(v.verdict === 'DEPLOYED'
         ? 'DEPLOYED: PR #' + String(cfg.prNumber) + ' is live on Railway.'
-        : 'FAILED at ' + String(v.at) + ' -- PR #' + String(cfg.prNumber) + ' did NOT reach production.');
+        : describeFailure(v.at ?? 'deploy', lastFailures, repoSlug())
+          + String.fromCharCode(10) + 'PR #' + String(cfg.prNumber) + ' did NOT reach production.');
       process.exit(v.exitCode);
     }
     if (Date.now() >= deadline) {

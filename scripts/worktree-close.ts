@@ -99,6 +99,10 @@ export interface ResolveCloseInputParams {
   // F4: opt-in retirement. Absent means false via the schema default, so
   // every existing caller is unchanged.
   retired?: boolean;
+  // DONE: operator declaration that the session is finished. Optional, so
+  // every existing caller is unchanged; the schema default (false) owns the
+  // fallback, exactly as retired and idleHours do.
+  done?: boolean;
   // Recency (2026-07-28): hours since the last per-worktree HEAD reflog entry.
   // Passed THROUGH untouched: the schema .default(0) is the single source of the
   // fail-safe default (0 = recent = protected), so this layer never re-defaults
@@ -120,6 +124,7 @@ export function resolveCloseInput(params: ResolveCloseInputParams): WorktreeClos
     containedInIntegration: params.containedInIntegration,
     isPrimaryClone: params.path === params.primaryPath,
     retired: params.retired ?? false,
+    done: params.done ?? false,
     // Pass-through: schema .default(0) owns the fallback (no re-default here).
     idleHours: params.idleHours,
   });

@@ -13,12 +13,24 @@
 //  * a retired close yields action remove-keep-branch, a distinct verdict so
 //    callers cannot confuse it with a normal merged removal;
 //  * closePlan for remove-keep-branch emits ONLY git worktree remove -- never
-//    git branch -d. The branch is preserved deliberately (it survives on
+//    any branch delete. The branch is preserved deliberately (it survives on
 //    origin as history); deleting the local ref is exactly what must not
-//    happen. This is stronger than relying on -d refusing on containment.
+//    happen. Omitting the command entirely is stronger than relying on any
+//    flag's own safety check to refuse.
 // NOTE (2026-07-28): RETIRED_BASE sets idleHours: 999 (past the recency
 // threshold) so the retired-dimension assertions are not masked by the recency
 // guard, which is covered separately in close-worktree-recency.test.ts.
+//
+// FLAG UPDATED -d -> -D (2026-08-09), behaviour unchanged for retired. The
+// normal-merged case below now expects -D because -d proved unable to do the
+// job: on a branch whose own remote ref is stale it fails with "not fully
+// merged" while git prints "even though it is merged to HEAD", since -d checks
+// containment against HEAD OR THE BRANCH'S UPSTREAM, never the integration
+// branch. That crashed a live close after the worktree was already removed.
+// decideClose proves ancestry against origin/develop first, and only issues the
+// `remove` verdict when it holds -- so the delete is cleared before it is
+// planned. The retired path is untouched: it still emits NO delete at all, and
+// the assertion below that bans -D there is unchanged and still passes.
 import { describe, it, expect } from 'vitest';
 import {
   decideClose,
@@ -35,6 +47,7 @@ const RETIRED_BASE: WorktreeCloseInput = {
   containedInIntegration: false,
   isPrimaryClone: false,
   retired: true,
+  done: false,
   idleHours: 999,
 };
 describe('decideClose: retired branches', () => {
@@ -87,7 +100,7 @@ describe('decideClose: retired branches', () => {
   });
 });
 describe('closePlan: retired branches keep their ref', () => {
-  it('emits ONLY worktree remove -- never branch -d', () => {
+  it('emits ONLY worktree remove -- never a branch delete', () => {
     const v = decideClose(RETIRED_BASE);
     const plan = closePlan(v, RETIRED_BASE);
     expect(plan).toEqual([['git', 'worktree', 'remove', RETIRED_BASE.path]]);
@@ -104,7 +117,7 @@ describe('closePlan: retired branches keep their ref', () => {
     const plan = closePlan(decideClose(input), input);
     expect(plan).toEqual([
       ['git', 'worktree', 'remove', input.path],
-      ['git', 'branch', '-d', input.branch],
+      ['git', 'branch', '-D', input.branch],
     ]);
   });
   it('a refusal still emits no commands', () => {

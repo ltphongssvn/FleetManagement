@@ -1,0 +1,101 @@
+# ============================================================================
+# File:     FleetManagement/.github/workflows/eas-build-freshness.yml
+# Purpose:  DEAD-MAN'S SWITCH for native builds. Asserts, on a schedule, that a
+#           SUCCESSFUL EAS build exists per platform inside the policy window.
+#
+# WHY THIS EXISTS. iOS EAS builds failed for ~2 MONTHS -- 15 consecutive
+# ERRORED builds, last success 2026-06-12 -- and nobody knew until a driver
+# could not install the app on a phone he had just registered.
+#
+# THE ALERTING WAS NOT MISSING. eas-inbound.controller.ts raises a Sentry FATAL
+# on every errored build, so fifteen fatals fired correctly and were dismissed.
+# Alerts that fire and get closed by a tired human provide zero protection: the
+# detection worked and the system around it failed. A sixteenth notification
+# would have changed nothing, which is why this is a GATE that fails a run.
+#
+# WHAT WAS ACTUALLY ABSENT: a check on the ABSENCE OF SUCCESS. The webhook
+# records failure loudly (errored -> fatal) and success silently (finished ->
+# 200), so nothing anywhere could answer "when did iOS last succeed?".
+#
+# AND THE FINGERPRINT SHORT-CIRCUIT HID IT FURTHER. eas-driver-build.yml skips
+# dispatch when a --status finished build matches the runtime fingerprint. With
+# the newest finished iOS build stuck at 06-12, later runs either matched that
+# stale build and skipped, or dispatched and errored. A stream of errors plus
+# skips is not silence, so no "did the job run" absence detector would have
+# caught it either. Only an outcome-oriented invariant does: the AGE OF THE
+# LAST SUCCESS.
+#
+# WHY SCHEDULED. Staleness is a function of time, not of events. A pure event
+# stream (build.started / build.failed / build.finished) cannot detect that
+# success has aged out, because when nothing happens no event arrives. A
+# dead-man's switch needs a clock tick; this workflow is that tick.
+#
+# READ-ONLY. It runs `eas build:list`, never `eas build`, so it consumes no
+# metered EAS build quota (30/mo, 15 iOS) and cannot race eas-driver-build.yml.
+#
+# FAIL-CLOSED. Only `fresh` exits 0. Stale, never, unreadable evidence and our
+# own misconfiguration all exit non-zero. There is deliberately no
+# continue-on-error and no skip variable: a gate anyone can bypass invisibly is
+# not a control. Widening the window is a reviewed change to this file.
+#
+# Related files:
+#   - scripts/eas-build-freshness.ts        -- pure verdict core (unit-tested)
+#   - scripts/eas-build-observation.ts      -- Zod trust boundary
+#   - scripts/eas-build-freshness-gate.ts   -- imperative shell
+#   - .github/workflows/eas-driver-build.yml -- the dispatcher this watches
+# ============================================================================
+name: EAS Build Freshness
+on:
+  schedule:
+    # 06:00 UTC = 13:00 Asia/Ho_Chi_Minh, inside the working day so a failure
+    # is seen the morning it appears rather than sitting overnight.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      max-age-days:
+        description: Maximum age of the newest successful build, in days
+        required: false
+        default: '14'
+        type: string
+permissions:
+  contents: read
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+jobs:
+  freshness:
+    name: Native build freshness (dead-man's switch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+      # packager: npm -- the action installs eas-cli GLOBALLY in its own
+      # isolated dir, where pnpm v10+ aborts with ERR_PNPM_IGNORED_BUILDS on
+      # eas-cli's transitive dtrace-provider build script. Same reason as
+      # eas-driver-build.yml; eas-cli is a standalone tool, not a repo dep.
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: '>=20.0.0 <21.0.0'
+          token: ${{ secrets.EXPO_TOKEN }}
+          packager: npm
+          expo-cache: false
+          eas-cache: false
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Assert a recent successful build exists
+        run: pnpm run eas:freshness -- --max-age-days "${{ github.event.inputs.max-age-days || '14' }}"

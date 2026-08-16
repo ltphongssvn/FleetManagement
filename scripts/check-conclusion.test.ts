@@ -6,6 +6,7 @@
 // reported BLOCKED with "required checks failed" while carrying no failure at
 // all, because `gh pr checks --json name,state` buckets CANCELLED into a
 // failure-shaped state before any classifier sees it.
+import { z } from 'zod';
 import { describe, it, expect } from 'vitest';
 import {
   CHECK_CONCLUSIONS,
@@ -152,5 +153,68 @@ describe('run-level conclusion classification', () => {
 
   it('fails closed on an unrecognised conclusion rather than calling it failed', () => {
     expect(runVerdictFor('banana')).toBe('unclassified');
+  });
+});
+
+// ---- "not concluded yet" has THREE wire spellings, not one ----
+// pr:automerge logged "could not parse statusCheckRollup; re-reading" on every
+// poll while checks were in flight -- 11 times on PR #528, 7 on #526 -- and
+// only stopped once every check had settled. The retry masked it, so it read
+// as network flakiness rather than a parse bug.
+//
+// The cause is here. conclusion is CheckConclusionSchema.nullable(), which
+// accepts null but NOT the empty string GitHub returns for a queued check, and
+// not an absent key. Consumers wrap it in z.array(CheckRunSchema), so ONE such
+// entry rejects the WHOLE array; safeParse returns [], and the caller reports
+// the rollup as unparseable while every check in it was perfectly well-formed.
+//
+// This is the same confident-zero shape the surrounding code already guards
+// against elsewhere: an empty list from a failed parse is indistinguishable
+// from a PR that genuinely has no checks.
+describe('CheckRunSchema: unconcluded spellings', () => {
+  it('accepts null, the documented in-flight value', () => {
+    expect(CheckRunSchema.safeParse({ name: 'x', status: 'IN_PROGRESS', conclusion: null }).success)
+      .toBe(true);
+  });
+
+  it('accepts the EMPTY STRING GitHub returns for a queued check', () => {
+    expect(CheckRunSchema.safeParse({ name: 'x', status: 'QUEUED', conclusion: '' }).success)
+      .toBe(true);
+  });
+
+  it('accepts an ABSENT conclusion key', () => {
+    expect(CheckRunSchema.safeParse({ name: 'x', status: 'QUEUED' }).success).toBe(true);
+  });
+
+  // All three mean the same thing, so they must NORMALISE to one value -- a
+  // consumer that had to branch on three spellings of "pending" would just
+  // re-introduce the bug one layer up.
+  it('normalises every unconcluded spelling to null', () => {
+    for (const raw of [
+      { name: 'x', status: 'QUEUED', conclusion: null },
+      { name: 'x', status: 'QUEUED', conclusion: '' },
+      { name: 'x', status: 'QUEUED' },
+    ]) {
+      const parsed = CheckRunSchema.parse(raw);
+      expect(parsed.conclusion).toBe(null);
+    }
+  });
+
+  // The tolerance must not become a hole: a value that is neither a known
+  // conclusion nor an unconcluded spelling is still a contract violation.
+  it('still rejects an unknown conclusion value', () => {
+    expect(CheckRunSchema.safeParse({ name: 'x', status: 'COMPLETED', conclusion: 'BANANA' }).success)
+      .toBe(false);
+  });
+
+  // The whole point: one in-flight entry must not sink the array.
+  it('parses a rollup mixing concluded and queued checks', () => {
+    const rollup = [
+      { name: 'a', status: 'COMPLETED', conclusion: 'SUCCESS' },
+      { name: 'b', status: 'QUEUED', conclusion: '' },
+      { name: 'c', status: 'IN_PROGRESS', conclusion: null },
+    ];
+    const res = z.array(CheckRunSchema).safeParse(rollup);
+    expect(res.success).toBe(true);
   });
 });

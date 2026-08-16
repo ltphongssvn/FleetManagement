@@ -8,16 +8,31 @@
 // vestigial (never read by any method) and has been removed as dead code; the
 // only remaining injectable seam is fetchFn, which tests use to stub responses.
 //
-// Merge resolution (origin/develop into fix/ops-web-idle-timeout):
-// HEAD wins on transport -- the cookie + ensureOk seam IS this PR; develop
-// still threaded a bearerToken through every method, which this branch deleted
-// as dead code.
+// TRUST BOUNDARY. list() PARSES the response through parseAdminDriverRows, the
+// sync-protocol SSOT parser written for this exact call site. It previously
+// imported the row type and then CAST to it, which is a promise to the compiler
+// and no statement at all about the bytes: an object instead of an array, a row
+// missing fullName, or driverId as a number all flowed through silently and
+// surfaced later as an undefined property access inside a presenter, far from
+// the cause. All three are pinned as tests now.
+//
+// The parse is safeParse-based and returns null rather than throwing, so junk
+// degrades to a handled load error instead of an unhandled rejection at a fetch
+// boundary. The contract is looseObject, so a newer producer adding a member
+// never breaks an older consumer.
+//
+// The remaining as-casts on create/assign/revoke are DELIBERATE and are not the
+// same defect: CreateDriverResult, AssignResult and RevokeResult are internal,
+// single-use, unduplicated shapes with no SSOT and no second declaration, which
+// the two-axis rule keeps as plain TypeScript. Only DriverRow has a shared
+// contract, and therefore only DriverRow has a parser to route through.
+//
 // enrollDevice is DROPPED (not refactored): origin/develop removed the manual
 // device-UDID pre-enroll path at the root (PR #302, superseded by T7
 // self-enroll), taking the /api/admin/devices BFF route with it. Porting the
 // method onto the new seam would resurrect a call to an endpoint that no
 // longer exists.
-import type { AdminDriverRow as DriverRow } from '@fleet/sync-protocol';
+import { parseAdminDriverRows, type AdminDriverRow as DriverRow } from '@fleet/sync-protocol';
 import { ensureOk } from '@/features/errors/api-problem-error';
 export type FetchFn = typeof globalThis.fetch;
 export interface AdminDriversClientConfig {
@@ -51,7 +66,11 @@ export class AdminDriversClient {
   async list(): Promise<readonly DriverRow[]> {
     const res = await this.fetchFn()('/api/admin/drivers', { method: 'GET' });
     await ensureOk(res, 'GET /admin/drivers');
-    return (await res.json()) as readonly DriverRow[];
+    const rows = parseAdminDriverRows(await res.json());
+    if (rows === null) {
+      throw new Error('GET /admin/drivers returned a payload that is not a driver roster');
+    }
+    return rows;
   }
   async create(input: CreateDriverInput): Promise<CreateDriverResult> {
     const res = await this.fetchFn()('/api/admin/drivers', {

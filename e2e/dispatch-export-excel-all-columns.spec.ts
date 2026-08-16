@@ -25,7 +25,7 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import { execSync } from 'node:child_process';
 import ExcelJS from 'exceljs';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
-import { z } from 'zod';
+import { type z } from 'zod';
 import { LENH_DIEU_XE_EXPORT_HEADERS } from '@fleet/sync-protocol';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
 import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
@@ -96,7 +96,7 @@ async function createOrderViaUi(page: Page, pair: Pair): Promise<void> {
   await page.locator('input#deliveryWarehouse_1').click();
   await page.getByRole('option').first().click();
   await page.getByRole('button', { name: 'Tạo lệnh' }).click();
-  await expect(page.locator('a[href^=\"/dispatch/orders/\"]').first()).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('a[href^="/dispatch/orders/"]').first()).toBeVisible({ timeout: 15000 });
 }
 test.describe.serial('export Excel contains all on-screen Lệnh điều xe columns', () => {
   let pair: Pair | null = null;

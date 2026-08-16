@@ -17,17 +17,19 @@ import {
 import { planSweep } from "./sweep-worktrees.js";
 
 describe("parseSweepArgv: pure flag parsing", () => {
-  it("defaults dryRun to false with no flags", () => {
-    expect(parseSweepArgv([])).toEqual({ dryRun: false });
+  it("defaults every flag to false with no arguments", () => {
+    expect(parseSweepArgv([])).toEqual({ dryRun: false, done: false });
   });
 
   it("reads --dry-run", () => {
-    expect(parseSweepArgv(["--dry-run"])).toEqual({ dryRun: true });
+    expect(parseSweepArgv(["--dry-run"])).toEqual({ dryRun: true, done: false });
   });
 
-  it("ignores unknown -- flags", () => {
-    expect(parseSweepArgv(["--wat"])).toEqual({ dryRun: false });
-  });
+  // The third case here USED to assert `ignores unknown -- flags`. It was
+  // deleted rather than repaired: it pinned the exact behaviour this arc
+  // reverses. A swallowed --dry-runn produced a confident, wrong verdict
+  // indistinguishable from a real sweep, which is how `--done` was accepted and
+  // silently discarded across eight worktrees. Strictness is asserted below.
 });
 
 describe("protectedIntegrationPaths: never sweep the integration mirrors", () => {
@@ -147,5 +149,48 @@ describe("withBranch: detached worktrees never enter the sweep", () => {
   it("planSweep THROWS on an unfiltered detached entry -- the bug this prevents", () => {
     const unfiltered = MIXED as unknown as { path: string; branch: string }[];
     expect(() => planSweep({ entries: unfiltered, protectedPaths: [] })).toThrow();
+  });
+});
+
+// ---- --done must reach the batch path, and typos must not be swallowed ----
+// worktree:close gained --done (recencyWaived = done AND containedInIntegration)
+// so a FINISHED session can be reclaimed without waiting out 24 hours. The batch
+// path never got it: parseSweepArgv recognised only --dry-run, and sweepOne
+// never passed `done` to resolveCloseInput.
+//
+// Observed: eight worktrees, every PR merged and deployed, containment verified
+// by hand for two of them -- and `worktree:sweep -- --done --dry-run` still
+// refused them on `recent`. The flag was accepted and discarded.
+//
+// The deeper defect is that it was accepted at all. The old loop ignored every
+// unrecognised flag by design ("unknown -- flags are ignored"), so --dry-runn or
+// --exceute would produce a confident, wrong verdict indistinguishable from a
+// real one. deps-reconcile-cli.ts already states the rule this file missed:
+// strict parsing is the default so "a swallowed --exceute would otherwise
+// produce a confident no-op the operator reads as a successful run".
+describe('parseSweepArgv: --done and strictness', () => {
+  it('parses --done', () => {
+    expect(parseSweepArgv(['--done']).done).toBe(true);
+  });
+
+  it('defaults done to false', () => {
+    expect(parseSweepArgv([]).done).toBe(false);
+  });
+
+  it('parses --done and --dry-run together, order-independent', () => {
+    const a = parseSweepArgv(['--done', '--dry-run']);
+    expect(a.done && a.dryRun).toBe(true);
+    const b = parseSweepArgv(['--dry-run', '--done']);
+    expect(b.done && b.dryRun).toBe(true);
+  });
+
+  // The typo that would otherwise read as a successful sweep.
+  it('THROWS on an unknown flag instead of ignoring it', () => {
+    expect(() => parseSweepArgv(['--dry-runn'])).toThrow();
+    expect(() => parseSweepArgv(['--donee'])).toThrow();
+  });
+
+  it('still parses the known flags after adding strictness', () => {
+    expect(parseSweepArgv(['--dry-run']).dryRun).toBe(true);
   });
 });

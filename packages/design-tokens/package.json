@@ -16,8 +16,8 @@
       "import": "./dist/emit-ops-web.js"
     },
     "./react-native": {
-      "types": "./dist/react-native.d.ts",
-      "import": "./dist/react-native.js"
+      "types": "./src/react-native.ts",
+      "react-native": "./src/react-native.ts"
     }
   },
   "scripts": {

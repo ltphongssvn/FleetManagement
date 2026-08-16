@@ -21,16 +21,17 @@
 // because they silently pass when the page changes - here a .first() would keep
 // this spec green even if the BOARD's own Tài xế column disappeared, destroying
 // the exact invariant the spec exists to guard.
-import { test, expect, type APIRequestContext } from '@playwright/test';
+import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
-import { z } from 'zod';
+import { type z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
 import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
+import { settleBoardAfterCreate } from './helpers/wait-for-projection';
+import { ROW_VISIBILITY_BUDGET_MS } from './helpers/budgets';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
-const ROW_VISIBILITY_BUDGET_MS = 15_000;
 
-async function pickCombobox(page: import('@playwright/test').Page, inputId: string, optionLabel: string): Promise<void> {
+async function pickCombobox(page: Page, inputId: string, optionLabel: string): Promise<void> {
   const input = page.locator('#' + inputId);
   await expect(input).toBeVisible({ timeout: 15_000 });
   await expect(input).toBeEditable({ timeout: 15_000 });
@@ -110,20 +111,49 @@ test.describe.serial('Lệnh điều xe board: Tài xế + Xe display driver nam
     await pickCombobox(page, 'deliveryWarehouse_1', seed.deliveryName);
     await page.getByRole('button', { name: 'Tạo lệnh' }).click();
 
+    // Capture the server-assigned Số lệnh so the settle below has a ref to poll
+    // for, and so a failed create fails loudly HERE rather than later as a
+    // confusing missing-cell assertion.
+    const banner = page.getByRole('status').filter({ hasText: /XTT[.]/ });
+    await expect(banner).toBeVisible({ timeout: ROW_VISIBILITY_BUDGET_MS });
+    const bannerText = (await banner.textContent()) ?? '';
+    const match = /XTT[.][0-9]+-[0-9]+/.exec(bannerText);
+    if (!match) throw new Error('create banner carried no XTT external_ref: ' + bannerText);
+    const createdRef = match[0];
+
+    // READ-MODEL SETTLE (2026-08-09). This spec waited for seed.customerName --
+    // a SERVER-DERIVED field -- against a bare 15s locator budget, then
+    // reloaded. That could only pass by winning a race it had no way to win
+    // reliably: the optimistic row DispatchView renders is built from the action
+    // RESULT and carries externalRef ONLY, so it can never satisfy a
+    // customerName assertion, and the single router.refresh() fires while the
+    // create is still travelling outbox -> relay -> BullMQ -> projection.
+    //
+    // Auto-waiting cannot rescue this, and that is the general lesson: it
+    // handles DOM readiness, not system correctness. The DOM here is present,
+    // hydrated and settled -- it simply lacks the row. Padding the timeout is
+    // the documented anti-pattern; the structural fix is to wait on the backend
+    // fact rather than on the pixels.
+    //
+    // settleBoardAfterCreate polls GET /dispatch/board (expect.poll, the 2026
+    // pattern for eventually-consistent state) until it carries this ref, then
+    // reloads -- so the reload is deterministic instead of another roll of the
+    // dice, and it subsumes the explicit page.reload() that used to sit here.
+    // PR #514 introduced the helper and logged THIS call site as an unconverted
+    // caller; this is that conversion.
+    await settleBoardAfterCreate(page, request, seed.token, createdRef);
+
     // The board container. Every assertion below is scoped to it so the roster
     // split panel (which legitimately repeats Tài xế / Số xe headings and plate
     // cells for the whole roster) can never satisfy or ambiguate a board claim.
     const board = page.getByTestId('dispatch-board');
 
-    // Wait for the order to land in the board (optimistic OR reconciled row),
-    // then RELOAD so we assert the SERVER-rendered board only — the optimistic
-    // row (which carries the just-picked labels) is gone after a full reload,
-    // so these assertions exercise the real API board enrichment, not the
-    // transient client-side optimistic row.
+    // The board is now the SERVER-rendered one: the optimistic row (which
+    // carried the just-picked labels) is gone after the settle's reload, so
+    // these assertions exercise the real API board enrichment.
     await expect(
       board.getByRole('cell', { name: seed.customerName }),
     ).toBeVisible({ timeout: ROW_VISIBILITY_BUDGET_MS });
-    await page.reload();
     await expect(board.getByRole('columnheader', { name: 'Tài xế' })).toBeVisible({ timeout: ROW_VISIBILITY_BUDGET_MS });
 
     // INVARIANT 1: the assigned driver full name shows under Tài xế in the
