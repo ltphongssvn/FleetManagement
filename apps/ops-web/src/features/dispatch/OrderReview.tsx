@@ -12,6 +12,10 @@
 // the actual time when done). The stops list has labelled columns.
 import type { JSX } from 'react';
 import type { ListAssignedRow, ListAssignedRowStop } from './types';
+// ONE proof renderer, shared with the board (board-stops.tsx). The review view
+// previously had no notion of a proof at all, which is why a completed order
+// with uploaded photos read Chua toi here while the board showed its kg.
+import { StopProofView } from './stop-proof-view';
 function dash(value: string | null): string {
   return value !== null && value !== '' ? value : '—';
 }
@@ -46,6 +50,30 @@ function stopStatusOf(s: ListAssignedRowStop): string {
   const done = s.departedAt ?? s.arrivedAt;
   if (done === null) return 'Chưa tới';
   return 'Đã hoàn thành ' + formatDateTime(done);
+}
+// Status cell for one stop. A committed Phieu Can is STRONGER evidence that the
+// truck was at the stop than an arrival timestamp: the photo was taken there.
+// The driver app can complete a run without ever writing arrivedAt/departedAt,
+// so proof is checked FIRST -- otherwise a completed, photographed stop falls
+// through to the Chua toi fallback, which was the reported defect. Stops with
+// no proof keep the timestamp-derived text exactly as before.
+function StopStatusCell({ stop, index }: { stop: ListAssignedRowStop; index: number }): JSX.Element {
+  const suffix = String(index);
+  if (stop.proof !== null) {
+    return (
+      <StopProofView
+        proof={stop.proof}
+        testIds={{
+          root: 'order-review-stop-status',
+          netWeight: 'order-review-stop-netweight-' + suffix,
+          needsEntry: 'order-review-stop-netweight-needsentry-' + suffix,
+          reason: 'order-review-stop-reason-' + suffix,
+          pending: 'order-review-stop-netweight-pending-' + suffix,
+        }}
+      />
+    );
+  }
+  return <span data-testid='order-review-stop-status'>{stopStatusOf(stop)}</span>;
 }
 export interface OrderReviewProps {
   readonly order: ListAssignedRow;
@@ -99,7 +127,7 @@ export function OrderReview({ order }: OrderReviewProps): JSX.Element {
               <span className='col-span-4 font-medium text-slate-700'>{slotLabels[i]}</span>
               <span data-testid='order-review-stop-warehouse' className='col-span-4 text-slate-700'>{dash(s.warehouseName)}</span>
               <span className='col-span-2 text-slate-500'>{formatDateTime(s.plannedAt)}</span>
-              <span data-testid='order-review-stop-status' className='col-span-2 text-slate-700'>{stopStatusOf(s)}</span>
+              <span className='col-span-2 text-slate-700'><StopStatusCell stop={s} index={i} /></span>
             </li>
           ))}
         </ol>
