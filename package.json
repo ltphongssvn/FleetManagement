@@ -12,6 +12,7 @@
   "scripts": {
     "prepare": "tsx scripts/bootstrap-machine-cli.ts --soft",
     "bootstrap:machine": "tsx scripts/bootstrap-machine-cli.ts",
+    "doctor": "tsx scripts/machine-doctor-cli.ts",
     "build": "turbo run build --concurrency=50%",
     "lint": "turbo run lint --concurrency=50%",
     "typecheck": "turbo run typecheck --concurrency=50%",
