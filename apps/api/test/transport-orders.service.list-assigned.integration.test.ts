@@ -83,6 +83,7 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
         warehouseName: null,
         arrivedAt: null,
         departedAt: null,
+        proof: null,
       });
       expect(row?.stops[1]).toEqual({
         sequence: 2,
@@ -91,6 +92,7 @@ describe('@fleet/api - TransportOrdersService.listAssigned (integration)', () =>
         warehouseName: null,
         arrivedAt: null,
         departedAt: null,
+        proof: null,
       });
       // T9: once a stop has arrived/departed timestamps, the producer serializes them to ISO strings.
       await tx.execute(sql.raw(
