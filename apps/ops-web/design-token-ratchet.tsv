@@ -12,8 +12,8 @@ src/app/loading.tsx	1
 src/app/login/page.tsx	1
 src/app/not-found.tsx	1
 src/app/page.tsx	1
-src/features/admin/DevicesApprovalSection.tsx	8
-src/features/admin/DriversAdminSection.tsx	37
+src/features/admin/DevicesApprovalSection.tsx	2
+src/features/admin/DriversAdminSection.tsx	31
 src/features/admin/DriversSection.tsx	2
 src/features/admin/RowActionMenu.tsx	12
 src/features/admin/reference-sections.tsx	10
@@ -21,11 +21,11 @@ src/features/auth/LoginForm.tsx	5
 src/features/auth/LogoutButton.tsx	1
 src/features/dispatch/CancelOrderForm.tsx	23
 src/features/dispatch/CreateOrderForm.tsx	33
-src/features/dispatch/DispatchView.tsx	11
+src/features/dispatch/DispatchView.tsx	5
 src/features/dispatch/ExportOrdersExcelButton.tsx	8
 src/features/dispatch/ManualNetWeightEditor.tsx	2
 src/features/dispatch/NaturalLanguageCreateForm.tsx	16
 src/features/dispatch/OrderReview.tsx	24
-src/features/dispatch/board-stops.tsx	8
+src/features/dispatch/board-stops.tsx	1
 src/features/dispatch/ui/ComboboxField.tsx	6
 src/features/shell/AppShell.tsx	15
