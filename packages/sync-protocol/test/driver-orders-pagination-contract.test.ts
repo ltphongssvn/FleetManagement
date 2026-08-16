@@ -50,6 +50,10 @@ const row: ListAssignedRow = {
       warehouseName: 'Chơn Chính',
       arrivedAt: null,
       departedAt: null,
+      // EXPAND-only proof field (2026): the canonical row now carries the same
+      // Phieu Can proof the board stop carries. null here = no committed photo
+      // on this fixture stop, which is what the parser also defaults to.
+      proof: null,
     },
   ],
 };

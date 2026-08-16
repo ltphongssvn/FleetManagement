@@ -12,103 +12,42 @@
 // sequence so the driver app workflow is a 1-1 match with the form. The legacy
 // pickupName/deliveryName remain (first pickup / last drop) for backward
 // compatibility, but stops[] is the authoritative ordered list.
-import { DriverCompletedPageResponseSchema } from '@fleet/sync-protocol';
-import type { DriverCompletedPageQuery, DriverCompletedPageResponse } from '@fleet/sync-protocol';
+import {
+  DriverCompletedPageResponseSchema,
+  ListAssignedResponseSchema,
+  TripHistoryResponseSchema,
+} from '@fleet/sync-protocol';
+import type {
+  DriverCompletedPageQuery,
+  DriverCompletedPageResponse,
+  ListAssignedRow,
+  ListAssignedRowStop,
+  TripHistoryMonth,
+} from '@fleet/sync-protocol';
+
 export type FetchFn = typeof globalThis.fetch;
-export interface StopRow {
-  readonly sequence: number;
-  readonly stopType: string;
-  readonly plannedAt: string | null;
-  readonly warehouseName: string | null;
-  readonly arrivedAt: string | null;
-  readonly departedAt: string | null;
-}
-export interface AssignmentRow {
-  readonly transportOrderId: string;
-  readonly roadRunId: string;
-  readonly state: string;
-  readonly plannedStartAt: string | null;
-  readonly startedAt: string | null;
-  readonly completedAt: string | null;
-  readonly plate: string | null;
-  readonly orderRef: string | null;
-  readonly customerName: string | null;
-  readonly pickupName: string | null;
-  readonly deliveryName: string | null;
-  readonly stops: readonly StopRow[];
-}
-// A month bucket as returned by GET /transport-orders/trip-history.
-export interface TripHistoryMonth {
-  readonly monthKey: string;
-  readonly label: string;
-  readonly count: number;
-  readonly trips: readonly AssignmentRow[];
-}
+
+// Re-exported for back-compat with existing call sites (completed.tsx, the
+// stops test). These are now the CONTRACT types, not local re-declarations:
+// StopRow / AssignmentRow / TripHistoryMonth were hand-written here alongside
+// ~60 lines of parseStop/parseRow/parseMonth while list-assigned-contract.ts
+// already defined every one of those shapes. Two definitions of one wire
+// contract, free to drift -- and it HAD drifted: parseRow silently dropped
+// externalRef, createdAt, cargoName, driverName, canCancel and
+// cancelBlockedReason, and parseMonth accepted a negative count because it
+// checked only typeof number. canCancel is the server-computed cancel
+// affordance the client is meant never to re-derive; the mobile client could
+// not even see it.
+export type StopRow = ListAssignedRowStop;
+export type AssignmentRow = ListAssignedRow;
+export type { TripHistoryMonth };
+
 export interface AssignmentsClientConfig {
   readonly apiUrl: string;
   readonly bearerToken: () => string | Promise<string>;
   readonly fetchFn?: FetchFn;
 }
-function nullableStr(v: unknown, name: string): string | null {
-  if (v === null) return null;
-  if (typeof v === 'string') return v;
-  throw new Error('AssignmentRow: ' + name + ' must be string|null');
-}
-function parseStop(raw: unknown): StopRow {
-  if (typeof raw !== 'object' || raw === null) throw new Error('StopRow: not an object');
-  const s = raw as Record<string, unknown>;
-  if (typeof s['sequence'] !== 'number') throw new Error('StopRow: sequence must be number');
-  if (typeof s['stopType'] !== 'string') throw new Error('StopRow: stopType must be string');
-  return {
-    sequence: s['sequence'],
-    stopType: s['stopType'],
-    plannedAt: nullableStr(s['plannedAt'], 'plannedAt'),
-    warehouseName: nullableStr(s['warehouseName'], 'warehouseName'),
-    arrivedAt: nullableStr(s['arrivedAt'], 'arrivedAt'),
-    departedAt: nullableStr(s['departedAt'], 'departedAt'),
-  };
-}
-function parseRow(raw: unknown): AssignmentRow {
-  if (typeof raw !== 'object' || raw === null) throw new Error('AssignmentRow: not an object');
-  const r = raw as Record<string, unknown>;
-  if (typeof r['transportOrderId'] !== 'string') throw new Error('AssignmentRow: transportOrderId must be string');
-  if (typeof r['roadRunId'] !== 'string') throw new Error('AssignmentRow: roadRunId must be string');
-  if (typeof r['state'] !== 'string') throw new Error('AssignmentRow: state must be string');
-  const rawStops = r['stops'];
-  let stops: readonly StopRow[] = [];
-  if (rawStops !== undefined) {
-    if (!Array.isArray(rawStops)) throw new Error('AssignmentRow: stops must be array');
-    stops = rawStops.map(parseStop);
-  }
-  return {
-    transportOrderId: r['transportOrderId'],
-    roadRunId: r['roadRunId'],
-    state: r['state'],
-    plannedStartAt: nullableStr(r['plannedStartAt'], 'plannedStartAt'),
-    startedAt: nullableStr(r['startedAt'], 'startedAt'),
-    completedAt: nullableStr(r['completedAt'], 'completedAt'),
-    plate: nullableStr(r['plate'], 'plate'),
-    orderRef: nullableStr(r['orderRef'], 'orderRef'),
-    customerName: nullableStr(r['customerName'], 'customerName'),
-    pickupName: nullableStr(r['pickupName'], 'pickupName'),
-    deliveryName: nullableStr(r['deliveryName'], 'deliveryName'),
-    stops,
-  };
-}
-function parseMonth(raw: unknown): TripHistoryMonth {
-  if (typeof raw !== 'object' || raw === null) throw new Error('TripHistoryMonth: not an object');
-  const m = raw as Record<string, unknown>;
-  if (typeof m['monthKey'] !== 'string') throw new Error('TripHistoryMonth: monthKey must be string');
-  if (typeof m['label'] !== 'string') throw new Error('TripHistoryMonth: label must be string');
-  if (typeof m['count'] !== 'number') throw new Error('TripHistoryMonth: count must be number');
-  if (!Array.isArray(m['trips'])) throw new Error('TripHistoryMonth: trips must be array');
-  return {
-    monthKey: m['monthKey'],
-    label: m['label'],
-    count: m['count'],
-    trips: m['trips'].map(parseRow),
-  };
-}
+
 export class AssignmentsClient {
   constructor(private readonly config: AssignmentsClientConfig) {}
   private async getJson(path: string): Promise<unknown> {
@@ -123,19 +62,18 @@ export class AssignmentsClient {
     }
     return (await res.json()) as unknown;
   }
+  // Both reads parse the ENVELOPE through the shared contract at the trust
+  // boundary, exactly as completed() below already did. The schema validates
+  // the wrapper and every row in one pass, so a malformed response still
+  // throws -- the behaviour the hand-rolled guards provided -- while the six
+  // fields they dropped now survive.
   async list(): Promise<readonly AssignmentRow[]> {
     const raw = await this.getJson('/transport-orders/assigned');
-    if (typeof raw !== 'object' || raw === null) throw new Error('Response: not an object');
-    const rows = (raw as { rows?: unknown }).rows;
-    if (!Array.isArray(rows)) throw new Error('Response: rows must be array');
-    return rows.map(parseRow);
+    return ListAssignedResponseSchema.parse(raw).rows;
   }
   async tripHistory(): Promise<readonly TripHistoryMonth[]> {
     const raw = await this.getJson('/transport-orders/trip-history');
-    if (typeof raw !== 'object' || raw === null) throw new Error('Response: not an object');
-    const months = (raw as { months?: unknown }).months;
-    if (!Array.isArray(months)) throw new Error('Response: months must be array');
-    return months.map(parseMonth);
+    return TripHistoryResponseSchema.parse(raw).months;
   }
 
   // Paginated + searchable archive of the driver's COMPLETED runs. Builds the

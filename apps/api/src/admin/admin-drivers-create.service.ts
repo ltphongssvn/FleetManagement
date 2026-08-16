@@ -15,8 +15,9 @@
 //  - NAME: an explicit pre-check finds a soft-deleted case-insensitive match and
 //    reactivates it in place. (A 23505 catch cannot see it -- the partial index
 //    excludes inactive rows -- so re-inserting would silently duplicate identity.)
-//  - PHONE: uniqueness is a FULL constraint, so a soft-deleted phone twin DOES
-//    raise 23505; that reactivation rides the catch below.
+//  - PHONE: since migration 20260810180000 that index is PARTIAL too, so it
+//    needs the SAME explicit pre-check -- a soft-deleted phone twin no longer
+//    raises 23505 and would otherwise be re-inserted as a second identity.
 //  - ACTIVE conflict (name or phone): 23505 -> Vietnamese ConflictException that
 //    names the conflicting field, so the admin UI shows the real reason.
 // driverId + operatorId are PRESERVED on reactivation (passkeys, JWT binding,
@@ -30,7 +31,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { DRIZZLE_DB } from "../database/database.tokens.js";
 import type { FleetDb } from "../database/database.module.js";
 import { driver, type Driver } from "../database/schema/reference.js";
-import { normalizeDisplayName, personNameMatchKey } from "@fleet/domain";
+import { normalizeDisplayName, personNameMatchKey, suggestDistinctDriverName } from "@fleet/domain";
 import {
   isPgUniqueViolation,
   isPgUniqueViolationOnConstraintInChain,
@@ -73,8 +74,8 @@ export class AdminDriversCreateService {
     // it would silently create a duplicate identity. So first look for a
     // soft-deleted case-insensitive name match and reactivate it in place
     // (driverId + operatorId preserved: passkeys, JWT binding, audit continuity).
-    // The active-name conflict and BOTH phone paths still ride the 23505 catch
-    // below (phone uniqueness is a full, non-partial constraint).
+    // Only ACTIVE conflicts ride the 23505 catch below; both soft-deleted
+    // paths are pre-checks, since neither partial index sees inactive rows.
     const softDeletedByName = await this.db.select().from(driver)
       .where(and(
         eq(driver.companyId, input.companyId),
@@ -89,6 +90,33 @@ export class AdminDriversCreateService {
         .returning();
       /* v8 ignore next -- the row was just selected, the update always returns it */
       if (reborn) return reborn;
+    }
+
+    // PHONE reactivation is now ALSO an explicit pre-check, for the same
+    // reason the name path is: as of migration 20260810180000 the phone
+    // uniqueness is PARTIAL (WHERE active = true AND phone IS NOT NULL), so a
+    // soft-deleted phone twin is excluded from the index and re-inserting that
+    // number NEVER raises 23505. The old comment above -- phone uniqueness is a
+    // FULL constraint, so reactivation rides the catch -- described the schema
+    // as it was, and relying on it after the index went partial would silently
+    // create a SECOND identity for the same human: exactly the duplicate-driver
+    // failure this arc exists to eliminate. The index went partial because a
+    // full one reserved a phone forever after a soft delete, locking four real
+    // numbers out of re-registration in production.
+    const softDeletedByPhone = await this.db.select().from(driver)
+      .where(and(
+        eq(driver.companyId, input.companyId),
+        eq(driver.phone, input.phone),
+        eq(driver.active, false),
+      ))
+      .limit(1);
+    if (softDeletedByPhone[0]) {
+      const [rebornByPhone] = await this.db.update(driver)
+        .set({ active: true, fullName, phone: input.phone, passwordHash })
+        .where(eq(driver.driverId, softDeletedByPhone[0].driverId))
+        .returning();
+      /* v8 ignore next -- the row was just selected, the update always returns it */
+      if (rebornByPhone) return rebornByPhone;
     }
 
     try {
@@ -111,25 +139,29 @@ export class AdminDriversCreateService {
       });
     } catch (e) {
       if (!isPgUniqueViolation(e)) throw e;
-      // 23505 here means an ACTIVE conflict (name -> partial index, or phone ->
-      // full constraint). A soft-deleted PHONE twin still reactivates via this
-      // catch (phone uniqueness is not partial, so it does raise 23505).
+      // 23505 here means an ACTIVE conflict on one of the two partial indexes.
+      // The soft-deleted PHONE reactivation that used to live here is GONE: it
+      // could only ever fire while the phone unique was FULL, and keeping it
+      // would be dead code asserting a schema that no longer exists.
       const byName = isPgUniqueViolationOnConstraintInChain(e, NAME_UQ);
       if (!byName) {
-        const [rebornByPhone] = await this.db.update(driver)
-          .set({ active: true, fullName, phone: input.phone, passwordHash })
-          .where(and(
-            eq(driver.companyId, input.companyId),
-            eq(driver.phone, input.phone),
-            eq(driver.active, false),
-          ))
-          .returning();
-        if (rebornByPhone) return rebornByPhone;
+        throw new ConflictException('Số điện thoại ' + JSON.stringify(input.phone) + ' đã tồn tại');
       }
-      const conflictDetail = byName
-        ? 'Tài xế ' + JSON.stringify(fullName) + ' đã tồn tại'
-        : 'Số điện thoại ' + JSON.stringify(input.phone) + ' đã tồn tại';
-      throw new ConflictException(conflictDetail);
+      // A name conflict is NOT necessarily an error: Vietnamese driver names
+      // repeat, so the dispatcher may be registering a genuinely second person.
+      // A bare "đã tồn tại" leaves them no sanctioned way to do that, and the
+      // improvised workarounds (trailing space, stray dot, pasted invisible)
+      // are what create a SECOND IDENTITY for the FIRST human. So name the
+      // exact spelling to use. Suffixes already taken are read from the ACTIVE
+      // rows sharing this base, matched with the same fold as the unique index.
+      const activeNames = await this.db.select({ fullName: driver.fullName }).from(driver)
+        .where(and(eq(driver.companyId, input.companyId), eq(driver.active, true)));
+      const suggestion = suggestDistinctDriverName(fullName, activeNames.map((r) => r.fullName));
+      throw new ConflictException(
+        suggestion === null
+          ? 'Tài xế ' + JSON.stringify(fullName) + ' đã tồn tại'
+          : 'Tài xế ' + JSON.stringify(fullName) + ' đã tồn tại. Nếu là người khác, hãy đăng ký tên ' + JSON.stringify(suggestion),
+      );
     }
   }
 }

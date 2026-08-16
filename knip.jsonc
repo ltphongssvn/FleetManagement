@@ -1,0 +1,168 @@
+// FleetManagement/knip.jsonc
+// Dead-code gate: unused files, exports and dependencies across all 13
+// workspaces. Root cause this closes: nothing in the repo could see a dead
+// export, so SUPPORTED_LOCALES in ops-web i18n.ts sat unused with ZERO
+// consumers repo-wide while its sibling Locale union drifted into three
+// hand-written copies. eslint no-unused-vars cannot see this: it works
+// within a file, never across the import graph.
+//
+// ADOPTION STAGE 1b of 3 (knip.dev/guides/adopt-gradually): rules are all
+// warn (gray, non-failing) while the config is tuned. The first run emitted
+// 6 configuration hints; every one is closed below, because on a legacy
+// codebase most first-run noise is GAPS in what Knip can reach, not real
+// findings, and burning down noise trains everyone to ignore the tool.
+//
+// Entry-point decisions, each from an observed hint rather than assumption:
+//   apps/api            src/main.ts REMOVED -- redundant, the plugin
+//                       already resolves the NestJS bootstrap.
+//   packages/codemods   src/cli.ts REMOVED -- same, found via the bin/
+//                       script parser.
+//   driver/owner-app    index.js REMOVED -- no such file on develop. Both
+//                       apps use main:expo-router/entry, so every file
+//                       under app/ is a route entry reached only by the
+//                       router and never imported. (dispatcher-app adds a
+//                       custom index.js on the T17 branch; when that lands,
+//                       its workspace entry must list index.js or the
+//                       polyfill and the whole route tree read as dead.)
+//   apps/ops-web        src/middleware.ts REMOVED -- no such file. App
+//                       Router page/layout/route files are entry by
+//                       convention. .css added to project so Tailwind
+//                       imports are followed (hint: compiled extension
+//                       excluded by project).
+//
+// ignoreBinaries lists SYSTEM binaries only -- adb (Android platform-tools),
+// flock (util-linux) and railway (Railway CLI) are installed on the host,
+// not resolvable from any package.json, so reporting them is a category
+// error. drizzle-kit is deliberately NOT ignored: it is a real finding.
+// scripts/db-generate.ts invokes it from the ROOT, but it is declared as a
+// devDependency of apps/driver-app -- a genuine misplacement to fix, not
+// suppress.
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreBinaries": [
+    "adb",
+    "flock",
+    "railway"
+  ],
+  "rules": {
+    "files": "warn",
+    "dependencies": "warn",
+    "devDependencies": "warn",
+    "unlisted": "warn",
+    "unresolved": "warn",
+    "binaries": "warn",
+    "exports": "warn",
+    "types": "warn",
+    "nsExports": "warn",
+    "nsTypes": "warn",
+    "enumMembers": "warn",
+    "duplicates": "warn"
+  },
+  "workspaces": {
+    ".": {
+      "entry": [
+        "scripts/**/*.ts"
+      ],
+      "project": [
+        "scripts/**/*.ts"
+      ],
+      "includeEntryExports": true
+    },
+    "apps/api": {
+      "project": [
+        "src/**/*.ts"
+      ]
+    },
+    "apps/ops-web": {
+      "entry": [
+        "src/app/**/{page,layout,route,template,error,loading,not-found}.tsx",
+        "src/app/**/{page,layout,route,template,error,loading,not-found}.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,css}"
+      ]
+    },
+    "apps/driver-app": {
+      "entry": [
+        "app/**/*.{ts,tsx}"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx}",
+        "app/**/*.{ts,tsx}"
+      ]
+    },
+    "apps/owner-app": {
+      "entry": [
+        "app/**/*.{ts,tsx}"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx}",
+        "app/**/*.{ts,tsx}"
+      ]
+    },
+    "workers/main-worker": {
+      "entry": [
+        "src/index.ts"
+      ],
+      "project": [
+        "src/**/*.ts"
+      ]
+    },
+    "packages/domain": {
+      "entry": [
+        "src/index.ts"
+      ],
+      "project": [
+        "src/**/*.ts"
+      ]
+    },
+    "packages/sync-protocol": {
+      "entry": [
+        "src/index.ts"
+      ],
+      "project": [
+        "src/**/*.ts"
+      ]
+    },
+    "packages/observability": {
+      "entry": [
+        "src/index.ts"
+      ],
+      "project": [
+        "src/**/*.ts"
+      ]
+    },
+    "packages/design-tokens": {
+      "entry": [
+        "src/index.ts"
+      ],
+      "project": [
+        "src/**/*.ts"
+      ]
+    },
+    "packages/codemods": {
+      "entry": [
+        "src/index.ts"
+      ],
+      "project": [
+        "src/**/*.ts"
+      ]
+    },
+    "packages/test-fixtures": {
+      "entry": [
+        "src/index.ts"
+      ],
+      "project": [
+        "src/**/*.ts"
+      ]
+    },
+    "e2e": {
+      "entry": [
+        "**/*.spec.ts"
+      ],
+      "project": [
+        "**/*.ts"
+      ]
+    }
+  }
+}

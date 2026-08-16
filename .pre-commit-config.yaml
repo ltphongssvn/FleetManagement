@@ -63,7 +63,30 @@ repos:
     rev: v1.5.0
     hooks:
       - id: detect-secrets
-        args: ['--baseline', '.secrets.baseline']
+        # --exclude-lines skips a SHAPE that is structurally not a secret,
+        # wherever it appears. age PUBLIC keys are tracked in git ON PURPOSE
+        # (.age-recipients is the recipient SSOT, .sops.yaml is generated from
+        # it), and publishing one grants nothing -- that is the premise of the
+        # scheme. Without this they land as Base64HighEntropyString findings.
+        #
+        # Baselining them instead would be a treadmill: the recipient list GROWS
+        # by design, so every laptop ever added mints another finding, another
+        # refresh and another audit round, forever, for values published
+        # deliberately. A baseline crowded with benign entries is one nobody
+        # reads, which is how a real finding slips past.
+        #
+        # SCOPE IS DELIBERATELY NARROW. Only the PUBLIC shape (age1 + 58 bech32
+        # chars) is excluded. AGE-SECRET-KEY-* is NOT and must never be: a
+        # private identity in tracked source is a genuine incident, and both
+        # this plugin and the detect-private-key hook below must keep their shot
+        # at it. The pattern is length-anchored so a short age-prefixed string
+        # is still scanned.
+        #
+        # MUST STAY IN SYNC with EXCLUDE_LINE_PATTERNS in scripts/secrets-baseline.ts:
+        # that task writes the baseline this hook then enforces, so a drift means
+        # the task produces a baseline the hook rejects. Asserted by
+        # scripts/secrets-baseline-age-keys.test.ts under //#test:scripts.
+        args: ['--baseline', '.secrets.baseline', '--exclude-lines', 'age1[02-9ac-hj-np-z]{58}']
         exclude: (?x)(
             pnpm-lock\.yaml|
             .*\.lock|
@@ -117,13 +140,13 @@ repos:
     hooks:
       - id: pnpm-lint
         name: pnpm Lint (CI Mirror)
-        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm -r --if-present lint; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm exec turbo run lint; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
         types_or: [ts, tsx, javascript, jsx]
       - id: pnpm-typecheck
         name: pnpm Typecheck (CI Mirror)
-        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm -r --if-present typecheck; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm exec turbo run typecheck; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
         types_or: [ts, tsx]
@@ -137,7 +160,7 @@ repos:
     hooks:
       - id: pnpm-build-push
         name: pnpm Build Verification (Pre-push)
-        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm -r --if-present build; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm exec turbo run build; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
         stages: [pre-push]
@@ -149,8 +172,20 @@ repos:
         # enforce the 90/90/90/90 per-file gate via the same merge logic
         # CI uses across its 4 shards. Non-api packages run their own
         # test:coverage in the same -r pass so their per-package thresholds
-        # are still enforced. A real failure at any step exits non-zero.
-        entry: bash -c 'mkdir -p "$HOME/.cache/fleetmanagement"; if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then flock -w 7200 "$HOME/.cache/fleetmanagement/gate.lock" bash -c "pnpm -r --workspace-concurrency=1 --if-present test:coverage && node scripts/merge-coverage.mjs apps/api/coverage/merged"; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
+        # THIN BY DESIGN. This entry used to inline flock, the recursive
+        # coverage run and the merge step as a ~300-character bash string --
+        # untested, and unreachable by //#test:scripts. It streamed every
+        # workspace's vitest output through pre-commit's captured pipe, and
+        # twice on 2026-08-05 the pipe filled and the framework died with
+        #   BlockingIOError: [Errno 11] write could not complete without blocking
+        # aborting a push while the tests were PASSING.
+        #
+        # The gate now lives in scripts/gate-coverage.ts, where its argv is
+        # unit-tested: the flock wait, --workspace-concurrency=1, the quiet
+        # reporter that keeps the pipe from filling, and the same 90/90/90/90
+        # merge. One place to change behaviour, and a test that fails if
+        # someone drops the lock or weakens the run.
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm run gate:coverage; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
         stages: [pre-push]

@@ -20,10 +20,10 @@
 //
 // ISOLATION: all seeded rows are deleted in afterAll, mirroring the sibling board
 // specs (cleanupOrder + cleanupSeed), so the shared board is never polluted.
-import { test, expect, type APIRequestContext } from '@playwright/test';
+import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { dockerPsql } from './helpers/docker-exec';
-import { z } from 'zod';
+import { type z } from 'zod';
 import {
   parseJson,
   CreateDriverResponseSchema,
@@ -35,12 +35,13 @@ import {
   ExtractionResultResponseSchema,
 } from './helpers/contracts';
 import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
+import { settleBoardAfterCreate, waitForProjectionRow } from './helpers/wait-for-projection';
+import { ROW_VISIBILITY_BUDGET_MS } from './helpers/budgets';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
-const ROW_VISIBILITY_BUDGET_MS = 15_000;
 
-async function pickCombobox(page: import('@playwright/test').Page, inputId: string, optionLabel: string): Promise<void> {
+async function pickCombobox(page: Page, inputId: string, optionLabel: string): Promise<void> {
   const input = page.locator('#' + inputId);
   await expect(input).toBeVisible({ timeout: 15_000 });
   await expect(input).toBeEditable({ timeout: 15_000 });
@@ -241,8 +242,16 @@ test.describe.serial('Lenh dieu xe: dispatcher manual net-weight entry for an un
     expect(transportOrderId.length).toBeGreaterThan(0);
     manifestId = await seedUnrecognisedProof(request, seed.token, transportOrderId);
 
-    // Reload so the board re-reads the projection with the committed proof.
-    await page.reload();
+    // READ-MODEL SETTLE #1 (2026-08-09). transportOrderIdOf above reads the
+    // WRITE side directly, so it returns as soon as the create commits -- it
+    // says nothing about whether the board PROJECTION has caught up. A bare
+    // reload therefore re-read a projection that might not yet carry the row,
+    // and SEAM 1 below then waited 15s for a projection-derived testid that had
+    // no way to exist yet. Auto-waiting cannot help: the DOM is present and
+    // hydrated, it simply lacks the row. settleBoardAfterCreate polls GET
+    // /dispatch/board until the ref is really there, then reloads -- so it
+    // subsumes the reload that used to sit here.
+    await settleBoardAfterCreate(page, request, seed.token, createdRef);
     await expect(page.locator('[data-testid=dispatch-board][data-hydrated=true]')).toBeVisible({ timeout: ROW_VISIBILITY_BUDGET_MS });
 
     // SEAM 1: the unrecognised proof surfaces a Nhap KL affordance.
@@ -256,6 +265,18 @@ test.describe.serial('Lenh dieu xe: dispatcher manual net-weight entry for an un
     await expect(input).toBeVisible({ timeout: ROW_VISIBILITY_BUDGET_MS });
     await input.fill('19730');
     await page.getByTestId('manual-netweight-confirm-' + manifestId).click();
+
+    // READ-MODEL SETTLE #2 (2026-08-09). The confirm above starts a SECOND
+    // async cycle -- action -> API PATCH -> projection -> re-render -- and it is
+    // the one this spec's CI failures land on (line 263, recurring since
+    // 2026-08-02 and again on PR #532). SEAM 3 asserts a projection-derived
+    // weight, so it needs its own settle; waiting on the cell alone races the
+    // pipeline exactly as SEAM 1 did. The weight is SERVER state, so it must
+    // survive a full reload rather than be read off a transient optimistic
+    // render -- re-establish readiness, reload, then assert.
+    await waitForProjectionRow(request, seed.token, createdRef);
+    await page.reload();
+    await expect(page.locator('[data-testid=dispatch-board][data-hydrated=true]')).toBeVisible({ timeout: ROW_VISIBILITY_BUDGET_MS });
 
     // SEAM 3: the board reflects the entered weight (vi-VN grouped kg) for the
     // pickup stop, proving action -> API -> projection -> re-render end to end.

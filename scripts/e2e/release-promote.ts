@@ -26,8 +26,20 @@ export function releaseMergeArgs(prNumber: number): readonly string[] {
 }
 
 // ---- side-effecting (entrypoint only) ----
-function run(cmd: string, args: string[], opts: { allowFail?: boolean } = {}): string {
-  const r = spawnSync(cmd, args, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
+// args is READONLY (2026-08-08): run() only reads it, and the pure planners in
+// this file return readonly arrays by design. Declaring the parameter mutable
+// made releaseMergeArgs's readonly string[] unassignable here (TS2345) -- a
+// conflict this signature invented by claiming a mutation right it never uses.
+//
+// Widening the PARAMETER is the documented fix and costs nothing: a readonly
+// parameter still accepts a mutable argument, so every existing call passing an
+// array literal is unaffected. Casting at the call site would have been the
+// wrong direction -- passing readonly data into a mutable parameter is the
+// aliasing hole that lets a callee modify values the caller believes frozen.
+// spawnSync's own types demand a mutable array, so the copy happens HERE, at
+// the one place that actually needs it.
+function run(cmd: string, args: readonly string[], opts: { allowFail?: boolean } = {}): string {
+  const r = spawnSync(cmd, [...args], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
   if (r.status !== 0 && opts.allowFail !== true) {
     console.error('\u274c ' + cmd + ' ' + args.join(' ') + ' failed:\n' + (r.stderr || r.stdout));
     process.exit(1);

@@ -26,6 +26,14 @@ export {
   personNameMatchKey,
   DriverNameSchema,
   type DriverName,
+  suggestDistinctDriverName,
+  DISTINCT_NAME_SUFFIXES,
+  type DistinctNameSuffix,
+  FLEET_ROLES,
+  FLEET_OWNER_ROLE,
+  FleetRoleSchema,
+  hasFleetRole,
+  type FleetRole,
 } from './identity/index.js';
 export {
   type TransportOrderState,
@@ -47,6 +55,10 @@ export {
   ROAD_RUN_STATE_TONE,
   groupCompletedTripsByMonth,
   type TripMonthGroup,
+  VN_TIME_ZONE,
+  vnDayOf,
+  vnDayWindowUtc,
+  type VnDayWindow,
   type CancelReason,
   CancelReasonSchema,
   CANCEL_REASONS,
@@ -87,3 +99,28 @@ export {
   type GoodsDerivation,
   deriveGoodsKg,
 } from './manifest/phieu-can-format.js';
+
+// T70: UI AFFORDANCE SSOT -- tone, emphasis, empty-state reason, help topic and
+// the WCAG 2.5.8 target-size floor. Exported from the barrel because every
+// consumer (ops-web primitives, driver-app, owner-app) imports from the package
+// ROOT; a deep src path import is precisely what invites a screen to re-declare
+// its own one-off tone union and reopen the drift this arc closes.
+export {
+  ACTION_TONES,
+  ActionToneSchema,
+  type ActionTone,
+  ACTION_EMPHASES,
+  ActionEmphasisSchema,
+  type ActionEmphasis,
+  EMPTY_STATE_REASONS,
+  EmptyStateReasonSchema,
+  type EmptyStateReason,
+  type EmptyStateCopy,
+  EMPTY_STATE_VI,
+  HELP_TOPICS,
+  HelpTopicSchema,
+  type HelpTopic,
+  type HelpTopicCopy,
+  HELP_TOPIC_VI,
+  MIN_TARGET_SIZE_PX,
+} from './ui/affordance.js';

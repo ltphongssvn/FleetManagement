@@ -18,9 +18,10 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { dockerPsql, dockerExecApiNode } from './helpers/docker-exec';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
-import { z } from 'zod';
+import { type z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
 import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
+import { ROW_VISIBILITY_BUDGET_MS } from './helpers/budgets';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
@@ -28,7 +29,6 @@ const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 // real row, so a generous budget is correct: it no longer races the optimistic
 // window. 1000ms was a harness artifact -- under serial load router.refresh()
 // can reconcile + prune the optimistic row before a 1s assertion runs.
-const ROW_VISIBILITY_BUDGET_MS = 15_000;
 
 async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
   const res = await api.post(API_URL + path, {
