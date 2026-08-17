@@ -125,8 +125,11 @@ describe('PnpmNdjsonRecordSchema (the one real trust boundary)', () => {
   });
 });
 describe('interpretHealResult (outcome IS the classifier)', () => {
-  it('reads exit 0 as reconciled', () => {
-    expect(interpretHealResult(0, '')).toEqual({ kind: 'reconciled', source: 'exit-zero' });
+  // WAS 'reads exit 0 as reconciled'. Exit 0 is no longer a verdict: it means
+  // the install ATTEMPT finished, and the tree must be re-read before anything
+  // may be called reconciled. That change is the whole point of this arc.
+  it('reads exit 0 as heal-attempted, never as a reconciled verdict', () => {
+    expect(interpretHealResult(0, '')).toEqual({ kind: 'heal-attempted', source: 'exit-zero' });
   });
   it('classifies ERR_PNPM_OUTDATED_LOCKFILE as divergent via the structured record', () => {
     const rec = JSON.stringify({
@@ -178,9 +181,20 @@ describe('interpretHealResult (outcome IS the classifier)', () => {
     expect(out.kind).not.toBe('reconciled');
     expect(out.source).toBe('unparseable');
   });
-  it('always carries a non-empty reason on a non-reconciled outcome', () => {
+  // Narrowed when verify-after landed: heal-attempted (exit 0) carries no
+  // reason BY DESIGN -- it is not an outcome, it is the signal that the tree
+  // must now be re-probed. A non-zero exit can never produce it, so this case
+  // states the real invariant: every FAULT outcome is actionable.
+  it('always carries a non-empty reason on a divergent or failed outcome', () => {
     const out = interpretHealResult(1, '');
-    expect(out.kind !== 'reconciled' && out.reason.length > 0).toBe(true);
+    expect(out.kind === 'divergent' || out.kind === 'failed').toBe(true);
+    if (out.kind === 'divergent' || out.kind === 'failed') {
+      expect(out.reason.length).toBeGreaterThan(0);
+    }
+  });
+  it('reports an exit-zero install as heal-attempted, NOT as reconciled', () => {
+    // The defect this arc removes: exit 0 used to BE the verdict.
+    expect(interpretHealResult(0, '').kind).toBe('heal-attempted');
   });
 });
 // GRADED exit codes, matching pr:follow (0/1/2/3) and audit:ci-minutes (2).
