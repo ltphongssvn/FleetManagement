@@ -12,6 +12,23 @@
 // run/jobs join) are INTENTIONALLY free of I/O -- the curl calls live in
 // helpers used only by main(), mirroring resolve-ci-sha.ts:22 so the rules stay
 // unit-testable without mocks.
+//
+// ENV READS USE BRACKET NOTATION (2026-08-08). process.env is an index
+// signature, so dot access is TS4111 under noPropertyAccessFromIndexSignature.
+// The flag keeps access syntax consistent with the declaration and stops a
+// typo'd variable name from silently reading undefined -- which here would mean
+// falling back to the public api.github.com or the default repo and auditing
+// the wrong thing. Disabling the flag would clear the error by deleting the
+// check.
+//
+// FOLLOW-UP, NOT THIS ARC: the 2026 practice is a single validated env module
+// (one Zod schema parsed once, no direct process.env reads anywhere else).
+// scripts/ has 13 files reading env with INCOMPATIBLE requiredness -- this one
+// defaults GITHUB_API_URL, resolve-ci-sha demands a 40-hex GITHUB_SHA or exits,
+// stack-up falls back to ~/Android/Sdk -- so one startup-parsed schema would
+// make every script demand every variable. That needs per-script schemas and
+// its own RED tests; bundling it into a type-debt burn-down would change
+// failure modes in the deploy and audit paths.
 import { z } from 'zod';
 import { spawnSync } from 'node:child_process';
 import { JobSchema, type Job, type RunEntry, summarizeBillableMinutes } from './ci-minutes-audit.js';
@@ -163,13 +180,13 @@ function argOf(flag: string, fallback: string): string {
 }
 
 function main(): void {
-  const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
+  const token = process.env['GITHUB_TOKEN'] ?? process.env['GH_TOKEN'];
   if (!token) {
     console.error('audit:ci-minutes: GITHUB_TOKEN (or GH_TOKEN) required -- needs actions:read + billing scope');
     process.exit(1);
   }
-  const apiUrl = process.env.GITHUB_API_URL ?? 'https://api.github.com';
-  const repo = argOf('--repo', process.env.GITHUB_REPOSITORY ?? 'ltphongssvn/FleetManagement');
+  const apiUrl = process.env['GITHUB_API_URL'] ?? 'https://api.github.com';
+  const repo = argOf('--repo', process.env['GITHUB_REPOSITORY'] ?? 'ltphongssvn/FleetManagement');
   const now = new Date();
   const year = Number(argOf('--year', String(now.getUTCFullYear())));
   const month = Number(argOf('--month', String(now.getUTCMonth() + 1)));

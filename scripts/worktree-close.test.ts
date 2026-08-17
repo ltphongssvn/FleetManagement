@@ -10,6 +10,13 @@
 //  - parseAheadBehind(stdout): rev-list --left-right --count HEAD...@{u}.
 //  - countDirtyFiles(stdout): status --porcelain=v1 -uall line count.
 //  - resolveCloseInput(params): assembles + Zod-parses a WorktreeCloseInput.
+//
+// PARSED ONCE, BOUND AND GUARDED (2026-08-08). The porcelain cases indexed the
+// parse result directly ([0].path, [2].branch), which is TS2532 under
+// noUncheckedIndexedAccess. Optional chaining was rejected: the entry-count
+// assertion is this suite's premise, so a parser regression that drops an entry
+// must fail by name, not as "expected undefined to be ...". Binding the result
+// once also removes four redundant re-parses of the same fixture.
 
 import { describe, it, expect } from 'vitest';
 import {
@@ -37,20 +44,28 @@ const porcelain = [
 ].join(NL);
 
 describe('worktree-close: porcelain parsing', () => {
+  const entries = parseWorktreePorcelain(porcelain);
+
   it('parses every worktree entry', () => {
-    expect(parseWorktreePorcelain(porcelain).length).toBe(3);
+    expect(entries.length).toBe(3);
   });
   it('strips the refs/heads/ prefix', () => {
-    expect(parseWorktreePorcelain(porcelain)[1]).toEqual({
+    expect(entries[1]).toEqual({
       path: '/home/u/code/t16-wt1',
       branch: 'feature/order-status-groups',
     });
   });
   it('lists the primary clone first', () => {
-    expect(parseWorktreePorcelain(porcelain)[0].path).toBe('/home/u/code/FleetManagement');
+    const [primary] = entries;
+    expect(primary, 'porcelain parse yielded no first entry').toBeDefined();
+    if (primary === undefined) return;
+    expect(primary.path).toBe('/home/u/code/FleetManagement');
   });
   it('reports a detached worktree as a null branch', () => {
-    expect(parseWorktreePorcelain(porcelain)[2].branch).toBe(null);
+    const detached = entries[2];
+    expect(detached, 'porcelain parse yielded no third entry').toBeDefined();
+    if (detached === undefined) return;
+    expect(detached.branch).toBe(null);
   });
   it('returns an empty list for empty stdout', () => {
     expect(parseWorktreePorcelain('')).toEqual([]);
@@ -110,6 +125,12 @@ describe('worktree-close: input assembly is Zod-parsed', () => {
       // retired defaults false at assembly (F4): the Zod default is
       // materialised here, never left undefined for the decision core.
       retired: false,
+      // done defaults false the same way: the recency waiver is opt-in, so an
+      // assembly that never mentions it must protect, never permit.
+      done: false,
+      // idleHours defaults 0 (recent) at assembly: the fail-safe schema default
+      // is materialised here since base supplies no reflog-derived value.
+      idleHours: 0,
     });
   });
   it('flags the primary clone by path identity', () => {

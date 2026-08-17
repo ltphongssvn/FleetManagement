@@ -209,8 +209,24 @@ jobs:
           # different temporary directories'. Relative path => versions match
           # across runners.
           use-relative-cache-path: true
-      - name: Security audit
+      # Two-tier audit, per the security-guards rationale below: a control
+      # that BLOCKS a merge must gate on what actually ships. This step was
+      # unscoped, so a freshly published advisory against a dev-only
+      # transitive dep (eslint, stryker, semantic-release, testcontainers)
+      # failed every PR in the repo regardless of what it changed -- three
+      # of the four advisories that blocked a UI-only PR on 2026-08-03 were
+      # dev-only, and one needed a permanent ignoreGhsas entry purely to
+      # satisfy this gate. --prod is pnpm's equivalent of npm --omit=dev.
+      - name: Security audit (production dependencies)
         if: hashFiles('pnpm-lock.yaml') != ''
+        run: pnpm audit --audit-level=high --prod
+      # Full tree INCLUDING devDependencies, reported but NOT blocking.
+      # Dev-tooling advisories are real and get fixed on their own cadence;
+      # they must not hold every branch hostage. continue-on-error keeps the
+      # finding visible in the run log without failing the check.
+      - name: Security audit (full tree, advisory only)
+        if: hashFiles('pnpm-lock.yaml') != ''
+        continue-on-error: true
         run: pnpm audit --audit-level=high
       - name: Build
         # Full workspace build. Emits every package's dist/ + .d.ts +
@@ -252,6 +268,22 @@ jobs:
         # run explicitly against e2e/tsconfig.json. Gate them here.
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm exec tsc --noEmit -p e2e/tsconfig.json
+      - name: E2E Lint
+        # The SAME gap this file already documents for typecheck, for lint.
+        # @fleet/e2e is a workspace member but declares only a typecheck script,
+        # so `turbo run lint` visited its DEPENDENCY and reported success
+        # without linting a single spec -- e2e/ went unlinted for the life of
+        # the repo while eslint.config.mjs carefully bound e2e/**/*.ts to
+        # e2e/tsconfig.json for type-aware rules that never executed. The first
+        # run reported 35 violations, all since fixed to zero.
+        #
+        # A CI STEP, not only the __ci_fast__ wiring: this workflow never
+        # invokes that turbo node, which is exactly why the security-guards job
+        # below exists. Wiring alone would have left the check real locally and
+        # absent remotely -- the third instance of that hole in this repo, after
+        # //#lint:scripts and //#typecheck:scripts.
+        if: hashFiles('pnpm-lock.yaml') != ''
+        run: pnpm run lint:e2e
 
   api-tests:
     name: API tests (shard ${{ matrix.shard }}/4)

@@ -148,6 +148,19 @@ export {
 export {
   ExtractionFailureReasonSchema,
 } from './extraction-vocabulary.js';
+
+// Leaf SSOT for what a Phieu Can PROOF URL may be. Exported from the barrel
+// because the value crosses a rendering boundary: ops-web parses it off the
+// network and puts it straight into an anchor href, so every surface that
+// produces or consumes a proof link must agree on the scheme allowlist. A deep
+// src path import is what invites a second, weaker definition -- and the weaker
+// definition here is a bare z.url(), which Zod documents as permissive enough to
+// accept javascript: and data:.
+export {
+  PROOF_URL_PROTOCOL,
+  ProofUrlSchema,
+  type ProofUrl,
+} from './proof-url.js';
 export {
   exportDayKeySchema,
   type ExportDayKey,
@@ -287,3 +300,37 @@ export {
   type DriverDbStatusFacts,
   classifyDriverDbStatus,
 } from './co-so-du-lieu-contract.js';
+
+// Dispatched-vs-idle driver roster split for the Bang dieu phoi xe owner panel.
+// Exported from the barrel because every consumer (api service, ops-web loader,
+// panel component, E2E) imports from the package ROOT; a deep src path import
+// is what invites a downstream re-declaration of the partition rule.
+export {
+  IDLE_REASONS,
+  IdleReasonSchema,
+  type IdleReason,
+  DispatchedDriverRowSchema,
+  type DispatchedDriverRow,
+  IdleDriverRowSchema,
+  type IdleDriverRow,
+  DispatchRosterSplitSchema,
+  type DispatchRosterSplit,
+  parseDispatchRosterSplit,
+  isRosterPartitionValid,
+} from './dispatch-roster-split-contract.js';
+
+// Build-provenance contract: what a deployed service reports about ITSELF.
+// Exported from the barrel because all four consumers import from the package
+// ROOT -- the api health controller, the ops-web version route, the worker boot
+// heartbeat, and the CI gate that parses the payload. A deep src path import is
+// what invites a second, drifting definition of the shape CI asserts against.
+export {
+  UNKNOWN_VERSION_FIELD,
+  WORKER_PROVENANCE_KEY,
+  WORKER_PROVENANCE_TTL_SECONDS,
+  WORKER_PROVENANCE_REFRESH_SECONDS,
+  DeployVersionSchema,
+  type DeployVersion,
+  type ProvenanceEnv,
+  buildDeployVersion,
+} from './deploy-version-contract.js';

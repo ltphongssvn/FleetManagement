@@ -142,6 +142,63 @@ describe('@fleet/api - AdminDriversCreateService conflict + reactivate', () => {
     });
   });
 
+  // ---- Actionable conflict: the dispatcher is TOLD what to register ----
+  // A bare "Tài xế X đã tồn tại" is a dead end when the second person is REAL.
+  // With no sanctioned path forward the dispatcher improvises a spelling tweak,
+  // which is how one human ends up with two identities. The 409 now names the
+  // exact name to type: the first person keeps the bare name, the second gets
+  // suffix B, the third C.
+  it('ACTIVE duplicate name conflict SUGGESTS the B-suffixed name to register', async () => {
+    await withTxIsolation(testDb, async (tx) => {
+      const svc = new AdminDriversCreateService(tx as never, fakeHash);
+      const op = createOperatorContext();
+      await svc.create(inputFor(op, 'NGUYỄN AN BÌNH ĐỨC', '0913998879', 'pass-1234'));
+      const attempt = svc.create(inputFor(op, 'NGUYỄN AN BÌNH ĐỨC', '0854148878', 'pass-5678'));
+      await expect(attempt).rejects.toBeInstanceOf(ConflictException);
+      await expect(attempt).rejects.toThrow(/NGUYỄN AN BÌNH ĐỨC B/);
+    });
+  });
+
+  it('suggests C when the bare name and the B-suffixed name are both taken', async () => {
+    await withTxIsolation(testDb, async (tx) => {
+      const svc = new AdminDriversCreateService(tx as never, fakeHash);
+      const op = createOperatorContext();
+      await svc.create(inputFor(op, 'TRẦN MINH TÂM', '0913000001', 'pass-1234'));
+      await svc.create(inputFor(op, 'TRẦN MINH TÂM B', '0913000002', 'pass-1234'));
+      const attempt = svc.create(inputFor(op, 'TRẦN MINH TÂM', '0913000003', 'pass-5678'));
+      await expect(attempt).rejects.toThrow(/TRẦN MINH TÂM C/);
+    });
+  });
+
+  // The suffixed name is a REAL registration path, not just advice in a message.
+  it('registering the SUGGESTED B-suffixed name succeeds as a separate driver', async () => {
+    await withTxIsolation(testDb, async (tx) => {
+      const svc = new AdminDriversCreateService(tx as never, fakeHash);
+      const op = createOperatorContext();
+      const first = await svc.create(inputFor(op, 'LƯƠNG QUỐC SANG', '0913000011', 'pass-1234'));
+      const second = await svc.create(inputFor(op, 'LƯƠNG QUỐC SANG B', '0913000012', 'pass-1234'));
+      expect(second.driverId).not.toBe(first.driverId);
+      expect(second.operatorId).not.toBe(first.operatorId);
+      expect(second.active).toBe(true);
+    });
+  });
+
+  // The invisible-character defect, at the layer that matters: an invisible must
+  // not buy a second identity. Before the normalizer fix this INSERT succeeded,
+  // because lower(full_name) differed in bytes and the index never fired.
+  it('an invisible-bearing duplicate is a CONFLICT, not a second driver', async () => {
+    await withTxIsolation(testDb, async (tx) => {
+      const svc = new AdminDriversCreateService(tx as never, fakeHash);
+      const op = createOperatorContext();
+      await svc.create(inputFor(op, 'NGUYỄN AN BÌNH ĐỨC', '0913000021', 'pass-1234'));
+      const sneaky = 'NGUYỄN AN\u200e BÌNH\u00ad ĐỨC';
+      const attempt = svc.create(inputFor(op, sneaky, '0913000022', 'pass-5678'));
+      await expect(attempt).rejects.toBeInstanceOf(ConflictException);
+      const rows = await tx.select().from(driver).where(eq(driver.companyId, op.companyId));
+      expect(rows.length).toBe(1);
+    });
+  });
+
   it('brand-new name + phone creates normally (regression)', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const svc = new AdminDriversCreateService(tx as never, fakeHash);

@@ -101,16 +101,24 @@ async function main(): Promise<void> {
   const liveArg = arg("--live", argv);
   const fix = arg("--fix", argv);
   const base = arg("--base", argv) ?? "origin/main";
-  // The usage guard must NARROW, not merely exit: process.exit() is typed as
-  // returning never only in a tail position TypeScript can see, so without the
-  // explicit return below the compiler still considers liveArg/fix possibly
-  // undefined and the code needed a forbidden non-null assertion. Returning here
-  // narrows both, so the assertion disappears rather than being suppressed.
+  // The usage guard NARROWS as well as exits: process.exit() is typed never in
+  // @types/node, so the compiler treats this branch as terminating and liveRef
+  // and fix are non-undefined below with no assertion.
+  //
+  // HISTORY (2026-08-08): this block carried an explicit `return;` after the
+  // exit, added because the compiler "still considers liveArg/fix possibly
+  // undefined". That was true when written -- TS did not narrow after a call to
+  // a never-returning METHOD (microsoft/TypeScript#56049), and process.exit is a
+  // method on process. That gap is fixed, which is precisely why the compiler
+  // now reports the return itself as TS7027 unreachable. The workaround outlived
+  // its bug; removing it restores one truth instead of two contradictory ones.
+  // Verified by compiling, not by reasoning: TS does not narrow inside
+  // unreachable code (#42243), so a resurrected "possibly undefined" here would
+  // have shown up immediately.
   const liveRef = liveUrl ?? liveArg;
   if (liveRef === undefined || fix === undefined) {
     console.error("usage: inspect:prod-deploy -- (--live <sha> | --live-url <url>) --fix <sha> [--base <ref>]");
     process.exit(2);
-    return;
   }
   const live = await resolveLiveRef(liveRef);
   const facts: DeployFacts = {

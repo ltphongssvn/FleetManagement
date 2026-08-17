@@ -37,14 +37,16 @@ test('dispatcher resets a driver password from /admin/drivers and the new passwo
   // The reset control prompts for the new password (mirrors the Hủy phân công
   // window.prompt pattern). Pre-answer the dialog with the new password.
   page.on('dialog', (dialog) => { void dialog.accept(NEW_PASSWORD); });
-  // The reset action moved out of the row and into the RowActionMenu kebab
-  // (Headless-UI Menu). It is non-destructive, so selecting the item fires it
-  // directly with no confirm Dialog. MenuItems renders with anchor=bottom end,
-  // which portals the panel OUTSIDE the row subtree, so the item is queried on
-  // the page rather than scoped to the row locator.
-  const actionsTrigger = row.getByRole('button', { name: /^Thao tác cho / });
-  await expect(actionsTrigger).toBeVisible({ timeout: 10_000 });
-  await actionsTrigger.click();
+  // Dat lai mat khau lives in the per-row Thao tac overflow menu (E1-drivers
+  // consolidation). Non-destructive, so selecting the item fires it directly
+  // with no confirm Dialog. The trigger sits inside the row, but Headless-UI
+  // renders MenuItems with anchor=bottom end, which portals the panel to the
+  // document root -- so the menuitem is queried at PAGE scope, never inside
+  // the row locator. The name regex is ANCHORED (^Thao tac cho ) so it cannot
+  // also match some other control whose label merely contains the phrase.
+  const menuTrigger = row.getByRole('button', { name: /^Thao tác cho / });
+  await expect(menuTrigger).toBeVisible({ timeout: 10_000 });
+  await menuTrigger.click();
   const resetItem = page.getByRole('menuitem', { name: /Đặt lại mật khẩu/ });
   await expect(resetItem).toBeVisible({ timeout: 10_000 });
   await resetItem.click();

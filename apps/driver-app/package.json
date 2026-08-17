@@ -8,7 +8,7 @@
     "android": "expo run:android",
     "check": "echo check is a turbo aggregate task -- run: pnpm exec turbo run check --filter=@fleet/driver-app",
     "clean": "rimraf .expo dist .turbo coverage",
-    "eas-build-pre-install": "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @fleet/observability --filter @fleet/sync-protocol --filter @fleet/domain build",
+    "eas-build-pre-install": "cd ../.. && pnpm install --frozen-lockfile && pnpm exec turbo run build --filter=@fleet/driver-app^...",
     "ios": "expo run:ios",
     "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix",
@@ -23,6 +23,7 @@
     "web": "expo start --web",
     "eas:builds": "pnpm dlx eas-cli@20.5.1 build:list --platform all --limit 10 --non-interactive",
     "eas:build:ios": "pnpm dlx eas-cli@20.5.1 build --platform ios --profile preview --non-interactive",
+    "eas:build:ios:interactive": "pnpm dlx eas-cli@20.5.1 build --platform ios --profile preview",
     "eas:build:android": "pnpm dlx eas-cli@20.5.1 build --platform android --profile preview --non-interactive"
   },
   "engines": {
@@ -63,6 +64,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@fleet/test-fixtures": "workspace:*",
     "@sentry/cli": "2.58.4",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",

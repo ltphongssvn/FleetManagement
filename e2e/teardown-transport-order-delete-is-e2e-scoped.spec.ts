@@ -23,7 +23,7 @@ test('global-teardown transport_order DELETE is E2E-scoped like its siblings', (
   // Discriminate by NOT EXISTS: the orphan sweep contains it, the join
   // delete does not (rrto appears in both, so rrto cannot tell them apart).
   const orphanSweeps = statements.filter((s) => s.includes('NOT EXISTS'));
-  const joinDeletes = statements.filter((s) => s.includes('NOT EXISTS') === false);
+  const joinDeletes = statements.filter((s) => !s.includes('NOT EXISTS'));
   expect(orphanSweeps.length).toBe(1);
   expect(joinDeletes.length).toBe(1);
   const joined = joinDeletes[0] ?? '';

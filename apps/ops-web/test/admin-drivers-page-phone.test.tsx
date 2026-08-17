@@ -35,7 +35,9 @@ describe('AdminDriversPage phone column', () => {
   it('renders each driver phone number', async () => {
     render(<AdminDriversPage />);
     await screen.findByText('Driver Alpha');
-    expect(screen.getByText('0900000001')).toBeTruthy();
-    expect(screen.getByText('0900000002')).toBeTruthy();
+    // phone shows in the name-cell subtitle and (read-only) in the Thao tác cell,
+    // so it may appear more than once; the invariant is that it is visible.
+    expect(screen.getAllByText('0900000001').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('0900000002').length).toBeGreaterThan(0);
   });
 });

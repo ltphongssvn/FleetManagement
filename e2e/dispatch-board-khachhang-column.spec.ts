@@ -25,22 +25,34 @@
 // were the outliers. 2026 practice is explicit: each test operates on its own
 // data set, created per test and deleted in an after hook, which costs a few
 // hundred milliseconds and eliminates cross-test contamination.
-import { test, expect, type APIRequestContext } from '@playwright/test';
+//
+// READ-MODEL SETTLE (2026-08-07, a SECOND and distinct cause). Cleanup fixed
+// cross-spec pollution, yet this spec and its sibling kept alternating red --
+// reproduced locally on a clean isolated stack with fresh seeds each attempt.
+// The create returns on the WRITE commit while the row still travels outbox ->
+// relay -> BullMQ -> projection, and the page holds a render taken before it
+// existed: DispatchView shows an optimistic row built from the action result
+// (externalRef only, no customerName), and the single router.refresh() fires
+// while the projection is still catching up, with no second attempt. Asserting
+// a server-derived field therefore raced two async hops against a fixed 15s
+// locator budget. settleBoardAfterCreate replaces that race with a statement.
+import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { dockerPsql } from './helpers/docker-exec';
-import { z } from 'zod';
+import { type z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
 import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
+import { settleBoardAfterCreate } from './helpers/wait-for-projection';
+import { ROW_VISIBILITY_BUDGET_MS } from './helpers/budgets';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
-const ROW_VISIBILITY_BUDGET_MS = 15_000;
 
 // Headless UI Combobox is an <input role=combobox> with portal-rendered
 // role=option items, opened on focus (immediate). Drive it by typing to filter
 // then clicking the option, with a deterministic open-retry (overlay/hydration
 // race hardening per harness-artifact-combobox-contention).
-async function pickCombobox(page: import('@playwright/test').Page, inputId: string, optionLabel: string): Promise<void> {
+async function pickCombobox(page: Page, inputId: string, optionLabel: string): Promise<void> {
   const input = page.locator('#' + inputId);
   await expect(input).toBeVisible({ timeout: 15_000 });
   await expect(input).toBeEditable({ timeout: 15_000 });
@@ -204,6 +216,13 @@ test.describe.serial('Lệnh điều xe board: Khách hàng column replaces Tr�
     const match = /XTT[.][0-9]+-[0-9]+/.exec(bannerText);
     if (!match) throw new Error('create banner carried no XTT external_ref: ' + bannerText);
     createdRef = match[0];
+
+    // Settle the board against its own endpoint before asserting anything
+    // server-derived: the optimistic row carries externalRef only, and the one
+    // router.refresh() already fired against a projection that had not caught
+    // up. INVARIANT 3 (no Trạng thái header) is a toHaveCount(0) that would
+    // pass vacuously on an empty board, so it too depends on this settling.
+    await settleBoardAfterCreate(page, request, seed.token, createdRef);
 
     // INVARIANT 1: the board renders a Khách hàng column header.
     await expect(

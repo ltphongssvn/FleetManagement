@@ -9,14 +9,34 @@
 // screen (/capture?stopKind=loading&stopIndex=0..3 | stopKind=unloading).
 // pickup -> loading with a 0-based stopIndex (matching displayIndex-1);
 // delivery -> unloading with stopIndex null (single unloading warehouse).
+//
+// STOPS ARE BUILT THROUGH THE FIXTURE FACTORY, NEVER AS OBJECT LITERALS.
+// This file previously hand-wrote twelve StopRow literals. When this arc added
+// proof to ListAssignedRowStopSchema — importing the canonical StopProofSchema
+// so the review surface and the board surface cannot drift — every one of those
+// literals stopped compiling, and the branch sat red for three weeks over a
+// field no test here cares about.
+//
+// The mechanism is Zod's input/output asymmetry: proof is .default(null), so it
+// is OPTIONAL on input and REQUIRED on output. z.infer yields the OUTPUT type,
+// so a literal annotated StopRow must supply it even though .parse() would fill
+// it in. createListAssignedStop parses the schema, so the default applies and
+// the fixture is valid by construction.
+//
+// 2026 practice, and the reason this is the fix rather than adding proof: null
+// twelve times: use a factory for all entity creation, never inline literals,
+// because a factory centralises the change when the contract evolves. Adding
+// the field by hand would leave the next contract field to break all twelve
+// again.
 import { describe, it, expect } from 'vitest';
+import { createListAssignedStop } from '@fleet/test-fixtures';
 import { presentAssignmentStops } from '../src/assignments/assignment-stops-presenter.js';
 import type { StopRow } from '../src/assignments/assignments-client.js';
 const stops: readonly StopRow[] = [
-  { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-10T08:00:00Z', warehouseName: 'Kho nhận 1', arrivedAt: null, departedAt: null },
-  { sequence: 2, stopType: 'pickup', plannedAt: '2026-05-10T09:00:00Z', warehouseName: 'Kho nhận 2', arrivedAt: null, departedAt: null },
-  { sequence: 3, stopType: 'pickup', plannedAt: null, warehouseName: 'Kho nhận 3', arrivedAt: null, departedAt: null },
-  { sequence: 4, stopType: 'delivery', plannedAt: '2026-05-10T14:00:00Z', warehouseName: 'Kho giao', arrivedAt: null, departedAt: null },
+  createListAssignedStop({ sequence: 1, stopType: 'pickup', plannedAt: '2026-05-10T08:00:00Z', warehouseName: 'Kho nhận 1' }),
+  createListAssignedStop({ sequence: 2, stopType: 'pickup', plannedAt: '2026-05-10T09:00:00Z', warehouseName: 'Kho nhận 2' }),
+  createListAssignedStop({ sequence: 3, stopType: 'pickup', plannedAt: null, warehouseName: 'Kho nhận 3' }),
+  createListAssignedStop({ sequence: 4, stopType: 'delivery', plannedAt: '2026-05-10T14:00:00Z', warehouseName: 'Kho giao' }),
 ];
 describe('presentAssignmentStops (multi-stop parity)', () => {
   it('produces one row per stop in sequence order', () => {
@@ -32,11 +52,18 @@ describe('presentAssignmentStops (multi-stop parity)', () => {
     expect(vm[3]?.label).toBe('Kho giao hàng');
   });
   it('shows the warehouse name, falling back to a placeholder when null', () => {
-    const vm = presentAssignmentStops([{ sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: null, arrivedAt: null, departedAt: null }]);
+    const vm = presentAssignmentStops([
+      createListAssignedStop({ sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: null }),
+    ]);
     expect(vm[0]?.warehouseName).toBe('— Chưa có kho —');
   });
   it('marks a stop completed when departedAt is set', () => {
-    const vm = presentAssignmentStops([{ sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: 'Kho A', arrivedAt: '2026-05-10T08:30:00Z', departedAt: '2026-05-10T08:45:00Z' }]);
+    const vm = presentAssignmentStops([
+      createListAssignedStop({
+        sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: 'Kho A',
+        arrivedAt: '2026-05-10T08:30:00Z', departedAt: '2026-05-10T08:45:00Z',
+      }),
+    ]);
     expect(vm[0]?.done).toBe(true);
   });
   it('marks a stop not-done when departedAt is null', () => {
@@ -45,9 +72,9 @@ describe('presentAssignmentStops (multi-stop parity)', () => {
   });
   it('numbers pickups independently of delivery interleaving', () => {
     const interleaved: readonly StopRow[] = [
-      { sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: 'P1', arrivedAt: null, departedAt: null },
-      { sequence: 2, stopType: 'delivery', plannedAt: null, warehouseName: 'D1', arrivedAt: null, departedAt: null },
-      { sequence: 3, stopType: 'pickup', plannedAt: null, warehouseName: 'P2', arrivedAt: null, departedAt: null },
+      createListAssignedStop({ sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: 'P1' }),
+      createListAssignedStop({ sequence: 2, stopType: 'delivery', plannedAt: null, warehouseName: 'D1' }),
+      createListAssignedStop({ sequence: 3, stopType: 'pickup', plannedAt: null, warehouseName: 'P2' }),
     ];
     const vm = presentAssignmentStops(interleaved);
     expect(vm.map((r) => r.label)).toEqual(['Kho nhận hàng 1', 'Kho giao hàng', 'Kho nhận hàng 2']);
@@ -71,9 +98,9 @@ describe('presentAssignmentStops (multi-stop parity)', () => {
   });
   it('keeps loading stopIndex aligned to pickup order under interleaving', () => {
     const interleaved: readonly StopRow[] = [
-      { sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: 'P1', arrivedAt: null, departedAt: null },
-      { sequence: 2, stopType: 'delivery', plannedAt: null, warehouseName: 'D1', arrivedAt: null, departedAt: null },
-      { sequence: 3, stopType: 'pickup', plannedAt: null, warehouseName: 'P2', arrivedAt: null, departedAt: null },
+      createListAssignedStop({ sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: 'P1' }),
+      createListAssignedStop({ sequence: 2, stopType: 'delivery', plannedAt: null, warehouseName: 'D1' }),
+      createListAssignedStop({ sequence: 3, stopType: 'pickup', plannedAt: null, warehouseName: 'P2' }),
     ];
     const vm = presentAssignmentStops(interleaved);
     expect(vm[0]?.stopKind).toBe('loading');
