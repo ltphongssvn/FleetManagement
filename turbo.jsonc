@@ -287,7 +287,7 @@
     },
     "__ci_fast__": {
       "description": "PR gate orchestration node — lint + typecheck + test:unit + codemod drift gate. Double-underscore prevents package-script collision. Expose via root package.json script 'ci:fast' for friendly CLI. CI workflow should matrix-split (ADR-001).",
-      "dependsOn": ["lint", "typecheck", "test:unit", "//#codemod:check", "//#test:scripts", "//#lint:scripts", "//#lint:e2e", "//#typecheck:scripts", "//#guard:local-secrets"],
+      "dependsOn": ["lint", "typecheck", "test:unit", "tokens:lint", "//#codemod:check", "//#test:scripts", "//#lint:scripts", "//#lint:e2e", "//#typecheck:scripts", "//#guard:local-secrets"],
       "cache": false
     },
     "__ci_full__": {
@@ -470,6 +470,11 @@
     },
     "tokens:build": {
       "description": "Package task: each consuming app regenerates its OWN design-token output from the @fleet/design-tokens SSOT (ops-web writes src/app/globals.css via node scripts/build-tokens.mts write; the RN apps will emit their theme tokens the same way). NOT a //# root task -- it is implemented per package so every app owns and rewrites a file inside its own boundary (2026 monorepo rule: no cross-package reach). dependsOn @fleet/design-tokens#build so the emitter dist exists before the .mts imports it via its public ./emit-ops-web subpath. cache:false (side-effecting file write). Run: pnpm exec turbo run tokens:build --filter=@fleet/ops-web.",
+      "dependsOn": ["@fleet/design-tokens#build"],
+      "cache": false
+    },
+    "tokens:lint": {
+      "description": "Package task: RATCHET guard forbidding any INCREASE in raw Tailwind colour literals inside JSX className attributes. Complements tokens:check, which proves globals.css matches the token SSOT but says nothing about whether COMPONENTS consume the roles -- so a page migrated to semantic roles can have a raw text-slate-900 reintroduced days later by another worktree with every gate green (16b0511 did exactly that to a page 5ae52ec had just cleaned). Deliberately NOT a boolean gate: develop carries 274 occurrences across 17 files, and a permanently-red gate gets switched off, which is worse than none. Instead a per-file budget in apps/ops-web/design-token-ratchet.tsv that may only DECREASE. TSV not JSON because every migrating worktree edits it and JSON conflicts on braces and commas when two worktrees migrate different components in parallel, the normal case here. Fails CLOSED: a file absent from the baseline has an implicit budget of zero, so a NEW file carrying literals is a regression, not a silent pass. Pure core is unit-tested in @fleet/design-tokens; only the .mts driver touches the filesystem, the same split as emit-ops-web plus build-tokens.mts. dependsOn @fleet/design-tokens#build so the guard dist exists before the driver imports its public ./literal-guard subpath. cache:false (pass/fail check). Refresh after a migration with -- --tighten, which refuses while a regression is outstanding so it can never launder new debt into the baseline.",
       "dependsOn": ["@fleet/design-tokens#build"],
       "cache": false
     },
