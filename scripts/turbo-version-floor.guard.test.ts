@@ -36,9 +36,13 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
 
-// Minimum acceptable turbo version. 2.10.8 fixes pnpm prune dropping root and
-// aliased dependencies, which the api Docker image build depends on.
-const FLOOR = [2, 10, 8] as const;
+// Minimum acceptable turbo version. Raised WITH the pin in the same commit, as
+// this file header requires: a floor left behind would let a later revert to
+// an older turbo pass the gate silently, which is the drift the guard exists
+// to catch. 2.10.8 was the previous floor (pnpm prune dropping root and
+// aliased dependencies, which the api Docker image build depends on); every
+// release since is cumulative, so the floor tracks the pin.
+const FLOOR = [2, 10, 10] as const;
 const FLOOR_TEXT = FLOOR.join('.');
 
 // `turbo` is a NAMED optional property, not Record<string, string>.
