@@ -57,6 +57,7 @@
     "bump:turbo": "tsx scripts/bump-turbo.ts",
     "audit:ci-minutes": "tsx scripts/ci/ci-minutes-fetch.ts",
     "worktree:close": "tsx scripts/worktree-close-cli.ts",
+    "worktree:preserve": "tsx scripts/worktree-preserve-cli.ts",
     "deps:reconcile": "tsx scripts/deps-reconcile-cli.ts",
     "git:merge-drivers": "tsx scripts/git-merge-drivers.ts",
     "worktree:sweep": "tsx scripts/sweep-worktrees-cli.ts",
