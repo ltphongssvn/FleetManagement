@@ -25,7 +25,7 @@
 // duplicate is deleted in favour of the single source of truth, which also
 // removes the last raw child_process call from this file.
 import { test, expect, type APIRequestContext } from '@playwright/test';
-import { z } from 'zod';
+import { type z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, ReferenceListResponseSchema } from './helpers/contracts';
 import { mintDispatcherToken } from './helpers/auth';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';

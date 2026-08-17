@@ -57,7 +57,13 @@ function recorder(committedCount: (path: string) => number): Recorded {
       calls.push({ op: 'stageAll', path });
     },
     commit: (path, message) => {
-      calls.push({ op: 'commit', path, detail: message.split(String.fromCharCode(10))[0] });
+      // ?? message mirrors firstLine() in the runner: under
+      // noUncheckedIndexedAccess a split index is string | undefined, and
+      // exactOptionalPropertyTypes then refuses it for an optional string.
+      // Narrowing here is right; widening Call.detail to accept undefined
+      // would weaken a real contract to accommodate a test.
+      const first = message.split(String.fromCharCode(10))[0] ?? message;
+      calls.push({ op: 'commit', path, detail: first });
     },
     countCommittedFiles: (path) => committedCount(path),
     pushBranch: (path, branch) => {

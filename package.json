@@ -4,12 +4,15 @@
   "version": "0.1.0",
   "private": true,
   "description": "Intermodal Fleet Platform — pnpm/Turborepo monorepo root",
-  "packageManager": "pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee",
+  "packageManager": "pnpm@11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621",
   "engines": {
     "node": ">=22.0.0 <25.0.0",
     "pnpm": ">=11.0.0 <12.0.0"
   },
   "scripts": {
+    "prepare": "tsx scripts/bootstrap-machine-cli.ts --soft",
+    "bootstrap:machine": "tsx scripts/bootstrap-machine-cli.ts",
+    "doctor": "tsx scripts/machine-doctor-cli.ts",
     "build": "turbo run build --concurrency=50%",
     "lint": "turbo run lint --concurrency=50%",
     "typecheck": "turbo run typecheck --concurrency=50%",
@@ -56,6 +59,8 @@
     "worktree:close": "tsx scripts/worktree-close-cli.ts",
     "worktree:preserve": "tsx scripts/worktree-preserve-cli.ts",
     "deps:reconcile": "tsx scripts/deps-reconcile-cli.ts",
+    "git:merge-drivers": "tsx scripts/git-merge-drivers.ts",
+    "worktree:sweep": "tsx scripts/sweep-worktrees-cli.ts",
     "inspect:prod-deploy": "tsx scripts/inspect-prod-deploy.ts",
     "pr:follow": "tsx scripts/pr-follow.ts",
     "pr:automerge": "tsx scripts/pr-automerge.ts",
@@ -65,7 +70,18 @@
     "prod:db-url": "tsx scripts/prod-db-url.ts",
     "guard:local-secrets": "tsx scripts/local-secret-guard.ts",
     "guard:local-secrets:baseline": "tsx scripts/local-secret-guard-baseline.ts",
+    "env:decrypt": "tsx scripts/env-bootstrap-cli.ts decrypt",
+    "env:encrypt": "tsx scripts/env-bootstrap-cli.ts encrypt",
+    "env:recipients": "tsx scripts/env-bootstrap-cli.ts recipients",
+    "typecheck:scripts": "tsc --noEmit -p scripts/tsconfig.json",
     "lint:scripts": "eslint scripts --max-warnings=0",
+    "eas:ios:device": "pnpm exec turbo run eas:build:ios:interactive --filter=@fleet/driver-app --ui=tui",
+    "eas:freshness": "tsx scripts/eas-build-freshness-gate.ts",
+    "worktree:stale-gate": "tsx scripts/stale-worktree-gate-cli.ts",
+    "terminal:census": "tsx scripts/terminal-registry-cli.ts census",
+    "terminal:claim": "tsx scripts/terminal-registry-cli.ts claim",
+    "lint:e2e": "eslint e2e --max-warnings=0",
+    "lint:e2e:fix": "eslint e2e --fix",
     "lint:scripts:fix": "eslint scripts --fix",
     "secrets:baseline": "tsx scripts/secrets-baseline.ts"
   },
@@ -91,11 +107,12 @@
     "prettier": "^3.8.3",
     "semantic-release": "^25.0.3",
     "tsx": "^4.21.0",
-    "turbo": "^2.10.8",
+    "turbo": "^2.10.9",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.58.2",
     "vite": ">=8.0.16",
     "vitest": "^4.1.4",
+    "yaml": "^2.9.0",
     "zod": "catalog:"
   }
 }

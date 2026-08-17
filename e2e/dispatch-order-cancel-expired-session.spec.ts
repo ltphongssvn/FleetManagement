@@ -24,7 +24,7 @@
 // @fleet/sync-protocol / contracts SSOT via parseJson (schema-first, no casts).
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
-import { z } from 'zod';
+import { type z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, CreateTransportOrderResponseSchema } from './helpers/contracts';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';

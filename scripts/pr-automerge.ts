@@ -27,20 +27,37 @@
 // ACTS on BEHIND: gh pr update-branch (never --rebase, immutable history), which
 // merges the base in and starts a fresh CI run, then keeps polling.
 //
+// CHECK SOURCE IS statusCheckRollup, NEVER `gh pr checks` (the PR #511 defect).
+// `gh pr checks --json name,state` returns gh's BUCKETED rendering, in which a
+// CANCELLED check is indistinguishable from a FAILURE (cli/cli#7551). PR #511 was
+// reported "BLOCKED: required checks failed" while carrying ZERO failures: two
+// jobs were CANCELLED by correct `concurrency: cancel-in-progress` configuration
+// and four were SKIPPED downstream of them. The information was destroyed before
+// this file could see it, so no classifier here could have recovered it.
+// statusCheckRollup carries the true per-check `conclusion`. A guard test
+// (gh-pr-checks-banned.guard.test.ts) makes reintroducing the old call a failure.
+//
 // Contained on purpose: it acts ONLY on the PR's base (feature -> develop), never
 // promotes develop -> main, so it cannot race promote.yml -- the same boundary
 // pr-follow.ts and release-promote.ts observe. A merge queue would also solve the
-// ruleset problem, but that is a repo-wide governance change affecting every
-// worktree and needs merge_group CI wiring; this task is the minimal contained fix.
+// ruleset problem, but merge queues are unavailable on user-owned repositories
+// (GitHub restricts them to org-owned public repos and GHEC private repos), so
+// this task is not a stopgap for a queue -- it is the only available mechanism.
 //
 // Pure cores (decideAutoMerge, decideMergeReady) are unit-tested offline; only the
 // entrypoint touches gh, the same split as pr-follow.ts.
 import { z } from 'zod';
+import { CheckRunSchema, summarizeRollup } from './check-conclusion.js';
+import { classifyRollup, describeRollupFailure } from './check-rollup-source.js';
+import { parseGhJson } from './pr-follow.js';
+import type { CheckRun, RollupSummary } from './check-conclusion.js';
 
 // ---- trust boundary (Axis 1): everything gh hands us is parsed ----
 
-export const CheckRunSchema = z.object({ name: z.string(), state: z.string() });
-export type CheckRun = z.infer<typeof CheckRunSchema>;
+// Axis 2: the check shape is owned by check-conclusion.ts. Re-exported so the
+// existing spec and any future consumer keep one import site, not two.
+export { CheckRunSchema };
+export type { CheckRun };
 export const CheckListSchema = z.array(CheckRunSchema);
 
 export const PrViewSchema = z.object({
@@ -79,47 +96,30 @@ export function decideAutoMerge(pr: PrView): AutoMergeDecision {
   return { action: 'ENABLE', reason: 'open, non-draft, no conflicts -- will merge when green' };
 }
 
-// ---- pure decision core: check readiness (reuses pr-follow.ts semantics) ----
+// ---- pure decision core: check readiness ----
 
-// A finished, non-failing check. SKIPPED and NEUTRAL are normal: the promote
-// dispatcher reports SKIPPED on a feature PR by design.
-const PASSING_CHECK_STATES = new Set(['SUCCESS', 'SKIPPED', 'NEUTRAL']);
-const PENDING_CHECK_STATES = new Set([
-  'PENDING', 'QUEUED', 'IN_PROGRESS', 'WAITING', 'REQUESTED', 'EXPECTED',
-]);
-
-export interface CheckSummary {
-  readonly total: number;
-  readonly pending: readonly string[];
-  readonly failed: readonly string[];
-  readonly settled: boolean;
-  readonly green: boolean;
-}
+// CheckSummary is RollupSummary. Classification lives in check-conclusion.ts so
+// pr-automerge.ts and pr-follow.ts cannot drift apart again -- they held verbatim
+// duplicate PASSING_CHECK_STATES sets, and the CANCELLED bug was present in both.
+export type CheckSummary = RollupSummary;
 
 export function summarizeChecks(checks: readonly CheckRun[]): CheckSummary {
-  const pending: string[] = [];
-  const failed: string[] = [];
-  for (const c of checks) {
-    const state = c.state.toUpperCase();
-    if (PENDING_CHECK_STATES.has(state)) pending.push(c.name);
-    else if (!PASSING_CHECK_STATES.has(state)) failed.push(c.name);
-  }
-  const settled = pending.length === 0;
-  // Zero checks is NOT green: the gate has not registered yet, and treating an
-  // ungated PR as passing is the confident-zero hazard this guard exists to kill.
-  const green = settled && failed.length === 0 && checks.length > 0;
-  return { total: checks.length, pending, failed, settled, green };
+  return summarizeRollup(checks);
 }
 
-export type MergeReadyAction = 'MERGE' | 'UPDATE' | 'WAIT' | 'BLOCKED';
+export type MergeReadyAction = 'MERGE' | 'UPDATE' | 'RERUN' | 'WAIT' | 'BLOCKED';
 export interface MergeReadyDecision {
   readonly action: MergeReadyAction;
   readonly reason: string;
 }
 
 // Decide, on one poll, whether to merge now. Pure.
-//   BLOCKED -- a required check FAILED, or GitHub reports the PR DIRTY: merging is
-//              impossible until a human intervenes.
+//   BLOCKED -- a check GENUINELY failed, or GitHub reports the PR DIRTY: merging
+//              is impossible until a human intervenes.
+//   RERUN   -- nothing failed, but one or more checks concluded CANCELLED, STALE
+//              or TIMED_OUT. Those carry NO verdict about the code. Re-run them.
+//              Ordered BEFORE the green test: an indeterminate check is not green
+//              and must not be silently waited on forever.
 //   UPDATE  -- checks green but the branch is BEHIND base; the ruleset requires
 //              up-to-date, so update the branch (triggers fresh CI) and re-poll.
 //   WAIT    -- checks still pending, none registered yet, or mergeStateStatus not
@@ -135,6 +135,10 @@ export function decideMergeReady(
   }
   if (mss === 'DIRTY') {
     return { action: 'BLOCKED', reason: 'PR has merge conflicts (DIRTY)' };
+  }
+  if (sum.needsRerun) {
+    return { action: 'RERUN', reason: 'no failures; superseded or stale checks need a re-run: ' +
+      sum.indeterminate.join(', ') };
   }
   if (!sum.green) {
     return { action: 'WAIT', reason: sum.total === 0
@@ -169,24 +173,60 @@ export const automergeConfigSchema = z.object({
   prNumber: z.number().int().positive(),
   timeoutMinutes: z.number().int().positive().default(30),
   intervalSeconds: z.number().int().positive().default(30),
+  maxReruns: z.number().int().nonnegative().default(2),
 });
 export type AutomergeConfig = z.infer<typeof automergeConfigSchema>;
 
-function sh(cmd: string, args: readonly string[]): { out: string; code: number } {
+// Compile-time exhaustiveness over the rollup classification, the convention
+// check-conclusion.ts and eas-build-freshness.ts already follow. THROWS rather
+// than returning a fallback: an unhandled classification is a programming error
+// in this shell, not a runtime condition to absorb. The Verdict-returning
+// variant in check-conclusion.ts is deliberately different -- there,
+// unclassifiable INPUT must fail closed at runtime.
+//
+// This exists because the branch below used a bare `else` meaning "whatever is
+// left". Adding a fourth classification compiled clean, and was caught only
+// because `unavailable` happens to lack `.runs`; a variant that shared the shape
+// would have shipped silently.
+function assertNever(x: never): never {
+  throw new Error('unhandled rollup classification: ' + JSON.stringify(x));
+}
+
+// STDOUT IS DATA; STDERR IS DIAGNOSTICS -- never joined. Returning
+// `r.stdout + r.stderr` meant a transient gh message landed in front of the
+// JSON, and readRollup then classified it as `unparseable` -> exit 1, reporting
+// a PERMANENT contract violation for a dropped connection. The identical join
+// crashed pr-follow.ts outright on PR #550 and cost eas-build-freshness-gate an
+// ACQUISITION_FAILED verdict against a healthy account.
+function sh(cmd: string, args: readonly string[]): { out: string; err: string; code: number } {
   const r = spawnSync(cmd, [...args], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
-  return { out: r.stdout + r.stderr, code: r.status ?? 1 };
+  return { out: r.stdout, err: r.stderr, code: r.status ?? 1 };
 }
 
-function parseJsonAs<T>(raw: string, schema: z.ZodType<T>, fallback: T): T {
-  let parsed: unknown;
-  try { parsed = JSON.parse(raw) as unknown; } catch { return fallback; }
-  const res = schema.safeParse(parsed);
-  return res.success ? res.data : fallback;
-}
-
-function listChecks(prNumber: number): readonly CheckRun[] {
-  const r = sh('gh', ['pr', 'checks', String(prNumber), '--json', 'name,state']);
-  return parseJsonAs(r.out, CheckListSchema, []);
+// Classification lives in check-rollup-source.ts, which separates NOT-READY-YET
+// from BROKEN. This previously collapsed both into one null, and the loop then
+// printed "could not parse statusCheckRollup; re-reading" for either.
+//
+// On PR #530 that fired FIFTEEN times across two check cycles of a healthy run:
+// GitHub had simply not created check runs for the new head SHA yet. Nothing was
+// unparseable and nothing needed reporting. The SAME branch fires for states
+// that NEVER resolve -- a fine-grained-PAT permissions failure makes gh emit
+// "Resource not accessible by personal access token" instead of JSON
+// (cli/cli#12597) -- and those spin to TIMEOUT behind a reassuring message.
+//
+// That is the documented anti-pattern twice over: a poll loop whose not-ready
+// state is indistinguishable from its broken state has no clear failure mode,
+// and retries that mask the initial error context hide the root cause in the
+// logs. Transient failures are retried; PERMANENT ones (auth, contract
+// violations) are surfaced immediately, because retrying cannot fix them.
+function readRollup(prNumber: number): ReturnType<typeof classifyRollup> {
+  const r = sh('gh', ['pr', 'view', String(prNumber), '--json', 'statusCheckRollup']);
+  // The whole subprocess RESULT, not just stdout: a process outcome is a triple
+  // (stdout, stderr, status), and empty output with a non-zero exit is an
+  // EXECUTION failure to retry, not a contract violation. Passing only the
+  // string made classifyRollup guess, and it guessed PERMANENT for a gh TLS
+  // flake on PR #565 -- which two retries then resolved.
+  return classifyRollup(r.out, { exitCode: r.code, stderr: r.err });
 }
 
 function viewPr(prNumber: number): { pr: PrView | null; mergeStateStatus: string } {
@@ -194,9 +234,14 @@ function viewPr(prNumber: number): { pr: PrView | null; mergeStateStatus: string
     'pr', 'view', String(prNumber),
     '--json', 'number,state,isDraft,mergeable,mergeStateStatus,autoMergeRequest',
   ]);
-  let raw: unknown;
-  try { raw = JSON.parse(r.out) as unknown; } catch { return { pr: null, mergeStateStatus: 'UNKNOWN' }; }
-  const obj = raw as Record<string, unknown>;
+  // A transient read is NOT an unresolved merge state. Distinguishing them is
+  // why parseGhJson exists; the caller already re-polls on a null pr.
+  const parsed = parseGhJson(r.out);
+  if (parsed.kind !== 'ok') {
+    process.stdout.write('[pr:automerge] gh unreadable (will retry): ' + parsed.raw + nl);
+    return { pr: null, mergeStateStatus: 'UNKNOWN' };
+  }
+  const obj = parsed.value as Record<string, unknown>;
   const normalised = {
     number: obj['number'],
     state: obj['state'],
@@ -207,6 +252,57 @@ function viewPr(prNumber: number): { pr: PrView | null; mergeStateStatus: string
   const res = PrViewSchema.safeParse(normalised);
   const mss = typeof obj['mergeStateStatus'] === 'string' ? obj['mergeStateStatus'] : 'UNKNOWN';
   return { pr: res.success ? res.data : null, mergeStateStatus: mss };
+}
+
+// One poll's worth of work on a well-formed rollup. Extracted so the switch
+// below stays a flat dispatch over the four classifications: a nested tower of
+// ifs inside one arm is what let the exhaustiveness gap hide in the first place.
+// Returns an exit code to stop with, or null to keep polling.
+function actOnChecks(
+  cfg: AutomergeConfig,
+  runs: readonly CheckRun[],
+  mergeStateStatus: string,
+  reruns: { count: number },
+): number | null {
+  const ready = decideMergeReady(summarizeChecks(runs), mergeStateStatus);
+  process.stdout.write('--- ' + new Date().toISOString() + ' --- ' + ready.action +
+    ': ' + ready.reason + nl);
+  if (ready.action === 'BLOCKED') {
+    process.stderr.write('[pr:automerge] BLOCKED -- ' + ready.reason + nl);
+    return 1;
+  }
+  if (ready.action === 'RERUN') {
+    // Bounded: a superseded run is worth re-running, an endlessly re-cancelled
+    // one is a signal to stop, not a loop to spin in.
+    if (reruns.count >= cfg.maxReruns) {
+      process.stderr.write('[pr:automerge] BLOCKED -- checks keep concluding without a ' +
+        'verdict after ' + String(reruns.count) + ' re-runs: ' + ready.reason + nl);
+      return 1;
+    }
+    reruns.count += 1;
+    const rr = sh('gh', ['run', 'rerun', '--failed', '--job-summary-fallback']);
+    process.stdout.write(rr.out);
+  }
+  if (ready.action === 'UPDATE') {
+    const u = sh('gh', ['pr', 'update-branch', String(cfg.prNumber)]);
+    process.stdout.write(u.out);
+    // update-branch merges base in and starts a fresh CI run; keep polling.
+  }
+  if (ready.action === 'MERGE') {
+    // --merge (a true merge commit), never --squash/--rebase: preserves the
+    // original commit SHAs in develop history so the promote pipeline SHA
+    // ancestry checks stay reliable.
+    const m = sh('gh', ['pr', 'merge', String(cfg.prNumber), '--merge']);
+    process.stdout.write(m.out);
+    if (m.code === 0) {
+      process.stdout.write('[pr:automerge] merged PR #' + String(cfg.prNumber) + '.' + nl);
+      return 0;
+    }
+    // gh can transiently refuse if GitHub has not finished recomputing the
+    // ruleset; fall through to another poll rather than failing hard.
+    process.stdout.write('[pr:automerge] merge refused this round; will retry.' + nl);
+  }
+  return null;
 }
 
 function main(): number {
@@ -228,38 +324,53 @@ function main(): number {
   if (pre.action === 'BLOCKED') return 1;
 
   const deadline = Date.now() + cfg.timeoutMinutes * 60_000;
+  const reruns = { count: 0 };
   for (;;) {
-    const sum = summarizeChecks(listChecks(cfg.prNumber));
+    const rollup = readRollup(cfg.prNumber);
     const view = viewPr(cfg.prNumber);
     if (view.pr !== null && view.pr.state.toUpperCase() === 'MERGED') {
       process.stdout.write('[pr:automerge] PR #' + String(cfg.prNumber) + ' is merged.' + nl);
       return 0;
     }
-    const ready = decideMergeReady(sum, view.mergeStateStatus);
-    process.stdout.write('--- ' + new Date().toISOString() + ' --- ' + ready.action +
-      ': ' + ready.reason + nl);
-    if (ready.action === 'BLOCKED') {
-      process.stderr.write('[pr:automerge] BLOCKED -- ' + ready.reason + nl);
-      return 1;
-    }
-    if (ready.action === 'UPDATE') {
-      const u = sh('gh', ['pr', 'update-branch', String(cfg.prNumber)]);
-      process.stdout.write(u.out);
-      // update-branch merges base in and starts a fresh CI run; keep polling.
-    }
-    if (ready.action === 'MERGE') {
-      // --merge (a true merge commit), never --squash/--rebase: preserves the
-      // original commit SHAs in develop history so the promote pipeline SHA
-      // ancestry checks stay reliable.
-      const m = sh('gh', ['pr', 'merge', String(cfg.prNumber), '--merge']);
-      process.stdout.write(m.out);
-      if (m.code === 0) {
-        process.stdout.write('[pr:automerge] merged PR #' + String(cfg.prNumber) + '.' + nl);
-        return 0;
+    // Exhaustive dispatch: a fifth classification becomes a COMPILE error at
+    // assertNever, not a silent fall-through.
+    switch (rollup.kind) {
+      case 'unparseable': {
+        // PERMANENT, not transient: a shape violation is a permissions failure or
+        // a changed gh contract, and no amount of waiting fixes either. Surface it
+        // with the Zod issues attached rather than spinning to TIMEOUT behind a
+        // message that says "re-reading" as though the run were healthy. The
+        // MESSAGE is built in the core (describeRollupFailure), so this shell
+        // stays orchestration-only and the wording is unit-tested with no I/O.
+        process.stderr.write('[pr:automerge] BLOCKED -- ' +
+          describeRollupFailure(rollup.issues) + nl);
+        return 1;
       }
-      // gh can transiently refuse if GitHub has not finished recomputing the
-      // ruleset; fall through to another poll rather than failing hard.
-      process.stdout.write('[pr:automerge] merge refused this round; will retry.' + nl);
+      case 'unavailable': {
+        // TRANSIENT: gh itself produced no answer -- a dropped connection, a
+        // killed process, or the macOS gh TLS flake (cli/cli#13352) that blocked
+        // PR #565 while curl to api.github.com returned 200 throughout. Two
+        // retries resolved it. Reporting that as a contract violation is exactly
+        // the mistake the stdout/stderr split was made to prevent.
+        process.stdout.write('--- ' + new Date().toISOString() +
+          ' --- WAIT: ' + rollup.reason + nl);
+        break;
+      }
+      case 'none-yet': {
+        // TRANSIENT and expected: GitHub has not created check runs for this head
+        // SHA yet. Named as such so a healthy early poll no longer reads as a
+        // parse failure -- the fifteen-line noise on PR #530.
+        process.stdout.write('--- ' + new Date().toISOString() +
+          ' --- WAIT: no check runs created for this head SHA yet.' + nl);
+        break;
+      }
+      case 'checks': {
+        const stop = actOnChecks(cfg, rollup.runs, view.mergeStateStatus, reruns);
+        if (stop !== null) return stop;
+        break;
+      }
+      default:
+        return assertNever(rollup);
     }
     if (Date.now() >= deadline) {
       process.stderr.write('[pr:automerge] TIMEOUT after ' + String(cfg.timeoutMinutes) +

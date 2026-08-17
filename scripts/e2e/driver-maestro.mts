@@ -166,10 +166,24 @@ async function ensureEmulatorSettings(): Promise<void> {
 }
 
 interface FlowResult { flow: string; rc: number }
+// FAILS CLOSED on a signal death (2026-08-08). execa types exitCode as
+// number | undefined because it is UNDEFINED when the process was killed by a
+// signal rather than exiting normally -- SIGKILL from an emulator OOM, or a CI
+// step timeout. That is not a phantom case for a Maestro run on a headless
+// swiftshader emulator.
+//
+// main() decides pass/fail with results.filter((r) => r.rc !== 0), so `?? 0`
+// would report a KILLED flow as green: precisely the silent-pass failure this
+// harness exists to prevent (it was written because a shared-fixture seed left
+// the board empty and the flows failed for an invisible reason). Defaulting to
+// 1 treats "we do not know how it ended" as a failure, and the signal is
+// surfaced in the log line rather than swallowed.
 async function runFlow(flowPath: string, seedEnv: Record<string, string>): Promise<FlowResult> {
   const r = await execa('maestro', ['test', flowPath], { cwd: WT, env: { ...env, ...seedEnv }, reject: false, all: true });
-  log('maestro ' + basename(flowPath), r.all + '\nRC=' + String(r.exitCode));
-  return { flow: basename(flowPath), rc: r.exitCode };
+  const rc = r.exitCode ?? 1;
+  const how = r.exitCode === undefined ? ' (killed by signal ' + (r.signal ?? 'unknown') + ')' : '';
+  log('maestro ' + basename(flowPath), r.all + '\nRC=' + String(rc) + how);
+  return { flow: basename(flowPath), rc };
 }
 
 function copyScreens(): void {

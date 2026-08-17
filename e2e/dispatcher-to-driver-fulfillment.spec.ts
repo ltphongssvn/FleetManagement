@@ -33,7 +33,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { dockerPsql } from './helpers/docker-exec';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
-import { z } from 'zod';
+import { type z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, DriverLoginResponseSchema, DriverMeResponseSchema } from './helpers/contracts';
 import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
@@ -82,7 +82,7 @@ test.describe.serial('dispatcher creates an order, driver fulfills it (self-seed
     return seed;
   }
   test.beforeAll(async ({ request }) => { seed = await setupSeed(request); });
-  test.afterAll(async () => { if (seed) cleanupSeed(seed); });
+  test.afterAll(() => { if (seed) cleanupSeed(seed); });
   test('dispatcher UI creates an order bound to the seeded driver, and the driver leg credentials are emitted', async ({ page }) => {
     const sd = requireSeed();
     await login(page);
@@ -103,7 +103,7 @@ test.describe.serial('dispatcher creates an order, driver fulfills it (self-seed
     const newRow = page.locator('a[href^="/dispatch/orders/"]').first();
     await expect(newRow).toBeVisible({ timeout: 15000 });
     const href = await newRow.getAttribute('href');
-    const orderRef = href ? href.split('/').pop() ?? '' : '';
+    const orderRef = href === null ? '' : (href.split('/').pop() ?? '');
     expect(orderRef.length).toBeGreaterThan(0);
     const sq = String.fromCharCode(39);
     const linked = dockerPsql(
@@ -141,7 +141,7 @@ test.describe.serial('dispatcher creates an order, driver fulfills it (self-seed
     expect(typeof loginBody.accessToken).toBe('string');
     expect(loginBody.driver?.operatorId).toBe(sd.operatorId);
     const meRes = await request.get(API_URL + '/driver/me', {
-      headers: { Authorization: 'Bearer ' + (loginBody.accessToken ?? '') },
+      headers: { Authorization: 'Bearer ' + loginBody.accessToken },
     });
     expect(meRes.ok()).toBeTruthy();
     const me = await parseJson(meRes, DriverMeResponseSchema);

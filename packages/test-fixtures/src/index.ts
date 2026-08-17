@@ -39,3 +39,12 @@ export {
   testShortSha,
   INVALID_SHA_FIXTURES,
 } from './provenance-fixtures.js';
+
+// Assigned-orders / trip-history row fixtures. Built THROUGH
+// ListAssignedRowSchema, so a fixture that drifts from the contract fails at
+// construction -- the drift that let hand-written literals omit six fields
+// while the hand-rolled parser dropped the same six, each hiding the other.
+export {
+  createListAssignedRow,
+  createListAssignedStop,
+} from './list-assigned-fixtures.js';
