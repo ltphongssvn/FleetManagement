@@ -69,12 +69,12 @@ export function StopProofView({
       <a href={proof.photoUrl}
         target='_blank'
         rel='noopener noreferrer'
-        className='text-blue-600 underline hover:text-blue-800'
+        className='text-primary-text underline hover:text-primary-hover'
       >
         {'Phiếu Cân'}
       </a>
       {kg !== null ? (
-        <span data-testid={testIds.netWeight} className='text-gray-700 tabular-nums'>
+        <span data-testid={testIds.netWeight} className='text-text-secondary tabular-nums'>
           {formatNetWeightKg(kg)}
         </span>
       ) : proof.extractionStatus === 'not_found' || proof.extractionStatus === 'unreadable' ? (
@@ -83,7 +83,7 @@ export function StopProofView({
             type='button'
             data-testid={testIds.needsEntry}
             onClick={() => onEnterNetWeight?.(proof.manifestId)}
-            className='text-amber-700 underline decoration-dotted hover:text-amber-900'
+            className='text-warning-text underline decoration-dotted hover:text-warning-strong'
           >
             {'Nhập KL'}
           </button>
@@ -91,14 +91,14 @@ export function StopProofView({
             <span
               data-testid={testIds.reason}
               title={proof.extractionReason}
-              className='text-amber-600 text-xs italic'
+              className='text-warning-text text-xs italic'
             >
               {REASON_VI[proof.extractionReason]}
             </span>
           ) : null}
         </>
       ) : proof.extractionStatus === 'pending' || proof.extractionStatus === undefined ? (
-        <span data-testid={testIds.pending} className='text-gray-400 italic'>
+        <span data-testid={testIds.pending} className='text-text-faint italic'>
           {'Đang xử lý'}
         </span>
       ) : null}
