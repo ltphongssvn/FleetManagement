@@ -10,6 +10,32 @@
 // RECENCY (2026-07-28): the driver now also gathers the per-worktree HEAD reflog
 // (reflogArgs) and derives idleHours via parseReflogIdleHours, so decideClose can
 // refuse an actively-developed worktree even when merged and clean.
+//
+// THE PLAN RUNS FROM THE PRIMARY CLONE (2026-08-18), and that is a fix for an
+// observed PARTIAL FAILURE, not a preference. The plan is two commands --
+// `git worktree remove <path>` then `git branch -D <branch>` -- and they ran
+// with NO cwd, so both inherited process.cwd(). When the operator invoked the
+// task from INSIDE the worktree being closed, which is the normal case at the
+// end of a session, the first command deleted that directory and the second
+// died:
+//
+//   fatal: Unable to read current working directory: No such file or directory
+//
+// The worktree was gone, the branch survived, and the task exited 1 with a node
+// stack trace. Worse, the report had already printed "verdict: remove", so the
+// output claimed a close that only half happened -- the operator learns the
+// branch is orphaned only by tripping over it later, and `git worktree list`
+// looks correct because the removal DID succeed.
+//
+// git cannot help here: it resolves paths against the process cwd, and a
+// deleted cwd is unreadable on macOS and Linux alike. So the driver names a
+// cwd EXPLICITLY, and the only directory guaranteed to survive a close is the
+// PRIMARY CLONE -- decideClose refuses `primary-clone` outright, so the
+// directory chosen can never be the one being removed.
+//
+// planCwd is pure and exported for exactly that reason: the choice is a rule,
+// and a rule that lives only inside a v8-ignored main() is one no test can
+// reach -- which is precisely why this shipped.
 
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
@@ -97,8 +123,7 @@ export function parseCloseArgv(argv: readonly string[]): CloseArgv {
 //
 // cwd is a PARAMETER, defaulted, not read from process inside: resolve() is
 // pure given a cwd, so the function stays unit-testable with no filesystem and
-// no cwd juggling in tests. Trailing separators and '.' segments normalise
-// away for free, which is why those cases are covered too.
+// no cwd juggling in tests.
 //
 // Resolution is not a wildcard -- an unknown path still throws, and the message
 // still lists the known roots.
@@ -114,6 +139,35 @@ export function selectTarget(
       entries.map((e) => '  ' + e.path).join(NL));
   }
   return hit;
+}
+
+/** Where the close plan's git commands must run.
+ *
+ *  THE PRIMARY CLONE, always -- never the process cwd, and never the target.
+ *  `git worktree remove` deletes the target directory, so any later command
+ *  inheriting that cwd dies with "Unable to read current working directory",
+ *  and the close completes HALFWAY: worktree gone, branch orphaned, exit 1
+ *  after the report already printed "verdict: remove".
+ *
+ *  The primary clone is safe BY CONSTRUCTION rather than by luck: `git worktree
+ *  list --porcelain` always lists it first, and decideClose refuses
+ *  `primary-clone`, so the directory returned here can never be the one being
+ *  removed.
+ *
+ *  targetPath is taken separately rather than read off WorktreeCloseInput
+ *  because resolveCloseInput consumes primaryPath into an isPrimaryClone
+ *  BOOLEAN and does not keep the path -- the fallback needs a directory, and a
+ *  boolean cannot supply one.
+ *
+ *  The last resort is the target's PARENT: a directory that outlives the
+ *  removal even when the entry list is unexpectedly empty. It is deliberately
+ *  not the process cwd, which is the value that caused the bug. */
+export function planCwd(
+  entries: readonly WorktreeEntry[],
+  targetPath: string,
+): string {
+  const primary = entries[0]?.path ?? '';
+  return primary.length > 0 ? primary : resolve(targetPath, '..');
 }
 
 export function formatCloseReport(verdict: CloseVerdict, input: WorktreeCloseInput): string {
@@ -185,10 +239,16 @@ function mainWorktreeClose(): number {
   const verdict = decideClose(input);
   process.stdout.write(formatCloseReport(verdict, input) + NL);
   if (verdict.action === 'refuse') return 1;
+  // RESOLVED ONCE, BEFORE the first command runs. The plan's first step deletes
+  // the target directory, so a cwd computed lazily -- or inherited from the
+  // process, which is what shipped -- is unreadable by the time `git branch -D`
+  // executes.
+  const cwd = planCwd(entries, entry.path);
   for (const cmd of closePlan(verdict, input)) {
     process.stderr.write('[worktree:close] ' + cmd.join(' ') + NL);
-    git(cmd.slice(1));
+    git(cmd.slice(1), cwd);
   }
+  process.stderr.write('[worktree:close] closed; plan ran from ' + cwd + NL);
   return 0;
 }
 
