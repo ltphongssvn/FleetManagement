@@ -29,6 +29,12 @@
 // since nothing bound the two. observeEstate derives both from the same
 // porcelain bytes, so the evidence a verdict names is evidence rather than a
 // claim.
+//
+// THE POLICY IS INJECTED TOO, for the same reason and with the same guard. A
+// caller may run under PUSH_POLICY, where `unpushed` is not a defect -- see
+// estate-policy.ts for the deadlock that required it -- and the policy digest
+// on every emitted event names which rules were used, so a suppressed reason
+// can never pass unrecorded.
 import {
   TimestampSchema,
   decideEstate,
@@ -41,6 +47,7 @@ import {
   type EstateEvent,
   type EstateObservation,
 } from './estate-verify.js';
+import { ESTATE_POLICY, type EstatePolicy } from './estate-policy.js';
 import { estateStatement, type EstateStatement } from './estate-attestation.js';
 import { exitCodeFor, mayProceed, type EstateAction } from './estate-action.js';
 
@@ -61,6 +68,14 @@ export interface EstateRunRequest {
   /** The clock, INJECTED. Defaults to the real one so a caller need not care,
    *  but a test pins it and the pure core never reads it. */
   readonly now?: () => string;
+  /** The rules to decide under. Defaults to the frozen ESTATE_POLICY, where
+   *  every declared reason is a defect. PUSH_POLICY suppresses `unpushed`,
+   *  which is what a pre-push gate needs and what no other caller should use.
+   *
+   *  Injectable, NOT caller-defined in the dangerous sense: the digest of
+   *  whichever policy runs is stamped on every emitted event, so a decision made
+   *  under relaxed rules is distinguishable from one made under the default. */
+  readonly policy?: EstatePolicy;
 }
 
 /** Everything either surface needs, computed once.
@@ -98,9 +113,16 @@ export function runEstateVerify(request: EstateRunRequest): EstateRunResult {
   // untrusted until the schema says otherwise -- and the branded Timestamp is
   // what every event constructor now requires.
   const at = TimestampSchema.parse((request.now ?? (() => new Date().toISOString()))());
+  const policy = request.policy ?? ESTATE_POLICY;
   let decision: EstateDecision;
   try {
-    decision = decideEstate(request.gather(), trace, request.expectDigest ?? null, at);
+    decision = decideEstate(
+      request.gather(),
+      trace,
+      request.expectDigest ?? null,
+      at,
+      policy,
+    );
   } catch {
     // FAIL CLOSED. Anything that escapes gather or decide is a defect, and a
     // defect means the estate is UNKNOWN -- never clean. Without this the throw
@@ -123,9 +145,13 @@ export function runEstateVerify(request: EstateRunRequest): EstateRunResult {
     // may quote a path, a branch or subprocess output, and this event is
     // published. The reason code says a defect occurred; the stack belongs on
     // stderr where the operator reads it.
+    //
+    // The POLICY is passed here too: an unreadable estate still recommends
+    // REPAIR_TOOLING, which is advice, and advice whose rules cannot be named
+    // is advice a downstream PDP cannot re-check.
     decision = {
       kind: 'unreadable',
-      event: unreadableEstateEvent('threw', at, trace),
+      event: unreadableEstateEvent('threw', at, trace, null, policy),
       exitCode: exitCodeFor('REPAIR_TOOLING'),
     };
   }
