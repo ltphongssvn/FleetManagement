@@ -38,16 +38,16 @@
 #   coverage-final.json so the local gate exercises exactly the same
 #   merge + threshold logic as CI. The pnpm-test-coverage-push hook does
 #   both steps in a single bash entry: vitest --coverage, then merge.
-        #
-        # Cross-worktree serialization (2026-Q3 hardening): this box runs up
-        # to 6 parallel worktree terminals; N concurrent coverage gates (each
-        # already intra-serialized via --workspace-concurrency=1) still starve
-        # an 8-core host and stretch PGlite WASM cold-starts past any sane
-        # hook budget (observed: import phase 1018s vs ~28s isolated). A
-        # machine-global flock on $HOME/.cache/fleetmanagement/gate.lock
-        # queues gates (-w 7200 waits up to 2h) instead of letting them
-        # thrash each other. Lock lives under $HOME, never repo-relative:
-        # worktrees have different paths; a repo-local lock serializes nothing.
+#
+#   Cross-worktree serialization (2026-Q3 hardening): this box runs up
+#   to 6 parallel worktree terminals; N concurrent coverage gates (each
+#   already intra-serialized via --workspace-concurrency=1) still starve
+#   an 8-core host and stretch PGlite WASM cold-starts past any sane
+#   hook budget (observed: import phase 1018s vs ~28s isolated). A
+#   machine-global lock on $HOME/.cache/fleetmanagement queues gates
+#   instead of letting them thrash each other. The lock lives under
+#   $HOME, never repo-relative: worktrees have different paths, so a
+#   repo-local lock serializes nothing.
 #
 # Related files:
 #   - .secrets.baseline                  — detect-secrets allowlist
@@ -172,7 +172,9 @@ repos:
         # enforce the 90/90/90/90 per-file gate via the same merge logic
         # CI uses across its 4 shards. Non-api packages run their own
         # test:coverage in the same -r pass so their per-package thresholds
-        # THIN BY DESIGN. This entry used to inline flock, the recursive
+        # apply too.
+        #
+        # THIN BY DESIGN. This entry used to inline the lock, the recursive
         # coverage run and the merge step as a ~300-character bash string --
         # untested, and unreachable by //#test:scripts. It streamed every
         # workspace's vitest output through pre-commit's captured pipe, and
@@ -181,10 +183,10 @@ repos:
         # aborting a push while the tests were PASSING.
         #
         # The gate now lives in scripts/gate-coverage.ts, where its argv is
-        # unit-tested: the flock wait, --workspace-concurrency=1, the quiet
-        # reporter that keeps the pipe from filling, and the same 90/90/90/90
-        # merge. One place to change behaviour, and a test that fails if
-        # someone drops the lock or weakens the run.
+        # unit-tested: the lock wait, --workspace-concurrency=1, the log file
+        # that keeps the pipe from filling, and the same 90/90/90/90 merge. One
+        # place to change behaviour, and a test that fails if someone drops the
+        # lock or weakens the run.
         entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm run gate:coverage; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
@@ -206,15 +208,32 @@ repos:
         # splits precisely this way: environment-dependent local state belongs
         # in the hook, while CI stays authoritative for what a laptop cannot
         # reproduce. What CI already defends is the MECHANISM -- security-guards
-        # runs test:scripts, which covers all eight estate suites, so weakening
-        # the classifier turns the PR red (ladder level 8).
+        # runs test:scripts, which covers every estate suite, so weakening the
+        # classifier turns the PR red (ladder level 8).
+        #
+        # --pushing IS LOAD-BEARING, and it resolves a DEADLOCK observed
+        # 2026-08-18. Without it this hook refused the push because the worktree
+        # BEING PUSHED reported `unpushed` -- and pushing is the only cure for
+        # unpushed, so the gate could never be satisfied by the operation it
+        # gates. Worse, the reasons are estate-wide, so ANY worktree holding an
+        # unpushed commit blocked every OTHER worktree's push: six terminals
+        # mutually locked by design. It hid for weeks because the gate passes
+        # whenever the estate happens to be fully pushed, which is exactly the
+        # moment nobody is trying to push.
+        #
+        # The flag selects PUSH_POLICY, which suppresses `unpushed` AND NOTHING
+        # ELSE: dirty, stash, prunable and locked still block, because pushing
+        # resolves none of them. The relaxation is a POLICY rather than a
+        # special case in this entry, so it is versioned, digested, and named on
+        # every emitted event -- a consumer can see that PROCEED was reached
+        # under relaxed rules rather than having to trust it.
         #
         # The hook is bypassable with --no-verify, which is exactly why it is
         # the LOCAL half of a pair rather than the whole control.
         #
         # Exit 1 (not clean) blocks the push; exit 3 (unreadable) blocks it too,
         # because an estate that cannot be read must never be assumed clean.
-        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm exec turbo run estate:verify -- --quiet; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm exec turbo run estate:verify -- --quiet --pushing; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
         stages: [pre-push]
