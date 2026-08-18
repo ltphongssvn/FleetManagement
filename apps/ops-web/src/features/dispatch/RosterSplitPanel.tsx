@@ -170,7 +170,7 @@ export function RosterSplitPanel({ split }: RosterSplitPanelProps): JSX.Element 
         <h2 className='text-lg font-semibold text-white drop-shadow-sm'>
           Tình hình tài xế hôm nay
         </h2>
-        <p className='text-sm text-slate-300'>
+        <p className='text-sm text-text-on-dark-muted'>
           Tổng số tài xế:{' '}
           <span data-testid='roster-split-total' className='font-semibold'>
             {split.totalDrivers}
