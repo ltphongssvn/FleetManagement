@@ -121,7 +121,11 @@ export type DeviceBindingPatchRequest = z.infer<typeof DeviceBindingPatchRequest
 export const AdminDeviceRowSchema = z.object({
   deviceId: z.guid(),
   operatorId: z.guid(),
-  platform: z.string(),
+  // The BINDING vocabulary, not a bare string. A device row is produced by the
+  // API and parsed by ops-web, so a value outside the vocabulary would reach the
+  // approval UI unchallenged -- and device binding is mobile-only by design, so
+  // 'web' is not a legitimate value here.
+  platform: DeviceBindingPlatformSchema,
   bindingStatus: DeviceBindingStatusSchema,
   attestationSecurityLevel: AttestationSecurityLevelSchema.nullable(),
   attestationEnvironment: AttestationEnvironmentSchema.nullable(),

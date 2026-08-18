@@ -12,6 +12,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import {
   AdminDeviceListResponseSchema,
+  AdminDeviceRowSchema,
   type AdminDeviceListQuery,
   type AdminDeviceListResponse,
   type AdminDeviceRow,
@@ -56,13 +57,22 @@ export class AdminDeviceBindingService {
       .orderBy(asc(deviceRegistry.enrolledAt), asc(deviceRegistry.deviceId))
       .limit(query.pageSize)
       .offset(offset);
-    const data: AdminDeviceRow[] = rows.map((r) => ({
+    // PARSED per row, never cast. The columns are varchar with a Drizzle { enum }
+    // config, which infers the literal union but -- per Drizzle's own docs --
+    // "won't check runtime values": Postgres enforces only the length. So the
+    // TYPE is now right at every read site (the three `as` casts here are gone),
+    // while rows written before a vocabulary existed still need a real check.
+    //
+    // Parsing ROW BY ROW rather than leaning on the envelope parse below means a
+    // malformed row names itself instead of collapsing the admin page into one
+    // opaque 500.
+    const data: AdminDeviceRow[] = rows.map((r) => AdminDeviceRowSchema.parse({
       deviceId: r.deviceId,
       operatorId: r.operatorId,
       platform: r.platform,
-      bindingStatus: r.bindingStatus as AdminDeviceRow['bindingStatus'],
-      attestationSecurityLevel: r.attestationSecurityLevel as AdminDeviceRow['attestationSecurityLevel'],
-      attestationEnvironment: r.attestationEnvironment as AdminDeviceRow['attestationEnvironment'],
+      bindingStatus: r.bindingStatus,
+      attestationSecurityLevel: r.attestationSecurityLevel,
+      attestationEnvironment: r.attestationEnvironment,
       attestationVerifiedAt: r.attestationVerifiedAt === null ? null : r.attestationVerifiedAt.toISOString(),
       bindingRevokedReason: r.bindingRevokedReason,
     }));

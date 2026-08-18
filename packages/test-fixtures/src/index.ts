@@ -40,6 +40,15 @@ export {
   INVALID_SHA_FIXTURES,
 } from './provenance-fixtures.js';
 
+// Branded-id fixtures, for the same reason testSha exists: a readable label
+// like 'a1' is not a UUID, and the factories validate now. These mint a real,
+// deterministic id from the label so tests keep naming ids for legibility
+// while every id they build satisfies the contract.
+export {
+  testActionId,
+  testAggregateId,
+} from './id-fixtures.js';
+
 // Assigned-orders / trip-history row fixtures. Built THROUGH
 // ListAssignedRowSchema, so a fixture that drifts from the contract fails at
 // construction -- the drift that let hand-written literals omit six fields

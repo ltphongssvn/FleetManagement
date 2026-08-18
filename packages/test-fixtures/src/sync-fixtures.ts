@@ -24,9 +24,9 @@ export function createMockSyncAction(
   }> = {},
 ): SyncAction {
   return {
-    actionId: createActionId(overrides.actionId ?? 'action-001'),
+    actionId: createActionId(overrides.actionId ?? '018f4d3c-0001-7000-8000-000000000001'),
     aggregateType: overrides.aggregateType ?? 'transport_order',
-    aggregateId: createAggregateId(overrides.aggregateId ?? 'agg-001'),
+    aggregateId: createAggregateId(overrides.aggregateId ?? '018f4d3c-0002-7000-8000-000000000002'),
     payload: overrides.payload ?? {},
     timestamp: overrides.timestamp ?? new Date().toISOString(),
   };

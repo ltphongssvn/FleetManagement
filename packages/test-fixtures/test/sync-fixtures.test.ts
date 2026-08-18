@@ -13,9 +13,9 @@ describe('@fleet/test-fixtures — sync fixtures', () => {
   describe('createMockSyncAction', () => {
     it('should create a valid action with defaults', () => {
       const action = createMockSyncAction();
-      expect(action.actionId).toBe('action-001');
+      expect(action.actionId).toBe('018f4d3c-0001-7000-8000-000000000001');
       expect(action.aggregateType).toBe('transport_order');
-      expect(action.aggregateId).toBe('agg-001');
+      expect(action.aggregateId).toBe('018f4d3c-0002-7000-8000-000000000002');
       expect(action.timestamp).toBeDefined();
       // Assert default payload is an empty object (kills payload ?? {} -> payload && {} mutant)
       expect(action.payload).toEqual({});
@@ -26,7 +26,7 @@ describe('@fleet/test-fixtures — sync fixtures', () => {
     it('should accept partial overrides', () => {
       const action = createMockSyncAction({ aggregateType: 'road_run' });
       expect(action.aggregateType).toBe('road_run');
-      expect(action.actionId).toBe('action-001');
+      expect(action.actionId).toBe('018f4d3c-0001-7000-8000-000000000001');
     });
   });
 

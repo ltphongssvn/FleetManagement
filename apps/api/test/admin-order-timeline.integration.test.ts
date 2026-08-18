@@ -102,6 +102,35 @@ describe('@fleet/api - AdminOrderTimelineController (integration)', () => {
     expect(ev?.reason).toBe('customer_request');
   });
 
+  // The column is plain text and predates the vocabulary, so it is external
+  // input even though the database is ours. A value outside CANCEL_REASONS is
+  // legacy or corrupt data, not a reason: it degrades to null -- which the
+  // contract already admits -- rather than reaching an admin consumer as if it
+  // were canonical. Before the contract was narrowed this parsed as a plain
+  // string and shipped verbatim.
+  it('degrades an out-of-vocabulary cancellation reason to null', async () => {
+    await seedOrderGraph(OP.companyId, 'XTT.06-011', TO, RR, S1);
+    await testDb.db.execute(sql.raw(
+      'UPDATE transport_order SET cancelled_at=' + q('2026-06-11T11:00:00.000Z') +
+      ', cancellation_reason=' + q('custmer_request') + ' WHERE transport_order_id=' + q(TO)));
+    const res = await ctrl.timeline('XTT.06-011', OP);
+    const ev = res.events.find((e) => e.eventType === 'order_cancelled');
+    expect(ev?.reason).toBeNull();
+    // Still a valid contract document -- degradation must not produce a payload
+    // the schema rejects.
+    expect(OrderTimelineSchema.safeParse(res).success).toBe(true);
+  });
+
+  it('keeps a null cancellation reason null', async () => {
+    await seedOrderGraph(OP.companyId, 'XTT.06-012', TO, RR, S1);
+    await testDb.db.execute(sql.raw(
+      'UPDATE transport_order SET cancelled_at=' + q('2026-06-11T11:00:00.000Z') +
+      ' WHERE transport_order_id=' + q(TO)));
+    const res = await ctrl.timeline('XTT.06-012', OP);
+    const ev = res.events.find((e) => e.eventType === 'order_cancelled');
+    expect(ev?.reason).toBeNull();
+  });
+
   it('404s for an unknown externalRef', async () => {
     await expect(ctrl.timeline('XTT.99-999', OP)).rejects.toMatchObject({ status: 404 });
   });
