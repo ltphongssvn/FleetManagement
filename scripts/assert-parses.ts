@@ -330,4 +330,3 @@ if (isMain) {
   process.exit(mainAssertParses());
 }
 /* v8 ignore stop */
-
