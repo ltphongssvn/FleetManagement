@@ -11,12 +11,36 @@
 #   protection rules meaningful.
 #
 # Job topology:
-#   setup         -> install + build + lint + typecheck once.
-#   api-tests     -> 4-way matrix; each shard runs ~1/4 of apps/api's test
-#                    files and uploads its partial v8 coverage JSON.
-#   coverage-gate -> merges the 4 partial coverage reports and enforces the
-#                    90/90/90/90 per-file threshold on the COMPLETE picture.
-#   other-tests   -> the fast non-api workspace packages, unsharded.
+#   setup             -> install + build + lint + typecheck once.
+#   api-tests         -> 4-way matrix; each shard runs ~1/4 of apps/api's test
+#                        files and uploads its partial v8 coverage JSON.
+#   coverage-gate     -> merges the 4 partial coverage reports and enforces the
+#                        90/90/90/90 per-file threshold on the COMPLETE picture.
+#   other-tests       -> the fast non-api workspace packages, unsharded.
+#   security-guards   -> secret/topology guard + root-script tests and lint.
+#   all-checks-passed -> THE SINGLE REQUIRED CHECK; every gate feeds it.
+#
+# THE REQUIRED-CHECK CONTRACT (read this before adding a job):
+#   Exactly ONE check name belongs in the branch rulesets: "All checks passed".
+#   Every gate job must appear in that job's needs: list. Adding a job without
+#   adding it there means the job runs and blocks nothing.
+#
+#   Root cause this eliminates: required checks live in GITHUB SETTINGS while
+#   jobs live in THIS FILE -- two sources of truth that drift by construction.
+#   security-guards is the receipt. It was built as its own named check
+#   precisely "so the branch ruleset can require it", it runs the secret guard,
+#   test:scripts and lint:scripts, and it was NEVER ADDED to develop-protection
+#   or main-protection. For its entire life a PR could merge with the secret
+#   guard, the destructive-operation guard and every root-script test red or
+#   never started. Adding that one name by hand would have fixed one job and
+#   guaranteed the same bug for the next. 2026 guidance names the failure
+#   directly: a renamed or forgotten job makes the rule "silently stop
+#   enforcing anything", and the answer is one aggregate check everything else
+#   feeds, so membership becomes a reviewable diff instead of a settings click.
+#
+#   scripts/ci-aggregate-gate.guard.test.ts asserts the membership, and it runs
+#   under test:scripts inside security-guards -- which the aggregate requires.
+#   A forgotten job therefore fails the required check that enforces it.
 #
 # Why sharded:
 #   apps/api has 152 test files, most real-Postgres testcontainers
@@ -80,6 +104,7 @@
 #   - scripts/merge-coverage.mjs          — partial-coverage merge + gate
 #   - apps/api/vitest.coverage.config.ts  — VITEST_ENFORCE_THRESHOLDS gate
 #   - .pre-commit-config.yaml             — local mirror of these gates
+#   - scripts/ci-aggregate-gate.guard.test.ts — asserts the aggregate membership
 # ============================================================================
 name: CI
 on:
@@ -567,6 +592,45 @@ jobs:
         run: pnpm run lint:scripts
 
   # ---------------------------------------------------------------------------
+  # THE SINGLE REQUIRED CHECK. Every gate job feeds this one, and ONLY this name
+  # belongs in the branch rulesets.
+  #
+  # WHY if: always() IS LOAD-BEARING, NOT COSMETIC. A job with needs: is SKIPPED
+  # when any dependency fails, and GitHub reports a skipped required check as
+  # NEUTRAL -- which SATISFIES the ruleset. Without always() this aggregator
+  # would go green by being skipped at exactly the moment a gate failed, which
+  # is the decorative-control failure it exists to end. always() forces it to
+  # run, and the step below then FAILS CLOSED.
+  #
+  # WHY IT SELECTS NON-SUCCESS RATHER THAN LISTING BAD VALUES. Demanding the
+  # literal string success from every dependency catches skipped, cancelled AND
+  # any future result string GitHub may add. Whitelisting failure/cancelled
+  # would let an unknown one through -- the same fail-closed rule estate:verify
+  # applies to an unreadable estate.
+  all-checks-passed:
+    name: All checks passed
+    if: always()
+    needs: [setup, api-tests, coverage-gate, other-tests, security-guards]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Verify every gate succeeded
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "$RESULTS"
+          failed=$(echo "$RESULTS" | jq -r 'to_entries | map(select(.value.result != "success")) | map(.key) | join(",")')
+          if [ -n "$failed" ]; then
+            echo "BLOCKED: these jobs did not succeed: $failed"
+            exit 1
+          fi
+          echo "All gates succeeded."
+
+  # ---------------------------------------------------------------------------
   # On a green CI run for a develop push, explicitly dispatch the promote
   # workflow. This replaces promote.yml's old workflow_run trigger (which would
   # launch-then-skip on every unrelated completion). A workflow_dispatch fired
@@ -576,10 +640,13 @@ jobs:
   # so dispatching from each independently is safe.
   dispatch-promote:
     name: Dispatch promote (develop, on success)
-    # security-guards is included deliberately: without it a develop push could
-    # promote to PRODUCTION while the secret/topology guard is still running or
-    # failing, which would defeat the point of having a boundary at all.
-    needs: [setup, api-tests, coverage-gate, other-tests, security-guards]
+    # DEPENDS ON THE AGGREGATE, not on a second copy of the gate list. It used
+    # to repeat [setup, api-tests, coverage-gate, other-tests, security-guards]
+    # verbatim, which is the same two-sources-of-truth drift the aggregate
+    # exists to remove: a job added to one list and forgotten in the other
+    # would let a develop push promote to PRODUCTION past an ungated check.
+    # One list now, in one place, asserted by one guard test.
+    needs: [all-checks-passed]
     if: >-
       success() &&
       github.event_name == 'push' &&

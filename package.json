@@ -83,7 +83,9 @@
     "lint:e2e": "eslint e2e --max-warnings=0",
     "lint:e2e:fix": "eslint e2e --fix",
     "lint:scripts:fix": "eslint scripts --fix",
-    "secrets:baseline": "tsx scripts/secrets-baseline.ts"
+    "secrets:baseline": "tsx scripts/secrets-baseline.ts",
+    "estate:verify": "tsx scripts/estate-verify-cli.ts",
+    "assert:parses": "tsx scripts/assert-parses.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",

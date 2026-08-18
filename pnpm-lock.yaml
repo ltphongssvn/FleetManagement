@@ -736,6 +736,9 @@ importers:
 
   packages/sync-protocol:
     dependencies:
+      '@fleet/domain':
+        specifier: workspace:*
+        version: link:../domain
       zod:
         specifier: 'catalog:'
         version: 4.4.3

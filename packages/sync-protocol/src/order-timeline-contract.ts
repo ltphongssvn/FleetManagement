@@ -7,6 +7,7 @@
 // typed events, UTC timestamps, admin-scoped. The API validates its OUTGOING
 // response against this; consumers parse the same schema so they cannot diverge.
 import { z } from 'zod';
+import { CancelReasonSchema } from '@fleet/domain';
 
 const at = z.iso.datetime();
 const seq = z.number().int().positive();
@@ -16,7 +17,12 @@ export const OrderTimelineEventSchema = z.discriminatedUnion('eventType', [
   z.object({ eventType: z.literal('order_created'), at }).strict(),
   z.object({
     eventType: z.literal('order_cancelled'), at,
-    reason: z.union([z.string(), z.null()]),
+    // The SHARED cancellation vocabulary, not a bare string. It was weakened to
+    // z.string() while apps/api and apps/ops-web both validated against
+    // CancelReasonSchema -- one contract, two strengths, so a mistyped code such
+    // as "custmer_request" parsed cleanly here and reached a consumer.
+    // null remains legitimate: rows cancelled before the vocabulary existed.
+    reason: z.union([CancelReasonSchema, z.null()]),
     note: z.union([z.string(), z.null()]),
   }).strict(),
   z.object({ eventType: z.literal('run_created'), at, roadRunId: z.guid() }).strict(),

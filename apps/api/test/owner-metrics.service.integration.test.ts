@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { OwnerAdoptionMetricsSchema } from '@fleet/sync-protocol';
+import type { Platform } from '../src/device/platform.js';
 import { OwnerMetricsService } from '../src/owner/owner-metrics.service.js';
 import { driver } from '../src/database/schema/reference.js';
 import { deviceRegistry } from '../src/database/schema/device.js';
@@ -37,7 +38,7 @@ async function seedDriver(name: string, opts: { active?: boolean; operatorId?: s
   return { driverId: d.driverId, operatorId };
 }
 
-async function seedDevice(operatorId: string, platform: string, appVersion: string, lastSeenAt: Date | null, companyId: string = COMPANY): Promise<void> {
+async function seedDevice(operatorId: string, platform: Platform, appVersion: string, lastSeenAt: Date | null, companyId: string = COMPANY): Promise<void> {
   await testDb.db.insert(deviceRegistry).values({
     ...TENANCY,
     companyId,
