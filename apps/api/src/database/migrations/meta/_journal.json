@@ -218,6 +218,20 @@
       "when": 1784680772065,
       "tag": "0030_jittery_princess_powerful",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1784680772066,
+      "tag": "20260730000000_manifest_extraction_reason_t33",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1786737600000,
+      "tag": "20260810180000_driver_canonical_name",
+      "breakpoints": true
     }
   ]
 }

@@ -352,6 +352,38 @@ jobs:
           code=$(curl -s -o /dev/null -w '%{http_code}' https://xe.vominhchau.com/login || echo 000)
           echo "ops-web /login -> $code"
           [ "$code" = '200' ] || { echo '::error::ops-web /login not 200'; exit 1; }
+      - name: Verify ops-web is running the deployed commit
+        # Same gap the api verification closed, for the second service. ops-web
+        # was gated ONLY by /login returning 200 -- and the PREVIOUS container
+        # answers that perfectly after a failed deploy, so liveness could not
+        # distinguish "new version live" from "old version still serving" and
+        # ops-web could sit a release behind while this workflow reported
+        # success. /api/health/version reports the commit; proxy.ts excludes
+        # api/health from the auth matcher, so it is probeable unauthenticated.
+        #
+        # Guarded on success for the reason stated above: a SKIPPED deploy
+        # legitimately leaves the previous image serving, and asserting sha
+        # equality there would fail every infra-only promote cycle.
+        if: needs.deploy-ops-web.result == 'success'
+        run: |
+          npx --yes tsx scripts/ci/deploy-stamp.ts --verify \
+            --url https://xe.vominhchau.com/api/health/version \
+            --sha ${{ needs.gate.outputs.head_sha }}
+      - name: Verify the worker is running the deployed commit
+        # The worker deploy step was `sleep 30; railway logs ... || true` -- a
+        # gate that CANNOT fail. The worker could crash-loop, or run a release
+        # behind, and this workflow stayed green.
+        #
+        # It has no HTTP surface and no public domain, so CI cannot probe it
+        # directly. It writes a TTL'd provenance heartbeat to Redis at boot and
+        # the api exposes it at /health/worker-version, which also proves the
+        # worker reached its dependencies -- something a log line cannot show.
+        # An absent, expired, corrupt or unreadable heartbeat all fail closed.
+        if: needs.deploy-worker.result == 'success'
+        run: |
+          npx --yes tsx scripts/ci/deploy-stamp.ts --verify \
+            --url https://api-production-fd42.up.railway.app/health/worker-version \
+            --sha ${{ needs.gate.outputs.head_sha }}
       - name: Cancel Server Action regression tripwire
         # The review-view Cancel crash was caused by the proxy DIVERTING the
         # Server Action POST to /login: Next.js cannot forward a rewrite for a

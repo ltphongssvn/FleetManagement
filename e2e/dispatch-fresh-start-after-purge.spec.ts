@@ -28,7 +28,7 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { dockerPsql, dockerExecApiNode } from './helpers/docker-exec';
 import { mintDispatcherToken } from './helpers/auth';
-import { z } from 'zod';
+import { type z } from 'zod';
 import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, CreateTransportOrderResponseSchema } from './helpers/contracts';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';

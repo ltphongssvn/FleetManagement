@@ -19,6 +19,22 @@
 // Run: pnpm exec turbo run sync:worktrees   (root-scoped //# task)
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { classifyDepsCandidate } from './worktree-deps-status.js';
+// TIER 2 lives in its own adapter now: deps:reconcile is a second shell that
+// needs the same probe, and neither copying it nor exporting it from this
+// git-sync module was acceptable. See worktree-deps-probe.ts for the three
+// historical fixes it carries.
+import { probeDeps } from './worktree-deps-probe.js';
+// Terminal numbers are allocated from the REMOTE, not from the worktrees below:
+// this census is per-machine, and the t78 collision came from reading it as if
+// it were global. See terminal-registry.ts.
+import {
+  listTerminalRefsArgs,
+  parseTerminalRefs,
+  formatTerminalCensus,
+} from './terminal-registry.js';
 
 // ------------------------------- CORE (pure) -------------------------------
 export interface WorktreeState {
@@ -153,7 +169,7 @@ const C = {
 function label(wt: Worktree): string {
   return (wt.branch ?? "(detached)") + " " + C.dim + "@ " + wt.path + C.reset;
 }
-interface Tally { ff: number; synced: number; ahead: number; published: number; tracked: number; blocked: number; detached: number }
+interface Tally { ff: number; synced: number; ahead: number; published: number; tracked: number; blocked: number; detached: number; depsOk: number; depsStale: number; toolchainBlocked: number }
 
 function runAction(wt: Worktree, act: Action, dryRun: boolean, t: Tally): void {
   const w = (s: string): void => { process.stdout.write(s + String.fromCharCode(10)); };
@@ -185,14 +201,123 @@ function runAction(wt: Worktree, act: Action, dryRun: boolean, t: Tally): void {
   }
 }
 
+// -------------------- DEPENDENCY DRIFT (two-tier) --------------------------
+// pnpm v11 defaults verifyDepsBeforeRun to install, self-healing a drifted
+// tree before every script. This repo sets it to warn on purpose: with 37
+// worktrees and 1810 packages on a 9.7GiB box an implicit install mid-gate is
+// destructive (pnpm issues 11556, 11865). But warn only PRINTS, and this task
+// fast-forwards refs without touching node_modules -- so drift accumulated
+// silently until the canonical root ran this very task on turbo 2.10.6 while
+// both origin/main and origin/develop declared 2.10.7.
+//
+// Reports, never heals: the operator decides when to install. Non-fatal in
+// stage 1 -- failing every drifted worktree at once would block the box.
+//
+// Manifest paths are derived from the GIT worktree path. The state file also
+// carries a map of absolute package paths, but git worktree move does not
+// rewrite it (pnpm issue 10081), so those keys can point at a directory that
+// no longer exists -- observed in this very worktree after its rename.
+const WORKSPACE_STATE_REL = 'node_modules/.pnpm-workspace-state-v1.json';
+export function readValidationTimestampMs(root: string): { present: boolean; ts: number } {
+  const f = join(root, WORKSPACE_STATE_REL);
+  if (!existsSync(f)) return { present: false, ts: 0 };
+  try {
+    const parsed = JSON.parse(readFileSync(f, 'utf8')) as {
+      lastValidatedTimestamp?: number;
+    };
+    return { present: true, ts: parsed.lastValidatedTimestamp ?? 0 };
+  } catch {
+    return { present: false, ts: 0 };
+  }
+}
+const MANIFEST_DIRS = ['apps', 'packages', 'workers'];
+export function newestManifestMtimeMs(root: string): number {
+  const files: string[] = [
+    join(root, 'pnpm-lock.yaml'),
+    join(root, 'pnpm-workspace.yaml'),
+    join(root, 'package.json'),
+    join(root, 'e2e', 'package.json'),
+  ];
+  for (const dir of MANIFEST_DIRS) {
+    const d = join(root, dir);
+    if (!existsSync(d)) continue;
+    for (const ent of readdirSync(d, { withFileTypes: true })) {
+      if (ent.isDirectory()) files.push(join(d, ent.name, 'package.json'));
+    }
+  }
+  let newest = 0;
+  for (const f of files) {
+    if (!existsSync(f)) continue;
+    const m = statSync(f).mtimeMs;
+    if (m > newest) newest = m;
+  }
+  return newest;
+}
+// TIER 1 first (free), TIER 2 only on candidates: the probe costs ~7.7s per
+// worktree, so probing all 37 would add ~4.7 minutes to a 30s task.
+function reportDeps(wt: Worktree, t: Tally, verbose: boolean): void {
+  const state = readValidationTimestampMs(wt.path);
+  const candidate = classifyDepsCandidate({
+    stateFilePresent: state.present,
+    lastValidatedTimestampMs: state.ts,
+    newestManifestMtimeMs: newestManifestMtimeMs(wt.path),
+  });
+  if (verbose) {
+    process.stdout.write(
+      C.dim + '  tier1 ' + candidate.kind + '  ' + wt.path + C.reset +
+        String.fromCharCode(10),
+    );
+  }
+  if (candidate.kind === 'ok') {
+    t.depsOk++;
+    return;
+  }
+  const probe = probeDeps(wt.path);
+  if (verbose) {
+    process.stdout.write(
+      C.dim + '  tier2 ' + probe.kind + '  ' + wt.path + C.reset +
+        String.fromCharCode(10),
+    );
+  }
+  if (probe.kind === 'deps-ok') {
+    t.depsOk++;
+    return;
+  }
+  // A poisoned pnpm pin is NOT drift: pnpm cannot run at all, so pointing the
+  // operator at pnpm install would be wrong. Reported separately, in red.
+  if (probe.kind === 'toolchain-blocked') {
+    t.toolchainBlocked++;
+    process.stderr.write(
+      C.red + 'TOOLCHAIN' + C.reset + '  ' + label(wt) +
+        ' (' + probe.reason + ')' + String.fromCharCode(10),
+    );
+    return;
+  }
+  t.depsStale++;
+  process.stderr.write(
+    C.yellow + 'DRIFT' + C.reset + '  ' + label(wt) +
+      ' (deps: ' + probe.reason + ')' + String.fromCharCode(10),
+  );
+}
 export function main(argv: string[] = process.argv.slice(2)): number {
   const dryRun = argv.includes("--dry-run");
+  // Makes the two tiers observable. Without it depsOk is tallied but never
+  // shown, so a worktree that is probed-and-passes is indistinguishable from
+  // one that tier 1 never referred -- the exact ambiguity that stalled the
+  // first live diagnosis.
+  const verboseDeps = argv.includes("--verbose-deps");
   process.stdout.write(C.dim + "Fetching origin (prune)..." + C.reset + String.fromCharCode(10));
   git(["fetch", "--all", "--prune"]);
-  const t: Tally = { ff: 0, synced: 0, ahead: 0, published: 0, tracked: 0, blocked: 0, detached: 0 };
+  // refs/terminals/* is NOT in the default fetch refspec, so --all does not
+  // bring it. Without this the registry reads as empty, which is
+  // indistinguishable from "nothing claimed" and would re-issue terminal 1.
+  // allowFail: an older remote without the namespace must not break the sync.
+  git(["fetch", "origin", "+refs/terminals/*:refs/remotes/origin/terminals/*"], { allowFail: true });
+  const t: Tally = { ff: 0, synced: 0, ahead: 0, published: 0, tracked: 0, blocked: 0, detached: 0, depsOk: 0, depsStale: 0, toolchainBlocked: 0 };
   for (const wt of listWorktrees()) {
     try {
       runAction(wt, classify(observe(wt)), dryRun, t);
+      reportDeps(wt, t, verboseDeps);
     } catch (err) {
       t.blocked++;
       // split() is indexed, so under noUncheckedIndexedAccess the first element is
@@ -201,12 +326,24 @@ export function main(argv: string[] = process.argv.slice(2)): number {
       process.stderr.write(C.red + "BLOCK" + C.reset + "  " + label(wt) + " (" + msg + ")" + String.fromCharCode(10));
     }
   }
+  // Printed with the census because this output IS where terminal numbers are
+  // read from. Leaving it out would mean the correct number exists but nobody
+  // sees it, and the local high-water gets reused out of habit.
+  process.stdout.write(
+    String.fromCharCode(10) + C.dim +
+      formatTerminalCensus(parseTerminalRefs(
+        git(listTerminalRefsArgs(), { allowFail: true }).split(String.fromCharCode(10)).filter((l) => l.length > 0),
+      )) + C.reset + String.fromCharCode(10),
+  );
   process.stdout.write(
     String.fromCharCode(10) + C.dim + "Summary:" + C.reset + " " +
       C.green + String(t.ff) + " ff" + C.reset + ", " + String(t.synced) + " synced" + ", " +
       String(t.published) + " published" + ", " + String(t.tracked) + " tracked" + ", " +
       String(t.ahead) + " ahead" + ", " + String(t.detached) + " detached" + ", " +
-      (t.blocked > 0 ? C.red : C.dim) + String(t.blocked) + " blocked" + C.reset + String.fromCharCode(10),
+      (t.blocked > 0 ? C.red : C.dim) + String(t.blocked) + " blocked" + C.reset + ", " +
+      String(t.depsOk) + " deps-ok" + ", " +
+      (t.depsStale > 0 ? C.yellow : C.dim) + String(t.depsStale) + " deps-stale" + C.reset + ", " +
+      (t.toolchainBlocked > 0 ? C.red : C.dim) + String(t.toolchainBlocked) + " toolchain-blocked" + C.reset + String.fromCharCode(10),
   );
   return t.blocked > 0 ? 1 : 0;
 }

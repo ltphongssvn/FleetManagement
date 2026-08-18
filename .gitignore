@@ -15,9 +15,9 @@
 #   .pre-commit-config.yaml are the second.
 #
 # Key decisions / invariants:
-#   - .env* is blocked globally with an allowlist exception for .env.example
+#   - .env* is blocked globally with allowlist exceptions for .env.example
 #     (template files that MUST be committed so new contributors can scaffold
-#     their local env).
+#     their local env) and .env.sops.yaml (SOPS/age ciphertext — see below).
 #   - Terraform state (*.tfstate, *.tfvars) is blocked because it contains
 #     plaintext DB passwords, S3 credentials, and IdP secrets. Only
 #     *.tfvars.example is allowed.
@@ -55,11 +55,34 @@ out/
 *.tsbuildinfo
 
 # Env / secrets
+#
+# .env.sops.yaml is TRACKED ON PURPOSE and is the one exception that carries
+# real credential material. It is SOPS/age ciphertext: every VALUE is encrypted
+# to the public keys in .age-recipients, while field NAMES stay plaintext so the
+# file reviews and diffs like ordinary config. Committing it is what makes a new
+# machine reproducible -- the alternative, which this replaces, was copying a
+# plaintext .env between laptops by hand, leaving secrets on N machines with no
+# rotation path and no record of which host held which vintage.
+#
+# The allowlist is exact (.env.sops.yaml), never a glob such as .env.*.yaml: a
+# pattern would silently admit any future file whose name happens to match,
+# which is precisely how plaintext gets committed by accident.
+#
+# .env itself stays blocked. Produce it with: pnpm run env:decrypt
 .env
 .env.*
 !.env.example
+!.env.sops.yaml
 *.pem
 *.key
+
+# age PRIVATE identities. The public half lives in .age-recipients (tracked);
+# the private half must never leave the machine that generated it. Blocked here
+# as defense in depth even though the conventional location is outside the repo
+# (~/.config/sops/age/keys.txt, mode 600).
+*.agekey
+age-key.txt
+keys.txt
 
 # OS / editor
 .DS_Store

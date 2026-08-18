@@ -1,0 +1,44 @@
+# .age-recipients
+# One age PUBLIC key per line -- one line per machine that must be able to
+# decrypt .env.sops.yaml. Blank lines and # comments are ignored.
+#
+# TRACKED IN GIT BY DESIGN. These are PUBLIC keys: publishing them grants
+# nothing. The matching PRIVATE identity never leaves the machine that made it
+# and lives at ~/.config/sops/age/keys.txt (mode 600), never in this repo.
+#
+# ADD A MACHINE
+#   1. On that machine:  age-keygen -o ~/.config/sops/age/keys.txt
+#      The PUBLIC key is printed on stderr as: Public key: age1...
+#   2. Append it below with a comment naming the host.
+#   3. pnpm run env:recipients     regenerates .sops.yaml
+#   4. pnpm run env:encrypt        re-encrypts to the new recipient set
+#   5. Commit .age-recipients, .sops.yaml and .env.sops.yaml together.
+#
+# REVOKE A MACHINE
+#   Delete its line, repeat steps 3-5, then ROTATE the underlying credentials.
+#   Removing a recipient stops FUTURE decryption; it does not retroactively
+#   protect ciphertext that machine already held. Git history keeps the old
+#   blob, so revocation without rotation is theatre.
+#
+# ROSTER STATUS IS NOT PROSE. env-bootstrap-roster.guard.test.ts asserts that
+# .sops.yaml is a byte-identical render of the keys below, so the two files
+# cannot drift. A machine is a recipient if and only if its key appears here;
+# no comment, table or status word grants access. The previous revision of this
+# header carried a status column marking two machines as not-yet-added, which
+# read as a roster of three while exactly one key was listed -- prose doing the
+# job of an assertion.
+#
+# ESTATE, 2026-08-11. Four machines; recipients are exactly the keys below.
+#   Thanhs-MBP-2            Apple Silicon MacBook Pro, macOS 15.7
+#   Thanhs-MacBook-Pro-3    Apple Silicon MacBook Pro, macOS 26 Tahoe
+#   MacBook01TBsMBP         Apple Silicon MacBook Pro, 64GB
+#   LAPTOP-3HQ8DPON         WSL2 Ubuntu
+# A machine absent from the key list below cannot decrypt and must run the ADD
+# A MACHINE steps from its own console. That is fail-closed by design: access
+# is granted by publishing a public key, never by receiving a file.
+
+# Thanhs-MBP-2 (Apple Silicon MacBook Pro, macOS 15.7.7)
+age1022fpw0nt5xdw5txz86cl5whgeq2u3cxhtx9anuvz0twawyh84lqwl0etj
+
+# Thanhs-MacBook-Pro-3 (Apple Silicon MacBook Pro, macOS 26 Tahoe)
+age1wnuaupcuut6xkm4xr2v2sylpqe3746fa7rthgvqjenlx06krt9us4fdh66
