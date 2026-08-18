@@ -27,11 +27,11 @@ const row: ListAssignedRow = {
   canCancel: true,
   cancelBlockedReason: null,
   stops: [
-    { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'WH1', arrivedAt: null, departedAt: null },
-    { sequence: 2, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'WH2', arrivedAt: null, departedAt: null },
-    { sequence: 3, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'WH3', arrivedAt: null, departedAt: null },
-    { sequence: 4, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'WH4', arrivedAt: null, departedAt: null },
-    { sequence: 5, stopType: 'delivery', plannedAt: '2026-05-30T18:18:00.000Z', warehouseName: 'WH5', arrivedAt: null, departedAt: null },
+    { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'WH1', arrivedAt: null, departedAt: null, proof: null },
+    { sequence: 2, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'WH2', arrivedAt: null, departedAt: null, proof: null },
+    { sequence: 3, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'WH3', arrivedAt: null, departedAt: null, proof: null },
+    { sequence: 4, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'WH4', arrivedAt: null, departedAt: null, proof: null },
+    { sequence: 5, stopType: 'delivery', plannedAt: '2026-05-30T18:18:00.000Z', warehouseName: 'WH5', arrivedAt: null, departedAt: null, proof: null },
   ],
 };
 describe('OrderReview - form parity (T8)', () => {
@@ -92,9 +92,9 @@ const t9row: ListAssignedRowT9 = {
   canCancel: true,
   cancelBlockedReason: null,
   stops: [
-    { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'Chơn Chính', arrivedAt: '2026-05-30T17:30:00.000Z', departedAt: '2026-05-30T17:45:00.000Z' },
-    { sequence: 2, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'Cần Thơ', arrivedAt: null, departedAt: null },
-    { sequence: 3, stopType: 'delivery', plannedAt: '2026-05-30T18:18:00.000Z', warehouseName: 'ĐA NĂNG', arrivedAt: null, departedAt: null },
+    { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'Chơn Chính', arrivedAt: '2026-05-30T17:30:00.000Z', departedAt: '2026-05-30T17:45:00.000Z', proof: null },
+    { sequence: 2, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'Cần Thơ', arrivedAt: null, departedAt: null, proof: null },
+    { sequence: 3, stopType: 'delivery', plannedAt: '2026-05-30T18:18:00.000Z', warehouseName: 'ĐA NĂNG', arrivedAt: null, departedAt: null, proof: null },
   ],
 };
 describeT9('OrderReview - per-stop status + warehouse name (T9)', () => {

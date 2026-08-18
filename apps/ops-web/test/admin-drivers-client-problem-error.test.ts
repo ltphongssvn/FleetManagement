@@ -88,7 +88,10 @@ describe('AdminDriversClient throws ApiProblemError the presenter can map', () =
   });
 
   it('happy path unchanged: list() on 200 returns rows without throwing', async () => {
-    const rows = [{ driverId: 'd1' }];
+    // Full wire row: nullable is not optional, so every key must be present.
+    // The old one-field fixture passed only because list() cast instead of
+    // parsing -- the same gap this arc closes.
+    const rows = [{ driverId: 'd1', fullName: 'A', phone: null, operatorId: null, assignedVehicle: null, assignmentId: null, devices: [] }];
     const client = makeClient(
       vi.fn(() =>
         Promise.resolve(
