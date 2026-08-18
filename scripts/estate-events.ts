@@ -155,8 +155,21 @@ export type DecisionToken = z.infer<typeof DecisionTokenSchema>;
  *
  *  SEMVER: PATCH for documentation, MINOR for a backward-compatible addition,
  *  MAJOR for anything an existing reader could misinterpret. A changed MEANING
- *  is major even when the shape is identical. */
-export const ESTATE_SCHEMA_VERSION = '1.2.0';
+ *  is major even when the shape is identical.
+ *
+ *  2.0.0, and this bump is EARNED rather than cosmetic. Every emitted event now
+ *  carries a REQUIRED policy_digest naming the rules that produced its
+ *  agent_action. A consumer pinned to 1.2.0 would meet a field its contract does
+ *  not declare, and -- worse -- would keep reading agent_action as if the rules
+ *  behind it were the ones it was written against. That is precisely "anything
+ *  an existing reader could misinterpret".
+ *
+ *  An earlier revision of this arc set 2.0.0 speculatively, for a shape change
+ *  that was not yet wired, and it was reverted to 1.2.0 on the reasoning that a
+ *  version bump for a change no consumer can observe is a false signal. That
+ *  reasoning was right then and is spent now: the change is observable, so the
+ *  bump lands with the shape that earns it rather than ahead of it. */
+export const ESTATE_SCHEMA_VERSION = '2.0.0';
 export type EstateSchemaVersion = typeof ESTATE_SCHEMA_VERSION;
 
 /** WHAT produced the record. A literal, so a consumer can pin it and a typo

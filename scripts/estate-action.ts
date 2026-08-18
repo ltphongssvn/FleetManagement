@@ -9,21 +9,34 @@
 // from a collector sees no such field and must re-derive the policy from
 // attributes, which is a second implementation waiting to disagree.
 //
-// 2026 agent-governance guidance draws exactly this line -- a behaviour
-// contract must be machine-readable and versioned rather than prose the
-// consumer interprets, and declaration alone is not enough: the value has to be
-// the thing the caller branches on.
-//
 // THE HOUSE PRECEDENT IS ALREADY HERE. assert-parses.ts emits agent_action
-// ('REGENERATE_FILE' | 'FIX_INVOCATION') beside its verdict for this reason.
-// estate:verify emitting only observations was the inconsistency.
+// beside its verdict for this reason; estate:verify emitting only observations
+// was the inconsistency.
 //
 // ONE DERIVATION, THREE CHANNELS. The exit code, the emitted agent_action and
 // the human line are one decision reaching three audiences, so all three come
-// from ACTION_EXIT and actionForVerdict below. Declaring them separately is how
-// a tool ends up exiting 0 while telling a subscriber to halt.
+// from ACTION_EXIT and the policy below. Declaring them separately is how a
+// tool ends up exiting 0 while telling a subscriber to halt.
+//
+// THE PRECEDENCE RULE MOVED TO estate-policy.ts, and this file no longer states
+// it twice. actionForReasons was a ternary -- "if any reason is structural,
+// HALT_STRUCTURAL" -- while ESTATE_POLICY.kind_precedence declared the same
+// ordering as data. Two declarations of one rule is what the policy object was
+// built to end, and the ternary was the copy nothing could audit: a reader
+// could not tell from an emitted event which ordering produced the verdict,
+// because the ordering was compiled-in rather than digested. Now actionUnder
+// reads the precedence list, and policy_digest on every event names the exact
+// list that was read.
+//
+// VerdictAction is written on ONE line with a named member union rather than a
+// multi-line Extract. The multi-line form ends a line with an open angle
+// bracket, and two consecutive writes of this file lost exactly that character
+// -- the resulting `export type VerdictAction = Extract` parsed as a reference
+// and every estate suite failed at `>;`. The single-line form carries the same
+// type and does not depend on a trailing bracket surviving transport.
 import { z } from 'zod';
-import { REASON_KIND, type EstateReason } from './estate-vocabulary.js';
+import { actionUnder, ESTATE_POLICY, type EstatePolicy } from './estate-policy.js';
+import { type EstateReason } from './estate-vocabulary.js';
 
 /** What a caller may do next. Named for the ACTION, not the observation: a
  *  consumer should not have to know that clean:false means "stop". */
@@ -48,7 +61,12 @@ export type EstateAction = (typeof ESTATE_ACTIONS)[number];
 export const EstateActionSchema = z.enum(ESTATE_ACTIONS);
 
 /** The exit code accompanying each action. TOTAL over the vocabulary, so a new
- *  action without an exit code is a COMPILE error rather than a silent 0. */
+ *  action without an exit code is a COMPILE error rather than a silent 0.
+ *
+ *  NOT moved into the policy, deliberately. An exit code is this CLI's contract
+ *  with a process parent -- the shell, CI, a hook -- and it is not a rule the
+ *  estate policy gets to reinterpret. A policy that could remap PROCEED to a
+ *  non-zero exit would be rewriting the tool's interface, not its judgement. */
 export const ACTION_EXIT = Object.freeze({
   PROCEED: 0,
   HALT_WORK_IN_PROGRESS: 1,
@@ -71,26 +89,28 @@ export function mayProceed(action: EstateAction): boolean {
   return action === 'PROCEED';
 }
 
-/** Which halt a set of reasons warrants.
- *
- *  STRUCTURAL DOMINATES. A worktree that is both dirty and prunable needs the
- *  git repair first: finishing work inside a worktree whose gitdir points
- *  nowhere is not possible, so reporting work-in-progress would send the
- *  operator to a remedy that cannot run. Derived from REASON_KIND rather than
- *  re-listing which reasons are structural -- that vocabulary is declared once. */
 /** The actions a VERDICT can reach: a clean estate or one of the two halts.
  *  REREAD_ESTATE and REPAIR_TOOLING are decided BEFORE any verdict exists, so
  *  they are unreachable here -- and saying so in the type is what lets the
  *  decision's exitCode stay narrowed to 0|1 without a cast. */
-export type VerdictAction = Extract<
-  EstateAction,
-  'PROCEED' | 'HALT_WORK_IN_PROGRESS' | 'HALT_STRUCTURAL'
->;
+type VerdictActionName = 'PROCEED' | 'HALT_WORK_IN_PROGRESS' | 'HALT_STRUCTURAL';
+export type VerdictAction = Extract<EstateAction, VerdictActionName>;
 
-export function actionForReasons(reasons: readonly EstateReason[]): VerdictAction {
-  if (reasons.length === 0) return 'PROCEED';
-  const structural = reasons.some((r) => REASON_KIND[r] === 'structural');
-  return structural ? 'HALT_STRUCTURAL' : 'HALT_WORK_IN_PROGRESS';
+/** Which halt a set of reasons warrants, UNDER A POLICY.
+ *
+ *  A thin delegation, and that is the point: the rule lives in the policy as an
+ *  ordered kind_precedence list, so reordering it changes both the verdict AND
+ *  the policy digest an event carries. The previous ternary changed the verdict
+ *  silently.
+ *
+ *  Kept as a named export rather than deleted, because callers and tests refer
+ *  to it and the indirection costs nothing -- the same re-export reasoning the
+ *  vocabulary leaf uses. */
+export function actionForReasons(
+  reasons: readonly EstateReason[],
+  policy: EstatePolicy = ESTATE_POLICY,
+): VerdictAction {
+  return actionUnder(reasons, policy);
 }
 
 /** The action a VERDICT warrants: the flat reason set across the whole estate.
@@ -98,6 +118,9 @@ export function actionForReasons(reasons: readonly EstateReason[]): VerdictActio
  *  Takes reasons rather than the verdict object so the layering guard's rule
  *  holds -- this module states policy over vocabulary, and never reaches into
  *  a presentation artifact. */
-export function actionForVerdict(reasons: readonly EstateReason[]): VerdictAction {
-  return actionForReasons(reasons);
+export function actionForVerdict(
+  reasons: readonly EstateReason[],
+  policy: EstatePolicy = ESTATE_POLICY,
+): VerdictAction {
+  return actionForReasons(reasons, policy);
 }
