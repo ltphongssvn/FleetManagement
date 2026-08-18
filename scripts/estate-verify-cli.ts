@@ -20,9 +20,7 @@
 //
 // STDOUT IS DATA; STDERR IS HUMANS. Exactly one NDJSON event on stdout and
 // nothing else, so a caller pipes to jq without stripping prose; the readable
-// summary goes to stderr. Same split sh() in pr-automerge.ts documents after a
-// transient gh message landed in front of JSON and was classified as a
-// permanent contract violation.
+// summary goes to stderr.
 //
 // THE CHILD'S STREAMS ARE PIPED, NEVER INHERITED. Observed on the first live
 // run: a branch with no upstream made git print "fatal: no upstream configured"
@@ -42,6 +40,7 @@ import {
   TimestampSchema,
   type EstateObservation,
 } from './estate-events.js';
+import { ESTATE_POLICY, PUSH_POLICY } from './estate-policy.js';
 import { estateLineFor, runEstateVerify } from './estate-run.js';
 import { estateStreams } from './estate-streams.js';
 import {
@@ -75,6 +74,15 @@ const NL = String.fromCharCode(10);
  *  A bad flag VALUE is a usage error, exit 2, exactly as a bad flag NAME is. */
 export const EstateArgvSchema = z.strictObject({
   quiet: z.boolean(),
+  /** Decide under PUSH_POLICY, where `unpushed` is not a defect.
+   *
+   *  A FLAG, not an inference from the environment. The CLI could sniff for a
+   *  pre-push context, but a gate whose rules change based on something it
+   *  guessed is a gate nobody can reason about -- and the policy digest on the
+   *  emitted event would then name a policy the caller never chose. The hook
+   *  passes this explicitly, so the relaxation is visible in the hook entry, in
+   *  the argv, and in the digest. */
+  pushing: z.boolean(),
   expectDigest: DigestSchema.nullable(),
 });
 export type EstateArgv = z.infer<typeof EstateArgvSchema>;
@@ -86,6 +94,7 @@ export function parseEstateArgv(argv: readonly string[]): EstateArgv {
     args: [...argv],
     options: {
       quiet: { type: 'boolean', default: false },
+      pushing: { type: 'boolean', default: false },
       'expect-digest': { type: 'string' },
     },
     allowPositionals: false,
@@ -97,6 +106,7 @@ export function parseEstateArgv(argv: readonly string[]): EstateArgv {
   // identically rather than one of them becoming a verdict.
   return EstateArgvSchema.parse({
     quiet: values.quiet,
+    pushing: values.pushing,
     expectDigest: values['expect-digest'] ?? null,
   });
 }
@@ -175,7 +185,7 @@ function mainEstateVerify(): number {
     argv = parseEstateArgv(process.argv.slice(2));
   } catch (err) {
     process.stderr.write((err instanceof Error ? err.message : String(err)) + NL);
-    process.stderr.write('usage: turbo run estate:verify -- [--quiet] [--expect-digest=<sha256>]' + NL);
+    process.stderr.write('usage: turbo run estate:verify -- [--quiet] [--pushing] [--expect-digest=<sha256>]' + NL);
     return 2;
   }
 
@@ -187,6 +197,7 @@ function mainEstateVerify(): number {
     gather: observeLiveEstate,
     expectDigest: argv.expectDigest,
     traceparent: process.env['TRACEPARENT'],
+    policy: argv.pushing ? PUSH_POLICY : ESTATE_POLICY,
   });
 
   // WHICH BYTES GO WHERE is decided by estateStreams, which is pure and

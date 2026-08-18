@@ -19,12 +19,14 @@ import { parseEstateArgv, parseWorktreeRecords } from './estate-verify-cli.ts';
 const NL = String.fromCharCode(10);
 
 describe('parseEstateArgv', () => {
-  it('defaults quiet to false', () => {
-    expect(parseEstateArgv([])).toEqual({ quiet: false, expectDigest: null });
+  it('defaults every flag to false', () => {
+    expect(parseEstateArgv([]))
+      .toEqual({ quiet: false, pushing: false, expectDigest: null });
   });
 
   it('reads --quiet', () => {
-    expect(parseEstateArgv(['--quiet'])).toEqual({ quiet: true, expectDigest: null });
+    expect(parseEstateArgv(['--quiet']))
+      .toEqual({ quiet: true, pushing: false, expectDigest: null });
   });
 
   // A swallowed typo would print a confident verdict from a command the
@@ -36,6 +38,49 @@ describe('parseEstateArgv', () => {
 
   it('THROWS on a stray positional, since this task takes no path', () => {
     expect(() => parseEstateArgv(['/some/worktree'])).toThrow();
+  });
+});
+
+// ---- --pushing: the deadlock, and why it is a flag ----
+// estate-verify-push refused a push because the worktree BEING PUSHED reported
+// `unpushed`. Pushing is the only cure for unpushed, so the gate could never be
+// satisfied by the operation it gates -- and because the reasons are
+// estate-wide, ANY worktree holding an unpushed commit blocked every OTHER
+// worktree's push too.
+//
+// The relaxation is a POLICY (PUSH_POLICY suppresses `unpushed`), and it is
+// selected by an EXPLICIT flag rather than inferred from the environment. A
+// gate that changes its rules based on something it guessed is a gate nobody
+// can reason about, and the policy digest on the emitted event would then name
+// a policy the caller never chose.
+describe('--pushing selects the pre-push policy', () => {
+  it('defaults to FALSE, so the strict policy is what a bare run uses', () => {
+    expect(parseEstateArgv([]).pushing).toBe(false);
+  });
+
+  it('reads --pushing', () => {
+    expect(parseEstateArgv(['--pushing']))
+      .toEqual({ quiet: false, pushing: true, expectDigest: null });
+  });
+
+  // The hook passes both, so the combination must parse.
+  it('combines with --quiet, which is how the hook invokes it', () => {
+    expect(parseEstateArgv(['--quiet', '--pushing']))
+      .toEqual({ quiet: true, pushing: true, expectDigest: null });
+  });
+
+  it('combines with --expect-digest', () => {
+    const REAL = 'a'.repeat(64);
+    expect(parseEstateArgv(['--pushing', '--expect-digest=' + REAL]))
+      .toEqual({ quiet: false, pushing: true, expectDigest: REAL });
+  });
+
+  // A near-miss on this flag must not silently fall back to the STRICT policy
+  // in a hook that needs the relaxed one -- that would restore the deadlock
+  // while looking like it was fixed.
+  it('THROWS on a near-miss rather than silently using the strict policy', () => {
+    expect(() => parseEstateArgv(['--pushinng'])).toThrow();
+    expect(() => parseEstateArgv(['--push'])).toThrow();
   });
 });
 
