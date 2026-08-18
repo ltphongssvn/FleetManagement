@@ -23,13 +23,20 @@
 //      leak surface -- node prints the offending source line, which for a parse
 //      over secret material can carry a value. One boundary, not a try/catch
 //      bolted onto whichever call site happened to fail.
+//   5. ENCRYPT VERIFIES ITS OWN OUTPUT. Observed 2026-08-14: a .env with a
+//      duplicated key encrypted cleanly and could never be decrypted by anyone,
+//      because dotenv permits repeat assignment and YAML does not. Encryption
+//      reporting success is not evidence the artifact is readable, so the
+//      ciphertext is decrypted back before the run is called done -- the same
+//      practice GitOps guidance prescribes for sops files, validating that
+//      every encrypted file CAN be decrypted rather than assuming it.
 //
 // Run:
 //   pnpm exec turbo run env:decrypt     -- ciphertext -> .env (new machine)
 //   pnpm exec turbo run env:encrypt     -- .env -> ciphertext (after a change)
 //   pnpm exec turbo run env:recipients  -- regenerate .sops.yaml from recipients
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -42,6 +49,16 @@ import {
   parseRecipients,
   renderSopsConfig,
 } from './env-bootstrap.js';
+import { describeDuplicates, findDuplicateKeys } from './env-bootstrap-dotenv.js';
+import {
+  REFUSAL_REASONS,
+  type BootstrapMode,
+  type RefusalReason,
+} from './env-bootstrap-vocabulary.js';
+
+// Re-exported so callers and tests read ONE vocabulary. Declaring these here
+// as unions is what let the test keep a stale parallel copy.
+export { REFUSAL_REASONS, type BootstrapMode, type RefusalReason };
 
 const NL = String.fromCharCode(10);
 
@@ -54,14 +71,7 @@ export const IDENTITY_ENV_VAR = 'SOPS_AGE_KEY_FILE';
 /** Conventional identity location; overridable via IDENTITY_ENV_VAR. */
 export const DEFAULT_IDENTITY_PATH = join(homedir(), '.config', 'sops', 'age', 'keys.txt');
 
-export type BootstrapMode = 'encrypt' | 'decrypt';
 
-export type RefusalReason =
-  | 'missing_binary'
-  | 'missing_identity'
-  | 'missing_encrypted'
-  | 'missing_plaintext'
-  | 'would_clobber_plaintext';
 
 export interface Preconditions {
   readonly sopsPresent: boolean;
@@ -69,6 +79,9 @@ export interface Preconditions {
   readonly identityFilePresent: boolean;
   readonly encryptedFilePresent: boolean;
   readonly plaintextFilePresent: boolean;
+  /** True when .env assigns some key more than once. Legal dotenv, illegal
+   *  YAML, and therefore ciphertext no recipient could ever open. */
+  readonly plaintextHasDuplicateKeys: boolean;
 }
 
 export type BootstrapDecision =
@@ -76,7 +89,10 @@ export type BootstrapDecision =
   | { readonly outcome: 'refused'; readonly reason: RefusalReason };
 
 /** PURE. Ordered fail-closed gate. Order matters: tooling first (its absence
- *  makes every later check meaningless), then mode-specific file state. */
+ *  makes every later check meaningless), then mode-specific file state, then
+ *  the CONTENT rule -- a file that exists but cannot survive the round trip is
+ *  worse than one that is missing, because the failure surfaces on another
+ *  machine at a later date. */
 export function decideBootstrap(mode: BootstrapMode, pre: Preconditions): BootstrapDecision {
   if (!pre.sopsPresent || !pre.agePresent) {
     return { outcome: 'refused', reason: 'missing_binary' };
@@ -84,6 +100,9 @@ export function decideBootstrap(mode: BootstrapMode, pre: Preconditions): Bootst
   if (mode === 'encrypt') {
     if (!pre.plaintextFilePresent) {
       return { outcome: 'refused', reason: 'missing_plaintext' };
+    }
+    if (pre.plaintextHasDuplicateKeys) {
+      return { outcome: 'refused', reason: 'duplicate_plaintext_keys' };
     }
     return { outcome: 'proceed' };
   }
@@ -119,6 +138,9 @@ export function describeRefusal(reason: RefusalReason): string {
       'No ' +
       PLAINTEXT_ENV_FILE +
       ' to encrypt. Refusing rather than writing an empty ciphertext over a good one.',
+    duplicate_plaintext_keys:
+      PLAINTEXT_ENV_FILE +
+      ' assigns a key more than once. dotenv allows this and YAML does not, so sops would write ciphertext that NO recipient can ever decrypt (getsops/sops/issues/851). Remove the redundant assignment -- dotenv keeps the LAST one -- and encrypt again.',
     would_clobber_plaintext:
       'A ' +
       PLAINTEXT_ENV_FILE +
@@ -181,6 +203,11 @@ function identityPath(): string {
   return fromEnv !== undefined && fromEnv.length > 0 ? fromEnv : DEFAULT_IDENTITY_PATH;
 }
 
+function plaintextHasDuplicates(): boolean {
+  if (!existsSync(PLAINTEXT_ENV_FILE)) return false;
+  return findDuplicateKeys(readFileSync(PLAINTEXT_ENV_FILE, 'utf-8')).length > 0;
+}
+
 function readPreconditions(): Preconditions {
   return {
     sopsPresent: binaryPresent('sops'),
@@ -188,6 +215,7 @@ function readPreconditions(): Preconditions {
     identityFilePresent: existsSync(identityPath()),
     encryptedFilePresent: existsSync(ENCRYPTED_ENV_FILE),
     plaintextFilePresent: existsSync(PLAINTEXT_ENV_FILE),
+    plaintextHasDuplicateKeys: plaintextHasDuplicates(),
   };
 }
 
@@ -201,6 +229,23 @@ function runSops(args: readonly string[]): { stdout: string; code: number } {
   // reachable here. status IS nullable: it is null when the child was killed by
   // a signal rather than exiting, which must read as failure, hence ?? 1.
   return { stdout: r.stdout, code: r.status ?? 1 };
+}
+
+/** Prove the ciphertext we just wrote can be read back.
+ *
+ *  Encryption reporting success is NOT evidence the artifact is usable: the
+ *  duplicate-key case wrote a file every recipient was permanently locked out
+ *  of, and sibling upstream defects do the same for an empty input and for a
+ *  double encrypt. Verifying costs one local decrypt and converts a silent,
+ *  deferred, cross-machine failure into an immediate one on the machine that
+ *  caused it.
+ *
+ *  A machine without an identity cannot verify -- it can still legitimately
+ *  encrypt for others -- so absence of a key is reported, not treated as a
+ *  failure of the artifact. */
+function verifyRoundTrip(): boolean | null {
+  if (!existsSync(identityPath())) return null;
+  return runSops(decryptArgs()).code === 0;
 }
 
 function decrypt(): number {
@@ -221,17 +266,44 @@ function decrypt(): number {
 }
 
 function encrypt(): number {
-  const decision = decideBootstrap('encrypt', readPreconditions());
+  const pre = readPreconditions();
+  const decision = decideBootstrap('encrypt', pre);
   if (decision.outcome === 'refused') {
     process.stderr.write('[env] ' + describeRefusal(decision.reason) + NL);
+    if (decision.reason === 'duplicate_plaintext_keys') {
+      const found = findDuplicateKeys(readFileSync(PLAINTEXT_ENV_FILE, 'utf-8'));
+      process.stderr.write(describeDuplicates(found) + NL);
+    }
     return 1;
   }
+  const existedBefore = pre.encryptedFilePresent;
   const r = runSops(encryptArgs());
   if (r.code !== 0) {
     process.stderr.write('[env] sops could not encrypt.' + NL);
     return 1;
   }
-  process.stderr.write('[env] wrote ' + ENCRYPTED_ENV_FILE + ' -- commit it' + NL);
+  const verified = verifyRoundTrip();
+  if (verified === false) {
+    // The artifact is unreadable. Leaving it on disk invites committing a file
+    // that locks the whole estate out, so a NEW one is removed rather than
+    // kept; an existing one is left for the operator to inspect against the
+    // copy in git rather than silently destroyed.
+    if (!existedBefore) unlinkSync(ENCRYPTED_ENV_FILE);
+    process.stderr.write(
+      '[env] wrote ciphertext that could NOT be decrypted back -- refusing to leave it. ' +
+        'Do not commit; check ' + PLAINTEXT_ENV_FILE + ' for content sops cannot round-trip.' + NL,
+    );
+    return 1;
+  }
+  if (verified === null) {
+    process.stderr.write(
+      '[env] wrote ' + ENCRYPTED_ENV_FILE + ' -- NOT verified (no identity on this machine)' + NL,
+    );
+    return 0;
+  }
+  process.stderr.write(
+    '[env] wrote ' + ENCRYPTED_ENV_FILE + ' and decrypted it back -- commit it' + NL,
+  );
   return 0;
 }
 
