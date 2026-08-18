@@ -7,7 +7,7 @@
 // to a single pickupName/deliveryName. Business invariant: 1-1 match between
 // driver-app and the dispatch form workflow.
 import { describe, it, expect, vi } from 'vitest';
-import { createListAssignedRow } from '@fleet/test-fixtures';
+import { createListAssignedRow, createListAssignedStop } from '@fleet/test-fixtures';
 import { AssignmentsClient } from '../src/assignments/assignments-client.js';
 
 // Built THROUGH ListAssignedRowSchema: the previous literal omitted
@@ -18,11 +18,18 @@ const multiStopRow = createListAssignedRow({
   plannedStartAt: '2026-05-10T08:00:00Z', startedAt: null, completedAt: null,
   plate: '62H-99999', orderRef: 'XTT.05-007', customerName: 'ABC',
   pickupName: 'Kho nhận 1', deliveryName: 'Kho giao',
+  // Stops go through the STOP factory, not inline literals. proof is
+  // .default(null) on ListAssignedRowStopSchema, so it is optional on input
+  // and REQUIRED on the z.infer output type -- a literal annotated as the
+  // contract type must supply it, while the factory parses the schema and
+  // lets the default apply. That asymmetry is what broke these four lines
+  // when this arc added proof; routing through the factory means the next
+  // contract field will not break them again.
   stops: [
-    { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-10T08:00:00Z', warehouseName: 'Kho nhận 1', arrivedAt: null, departedAt: null },
-    { sequence: 2, stopType: 'pickup', plannedAt: '2026-05-10T09:00:00Z', warehouseName: 'Kho nhận 2', arrivedAt: null, departedAt: null },
-    { sequence: 3, stopType: 'pickup', plannedAt: '2026-05-10T10:00:00Z', warehouseName: 'Kho nhận 3', arrivedAt: null, departedAt: null },
-    { sequence: 4, stopType: 'delivery', plannedAt: '2026-05-10T14:00:00Z', warehouseName: 'Kho giao', arrivedAt: null, departedAt: null },
+    createListAssignedStop({ sequence: 1, stopType: 'pickup', plannedAt: '2026-05-10T08:00:00Z', warehouseName: 'Kho nhận 1' }),
+    createListAssignedStop({ sequence: 2, stopType: 'pickup', plannedAt: '2026-05-10T09:00:00Z', warehouseName: 'Kho nhận 2' }),
+    createListAssignedStop({ sequence: 3, stopType: 'pickup', plannedAt: '2026-05-10T10:00:00Z', warehouseName: 'Kho nhận 3' }),
+    createListAssignedStop({ sequence: 4, stopType: 'delivery', plannedAt: '2026-05-10T14:00:00Z', warehouseName: 'Kho giao' }),
   ],
 });
 function clientFor(payload: unknown): AssignmentsClient {

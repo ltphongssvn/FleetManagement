@@ -4,12 +4,15 @@
   "version": "0.1.0",
   "private": true,
   "description": "Intermodal Fleet Platform — pnpm/Turborepo monorepo root",
-  "packageManager": "pnpm@11.21.0+sha512.521705bce689924eac72f5a3587122f362689ef6571e55ba80076fd637c11132ecffada26fad4ea79c485bfddbfd3d5a2a5b05805a77e893de71ec8a6cca3bb1",
+  "packageManager": "pnpm@11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621",
   "engines": {
     "node": ">=22.0.0 <25.0.0",
     "pnpm": ">=11.0.0 <12.0.0"
   },
   "scripts": {
+    "prepare": "tsx scripts/bootstrap-machine-cli.ts --soft",
+    "bootstrap:machine": "tsx scripts/bootstrap-machine-cli.ts",
+    "doctor": "tsx scripts/machine-doctor-cli.ts",
     "build": "turbo run build --concurrency=50%",
     "lint": "turbo run lint --concurrency=50%",
     "typecheck": "turbo run typecheck --concurrency=50%",
@@ -54,6 +57,7 @@
     "bump:turbo": "tsx scripts/bump-turbo.ts",
     "audit:ci-minutes": "tsx scripts/ci/ci-minutes-fetch.ts",
     "worktree:close": "tsx scripts/worktree-close-cli.ts",
+    "worktree:preserve": "tsx scripts/worktree-preserve-cli.ts",
     "deps:reconcile": "tsx scripts/deps-reconcile-cli.ts",
     "git:merge-drivers": "tsx scripts/git-merge-drivers.ts",
     "worktree:sweep": "tsx scripts/sweep-worktrees-cli.ts",
@@ -73,6 +77,7 @@
     "lint:scripts": "eslint scripts --max-warnings=0",
     "eas:ios:device": "pnpm exec turbo run eas:build:ios:interactive --filter=@fleet/driver-app --ui=tui",
     "eas:freshness": "tsx scripts/eas-build-freshness-gate.ts",
+    "worktree:stale-gate": "tsx scripts/stale-worktree-gate-cli.ts",
     "terminal:census": "tsx scripts/terminal-registry-cli.ts census",
     "terminal:claim": "tsx scripts/terminal-registry-cli.ts claim",
     "lint:e2e": "eslint e2e --max-warnings=0",

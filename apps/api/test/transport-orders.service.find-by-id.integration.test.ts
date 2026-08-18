@@ -56,7 +56,7 @@ describe('@fleet/api - TransportOrdersService.findById (integration)', () => {
     expect(row.state).toBe('planned');
     expect(row.plannedStartAt).toBe('2026-05-01T07:00:00.000Z');
     expect(row.stops).toHaveLength(2);
-    expect(row.stops[0]).toEqual({ sequence: 1, stopType: 'pickup', plannedAt: '2026-05-01T08:00:00.000Z', warehouseName: null, arrivedAt: null, departedAt: null });
+    expect(row.stops[0]).toEqual({ sequence: 1, stopType: 'pickup', plannedAt: '2026-05-01T08:00:00.000Z', warehouseName: null, arrivedAt: null, departedAt: null, proof: null });
     // T9: review producer serializes arrived/departed timestamps once set.
     let row2: Awaited<ReturnType<TransportOrdersService['findById']>> | undefined;
     await withTxIsolation(testDb, async (tx) => {

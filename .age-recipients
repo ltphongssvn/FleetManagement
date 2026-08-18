@@ -20,14 +20,25 @@
 #   protect ciphertext that machine already held. Git history keeps the old
 #   blob, so revocation without rotation is theatre.
 #
-# ROSTER (three machines as of 2026-08-09):
-#   Thanhs-MBP-2       Apple Silicon MacBook Pro, macOS 15.7  -- registered
-#   MacBook01TBsMBP    Apple Silicon MacBook Pro, 64GB        -- PENDING
-#   LAPTOP-3HQ8DPON    WSL2 Ubuntu, canonical clone           -- PENDING
+# ROSTER STATUS IS NOT PROSE. env-bootstrap-roster.guard.test.ts asserts that
+# .sops.yaml is a byte-identical render of the keys below, so the two files
+# cannot drift. A machine is a recipient if and only if its key appears here;
+# no comment, table or status word grants access. The previous revision of this
+# header carried a status column marking two machines as not-yet-added, which
+# read as a roster of three while exactly one key was listed -- prose doing the
+# job of an assertion.
 #
-# The two PENDING machines cannot decrypt until their public keys are appended
-# here and env:encrypt is re-run. That is the intended fail-closed behaviour:
-# a machine gains access by being added to this list, never by receiving a file.
+# ESTATE, 2026-08-11. Four machines; recipients are exactly the keys below.
+#   Thanhs-MBP-2            Apple Silicon MacBook Pro, macOS 15.7
+#   Thanhs-MacBook-Pro-3    Apple Silicon MacBook Pro, macOS 26 Tahoe
+#   MacBook01TBsMBP         Apple Silicon MacBook Pro, 64GB
+#   LAPTOP-3HQ8DPON         WSL2 Ubuntu
+# A machine absent from the key list below cannot decrypt and must run the ADD
+# A MACHINE steps from its own console. That is fail-closed by design: access
+# is granted by publishing a public key, never by receiving a file.
 
 # Thanhs-MBP-2 (Apple Silicon MacBook Pro, macOS 15.7.7)
 age1022fpw0nt5xdw5txz86cl5whgeq2u3cxhtx9anuvz0twawyh84lqwl0etj
+
+# Thanhs-MacBook-Pro-3 (Apple Silicon MacBook Pro, macOS 26 Tahoe)
+age1wnuaupcuut6xkm4xr2v2sylpqe3746fa7rthgvqjenlx06krt9us4fdh66

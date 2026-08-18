@@ -19,6 +19,11 @@
 // 'state' is z.string() (NOT the road-run enum) to exactly match the API DTO,
 // which types this field as a plain string at this boundary.
 import { z } from 'zod';
+// Phieu Can proof reuses the ONE canonical StopProofSchema already defined for
+// the board stop (dispatch-stop-view-contract). Importing it — rather than
+// redeclaring the shape here — is what keeps the review surface and the board
+// surface from drifting apart again, which is the defect this fixes.
+import { StopProofSchema } from './dispatch-stop-view-contract.js';
 
 export const ListAssignedRowStopSchema = z.object({
   sequence: z.number().int(),
@@ -27,6 +32,13 @@ export const ListAssignedRowStopSchema = z.object({
   warehouseName: z.union([z.string(), z.null()]),
   arrivedAt: z.union([z.string(), z.null()]),
   departedAt: z.union([z.string(), z.null()]),
+  // EXPAND-only (2026): the committed Phieu Can proof for this stop, identical
+  // in shape to DispatchBoardStopSchema.proof. A completed order whose stops
+  // carry photos must show the captured weight on the REVIEW view, not the
+  // arrival-only fallback. Optional + .default(null) so any producer predating
+  // this field still parses (tolerant reader); the review producer sends the
+  // real value.
+  proof: z.union([StopProofSchema, z.null()]).default(null),
 });
 export type ListAssignedRowStop = z.infer<typeof ListAssignedRowStopSchema>;
 
