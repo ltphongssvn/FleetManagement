@@ -12,6 +12,10 @@
 //   - decrypt with no identity file -> sops prompts or hangs in CI.
 //   - encrypt when plaintext is absent -> writes an EMPTY encrypted file over a
 //     good one, silently destroying every machine's ability to bootstrap.
+//   - encrypt with a DUPLICATED key -> writes ciphertext that no recipient can
+//     ever decrypt. Observed 2026-08-14: .env carried FLEET_SKIP_ANDROID twice,
+//     encryption reported success, and every decrypt failed with "mapping key
+//     already defined". dotenv permits repeat assignment; YAML forbids it.
 //   - decrypt over an existing .env -> clobbers local edits that were never
 //     encrypted, which is data loss the user cannot recover.
 //
@@ -21,9 +25,17 @@
 // the tests passed while tsc rejected them), and the helper is better than a
 // cast: a cast would assert the shape the author expected, while narrowing
 // PROVES the outcome really was refused before the reason is read at all.
+//
+// VOCABULARY NOTE. The reason list is IMPORTED, never re-listed. This file used
+// to keep a local ALL_REASONS array mirroring the union in the module -- one
+// vocabulary, two declarations -- and adding duplicate_plaintext_keys would
+// have left it stale while the three coverage tests below went on passing over
+// a set one member short. The frozen as-const array in
+// env-bootstrap-vocabulary.ts is now the single definition.
 import { describe, it, expect } from 'vitest';
 import {
   IDENTITY_ENV_VAR,
+  REFUSAL_REASONS,
   REQUIRED_BINARIES,
   type BootstrapDecision,
   type Preconditions,
@@ -38,15 +50,8 @@ const OK_PRECONDITIONS: Preconditions = Object.freeze({
   identityFilePresent: true,
   encryptedFilePresent: true,
   plaintextFilePresent: false,
+  plaintextHasDuplicateKeys: false,
 });
-
-const ALL_REASONS: readonly RefusalReason[] = Object.freeze([
-  'missing_binary',
-  'missing_identity',
-  'missing_encrypted',
-  'missing_plaintext',
-  'would_clobber_plaintext',
-]);
 
 /** Narrow the union and assert the reason. Fails loudly if the decision was
  *  'proceed', so a regression that silently starts allowing a dangerous path
@@ -119,6 +124,16 @@ describe('decideBootstrap -- decrypt path', () => {
       'missing_binary',
     );
   });
+
+  // Duplicates are an ENCRYPT-side rule: on decrypt the ciphertext is the
+  // input, and a .env about to be overwritten cannot invalidate it.
+  it('ignores duplicate plaintext keys, which are not a decrypt concern', () => {
+    const d = decideBootstrap('decrypt', {
+      ...OK_PRECONDITIONS,
+      plaintextHasDuplicateKeys: true,
+    });
+    expect(d.outcome).toBe('proceed');
+  });
 });
 
 describe('decideBootstrap -- encrypt path', () => {
@@ -130,6 +145,32 @@ describe('decideBootstrap -- encrypt path', () => {
   it('refuses when plaintext is absent rather than writing an empty ciphertext', () => {
     expectRefused(
       decideBootstrap('encrypt', { ...OK_PRECONDITIONS, plaintextFilePresent: false }),
+      'missing_plaintext',
+    );
+  });
+
+  // THE 2026-08-14 DEFECT. Encryption would succeed and produce an artifact
+  // that locks out every recipient permanently.
+  it('REFUSES when the plaintext assigns a key more than once', () => {
+    expectRefused(
+      decideBootstrap('encrypt', {
+        ...OK_PRECONDITIONS,
+        plaintextFilePresent: true,
+        plaintextHasDuplicateKeys: true,
+      }),
+      'duplicate_plaintext_keys',
+    );
+  });
+
+  // Ordering: a file that does not exist cannot have duplicate keys, so the
+  // presence check must dominate or the operator gets the wrong remedy.
+  it('reports a MISSING plaintext before a duplicate-key verdict', () => {
+    expectRefused(
+      decideBootstrap('encrypt', {
+        ...OK_PRECONDITIONS,
+        plaintextFilePresent: false,
+        plaintextHasDuplicateKeys: true,
+      }),
       'missing_plaintext',
     );
   });
@@ -154,8 +195,12 @@ describe('decideBootstrap -- encrypt path', () => {
 });
 
 describe('describeRefusal', () => {
+  it('covers every reason the vocabulary declares', () => {
+    expect(REFUSAL_REASONS.length).toBeGreaterThan(5);
+  });
+
   it('gives an actionable message for every refusal reason', () => {
-    for (const reason of ALL_REASONS) {
+    for (const reason of REFUSAL_REASONS) {
       const msg = describeRefusal(reason);
       expect(msg.length).toBeGreaterThan(20);
       expect(msg).not.toContain('undefined');
@@ -163,13 +208,21 @@ describe('describeRefusal', () => {
   });
 
   it('never echoes secret material in any refusal message', () => {
-    for (const reason of ALL_REASONS) {
+    for (const reason of REFUSAL_REASONS) {
       expect(describeRefusal(reason)).not.toContain('AGE-SECRET-KEY');
     }
   });
 
   it('gives a DISTINCT message per reason -- no copy-paste collisions', () => {
-    const messages = ALL_REASONS.map(describeRefusal);
-    expect(new Set(messages).size).toBe(ALL_REASONS.length);
+    const messages = REFUSAL_REASONS.map(describeRefusal);
+    expect(new Set(messages).size).toBe(REFUSAL_REASONS.length);
+  });
+
+  // The duplicate-key message must state the CONSEQUENCE, or it reads as
+  // pedantry and the operator "fixes" it by deleting the wrong line.
+  it('explains that a duplicate key yields undecryptable ciphertext', () => {
+    const msg = describeRefusal('duplicate_plaintext_keys');
+    expect(msg).toContain('decrypt');
+    expect(msg).toContain('LAST');
   });
 });
