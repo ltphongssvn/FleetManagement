@@ -23,22 +23,25 @@
 # ROSTER STATUS IS NOT PROSE. env-bootstrap-roster.guard.test.ts asserts that
 # .sops.yaml is a byte-identical render of the keys below, so the two files
 # cannot drift. A machine is a recipient if and only if its key appears here;
-# no comment, table or status word grants access. The previous revision of this
-# header carried a status column marking two machines as not-yet-added, which
-# read as a roster of three while exactly one key was listed -- prose doing the
-# job of an assertion.
+# no comment, table or status word grants access.
 #
-# ESTATE, 2026-08-11. Four machines; recipients are exactly the keys below.
-#   Thanhs-MBP-2            Apple Silicon MacBook Pro, macOS 15.7
-#   Thanhs-MacBook-Pro-3    Apple Silicon MacBook Pro, macOS 26 Tahoe
-#   MacBook01TBsMBP         Apple Silicon MacBook Pro, 64GB
-#   LAPTOP-3HQ8DPON         WSL2 Ubuntu
-# A machine absent from the key list below cannot decrypt and must run the ADD
-# A MACHINE steps from its own console. That is fail-closed by design: access
-# is granted by publishing a public key, never by receiving a file.
+# THERE IS NO ESTATE LIST HERE, DELIBERATELY. Two previous revisions carried
+# one. The first marked machines with a status column and read as a roster of
+# three while one key was listed. The second replaced the column with a plain
+# roll-call and read as an estate of four while two keys were listed -- the same
+# drift in a new costume, because a hand-maintained list beside the grants is a
+# second source of truth for one fact. The estate is now DERIVED from the
+# (host, key) pairs below by parseRecipientEntries, and the guard REFUSES any
+# machine named in a comment that holds no key. To see the estate, read the
+# keys; there is nowhere else for it to be written down and go stale.
+#
+# A machine absent below cannot decrypt and must run the ADD A MACHINE steps
+# from its own console. That is fail-closed by design: access is granted by
+# publishing a public key, never by receiving a file.
 
 # Thanhs-MBP-2 (Apple Silicon MacBook Pro, macOS 15.7.7)
 age1022fpw0nt5xdw5txz86cl5whgeq2u3cxhtx9anuvz0twawyh84lqwl0etj
-
 # Thanhs-MacBook-Pro-3 (Apple Silicon MacBook Pro, macOS 26 Tahoe)
 age1wnuaupcuut6xkm4xr2v2sylpqe3746fa7rthgvqjenlx06krt9us4fdh66
+# MacBook01TBsMBP (Apple Silicon MacBook Pro, 64GB, macOS 26 Tahoe)
+age1dhkddmzf5rv0gxq36r4ewuf45mzepyrt36wdgw4d3qzqmu3frd2qnlxzud
