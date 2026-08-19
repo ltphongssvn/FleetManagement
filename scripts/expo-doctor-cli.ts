@@ -10,9 +10,18 @@
 // from an app's direct and nested dependencies rather than a node_modules scan.
 // Acting on the wrong oracle would have added a dependency nothing needs.
 //
-// What the right oracle DID find: 15 packages drifted from the SDK pins,
-// including expo and react-native. Invisible to knip, eslint, tsc and every
-// gate this repo owns, because nothing asked.
+// What the right oracle DID find: 26 packages drifted from the SDK pins across
+// the two apps, including expo and react-native. Invisible to knip, eslint,
+// tsc and every gate this repo owns, because nothing asked.
+//
+// THE BINARY IS LOCAL AND LOCKED. The first revision spawned
+// `npx --yes expo-doctor@latest`, which resolves at EXECUTION TIME to whatever
+// the registry served moments earlier -- no lockfile entry, no integrity hash,
+// no review, and outside the minimumReleaseAge cooldown this workspace already
+// enforces. expo-doctor is now a PINNED devDependency of each Expo app, so
+// pnpm exec resolves it from node_modules and makes no network call. The
+// "Command not found" that pushed the first revision toward npx was the tool
+// reporting it had never been declared, not an argument for fetching it.
 //
 // Every decision lives in expo-doctor.ts, which is pure and unit-tested against
 // REAL output fixtures; this file learns facts and prints them.
@@ -47,16 +56,19 @@ function doctorFor(app: string): DoctorSummary {
     errline(app + ': directory not found');
     return { passed: 0, total: 0, missingPeers: [], outdated: 0 };
   }
-  // npx, not pnpm exec: expo-doctor is deliberately not a declared dependency
-  // (its checks track the SDK, so a pinned copy answers with stale rules), and
-  // `pnpm exec expo-doctor` fails with "Command not found" -- verified.
-  const run = spawnSync('npx', [...doctorArgs()], {
+  // pnpm exec, NEVER npx: it resolves expo-doctor from this app's node_modules,
+  // where the lockfile pinned it with an integrity hash and the workspace
+  // cooldown policy already vetted it. npx would fetch from the registry at run
+  // time, executing content no lockfile, review or policy ever saw.
+  //
+  // cwd is the APP, because expo-doctor reads that app's manifest and app.json.
+  const run = spawnSync('pnpm', ['exec', ...doctorArgs()], {
     cwd,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   if (run.error !== undefined) {
-    errline(app + ': could not spawn npx -- ' + run.error.message);
+    errline(app + ': could not spawn pnpm -- ' + run.error.message);
     return { passed: 0, total: 0, missingPeers: [], outdated: 0 };
   }
   // The doctor exits NON-ZERO whenever any check fails, including for drift
@@ -92,6 +104,8 @@ function mainExpoDoctor(): number {
   } else {
     errline('CANNOT VERIFY: expo-doctor output could not be read.');
     errline('A broken instrument is NOT a clean bill of health.');
+    errline('If pnpm reported a missing command, expo-doctor is not installed:');
+    errline('it is a PINNED devDependency of each Expo app -- run pnpm install.');
   }
   return verdict;
 }
