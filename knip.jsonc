@@ -56,10 +56,31 @@
 // as "unlisted" would be a second, weaker answer to a question already
 // answered properly.
 //
+// ignoreDependencies, PER WORKSPACE, is the same classification fix one
+// level down: a package that is DECLARED and USED, but consumed by SPAWNING
+// A BINARY rather than by importing a module, is invisible to an
+// import-graph analyser by construction.
+//
+// expo-doctor is exactly that, and this entry exists because PR #631
+// created the false positive it answers. That PR moved the Expo dependency
+// oracle off `npx expo-doctor@latest` -- a run-time registry fetch with no
+// lockfile entry, no integrity hash and no review -- onto an EXACT
+// devDependency of each Expo app, invoked through pnpm exec by
+// scripts/expo-doctor-cli.ts. Pinning it was the security fix; the cost is
+// that knip sees a declared package no file imports and calls it unused.
+// Removing it to satisfy knip would restore the supply-chain hole, so the
+// tool's model is what must be corrected, not the dependency.
+//
+// SCOPED TO THE TWO EXPO WORKSPACES rather than declared globally: a
+// root-level ignore would also exempt any future workspace that declares
+// expo-doctor and genuinely does not use it, which is precisely the finding
+// this gate should still make.
+//
 // drizzle-kit is deliberately NOT ignored: it is a real finding.
 // scripts/db-generate.ts invokes it from the ROOT, but it is declared as a
 // devDependency of apps/driver-app -- a genuine misplacement to fix, not
-// suppress.
+// suppress. The distinction from expo-doctor is the point: expo-doctor is
+// declared in the workspace that uses it, drizzle-kit is not.
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignoreBinaries": [
@@ -116,6 +137,9 @@
       "project": [
         "src/**/*.{ts,tsx}",
         "app/**/*.{ts,tsx}"
+      ],
+      "ignoreDependencies": [
+        "expo-doctor"
       ]
     },
     "apps/owner-app": {
@@ -125,6 +149,9 @@
       "project": [
         "src/**/*.{ts,tsx}",
         "app/**/*.{ts,tsx}"
+      ],
+      "ignoreDependencies": [
+        "expo-doctor"
       ]
     },
     "workers/main-worker": {
