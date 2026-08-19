@@ -28,6 +28,14 @@
 //
 // Raising the floor is deliberate: bump FLOOR in the SAME commit as the pin, so
 // the guard and the manifest move together and a downgrade fails the PR gate.
+//
+// THIS GUARD IS ONE OF A PAIR (2026-08-18). It answers "is the pin at least the
+// floor" and reads package.json alone -- which is exactly why PR #602 could
+// raise the pin to ^2.10.10, raise this floor in the same commit as required,
+// and still leave every minimumReleaseAgeExclude entry in pnpm-workspace.yaml
+// at 2.10.9. turbo-release-age.guard.test.ts answers the other question -- does
+// the exclude list AGREE with whatever the pin currently is -- and //#bump:turbo
+// now writes those seven entries itself, so the omission cannot recur.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -39,10 +47,9 @@ const repoRoot = resolve(here, '..');
 // Minimum acceptable turbo version. Raised WITH the pin in the same commit, as
 // this file header requires: a floor left behind would let a later revert to
 // an older turbo pass the gate silently, which is the drift the guard exists
-// to catch. 2.10.8 was the previous floor (pnpm prune dropping root and
-// aliased dependencies, which the api Docker image build depends on); every
-// release since is cumulative, so the floor tracks the pin.
-const FLOOR = [2, 10, 10] as const;
+// to catch. 2.10.10 was the previous floor; every release since is cumulative,
+// so the floor tracks the pin.
+const FLOOR = [2, 10, 11] as const;
 const FLOOR_TEXT = FLOOR.join('.');
 
 // `turbo` is a NAMED optional property, not Record<string, string>.
