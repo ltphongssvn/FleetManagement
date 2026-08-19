@@ -31,6 +31,43 @@
 # then discarded. Evidence must be captured by the step that fails; a follow-up
 # step is a supplement, never a capture strategy.
 # Guarded by apps/api/test/ci-workflow-failure-diagnostics.test.ts.
+#
+# NO apt-get IN THIS WORKFLOW (2026-08-19). The browser install ran
+#   pnpm exec playwright install chromium --with-deps
+# and --with-deps shells out to apt-get. Twice in one day -- PR #612 and
+# PR #622 -- the job hung there and was killed at the 30-minute ceiling, with
+# the log showing apt retrying azure.archive.ubuntu.com:
+#   Ign:2 http://azure.archive.ubuntu.com/ubuntu noble InRelease   (x4)
+# Nothing else in either run was near that path; both were post-merge E2E runs
+# that blocked promote while develop sat green everywhere else.
+#
+# THIS IS A KNOWN, UNFIXABLE-UPSTREAM DEFECT. Playwright's own issue #23388
+# records it: "Sometimes azure.archive.ubuntu.com is unstable. In most Node.js
+# applications we never have a need to run apt-get install except when
+# installing Playwright browsers. This has been one of the most common cause of
+# our build failures" -- and the maintainer response to making the pipeline not
+# rely on apt is "It's unfortunately not possible", with the recommendation
+# being to avoid the apt path entirely. actions/runner-images #11347 reports the
+# same hang running ~4 HOURS before cancellation.
+#
+# --with-deps IS UNNECESSARY HERE. The ubuntu-latest image ships Chrome,
+# Chromium, Edge and Firefox preinstalled, so the shared libraries Playwright
+# asks apt for (libnss3, libatk-bridge2.0-0, libdrm2, libxcomposite1,
+# libxdamage1, libxrandr2, libgbm1) are already present. The apt call was
+# reinstalling what the image already had, and it was the only unreliable step
+# in the job.
+#
+# THE OFFICIAL PLAYWRIGHT CONTAINER was considered and REJECTED, which is the
+# other remedy the 2026 sources recommend. mcr.microsoft.com/playwright ships
+# browsers and deps preinstalled and removes apt the same way -- but this job
+# drives docker compose build/up and docker exec against the host daemon, and
+# running that from inside a container needs docker-in-docker. Trading a flaky
+# apt for a socket-mount is a larger blast radius than the problem.
+#
+# THE STEP IS BOUNDED so a future stall fails fast and legibly rather than
+# eating the job's whole budget. A browser download is seconds on a warm cache
+# and under two minutes cold; five minutes is generous and still 6x tighter than
+# the job ceiling that previously absorbed the hang.
 name: E2E (Playwright)
 on:
   push:
@@ -57,7 +94,23 @@ jobs:
       # Playwright-host level. Its dist/ is gitignored and built per-job, so build it
       # (and any workspace deps it needs) before Playwright resolves the import.
       - run: pnpm --filter @fleet/sync-protocol... run build
-      - run: pnpm exec playwright install chromium --with-deps
+      # Browser binaries only. NO --with-deps: see the header note -- that flag
+      # calls apt-get, which hung this job twice at the 30-minute ceiling on an
+      # unreachable azure.archive.ubuntu.com mirror, and the libraries it
+      # installs already ship in the ubuntu-latest image.
+      #
+      # Cached by Playwright version, so a warm runner skips the download
+      # entirely and a version bump invalidates the key by construction.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-playwright-
+      - name: Install Chromium (no apt)
+        timeout-minutes: 5
+        run: pnpm exec playwright install chromium
       - name: Generate ephemeral ES256 keypair + disposable .env
         run: |
           openssl ecparam -name prime256v1 -genkey -noout -out /tmp/ec-priv.pem
