@@ -6,11 +6,22 @@
 // hand-written copies. eslint no-unused-vars cannot see this: it works
 // within a file, never across the import graph.
 //
-// ADOPTION STAGE 1b of 3 (knip.dev/guides/adopt-gradually): rules are all
-// warn (gray, non-failing) while the config is tuned. The first run emitted
-// 6 configuration hints; every one is closed below, because on a legacy
-// codebase most first-run noise is GAPS in what Knip can reach, not real
-// findings, and burning down noise trains everyone to ignore the tool.
+// ADOPTION STAGE 2 of 3 (knip.dev/guides/adopt-gradually). The documented
+// burn-down order is files -> dependencies -> exports, because one unused
+// FILE hides its own exports and deps, so files must reach zero first. It
+// has: `knip --files` reports "Excellent, Knip found no issues", so that
+// rule is PROMOTED TO ERROR here and a newly-orphaned file now fails the
+// task instead of adding a gray line nobody reads.
+//
+// The remaining rules stay warn while their config is tuned. That is the
+// same adoption reasoning //#typecheck:scripts documents: it stayed ungated
+// at 89 errors precisely so the gate would not be born red, and was promoted
+// only when the count reached zero by fixing every error at its root.
+//
+// NOT YET WIRED INTO __ci_fast__. That is stage 3, and it happens when the
+// task as a whole can pass -- promoting one rule while others still warn
+// makes the task's exit code meaningful for that rule alone, which is
+// exactly the incremental ratchet the guide prescribes.
 //
 // Entry-point decisions, each from an observed hint rather than assumption:
 //   apps/api            src/main.ts REMOVED -- redundant, the plugin
@@ -30,10 +41,22 @@
 //                       imports are followed (hint: compiled extension
 //                       excluded by project).
 //
-// ignoreBinaries lists SYSTEM binaries only -- adb (Android platform-tools),
-// flock (util-linux) and railway (Railway CLI) are installed on the host,
-// not resolvable from any package.json, so reporting them is a category
-// error. drizzle-kit is deliberately NOT ignored: it is a real finding.
+// ignoreBinaries lists SYSTEM binaries only -- tools installed on the HOST
+// and resolvable from no package.json, so reporting them is a category
+// error rather than a finding. adb (Android platform-tools), flock
+// (util-linux) and railway (Railway CLI) were the original three; four more
+// were added 2026-08-19 and every one is a host tool //#doctor already
+// verifies as a machine CAPABILITY:
+//   pre-commit  the hook framework bootstrap:machine installs
+//   sops        SOPS, spawned by env-bootstrap-cli for decrypt/encrypt
+//   age-keygen  the age identity tool machine-doctor probes for
+//   eas         the Expo CLI the build-freshness gate queries
+// A machine missing any of them gets a named remediation from //#doctor,
+// which is the right instrument for a host capability; knip reporting them
+// as "unlisted" would be a second, weaker answer to a question already
+// answered properly.
+//
+// drizzle-kit is deliberately NOT ignored: it is a real finding.
 // scripts/db-generate.ts invokes it from the ROOT, but it is declared as a
 // devDependency of apps/driver-app -- a genuine misplacement to fix, not
 // suppress.
@@ -41,11 +64,15 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignoreBinaries": [
     "adb",
+    "age-keygen",
+    "eas",
     "flock",
-    "railway"
+    "pre-commit",
+    "railway",
+    "sops"
   ],
   "rules": {
-    "files": "warn",
+    "files": "error",
     "dependencies": "warn",
     "devDependencies": "warn",
     "unlisted": "warn",
