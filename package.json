@@ -78,6 +78,7 @@
     "lint:scripts": "eslint scripts --max-warnings=0",
     "eas:ios:device": "pnpm exec turbo run eas:build:ios:interactive --filter=@fleet/driver-app --ui=tui",
     "eas:freshness": "tsx scripts/eas-build-freshness-gate.ts",
+    "expo:doctor": "tsx scripts/expo-doctor-cli.ts",
     "worktree:stale-gate": "tsx scripts/stale-worktree-gate-cli.ts",
     "terminal:census": "tsx scripts/terminal-registry-cli.ts census",
     "terminal:claim": "tsx scripts/terminal-registry-cli.ts claim",

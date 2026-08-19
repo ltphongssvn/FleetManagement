@@ -1,0 +1,192 @@
+// scripts/expo-doctor.test.ts
+// The rules that decide whether an Expo app's dependencies are sound.
+//
+// FIXTURES ARE REAL OUTPUT, not invented. The passing case is this repo's own
+// driver-app run on 2026-08-19; the missing-peer case is the verbatim shape a
+// June session hit here (expo-constants required by expo-router, since fixed).
+// A parser tested against imagined input proves only that it matches the
+// imagination -- the lesson the estate porcelain parser already records.
+import { describe, it, expect } from 'vitest';
+import {
+  DOCTOR_EXIT,
+  EXPO_APPS,
+  describeDoctor,
+  doctorArgs,
+  doctorVerdict,
+  parseDoctorSummary,
+  type DoctorSummary,
+} from './expo-doctor.js';
+
+const NL = String.fromCharCode(10);
+
+/** driver-app, 2026-08-19: 15 packages drifted, no missing peer. */
+const DRIFTED = [
+  '19/20 checks passed. 1 checks failed. Possible issues detected:',
+  '✖ Check that packages match versions required by installed Expo SDK',
+  'expo                   ~55.0.29  55.0.26',
+  'react-native           0.83.10   0.83.6',
+  '15 packages out of date.',
+].join(NL);
+
+/** The June shape: a native peer absent, which Expo calls a crash risk. */
+const MISSING_PEER = [
+  '18/19 checks passed. 1 checks failed. Possible issues detected:',
+  '✖ Check that required peer dependencies are installed',
+  'Missing peer dependency: expo-constants',
+  'Required by: expo-router',
+  'Your app may crash outside of Expo Go without this dependency.',
+].join(NL);
+
+const CLEAN = '20/20 checks passed. No issues detected!';
+
+describe('EXPO_APPS names the Expo workspaces only', () => {
+  it('covers both native apps', () => {
+    expect([...EXPO_APPS].sort()).toEqual(['apps/driver-app', 'apps/owner-app']);
+  });
+
+  // ops-web is Next.js. Running expo-doctor there would be a category error,
+  // the same shape as auditing a deploy tree for a standalone bundle.
+  it('EXCLUDES ops-web, which is not an Expo app', () => {
+    expect(EXPO_APPS.some((a) => a.includes('ops-web'))).toBe(false);
+  });
+
+  it('is frozen, so the target set cannot widen at runtime', () => {
+    expect(Object.isFrozen(EXPO_APPS)).toBe(true);
+  });
+});
+
+describe('doctorArgs runs the published CLI', () => {
+  // Expo's own advice is expo-doctor@latest: its checks track the SDK, so a
+  // lockfile-pinned copy would answer with last quarter's rules.
+  it('pins to @latest rather than a lockfile version', () => {
+    expect(doctorArgs()).toContain('expo-doctor@latest');
+  });
+
+  // --yes suppresses the install prompt. Without it the CLI can block on
+  // stdin, which is exactly how secrets:baseline hung for eight hours.
+  it('passes --yes so it can never block on stdin', () => {
+    expect(doctorArgs()).toContain('--yes');
+  });
+});
+
+describe('parseDoctorSummary reads real output', () => {
+  it('reads the check ratio', () => {
+    const s = parseDoctorSummary(DRIFTED);
+    expect({ passed: s.passed, total: s.total }).toEqual({ passed: 19, total: 20 });
+  });
+
+  it('reads the out-of-date package count', () => {
+    expect(parseDoctorSummary(DRIFTED).outdated).toBe(15);
+  });
+
+  it('finds NO missing peer in a drift-only run', () => {
+    expect(parseDoctorSummary(DRIFTED).missingPeers).toEqual([]);
+  });
+
+  it('names the missing peer when one is reported', () => {
+    expect(parseDoctorSummary(MISSING_PEER).missingPeers).toEqual(['expo-constants']);
+  });
+
+  it('reads a fully clean run', () => {
+    const s = parseDoctorSummary(CLEAN);
+    expect({ passed: s.passed, total: s.total, peers: s.missingPeers.length })
+      .toEqual({ passed: 20, total: 20, peers: 0 });
+  });
+
+  it('collects SEVERAL missing peers, not just the first', () => {
+    const two = MISSING_PEER + NL + 'Missing peer dependency: react-native-worklets';
+    expect(parseDoctorSummary(two).missingPeers)
+      .toEqual(['expo-constants', 'react-native-worklets']);
+  });
+
+  // A parse that silently yields zero from real output is the confident zero
+  // this repo refuses; total:0 is the signal the verdict treats as unreadable.
+  it('yields total 0 for unparseable output, the unreadable signal', () => {
+    expect(parseDoctorSummary('command not found').total).toBe(0);
+  });
+
+  it('yields total 0 for empty output', () => {
+    expect(parseDoctorSummary('').total).toBe(0);
+  });
+});
+
+describe('doctorVerdict: a missing native peer BLOCKS', () => {
+  const clean = parseDoctorSummary(CLEAN);
+  const drifted = parseDoctorSummary(DRIFTED);
+  const missing = parseDoctorSummary(MISSING_PEER);
+
+  it('passes when every app is clean', () => {
+    expect(doctorVerdict([clean, clean])).toBe(DOCTOR_EXIT.ok);
+  });
+
+  // THE LOAD-BEARING DISTINCTION. Expo documents a missing native peer as
+  // "your app may crash outside of Expo Go" -- a runtime defect, not hygiene.
+  it('FAILS when any app is missing a native peer', () => {
+    expect(doctorVerdict([clean, missing])).toBe(DOCTOR_EXIT.missingPeer);
+  });
+
+  // VERSION DRIFT DOES NOT BLOCK, deliberately. The fix rewrites versions the
+  // Frozen Stack tests pin, and a gate born red on 15 patch drifts is one
+  // everybody learns to bypass -- the adoption failure typecheck:scripts and
+  // knip both document.
+  it('PASSES on version drift alone, which is reported not blocking', () => {
+    expect(doctorVerdict([drifted])).toBe(DOCTOR_EXIT.ok);
+    expect(drifted.outdated).toBeGreaterThan(0);
+  });
+});
+
+describe('doctorVerdict: a broken instrument is never a pass', () => {
+  const clean = parseDoctorSummary(CLEAN);
+  const unreadable = parseDoctorSummary('');
+
+  it('is UNREADABLE when a run could not be parsed', () => {
+    expect(doctorVerdict([unreadable])).toBe(DOCTOR_EXIT.unreadable);
+  });
+
+  // A loop that ran zero times -- the same shape as a worktree list with no
+  // records, or an artifact audit over an empty tree.
+  it('is UNREADABLE for an EMPTY list, never ok', () => {
+    expect(doctorVerdict([])).toBe(DOCTOR_EXIT.unreadable);
+  });
+
+  // ORDERING: a run that could not be read cannot honestly name a peer either.
+  it('UNREADABLE dominates a missing peer', () => {
+    expect(doctorVerdict([unreadable, parseDoctorSummary(MISSING_PEER)]))
+      .toBe(DOCTOR_EXIT.unreadable);
+  });
+
+  it('keeps every exit code distinct so a caller can branch', () => {
+    const codes = Object.values(DOCTOR_EXIT);
+    expect(new Set(codes).size).toBe(codes.length);
+  });
+
+  it('one unreadable app poisons an otherwise clean run', () => {
+    expect(doctorVerdict([clean, unreadable])).toBe(DOCTOR_EXIT.unreadable);
+  });
+});
+
+describe('describeDoctor names the app and the remedy', () => {
+  it('reports a clean app with its ratio as evidence', () => {
+    expect(describeDoctor('apps/owner-app', parseDoctorSummary(CLEAN)))
+      .toContain('20/20');
+  });
+
+  // The remedy matters: pnpm add would declare it without Expo's version
+  // resolution, so the message names expo install specifically.
+  it('names expo install, not pnpm add, for a missing native peer', () => {
+    const msg = describeDoctor('apps/driver-app', parseDoctorSummary(MISSING_PEER));
+    expect(msg).toContain('expo-constants');
+    expect(msg).toContain('expo install');
+  });
+
+  it('marks drift as reported-not-blocking so nobody reads it as a failure', () => {
+    const msg = describeDoctor('apps/driver-app', parseDoctorSummary(DRIFTED));
+    expect(msg).toContain('15');
+    expect(msg).toContain('not blocking');
+  });
+
+  it('says UNREADABLE rather than implying the app is clean', () => {
+    const bad: DoctorSummary = { passed: 0, total: 0, missingPeers: [], outdated: 0 };
+    expect(describeDoctor('apps/driver-app', bad)).toContain('UNREADABLE');
+  });
+});
