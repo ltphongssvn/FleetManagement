@@ -234,22 +234,45 @@ jobs:
           # different temporary directories'. Relative path => versions match
           # across runners.
           use-relative-cache-path: true
-      # Two-tier audit, per the security-guards rationale below: a control
-      # that BLOCKS a merge must gate on what actually ships. This step was
-      # unscoped, so a freshly published advisory against a dev-only
-      # transitive dep (eslint, stryker, semantic-release, testcontainers)
-      # failed every PR in the repo regardless of what it changed -- three
-      # of the four advisories that blocked a UI-only PR on 2026-08-03 were
-      # dev-only, and one needed a permanent ignoreGhsas entry purely to
-      # satisfy this gate. --prod is pnpm's equivalent of npm --omit=dev.
-      - name: Security audit (production dependencies)
+      # TWO-TIER AUDIT, and the tiers were the wrong way round until 2026-08-18.
+      #
+      # THE BLOCKING TIER NOW GATES ON WHAT SHIPS. It previously ran
+      #   pnpm audit --audit-level=high --prod
+      # over the WORKSPACE graph, which is not the tree that runs. pnpm
+      # materialises optional peers regardless (pnpm#11155), so apps/api pulls
+      # drizzle-orm -> expo-sqlite -> expo -> metro -> image-size even though
+      # apps/api declares no Expo dependency and never imports expo-sqlite --
+      # while Dockerfile.api prunes exactly that subtree with --no-optional.
+      #
+      # So advisories against packages that CANNOT REACH PRODUCTION blocked
+      # every branch in the repo. pnpm-workspace.yaml records the cost in its
+      # own comments: seven of the last ten commits to that file are floor
+      # raises for advisories that never ship, each an override or an
+      # ignoreGhsas entry written, reviewed and merged for a package absent
+      # from every image -- crowding the allowlist a little more, which is how
+      # a real finding eventually slips past unread.
+      #
+      # //#audit:artifact builds the deploy tree each Dockerfile builds and
+      # audits THAT. Verified on first run: @fleet/api 548 packages clean,
+      # @fleet/main-worker 123 packages clean, with every currently-ignored
+      # advisory absent from both. It FAILS CLOSED -- an artifact that could
+      # not be built, or an implausibly small tree, exits 3 UNVERIFIABLE rather
+      # than clean, because an audit of an empty directory reports no
+      # vulnerabilities and that reads exactly like success.
+      #
+      # NO BUILD DEPENDENCY: pnpm deploy resolves a dependency tree and does
+      # not need dist/, so this runs before Build exactly where the old step
+      # did. That is why the job needed no reorder.
+      - name: Security audit (deploy ARTIFACT, blocking)
         if: hashFiles('pnpm-lock.yaml') != ''
-        run: pnpm audit --audit-level=high --prod
-      # Full tree INCLUDING devDependencies, reported but NOT blocking.
-      # Dev-tooling advisories are real and get fixed on their own cadence;
-      # they must not hold every branch hostage. continue-on-error keeps the
-      # finding visible in the run log without failing the check.
-      - name: Security audit (full tree, advisory only)
+        run: pnpm run audit:artifact
+      # THE ADVISORY TIER, unchanged in intent and now correctly non-blocking
+      # for the whole graph. A dev-tooling advisory is real and gets fixed on
+      # its own cadence; it must not hold every branch hostage. The finding
+      # stays visible in the run log without failing the check -- which is what
+      # this step's own comment already said, while the step above it enforced
+      # the opposite.
+      - name: Security audit (workspace graph, advisory only)
         if: hashFiles('pnpm-lock.yaml') != ''
         continue-on-error: true
         run: pnpm audit --audit-level=high
