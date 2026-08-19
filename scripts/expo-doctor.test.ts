@@ -55,17 +55,36 @@ describe('EXPO_APPS names the Expo workspaces only', () => {
   });
 });
 
-describe('doctorArgs runs the published CLI', () => {
-  // Expo's own advice is expo-doctor@latest: its checks track the SDK, so a
-  // lockfile-pinned copy would answer with last quarter's rules.
-  it('pins to @latest rather than a lockfile version', () => {
-    expect(doctorArgs()).toContain('expo-doctor@latest');
+describe('doctorArgs runs the LOCKED, LOCAL binary', () => {
+  // THE VULNERABILITY THIS REPLACES. The first revision returned
+  // 'expo-doctor@latest' and was spawned through npx, with a comment arguing
+  // that a pinned copy would answer with stale rules about a newer SDK. That
+  // trade is backwards: @latest resolves at EXECUTION TIME to whatever the
+  // registry served moments earlier, so a typosquat, a maintainer takeover or
+  // an unreviewed breaking change runs inside a merge gate with no lockfile
+  // entry, no integrity hash and no review. Two tests here asserted that
+  // behaviour as a CONTRACT, which is how a vulnerability becomes load-bearing.
+  it('carries NO version specifier at all', () => {
+    for (const arg of doctorArgs()) {
+      expect([arg, arg.includes('@')]).toEqual([arg, false]);
+    }
   });
 
-  // --yes suppresses the install prompt. Without it the CLI can block on
-  // stdin, which is exactly how secrets:baseline hung for eight hours.
-  it('passes --yes so it can never block on stdin', () => {
-    expect(doctorArgs()).toContain('--yes');
+  // The staleness objection is answered by Expo itself: it publishes
+  // SDK-ALIGNED dist-tags (sdk-55 -> 1.18.24), so the right version for an SDK
+  // is a fact to pin, not a reason to trust the registry at run time.
+  it('never names a floating tag', () => {
+    const flat = doctorArgs().join(' ');
+    expect(flat).not.toContain('latest');
+    expect(flat).not.toContain('next');
+  });
+
+  // Just the binary: pnpm exec resolves it from node_modules, where the
+  // lockfile pinned it with an integrity hash and the workspace cooldown and
+  // trust policy already vetted it. --yes is gone with npx -- there is no
+  // install prompt to suppress when nothing is being fetched.
+  it('names exactly the local binary', () => {
+    expect(doctorArgs()).toEqual(['expo-doctor']);
   });
 });
 
