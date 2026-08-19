@@ -7,36 +7,44 @@
 // against the same tree, reports 19/20 checks passing with no missing peer
 // dependency at all.
 //
-// The lesson is not that knip is bad. It is that knip answers a JS IMPORT-GRAPH
-// question, and Expo native-module correctness is not an import-graph question.
-// Since SDK 54, Expo autolinking "will link according to your app's direct and
-// nested dependencies, rather than scanning your node_modules folders" -- so
-// whether a native module is present, declared and correctly versioned is
-// decided by rules only Expo's own tooling models. Asking a bundler-graph tool
-// is asking the wrong oracle, and acting on its answer would have added a
-// dependency nothing needs.
+// knip answers a JS IMPORT-GRAPH question, and Expo native-module correctness
+// is not one. Since SDK 54 autolinking links modules from an app's direct and
+// nested dependencies rather than scanning node_modules, so presence,
+// declaration and version-match are decided by rules only Expo's tooling
+// models. Asking a bundler-graph tool is asking the wrong oracle.
 //
-// WHAT THE RIGHT ORACLE ACTUALLY FOUND, first run: 15 packages out of date
-// against the installed SDK, including expo itself (55.0.26 vs ~55.0.29) and
-// react-native (0.83.6 vs 0.83.10). None of that is visible to knip, to
-// eslint, to tsc or to any gate this repo owns. It accumulated silently
-// because NOTHING ASKED.
+// WHAT THE RIGHT ORACLE FOUND, first run: 26 packages drifted from the SDK
+// pins across the two apps, including expo itself and react-native. Invisible
+// to knip, eslint, tsc and every gate this repo owns, because nothing asked.
 //
-// A PRIOR SESSION ALREADY PROVED THE VALUE and then let it lapse: expo-doctor
-// was run by hand in June, found "Missing peer dependency: expo-constants,
-// Required by: expo-router", and that was fixed -- expo-constants is declared
-// today. The check was real once, as a human action, and nothing made it
-// repeat. That is the decorative-control shape this repo has now closed five
-// times over.
+// ---- THE VERSION IS PINNED, NOT FLOATING (2026-08-19) ----
 //
-// GRADED, NOT BOOLEAN, and this is the load-bearing design decision. A version
-// drift and a MISSING NATIVE PEER are not the same severity: the first is
-// hygiene the team schedules, the second is documented by Expo as "your app may
-// crash outside of Expo Go". Collapsing them into one exit code forces a
-// choice between a gate that is born red on 15 patch drifts -- which teaches
-// everyone to bypass it, the failure //#typecheck:scripts and //#knip both
-// document -- and no gate at all. Separating them lets the crash-class fail the
-// push today while drift reports without blocking.
+// THE FIRST REVISION OF THIS FILE SHIPPED A SUPPLY-CHAIN HOLE, and argued for
+// it: it ran `npx --yes expo-doctor@latest`, reasoning that a pinned copy
+// would answer with stale rules about a newer SDK. That trade is backwards.
+// @latest resolves at EXECUTION TIME to whatever was published to the registry
+// moments earlier, so a typosquat, a maintainer account takeover or an
+// unreviewed breaking change executes inside the gate with no lockfile entry,
+// no integrity hash and no review -- exactly how 84 malicious @tanstack
+// versions shipped in May 2026. 2026 guidance is unanimous: pin exact
+// versions, avoid floating tags, and let the lockfile be the trust boundary.
+//
+// WORSE, IT BYPASSED CONTROLS THIS REPO ALREADY OWNS. pnpm-workspace.yaml
+// enforces a minimumReleaseAge cooldown and every install prints "Lockfile
+// passes supply-chain policies" -- and a bare npx fetch is subject to neither,
+// because nothing it downloads is in the lockfile at all.
+//
+// THE STALENESS OBJECTION IS ANSWERED BY EXPO ITSELF. expo-doctor publishes
+// SDK-ALIGNED dist-tags (sdk-55 -> 1.18.24), so the correct version for an
+// SDK is a fact, not a guess -- and pinning it exactly is both current AND
+// verifiable. Staleness is then handled the way every other tool version here
+// is handled: a reviewable bump, the same contract //#bump:turbo enforces.
+//
+// So expo-doctor is a PINNED devDependency of each Expo app (exact, no caret)
+// and is invoked through pnpm exec, which resolves from node_modules and makes
+// no network call. The earlier "Command not found" that pushed the first
+// revision toward npx was not an obstacle: it was the tool telling us it had
+// never been declared.
 
 /** The workspaces that are Expo apps. Derived from which packages declare the
  *  expo dependency, not from intuition; ops-web is Next.js and has no business
@@ -46,17 +54,25 @@ export const EXPO_APPS: readonly string[] = Object.freeze([
   'apps/owner-app',
 ]);
 
-/** Invoke the PUBLISHED doctor, pinned to latest by design.
+/** The exact expo-doctor version each Expo app pins.
  *
- *  expo-doctor is deliberately NOT a declared devDependency. Expo ships it as a
- *  standalone CLI whose checks track the SDK, and its own advice is to run
- *  expo-doctor@latest -- a version pinned in our lockfile would answer with
- *  last quarter's rules about this quarter's SDK, which is the stale-instrument
- *  failure //#prod:db-url exists to prevent. --yes suppresses the install
- *  prompt so this can never block on stdin, the defect that hung
- *  //#secrets:baseline for eight hours. */
+ *  Matches Expo's own sdk-55 dist-tag, so it is the version Expo publishes AS
+ *  correct for this SDK -- current by construction rather than by trusting the
+ *  registry at execution time. Asserted against the manifests by
+ *  expo-doctor-pin.guard.test.ts, so a drift between this constant and what is
+ *  actually installed fails a test rather than silently running a different
+ *  tool than the one reviewed. */
+export const EXPO_DOCTOR_VERSION = '1.18.24';
+
+/** Invoke the LOCKED, LOCAL binary.
+ *
+ *  No version specifier and no registry fetch: pnpm exec resolves expo-doctor
+ *  from node_modules, where the lockfile pinned it with an integrity hash and
+ *  the workspace cooldown policy already vetted it. A floating @latest here
+ *  would execute registry content that no lockfile, no review and no policy
+ *  ever saw. */
 export function doctorArgs(): readonly string[] {
-  return ['--yes', 'expo-doctor@latest'];
+  return ['expo-doctor'];
 }
 
 /** What one doctor run reported. */
@@ -111,9 +127,8 @@ export const DOCTOR_EXIT = {
  *
  *  VERSION DRIFT DELIBERATELY DOES NOT BLOCK. It is reported by the driver and
  *  left to a scheduled bump, because the fix (expo install --check) rewrites
- *  dependency versions across the Frozen Stack -- which mobile-native-bundle-
- *  config.test.ts and eas-config.test.ts pin on purpose. Blocking every push on
- *  15 patch drifts would make the gate the thing people work around. */
+ *  dependency versions across the Frozen Stack. Blocking every push on 26 patch
+ *  drifts would make the gate the thing people work around. */
 export function doctorVerdict(summaries: readonly DoctorSummary[]): number {
   if (summaries.length === 0) return DOCTOR_EXIT.unreadable;
   if (summaries.some((s) => s.total === 0)) return DOCTOR_EXIT.unreadable;

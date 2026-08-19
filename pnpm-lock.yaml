@@ -450,6 +450,9 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+      expo-doctor:
+        specifier: 1.18.24
+        version: 1.18.24
       fast-check:
         specifier: ^4.7.0
         version: 4.7.0
@@ -641,6 +644,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: 4.1.5
         version: 4.1.5(vitest@4.1.5)
+      expo-doctor:
+        specifier: 1.18.24
+        version: 1.18.24
       rimraf:
         specifier: '>=4.0.0'
         version: 6.1.3
@@ -6707,6 +6713,11 @@ packages:
     resolution: {integrity: sha512-BYEr3oyjtnXk432usxavftybCtucelCQD1QGIo2zruxeT/hzoGe36uclOC49a+tYFQoybqOylSV2035H7kDIPg==}
     peerDependencies:
       expo: '*'
+
+  expo-doctor@1.18.24:
+    resolution: {integrity: sha512-Ar5Qv+0deOlTOheJkRDj79WQgEcxJlzfav5YslJ25vUul+xR0B3295/lCrOhvfNlyE9X8LH4M7lN4Cz7RHkX4A==}
+    engines: {node: ^20.19.4 || ^22.13.0 || ^24.3.0 || >= 25.0.0}
+    hasBin: true
 
   expo-eas-client@55.0.5:
     resolution: {integrity: sha512-wRagCeSbSnSGVXgP7V+qiGfXzZ9hTVKWvKIOP7lwrX3MIEenNmNlO4D3RVC3aNU2GhmO3ZCZIIEre80KZoUUHA==}
@@ -17233,6 +17244,8 @@ snapshots:
     dependencies:
       expo: 55.0.26(@babel/core@7.29.7(supports-color@8.1.1))(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.11)(expo-router@55.0.16)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.7(supports-color@8.1.1))(@types/react@19.2.14)(react@19.2.0)(supports-color@8.1.1))(react@19.2.0)(supports-color@8.1.1)(typescript@5.9.3)
       ua-parser-js: 0.7.41
+
+  expo-doctor@1.18.24: {}
 
   expo-eas-client@55.0.5: {}
 

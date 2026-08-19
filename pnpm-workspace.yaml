@@ -46,6 +46,76 @@
 verifyDepsBeforeRun: warn
 enableGlobalVirtualStore: false
 
+# --- pnpm 11 supply-chain controls (2026-08-19) ---
+# LOCKFILE INTEGRITY IS NOT ENOUGH, and the axios compromise of 2026-03-31 is
+# the proof. Sapphire Sleet published a malicious axios@1.14.1; the registry
+# computed and published the CORRECT SHA-512 for that malicious tarball; a
+# consumer running a frozen-lockfile install fetched it, compared the hash,
+# found a match, reported a clean install, and executed the embedded RAT. The
+# integrity system worked exactly as designed and protected nobody, because a
+# hash proves the bytes are UNCHANGED SINCE PUBLISH -- never that the publish
+# itself was legitimate.
+#
+# trustPolicy: no-downgrade closes precisely that gap, and pnpm is the only
+# package manager offering it consumer-side: it refuses a version whose
+# PUBLISHING AUTHENTICATION is weaker than the version already in the lockfile.
+# A maintainer account takeover almost always publishes with less assurance
+# than the maintainer's own trusted-publishing pipeline -- so the downgrade in
+# provenance is the signal, and it is detectable where the tarball hash is not.
+#
+# blockExoticSubdeps refuses git URLs and raw tarball URLs in TRANSITIVE
+# dependencies, so every transitive package must come from the registry where
+# the cooldown, the integrity hash and the trust policy all apply. Without it a
+# single dependency can pull arbitrary code from an arbitrary host, entirely
+# outside every control above -- the exact bypass minimumReleaseAgeExclude and
+# the audit gates are written to prevent.
+#
+# Both are DEFAULTS IN pnpm 11 rather than novelties, declared explicitly here
+# for the same reason remoteCache.signature is declared in turbo.jsonc: an
+# unstated default is an unrevisited one, and a security control nobody wrote
+# down is a control nobody can review.
+trustPolicy: no-downgrade
+blockExoticSubdeps: true
+trustPolicyExclude:
+  # FOUR ENTRIES, EACH A KNOWN UPSTREAM FALSE POSITIVE with a tracked issue and
+  # a removal condition. This list is the ONLY sanctioned response to a trust
+  # downgrade: the alternative pnpm offers, trustPolicyIgnoreAfter, silences
+  # EVERY package older than its window, so a genuine takeover of any long-lived
+  # package would pass unseen. A per-version allowlist keeps the control live
+  # for everything not named here -- the same contract auditConfig.ignoreGhsas
+  # already follows in this file, entry by entry, with its own REMOVE clause.
+  #
+  # THE SHARED ROOT CAUSE is stated in pnpm's own error text: "Trust checks are
+  # based solely on PUBLISH DATE, not semver." A package cannot install if any
+  # EARLIER-PUBLISHED version had stronger trust evidence -- so a project that
+  # maintains two major branches in parallel, publishing 7.x with provenance
+  # while still patching a 6.x that predates provenance entirely, trips the
+  # check on the older branch. That is a versioning shape, not an incident.
+  #
+  # semver@6.3.1 -- pnpm/pnpm#10202 and pnpm discussion #11084 both name this
+  # exact version. semver@6 was NEVER published with provenance, so nothing was
+  # downgraded; semver@7 carries provenance and some 7.x releases were published
+  # BEFORE 6.3.1, which is what the date-ordered check sees. Reached only
+  # through dev tooling (@babel/core, eslint plugins, semantic-release).
+  - 'semver@6.3.1'
+  # undici-types@6.21.0 -- nodejs/undici#4666, filed by the maintainers:
+  # "latest versions of undici-types@6 have been published without provenance,
+  # after it was published with provenance before." A REAL provenance loss,
+  # acknowledged upstream, in a TYPES-ONLY package that ships no runtime code
+  # and is pulled in transitively by @types/node. pnpm/pnpm#10329 records the
+  # same error from dedupe. REMOVE once undici-types@6 republishes with
+  # provenance or @types/node floors it at a provenanced release.
+  - 'undici-types@6.21.0'
+  # ua-parser-js 0.7.x and 1.0.x -- the parallel-major-branch shape again: 2.x
+  # carries provenance and was published across the same window in which the
+  # older branches were still being patched. Both lines predate provenance.
+  # This package's 2021 hijack is exactly why the check exists, so the entries
+  # are pinned to EXACT versions: a different version is not covered here and
+  # will still block, which is the property that makes this an allowlist rather
+  # than an off switch.
+  - 'ua-parser-js@0.7.41'
+  - 'ua-parser-js@1.0.41'
+
 packages:
   - "apps/*"
   - "workers/*"
