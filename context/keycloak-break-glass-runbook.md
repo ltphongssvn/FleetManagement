@@ -140,7 +140,7 @@ NEVER read the secret back with `railway variables --kv`, which prints raw value
 - Delete any temporary admins created during the event.
 - Add a dated line to the Changelog describing what happened and why.
 
-## Monitoring (armed; alert rule pending)
+## Monitoring (armed and paging)
 
 A `fleet-breakglass-*` login should be near-zero-frequency, so every one is high-signal.
 The API-side monitor is built and wired: a 60s self-scheduling tick in `SchedulerService`
@@ -149,14 +149,27 @@ account and emits a Sentry `fatal` event (fingerprint `keycloak-breakglass-login
 `security_event=keycloak_breakglass_login`) for any break-glass sign-in, advancing a durable
 Postgres cursor (`keycloak_event_poll_cursor`) so each login pages exactly once.
 
-Activation status:
-  1. DONE (2026-08-20) - `KEYCLOAK_MONITOR_CLIENT_SECRET` is set on the Railway API
-     service, so the factory yields a provider and the tick schedules.
-  2. PENDING - a Sentry alert rule that pages (PagerDuty/Opsgenie/email) on the
-     `keycloak-breakglass-login` fingerprint / `security_event` tag at level fatal.
+Activation status: ARMED AND PAGING, verified by live drill.
 
-Until step 2 lands the event is RECORDED in Sentry but pages nobody, so a break-glass
-login is still caught only by manual review during the drill.
+  1. DONE - `KEYCLOAK_MONITOR_CLIENT_SECRET` is set on the Railway API service, so the
+     factory yields a provider and the tick schedules. Secret rotated 2026-08-20 after
+     an exposure; see Procedure E.
+  2. DONE - `SENTRY_DSN` is set on the Railway API service and `fatal` events route to
+     email and Slack `#all-sentry`. Proven end-to-end 2026-07-05: a live incognito
+     sign-in as `fleet-breakglass-1` produced a real Sentry `fatal` with breadcrumbs
+     (token POST 200 -> events GET 200) and BOTH channels delivered. Confirmed again
+     2026-07-19 by the `intake-pipeline-stalled` drill on the same path.
+
+WHY THIS SECTION KEPT SAYING PENDING: the text above was authored when the monitor was
+first built and Sentry was not yet provisioned. Sentry was provisioned and drilled weeks
+later, and nobody came back to this file -- so on 2026-08-20 a session read the stale
+line, restated "pages nobody" as fact, and nearly filed a follow-up for work already
+done. A document asserting a gap that does not exist is the same class of defect as one
+omitting a gap that does.
+
+SCOPE: every monitor emitting these fatals -- break-glass, intake-lag, alert-lag,
+completion-reconciler -- lives in `apps/api`, the service that holds the DSN. The worker
+never calls `initSentry` and needs no DSN; its absence there is by design, not a gap.
 
 ## Naming note
 
@@ -166,6 +179,15 @@ accounts instantly. Security comes from strong vaulted credentials plus monitori
 obscurity. The `-N` suffix makes the sealed tier's redundancy obvious at a glance.
 
 ## Changelog
+
+- 2026-08-20 - Corrected the Monitoring section, which had claimed the Sentry alert rule
+  was PENDING and that a break-glass login "pages nobody". Both false: SENTRY_DSN is set
+  on the Railway API service and the paging path was proven by live drill on 2026-07-05
+  (real fatal, email + Slack both delivered) and again on 2026-07-19. The text was simply
+  never updated after Sentry was provisioned, and a session on 2026-08-20 read it, took it
+  as fact, and nearly filed a follow-up for work finished six weeks earlier. Documentation
+  that asserts a gap which does not exist wastes the same attention as documentation that
+  hides a real one.
 
 - 2026-08-20 - Rotated the `fleet-breakglass-monitor` client secret: the previous value
   was printed in full by `railway variables --service api --kv` during a cost
