@@ -39,6 +39,7 @@
     "release:closeout": "tsx scripts/e2e/release-closeout.ts",
     "release:promote": "tsx scripts/e2e/release-promote.ts",
     "guard:railway-references": "tsx scripts/railway-reference-guard.ts",
+    "guard:keycloak-memory": "tsx scripts/keycloak-memory-guard.ts",
     "stack:restart": "tsx scripts/e2e/stack-restart.ts",
     "stack:stop": "tsx scripts/e2e/stack-stop.ts",
     "docker:reclaim": "tsx scripts/e2e/docker-reclaim.ts",
