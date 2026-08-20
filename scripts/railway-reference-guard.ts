@@ -36,11 +36,17 @@
  *   tsx scripts/railway-reference-guard.ts --json     # machine-readable
  *   RAILWAY_GUARD_CONFIG=path tsx scripts/railway-reference-guard.ts
  */
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import {
+  RailwayConfigShapeError,
+  RailwayConfigUnreadableError,
+  fetchEnvironmentConfig as readEnvironmentConfig,
+  parseEnvironmentConfig,
+  readVariable,
+} from './railway-environment-config.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_CONFIG = resolve(HERE, 'railway-reference-guard.config.json');
@@ -62,39 +68,23 @@ const ConfigSchema = z.object({
 type Config = z.infer<typeof ConfigSchema>;
 
 /**
- * Shape of `railway environment config --json`, validated at the trust boundary.
+ * The `railway environment config --json` contract, the transient-error
+ * classifier and the retrying reader now live ONCE in
+ * railway-environment-config.ts and are shared with keycloak-memory-guard.ts,
+ * which reads the same payload.
  *
- * WHY THIS EXISTS (2026-08-08). extractServiceVariables previously walked this
- * payload with four `as` casts and dot-access on Record<string, unknown>, which
- * is three TS4111s and, more importantly, an unvalidated boundary: the response
- * contract lived in the prose comment above rather than in code. If Railway
- * renamed `variables` or nested `value` differently, every cast would still
- * "succeed", the extractor would return an empty map, and the guard would print
- * "OK — scanned 0 service(s)" and pass a deploy it never actually inspected.
- * A guard that cannot fail is not a guard.
+ * WHY THEY MOVED. Both guards had hand-written their own copy of the schema,
+ * the eight transient-CLI signatures and the retry loop. That is one external
+ * contract defined twice: rename a field upstream and two files need editing,
+ * with nothing to fail if only one is -- and both files are GUARDS, so drift
+ * means a gate that silently stops verifying.
  *
- * LOOSE, NOT STRICT, ON PURPOSE. This is a third-party payload we do not
- * control. A strict schema would throw the moment Railway adds a field,
- * breaking the deploy gate for a non-reason. The 2026 practice for external API
- * responses is to validate only the fields you actually read and let the rest
- * pass through, which is what looseObject does. This guard reads exactly three:
- * services -> variables -> value.
- *
- * A variable entry is either a bare string or an object carrying `value`; both
- * forms are accepted, matching the previous hand-rolled behaviour.
+ * The original reasoning is preserved verbatim in that module: PARSED, never
+ * cast, because a cast would still "succeed" on a moved contract and the guard
+ * would print "scanned 0 service(s)" while passing a deploy it never inspected.
+ * LOOSE, not strict, because a strict schema would break the gate the moment
+ * Railway adds a field.
  */
-const VariableEntrySchema = z.union([
-  z.string(),
-  z.looseObject({ value: z.string().optional() }),
-]);
-
-const ServiceSchema = z.looseObject({
-  variables: z.record(z.string(), VariableEntrySchema).optional(),
-});
-
-const EnvironmentConfigSchema = z.looseObject({
-  services: z.record(z.string(), ServiceSchema).optional(),
-});
 
 interface Violation {
   service: string;
@@ -141,27 +131,6 @@ function loadConfig(): Config {
   return result.data;
 }
 
-// Transient upstream signatures from the Railway CLI/API. The CLI throws
-// "Failed to fetch: error decoding response body / expected value at line 1
-// column 1" when the API returns a NON-JSON body it cannot decode — commonly an
-// HTTP 429 (rate limit) or a 5xx/HTML gateway error (railwayapp/cli#647). These
-// are infrastructure-side and clear on retry; they are NOT a config problem and
-// must NOT be classified as a real violation.
-const TRANSIENT_CLI_SIGNATURES: readonly RegExp[] = [
-  /error decoding response body/i,
-  /expected value at line 1 column 1/i,
-  /failed to fetch/i,
-  /\b429\b/,
-  /rate limit/i,
-  /\b5\d\d\b/, // 500-599
-  /timed? ?out/i,
-  /ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN/i,
-];
-
-function isTransientCliError(message: string): boolean {
-  return TRANSIENT_CLI_SIGNATURES.some((re) => re.test(message));
-}
-
 /** Soft-skip: the guard can ADD safety but must never block a deploy on an
  *  infra-side inability to READ live config. When the live topology is
  *  unreadable after retries (transient Railway API failure), print a neutral
@@ -178,66 +147,26 @@ function softSkip(message: string): never {
   process.exit(0);
 }
 
+/** Read live config through the shared module, mapping its two failure modes
+ *  onto this guard's exit contract: unreadable soft-skips (exit 0), anything
+ *  else is a real tooling error (exit 2). */
 function fetchEnvironmentConfig(): unknown {
-  // Bounded retry with linear backoff: transient Railway API errors (429/5xx/
-  // non-JSON body) typically clear within a couple of seconds. After the final
-  // attempt, a transient failure soft-skips (exit 0); a non-transient failure
-  // (CLI not installed/linked, bad token) hard-fails (exit 2).
-  const MAX_ATTEMPTS = 4;
-  const BASE_DELAY_MS = 1500;
-  let lastMessage = '';
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    let out: string;
-    try {
-      out = execFileSync('railway', ['environment', 'config', '--json'], {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
-        maxBuffer: 32 * 1024 * 1024,
-      });
-    } catch (e) {
-      lastMessage = (e as Error).message;
-      if (isTransientCliError(lastMessage)) {
-        if (attempt < MAX_ATTEMPTS) {
-          const waitMs = BASE_DELAY_MS * attempt;
-          process.stderr.write(
-            `railway-reference-guard: transient Railway CLI error on attempt ${String(attempt)}/${String(
-              MAX_ATTEMPTS,
-            )} (retrying in ${String(waitMs)}ms): ${lastMessage}\n`,
-          );
-          const until = Date.now() + waitMs;
-          while (Date.now() < until) { /* synchronous backoff (no async in this CLI) */ }
-          continue;
-        }
-        softSkip(`after ${String(MAX_ATTEMPTS)} attempt(s): ${lastMessage}`);
-      }
-      // Non-transient: a real tooling/auth/config error.
-      fail(
-        `failed to run \`railway environment config --json\` (is the Railway CLI installed and linked?): ${lastMessage}`,
-        2,
-      );
-    }
-    try {
-      return JSON.parse(out);
-    } catch (e) {
-      // Empty/non-JSON stdout is the same #647 class — treat as transient.
-      lastMessage = (e as Error).message;
-      if (attempt < MAX_ATTEMPTS) {
-        const waitMs = BASE_DELAY_MS * attempt;
+  try {
+    return readEnvironmentConfig({
+      onRetry: (message) => {
         process.stderr.write(
-          `railway-reference-guard: railway returned non-JSON on attempt ${String(attempt)}/${String(
-            MAX_ATTEMPTS,
-          )} (retrying in ${String(waitMs)}ms): ${lastMessage}\n`,
+          `railway-reference-guard: transient Railway CLI error, retrying: ${message}\n`,
         );
-        const until = Date.now() + waitMs;
-        while (Date.now() < until) { /* synchronous backoff */ }
-        continue;
-      }
-      softSkip(`railway did not return valid JSON after ${String(MAX_ATTEMPTS)} attempt(s): ${lastMessage}`);
-    }
+      },
+    });
+  } catch (e) {
+    if (e instanceof RailwayConfigUnreadableError) softSkip(e.message);
+    fail(
+      'failed to run `railway environment config --json` (is the Railway CLI ' +
+        `installed and linked?): ${(e as Error).message}`,
+      2,
+    );
   }
-  // Unreachable (loop either returns, soft-skips, or fails), but satisfies the
-  // non-void return type.
-  softSkip(`exhausted retries: ${lastMessage}`);
 }
 
 /** Mask the password component of a connection string for safe logging. */
@@ -273,15 +202,14 @@ function extractServiceVariables(
   nameMap: Record<string, string>,
 ): Map<string, Map<string, string>> {
   const result = new Map<string, Map<string, string>>();
-  const parsed = EnvironmentConfigSchema.safeParse(env);
-  if (!parsed.success) {
-    fail(
-      'railway environment config did not match the expected shape; the guard cannot ' +
-        'verify anything and refuses to report a vacuous pass: ' + parsed.error.message,
-      2,
-    );
+  let parsed;
+  try {
+    parsed = parseEnvironmentConfig(env);
+  } catch (e) {
+    if (e instanceof RailwayConfigShapeError) fail(e.message, 2);
+    throw e;
   }
-  const services = parsed.data.services;
+  const services = parsed.services;
   if (!services) return result;
 
   for (const [uuid, svc] of Object.entries(services)) {
@@ -289,8 +217,8 @@ function extractServiceVariables(
     if (!vars) continue;
     const name = resolveServiceName(uuid, nameMap);
     const bag = new Map<string, string>();
-    for (const [key, v] of Object.entries(vars)) {
-      const value = typeof v === 'string' ? v : v.value;
+    for (const key of Object.keys(vars)) {
+      const value = readVariable(svc, key);
       if (typeof value === 'string') bag.set(key, value);
     }
     result.set(name, bag);
