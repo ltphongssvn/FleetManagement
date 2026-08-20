@@ -14,5 +14,5 @@
     "allowJs": true,
     "checkJs": false
   },
-  "include": ["**/*.ts", "**/*.mts", "**/*.mjs", "../.railway/**/*.ts"]
+  "include": ["**/*.ts", "**/*.mts", "**/*.mjs"]
 }
