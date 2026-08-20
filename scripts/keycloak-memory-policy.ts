@@ -9,14 +9,17 @@
 // origin/develop returns NOTHING across 40+ scripts. The same lesson is already
 // written down in scripts/fleet-role-literal.guard.test.ts (commit 2d63e75).
 //
-// The deeper error was the placement, not the import. 2026 monorepo practice
-// draws THREE boundaries -- applications, shared RUNTIME code, and TOOLING --
-// and sync-protocol is a wire-contract package for runtime traffic between
+// The deeper error was placement, not the import. 2026 monorepo practice draws
+// THREE boundaries -- applications, shared RUNTIME code, and TOOLING -- and
+// sync-protocol is a wire-contract package for runtime traffic between
 // services. Nothing in api, ops-web or the worker consumes a JVM heap policy;
-// its only consumers are this guard and its tests. Putting tooling policy in a
-// runtime package inverts the dependency direction and makes "shared" a dumping
-// ground. Its sibling railway-reference-guard.ts keeps its schemas inline for
-// exactly this reason.
+// its only consumers are this guard and its tests.
+//
+// THE BOUNDARY CONTRACT IS NOT REDECLARED HERE. The `railway environment config
+// --json` schema, the transient-error classifier and the retrying reader live
+// once in railway-environment-config.ts and are shared with
+// railway-reference-guard.ts. An external contract hand-written in two guards
+// drifts silently, and a drifted guard stops verifying while still reporting OK.
 //
 // ROOT CAUSE THIS ENCODES. The Keycloak image sets no fixed -Xmx; it sizes the
 // heap from CONTAINER memory (InitialRAMPercentage=50, MaxRAMPercentage=70):
@@ -27,6 +30,12 @@
 //      never below -Xms, so an idle IdP pins ~500 MB of 1 GB forever.
 // Both clauses are required; either alone leaves the other failure live.
 import { z } from 'zod';
+import {
+  RailwayConfigShapeError,
+  type RailwayService,
+  parseEnvironmentConfig,
+  readVariable,
+} from './railway-environment-config.js';
 
 /** Heap floor as a share of container memory. The image ships 50. */
 export const HEAP_INITIAL_PERCENT_MAX = 15;
@@ -53,8 +62,8 @@ export const APPEND_VAR = 'JAVA_OPTS_APPEND';
 
 /** Keycloak is identified by KC_* variable SHAPE, never by service name or
  *  UUID: both drift, and a renamed service must not silently skip the gate.
- *  A prefix, not a regex: prefer-string-starts-ends-with is right that
- *  startsWith says what this means and cannot carry accidental regex syntax. */
+ *  A prefix, not a regex: startsWith says what this means and cannot carry
+ *  accidental regex syntax. */
 const KEYCLOAK_VAR_PREFIX = 'KC_';
 
 /**
@@ -94,6 +103,8 @@ export const numericFlag = (
   return Number.isFinite(n) ? n : undefined;
 };
 
+/** Internal, single-use, crosses no trust boundary: plain TS by the two-axis
+ *  rule. Forcing Zod here would be the redundant-validation anti-pattern. */
 export interface ObservedJvmOptions {
   heapOptions: string | null;
   appendOptions: string | null;
@@ -111,6 +122,8 @@ export const JvmMemoryPolicySchema = z.object({
   minHeapFreeRatio: z.number().positive().max(HEAP_FREE_RATIO_MIN_MAX),
   maxHeapFreeRatio: z.number().positive().max(HEAP_FREE_RATIO_MAX_MAX),
 });
+
+export type JvmMemoryPolicy = z.infer<typeof JvmMemoryPolicySchema>;
 
 export const projectJvmPolicy = (observed: ObservedJvmOptions): unknown => {
   const flags = new Map([
@@ -139,37 +152,13 @@ export const canUncommit = (observed: ObservedJvmOptions): boolean => {
   return initial !== undefined && initial <= HEAP_INITIAL_PERCENT_MAX;
 };
 
-/** LOOSE at the trust boundary: a third-party payload we do not own. A strict
- *  schema would fail the gate the moment Railway adds a field, which is a
- *  non-reason to block a deploy. Only fields actually read are declared. */
-const VariableEntrySchema = z.union([
-  z.string(),
-  z.looseObject({ value: z.string().optional() }),
-]);
-
-const ServiceSchema = z.looseObject({
-  variables: z.record(z.string(), VariableEntrySchema).optional(),
-  deploy: z
-    .looseObject({
-      limitOverride: z
-        .looseObject({
-          containers: z.looseObject({ memoryBytes: z.number().optional() }).optional(),
-        })
-        .nullish(),
-    })
-    .optional(),
-});
-
-export const RailwayEnvironmentConfigSchema = z.looseObject({
-  services: z.record(z.string(), ServiceSchema).optional(),
-});
-
-export const MEMORY_VIOLATION_CLAUSES = [
+/** One frozen array is the single definition; the type derives from it. */
+export const MEMORY_VIOLATION_CLAUSES = Object.freeze([
   'container-limit-unset',
   'container-limit-out-of-band',
   'heap-floor-too-high',
   'jvm-envelope',
-] as const;
+] as const);
 
 export type MemoryViolationClause = (typeof MEMORY_VIOLATION_CLAUSES)[number];
 
@@ -193,27 +182,21 @@ export class UnverifiableEnvironmentError extends Error {
   }
 }
 
-const readVar = (
-  vars: Record<string, z.infer<typeof VariableEntrySchema>> | undefined,
-  name: string,
-): string | null => {
-  const entry = vars?.[name];
-  if (typeof entry === 'string') return entry;
-  if (entry && typeof entry.value === 'string') return entry.value;
-  return null;
-};
+const isKeycloak = (service: RailwayService): boolean =>
+  Object.keys(service.variables ?? {}).some((k) => k.startsWith(KEYCLOAK_VAR_PREFIX));
 
 export function inspectKeycloakMemory(env: unknown): MemoryInspection {
-  const parsed = RailwayEnvironmentConfigSchema.safeParse(env);
-  if (!parsed.success) {
-    throw new UnverifiableEnvironmentError(
-      'railway environment config did not match the expected shape; refusing a vacuous pass',
-    );
+  let parsed;
+  try {
+    parsed = parseEnvironmentConfig(env);
+  } catch (e) {
+    if (e instanceof RailwayConfigShapeError) {
+      throw new UnverifiableEnvironmentError(e.message);
+    }
+    throw e;
   }
 
-  const keycloak = Object.values(parsed.data.services ?? {}).filter((s) =>
-    Object.keys(s.variables ?? {}).some((k) => k.startsWith(KEYCLOAK_VAR_PREFIX)),
-  );
+  const keycloak = Object.values(parsed.services ?? {}).filter(isKeycloak);
 
   if (keycloak.length === 0) {
     throw new UnverifiableEnvironmentError(
@@ -241,8 +224,8 @@ export function inspectKeycloakMemory(env: unknown): MemoryInspection {
     }
 
     const observed: ObservedJvmOptions = {
-      heapOptions: readVar(svc.variables, HEAP_VAR),
-      appendOptions: readVar(svc.variables, APPEND_VAR),
+      heapOptions: readVariable(svc, HEAP_VAR),
+      appendOptions: readVariable(svc, APPEND_VAR),
     };
 
     if (!canUncommit(observed)) {
