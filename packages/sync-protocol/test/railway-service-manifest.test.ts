@@ -81,4 +81,33 @@ describe('policy: Keycloak specifics', () => {
   it('pins the image to a digest so auth cannot silently upgrade (debt 4)', () => {
     expect(isPinnedImage(manifest.image)).toBe(true);
   });
+
+  it('is probed, so a hung-but-alive IdP restarts instead of stranding auth (debt 12)', () => {
+    // KC_HEALTH_ENABLED alone is not enough: Keycloak serves /health on the
+    // management port 9000, which Railway does not probe. The estate sets
+    // KC_HTTP_MANAGEMENT_HEALTH_ENABLED=false so health stays on 8080.
+    // Setting KC_HTTP_MANAGEMENT_PORT=8080 instead is NOT a valid alternative:
+    // Quarkus routes management vs main traffic by port, so equal ports
+    // collide and the server fails to start -- observed as a live 503.
+    expect(manifest.deploy.healthcheckPath).toBe('/health/ready');
+    expect(manifest.deploy.healthcheckTimeout).toBeGreaterThan(0);
+  });
+});
+
+describe('policy: worker specifics', () => {
+  const manifest = observed('worker');
+
+  it('declares watch patterns so unrelated pushes do not rebuild it (debt 8)', () => {
+    expect(manifest.build.watchPatterns?.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it('watches the lockfile and its Dockerfile', () => {
+    expect(manifest.build.watchPatterns).toContain('pnpm-lock.yaml');
+    expect(manifest.build.watchPatterns).toContain('Dockerfile.worker');
+  });
+
+  it('builds from Dockerfile.worker', () => {
+    expect(manifest.build.builder).toBe('DOCKERFILE');
+    expect(manifest.build.dockerfilePath).toBe('Dockerfile.worker');
+  });
 });
