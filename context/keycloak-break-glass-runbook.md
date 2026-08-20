@@ -38,12 +38,15 @@ emergency tier, and the emergency tier itself is redundant.
 | --- | --- |
 | Keycloak host | `keycloak-production-7959.up.railway.app` (Railway service `Keycloak`) |
 | Version | Keycloak 26.6.3 (JVM 21) |
+| Image | pinned by DIGEST, never `:latest` (see DEPLOY.md) |
+| Container memory | 1 GB limit - load-bearing, see DEPLOY.md. Never remove. |
 | Admin realm | `master` (username/password login) |
 | Admin console | `https://keycloak-production-7959.up.railway.app/admin` |
 | Recovery script | `scripts/keycloak-break-glass.sh` |
 | Container recovery binary | `/opt/keycloak/bin/kc.sh` |
 | Day-to-day admin | `fleet-admin` |
 | Sealed break-glass | `fleet-breakglass-1`, `fleet-breakglass-2` |
+| Monitor service account | `fleet-breakglass-monitor` (master realm client) |
 
 ## Procedure A - create / re-create a sealed break-glass admin
 
@@ -103,13 +106,41 @@ Temporary admins (from recovery) show a yellow "temporary admin" banner.
 2. Confirm only the standing accounts remain: `fleet-admin`, `fleet-breakglass-1`,
    `fleet-breakglass-2`.
 
+## Procedure E - rotate the monitor client secret
+
+Do this after any exposure of `KEYCLOAK_MONITOR_CLIENT_SECRET` - including a value that
+merely reached a terminal scrollback or a chat transcript. A leaked secret on the
+security monitor is the worst class to leave: it authenticates the thing that watches
+for break-glass logins.
+
+1. Admin Console -> realm **master** -> **Clients** -> `fleet-breakglass-monitor` ->
+   **Credentials** -> **Regenerate** (the Client Secret one, NOT Registration access
+   token). Copy it.
+2. Store in Dashlane as "Keycloak master - fleet-breakglass-monitor (client secret)".
+3. Set it on the Railway API service WITHOUT it reaching argv, history or scrollback -
+   `railway variable set ... --stdin` requires a pipe, so read it hidden first:
+
+```bash
+printf 'Paste secret (hidden): ' && read -rs KC_MON && echo && \
+printf '%s' "$KC_MON" | railway variable set KEYCLOAK_MONITOR_CLIENT_SECRET --stdin --service api ; \
+unset KC_MON
+```
+
+4. Verify the API came back: `curl -s https://api-production-fd42.up.railway.app/health/ready`
+   must return `{"status":"ok","database":"up"}`.
+5. Log the rotation in the Changelog. The monitor cannot authenticate between step 1 and
+   step 3, so keep that window short.
+
+NEVER read the secret back with `railway variables --kv`, which prints raw values. Use
+`| cut -d= -f1` when you only need to confirm a variable EXISTS.
+
 ## Incident hygiene (after any break-glass use)
 
 - Rotate the used account's password in Dashlane.
 - Delete any temporary admins created during the event.
 - Add a dated line to the Changelog describing what happened and why.
 
-## Monitoring (implemented; activation pending)
+## Monitoring (armed; alert rule pending)
 
 A `fleet-breakglass-*` login should be near-zero-frequency, so every one is high-signal.
 The API-side monitor is built and wired: a 60s self-scheduling tick in `SchedulerService`
@@ -118,13 +149,14 @@ account and emits a Sentry `fatal` event (fingerprint `keycloak-breakglass-login
 `security_event=keycloak_breakglass_login`) for any break-glass sign-in, advancing a durable
 Postgres cursor (`keycloak_event_poll_cursor`) so each login pages exactly once.
 
-The monitor is DORMANT until activated. Two steps remain to arm it in production:
-  1. Set `KEYCLOAK_MONITOR_CLIENT_SECRET` (the fleet-breakglass-monitor client secret) on the
-     Railway API service; without it the factory yields null and the tick never schedules.
-  2. Add a Sentry alert rule that pages (PagerDuty/Opsgenie/email) on the
+Activation status:
+  1. DONE (2026-08-20) - `KEYCLOAK_MONITOR_CLIENT_SECRET` is set on the Railway API
+     service, so the factory yields a provider and the tick schedules.
+  2. PENDING - a Sentry alert rule that pages (PagerDuty/Opsgenie/email) on the
      `keycloak-breakglass-login` fingerprint / `security_event` tag at level fatal.
 
-Until both are done, a break-glass login is caught only by manual review during the drill.
+Until step 2 lands the event is RECORDED in Sentry but pages nobody, so a break-glass
+login is still caught only by manual review during the drill.
 
 ## Naming note
 
@@ -135,6 +167,23 @@ obscurity. The `-N` suffix makes the sealed tier's redundancy obvious at a glanc
 
 ## Changelog
 
+- 2026-08-20 - Rotated the `fleet-breakglass-monitor` client secret: the previous value
+  was printed in full by `railway variables --service api --kv` during a cost
+  investigation and reached a terminal scrollback. Set on the API service via a hidden
+  read piped to `--stdin`; API verified healthy afterwards. Monitoring step 1 is now
+  DONE, so the tick schedules; the Sentry alert rule (step 2) is still outstanding.
+  Added Procedure E so the rotation is a documented op rather than improvised.
+- 2026-08-20 - Keycloak platform hardening (see DEPLOY.md): container memory bounded at
+  1 GB, image pinned by digest, moved from `us-west2` to `asia-southeast1-eqsg3a`,
+  restart retries 3, `KC_HOSTNAME_STRICT=true` with `KC_HOSTNAME` set,
+  `KC_METRICS_ENABLED=false`, `KC_BOOTSTRAP_ADMIN_*` removed (the admin exists; those
+  only seed an empty DB). Health probing wired via
+  `KC_HTTP_MANAGEMENT_HEALTH_ENABLED=false`, which keeps `/health` on the main port.
+  NOTE: setting `KC_HTTP_MANAGEMENT_PORT=8080` instead took Keycloak DOWN (503 on every
+  endpoint, rolled back in ~75s) - Quarkus routes management vs main traffic BY PORT, so
+  equal ports collide and the server never starts. That is the same `:9000` collision
+  class this runbook already records from 2026-07-01; the knowledge existed and was not
+  consulted first.
 - 2026-07-01 - Lockout recovered: `fleet-admin` password reset via
   `kc.sh bootstrap-admin user` (management port relocated to 9990 to clear a `:9000`
   collision). Added `scripts/keycloak-break-glass.sh`. Adopted strict posture:
