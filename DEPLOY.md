@@ -36,6 +36,24 @@ Managed / non-code-deployed:
   limit the JVM reads the host's RAM and the heap grows unbounded. Observed
   2026-07/08: 1.0 GB -> 4.3 GB at 0.0 vCPU, then OOM, for $38.15 of a $40.43 invoice.
   Never remove the limit.
+  The limit alone is NOT sufficient. The image also ships
+  `InitialRAMPercentage=50`, which pins the heap FLOOR at half the container --
+  and G1 returns memory to the OS only at a Remark or Full GC, never below
+  `-Xms`. So a capped-but-unfloored JVM still holds ~500 MB of a 1 GB container
+  forever while serving five dispatchers. Both halves are set as service vars:
+
+  ```
+  JAVA_OPTS_KC_HEAP  = -XX:InitialRAMPercentage=10 -XX:MaxRAMPercentage=70
+  JAVA_OPTS_APPEND   = -XX:G1PeriodicGCInterval=60000
+                       -XX:-G1PeriodicGCInvokesConcurrent
+                       -XX:MinHeapFreeRatio=5 -XX:MaxHeapFreeRatio=25
+  ```
+
+  The MINUS in `-XX:-G1PeriodicGCInvokesConcurrent` is deliberate: it selects a
+  FULL GC rather than a concurrent cycle. JEP 346 notes a concurrent cycle
+  "may ultimately not be able to return as much memory", and an IdP serving five
+  people has no pause budget worth protecting. `scripts/keycloak-memory-guard.ts`
+  enforces all of this against LIVE Railway state.
 - **driver-app** ships as a mobile binary via **EAS Build** (EAS Update for urgent
   JS fixes). It is **NOT** a Railway service and is never deployed here. It carries no
   `railway.json` by design; `scripts/driver-app-not-on-railway.guard.test.ts` enforces
@@ -161,6 +179,18 @@ cleaned up (namespaced, FK-ordered) leaving zero residue.
   omitting a shared package means the service silently ships stale code.
   `scripts/railway-watch-patterns.guard.test.ts` derives the worker's workspace
   dependencies and fails when one is uncovered.
+- **Two Railway guards run on every push** (`.github/workflows/railway-guard.yml`),
+  reading LIVE platform state rather than a committed fixture:
+  `guard:railway-references` and `guard:keycloak-memory`. With Wait-for-CI enabled
+  on the service, a failing run turns the deployment into SKIPPED -- so you cannot
+  deploy into a production whose memory envelope is out of policy. They are
+  deliberately NOT in the `all-checks-passed` aggregate: live-state drift comes
+  from dashboard edits, not from the PR under review, and failing every open PR
+  across 50+ worktrees for a change none of them made is how a gate gets disabled.
+  Exit 1 is a real violation; exit 2 means the guard could not VERIFY (bad auth,
+  unrecognised payload, no Keycloak service found) and is never a pass; a
+  transient Railway API error soft-skips at exit 0, because a guard must never
+  block a deploy merely because it could not read.
 - A branch-protection bypass warning when pushing the back-merge to `develop` is a
   benign artifact of the admin promote, not an error.
 - If `railway status` shows the wrong service, re-run `railway link` and reselect
