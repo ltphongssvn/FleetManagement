@@ -31,7 +31,6 @@
     "@fleet/domain": "workspace:*",
     "@fleet/sync-protocol": "workspace:*",
     "bullmq": "^5.76.2",
-    "ioredis": "^5.10.1",
     "zod": "catalog:"
   },
   "devDependencies": {
