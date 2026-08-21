@@ -51,6 +51,9 @@
 //   sops        SOPS, spawned by env-bootstrap-cli for decrypt/encrypt
 //   age-keygen  the age identity tool machine-doctor probes for
 //   eas         the Expo CLI the build-freshness gate queries
+//   maestro     the mobile UI-test runner scripts/e2e/driver-maestro.mts
+//               drives; surfaced only once the root project pattern was
+//               widened to see .mts at all (2026-08-21)
 // A machine missing any of them gets a named remediation from //#doctor,
 // which is the right instrument for a host capability; knip reporting them
 // as "unlisted" would be a second, weaker answer to a question already
@@ -102,6 +105,7 @@
     "age-keygen",
     "eas",
     "flock",
+    "maestro",
     "pre-commit",
     "railway",
     "sops"
@@ -123,10 +127,11 @@
   "workspaces": {
     ".": {
       "entry": [
-        "scripts/**/*.ts"
+        "scripts/**/*.{ts,mts}"
       ],
       "project": [
-        "scripts/**/*.ts"
+        "scripts/**/*.{ts,mts}",
+        "*.{mjs,cjs,js}"
       ],
       "includeEntryExports": true
     },
