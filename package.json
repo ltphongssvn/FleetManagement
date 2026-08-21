@@ -77,6 +77,8 @@
     "env:recipients": "tsx scripts/env-bootstrap-cli.ts recipients",
     "typecheck:scripts": "tsc --noEmit -p scripts/tsconfig.json",
     "lint:scripts": "eslint scripts --max-warnings=0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "eas:ios:device": "pnpm exec turbo run eas:build:ios:interactive --filter=@fleet/driver-app --ui=tui",
     "eas:freshness": "tsx scripts/eas-build-freshness-gate.ts",
     "expo:doctor": "tsx scripts/expo-doctor-cli.ts",
