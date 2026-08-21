@@ -76,11 +76,25 @@
 // expo-doctor and genuinely does not use it, which is precisely the finding
 // this gate should still make.
 //
-// drizzle-kit is deliberately NOT ignored: it is a real finding.
-// scripts/db-generate.ts invokes it from the ROOT, but it is declared as a
-// devDependency of apps/driver-app -- a genuine misplacement to fix, not
-// suppress. The distinction from expo-doctor is the point: expo-doctor is
-// declared in the workspace that uses it, drizzle-kit is not.
+// drizzle-kit: THIS COMMENT WAS WRONG until 2026-08-19 and is corrected here.
+// It claimed scripts/db-generate.ts invokes drizzle-kit from the ROOT while it
+// is declared in apps/driver-app -- "a genuine misplacement". Ground truth
+// says otherwise: apps/api runs "tsx ../../scripts/db-generate.ts", so the cwd
+// is apps/api, where drizzle-kit IS correctly declared. The root workspace
+// never resolves it, so knip's unlisted-binary line is an artefact of
+// attributing scripts/ to the root by path.
+//
+// The driver-app declaration is real and is NOT a misplacement either: Expo
+// requires drizzle-kit to GENERATE the migrations an app bundles, because each
+// phone holds an isolated database and there is no server-side migrate step.
+// That pipeline does not exist yet in driver-app (no drizzle.config.ts, no
+// drizzle/ folder, no .sql files, no migrate() call, no .sql in Metro
+// sourceExts, no babel.config.js), so the dependency is the idle half of work
+// never started -- tracked as its own device-verified arc, with
+// storage-schema-drift.guard.test.ts holding the line meanwhile.
+//
+// It stays UNIGNORED on purpose: an ignore entry would silence the one signal
+// pointing at that gap.
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignoreBinaries": [

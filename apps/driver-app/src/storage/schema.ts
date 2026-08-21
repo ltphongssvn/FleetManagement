@@ -5,7 +5,25 @@ import { sqliteTable, text, integer, uniqueIndex, check } from 'drizzle-orm/sqli
 import { sql } from 'drizzle-orm';
 import type { ActionId, AggregateId } from '@fleet/sync-protocol';
 
-const ACTION_STATUSES = ['pending', 'syncing', 'synced', 'rejected', 'superseded'] as const;
+/** The action-status vocabulary, and the SINGLE definition of it.
+ *
+ *  EXPORTED (2026-08-19) because it was NOT the single definition: migrate.ts
+ *  hand-wrote the same five values into a CHECK constraint string, so the
+ *  vocabulary lived in two places with nothing binding them. Adding a member
+ *  here would compile cleanly, and the DDL's CHECK would then REJECT the new
+ *  status at runtime -- on a driver's phone, offline, with no way to see why.
+ *
+ *  That is trigger (2) of the two-axis rule: a shape hand-written in more than
+ *  one place derives from ONE definition instead. The frozen as-const array is
+ *  the canonical SSOT enum pattern; migrate.ts now builds its CHECK from this
+ *  export rather than restating it. */
+export const ACTION_STATUSES = Object.freeze([
+  'pending',
+  'syncing',
+  'synced',
+  'rejected',
+  'superseded',
+] as const);
 
 export const localActionLog = sqliteTable(
   'local_action_log',
