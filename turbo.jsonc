@@ -353,6 +353,16 @@
       "description": "Root-level task: ESLint --fix over e2e/. Mutates the source tree, so cache:false -- a cache replay could restore stale content. Companion to //#lint:e2e; local/manual invocation, NEVER wired into a gate, because a gate must verify and not rewrite (same contract as //#lint:scripts:fix). Exists because e2e/ went unlinted for the life of the repo -- @fleet/e2e declares only a typecheck script, so the package-scoped lint task never reached it -- and the first run of //#lint:e2e reported 35 violations, 25 of them mechanically fixable. Fixing in bulk is deliberately followed by READING THE DIFF: an unreviewed --fix across two dozen spec files could silently alter test semantics, and 2026 guidance is explicit that a blanket --fix over a whole tree is the wrong move even with a sound fixer. cache:false. Run: pnpm exec turbo run lint:e2e:fix.",
       "cache": false
     },
+    "//#format:check": {
+      "description": "Root-level task: assert every file matches the committed Prettier style. Prefix //# ensures repo-root-only: .prettierrc governs the whole tree and belongs to no workspace package. ROOT CAUSE THIS CLOSES: the repo carried .prettierrc, .prettierignore and the prettier devDependency, AND eslint-config-prettier -- which exists precisely to TURN OFF every ESLint formatting rule so Prettier can own them. So ESLint was told to stop enforcing style, and Prettier was never run: no format script, no hook, no CI step. //#knip reported prettier as an unused devDependency and was right in the only sense that matters -- nothing invoked it. Formatting was enforced by NEITHER tool while two config files described it in detail, which is the decorative-control shape this repo has now closed seven times. 2026 guidance is explicit that ESLint and Prettier run as SEPARATE tools with eslint-config-prettier as the bridge; the bridge was built and the far side was missing. cache:false -- a pass/fail check over working-tree state, matching lint:scripts and test:scripts. Run: pnpm exec turbo run format:check.",
+      "cache": false,
+      "persistent": false
+    },
+    "//#format": {
+      "description": "Root-level task: Prettier --write over the tree. Mutates source, so cache:false -- a cache replay could restore stale content. Companion to //#format:check; local/manual invocation, NEVER wired into a gate, because a gate must verify and not rewrite -- the identical contract //#lint:scripts:fix and //#lint:e2e:fix already carry. Reading the diff afterwards is mandatory: a blanket --write across 13 workspaces touches files nobody reviewed, and 2026 guidance says the same about bulk --fix. Run: pnpm exec turbo run format.",
+      "cache": false,
+      "persistent": false
+    },
     "//#lint:scripts:fix": {
       "description": "Root-level task: ESLint --fix over scripts/. Mutates the source tree, so cache:false -- a cache replay could restore stale content. Companion to lint:scripts; local/manual invocation, never wired into a gate (a gate must verify, not rewrite). Run: pnpm exec turbo run lint:scripts:fix.",
       "cache": false
