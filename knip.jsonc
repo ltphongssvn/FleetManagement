@@ -98,6 +98,23 @@
 //
 // It stays UNIGNORED on purpose: an ignore entry would silence the one signal
 // pointing at that gap.
+//
+// THE ROOT ignoreDependencies IS A PLUGIN GAP, and it is the ONLY entry here
+// added as a last resort rather than a classification fix. knip's Semantic
+// Release plugin IS enabled and DOES resolve .releaserc.json -- `knip --debug`
+// shows it emit exactly one dependency from that file,
+// "deferResolve:@semantic-release/changelog". But the same plugins array also
+// names @semantic-release/github (as a plugin) and conventionalcommits (as the
+// preset for commit-analyzer and release-notes-generator), and the plugin's
+// dependency finder reports neither. That is knip's documented false-positive
+// shape: "if a plugin exists and the dependency is referenced in the
+// configuration file, but its custom dependency finder does not detect it,
+// then that is a false positive" -- and its guidance is to fix the plugin
+// upstream, with ignoreDependencies as the last resort. Both packages are
+// load-bearing: dropping either breaks `pnpm release` on main.
+//
+// SCOPED TO THE ROOT workspace, not declared globally, so a future workspace
+// that declares them and genuinely does not use them is still reported.
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignoreBinaries": [
@@ -126,6 +143,10 @@
   },
   "workspaces": {
     ".": {
+      "ignoreDependencies": [
+        "@semantic-release/github",
+        "conventional-changelog-conventionalcommits"
+      ],
       "entry": [
         "scripts/**/*.{ts,mts}"
       ],
