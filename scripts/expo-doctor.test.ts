@@ -14,6 +14,7 @@ import {
   doctorArgs,
   doctorVerdict,
   parseDoctorSummary,
+  parseDriftTable,
   type DoctorSummary,
 } from './expo-doctor.js';
 
@@ -126,6 +127,69 @@ describe('parseDoctorSummary reads real output', () => {
 
   it('yields total 0 for empty output', () => {
     expect(parseDoctorSummary('').total).toBe(0);
+  });
+});
+
+/** driver-app, 2026-08-19, verbatim -- including the emoji header and the
+ *  ragged column widths a real run produces. */
+const DRIFT_TABLE = [
+  '19/20 checks passed. 1 checks failed. Possible issues detected:',
+  '\u2716 Check that packages match versions required by installed Expo SDK',
+  '',
+  '\ud83d\udd27 Patch version mismatches',
+  'package                expected  found    ',
+  '@expo/metro-runtime    ~55.0.12  55.0.11  ',
+  'expo                   ~55.0.29  55.0.26  ',
+  'expo-router            ~55.0.18  55.0.16  ',
+  'react-native           0.83.10   0.83.6   ',
+  '',
+  '15 packages out of date.',
+].join(NL);
+
+describe('parseDriftTable reads what Expo EXPECTS', () => {
+  const rows = parseDriftTable(DRIFT_TABLE);
+
+  // Vacuity guard first: a parse that finds nothing would make every
+  // assertion below trivially true.
+  it('finds every drifted row', () => {
+    expect(rows.length).toBe(4);
+  });
+
+  // The middle column is the point: it is Expo's own number for this SDK, so
+  // a bump applies it rather than inventing a version.
+  it('captures the EXPECTED spec with its range operator', () => {
+    expect(rows.find((r) => r.name === 'expo')?.expected).toBe('~55.0.29');
+  });
+
+  it('captures the found version separately', () => {
+    expect(rows.find((r) => r.name === 'expo')?.found).toBe('55.0.26');
+  });
+
+  // Scoped names must survive: @expo/metro-runtime is one of the drifted set.
+  it('handles SCOPED package names', () => {
+    expect(rows.find((r) => r.name === '@expo/metro-runtime')?.expected).toBe('~55.0.12');
+  });
+
+  // react-native is pinned EXACT (no operator) while expo carries ~; both are
+  // Expo's choice and both must round-trip unchanged.
+  it('preserves an EXACT pin with no range operator', () => {
+    expect(rows.find((r) => r.name === 'react-native')?.expected).toBe('0.83.10');
+  });
+
+  // Header and prose lines must not parse as rows -- the failure that would
+  // silently write "package" into a manifest.
+  it('ignores the header and the summary prose', () => {
+    expect(rows.some((r) => r.name === 'package')).toBe(false);
+    expect(rows.some((r) => r.name.includes('checks'))).toBe(false);
+  });
+
+  it('returns EMPTY for a clean run, which is not the same as unreadable', () => {
+    expect(parseDriftTable(CLEAN)).toEqual([]);
+    expect(parseDoctorSummary(CLEAN).total).toBeGreaterThan(0);
+  });
+
+  it('is frozen, so a caller cannot mutate the finding', () => {
+    expect(Object.isFrozen(rows)).toBe(true);
   });
 });
 

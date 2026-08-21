@@ -111,6 +111,41 @@ export function parseDoctorSummary(stdout: string): DoctorSummary {
   };
 }
 
+/** One package whose installed version does not match the SDK's expectation.
+ *
+ *  expo-doctor prints these as a fixed-width table under "Patch version
+ *  mismatches", e.g.
+ *      expo                   ~55.0.29  55.0.26
+ *  where the middle column is what Expo EXPECTS and the right is what is
+ *  installed. Capturing the expectation is what lets //#bump:expo apply Expo's
+ *  own numbers rather than a version this repo invented. */
+export interface DriftedPackage {
+  readonly name: string;
+  /** The spec Expo says this SDK wants, range operator included. */
+  readonly expected: string;
+  /** The bare version currently resolved. */
+  readonly found: string;
+}
+
+/** Read the drift table.
+ *
+ *  ANCHORED ON SHAPE, not on column positions: a name, then a spec that may
+ *  carry ~ or ^, then a bare semver. Column widths shift with the longest
+ *  package name in a given run, so matching on offsets would break whenever the
+ *  set of drifted packages changed -- which is every run.
+ *
+ *  Returns [] when the table is absent, which is the CLEAN case and is
+ *  distinguishable from an unreadable run by parseDoctorSummary().total. */
+export function parseDriftTable(stdout: string): readonly DriftedPackage[] {
+  const rows: DriftedPackage[] = [];
+  for (const line of stdout.split('\n')) {
+    const m = /^\s*(@?[a-z0-9@/-]+)\s+([~^]?[0-9]+\.[0-9]+\.[0-9]+)\s+([0-9]+\.[0-9]+\.[0-9]+)\s*$/.exec(line);
+    if (m?.[1] === undefined || m[2] === undefined || m[3] === undefined) continue;
+    rows.push({ name: m[1], expected: m[2], found: m[3] });
+  }
+  return Object.freeze(rows);
+}
+
 export const DOCTOR_EXIT = {
   ok: 0,
   /** A native peer dependency is missing. Expo documents this as a crash
