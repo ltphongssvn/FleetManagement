@@ -164,6 +164,42 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
             echo "No finished build for fingerprint $FP -- native change detected, dispatching."
           fi
+      # THE MISSING THIRD STEP (2026-08-22). The canonical CI shape is
+      # fingerprint -> get build -> BUILD OR UPDATE: no matching build means
+      # compile a binary, a matching build means publish an OTA update. This
+      # workflow had the first two and, on a match, simply skipped -- so a
+      # JS-only driver change produced NO build AND NO update, and the 22
+      # drivers on sideloaded preview APKs received nothing at all. The
+      # short-circuit was saving metered build minutes by silently shipping
+      # nothing.
+      #
+      # ENV MUST BE PASSED EXPLICITLY. Unlike eas build, `eas update` does NOT
+      # apply the env block from the eas.json build profile. Omitting it would
+      # bundle APP_ENV unset -> app.config.ts resolveAppEnv() falls back to
+      # 'development' -> updates DISABLED in the published bundle, and
+      # EXPO_PUBLIC_API_URL absent -> the app points at localhost. That ships a
+      # dead bundle to every driver, and because expo-updates applies on the
+      # NEXT launch it would be live before anyone could react. These two
+      # values are therefore stated here, and
+      # eas-update-env-parity.guard.test.ts asserts they stay byte-identical to
+      # the preview profile in eas.json.
+      #
+      # --branch preview matches the channel the drivers' binaries subscribe to
+      # (eas.json preview.channel). Android only: the fingerprint match is
+      # per-platform, and publishing once per platform would push two updates
+      # for one commit.
+      - name: Publish OTA update (fingerprint matched -- JS-only change)
+        if: steps.gate.outputs.build == 'true' && steps.fp.outputs.skip == 'true' && matrix.platform == 'android'
+        working-directory: apps/driver-app
+        env:
+          APP_ENV: preview
+          EXPO_PUBLIC_API_URL: https://api-production-fd42.up.railway.app
+        run: |
+          echo "Native fingerprint unchanged -- publishing JS/asset update to the preview channel."
+          eas update \
+            --branch preview \
+            --message "${{ github.event.head_commit.message || github.sha }}" \
+            --non-interactive
       - name: Dispatch build (${{ matrix.platform }}, preview profile, no-wait)
         if: steps.gate.outputs.build == 'true' && steps.fp.outputs.skip != 'true'
         working-directory: apps/driver-app
