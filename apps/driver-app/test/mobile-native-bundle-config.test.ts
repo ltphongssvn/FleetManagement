@@ -27,6 +27,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { z } from 'zod';
+import { OTA_ENABLED_ENVS, resolveAppEnv } from '../app.config';
 const composePath = resolve(__dirname, '../../../compose.yaml');
 const appJsonPath = resolve(__dirname, '../app.json');
 const nscPath = resolve(__dirname, '../plugins/network_security_config.xml');
@@ -34,14 +36,20 @@ const maestroFlowPath = resolve(__dirname, '../.maestro/driver-login-assignment.
 const compose = readFileSync(composePath, 'utf8');
 const appJson = readFileSync(appJsonPath, 'utf8');
 const maestroFlow = readFileSync(maestroFlowPath, 'utf8');
-interface ExpoConfig {
-  expo?: {
-    plugins?: unknown[];
-    updates?: { enabled?: boolean };
-  };
-}
-const expoCfg = JSON.parse(appJson) as ExpoConfig;
-function buildPropsAndroid(cfg: ExpoConfig): Record<string, unknown> | undefined {
+// app.json is FILE INPUT -- a trust boundary -- so it is Zod-parsed rather than
+// cast through a hand-written interface, and the TYPE derives from the schema.
+const ExpoAppJsonSchema = z.object({
+  expo: z
+    .object({
+      plugins: z.array(z.unknown()).optional(),
+      updates: z.object({ enabled: z.boolean().optional() }).loose().optional(),
+    })
+    .loose()
+    .optional(),
+});
+type ExpoAppJson = z.infer<typeof ExpoAppJsonSchema>;
+const expoCfg: ExpoAppJson = ExpoAppJsonSchema.parse(JSON.parse(appJson));
+function buildPropsAndroid(cfg: ExpoAppJson): Record<string, unknown> | undefined {
   const plugins = cfg.expo?.plugins ?? [];
   const bp = plugins.find(
     (p): p is [string, { android?: Record<string, unknown> }] =>
@@ -99,11 +107,27 @@ describe('driver-app release-build E2E contract', () => {
     // Production host must NOT appear as a cleartext domain.
     expect(dom, 'the production host must never be a cleartext domain').not.toMatch(/xe\.vominhchau\.com/);
   });
-  it('app.json disables expo-updates so the release build uses the embedded bundle', () => {
-    expect(
-      expoCfg.expo?.updates?.enabled,
-      'expo.updates.enabled=false avoids the OTA check that races the cold start',
-    ).toBe(false);
+  // WAS: asserted the STATIC app.json flag `updates.enabled === false`. That
+  // flag is gone -- app.config.ts now decides per APP_ENV, because the drivers'
+  // preview APKs MUST receive OTA (22 sideloaded installs cannot be re-installed
+  // by hand) while E2E binaries must not change under the harness.
+  //
+  // The contract this test protects is unchanged: the binary Maestro drives uses
+  // the EMBEDDED bundle. It is now asserted against the RESOLVER for the E2E
+  // env rather than a file constant -- the stronger claim, since that is what
+  // the build actually reads.
+  //
+  // The original rationale ("avoids the OTA check that races the cold start")
+  // was over-broad: fallbackToCacheTimeout:0 already prevents that race by never
+  // blocking launch on the network. Disabling updates outright was a blunt
+  // instrument, and it disabled the drivers' only delivery channel too.
+  it('the E2E build resolves to updates DISABLED, so Maestro drives the embedded bundle', () => {
+    expect(OTA_ENABLED_ENVS).not.toContain(resolveAppEnv('e2e'));
+    expect(OTA_ENABLED_ENVS).not.toContain(resolveAppEnv(undefined));
+  });
+
+  it('app.json no longer hardcodes enablement -- app.config.ts is the only decider', () => {
+    expect(expoCfg.expo?.updates).not.toHaveProperty('enabled');
   });
   it('Maestro flow launchApp the real package id (not Expo Go openLink)', () => {
     expect(appIdLine(maestroFlow), 'appId must be the standalone package').toMatch(
