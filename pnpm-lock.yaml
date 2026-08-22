@@ -673,19 +673,12 @@ importers:
       '@stryker-mutator/vitest-runner':
         specifier: ^9.6.1
         version: 9.6.1(@stryker-mutator/core@9.6.1(@types/node@22.19.17)(supports-color@8.1.1))(vitest@4.1.5)
-      fast-check:
-        specifier: ^4.7.0
-        version: 4.7.0
 
   packages/design-tokens:
     dependencies:
       zod:
         specifier: 'catalog:'
         version: 4.4.3
-    devDependencies:
-      fast-check:
-        specifier: ^4.7.0
-        version: 4.7.0
 
   packages/domain:
     dependencies:

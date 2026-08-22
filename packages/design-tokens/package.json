@@ -42,7 +42,5 @@
   "dependencies": {
     "zod": "catalog:"
   },
-  "devDependencies": {
-    "fast-check": "^4.7.0"
-  }
+  "devDependencies": {}
 }
