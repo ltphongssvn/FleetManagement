@@ -79,6 +79,27 @@
 // expo-doctor and genuinely does not use it, which is precisely the finding
 // this gate should still make.
 //
+// @sentry/cli is the SAME CLASS and was ALMOST REMOVED IN ERROR (2026-08-22).
+// The reasoning that nearly deleted it: `pnpm why` shows @sentry/cli reached
+// TWICE -- directly as a devDependency AND transitively through
+// @sentry/react-native@7.11.0, which depends on the very same 2.58.4. It reads
+// like the redundant root-workspace declaration knip documents, so both apps
+// had it removed.
+//
+// RUNTIME REFUTED THAT. After removal, `pnpm exec sentry-cli` from
+// apps/owner-app answered "Command not found". pnpm's strict isolation exposes
+// binaries from DIRECT dependencies only; a transitive package is resolvable
+// as a MODULE while its bin is absent from the workspace PATH. `pnpm why`
+// answers a package-graph question, not a bin-resolution one -- a different
+// oracle, exactly like knip's import graph versus a spawned binary.
+//
+// WHY IT MATTERS THAT THIS FAILS QUIETLY: app.json configures the
+// @sentry/react-native/expo plugin, which uploads bundles and source maps
+// during EAS builds by SHELLING OUT to sentry-cli. A missing bin would not
+// fail `pnpm install`; it would fail on an EAS builder, and the symptom is
+// unsymbolicated production stack traces -- a defect visible only after a
+// crash report arrives useless.
+//
 // drizzle-kit: THIS COMMENT WAS WRONG until 2026-08-19 and is corrected here.
 // It claimed scripts/db-generate.ts invokes drizzle-kit from the ROOT while it
 // is declared in apps/driver-app -- "a genuine misplacement". Ground truth
@@ -179,7 +200,8 @@
         "app/**/*.{ts,tsx}"
       ],
       "ignoreDependencies": [
-        "expo-doctor"
+        "expo-doctor",
+        "@sentry/cli"
       ]
     },
     "apps/owner-app": {
@@ -191,7 +213,8 @@
         "app/**/*.{ts,tsx}"
       ],
       "ignoreDependencies": [
-        "expo-doctor"
+        "expo-doctor",
+        "@sentry/cli"
       ]
     },
     "workers/main-worker": {
