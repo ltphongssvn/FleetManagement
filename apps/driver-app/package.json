@@ -69,7 +69,6 @@
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@types/react": "~19.2.14",
-    "@types/uuid": "^10.0.0",
     "@vitest/coverage-v8": "4.1.4",
     "drizzle-kit": "^0.31.10",
     "expo-doctor": "1.18.24",
