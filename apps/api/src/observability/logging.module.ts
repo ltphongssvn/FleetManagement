@@ -55,25 +55,37 @@ export const REDACTED_PATHS = Object.freeze([
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         // NODE_ENV via the validated ConfigService boundary, never raw process.env.
+        // It selects VERBOSITY only -- never which code paths load.
         const isProd = config.get<string>('NODE_ENV') === 'production';
-        // pino-pretty runs the formatter in-process and costs real throughput,
-        // so it is DEV ONLY. Production emits newline-delimited JSON straight to
-        // stdout for the platform to ingest.
+        // NO IN-PROCESS TRANSPORT, EVER -- and this cost a red develop to learn.
         //
-        // CONDITIONAL SPREAD, not `transport: isProd ? undefined : {...}`.
-        // exactOptionalPropertyTypes redefines `?:` from "absent or undefined"
-        // to "absent, but never explicitly undefined", so the ternary does not
-        // typecheck. TypeScript declined a dedicated syntax for this case
-        // (microsoft/TypeScript#45606), leaving spread as the sanctioned way to
-        // OMIT a key rather than nullify it -- which is also what "no transport"
-        // actually means to pino.
-        const transport = isProd
-          ? {}
-          : { transport: { target: 'pino-pretty', options: { singleLine: true } } };
+        // The first version gated pino-pretty on NODE_ENV !== 'production'. The
+        // api container runs NODE_ENV=development but installs with
+        // `pnpm deploy --prod`, so pino-pretty -- a devDependency -- is absent
+        // from the image. pino resolves transport targets at CONSTRUCTION, so
+        // the container died at boot with "unable to determine transport target
+        // for pino-pretty" before serving a single request; compose bringup
+        // failed and the E2E gate on develop went red.
+        //
+        // THE GATE WAS ON THE WRONG FACT. "Is this a production DEPLOYMENT" and
+        // "is this dev DEPENDENCY installed" are different questions, and only
+        // the second decides whether a transport can load. Any NODE_ENV-shaped
+        // condition carries the same hazard, so re-gating would be the treadmill
+        // rather than the fix.
+        //
+        // Twelve-Factor XI is the actual answer: a process writes its event
+        // stream, unbuffered, to stdout and stays OBLIVIOUS TO ROUTING. The same
+        // binary then logs to the Docker json-file driver in CI and to the
+        // platform collector in production with ZERO code change -- exactly the
+        // property an environment branch destroys. Pretty-printing is a
+        // local-debugging affordance and a TERMINAL concern: pipe the process
+        // through pino-pretty when a human is reading it.
+        //
+        // Removing the transport also takes the formatter off the hot path,
+        // where it is documented to cost 20-30x throughput.
         return {
           pinoHttp: {
             ...nativeLoggerOptions,
-            ...transport,
             level: isProd ? 'info' : 'debug',
             redact: { paths: [...REDACTED_PATHS], censor: '[REDACTED]' },
             // Railway probes /health every few seconds. Those lines carry no
