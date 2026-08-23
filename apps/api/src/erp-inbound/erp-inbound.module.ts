@@ -9,5 +9,5 @@ import { ErpInboundService } from './erp-inbound.service.js';
   controllers: [ErpInboundController],
   providers: [ErpInboundService],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
+
 export class ErpInboundModule {}

@@ -237,5 +237,5 @@ const COMPLETION_MONITOR_INTERVAL_MS = 300_000;
     },
   ],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
+
 export class SchedulerModule {}

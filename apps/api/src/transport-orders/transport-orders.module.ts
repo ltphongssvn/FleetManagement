@@ -38,5 +38,5 @@ import { OrderNumberingService } from './order-numbering.service.js';
     OrderNumberingService,
   ],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
+
 export class TransportOrdersModule {}
