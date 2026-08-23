@@ -45,7 +45,10 @@ describe('parseJsonc', () => {
   // The defect that made those same guards vacuous for their whole lives: a
   // key beginning with // is DATA, not a comment, and only a parser knows it.
   it('preserves keys that begin with the comment marker', () => {
-    const parsed = parseJsonc('{"//#format": 1, "//#knip": 2}', 'x.jsonc') as Record<string, number>;
+    const parsed = parseJsonc('{"//#format": 1, "//#knip": 2}', 'x.jsonc') as Record<
+      string,
+      number
+    >;
     expect(Object.keys(parsed)).toEqual(['//#format', '//#knip']);
   });
 
