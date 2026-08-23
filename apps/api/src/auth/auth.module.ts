@@ -222,5 +222,5 @@ const CHALLENGE_TTL_SECONDS = 60;
   ],
   exports: [IDENTITY_PROVIDER, JwtGuard, StepUpGuard, OperatorContextFactory],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
+
 export class AuthModule {}

@@ -20,5 +20,5 @@ import { OwnerRoleGuard } from './owner-role.guard.js';
     { provide: OWNER_METRICS_NOW, useValue: (() => new Date()) satisfies NowFn },
   ],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
+
 export class OwnerModule {}

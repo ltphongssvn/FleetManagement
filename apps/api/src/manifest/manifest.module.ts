@@ -11,5 +11,5 @@ import { ManifestService } from './manifest.service.js';
   providers: [ManifestService],
   exports: [ManifestService],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
+
 export class ManifestModule {}

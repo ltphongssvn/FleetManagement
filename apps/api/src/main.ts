@@ -2,6 +2,7 @@ import { initSentry } from './observability/sentry-bootstrap.js';
 // apps/api/src/main.ts
 // OTel SDK is started by ./observability/otel-bootstrap.ts via 'node --import'.
 import { NestFactory } from '@nestjs/core';
+import { NativeLogger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
 import { configureApp } from './configure-app.js';
 import { shutdownOtel } from './observability/otel.js';
@@ -62,7 +63,25 @@ async function bootstrap(): Promise<void> {
   // Factor III: read deploy-varying config from the single validated
   // boundary (validateEnv), never raw process.env in the request path.
   const env = validateEnv(process.env);
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  // bufferLogs holds messages emitted between create() and useLogger() and
+  // replays them through pino, so "Nest application starting" and every
+  // module's own boot line arrive as structured JSON rather than as
+  // unstructured strings from the default ConsoleLogger.
+  //
+  // It does NOT cover a failure to BUILD the container. If module resolution
+  // throws, app.get() never runs, and Nest deliberately falls back to
+  // ConsoleLogger to print the error -- documented behaviour and the right
+  // one, since an unstructured error still reaches stdout beats a structured
+  // one that never gets a logger. Boot-failure lines are therefore the single
+  // category that stays unqueryable, on purpose.
+  //
+  // rawBody stays: the EAS webhook verifies an HMAC over the exact bytes, so
+  // it must survive alongside the logging change.
+  const app = await NestFactory.create(AppModule, { rawBody: true, bufferLogs: true });
+  // NativeLogger, not Logger: preserves NestJS argument semantics, so the
+  // thirteen existing `new Logger(Ctx.name)` call sites emit exactly what they
+  // did before. This migration changes the SINK, not any call site.
+  app.useLogger(app.get(NativeLogger));
   configureApp(app, env);
   const port = env.PORT;
   await app.listen(port);

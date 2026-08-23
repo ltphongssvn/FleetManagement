@@ -45,5 +45,5 @@ import type { S3Client } from '@aws-sdk/client-s3';
   ],
   exports: [STOP_PROOF_URL_SIGNER],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
+
 export class StopProofModule {}

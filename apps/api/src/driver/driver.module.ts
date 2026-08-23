@@ -11,5 +11,5 @@ import { DriverPasswordChangeController } from './driver-password-change.control
   providers: [DriverMeService, DriverPasswordChangeService],
   exports: [DriverMeService, DriverPasswordChangeService],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
+
 export class DriverModule {}

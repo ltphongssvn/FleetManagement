@@ -251,6 +251,32 @@ export default tseslint.config(
     },
   },
 
+  // A NestJS MODULE class is a decorator carrier with no members BY DESIGN.
+  // no-extraneous-class exists to stop people wrapping utility functions in a
+  // class instead of using a module -- a real defect, and the rule stays on
+  // everywhere else. It cannot know that @Module() classes are the framework's
+  // own unit of composition, so it fires on every correct one.
+  //
+  // allowWithDecorator IS THE RULE'S OWN ANSWER, not a workaround: the option
+  // exists precisely to exempt decorated classes. Using it removes the whole
+  // category instead of adding one eslint-disable per module -- and AppModule
+  // already carried such a comment, which is exactly how the treadmill starts:
+  // every new module copies it, and nobody ever revisits whether the rule
+  // should have been configured.
+  //
+  // This config's own lint-as-architecture note says it plainly: state the
+  // forbidden pattern precisely rather than carve per-file escapes, which
+  // ESLint itself says must not be the default way to resolve a violation.
+  //
+  // SCOPED TO *.module.ts, not global: a decorated class elsewhere (a
+  // @Injectable() with no members, say) is still worth reporting.
+  {
+    files: ["apps/*/src/**/*.module.ts", "workers/*/src/**/*.module.ts"],
+    rules: {
+      "@typescript-eslint/no-extraneous-class": ["error", { allowWithDecorator: true }],
+    },
+  },
+
   // Custom rule overrides
   {
     rules: {
