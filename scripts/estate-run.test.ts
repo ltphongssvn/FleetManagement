@@ -265,9 +265,9 @@ describe('a throw is UNKNOWN, never clean', () => {
       // Throwing a non-Error is precisely the case under test: JavaScript
       // permits throwing any value, so a boundary catching only Error has a
       // hole. The rule is right about production code, not about this.
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
       const r = runEstateVerify({
         gather: () => {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error
           throw thrown;
         },
       });

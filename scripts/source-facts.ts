@@ -106,7 +106,12 @@ export function liveRegionIsStatic(path: string): boolean {
       node.initializer.text === 'status'
     ) {
       seen += 1;
-      for (let p: ts.Node | undefined = node.parent; p !== undefined; p = p.parent) {
+      // Walk to the SourceFile, which IS the root. TypeScript types Node.parent
+      // as Node rather than Node | undefined, so a `p !== undefined` guard has
+      // no type overlap and no-unnecessary-condition rejects it -- correctly:
+      // the terminating condition is "reached the file", not "ran out of
+      // parents".
+      for (let p: ts.Node = node.parent; !ts.isSourceFile(p); p = p.parent) {
         if (ts.isConditionalExpression(p)) {
           conditional += 1;
           break;
