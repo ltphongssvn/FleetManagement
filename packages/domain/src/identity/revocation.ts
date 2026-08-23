@@ -20,7 +20,9 @@ export const RevocationReasonSchema = z.enum([
 export type RevocationReason = z.infer<typeof RevocationReasonSchema>;
 
 /** Frozen runtime list of revocation reasons. */
-export const REVOCATION_REASONS: readonly RevocationReason[] = Object.freeze(RevocationReasonSchema.options);
+export const REVOCATION_REASONS: readonly RevocationReason[] = Object.freeze(
+  RevocationReasonSchema.options,
+);
 
 /**
  * Schema version bumped when reason-code SEMANTICS change (rename/redefine).

@@ -112,7 +112,9 @@ export async function startMigratedTestDb(databaseName = 'fleet_test'): Promise<
       if (attempt >= maxAttempts || !isTransientConnError(err)) {
         if (locked) {
           try {
-            await client.query('SELECT pg_advisory_unlock($1)', [CLONE_ADVISORY_LOCK_KEY.toString()]);
+            await client.query('SELECT pg_advisory_unlock($1)', [
+              CLONE_ADVISORY_LOCK_KEY.toString(),
+            ]);
           } catch {
             /* connection broken; lock dies with the session anyway */
           }
@@ -153,7 +155,9 @@ export async function startMigratedTestDb(databaseName = 'fleet_test'): Promise<
   // contention-sensitive CI flake. Swallowing ONLY background idle-client errors
   // here is safe: a real query error still rejects its own await inside the test;
   // pg routes only out-of-band connection errors through this emitter.
-  pool.on('error', () => { /* idle-client connection error during teardown; ignore */ });
+  pool.on('error', () => {
+    /* idle-client connection error during teardown; ignore */
+  });
   const db = drizzle(pool, { schema, casing: 'snake_case' });
   return { databaseName: dbName, pool, db };
 }
@@ -193,7 +197,9 @@ export async function stopMigratedTestDb(testDb: MigratedTestDb): Promise<void> 
     await adminPool.query('DROP DATABASE IF EXISTS ' + quoteIdent(dbName));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    process.stderr.write('[stopMigratedTestDb] DROP DATABASE ' + dbName + ' failed (non-fatal): ' + msg + '\n');
+    process.stderr.write(
+      '[stopMigratedTestDb] DROP DATABASE ' + dbName + ' failed (non-fatal): ' + msg + '\n',
+    );
   } finally {
     await adminPool.end();
   }

@@ -22,11 +22,15 @@ describe('AdminDriversResetPasswordController', () => {
   };
   beforeEach(() => {
     resetFn = vi.fn();
-    controller = new AdminDriversResetPasswordController({ resetPassword: resetFn } as unknown as AdminDriversResetPasswordService);
+    controller = new AdminDriversResetPasswordController({
+      resetPassword: resetFn,
+    } as unknown as AdminDriversResetPasswordService);
   });
   it('delegates with target driverId, actor operatorId, tenancy + newPassword', async () => {
     resetFn.mockResolvedValue(undefined);
-    await controller.reset(op, '0d0d0d0d-1111-4111-8111-0d0d0d0d0d0d', { newPassword: 'freshpass1' }); // pragma: allowlist secret
+    await controller.reset(op, '0d0d0d0d-1111-4111-8111-0d0d0d0d0d0d', {
+      newPassword: 'freshpass1',
+    }); // pragma: allowlist secret
     expect(resetFn).toHaveBeenCalledWith({
       driverId: '0d0d0d0d-1111-4111-8111-0d0d0d0d0d0d',
       companyId: op.companyId,
@@ -45,7 +49,10 @@ describe('AdminDriversResetPasswordController', () => {
   });
   it('does NOT accept a currentPassword field (service-desk reset needs none)', async () => {
     resetFn.mockResolvedValue(undefined);
-    await controller.reset(op, '0d0d0d0d-1111-4111-8111-0d0d0d0d0d0d', { newPassword: 'freshpass1', currentPassword: 'whatever' } as unknown as { newPassword: string }); // pragma: allowlist secret
+    await controller.reset(op, '0d0d0d0d-1111-4111-8111-0d0d0d0d0d0d', {
+      newPassword: 'freshpass1',
+      currentPassword: 'whatever',
+    } as unknown as { newPassword: string }); // pragma: allowlist secret
     // zod strips unknown keys: the service call must carry only the reset shape
     expect(resetFn).toHaveBeenCalledWith({
       driverId: '0d0d0d0d-1111-4111-8111-0d0d0d0d0d0d',

@@ -72,6 +72,8 @@ describe('extract-parse-one-number transform', () => {
     const project = new Project({ useInMemoryFileSystem: true });
     project.getFileSystem().writeFileSync(ORIGIN_PATH, ORIGIN);
     project.addSourceFilesAtPaths('/**/*.ts');
-    expect(() => runProjectCodemod({ project, transform: extractParseOneNumber, dryRun: false })).toThrow();
+    expect(() =>
+      runProjectCodemod({ project, transform: extractParseOneNumber, dryRun: false }),
+    ).toThrow();
   });
 });

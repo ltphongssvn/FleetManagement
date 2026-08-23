@@ -40,12 +40,7 @@
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
-import {
-  EXPO_APPS,
-  EXPO_DOCTOR_VERSION,
-  doctorArgs,
-  parseDoctorSummary,
-} from './expo-doctor.js';
+import { EXPO_APPS, EXPO_DOCTOR_VERSION, doctorArgs, parseDoctorSummary } from './expo-doctor.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const NL = String.fromCharCode(10);
@@ -76,8 +71,10 @@ describe.skipIf(!canObserve)('the parser still understands the real binary', () 
   // against REAL output means the wording moved and the regexes no longer
   // match -- the exact drift no frozen fixture can detect.
   it('reads a check ratio from live output, not zero', () => {
-    expect({ total: parsed.total, readable: parsed.total > 0 })
-      .toEqual({ total: parsed.total, readable: true });
+    expect({ total: parsed.total, readable: parsed.total > 0 }).toEqual({
+      total: parsed.total,
+      readable: true,
+    });
     expect(parsed.total).toBeGreaterThan(0);
   });
 

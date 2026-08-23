@@ -106,11 +106,13 @@ export class ProjectionRunnerService {
         const currentRows = await tx
           .select()
           .from(dispatchBoardProjection)
-          .where(and(
-            eq(dispatchBoardProjection.roadRunId, ev.aggregateId),
-            eq(dispatchBoardProjection.companyId, scope),
-            isNull(dispatchBoardProjection.deletedAt),
-          ))
+          .where(
+            and(
+              eq(dispatchBoardProjection.roadRunId, ev.aggregateId),
+              eq(dispatchBoardProjection.companyId, scope),
+              isNull(dispatchBoardProjection.deletedAt),
+            ),
+          )
           .limit(1);
         const currentRow = currentRows[0];
         const current: RoadRunProjectionRow | null = currentRow
@@ -149,11 +151,13 @@ export class ProjectionRunnerService {
           await tx
             .update(dispatchBoardProjection)
             .set({ deletedAt: new Date(), serverSeq: decision.serverSeq, updatedAt: new Date() })
-            .where(and(
-              eq(dispatchBoardProjection.roadRunId, decision.roadRunId),
-              eq(dispatchBoardProjection.companyId, scope),
-              isNull(dispatchBoardProjection.deletedAt),
-            ));
+            .where(
+              and(
+                eq(dispatchBoardProjection.roadRunId, decision.roadRunId),
+                eq(dispatchBoardProjection.companyId, scope),
+                isNull(dispatchBoardProjection.deletedAt),
+              ),
+            );
           softDeletes++;
         } else {
           // upsert
@@ -204,10 +208,12 @@ export class ProjectionRunnerService {
       await tx
         .update(projectionStatus)
         .set({ watermark: newWatermark, lagMs, lastAppliedAt: new Date(), updatedAt: new Date() })
-        .where(and(
-          eq(projectionStatus.projectionName, DISPATCH_BOARD_PROJECTION_NAME),
-          eq(projectionStatus.scope, scope),
-        ));
+        .where(
+          and(
+            eq(projectionStatus.projectionName, DISPATCH_BOARD_PROJECTION_NAME),
+            eq(projectionStatus.scope, scope),
+          ),
+        );
 
       this.logger.debug(
         `[projection ${DISPATCH_BOARD_PROJECTION_NAME} scope=${scope}] polled=${String(events.length)} applied=${String(applied)} noops=${String(noops)} softDeletes=${String(softDeletes)} watermark=${newWatermark.toString()} lagMs=${String(lagMs)}`,

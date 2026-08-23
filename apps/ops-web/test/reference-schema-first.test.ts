@@ -21,11 +21,13 @@ import { fileURLToPath } from 'node:url';
 import { ReferenceAdminClient } from '@/features/admin/reference-admin-client';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const src = (rel: string): string =>
-  readFileSync(resolve(here, '../src', rel), 'utf8');
+const src = (rel: string): string => readFileSync(resolve(here, '../src', rel), 'utf8');
 
 function jsonRes(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
 describe('reference wire consumption is schema-first', () => {
@@ -36,7 +38,9 @@ describe('reference wire consumption is schema-first', () => {
   });
 
   it('list() still returns valid items (including the meta bag)', async () => {
-    const fetchFn = vi.fn(() => Promise.resolve(jsonRes({ items: [{ id: 'c1', label: 'Acme', meta: { phone: '0901' } }] })));
+    const fetchFn = vi.fn(() =>
+      Promise.resolve(jsonRes({ items: [{ id: 'c1', label: 'Acme', meta: { phone: '0901' } }] })),
+    );
     const client = new ReferenceAdminClient('customers', fetchFn);
     expect(await client.list()).toEqual([{ id: 'c1', label: 'Acme', meta: { phone: '0901' } }]);
   });
@@ -57,6 +61,10 @@ describe('reference wire consumption is schema-first', () => {
     expect(client.includes('as ReferenceOption')).toBe(false);
     expect(client.includes('export interface ReferenceOption')).toBe(false);
     expect(loader.includes('interface RefItem')).toBe(false);
-    expect(loader.includes('as ' + String.fromCharCode(123) + ' ref?: string ' + String.fromCharCode(125))).toBe(false);
+    expect(
+      loader.includes(
+        'as ' + String.fromCharCode(123) + ' ref?: string ' + String.fromCharCode(125),
+      ),
+    ).toBe(false);
   });
 });

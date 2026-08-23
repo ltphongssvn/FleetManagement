@@ -36,7 +36,17 @@ export default defineConfig({
     // vitest-maxworkers-ssot.guard.test.ts keeps this from drifting back.
     maxWorkers: 2,
     coverage: {
-      exclude: ['**/index.ts', '**/types.ts', '**/*.config.{ts,mjs}', '**/dist/**', '**/.next/**', '**/test/**', 'src/app/**', '**/*.stories.tsx', '**/*.mock.ts'],
+      exclude: [
+        '**/index.ts',
+        '**/types.ts',
+        '**/*.config.{ts,mjs}',
+        '**/dist/**',
+        '**/.next/**',
+        '**/test/**',
+        'src/app/**',
+        '**/*.stories.tsx',
+        '**/*.mock.ts',
+      ],
       provider: 'v8',
       include: [resolve(__dirname, 'src/**/*.{ts,tsx}')],
       thresholds: {

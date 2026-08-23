@@ -21,15 +21,9 @@ export const BUILD_PLATFORMS = ['ios', 'android'] as const;
 export type BuildPlatform = (typeof BUILD_PLATFORMS)[number];
 
 /** Closed set: agents and humans branch on codes, never on prose. */
-export type ObservationCode =
-  | 'ACQUISITION_FAILED'
-  | 'FUTURE_TIMESTAMP'
-  | 'NON_FINITE_TIMESTAMP';
+export type ObservationCode = 'ACQUISITION_FAILED' | 'FUTURE_TIMESTAMP' | 'NON_FINITE_TIMESTAMP';
 
-export type PolicyCode =
-  | 'NON_POSITIVE_WINDOW'
-  | 'NON_FINITE_WINDOW'
-  | 'NON_FINITE_CLOCK';
+export type PolicyCode = 'NON_POSITIVE_WINDOW' | 'NON_FINITE_WINDOW' | 'NON_FINITE_CLOCK';
 
 /**
  * What the boundary managed to learn. `unavailable` is NOT `no-success`:
@@ -49,11 +43,29 @@ export interface FreshnessInput {
 }
 
 export type FreshnessVerdict =
-  | { readonly kind: 'fresh'; readonly platform: BuildPlatform; readonly ageMs: number; readonly maxAgeMs: number }
-  | { readonly kind: 'stale'; readonly platform: BuildPlatform; readonly ageMs: number; readonly maxAgeMs: number }
+  | {
+      readonly kind: 'fresh';
+      readonly platform: BuildPlatform;
+      readonly ageMs: number;
+      readonly maxAgeMs: number;
+    }
+  | {
+      readonly kind: 'stale';
+      readonly platform: BuildPlatform;
+      readonly ageMs: number;
+      readonly maxAgeMs: number;
+    }
   | { readonly kind: 'never'; readonly platform: BuildPlatform; readonly maxAgeMs: number }
-  | { readonly kind: 'invalid-observation'; readonly platform: BuildPlatform; readonly code: ObservationCode }
-  | { readonly kind: 'invalid-policy'; readonly platform: BuildPlatform; readonly code: PolicyCode };
+  | {
+      readonly kind: 'invalid-observation';
+      readonly platform: BuildPlatform;
+      readonly code: ObservationCode;
+    }
+  | {
+      readonly kind: 'invalid-policy';
+      readonly platform: BuildPlatform;
+      readonly code: PolicyCode;
+    };
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -116,7 +128,11 @@ export interface FreshnessTelemetry {
  * derived from the same verdict rather than being parsed by anything.
  */
 export function telemetryFor(v: FreshnessVerdict): FreshnessTelemetry {
-  const base = { event: 'native_build_freshness_evaluated', verdict: v.kind, platform: v.platform } as const;
+  const base = {
+    event: 'native_build_freshness_evaluated',
+    verdict: v.kind,
+    platform: v.platform,
+  } as const;
   switch (v.kind) {
     case 'fresh':
     case 'stale':
@@ -147,18 +163,36 @@ function humanAge(ms: number): string {
 export function describeVerdict(v: FreshnessVerdict): string {
   switch (v.kind) {
     case 'fresh':
-      return v.platform + ': last successful build is ' + humanAge(v.ageMs) +
-        ' old, within the ' + humanAge(v.maxAgeMs) + ' window';
+      return (
+        v.platform +
+        ': last successful build is ' +
+        humanAge(v.ageMs) +
+        ' old, within the ' +
+        humanAge(v.maxAgeMs) +
+        ' window'
+      );
     case 'stale':
-      return v.platform + ': last successful build is ' + humanAge(v.ageMs) +
-        ' old, beyond the ' + humanAge(v.maxAgeMs) + ' window -- native builds ' +
-        'have been failing or skipped since then';
+      return (
+        v.platform +
+        ': last successful build is ' +
+        humanAge(v.ageMs) +
+        ' old, beyond the ' +
+        humanAge(v.maxAgeMs) +
+        ' window -- native builds ' +
+        'have been failing or skipped since then'
+      );
     case 'never':
-      return v.platform + ': no successful native build exists at all within ' +
-        'the queried history';
+      return (
+        v.platform + ': no successful native build exists at all within ' + 'the queried history'
+      );
     case 'invalid-observation':
-      return v.platform + ': freshness could not be established from the ' +
-        'available evidence (' + v.code + ')';
+      return (
+        v.platform +
+        ': freshness could not be established from the ' +
+        'available evidence (' +
+        v.code +
+        ')'
+      );
     case 'invalid-policy':
       return v.platform + ': the freshness policy itself is invalid (' + v.code + ')';
     default:

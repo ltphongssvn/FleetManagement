@@ -31,7 +31,10 @@ export const EnvSchema = z.object({
   S3_PUBLIC_URL: z.url().optional(),
   AWS_ACCESS_KEY_ID: z.string().min(1).optional(),
   AWS_SECRET_ACCESS_KEY: z.string().min(1).optional(),
-  OTEL_ENABLED: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  OTEL_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: z.url().optional(),
   OTEL_SERVICE_NAME: z.string().default('fleet-api'),
   OTEL_SAMPLE_RATIO: z.coerce.number().min(0).max(1).default(1.0),
@@ -42,7 +45,12 @@ export const EnvSchema = z.object({
   STEP_UP_ACR_LADDER: z
     .string()
     .default('aal1,aal2,aal3')
-    .transform((v) => v.split(',').map((s) => s.trim()).filter((s) => s.length > 0)),
+    .transform((v) =>
+      v
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0),
+    ),
   STEP_UP_DISPATCH_REQUIRED_ACR: z.string().min(1).default('aal2'),
   STEP_UP_DISPATCH_REQUIRE_PHISHING_RESISTANT: z
     .enum(['true', 'false'])
@@ -51,7 +59,12 @@ export const EnvSchema = z.object({
   STEP_UP_PHISHING_RESISTANT_AMR: z
     .string()
     .default('hwk')
-    .transform((v) => v.split(',').map((s) => s.trim()).filter((s) => s.length > 0)),
+    .transform((v) =>
+      v
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0),
+    ),
   // Break-glass login monitor (see context/keycloak-break-glass-runbook.md).
   // A poller reads master-realm login events and pages via Sentry on any
   // fleet-breakglass-* sign-in. CLIENT_SECRET is optional on purpose: unset ->
@@ -68,10 +81,7 @@ export const EnvSchema = z.object({
   // coerced to undefined so a blank interpolation reads as absent, not as a
   // present-but-invalid key. COPILOT_LLM_MODEL is the technical best-fit default
   // for strict-JSON + sub-600ms; env-overridable for a model A/B.
-  ANTHROPIC_API_KEY: z.preprocess(
-    (v) => (v === '' ? undefined : v),
-    z.string().min(1).optional(),
-  ),
+  ANTHROPIC_API_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
   COPILOT_LLM_MODEL: z.string().min(1).default('claude-haiku-4-5'),
   // Intake-lag regression guard (Jun-24 incident class): pages via Sentry
   // fatal when the OLDEST verifying manifest exceeds this age -- any break in
@@ -91,7 +101,10 @@ export const EnvSchema = z.object({
   // max attempts a manifest is quarantined in place (state untouched) and a
   // distinct Sentry fatal fires. ENABLED gates the scheduler tick; unset ->
   // ON (self-healing is the safe default for production).
-  INTAKE_RECONCILE_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  INTAKE_RECONCILE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
   INTAKE_RECONCILE_AFTER_MINUTES: z.coerce.number().int().positive().default(15),
   INTAKE_RECONCILE_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
   INTAKE_RECONCILE_BATCH_SIZE: z.coerce.number().int().positive().default(25),
@@ -103,7 +116,10 @@ export const EnvSchema = z.object({
   // commit) becomes loud within one threshold window instead of stranding
   // silently. ENABLED gates the scheduler tick; unset -> ON (loud-by-default
   // is the safe production posture, mirroring INTAKE_RECONCILE_ENABLED).
-  COMPLETION_MONITOR_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  COMPLETION_MONITOR_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
   COMPLETION_STRANDED_ALERT_MINUTES: z.coerce.number().int().positive().default(30),
   // Completion self-healing reconciler (2026 level-based recovery loop,
   // sibling of the intake reconciler). Every tick it finds non-terminal
@@ -117,7 +133,10 @@ export const EnvSchema = z.object({
   // MAX_ATTEMPTS/quarantine (unlike intake). ENABLED gates the tick; unset
   // -> ON (self-healing is the safe production default). AFTER_MINUTES set
   // low: a delivered run should complete within minutes, not stay running.
-  COMPLETION_RECONCILE_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  COMPLETION_RECONCILE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
   COMPLETION_RECONCILE_AFTER_MINUTES: z.coerce.number().int().positive().default(5),
   COMPLETION_RECONCILE_BATCH_SIZE: z.coerce.number().int().positive().default(50),
   // Inbound webhook HMAC secrets (Factor III: declared at the validated
@@ -134,11 +153,19 @@ export const EnvSchema = z.object({
   CORS_ORIGINS: z
     .string()
     .default('http://localhost:8081,http://localhost:3001')
-    .transform((v) => v.split(',').map((s) => s.trim()).filter((s) => s.length > 0)),
+    .transform((v) =>
+      v
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0),
+    ),
   // Guards the seed endpoint (POST /transport-orders). Default ON; a deploy
   // sets this false to disable the seed path. Boolean-coerced like the
   // OTEL_ENABLED / INTAKE_RECONCILE_ENABLED flags.
-  FLEET_PILOT_SEED_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  FLEET_PILOT_SEED_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
   // Device attestation (arc: feature/device-binding). Server-side deployment
   // constants for hardware attestation verification. The two CSV lists are the
   // accepted app identities (an app can ship under more than one id across
@@ -147,11 +174,21 @@ export const EnvSchema = z.object({
   ATTESTATION_ANDROID_PACKAGE_NAMES: z
     .string()
     .default('')
-    .transform((v) => v.split(',').map((x) => x.trim()).filter((x) => x.length > 0)),
+    .transform((v) =>
+      v
+        .split(',')
+        .map((x) => x.trim())
+        .filter((x) => x.length > 0),
+    ),
   ATTESTATION_IOS_BUNDLE_IDS: z
     .string()
     .default('')
-    .transform((v) => v.split(',').map((x) => x.trim()).filter((x) => x.length > 0)),
+    .transform((v) =>
+      v
+        .split(',')
+        .map((x) => x.trim())
+        .filter((x) => x.length > 0),
+    ),
   ATTESTATION_APPLE_TEAM_ID: z.string().min(1).default('0000000000'),
 });
 export type Env = z.infer<typeof EnvSchema>;

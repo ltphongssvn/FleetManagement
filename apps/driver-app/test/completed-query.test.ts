@@ -43,7 +43,11 @@ describe('makeCompletedQueryFn', () => {
     const completed = vi.fn().mockResolvedValue(pageAt(1, false));
     const queryFn = makeCompletedQueryFn({ completed } as never, 'XTT.06');
     await queryFn({ pageParam: 1 });
-    expect(completed).toHaveBeenCalledWith({ page: 1, pageSize: COMPLETED_PAGE_SIZE, search: 'XTT.06' });
+    expect(completed).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: COMPLETED_PAGE_SIZE,
+      search: 'XTT.06',
+    });
   });
   it('propagates a rejection from the client', async () => {
     const completed = vi.fn().mockRejectedValue(new Error('network'));

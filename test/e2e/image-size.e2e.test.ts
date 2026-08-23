@@ -6,7 +6,9 @@ import { execSync } from 'node:child_process';
 import { describe, it, expect } from 'vitest';
 
 function imageSizeMB(name: string): number {
-  const out = execSync(`docker image inspect ${name} --format='{{.Size}}'`, { encoding: 'utf8' }).trim();
+  const out = execSync(`docker image inspect ${name} --format='{{.Size}}'`, {
+    encoding: 'utf8',
+  }).trim();
   return Math.round(Number(out) / 1024 / 1024);
 }
 

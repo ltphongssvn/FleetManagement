@@ -13,15 +13,23 @@ const { mockCaptureEvent, capturedEvents } = vi.hoisted(() => {
   const capturedEvents: unknown[] = [];
   return {
     capturedEvents,
-    mockCaptureEvent: vi.fn((e: unknown) => { capturedEvents.push(e); return 'evt-id'; }),
+    mockCaptureEvent: vi.fn((e: unknown) => {
+      capturedEvents.push(e);
+      return 'evt-id';
+    }),
   };
 });
 vi.mock('@sentry/nestjs', () => ({ captureEvent: mockCaptureEvent }));
-import { IntakeLagMonitorService, type IntakeLagRepo } from '../src/manifest/intake-lag-monitor.service.js';
+import {
+  IntakeLagMonitorService,
+  type IntakeLagRepo,
+} from '../src/manifest/intake-lag-monitor.service.js';
 
 const T0 = 1_800_000_000_000;
 const MIN = 60_000;
-function repoWith(row: { manifestId: string; createdAt: Date; verifyingCount: number } | null): IntakeLagRepo {
+function repoWith(
+  row: { manifestId: string; createdAt: Date; verifyingCount: number } | null,
+): IntakeLagRepo {
   return { oldestVerifying: vi.fn().mockResolvedValue(row) };
 }
 
@@ -38,14 +46,22 @@ describe('@fleet/api - IntakeLagMonitorService', () => {
   });
 
   it('does nothing while the oldest verifying manifest is younger than the threshold', async () => {
-    const repo = repoWith({ manifestId: 'm-1', createdAt: new Date(T0 - 29 * MIN), verifyingCount: 3 });
+    const repo = repoWith({
+      manifestId: 'm-1',
+      createdAt: new Date(T0 - 29 * MIN),
+      verifyingCount: 3,
+    });
     const svc = new IntakeLagMonitorService(repo, 30, () => T0);
     await svc.checkOnce();
     expect(mockCaptureEvent).not.toHaveBeenCalled();
   });
 
   it('emits ONE Sentry fatal with fingerprint + diagnostics when the threshold is crossed', async () => {
-    const repo = repoWith({ manifestId: 'm-old', createdAt: new Date(T0 - 45 * MIN), verifyingCount: 66 });
+    const repo = repoWith({
+      manifestId: 'm-old',
+      createdAt: new Date(T0 - 45 * MIN),
+      verifyingCount: 66,
+    });
     const svc = new IntakeLagMonitorService(repo, 30, () => T0);
     await svc.checkOnce();
     expect(mockCaptureEvent).toHaveBeenCalledTimes(1);
@@ -65,7 +81,11 @@ describe('@fleet/api - IntakeLagMonitorService', () => {
   });
 
   it('pages only once per stall episode (no re-alert while still stalled)', async () => {
-    const repo = repoWith({ manifestId: 'm-old', createdAt: new Date(T0 - 45 * MIN), verifyingCount: 5 });
+    const repo = repoWith({
+      manifestId: 'm-old',
+      createdAt: new Date(T0 - 45 * MIN),
+      verifyingCount: 5,
+    });
     const svc = new IntakeLagMonitorService(repo, 30, () => T0);
     await svc.checkOnce();
     await svc.checkOnce();
@@ -79,7 +99,9 @@ describe('@fleet/api - IntakeLagMonitorService', () => {
       createdAt: new Date(T0 - 45 * MIN),
       verifyingCount: 2,
     };
-    const repo: IntakeLagRepo = { oldestVerifying: vi.fn().mockImplementation(() => Promise.resolve(row)) };
+    const repo: IntakeLagRepo = {
+      oldestVerifying: vi.fn().mockImplementation(() => Promise.resolve(row)),
+    };
     const svc = new IntakeLagMonitorService(repo, 30, () => T0);
     await svc.checkOnce();
     row = null;
@@ -91,7 +113,9 @@ describe('@fleet/api - IntakeLagMonitorService', () => {
 
   it('a young backlog after a stall also re-arms the episode', async () => {
     let row = { manifestId: 'm-1', createdAt: new Date(T0 - 45 * MIN), verifyingCount: 2 };
-    const repo: IntakeLagRepo = { oldestVerifying: vi.fn().mockImplementation(() => Promise.resolve(row)) };
+    const repo: IntakeLagRepo = {
+      oldestVerifying: vi.fn().mockImplementation(() => Promise.resolve(row)),
+    };
     const svc = new IntakeLagMonitorService(repo, 30, () => T0);
     await svc.checkOnce();
     row = { manifestId: 'm-9', createdAt: new Date(T0 - 1 * MIN), verifyingCount: 1 };
@@ -102,7 +126,11 @@ describe('@fleet/api - IntakeLagMonitorService', () => {
   });
 
   it('exactly at the threshold does not page (strictly greater crosses)', async () => {
-    const repo = repoWith({ manifestId: 'm-1', createdAt: new Date(T0 - 30 * MIN), verifyingCount: 1 });
+    const repo = repoWith({
+      manifestId: 'm-1',
+      createdAt: new Date(T0 - 30 * MIN),
+      verifyingCount: 1,
+    });
     const svc = new IntakeLagMonitorService(repo, 30, () => T0);
     await svc.checkOnce();
     expect(mockCaptureEvent).not.toHaveBeenCalled();

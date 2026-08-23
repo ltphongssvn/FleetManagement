@@ -59,9 +59,6 @@ export const FleetRoleSchema = z.enum(FLEET_ROLES);
  *  undefined denies rather than throwing: an absent claim is a legitimate token
  *  shape (a driver's self-issued token has no realm_access), and an
  *  authorization helper must answer no, not crash the request pipeline. */
-export function hasFleetRole(
-  roles: readonly string[] | undefined,
-  required: FleetRole,
-): boolean {
+export function hasFleetRole(roles: readonly string[] | undefined, required: FleetRole): boolean {
   return roles?.includes(required) === true;
 }

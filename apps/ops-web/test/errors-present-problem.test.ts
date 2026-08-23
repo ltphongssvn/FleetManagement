@@ -42,10 +42,17 @@ describe('ops-web vnApiErrorMessage', () => {
   it('keys the copy Record by the strict contract union', () => {
     const keys = Object.keys(VN_OPS_ERROR_MESSAGES).sort();
     expect(keys).toEqual([
-      'DEVICE_NOT_REGISTERED', 'DEVICE_PENDING_APPROVAL', 'DEVICE_REVOKED',
+      'DEVICE_NOT_REGISTERED',
+      'DEVICE_PENDING_APPROVAL',
+      'DEVICE_REVOKED',
       'DRIVER_ALREADY_ASSIGNED',
-      'FORBIDDEN', 'INTERNAL', 'INVALID_STATE_TRANSITION',
-      'MANIFESTS_INCOMPLETE', 'NOT_FOUND', 'UNAUTHORIZED', 'VALIDATION_FAILED',
+      'FORBIDDEN',
+      'INTERNAL',
+      'INVALID_STATE_TRANSITION',
+      'MANIFESTS_INCOMPLETE',
+      'NOT_FOUND',
+      'UNAUTHORIZED',
+      'VALIDATION_FAILED',
       'VEHICLE_ALREADY_ASSIGNED',
     ]);
   });
@@ -86,9 +93,15 @@ describe('ops-web vnApiErrorMessage', () => {
   });
 
   it('vnExceptionMessage maps leading-status exception messages by class', () => {
-    expect(vnExceptionMessage(new Error('404 Not Found'), 'Ctx')).toBe(VN_OPS_STATUS_FALLBACKS.notFound);
-    expect(vnExceptionMessage(new Error('500 Internal Server Error'), 'Ctx')).toBe(VN_OPS_STATUS_FALLBACKS.serverError);
-    expect(vnExceptionMessage(new Error('418 teapot'), 'Ctx')).toBe(VN_OPS_STATUS_FALLBACKS.clientError);
+    expect(vnExceptionMessage(new Error('404 Not Found'), 'Ctx')).toBe(
+      VN_OPS_STATUS_FALLBACKS.notFound,
+    );
+    expect(vnExceptionMessage(new Error('500 Internal Server Error'), 'Ctx')).toBe(
+      VN_OPS_STATUS_FALLBACKS.serverError,
+    );
+    expect(vnExceptionMessage(new Error('418 teapot'), 'Ctx')).toBe(
+      VN_OPS_STATUS_FALLBACKS.clientError,
+    );
   });
 
   it('vnExceptionMessage returns the fixed copy for everything else, leaking nothing', () => {

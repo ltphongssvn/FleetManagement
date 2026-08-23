@@ -23,16 +23,29 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { type z } from 'zod';
-import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, CreateTransportOrderResponseSchema } from './helpers/contracts';
+import {
+  parseJson,
+  CreateDriverResponseSchema,
+  ReferenceItemSchema,
+  AssignmentResponseSchema,
+  CreateTransportOrderResponseSchema,
+} from './helpers/contracts';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 
-async function apiPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+async function apiPost<T>(
+  api: APIRequestContext,
+  token: string,
+  path: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
-  if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
+  if (!res.ok())
+    throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   return parseJson(res, schema);
 }
 
@@ -49,11 +62,44 @@ async function seedActiveOrder(api: APIRequestContext, tag: string): Promise<See
   const token = mintDispatcherToken();
   const ts = String(Date.now()) + Math.floor(Math.random() * 1000).toString();
   const phone = '09' + ts.slice(-8);
-  const drv = await apiPost(api, token, '/admin/drivers', { fullName: 'E2E-PAGE-' + tag + '-' + ts, phone, password: 'e2e-pass-1234' }, CreateDriverResponseSchema); // pragma: allowlist secret
-  const veh = await apiPost(api, token, '/reference/vehicles', { name: 'E2E-PAGE-' + tag + '-' + ts }, ReferenceItemSchema);
-  await apiPost(api, token, '/admin/driver-vehicle-assignments', { driverId: drv.driverId, vehicleId: veh.id }, AssignmentResponseSchema);
-  const order = await apiPost(api, token, '/transport-orders', { stops: [{ sequence: 1, stopType: 'pickup' }], roadRun: { assignedOperatorId: drv.operatorId, assignedAssetId: veh.id } }, CreateTransportOrderResponseSchema);
-  return { externalRef: order.externalRef, transportOrderId: order.transportOrderId, vehicleId: veh.id, driverId: drv.driverId, operatorId: drv.operatorId };
+  const drv = await apiPost(
+    api,
+    token,
+    '/admin/drivers',
+    { fullName: 'E2E-PAGE-' + tag + '-' + ts, phone, password: 'e2e-pass-1234' },
+    CreateDriverResponseSchema,
+  ); // pragma: allowlist secret
+  const veh = await apiPost(
+    api,
+    token,
+    '/reference/vehicles',
+    { name: 'E2E-PAGE-' + tag + '-' + ts },
+    ReferenceItemSchema,
+  );
+  await apiPost(
+    api,
+    token,
+    '/admin/driver-vehicle-assignments',
+    { driverId: drv.driverId, vehicleId: veh.id },
+    AssignmentResponseSchema,
+  );
+  const order = await apiPost(
+    api,
+    token,
+    '/transport-orders',
+    {
+      stops: [{ sequence: 1, stopType: 'pickup' }],
+      roadRun: { assignedOperatorId: drv.operatorId, assignedAssetId: veh.id },
+    },
+    CreateTransportOrderResponseSchema,
+  );
+  return {
+    externalRef: order.externalRef,
+    transportOrderId: order.transportOrderId,
+    vehicleId: veh.id,
+    driverId: drv.driverId,
+    operatorId: drv.operatorId,
+  };
 }
 
 // Move a seeded order's road run to FINISHED deterministically via the dispatcher
@@ -85,17 +131,28 @@ test.describe('dispatch board pagination + active/finished partition (Lệnh đi
   test.afterEach(async ({ request }) => {
     const token = mintDispatcherToken();
     for (const o of [...active, ...finished]) {
-      await request.delete(API_URL + '/reference/vehicles/' + o.vehicleId, { headers: { Authorization: 'Bearer ' + token } }).catch(() => undefined);
+      await request
+        .delete(API_URL + '/reference/vehicles/' + o.vehicleId, {
+          headers: { Authorization: 'Bearer ' + token },
+        })
+        .catch(() => undefined);
     }
     active.length = 0;
     finished.length = 0;
   });
 
-  test('default view = active only; finished behind Finished filter; bottom pagination has page-jump search + total count', async ({ page, request }) => {
-    const a1 = await seedActiveOrder(request, 'A1'); active.push(a1);
-    const a2 = await seedActiveOrder(request, 'A2'); active.push(a2);
-    const a3 = await seedActiveOrder(request, 'A3'); active.push(a3);
-    const f1 = await seedActiveOrder(request, 'F1'); finished.push(f1);
+  test('default view = active only; finished behind Finished filter; bottom pagination has page-jump search + total count', async ({
+    page,
+    request,
+  }) => {
+    const a1 = await seedActiveOrder(request, 'A1');
+    active.push(a1);
+    const a2 = await seedActiveOrder(request, 'A2');
+    active.push(a2);
+    const a3 = await seedActiveOrder(request, 'A3');
+    active.push(a3);
+    const f1 = await seedActiveOrder(request, 'F1');
+    finished.push(f1);
     await finishViaCancel(request, f1);
 
     await login(page);

@@ -12,26 +12,33 @@ import { parseCaptureStop } from '../src/manifest/manifest-capture-stop.js';
 
 const TO = '32e1d5a6-7f7d-4ce0-a3d1-c6db60c8986d';
 
-function okFetchCapturingNegotiate(captured: { body?: string | undefined }): ReturnType<typeof vi.fn> {
+function okFetchCapturingNegotiate(captured: {
+  body?: string | undefined;
+}): ReturnType<typeof vi.fn> {
   return vi.fn().mockImplementation((url: string, init: { body?: string }) => {
     if (url.endsWith('/upload/negotiate')) {
       captured.body = init.body;
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({
-          uploadSessionId: '99999999-9999-7999-8999-999999999999',
-          url: 'https://s3/up', key: 'k', bucket: 'b', expiresAt: '2026-12-31T00:00:00Z',
-        }),
+        json: () =>
+          Promise.resolve({
+            uploadSessionId: '99999999-9999-7999-8999-999999999999',
+            url: 'https://s3/up',
+            key: 'k',
+            bucket: 'b',
+            expiresAt: '2026-12-31T00:00:00Z',
+          }),
       });
     }
     if (url === 'https://s3/up') return Promise.resolve({ ok: true });
     return Promise.resolve({
       ok: true,
-      json: () => Promise.resolve({
-        uploadSessionId: '99999999-9999-7999-8999-999999999999',
-        manifestId: '88888888-8888-7888-8888-888888888888',
-        state: 'verifying',
-      }),
+      json: () =>
+        Promise.resolve({
+          uploadSessionId: '99999999-9999-7999-8999-999999999999',
+          manifestId: '88888888-8888-7888-8888-888888888888',
+          state: 'verifying',
+        }),
     });
   });
 }
@@ -41,7 +48,8 @@ describe('@fleet/driver-app - negotiate body carries the stop ref', () => {
     const captured: { body?: string | undefined } = {};
     const fetchFn = okFetchCapturingNegotiate(captured);
     await negotiateAndUploadManifest({
-      apiUrl: 'http://api', bearerToken: () => 't',
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
       manifestCorrelationId: '11111111-1111-7111-8111-111111111111',
       transportOrderId: TO,
       contentType: 'image/jpeg',
@@ -57,7 +65,8 @@ describe('@fleet/driver-app - negotiate body carries the stop ref', () => {
     const captured: { body?: string | undefined } = {};
     const fetchFn = okFetchCapturingNegotiate(captured);
     await negotiateAndUploadManifest({
-      apiUrl: 'http://api', bearerToken: () => 't',
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
       manifestCorrelationId: '11111111-1111-7111-8111-111111111111',
       transportOrderId: TO,
       contentType: 'image/jpeg',

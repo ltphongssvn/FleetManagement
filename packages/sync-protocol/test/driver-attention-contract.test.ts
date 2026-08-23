@@ -77,10 +77,7 @@ describe('admin-driver row SSOT', () => {
 
 describe('driver-attention classification', () => {
   it('exposes exactly the two producer reason codes in stable order', () => {
-    expect(DRIVER_ATTENTION_REASONS).toEqual([
-      'VEHICLE_UNASSIGNED',
-      'DEVICE_UNREGISTERED',
-    ]);
+    expect(DRIVER_ATTENTION_REASONS).toEqual(['VEHICLE_UNASSIGNED', 'DEVICE_UNREGISTERED']);
   });
 
   it('reason schema is the strict producer union', () => {
@@ -96,7 +93,9 @@ describe('driver-attention classification', () => {
 
   it('classifies each single-axis gap', () => {
     expect(classifyDriverAttention({ ...ROW, devices: [] })).toEqual(['DEVICE_UNREGISTERED']);
-    expect(classifyDriverAttention({ ...ROW, assignedVehicle: null })).toEqual(['VEHICLE_UNASSIGNED']);
+    expect(classifyDriverAttention({ ...ROW, assignedVehicle: null })).toEqual([
+      'VEHICLE_UNASSIGNED',
+    ]);
   });
 
   it('a fully set-up driver needs no attention', () => {

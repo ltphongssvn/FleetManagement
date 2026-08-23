@@ -23,16 +23,29 @@ vi.mock('@/features/admin/admin-drivers-client', () => ({
 }));
 import AdminDriversPage from '@/app/admin/drivers/page';
 
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 const DRIVER_UUID = 'd59a8731-d394-42d4-aeae-0f931a1bac55';
 const OPERATOR_UUID = 'c07f39ce-5883-4bf3-9996-dc58e763b937';
 
 beforeEach(() => {
   listMock.mockResolvedValue([
-    { driverId: DRIVER_UUID, fullName: 'Driver Alpha', phone: '0900000001', operatorId: OPERATOR_UUID, assignedVehicle: null, assignmentId: null, devices: [] },
+    {
+      driverId: DRIVER_UUID,
+      fullName: 'Driver Alpha',
+      phone: '0900000001',
+      operatorId: OPERATOR_UUID,
+      assignedVehicle: null,
+      assignmentId: null,
+      devices: [],
+    },
   ]);
-  globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ items: [] }) }) as never;
+  globalThis.fetch = vi
+    .fn()
+    .mockResolvedValue({ ok: true, json: () => Promise.resolve({ items: [] }) }) as never;
 });
 
 describe('AdminDriversPage has no manual device-enroll UI', () => {

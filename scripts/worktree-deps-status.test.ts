@@ -135,8 +135,7 @@ describe('interpretDepsProbe (tier 2, authoritative)', () => {
     expect(r.kind).toBe('toolchain-blocked');
   });
   it('prefers the verify-deps reason when BOTH markers appear', () => {
-    const stderr =
-      '[ERROR] noise' + NL + '[ERR_PNPM_VERIFY_DEPS_BEFORE_RUN] real drift';
+    const stderr = '[ERROR] noise' + NL + '[ERR_PNPM_VERIFY_DEPS_BEFORE_RUN] real drift';
     expect(interpretDepsProbe(1, stderr)).toEqual({
       kind: 'deps-stale',
       reason: 'real drift',
@@ -182,8 +181,7 @@ describe('interpretDepsProbe (tier 2, authoritative)', () => {
     expect(interpretDepsProbe(1, mixed).kind).toBe('deps-stale');
   });
   it('falls back to prose when the reporter emitted no record', () => {
-    const stderr =
-      '[ERR_PNPM_VERIFY_DEPS_BEFORE_RUN] The workspace structure has changed';
+    const stderr = '[ERR_PNPM_VERIFY_DEPS_BEFORE_RUN] The workspace structure has changed';
     expect(interpretDepsProbe(1, stderr).kind).toBe('deps-stale');
   });
   it('joins both streams without gluing two lines together', () => {
@@ -256,10 +254,7 @@ describe('buildProbeEnv (confident-zero guard)', () => {
       PNPM_SCRIPT_SRC_DIR: '/x/repo',
       INIT_CWD: '/x/repo',
     });
-    expect(Object.keys(out).sort()).toEqual([
-      'PATH',
-      'PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN',
-    ]);
+    expect(Object.keys(out).sort()).toEqual(['PATH', 'PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN']);
   });
   it('keeps PNPM_HOME, which locates the binary rather than configuring it', () => {
     const out = buildProbeEnv({ PNPM_HOME: '/home/x/.pnpm' });

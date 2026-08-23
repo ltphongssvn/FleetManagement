@@ -31,11 +31,28 @@ vi.mock('@/features/admin/admin-drivers-client', () => ({
   },
 }));
 import AdminDriversPage from '@/app/admin/drivers/page';
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 beforeEach(() => {
   listMock.mockResolvedValue([
-    { driverId: 'd1', fullName: 'Driver Alpha', operatorId: 'op-a', assignedVehicle: null, assignmentId: null, devices: [] },
-    { driverId: 'd2', fullName: 'Driver Beta',  operatorId: 'op-b', assignedVehicle: null, assignmentId: null, devices: [] },
+    {
+      driverId: 'd1',
+      fullName: 'Driver Alpha',
+      operatorId: 'op-a',
+      assignedVehicle: null,
+      assignmentId: null,
+      devices: [],
+    },
+    {
+      driverId: 'd2',
+      fullName: 'Driver Beta',
+      operatorId: 'op-b',
+      assignedVehicle: null,
+      assignmentId: null,
+      devices: [],
+    },
   ]);
   globalThis.fetch = vi.fn().mockResolvedValue({
     ok: true,
@@ -73,7 +90,9 @@ describe('AdminDriversPage CRUD UI', () => {
     const accept = dialog.querySelector('[data-testid=confirm-accept]');
     if (accept === null) throw new Error('no confirm-accept');
     await user.click(accept as HTMLElement);
-    await waitFor(() => { expect(removeMock).toHaveBeenCalledWith('d1'); });
+    await waitFor(() => {
+      expect(removeMock).toHaveBeenCalledWith('d1');
+    });
   });
   it('Xóa is a no-op when the confirm dialog is cancelled', async () => {
     const user = userEvent.setup();

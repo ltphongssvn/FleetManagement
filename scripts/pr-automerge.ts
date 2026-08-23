@@ -125,10 +125,7 @@ export interface MergeReadyDecision {
 //   WAIT    -- checks still pending, none registered yet, or mergeStateStatus not
 //              yet resolved (UNKNOWN/BLOCKED): poll again.
 //   MERGE   -- every check green AND GitHub says the PR is mergeable now.
-export function decideMergeReady(
-  sum: CheckSummary,
-  mergeStateStatus: string,
-): MergeReadyDecision {
+export function decideMergeReady(sum: CheckSummary, mergeStateStatus: string): MergeReadyDecision {
   const mss = mergeStateStatus.toUpperCase();
   if (sum.failed.length > 0) {
     return { action: 'BLOCKED', reason: 'required checks failed: ' + sum.failed.join(', ') };
@@ -137,13 +134,18 @@ export function decideMergeReady(
     return { action: 'BLOCKED', reason: 'PR has merge conflicts (DIRTY)' };
   }
   if (sum.needsRerun) {
-    return { action: 'RERUN', reason: 'no failures; superseded or stale checks need a re-run: ' +
-      sum.indeterminate.join(', ') };
+    return {
+      action: 'RERUN',
+      reason:
+        'no failures; superseded or stale checks need a re-run: ' + sum.indeterminate.join(', '),
+    };
   }
   if (!sum.green) {
-    return { action: 'WAIT', reason: sum.total === 0
-      ? 'no checks registered yet'
-      : 'checks pending: ' + sum.pending.join(', ') };
+    return {
+      action: 'WAIT',
+      reason:
+        sum.total === 0 ? 'no checks registered yet' : 'checks pending: ' + sum.pending.join(', '),
+    };
   }
   // Checks are green. GitHub still gates on the ruleset via mergeStateStatus.
   // CLEAN or HAS_HOOKS means ready to merge now.
@@ -156,11 +158,17 @@ export function decideMergeReady(
   // than wait forever for a state nothing will change. This was the gap the
   // dogfood exposed: a passive WAIT here stalled to TIMEOUT on a BEHIND PR.
   if (mss === 'BEHIND') {
-    return { action: 'UPDATE', reason: 'checks green but branch BEHIND; updating branch with base' };
+    return {
+      action: 'UPDATE',
+      reason: 'checks green but branch BEHIND; updating branch with base',
+    };
   }
   // BLOCKED/UNKNOWN/other: GitHub has not recomputed since the last green check,
   // or a non-check rule is unmet. Poll again rather than force it.
-  return { action: 'WAIT', reason: 'checks green; waiting on mergeState (' + mergeStateStatus + ')' };
+  return {
+    action: 'WAIT',
+    reason: 'checks green; waiting on mergeState (' + mergeStateStatus + ')',
+  };
 }
 
 // ---- side-effecting (entrypoint only) ----
@@ -231,8 +239,11 @@ function readRollup(prNumber: number): ReturnType<typeof classifyRollup> {
 
 function viewPr(prNumber: number): { pr: PrView | null; mergeStateStatus: string } {
   const r = sh('gh', [
-    'pr', 'view', String(prNumber),
-    '--json', 'number,state,isDraft,mergeable,mergeStateStatus,autoMergeRequest',
+    'pr',
+    'view',
+    String(prNumber),
+    '--json',
+    'number,state,isDraft,mergeable,mergeStateStatus,autoMergeRequest',
   ]);
   // A transient read is NOT an unresolved merge state. Distinguishing them is
   // why parseGhJson exists; the caller already re-polls on a null pr.
@@ -265,8 +276,9 @@ function actOnChecks(
   reruns: { count: number },
 ): number | null {
   const ready = decideMergeReady(summarizeChecks(runs), mergeStateStatus);
-  process.stdout.write('--- ' + new Date().toISOString() + ' --- ' + ready.action +
-    ': ' + ready.reason + nl);
+  process.stdout.write(
+    '--- ' + new Date().toISOString() + ' --- ' + ready.action + ': ' + ready.reason + nl,
+  );
   if (ready.action === 'BLOCKED') {
     process.stderr.write('[pr:automerge] BLOCKED -- ' + ready.reason + nl);
     return 1;
@@ -275,8 +287,14 @@ function actOnChecks(
     // Bounded: a superseded run is worth re-running, an endlessly re-cancelled
     // one is a signal to stop, not a loop to spin in.
     if (reruns.count >= cfg.maxReruns) {
-      process.stderr.write('[pr:automerge] BLOCKED -- checks keep concluding without a ' +
-        'verdict after ' + String(reruns.count) + ' re-runs: ' + ready.reason + nl);
+      process.stderr.write(
+        '[pr:automerge] BLOCKED -- checks keep concluding without a ' +
+          'verdict after ' +
+          String(reruns.count) +
+          ' re-runs: ' +
+          ready.reason +
+          nl,
+      );
       return 1;
     }
     reruns.count += 1;
@@ -318,8 +336,9 @@ function main(): number {
     return 1;
   }
   const pre = decideAutoMerge(first.pr);
-  process.stdout.write('[pr:automerge] PR #' + String(cfg.prNumber) + ': ' + pre.action +
-    ' -- ' + pre.reason + nl);
+  process.stdout.write(
+    '[pr:automerge] PR #' + String(cfg.prNumber) + ': ' + pre.action + ' -- ' + pre.reason + nl,
+  );
   if (pre.action === 'SKIP') return 0;
   if (pre.action === 'BLOCKED') return 1;
 
@@ -342,8 +361,9 @@ function main(): number {
         // message that says "re-reading" as though the run were healthy. The
         // MESSAGE is built in the core (describeRollupFailure), so this shell
         // stays orchestration-only and the wording is unit-tested with no I/O.
-        process.stderr.write('[pr:automerge] BLOCKED -- ' +
-          describeRollupFailure(rollup.issues) + nl);
+        process.stderr.write(
+          '[pr:automerge] BLOCKED -- ' + describeRollupFailure(rollup.issues) + nl,
+        );
         return 1;
       }
       case 'unavailable': {
@@ -352,16 +372,21 @@ function main(): number {
         // PR #565 while curl to api.github.com returned 200 throughout. Two
         // retries resolved it. Reporting that as a contract violation is exactly
         // the mistake the stdout/stderr split was made to prevent.
-        process.stdout.write('--- ' + new Date().toISOString() +
-          ' --- WAIT: ' + rollup.reason + nl);
+        process.stdout.write(
+          '--- ' + new Date().toISOString() + ' --- WAIT: ' + rollup.reason + nl,
+        );
         break;
       }
       case 'none-yet': {
         // TRANSIENT and expected: GitHub has not created check runs for this head
         // SHA yet. Named as such so a healthy early poll no longer reads as a
         // parse failure -- the fifteen-line noise on PR #530.
-        process.stdout.write('--- ' + new Date().toISOString() +
-          ' --- WAIT: no check runs created for this head SHA yet.' + nl);
+        process.stdout.write(
+          '--- ' +
+            new Date().toISOString() +
+            ' --- WAIT: no check runs created for this head SHA yet.' +
+            nl,
+        );
         break;
       }
       case 'checks': {
@@ -373,8 +398,13 @@ function main(): number {
         return assertNever(rollup);
     }
     if (Date.now() >= deadline) {
-      process.stderr.write('[pr:automerge] TIMEOUT after ' + String(cfg.timeoutMinutes) +
-        'm without merging PR #' + String(cfg.prNumber) + nl);
+      process.stderr.write(
+        '[pr:automerge] TIMEOUT after ' +
+          String(cfg.timeoutMinutes) +
+          'm without merging PR #' +
+          String(cfg.prNumber) +
+          nl,
+      );
       return 3;
     }
     sh('sleep', [String(cfg.intervalSeconds)]);
@@ -382,4 +412,6 @@ function main(): number {
 }
 
 const isEntry = process.argv[1] !== undefined && import.meta.url === 'file://' + process.argv[1];
-if (isEntry) { process.exit(main()); }
+if (isEntry) {
+  process.exit(main());
+}

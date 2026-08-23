@@ -8,9 +8,13 @@ import type { JSX } from 'react';
 import { DriversAdminSection } from '@/features/admin/DriversAdminSection';
 export default function AdminDriversPage(): JSX.Element {
   return (
-    <div className='p-6'>
-      <div className='mb-4'><a href='/' className='text-blue-600 hover:underline text-sm'>← Quay lại Bảng điều phối</a></div>
-      <h1 className='text-2xl font-semibold mb-6'>Quản lý tài xế &amp; xe</h1>
+    <div className="p-6">
+      <div className="mb-4">
+        <a href="/" className="text-blue-600 hover:underline text-sm">
+          ← Quay lại Bảng điều phối
+        </a>
+      </div>
+      <h1 className="text-2xl font-semibold mb-6">Quản lý tài xế &amp; xe</h1>
       <DriversAdminSection />
     </div>
   );

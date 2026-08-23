@@ -25,7 +25,15 @@ export const EXPORT_KG_SUFFIX = ' - KL (kg)';
 
 /** The 8 fixed identifying columns + Chênh lệch, before the per-slot pairs. */
 export const EXPORT_IDENTIFYING_HEADERS = [
-  'Số lệnh', 'Trạng thái', 'Khách hàng', 'Tên hàng', 'Tài xế', 'Xe', 'Ngày dự kiến', 'Số điểm', 'Chênh lệch (Số giao - Số nhận)',
+  'Số lệnh',
+  'Trạng thái',
+  'Khách hàng',
+  'Tên hàng',
+  'Tài xế',
+  'Xe',
+  'Ngày dự kiến',
+  'Số điểm',
+  'Chênh lệch (Số giao - Số nhận)',
 ] as const;
 
 /** Slot-label builders. The per-slot column NAME is built in exactly one
@@ -45,6 +53,12 @@ export function exportDeliveryLabel(n: number): string {
  *  updates every consumer (service, integration test, e2e spec) from one place. */
 export const LENH_DIEU_XE_EXPORT_HEADERS: readonly string[] = [
   ...EXPORT_IDENTIFYING_HEADERS,
-  ...EXPORT_PICKUP_SLOTS.flatMap((n) => [exportPickupLabel(n), exportPickupLabel(n) + EXPORT_KG_SUFFIX]),
-  ...EXPORT_DELIVERY_SLOTS.flatMap((n) => [exportDeliveryLabel(n), exportDeliveryLabel(n) + EXPORT_KG_SUFFIX]),
+  ...EXPORT_PICKUP_SLOTS.flatMap((n) => [
+    exportPickupLabel(n),
+    exportPickupLabel(n) + EXPORT_KG_SUFFIX,
+  ]),
+  ...EXPORT_DELIVERY_SLOTS.flatMap((n) => [
+    exportDeliveryLabel(n),
+    exportDeliveryLabel(n) + EXPORT_KG_SUFFIX,
+  ]),
 ];

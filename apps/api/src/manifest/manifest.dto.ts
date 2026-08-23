@@ -26,7 +26,11 @@ export const NegotiateUploadSchema = z.object({
   manifestCorrelationId: z.guid(),
   transportOrderId: z.guid(),
   contentType: z.enum(ALLOWED_MANIFEST_MIME_TYPES),
-  expectedSizeBytes: z.number().int().positive().max(50 * 1024 * 1024),
+  expectedSizeBytes: z
+    .number()
+    .int()
+    .positive()
+    .max(50 * 1024 * 1024),
   // Capture-time stop ref (Phiếu Cân association) — ManifestStopRefSchema from
   // @fleet/sync-protocol (Zod-first SSOT). EXPAND-only: absent/null for older
   // clients; when present the service resolves + persists manifest.stop_id.
@@ -37,7 +41,11 @@ export type NegotiateUploadInput = z.infer<typeof NegotiateUploadSchema>;
 export const CommitUploadSchema = z.object({
   uploadSessionId: z.guid(),
   contentHash: z.string().min(32).max(128).optional(),
-  actualSizeBytes: z.number().int().positive().max(50 * 1024 * 1024),
+  actualSizeBytes: z
+    .number()
+    .int()
+    .positive()
+    .max(50 * 1024 * 1024),
 });
 export type CommitUploadInput = z.infer<typeof CommitUploadSchema>;
 

@@ -8,14 +8,14 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
 vi.mock('@/features/admin/DriversAdminSection', () => ({
-  DriversAdminSection: () => <div data-testid='stub-drivers-section' />,
+  DriversAdminSection: () => <div data-testid="stub-drivers-section" />,
 }));
 vi.mock('@/features/admin/reference-sections', () => ({
   SECTIONS: [],
-  ReferenceSection: () => <div data-testid='stub-reference-section' />,
+  ReferenceSection: () => <div data-testid="stub-reference-section" />,
 }));
 vi.mock('@/features/admin/DevicesApprovalSection', () => ({
-  DevicesApprovalSection: () => <div data-testid='stub-devices-section' />,
+  DevicesApprovalSection: () => <div data-testid="stub-devices-section" />,
 }));
 
 import CoSoDuLieuPage from '@/app/admin/co-so-du-lieu/page';

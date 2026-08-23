@@ -25,16 +25,29 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { type z } from 'zod';
-import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, CreateTransportOrderResponseSchema } from './helpers/contracts';
+import {
+  parseJson,
+  CreateDriverResponseSchema,
+  ReferenceItemSchema,
+  AssignmentResponseSchema,
+  CreateTransportOrderResponseSchema,
+} from './helpers/contracts';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 
-async function apiPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+async function apiPost<T>(
+  api: APIRequestContext,
+  token: string,
+  path: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
-  if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
+  if (!res.ok())
+    throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   return parseJson(res, schema);
 }
 
@@ -51,20 +64,30 @@ async function seedOrder(api: APIRequestContext): Promise<SeededOrder> {
   const ts = String(Date.now());
   const phone = '09' + ts.slice(-8);
   const drv = await apiPost(
-    api, token, '/admin/drivers',
+    api,
+    token,
+    '/admin/drivers',
     { fullName: 'E2E-EXPSESS-' + ts, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
     CreateDriverResponseSchema,
   );
   const veh = await apiPost(
-    api, token, '/reference/vehicles', { name: 'E2E-EXPSESS-' + ts },
+    api,
+    token,
+    '/reference/vehicles',
+    { name: 'E2E-EXPSESS-' + ts },
     ReferenceItemSchema,
   );
-  await apiPost(api, token, '/admin/driver-vehicle-assignments',
+  await apiPost(
+    api,
+    token,
+    '/admin/driver-vehicle-assignments',
     { driverId: drv.driverId, vehicleId: veh.id },
     AssignmentResponseSchema,
   );
   const order = await apiPost(
-    api, token, '/transport-orders',
+    api,
+    token,
+    '/transport-orders',
     {
       stops: [{ sequence: 1, stopType: 'pickup' }],
       roadRun: { assignedOperatorId: drv.operatorId, assignedAssetId: veh.id },
@@ -96,7 +119,10 @@ test.describe('dispatch order cancel — expired session', () => {
       if (o) await cleanupOrder(request, o);
     }
   });
-  test('expired session at submit goes to /login, not the crash boundary', async ({ page, request }) => {
+  test('expired session at submit goes to /login, not the crash boundary', async ({
+    page,
+    request,
+  }) => {
     const order = await seedOrder(request);
     seededOrders.push(order);
 
@@ -114,7 +140,9 @@ test.describe('dispatch order cancel — expired session', () => {
     // Fix: a clean redirect to /login to re-authenticate...
     await expect(page).toHaveURL(/\/login/, { timeout: 15000 });
     // ...and never the opaque crash boundary.
-    await expect(page.getByText('An unexpected response was received from the server')).toHaveCount(0);
+    await expect(page.getByText('An unexpected response was received from the server')).toHaveCount(
+      0,
+    );
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 });

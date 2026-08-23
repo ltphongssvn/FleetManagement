@@ -39,10 +39,7 @@ const EasJsonSchema = z.object({
 const eas = EasJsonSchema.parse(
   JSON.parse(readFileSync(resolve(ROOT, 'apps/driver-app/eas.json'), 'utf8')),
 );
-const workflow = readFileSync(
-  resolve(ROOT, '.github/workflows/eas-driver-build.yml'),
-  'utf8',
-);
+const workflow = readFileSync(resolve(ROOT, '.github/workflows/eas-driver-build.yml'), 'utf8');
 
 /** The env block of the `eas update` step. Anchored on the step name so a
  *  renamed step fails loudly rather than silently matching nothing -- the

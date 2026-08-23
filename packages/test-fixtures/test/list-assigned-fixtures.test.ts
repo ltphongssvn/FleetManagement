@@ -28,8 +28,9 @@ describe('createListAssignedRow', () => {
   });
 
   it('applies overrides', () => {
-    expect(createListAssignedRow({ state: 'dispatched', orderRef: 'XTT.09-002' }).state)
-      .toBe('dispatched');
+    expect(createListAssignedRow({ state: 'dispatched', orderRef: 'XTT.09-002' }).state).toBe(
+      'dispatched',
+    );
   });
 
   it('still satisfies the contract after an override', () => {

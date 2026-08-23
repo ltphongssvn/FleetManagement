@@ -1,7 +1,12 @@
 // packages/observability/test/scrubber-config.test.ts
 import { describe, it, expect } from 'vitest';
 import { validateScrubberConfig, scrubberConfigSchema } from '../src/scrubber-config.ts';
-import { isPiiHeader, assertPiiHeader, PII_HEADERS_LITERALS, type PiiHeaderName } from '../src/sentry-scrub.ts';
+import {
+  isPiiHeader,
+  assertPiiHeader,
+  PII_HEADERS_LITERALS,
+  type PiiHeaderName,
+} from '../src/sentry-scrub.ts';
 import { createScrubber, REDACTED } from '../src/sentry-scrub.ts';
 
 describe('scrubberConfigSchema', () => {

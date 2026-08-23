@@ -36,11 +36,11 @@ import { classifyRollup, describeRollupFailure } from './check-rollup-source.ts'
 
 describe('classifyRollup', () => {
   it('reports checks when the rollup holds parseable runs', () => {
-    const r = classifyRollup(JSON.stringify({
-      statusCheckRollup: [
-        { name: 'ci', status: 'COMPLETED', conclusion: 'SUCCESS' },
-      ],
-    }));
+    const r = classifyRollup(
+      JSON.stringify({
+        statusCheckRollup: [{ name: 'ci', status: 'COMPLETED', conclusion: 'SUCCESS' }],
+      }),
+    );
     expect(r.kind, 'a well-formed rollup must classify as checks').toBe('checks');
     if (r.kind !== 'checks') return;
     expect(r.runs).toHaveLength(1);
@@ -48,11 +48,11 @@ describe('classifyRollup', () => {
   });
 
   it('treats an in-flight run with a null conclusion as a check, not a failure', () => {
-    const r = classifyRollup(JSON.stringify({
-      statusCheckRollup: [
-        { name: 'ci', status: 'IN_PROGRESS', conclusion: null },
-      ],
-    }));
+    const r = classifyRollup(
+      JSON.stringify({
+        statusCheckRollup: [{ name: 'ci', status: 'IN_PROGRESS', conclusion: null }],
+      }),
+    );
     expect(
       r.kind,
       'status IN_PROGRESS with conclusion null is the documented pre-completion ' +
@@ -76,16 +76,17 @@ describe('classifyRollup', () => {
 
   it('reports none-yet when the rollup is an empty array', () => {
     const r = classifyRollup(JSON.stringify({ statusCheckRollup: [] }));
-    expect(
-      r.kind,
-      'an empty rollup means no checks registered yet -- distinct from garbage',
-    ).toBe('none-yet');
+    expect(r.kind, 'an empty rollup means no checks registered yet -- distinct from garbage').toBe(
+      'none-yet',
+    );
   });
 
   it('reports unparseable when a run has the wrong shape', () => {
-    const r = classifyRollup(JSON.stringify({
-      statusCheckRollup: [{ name: 42, status: true }],
-    }));
+    const r = classifyRollup(
+      JSON.stringify({
+        statusCheckRollup: [{ name: 42, status: true }],
+      }),
+    );
     expect(
       r.kind,
       'a run that violates CheckRunSchema is a real shape mismatch and must be ' +
@@ -94,9 +95,11 @@ describe('classifyRollup', () => {
   });
 
   it('carries the Zod issues when unparseable, so the reason is reportable', () => {
-    const r = classifyRollup(JSON.stringify({
-      statusCheckRollup: [{ name: 42, status: true }],
-    }));
+    const r = classifyRollup(
+      JSON.stringify({
+        statusCheckRollup: [{ name: 42, status: true }],
+      }),
+    );
     if (r.kind !== 'unparseable') {
       // No trailing `return`: expect.unreachable is typed `never`, so the branch
       // already terminates and r narrows to the unparseable variant below. A
@@ -191,8 +194,10 @@ describe('describeRollupFailure', () => {
 // an empty-with-exit-0 is treated as none-yet rather than an error.
 describe('classifyRollup: execution failures are transient', () => {
   it('classifies empty stdout with a non-zero exit as unavailable', () => {
-    expect(classifyRollup('', { exitCode: 1, stderr: 'x509: certificate signed by unknown authority' }).kind)
-      .toBe('unavailable');
+    expect(
+      classifyRollup('', { exitCode: 1, stderr: 'x509: certificate signed by unknown authority' })
+        .kind,
+    ).toBe('unavailable');
   });
 
   it('carries the stderr so an operator can see WHY it was unavailable', () => {
@@ -208,16 +213,21 @@ describe('classifyRollup: execution failures are transient', () => {
 
   // A non-zero exit that still produced a valid payload is answered, not broken.
   it('prefers a well-formed payload over a non-zero exit', () => {
-    expect(classifyRollup('{"statusCheckRollup":[]}', { exitCode: 1, stderr: 'warning' }).kind)
-      .toBe('none-yet');
+    expect(
+      classifyRollup('{"statusCheckRollup":[]}', { exitCode: 1, stderr: 'warning' }).kind,
+    ).toBe('none-yet');
   });
 
   // CONTENT failures stay terminal. Widening the transient bucket to cover
   // garbage would resurrect the spin-to-TIMEOUT-behind-a-reassuring-message bug
   // this module exists to kill.
   it('still classifies non-empty garbage as unparseable', () => {
-    expect(classifyRollup('Resource not accessible by personal access token', { exitCode: 1, stderr: '' }).kind)
-      .toBe('unparseable');
+    expect(
+      classifyRollup('Resource not accessible by personal access token', {
+        exitCode: 1,
+        stderr: '',
+      }).kind,
+    ).toBe('unparseable');
   });
 
   // Back-compat: the options argument is optional, so existing callers and the

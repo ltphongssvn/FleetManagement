@@ -117,8 +117,10 @@ describe('EAS pre-install hook is graph-derived', () => {
       .map((t) => t.pkg);
     expect(
       enumerated,
-      app + ' hook names workspace packages without the ^... selector: ' +
-        enumerated.join(' ') + '. A hand-written list drifts -- @fleet/design-tokens ' +
+      app +
+        ' hook names workspace packages without the ^... selector: ' +
+        enumerated.join(' ') +
+        '. A hand-written list drifts -- @fleet/design-tokens ' +
         'was missed for ~2 months and @fleet/domain was built for nothing.',
     ).toEqual([]);
   });
@@ -126,8 +128,11 @@ describe('EAS pre-install hook is graph-derived', () => {
   it.each(APPS)('$app hook uses its own topological selector', ({ app, pkg, hook }) => {
     expect(
       filterTargets(hook).some((t) => t.pkg === pkg && t.topological),
-      app + ' hook must build its graph dependencies via: ' +
-        'pnpm exec turbo run build --filter=' + pkg + '^...',
+      app +
+        ' hook must build its graph dependencies via: ' +
+        'pnpm exec turbo run build --filter=' +
+        pkg +
+        '^...',
     ).toBe(true);
   });
 
@@ -136,7 +141,9 @@ describe('EAS pre-install hook is graph-derived', () => {
   });
 
   it.each(APPS)('$app hook runs from the repo root with a frozen lockfile', ({ app, hook }) => {
-    expect(hook, app + ' hook must cd to the repo root before invoking turbo').toContain('cd ../..');
+    expect(hook, app + ' hook must cd to the repo root before invoking turbo').toContain(
+      'cd ../..',
+    );
     expect(hook, app + ' hook must install with a frozen lockfile').toContain('--frozen-lockfile');
   });
 });

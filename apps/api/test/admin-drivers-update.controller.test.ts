@@ -21,7 +21,10 @@ describe('AdminDriversUpdateController', () => {
   beforeEach(() => {
     updateFn = vi.fn().mockResolvedValue(undefined);
     softDeleteFn = vi.fn().mockResolvedValue(undefined);
-    controller = new AdminDriversUpdateController({ update: updateFn, softDelete: softDeleteFn } as unknown as AdminDriversUpdateService);
+    controller = new AdminDriversUpdateController({
+      update: updateFn,
+      softDelete: softDeleteFn,
+    } as unknown as AdminDriversUpdateService);
   });
   it('PATCH /admin/drivers/:id renames the driver (companyId from JWT)', async () => {
     await controller.update(op, DRIVER_ID, { fullName: 'NEW NAME' });
@@ -44,7 +47,10 @@ describe('AdminDriversUpdateController', () => {
     await expect(controller.update(op, DRIVER_ID, { fullName: '' })).rejects.toThrow();
   });
   it('PATCH rejects body with extraneous companyId (no IDOR via body)', async () => {
-    await controller.update(op, DRIVER_ID, { fullName: 'OK', companyId: '99999999-9999-9999-9999-999999999999' } as never);
+    await controller.update(op, DRIVER_ID, {
+      fullName: 'OK',
+      companyId: '99999999-9999-9999-9999-999999999999',
+    } as never);
     expect(updateFn).toHaveBeenCalledWith({
       driverId: DRIVER_ID,
       companyId: op.companyId,

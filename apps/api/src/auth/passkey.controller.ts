@@ -16,10 +16,12 @@ import type { OperatorContext } from '@fleet/domain';
 
 export const SIGN_JWT_TOKEN = Symbol.for('SignJwtFn');
 
-const FinishAuthSchema = z.object({
-  id: z.string().min(1),
-  challenge: z.string().min(1),
-}).loose();
+const FinishAuthSchema = z
+  .object({
+    id: z.string().min(1),
+    challenge: z.string().min(1),
+  })
+  .loose();
 type FinishAuthBody = z.infer<typeof FinishAuthSchema>;
 
 @Controller('auth/passkey')
@@ -33,13 +35,18 @@ export class PasskeyController {
 
   @UseGuards(JwtGuard)
   @Post('register/options')
-  async beginRegister(@CurrentOperator() op: OperatorContext): Promise<{ challenge: string; rp: unknown; user: unknown; pubKeyCredParams: unknown }> {
+  async beginRegister(
+    @CurrentOperator() op: OperatorContext,
+  ): Promise<{ challenge: string; rp: unknown; user: unknown; pubKeyCredParams: unknown }> {
     return this.regSvc.beginRegistration(op.operatorId);
   }
 
   @UseGuards(JwtGuard)
   @Post('register/verify')
-  async finishRegister(@CurrentOperator() op: OperatorContext, @Body() body: unknown): Promise<{ verified: true }> {
+  async finishRegister(
+    @CurrentOperator() op: OperatorContext,
+    @Body() body: unknown,
+  ): Promise<{ verified: true }> {
     return this.regSvc.finishRegistration(op.operatorId, body);
   }
 

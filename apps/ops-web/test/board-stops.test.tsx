@@ -6,11 +6,21 @@ import { describe, it, expect } from 'vitest';
 import { stopStatusOf, stopForSlot } from '@/features/dispatch/board-stops';
 import type { DispatchBoardStop } from '@/features/dispatch/types';
 function stop(p: Partial<DispatchBoardStop>): DispatchBoardStop {
-  return { sequence: 1, stopType: 'pickup', warehouseName: null, arrivedAt: null, departedAt: null, proof: null, ...p };
+  return {
+    sequence: 1,
+    stopType: 'pickup',
+    warehouseName: null,
+    arrivedAt: null,
+    departedAt: null,
+    proof: null,
+    ...p,
+  };
 }
 describe('board-stops - stopStatusOf', () => {
   it('prefers departedAt and formats the time', () => {
-    const out = stopStatusOf(stop({ departedAt: '2026-05-30T09:15:00.000Z', arrivedAt: '2026-05-30T09:00:00.000Z' }));
+    const out = stopStatusOf(
+      stop({ departedAt: '2026-05-30T09:15:00.000Z', arrivedAt: '2026-05-30T09:00:00.000Z' }),
+    );
     expect(out).toMatch(/Đã hoàn thành/);
   });
   it('falls back to arrivedAt when not departed', () => {
@@ -25,13 +35,19 @@ describe('board-stops - stopStatusOf', () => {
   });
 });
 describe('board-stops - stopForSlot', () => {
-  const pickups = [stop({ sequence: 2, stopType: 'pickup' }), stop({ sequence: 1, stopType: 'pickup' })];
+  const pickups = [
+    stop({ sequence: 2, stopType: 'pickup' }),
+    stop({ sequence: 1, stopType: 'pickup' }),
+  ];
   it('returns the nth pickup by sequence order', () => {
     expect(stopForSlot(pickups, 'pickup', 1)?.sequence).toBe(1);
     expect(stopForSlot(pickups, 'pickup', 2)?.sequence).toBe(2);
   });
   it('matches delivery and the dropoff alias', () => {
-    const drops = [stop({ sequence: 1, stopType: 'delivery' }), stop({ sequence: 2, stopType: 'dropoff' })];
+    const drops = [
+      stop({ sequence: 1, stopType: 'delivery' }),
+      stop({ sequence: 2, stopType: 'dropoff' }),
+    ];
     expect(stopForSlot(drops, 'delivery', 1)?.sequence).toBe(1);
     expect(stopForSlot(drops, 'delivery', 2)?.sequence).toBe(2);
   });

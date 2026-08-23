@@ -29,23 +29,30 @@ export {
   type TripHistoryMonth,
   type TripHistoryResponse,
 } from '@fleet/sync-protocol';
-export const CreateTransportOrderSchema = z.object({
-  externalRef: z.string().min(1).max(64).optional(),
-  customerId: z.guid().optional(),
-  cargoTypeId: z.guid().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  stops: z.array(z.object({
-    sequence: z.number().int().positive(),
-    stopType: z.string().min(1).max(32),
-    yardId: z.guid().optional(),
-    plannedAt: z.iso.datetime().optional(),
-  })).min(1).max(20),
-  roadRun: z.object({
-    plannedStartAt: z.iso.datetime().optional(),
-    assignedOperatorId: z.guid(),
-    assignedAssetId: z.guid(),
-  }),
-}).strict();
+export const CreateTransportOrderSchema = z
+  .object({
+    externalRef: z.string().min(1).max(64).optional(),
+    customerId: z.guid().optional(),
+    cargoTypeId: z.guid().optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+    stops: z
+      .array(
+        z.object({
+          sequence: z.number().int().positive(),
+          stopType: z.string().min(1).max(32),
+          yardId: z.guid().optional(),
+          plannedAt: z.iso.datetime().optional(),
+        }),
+      )
+      .min(1)
+      .max(20),
+    roadRun: z.object({
+      plannedStartAt: z.iso.datetime().optional(),
+      assignedOperatorId: z.guid(),
+      assignedAssetId: z.guid(),
+    }),
+  })
+  .strict();
 export type CreateTransportOrderInput = z.infer<typeof CreateTransportOrderSchema>;
 export interface CreateTransportOrderResponse {
   readonly transportOrderId: string;

@@ -55,22 +55,28 @@ export type BoardSearchPredicate = (typeof BOARD_SEARCH_PREDICATES)[number];
  *  both excluded from free text but for DIFFERENT, named reasons. */
 const columnBase = { id: z.string().min(1), labels: z.array(z.string().min(1)).readonly() };
 export const BoardSearchColumnSchema = z.discriminatedUnion('kind', [
-  z.object({
-    ...columnBase,
-    kind: z.literal('searchable'),
-    predicate: z.enum(BOARD_SEARCH_PREDICATES),
-  }).strict(),
-  z.object({
-    ...columnBase,
-    kind: z.literal('derived'),
-    reason: z.string().min(1),
-  }).strict(),
-  z.object({
-    ...columnBase,
-    kind: z.literal('facet'),
-    filteredBy: z.string().min(1),
-    reason: z.string().min(1),
-  }).strict(),
+  z
+    .object({
+      ...columnBase,
+      kind: z.literal('searchable'),
+      predicate: z.enum(BOARD_SEARCH_PREDICATES),
+    })
+    .strict(),
+  z
+    .object({
+      ...columnBase,
+      kind: z.literal('derived'),
+      reason: z.string().min(1),
+    })
+    .strict(),
+  z
+    .object({
+      ...columnBase,
+      kind: z.literal('facet'),
+      filteredBy: z.string().min(1),
+      reason: z.string().min(1),
+    })
+    .strict(),
 ]);
 export type BoardSearchColumn = z.infer<typeof BoardSearchColumnSchema>;
 /** Derived pickup/delivery label sets. The Vietnamese literal is NEVER
@@ -107,7 +113,12 @@ export const BOARD_SEARCH_COLUMNS: readonly BoardSearchColumn[] = [
   { id: 'cargoName', labels: ['Tên hàng'], kind: 'searchable', predicate: 'cargoName' },
   { id: 'driverName', labels: ['Tài xế'], kind: 'searchable', predicate: 'driverName' },
   { id: 'vehiclePlate', labels: ['Xe'], kind: 'searchable', predicate: 'vehiclePlate' },
-  { id: 'plannedStartAt', labels: ['Ngày dự kiến'], kind: 'searchable', predicate: 'plannedStartAt' },
+  {
+    id: 'plannedStartAt',
+    labels: ['Ngày dự kiến'],
+    kind: 'searchable',
+    predicate: 'plannedStartAt',
+  },
   { id: 'stopCount', labels: ['Số điểm'], kind: 'searchable', predicate: 'stopCount' },
   {
     id: 'weightDiffKg',
@@ -124,7 +135,12 @@ export const BOARD_SEARCH_COLUMNS: readonly BoardSearchColumn[] = [
       'backfill via projection:rebuild), not a search change.',
   },
   { id: 'pickupWarehouses', labels: PICKUP_LABELS, kind: 'searchable', predicate: 'warehouseName' },
-  { id: 'deliveryWarehouses', labels: DELIVERY_LABELS, kind: 'searchable', predicate: 'warehouseName' },
+  {
+    id: 'deliveryWarehouses',
+    labels: DELIVERY_LABELS,
+    kind: 'searchable',
+    predicate: 'warehouseName',
+  },
 ];
 /** The dispatcher-visible NAME columns, derived from the export SSOT by dropping
  *  the paired kg-number columns. This is the set the registry must cover. */
@@ -133,7 +149,10 @@ export function boardSearchNameHeaders(): readonly string[] {
 }
 /** Registry entries the API must express as SQL predicates -- the searchable arm
  *  only. derived and facet columns are deliberately absent. */
-export function boardSearchableColumns(): readonly Extract<BoardSearchColumn, { kind: 'searchable' }>[] {
+export function boardSearchableColumns(): readonly Extract<
+  BoardSearchColumn,
+  { kind: 'searchable' }
+>[] {
   return BOARD_SEARCH_COLUMNS.filter(
     (c): c is Extract<BoardSearchColumn, { kind: 'searchable' }> => c.kind === 'searchable',
   );

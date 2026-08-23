@@ -60,7 +60,11 @@ import type { CancelOrderInput, CancelOrderResult } from './transport-orders.can
 @Injectable()
 export class TransportOrdersCancelService {
   constructor(@Inject(DRIZZLE_DB) private readonly db: FleetDb) {}
-  async cancel(id: string, input: CancelOrderInput, op: OperatorContext): Promise<CancelOrderResult> {
+  async cancel(
+    id: string,
+    input: CancelOrderInput,
+    op: OperatorContext,
+  ): Promise<CancelOrderResult> {
     return this.db.transaction(async (tx) => {
       const [existing] = await tx
         .select({
@@ -73,10 +77,9 @@ export class TransportOrdersCancelService {
           cancellationNote: transportOrder.cancellationNote,
         })
         .from(transportOrder)
-        .where(and(
-          eq(transportOrder.transportOrderId, id),
-          eq(transportOrder.companyId, op.companyId),
-        ))
+        .where(
+          and(eq(transportOrder.transportOrderId, id), eq(transportOrder.companyId, op.companyId)),
+        )
         .limit(1);
       if (existing === undefined) {
         throw new TransportOrderNotFoundError();
@@ -93,11 +96,13 @@ export class TransportOrdersCancelService {
       const [received] = await tx
         .select({ n: count() })
         .from(manifest)
-        .where(and(
-          eq(manifest.transportOrderId, id),
-          eq(manifest.companyId, op.companyId),
-          inArray(manifest.state, [...MANIFEST_PHOTO_RECEIVED_STATES]),
-        ));
+        .where(
+          and(
+            eq(manifest.transportOrderId, id),
+            eq(manifest.companyId, op.companyId),
+            inArray(manifest.state, [...MANIFEST_PHOTO_RECEIVED_STATES]),
+          ),
+        );
       const receivedCount = received?.n ?? 0;
       if (receivedCount > 0 && currentState !== 'cancelled') {
         throw new TransportOrderCannotBeCancelledWithReceivedPhotosError(receivedCount);
@@ -140,10 +145,9 @@ export class TransportOrdersCancelService {
           cancellationNote: note,
           updatedAt: now,
         })
-        .where(and(
-          eq(transportOrder.transportOrderId, id),
-          eq(transportOrder.companyId, op.companyId),
-        ))
+        .where(
+          and(eq(transportOrder.transportOrderId, id), eq(transportOrder.companyId, op.companyId)),
+        )
         .returning();
       if (updated === undefined) {
         throw new TransportOrderNotFoundError();
@@ -168,10 +172,12 @@ export class TransportOrdersCancelService {
     const linkedRuns = await tx
       .select({ roadRunId: roadRunTransportOrder.roadRunId })
       .from(roadRunTransportOrder)
-      .where(and(
-        eq(roadRunTransportOrder.transportOrderId, transportOrderId),
-        eq(roadRunTransportOrder.companyId, op.companyId),
-      ));
+      .where(
+        and(
+          eq(roadRunTransportOrder.transportOrderId, transportOrderId),
+          eq(roadRunTransportOrder.companyId, op.companyId),
+        ),
+      );
     const roadRunIds = linkedRuns.map((r) => r.roadRunId);
     if (roadRunIds.length === 0) return;
     // Cascade UPDATE: flip every linked road_run still in a non-cancelled
@@ -183,11 +189,13 @@ export class TransportOrdersCancelService {
     const updatedRuns = await tx
       .update(roadRun)
       .set({ state: 'cancelled' })
-      .where(and(
-        inArray(roadRun.roadRunId, roadRunIds),
-        eq(roadRun.companyId, op.companyId),
-        ne(roadRun.state, 'cancelled'),
-      ))
+      .where(
+        and(
+          inArray(roadRun.roadRunId, roadRunIds),
+          eq(roadRun.companyId, op.companyId),
+          ne(roadRun.state, 'cancelled'),
+        ),
+      )
       .returning({ roadRunId: roadRun.roadRunId });
     // Publish one road_run.cancelled event per row that ACTUALLY moved
     // to 'cancelled'. Rows that were already cancelled (the heal-on-
@@ -205,7 +213,12 @@ export class TransportOrdersCancelService {
         auditPayload: { transportOrderId, roadRunId: r.roadRunId },
         operatorId: op.operatorId,
         queueName: OUTBOX_QUEUES.PROJECTIONS,
-        outboxPayload: { aggregateType: 'road_run', eventType: 'road_run.cancelled', roadRunId: r.roadRunId, transportOrderId },
+        outboxPayload: {
+          aggregateType: 'road_run',
+          eventType: 'road_run.cancelled',
+          roadRunId: r.roadRunId,
+          transportOrderId,
+        },
         op,
       });
     }

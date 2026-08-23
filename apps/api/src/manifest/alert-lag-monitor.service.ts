@@ -54,9 +54,7 @@ export class AlertLagMonitorService {
 
     const thresholdMs = this.thresholdMinutes * 60_000;
     const oldestAgeMs =
-      snap.oldestPendingCreatedAt === null
-        ? 0
-        : this.now() - snap.oldestPendingCreatedAt.getTime();
+      snap.oldestPendingCreatedAt === null ? 0 : this.now() - snap.oldestPendingCreatedAt.getTime();
 
     const hasDeadLetter = snap.deadLetterCount > 0;
     const hasStuckPending = snap.oldestPendingCreatedAt !== null && oldestAgeMs > thresholdMs;

@@ -27,11 +27,7 @@
 // pattern that uses one.
 import { describe, it, expect } from 'vitest';
 import { parse as parseYaml } from 'yaml';
-import {
-  PLAINTEXT_ENV_FILE,
-  creationRulePathRegex,
-  renderSopsConfig,
-} from './env-bootstrap.js';
+import { PLAINTEXT_ENV_FILE, creationRulePathRegex, renderSopsConfig } from './env-bootstrap.js';
 
 const KEY_A = 'age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p';
 const KEY_B = 'age1lggyhqrw2nlhcxprm67z43rta597azn8gknawjehu9d9dl0jq3yqqvfjug';

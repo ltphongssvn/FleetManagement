@@ -18,10 +18,7 @@ import {
   isPinnedImage,
 } from '../src/railway-service-manifest.js';
 
-const FIXTURE = join(
-  import.meta.dirname,
-  'fixtures/railway-production-manifests.json',
-);
+const FIXTURE = join(import.meta.dirname, 'fixtures/railway-production-manifests.json');
 
 const captured = JSON.parse(readFileSync(FIXTURE, 'utf8')) as {
   capturedAt: string;

@@ -77,7 +77,11 @@ describe('@fleet/api CopilotPlannerService', () => {
     if (out.kind === 'plan') {
       const [create, assign] = out.plan.commands;
       expect(create).toEqual(
-        expect.objectContaining({ type: 'create_driver', fullName: 'Nguyễn Văn B', password: null }),
+        expect.objectContaining({
+          type: 'create_driver',
+          fullName: 'Nguyễn Văn B',
+          password: null,
+        }),
       );
       if (assign?.type === 'assign_driver_to_vehicle' && create) {
         expect(assign.vehicle).toEqual({ kind: 'id', idSpace: 'vehicleId', id: V1 });
@@ -133,9 +137,7 @@ describe('@fleet/api CopilotPlannerService', () => {
     expect(out.kind).toBe('clarify');
     if (out.kind === 'clarify') {
       expect(out.candidates).toHaveLength(2);
-      expect(out.candidates?.[0]).toEqual(
-        expect.objectContaining({ idSpace: 'driverId', id: D1 }),
-      );
+      expect(out.candidates?.[0]).toEqual(expect.objectContaining({ idSpace: 'driverId', id: D1 }));
     }
   });
 

@@ -27,10 +27,13 @@ import type { TransitionResult } from '../src/assignments/delivery-lifecycle-cli
 
 function istError(currentState: string, allowedActions: readonly string[]): ApiError {
   return ApiError.fromBody(409, {
-    title: 'Conflict', status: 409,
+    title: 'Conflict',
+    status: 409,
     detail: 'Khong the thuc hien thao tac.',
-    instance: '/x', code: 'INVALID_STATE_TRANSITION',
-    currentState, allowedActions,
+    instance: '/x',
+    code: 'INVALID_STATE_TRANSITION',
+    currentState,
+    allowedActions,
   });
 }
 
@@ -52,10 +55,15 @@ describe('forgiving lifecycle recovery', () => {
   it('walks the ladder: complete on dispatched -> auto start, then complete', async () => {
     const calls: string[] = [];
     const client = clientWhere({
-      start: vi.fn(async () => { await Promise.resolve(); calls.push('start'); return { roadRunId: 'rr', state: 'started' }; }),
+      start: vi.fn(async () => {
+        await Promise.resolve();
+        calls.push('start');
+        return { roadRunId: 'rr', state: 'started' };
+      }),
       complete: vi.fn(() => {
         calls.push('complete');
-        if (calls.filter((c) => c === 'complete').length === 1) throw istError('dispatched', ['started', 'cancelled']);
+        if (calls.filter((c) => c === 'complete').length === 1)
+          throw istError('dispatched', ['started', 'cancelled']);
         return Promise.resolve({ roadRunId: 'rr', state: 'completed' });
       }),
     });
@@ -68,22 +76,36 @@ describe('forgiving lifecycle recovery', () => {
   it('walks two rungs: complete on planned -> accept, start, complete', async () => {
     const calls: string[] = [];
     const client = clientWhere({
-      accept: vi.fn(async () => { await Promise.resolve(); calls.push('accept'); return { roadRunId: 'rr', state: 'dispatched' }; }),
-      start: vi.fn(async () => { await Promise.resolve(); calls.push('start'); return { roadRunId: 'rr', state: 'started' }; }),
+      accept: vi.fn(async () => {
+        await Promise.resolve();
+        calls.push('accept');
+        return { roadRunId: 'rr', state: 'dispatched' };
+      }),
+      start: vi.fn(async () => {
+        await Promise.resolve();
+        calls.push('start');
+        return { roadRunId: 'rr', state: 'started' };
+      }),
       complete: vi.fn(() => {
         calls.push('complete');
-        if (calls.filter((c) => c === 'complete').length === 1) throw istError('planned', ['dispatched', 'cancelled']);
+        if (calls.filter((c) => c === 'complete').length === 1)
+          throw istError('planned', ['dispatched', 'cancelled']);
         return Promise.resolve({ roadRunId: 'rr', state: 'completed' });
       }),
     });
-    const out = await makeForgivingLifecycleMutationFn(client)({ roadRunId: 'rr', kind: 'complete' });
+    const out = await makeForgivingLifecycleMutationFn(client)({
+      roadRunId: 'rr',
+      kind: 'complete',
+    });
     expect(out.state).toBe('completed');
     expect(calls).toEqual(['complete', 'accept', 'start', 'complete']);
   });
 
   it('treats an already-passed target as idempotent success', async () => {
     const client = clientWhere({
-      accept: vi.fn(() => { throw istError('started', ['completed', 'cancelled']); }),
+      accept: vi.fn(() => {
+        throw istError('started', ['completed', 'cancelled']);
+      }),
     });
     const out = await makeForgivingLifecycleMutationFn(client)({ roadRunId: 'rr', kind: 'accept' });
     expect(out).toEqual({ roadRunId: 'rr', state: 'started' });
@@ -92,44 +114,66 @@ describe('forgiving lifecycle recovery', () => {
   it('rethrows the ORIGINAL error when the run is cancelled (no path)', async () => {
     const original = istError('cancelled', []);
     const client = clientWhere({
-      complete: vi.fn(() => { throw original; }),
+      complete: vi.fn(() => {
+        throw original;
+      }),
     });
-    await expect(makeForgivingLifecycleMutationFn(client)({ roadRunId: 'rr', kind: 'complete' }))
-      .rejects.toBe(original);
+    await expect(
+      makeForgivingLifecycleMutationFn(client)({ roadRunId: 'rr', kind: 'complete' }),
+    ).rejects.toBe(original);
   });
 
   it('rethrows non-IST errors untouched (manifest gate stays a banner)', async () => {
     const original = ApiError.fromBody(409, {
-      title: 'Conflict', status: 409, detail: 'Chua du anh.',
-      instance: '/x', code: 'MANIFESTS_INCOMPLETE', committed: 1, required: 2,
+      title: 'Conflict',
+      status: 409,
+      detail: 'Chua du anh.',
+      instance: '/x',
+      code: 'MANIFESTS_INCOMPLETE',
+      committed: 1,
+      required: 2,
     });
     const client = clientWhere({
-      complete: vi.fn(() => { throw original; }),
+      complete: vi.fn(() => {
+        throw original;
+      }),
     });
-    await expect(makeForgivingLifecycleMutationFn(client)({ roadRunId: 'rr', kind: 'complete' }))
-      .rejects.toBe(original);
+    await expect(
+      makeForgivingLifecycleMutationFn(client)({ roadRunId: 'rr', kind: 'complete' }),
+    ).rejects.toBe(original);
   });
 
   it('rethrows when extensions are absent (legacy envelope)', async () => {
     const original = ApiError.fromBody(409, {
-      title: 'Conflict', status: 409, detail: 'x', instance: '/x',
+      title: 'Conflict',
+      status: 409,
+      detail: 'x',
+      instance: '/x',
       code: 'INVALID_STATE_TRANSITION',
     });
     const client = clientWhere({
-      start: vi.fn(() => { throw original; }),
+      start: vi.fn(() => {
+        throw original;
+      }),
     });
-    await expect(makeForgivingLifecycleMutationFn(client)({ roadRunId: 'rr', kind: 'start' }))
-      .rejects.toBe(original);
+    await expect(
+      makeForgivingLifecycleMutationFn(client)({ roadRunId: 'rr', kind: 'start' }),
+    ).rejects.toBe(original);
   });
 
   it('does not loop: a second IST during recovery rethrows it', async () => {
     const second = istError('cancelled', []);
     const client = clientWhere({
-      start: vi.fn(() => { throw second; }),
-      complete: vi.fn(() => { throw istError('dispatched', ['started', 'cancelled']); }),
+      start: vi.fn(() => {
+        throw second;
+      }),
+      complete: vi.fn(() => {
+        throw istError('dispatched', ['started', 'cancelled']);
+      }),
     });
-    await expect(makeForgivingLifecycleMutationFn(client)({ roadRunId: 'rr', kind: 'complete' }))
-      .rejects.toBe(second);
+    await expect(
+      makeForgivingLifecycleMutationFn(client)({ roadRunId: 'rr', kind: 'complete' }),
+    ).rejects.toBe(second);
   });
 });
 
@@ -141,9 +185,13 @@ describe('planRecovery edge coverage', () => {
   });
 
   it('plans the exact rung sequences', () => {
-    expect(planRecovery('complete', 'planned', ['dispatched', 'cancelled']))
-      .toEqual({ outcome: 'walk', steps: ['accept', 'start', 'complete'] });
-    expect(planRecovery('start', 'started', []))
-      .toEqual({ outcome: 'already-there', state: 'started' });
+    expect(planRecovery('complete', 'planned', ['dispatched', 'cancelled'])).toEqual({
+      outcome: 'walk',
+      steps: ['accept', 'start', 'complete'],
+    });
+    expect(planRecovery('start', 'started', [])).toEqual({
+      outcome: 'already-there',
+      state: 'started',
+    });
   });
 });

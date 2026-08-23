@@ -28,14 +28,22 @@ describe('capture-screen-state', () => {
 
   it('idle + PICKED oversize file -> error with rejection code', () => {
     let s: CaptureState = initialCaptureState();
-    s = reduceCapture(s, { type: 'PICKED', file: { mimeType: 'image/jpeg', sizeBytes: 99_999_999 }, localUri: 'file:///big.jpg' });
+    s = reduceCapture(s, {
+      type: 'PICKED',
+      file: { mimeType: 'image/jpeg', sizeBytes: 99_999_999 },
+      localUri: 'file:///big.jpg',
+    });
     expect(s.phase).toBe('error');
     if (s.phase === 'error') expect(s.rejectionCode).toBe('too_large');
   });
 
   it('idle + PICKED bad mime -> error invalid_mime', () => {
     let s: CaptureState = initialCaptureState();
-    s = reduceCapture(s, { type: 'PICKED', file: { mimeType: 'text/plain', sizeBytes: 5000 }, localUri: 'file:///x.txt' });
+    s = reduceCapture(s, {
+      type: 'PICKED',
+      file: { mimeType: 'text/plain', sizeBytes: 5000 },
+      localUri: 'file:///x.txt',
+    });
     expect(s.phase).toBe('error');
     if (s.phase === 'error') expect(s.rejectionCode).toBe('invalid_mime');
   });
@@ -70,7 +78,11 @@ describe('capture-screen-state', () => {
 
   it('error + RESET -> idle', () => {
     let s: CaptureState = initialCaptureState();
-    s = reduceCapture(s, { type: 'PICKED', file: { mimeType: 'text/plain', sizeBytes: 5000 }, localUri: 'file:///x.txt' });
+    s = reduceCapture(s, {
+      type: 'PICKED',
+      file: { mimeType: 'text/plain', sizeBytes: 5000 },
+      localUri: 'file:///x.txt',
+    });
     s = reduceCapture(s, { type: 'RESET' });
     expect(s.phase).toBe('idle');
   });

@@ -4,10 +4,7 @@
 // drives a strict, bounded ReferenceWriteSchema whose z.infer replaces
 // the hand-written DTO.
 import { describe, expect, it } from 'vitest';
-import {
-  ReferenceWriteSchema,
-  type ReferenceWriteDto,
-} from '../src/reference/reference.dto.js';
+import { ReferenceWriteSchema, type ReferenceWriteDto } from '../src/reference/reference.dto.js';
 
 describe('@fleet/api ReferenceWriteSchema (audit S1)', () => {
   it('parses a minimal name-only body', () => {

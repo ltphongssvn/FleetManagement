@@ -23,9 +23,7 @@ import {
 /** A schema-valid assigned/completed row. Overrides are applied BEFORE parsing,
  *  so an override that violates the contract throws instead of producing a
  *  fixture no production code could ever receive. */
-export function createListAssignedRow(
-  overrides: Partial<ListAssignedRow> = {},
-): ListAssignedRow {
+export function createListAssignedRow(overrides: Partial<ListAssignedRow> = {}): ListAssignedRow {
   return ListAssignedRowSchema.parse({
     transportOrderId: 'to-fixture-1',
     externalRef: 'XTT.08-001',

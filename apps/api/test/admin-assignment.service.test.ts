@@ -4,7 +4,12 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { AdminAssignmentService } from '../src/admin/admin-assignment.service.js';
 import { driver, vehicle } from '../src/database/schema/reference.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+  truncateAllTables,
+} from './helpers/migrate-test-db.js';
 
 let testDb: MigratedTestDb;
 const TENANCY = {
@@ -15,10 +20,12 @@ const TENANCY = {
 };
 
 async function seedDriverVehicle(): Promise<{ driverId: string; vehicleId: string }> {
-  const [d] = await testDb.db.insert(driver)
+  const [d] = await testDb.db
+    .insert(driver)
     .values({ ...TENANCY, fullName: 'D-' + randomUUID().slice(0, 8) })
     .returning({ driverId: driver.driverId });
-  const [v] = await testDb.db.insert(vehicle)
+  const [v] = await testDb.db
+    .insert(vehicle)
     .values({ ...TENANCY, plate: 'P-' + randomUUID().slice(0, 8) })
     .returning({ vehicleId: vehicle.vehicleId });
   if (d === undefined || v === undefined) throw new Error('seed failed');
@@ -26,8 +33,12 @@ async function seedDriverVehicle(): Promise<{ driverId: string; vehicleId: strin
 }
 
 describe('@fleet/api - AdminAssignmentService', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_adminassign'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_test_adminassign');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
   beforeEach(async () => {
     await truncateAllTables(testDb.db);
   });
@@ -47,21 +58,26 @@ describe('@fleet/api - AdminAssignmentService', () => {
   it('revoke() soft-revokes an active assignment with a reason', async () => {
     const { driverId, vehicleId } = await seedDriverVehicle();
     const created = await svc().assign({ ...TENANCY, driverId, vehicleId });
-    const revoked = await svc().revoke({ assignmentId: created.assignmentId, reason: 'reassigned' });
+    const revoked = await svc().revoke({
+      assignmentId: created.assignmentId,
+      reason: 'reassigned',
+    });
     expect(revoked.revokedAt).not.toBeNull();
     expect(revoked.revocationReason).toBe('reassigned');
   }, 30_000);
 
   it('revoke() throws when the assignment does not exist', async () => {
-    await expect(svc().revoke({ assignmentId: randomUUID(), reason: 'x' }))
-      .rejects.toThrow(/not found or already revoked/i);
+    await expect(svc().revoke({ assignmentId: randomUUID(), reason: 'x' })).rejects.toThrow(
+      /not found or already revoked/i,
+    );
   });
 
   it('revoke() throws when the assignment is already revoked', async () => {
     const { driverId, vehicleId } = await seedDriverVehicle();
     const created = await svc().assign({ ...TENANCY, driverId, vehicleId });
     await svc().revoke({ assignmentId: created.assignmentId, reason: 'first' });
-    await expect(svc().revoke({ assignmentId: created.assignmentId, reason: 'second' }))
-      .rejects.toThrow(/not found or already revoked/i);
+    await expect(
+      svc().revoke({ assignmentId: created.assignmentId, reason: 'second' }),
+    ).rejects.toThrow(/not found or already revoked/i);
   }, 30_000);
 });

@@ -1,12 +1,28 @@
 // apps/api/test/commands.gateway.test.ts
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { CommandsGateway, COMMAND_DELIVERY_POLICY_VERSION } from '../src/commands/commands.gateway.js';
+import {
+  CommandsGateway,
+  COMMAND_DELIVERY_POLICY_VERSION,
+} from '../src/commands/commands.gateway.js';
 import type { IPushProvider } from '../src/push/push-provider.interface.js';
 import type { Clock } from '../src/common/clock.js';
-import { RingBufferLatencyRecorder, type CommandLatencyRecorder } from '../src/commands/command-latency-recorder.js';
+import {
+  RingBufferLatencyRecorder,
+  type CommandLatencyRecorder,
+} from '../src/commands/command-latency-recorder.js';
 
 interface PendingMap {
-  readonly pending: Map<string, { operatorId: string; issuedAt: Date; attempts: number; pushAttempts: number; pushInFlight: boolean; policyVersion: string }>;
+  readonly pending: Map<
+    string,
+    {
+      operatorId: string;
+      issuedAt: Date;
+      attempts: number;
+      pushAttempts: number;
+      pushInFlight: boolean;
+      policyVersion: string;
+    }
+  >;
 }
 
 describe('@fleet/api - CommandsGateway reconciler', () => {
@@ -14,7 +30,10 @@ describe('@fleet/api - CommandsGateway reconciler', () => {
   let pushSpy: IPushProvider['sendToOperator'];
 
   beforeEach(() => {
-    pushSpy = vi.fn().mockResolvedValue({ accepted: 1, rejected: 0 }) as unknown as IPushProvider['sendToOperator'];
+    pushSpy = vi.fn().mockResolvedValue({
+      accepted: 1,
+      rejected: 0,
+    }) as unknown as IPushProvider['sendToOperator'];
     const mockPush: IPushProvider = { sendToOperator: pushSpy };
     gw = new CommandsGateway(mockPush);
     gw.clearPending();
@@ -148,7 +167,9 @@ describe('@fleet/api - CommandsGateway reconciler', () => {
   });
 
   it('retains pending entry when push fallback rejects', async () => {
-    const failing = vi.fn().mockRejectedValue(new Error('expo down')) as unknown as IPushProvider['sendToOperator'];
+    const failing = vi
+      .fn()
+      .mockRejectedValue(new Error('expo down')) as unknown as IPushProvider['sendToOperator'];
     const failGw = new CommandsGateway({ sendToOperator: failing });
     (failGw as unknown as PendingMap).pending.set('cFail', {
       operatorId: 'op1',
@@ -159,7 +180,9 @@ describe('@fleet/api - CommandsGateway reconciler', () => {
       policyVersion: COMMAND_DELIVERY_POLICY_VERSION,
     });
     failGw.reconcileNow(new Date());
-    await new Promise((r) => { setTimeout(r, 20); });
+    await new Promise((r) => {
+      setTimeout(r, 20);
+    });
     expect(failGw.pendingCount()).toBe(1);
   });
 });
@@ -204,10 +227,7 @@ describe('@fleet/api - CommandsGateway Clock injection', () => {
     });
     current = t1;
     const fakeSocket = { id: 's', data: { operatorId } } as never;
-    gw.handleAck(
-      { commandId: cmdId, ackedAt: t1.toISOString(), status: 'received' },
-      fakeSocket,
-    );
+    gw.handleAck({ commandId: cmdId, ackedAt: t1.toISOString(), status: 'received' }, fakeSocket);
     expect(gw.getLatencySamples().map((s) => s.ms)).toEqual([250]);
   });
 });
@@ -219,9 +239,18 @@ describe('@fleet/api - CommandsGateway latency recorder injection', () => {
     let current = t0;
     const fakeClock: Clock = { now: () => current };
     const recorded: number[] = [];
-    const recordedSamples: { readonly ms: number; readonly commandId: string; readonly operatorId: string; readonly recordedAt: Date; readonly status: 'ok' | 'rejected' }[] = [];
+    const recordedSamples: {
+      readonly ms: number;
+      readonly commandId: string;
+      readonly operatorId: string;
+      readonly recordedAt: Date;
+      readonly status: 'ok' | 'rejected';
+    }[] = [];
     const recorder: CommandLatencyRecorder = {
-      record: (sample) => { recorded.push(sample.ms); recordedSamples.push(sample); },
+      record: (sample) => {
+        recorded.push(sample.ms);
+        recordedSamples.push(sample);
+      },
       samples: () => recordedSamples,
     };
     const gw = new CommandsGateway(undefined, fakeClock, recorder);
@@ -237,10 +266,7 @@ describe('@fleet/api - CommandsGateway latency recorder injection', () => {
     });
     current = t1;
     const fakeSocket = { id: 's', data: { operatorId } } as never;
-    gw.handleAck(
-      { commandId: cmdId, ackedAt: t1.toISOString(), status: 'received' },
-      fakeSocket,
-    );
+    gw.handleAck({ commandId: cmdId, ackedAt: t1.toISOString(), status: 'received' }, fakeSocket);
     expect(recorded).toEqual([500]);
     expect(gw.getLatencySamples().map((s) => s.ms)).toEqual([500]);
   });

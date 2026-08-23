@@ -10,7 +10,7 @@ describe('CreateOrderForm VN/EN', () => {
   const drivers = [{ id: '00000000-0000-0000-0000-000000000001', label: 'driver1' }];
   it('renders VN labels when locale=vi', async () => {
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
-    render(<CreateOrderForm drivers={drivers} locale='vi' />);
+    render(<CreateOrderForm drivers={drivers} locale="vi" />);
     expect(screen.getByText(/Lệnh điều xe/i)).toBeDefined();
     expect(screen.getByLabelText(/Khách hàng/i)).toBeDefined();
     expect(screen.getByLabelText(/Tên hàng/i)).toBeDefined();
@@ -22,7 +22,7 @@ describe('CreateOrderForm VN/EN', () => {
   });
   it('renders EN labels when locale=en', async () => {
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
-    render(<CreateOrderForm drivers={drivers} locale='en' />);
+    render(<CreateOrderForm drivers={drivers} locale="en" />);
     expect(screen.getByText(/Transport Order/i)).toBeDefined();
     expect(screen.getByLabelText(/Customer/i)).toBeDefined();
     expect(screen.getByLabelText(/Cargo/i)).toBeDefined();
@@ -33,12 +33,12 @@ describe('CreateOrderForm VN/EN', () => {
   });
   it('does NOT render the redundant Đặt lại reset button (T5, vi)', async () => {
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
-    render(<CreateOrderForm drivers={drivers} locale='vi' />);
+    render(<CreateOrderForm drivers={drivers} locale="vi" />);
     expect(screen.queryByRole('button', { name: /^Đặt lại$/ })).toBeNull();
   });
   it('does NOT render the redundant Reset button (T5, en)', async () => {
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
-    render(<CreateOrderForm drivers={drivers} locale='en' />);
+    render(<CreateOrderForm drivers={drivers} locale="en" />);
     expect(screen.queryByRole('button', { name: /^Reset$/ })).toBeNull();
   });
 });

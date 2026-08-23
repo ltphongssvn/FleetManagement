@@ -19,7 +19,10 @@ export class UploadSessionInsertFailedError extends ManifestError {
 }
 
 export class TransportOrderNotOwnedError extends ManifestError {
-  constructor(public readonly transportOrderId: string, public readonly companyId: string) {
+  constructor(
+    public readonly transportOrderId: string,
+    public readonly companyId: string,
+  ) {
     super(`Transport order ${transportOrderId} not owned by company ${companyId}`);
   }
 }
@@ -37,7 +40,7 @@ export class ManifestStateInvalidTransitionError extends ManifestError {
   ) {
     super(
       `Manifest ${manifestId} state transition refused; ` +
-      `expected current state in [${expectedStates.join(', ')}]`,
+        `expected current state in [${expectedStates.join(', ')}]`,
     );
   }
 }
@@ -50,7 +53,7 @@ export class UploadSessionInvalidStateError extends ManifestError {
   ) {
     super(
       `Upload session ${uploadSessionId} in state '${currentState}' cannot transition; ` +
-      `expected one of [${expectedStates.join(', ')}]`,
+        `expected one of [${expectedStates.join(', ')}]`,
     );
   }
 }

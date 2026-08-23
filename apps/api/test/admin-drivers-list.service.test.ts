@@ -8,7 +8,12 @@ import { AdminDriversListService } from '../src/admin/admin-drivers-list.service
 import { driver, vehicle } from '../src/database/schema/reference.js';
 import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
 import { deviceRegistry } from '../src/database/schema/device.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+  truncateAllTables,
+} from './helpers/migrate-test-db.js';
 let testDb: MigratedTestDb;
 const COMPANY = '00000000-0000-0000-0000-000000000000';
 const TENANCY = {
@@ -18,8 +23,12 @@ const TENANCY = {
   legalEntityId: '00000000-0000-0000-0000-000000000004',
 };
 describe('@fleet/api - AdminDriversListService', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_adminlist'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_test_adminlist');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
   beforeEach(async () => {
     await truncateAllTables(testDb.db);
   });
@@ -40,16 +49,20 @@ describe('@fleet/api - AdminDriversListService', () => {
   });
   it('lists a driver with an active assignment, vehicle, operatorId and a device', async () => {
     const operatorId = randomUUID();
-    const [d] = await testDb.db.insert(driver)
+    const [d] = await testDb.db
+      .insert(driver)
       .values({ ...TENANCY, fullName: 'FULL', operatorId })
       .returning({ driverId: driver.driverId });
-    const [v] = await testDb.db.insert(vehicle)
+    const [v] = await testDb.db
+      .insert(vehicle)
       .values({ ...TENANCY, plate: 'LIST-001' })
       .returning({ vehicleId: vehicle.vehicleId });
     if (d === undefined || v === undefined) throw new Error('seed failed');
-    await testDb.db.insert(driverVehicleAssignment)
+    await testDb.db
+      .insert(driverVehicleAssignment)
       .values({ ...TENANCY, driverId: d.driverId, vehicleId: v.vehicleId });
-    await testDb.db.insert(deviceRegistry)
+    await testDb.db
+      .insert(deviceRegistry)
       .values({ ...TENANCY, operatorId, platform: 'android', appVersion: '1.0.0' });
     const rows = await svc().list({ companyId: COMPANY });
     expect(rows).toHaveLength(1);

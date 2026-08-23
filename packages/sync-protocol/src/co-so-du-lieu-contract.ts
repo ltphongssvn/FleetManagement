@@ -13,11 +13,7 @@ import { z } from 'zod';
 
 // Ordered, frozen three-state tuple (badge display order). Object.freeze so no
 // caller can mutate the shared SSOT array; z.enum + z.infer derive from it.
-export const DRIVER_DB_STATUSES = Object.freeze([
-  'unassigned',
-  'assigned',
-  'active',
-] as const);
+export const DRIVER_DB_STATUSES = Object.freeze(['unassigned', 'assigned', 'active'] as const);
 export const driverDbStatusSchema = z.enum(DRIVER_DB_STATUSES);
 export type DriverDbStatus = z.infer<typeof driverDbStatusSchema>;
 

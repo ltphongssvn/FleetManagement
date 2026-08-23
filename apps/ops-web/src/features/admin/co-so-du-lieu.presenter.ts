@@ -20,23 +20,22 @@ export interface DriverDbStatusPresentation {
 }
 
 // Generic presentation for codes this build does not know.
-export const DRIVER_DB_STATUS_FALLBACK: DriverDbStatusPresentation =
-  Object.freeze({ label: 'Không rõ', tone: 'neutral' });
+export const DRIVER_DB_STATUS_FALLBACK: DriverDbStatusPresentation = Object.freeze({
+  label: 'Không rõ',
+  tone: 'neutral',
+});
 
-const PRESENTATIONS: Record<DriverDbStatus, DriverDbStatusPresentation> =
-  Object.freeze({
-    unassigned: Object.freeze({ label: 'Chưa phân công', tone: 'warning' }),
-    assigned: Object.freeze({ label: 'Đã giao xe', tone: 'info' }),
-    active: Object.freeze({ label: 'Đang hoạt động', tone: 'success' }),
-  });
+const PRESENTATIONS: Record<DriverDbStatus, DriverDbStatusPresentation> = Object.freeze({
+  unassigned: Object.freeze({ label: 'Chưa phân công', tone: 'warning' }),
+  assigned: Object.freeze({ label: 'Đã giao xe', tone: 'info' }),
+  active: Object.freeze({ label: 'Đang hoạt động', tone: 'success' }),
+});
 
 function isKnownStatus(code: string): code is DriverDbStatus {
   return Object.prototype.hasOwnProperty.call(PRESENTATIONS, code);
 }
 
 // Loose in, immutable Vietnamese out; unknown -> generic fallback.
-export function presentDriverDbStatus(
-  code: string,
-): DriverDbStatusPresentation {
+export function presentDriverDbStatus(code: string): DriverDbStatusPresentation {
   return isKnownStatus(code) ? PRESENTATIONS[code] : DRIVER_DB_STATUS_FALLBACK;
 }

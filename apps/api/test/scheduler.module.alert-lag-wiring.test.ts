@@ -18,26 +18,44 @@ const src = (rel: string): string => readFileSync(resolve(here, '..', rel), 'utf
 describe('@fleet/api - alert-lag monitor DI wiring', () => {
   it('the scheduler module registers the DrizzleAlertLagRepo provider', () => {
     const s = src('src/scheduler/scheduler.module.ts');
-    expect(s.includes('DrizzleAlertLagRepo'), 'the repo must be a provider so the monitor factory can inject it').toBe(true);
+    expect(
+      s.includes('DrizzleAlertLagRepo'),
+      'the repo must be a provider so the monitor factory can inject it',
+    ).toBe(true);
   });
 
   it('the scheduler module provides the ALERT_LAG_MONITOR against its token', () => {
     const s = src('src/scheduler/scheduler.module.ts');
-    expect(s.includes('provide: ALERT_LAG_MONITOR'), 'the monitor must be provided against the token the scheduler injects').toBe(true);
-    expect(s.includes('new AlertLagMonitorService('), 'the factory must construct the monitor').toBe(true);
+    expect(
+      s.includes('provide: ALERT_LAG_MONITOR'),
+      'the monitor must be provided against the token the scheduler injects',
+    ).toBe(true);
+    expect(
+      s.includes('new AlertLagMonitorService('),
+      'the factory must construct the monitor',
+    ).toBe(true);
   });
 
   it('the monitor is thresholded by the DRIVER_ALERT_LAG_MINUTES env knob', () => {
     const mod = src('src/scheduler/scheduler.module.ts');
-    expect(mod.includes('DRIVER_ALERT_LAG_MINUTES'), 'the factory must read the threshold from config').toBe(true);
+    expect(
+      mod.includes('DRIVER_ALERT_LAG_MINUTES'),
+      'the factory must read the threshold from config',
+    ).toBe(true);
     const env = src('src/config/env.config.ts');
-    expect(env.includes('DRIVER_ALERT_LAG_MINUTES'), 'the knob must be declared in the validated env schema').toBe(true);
+    expect(
+      env.includes('DRIVER_ALERT_LAG_MINUTES'),
+      'the knob must be declared in the validated env schema',
+    ).toBe(true);
   });
 
   it('the always-on monitor has no dormancy secret (unlike break-glass)', () => {
     const s = src('src/scheduler/scheduler.module.ts');
     // The factory return type must be the concrete service, never nullable:
     // alert-lag needs only DB + Sentry, so it is unconditionally active.
-    expect(s.includes('): AlertLagMonitorService =>'), 'the factory must return a non-null monitor (always on)').toBe(true);
+    expect(
+      s.includes('): AlertLagMonitorService =>'),
+      'the factory must return a non-null monitor (always on)',
+    ).toBe(true);
   });
 });

@@ -76,9 +76,8 @@ describe('decideEstate', () => {
   // remembering to extend this list.
   it('each unreadable path carries its own reason', () => {
     for (const reason of UNOBSERVABLE_REASONS) {
-      const observation = reason === 'git-failed'
-        ? unobservableFixture(reason)
-        : unobservableFixture(reason, DIGEST);
+      const observation =
+        reason === 'git-failed' ? unobservableFixture(reason) : unobservableFixture(reason, DIGEST);
       expect(decideEstate(observation).event.attributes).toEqual({ reason });
     }
   });
@@ -92,10 +91,9 @@ describe('decideEstate', () => {
   });
 
   it('an unclean estate exits 1, distinct from unreadable', () => {
-    const d = decideEstate(observedFixture(
-      [createWorktreeState({ path: '/c/a', dirtyFileCount: 1 })],
-      DIGEST,
-    ));
+    const d = decideEstate(
+      observedFixture([createWorktreeState({ path: '/c/a', dirtyFileCount: 1 })], DIGEST),
+    );
     expect(d.exitCode).toBe(1);
     if (d.kind !== 'verified') throw new Error('expected verified');
     expect(d.verdict.clean).toBe(false);
@@ -115,19 +113,20 @@ describe('decideEstate', () => {
 
   it('passes inherited trace context through to the event', () => {
     const trace = TraceContextSchema.parse({ trace_id: 'a'.repeat(32), span_id: 'b'.repeat(16) });
-    expect(decideEstate(unobservableFixture('git-failed'), trace).event.trace_id)
-      .toBe('a'.repeat(32));
-    expect(decideEstate(observedFixture([CLEAN], DIGEST), trace).event.trace_id)
-      .toBe('a'.repeat(32));
+    expect(decideEstate(unobservableFixture('git-failed'), trace).event.trace_id).toBe(
+      'a'.repeat(32),
+    );
+    expect(decideEstate(observedFixture([CLEAN], DIGEST), trace).event.trace_id).toBe(
+      'a'.repeat(32),
+    );
   });
 
   // A verdict is present ONLY when one was computed, so a caller cannot render
   // prose about an estate that was never read.
   it('never returns a verdict on an unreadable path', () => {
     for (const reason of UNOBSERVABLE_REASONS) {
-      const observation = reason === 'git-failed'
-        ? unobservableFixture(reason)
-        : unobservableFixture(reason, DIGEST);
+      const observation =
+        reason === 'git-failed' ? unobservableFixture(reason) : unobservableFixture(reason, DIGEST);
       expect(decideEstate(observation).kind).toBe('unreadable');
     }
   });
@@ -263,9 +262,7 @@ describe('the recommendation is bound to its evidence', () => {
   it('the emitted digest is the one --expect-digest accepts', () => {
     const decided = decideEstate(observedFixture(STATES, SRC));
     if (decided.kind !== 'verified') throw new Error('expected verified');
-    const replayed = decideEstate(
-      observedFixture(STATES, SRC), null, decided.event.estate_digest,
-    );
+    const replayed = decideEstate(observedFixture(STATES, SRC), null, decided.event.estate_digest);
     expect(replayed.kind).toBe('verified');
   });
 
@@ -275,9 +272,7 @@ describe('the recommendation is bound to its evidence', () => {
     const decided = decideEstate(observedFixture(STATES, SRC));
     if (decided.kind !== 'verified') throw new Error('expected verified');
     const moved = [createWorktreeState({ path: '/c/a', dirtyFileCount: 99 })];
-    const replayed = decideEstate(
-      observedFixture(moved, SRC), null, decided.event.estate_digest,
-    );
+    const replayed = decideEstate(observedFixture(moved, SRC), null, decided.event.estate_digest);
     expect(replayed.kind).toBe('stale');
     expect(replayed.event.agent_action).toBe('REREAD_ESTATE');
   });

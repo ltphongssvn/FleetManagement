@@ -10,23 +10,40 @@ const { mockWithIsolationScope, mockCaptureException, capturedTags } = vi.hoiste
   return {
     capturedTags,
     mockCaptureException: vi.fn(),
-    mockWithIsolationScope: vi.fn(async (fn: (s: { setTag: (k: string, v: unknown) => void }) => Promise<void>) => {
-      await fn({ setTag: (k, v) => { capturedTags.push({ key: k, value: v }); } });
-    }),
+    mockWithIsolationScope: vi.fn(
+      async (fn: (s: { setTag: (k: string, v: unknown) => void }) => Promise<void>) => {
+        await fn({
+          setTag: (k, v) => {
+            capturedTags.push({ key: k, value: v });
+          },
+        });
+      },
+    ),
   };
 });
-vi.mock('@sentry/nestjs', () => ({ withIsolationScope: mockWithIsolationScope, captureException: mockCaptureException }));
+vi.mock('@sentry/nestjs', () => ({
+  withIsolationScope: mockWithIsolationScope,
+  captureException: mockCaptureException,
+}));
 import { SchedulerService } from '../src/scheduler/scheduler.service.js';
 import { monitorTicker, coreTickers, INTERVALS } from './helpers/scheduler-ticker-factory.js';
 import type { SchedulerTicker } from '../src/scheduler/scheduler-ticker.js';
 
-const cores = (): SchedulerTicker[] => coreTickers({
-  outbox: () => undefined, projection: () => undefined, reconciler: () => undefined,
-});
+const cores = (): SchedulerTicker[] =>
+  coreTickers({
+    outbox: () => undefined,
+    projection: () => undefined,
+    reconciler: () => undefined,
+  });
 
 describe('@fleet/api - SchedulerService break-glass tick (registry)', () => {
-  beforeEach(() => { vi.useFakeTimers(); capturedTags.length = 0; });
-  afterEach(() => { vi.useRealTimers(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    capturedTags.length = 0;
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it('drainByKey(breakglass) tags job=breakglass-scan and calls monitor.pollOnce', async () => {
     const pollOnce = vi.fn().mockResolvedValue(undefined);

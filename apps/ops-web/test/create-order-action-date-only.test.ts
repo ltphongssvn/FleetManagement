@@ -15,7 +15,7 @@ import { DateOnlyFormSchema } from '@/features/dispatch/create-order.schema';
 describe('create-order action Zod contract (date-only)', () => {
   const base = {
     assignedOperatorId: '00000000-0000-0000-0000-000000000001',
-    assignedAssetId:    '00000000-0000-0000-0000-000000000002',
+    assignedAssetId: '00000000-0000-0000-0000-000000000002',
     customer: '',
     cargo: '',
     vehiclePlate: '',
@@ -28,8 +28,8 @@ describe('create-order action Zod contract (date-only)', () => {
     const r = DateOnlyFormSchema.safeParse({
       ...base,
       plannedStartAt: '2026-05-30',
-      pickupAt:       '2026-05-31',
-      deliveryAt:     '2026-06-01',
+      pickupAt: '2026-05-31',
+      deliveryAt: '2026-06-01',
     });
     expect(r.success).toBe(true);
   });
@@ -38,8 +38,8 @@ describe('create-order action Zod contract (date-only)', () => {
     const r = DateOnlyFormSchema.safeParse({
       ...base,
       plannedStartAt: '2026-05-30T07:12',
-      pickupAt:       '2026-05-31',
-      deliveryAt:     '2026-06-01',
+      pickupAt: '2026-05-31',
+      deliveryAt: '2026-06-01',
     });
     expect(r.success).toBe(false);
   });
@@ -48,8 +48,8 @@ describe('create-order action Zod contract (date-only)', () => {
     const r = DateOnlyFormSchema.safeParse({
       ...base,
       plannedStartAt: '2026-05-30',
-      pickupAt:       '2026-05-31T08:00',
-      deliveryAt:     '2026-06-01',
+      pickupAt: '2026-05-31T08:00',
+      deliveryAt: '2026-06-01',
     });
     expect(r.success).toBe(false);
   });
@@ -58,8 +58,8 @@ describe('create-order action Zod contract (date-only)', () => {
     const r = DateOnlyFormSchema.safeParse({
       ...base,
       plannedStartAt: '2026-05-30',
-      pickupAt:       '2026-05-31',
-      deliveryAt:     '2026-06-01T17:30',
+      pickupAt: '2026-05-31',
+      deliveryAt: '2026-06-01T17:30',
     });
     expect(r.success).toBe(false);
   });
@@ -68,8 +68,8 @@ describe('create-order action Zod contract (date-only)', () => {
     const r = DateOnlyFormSchema.safeParse({
       ...base,
       plannedStartAt: '',
-      pickupAt:       '2026-05-31',
-      deliveryAt:     '2026-06-01',
+      pickupAt: '2026-05-31',
+      deliveryAt: '2026-06-01',
     });
     expect(r.success).toBe(false);
   });
@@ -78,8 +78,8 @@ describe('create-order action Zod contract (date-only)', () => {
     const r = DateOnlyFormSchema.safeParse({
       ...base,
       plannedStartAt: '2026-13-01',
-      pickupAt:       '2026-05-31',
-      deliveryAt:     '2026-06-01',
+      pickupAt: '2026-05-31',
+      deliveryAt: '2026-06-01',
     });
     expect(r.success).toBe(false);
   });
@@ -89,8 +89,8 @@ describe('create-order action Zod contract (date-only)', () => {
     const sample: T = {
       ...base,
       plannedStartAt: '2026-05-30',
-      pickupAt:       '2026-05-31',
-      deliveryAt:     '2026-06-01',
+      pickupAt: '2026-05-31',
+      deliveryAt: '2026-06-01',
     } as T;
     expect(typeof sample.plannedStartAt).toBe('string');
     expect(typeof sample.pickupAt).toBe('string');

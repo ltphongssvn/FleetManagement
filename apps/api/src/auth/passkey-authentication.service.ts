@@ -32,7 +32,12 @@ export type VerifyAuthenticationResponseFn = (input: {
   expectedChallenge: string;
   expectedRPID: string;
   expectedOrigin: string | string[];
-  credential: { id: string; publicKey: Uint8Array; counter: number; transports?: readonly string[] };
+  credential: {
+    id: string;
+    publicKey: Uint8Array;
+    counter: number;
+    transports?: readonly string[];
+  };
 }) => Promise<{
   verified: boolean;
   authenticationInfo?: { newCounter: number; credentialID: string };
@@ -78,9 +83,8 @@ export class PasskeyAuthenticationService {
     const stored = await this.repo.findByCredentialId(credentialIdBuf);
     if (stored === null) throw new UnauthorizedException('credential_not_found');
     const defaultOrigin = 'https://' + this.config.rpId;
-    const transports = stored.transports !== null
-      ? stored.transports.split(',') as readonly string[]
-      : undefined;
+    const transports =
+      stored.transports !== null ? (stored.transports.split(',') as readonly string[]) : undefined;
     const verification = await this.verifyResponse({
       response,
       expectedChallenge,
@@ -97,17 +101,23 @@ export class PasskeyAuthenticationService {
       throw new UnauthorizedException('assertion_failed');
     }
     const owner = await this.lookupByCredentialId(credentialIdBuf);
-    const candidate: PasskeyAuthenticationCandidate | null = owner === null ? null : {
-      driverId: owner.driverId,
-      companyId: owner.companyId,
-      businessUnitId: owner.businessUnitId,
-      depotId: owner.depotId,
-      legalEntityId: owner.legalEntityId,
-      operatorId: owner.operatorId,
-      active: owner.active,
-      storedSignCount: owner.storedSignCount,
-    };
-    const outcome = decidePasskeyAuthenticationOutcome(candidate, verification.authenticationInfo.newCounter);
+    const candidate: PasskeyAuthenticationCandidate | null =
+      owner === null
+        ? null
+        : {
+            driverId: owner.driverId,
+            companyId: owner.companyId,
+            businessUnitId: owner.businessUnitId,
+            depotId: owner.depotId,
+            legalEntityId: owner.legalEntityId,
+            operatorId: owner.operatorId,
+            active: owner.active,
+            storedSignCount: owner.storedSignCount,
+          };
+    const outcome = decidePasskeyAuthenticationOutcome(
+      candidate,
+      verification.authenticationInfo.newCounter,
+    );
     switch (outcome.kind) {
       case 'credential-not-found':
       case 'missing-operator':

@@ -36,7 +36,8 @@ export const CODEMODS: readonly Codemod[] = [
   {
     kind: 'project',
     name: 'extract-parse-one-number',
-    description: 'Relocate parseOneNumber into @fleet/domain, re-export from the barrel, and import it at the origin.',
+    description:
+      'Relocate parseOneNumber into @fleet/domain, re-export from the barrel, and import it at the origin.',
     transform: extractParseOneNumber,
   },
 ];

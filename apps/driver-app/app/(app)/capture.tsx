@@ -78,7 +78,11 @@ export default function Capture(): JSX.Element {
   const { getAccessToken } = useAuth();
   const queryClient = useQueryClient();
 
-  const [picked, setPicked] = useState<{ uri: string; bytes: Uint8Array; mime: 'image/jpeg' | 'image/png' } | null>(null);
+  const [picked, setPicked] = useState<{
+    uri: string;
+    bytes: Uint8Array;
+    mime: 'image/jpeg' | 'image/png';
+  } | null>(null);
 
   const vm = presentCapture(state);
 
@@ -96,7 +100,11 @@ export default function Capture(): JSX.Element {
     const buf = new Uint8Array(await resp.arrayBuffer());
     const mime = mimeFromUri(asset.uri);
     setPicked({ uri: asset.uri, bytes: buf, mime });
-    dispatch({ type: 'PICKED', file: { mimeType: mime, sizeBytes: buf.byteLength }, localUri: asset.uri });
+    dispatch({
+      type: 'PICKED',
+      file: { mimeType: mime, sizeBytes: buf.byteLength },
+      localUri: asset.uri,
+    });
   };
 
   const upload = async (): Promise<void> => {
@@ -159,7 +167,9 @@ export default function Capture(): JSX.Element {
           </Text>
           <Text style={styles.status}>{vm.statusText}</Text>
           {vm.stopKind !== null ? (
-            <Text testID={'capture-stop-kind'} style={styles.metaHidden}>{vm.stopKind}</Text>
+            <Text testID={'capture-stop-kind'} style={styles.metaHidden}>
+              {vm.stopKind}
+            </Text>
           ) : null}
           {vm.stopDisplayIndex !== null ? (
             <Text testID={'capture-stop-index'} style={styles.metaHidden}>
@@ -171,7 +181,9 @@ export default function Capture(): JSX.Element {
           {vm.previewUri !== null ? (
             <Image source={{ uri: vm.previewUri }} style={styles.preview} resizeMode={'contain'} />
           ) : null}
-          {vm.busy ? <ActivityIndicator size={'large'} color={colors.indigo600} style={styles.spin} /> : null}
+          {vm.busy ? (
+            <ActivityIndicator size={'large'} color={colors.indigo600} style={styles.spin} />
+          ) : null}
           {vm.captureButton.visible ? (
             <Pressable
               style={({ pressed }) => [
@@ -181,7 +193,9 @@ export default function Capture(): JSX.Element {
                 pressed && styles.pressed,
               ]}
               disabled={vm.captureButton.disabled}
-              onPress={() => { void takePhoto(); }}
+              onPress={() => {
+                void takePhoto();
+              }}
               accessibilityRole={'button'}
               accessibilityLabel={vm.captureButton.label}
             >
@@ -197,7 +211,9 @@ export default function Capture(): JSX.Element {
                 pressed && styles.pressed,
               ]}
               disabled={vm.uploadButton.disabled}
-              onPress={() => { void upload(); }}
+              onPress={() => {
+                void upload();
+              }}
               accessibilityRole={'button'}
               accessibilityLabel={vm.uploadButton.label}
             >
@@ -236,7 +252,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
   },
   title: { ...typography.title, color: colors.slate900, textAlign: 'center' },
-  status: { ...typography.caption, color: colors.slate500, marginTop: spacing.xs, textAlign: 'center' },
+  status: {
+    ...typography.caption,
+    color: colors.slate500,
+    marginTop: spacing.xs,
+    textAlign: 'center',
+  },
   // Visually hidden but present in the DOM for Playwright getByTestId.
   metaHidden: {
     position: 'absolute',

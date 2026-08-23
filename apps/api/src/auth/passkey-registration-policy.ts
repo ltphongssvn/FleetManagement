@@ -39,7 +39,8 @@ export function decidePasskeyRegistrationOutcome(
   if (!candidate.active) return { kind: 'disabled' };
   if (candidate.operatorId === null) return { kind: 'missing-operator' };
   if (credentialIdAlreadyExists) return { kind: 'credential-collision' };
-  if (candidate.existingCredentialCount >= maxCredentialsPerDriver) return { kind: 'limit-exceeded' };
+  if (candidate.existingCredentialCount >= maxCredentialsPerDriver)
+    return { kind: 'limit-exceeded' };
   return {
     kind: 'ok',
     binding: {

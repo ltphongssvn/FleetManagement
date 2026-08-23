@@ -8,7 +8,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'drizzle-orm';
 import {
-  startMigratedTestDb, stopMigratedTestDb, truncateAllTables,
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  truncateAllTables,
   type MigratedTestDb,
 } from './migrate-test-db.js';
 import { driver } from '../../src/database/schema/reference.js';

@@ -14,7 +14,11 @@ import type { DriverCompletedPageResponse } from '@fleet/sync-protocol';
 
 // Minimal slice of AssignmentsClient the queryFn needs -- trivially mockable.
 export interface CompletedSource {
-  completed(query: { page: number; pageSize: number; search?: string }): Promise<DriverCompletedPageResponse>;
+  completed(query: {
+    page: number;
+    pageSize: number;
+    search?: string;
+  }): Promise<DriverCompletedPageResponse>;
 }
 
 // Shared page size for the driver completed archive (the SSOT board default).
@@ -43,6 +47,8 @@ export function makeCompletedQueryFn(
 
 // getNextPageParam for useInfiniteQuery: the next page number while more pages
 // remain, or undefined once hasMore is false so paging stops.
-export function getCompletedNextPageParam(lastPage: DriverCompletedPageResponse): number | undefined {
+export function getCompletedNextPageParam(
+  lastPage: DriverCompletedPageResponse,
+): number | undefined {
   return lastPage.hasMore ? lastPage.page + 1 : undefined;
 }

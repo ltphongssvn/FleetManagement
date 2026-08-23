@@ -98,10 +98,7 @@ export const driverAttentionMachine = setup({
       initial: 'deciding',
       states: {
         deciding: {
-          always: [
-            { guard: 'hasAttention', target: 'attention' },
-            { target: 'allClear' },
-          ],
+          always: [{ guard: 'hasAttention', target: 'attention' }, { target: 'allClear' }],
         },
         attention: {},
         allClear: {},

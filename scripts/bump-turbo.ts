@@ -146,8 +146,12 @@ export function rewriteExcludeBlock(text: string, version: string): string {
 }
 
 const nl = String.fromCharCode(10);
-function out(s: string): void { process.stdout.write('[bump:turbo] ' + s + nl); }
-function errline(s: string): void { process.stderr.write('[bump:turbo] ' + s + nl); }
+function out(s: string): void {
+  process.stdout.write('[bump:turbo] ' + s + nl);
+}
+function errline(s: string): void {
+  process.stderr.write('[bump:turbo] ' + s + nl);
+}
 
 function run(cmd: string, args: string[]): string {
   return execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -189,7 +193,9 @@ function main(): number {
   const raw = readFileSync('package.json', 'utf8');
   const needle = '"turbo": "' + before + '"';
   if (raw.split(needle).length - 1 !== 1) {
-    errline('REFUSED: expected exactly one turbo spec occurrence to rewrite, found a different count.');
+    errline(
+      'REFUSED: expected exactly one turbo spec occurrence to rewrite, found a different count.',
+    );
     return 1;
   }
   writeFileSync('package.json', raw.replace(needle, '"turbo": "' + plan.newSpec + '"'));
@@ -206,8 +212,13 @@ function main(): number {
     out('release-age excludes already carry ' + version + ' -- unchanged.');
   } else {
     writeFileSync(WORKSPACE_FILE, workspaceNext);
-    out('added ' + version + ' to the release-age excludes for all '
-      + String(TURBO_PLATFORM_PACKAGES.length) + ' turbo packages.');
+    out(
+      'added ' +
+        version +
+        ' to the release-age excludes for all ' +
+        String(TURBO_PLATFORM_PACKAGES.length) +
+        ' turbo packages.',
+    );
   }
 
   out('running pnpm install to update the lockfile ...');

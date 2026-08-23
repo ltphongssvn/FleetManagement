@@ -10,49 +10,51 @@
 // gate aggregate is how codemod:check and the sync:* tasks are already covered.
 //
 // This guard lives under scripts/ on purpose, so vitest run scripts executes it
-// -- the gate it protects is the same suite that runs it. It reads turbo.jsonc
-// (JSONC: strips line comments before JSON.parse) and asserts the wiring, so a
-// future edit that drops test:scripts from the gate fails here rather than
-// silently reopening the hole.
+// -- the gate it protects is the same suite that runs it.
+//
+// PARSING (2026-08-23). This file used to carry its own JSONC reader: drop every
+// line whose first token is //, then JSON.parse. Its own comment noted that a
+// trailing-comment strip would corrupt task names like //#test:scripts -- and
+// then the whole-line strip did precisely that, deleting all 47 root-task
+// definitions before parsing. The guard was inspecting a config with its subject
+// removed and passing anyway, because nothing asserted the root tasks survived.
+// Formatting the repo exposed it a second way: Prettier's committed
+// trailingComma:"all" emits `},`, which JSON.parse rejects outright.
+//
+// Neither is fixable with a better pattern, because `//` inside a string is data
+// and only a parser knows the difference. read-jsonc.ts uses TypeScript's own
+// JSONC parser -- the one tsconfig.json is read with -- and is shared by the four
+// guards that each had their own copy.
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readTurboTasks } from '@fleet/test-fixtures';
+
 const here = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(here, '..');
-const NLc = String.fromCharCode(10);
-const SLASH = String.fromCharCode(47);
-const LINE_COMMENT = SLASH + SLASH;
-// JSONC -> JSON: drop whole-line // comments (turbo.jsonc uses only line
-// comments, never block or trailing), then parse. A trailing-comment strip
-// would corrupt the // inside task names like //#test:scripts, so we only
-// drop lines whose first non-space token is the comment marker.
-function readTurboTasks(): Record<string, { dependsOn?: string[] }> {
-  const raw = readFileSync(resolve(repoRoot, 'turbo.jsonc'), 'utf8');
-  const jsonOnly = raw
-    .split(NLc)
-    .filter((line) => !line.trimStart().startsWith(LINE_COMMENT))
-    .join(NLc);
-  const parsed = JSON.parse(jsonOnly) as { tasks: Record<string, { dependsOn?: string[] }> };
-  return parsed.tasks;
-}
+const TURBO = resolve(here, '..', 'turbo.jsonc');
+
 describe('__ci_fast__ covers the root scripts test suite', () => {
-  it('turbo.jsonc parses after stripping line comments (guard is not vacuous)', () => {
-    const tasks = readTurboTasks();
+  // Vacuity guard FIRST, and it now asserts the ROOT TASKS specifically. The
+  // previous version only checked the table was non-empty, which the broken
+  // stripper satisfied while having eaten every //# entry.
+  it('turbo.jsonc parses with its root tasks intact (guard is not vacuous)', () => {
+    const tasks = readTurboTasks(TURBO);
     expect(Object.keys(tasks).length).toBeGreaterThan(10);
+    expect(Object.keys(tasks).filter((n) => n.startsWith('//#')).length).toBeGreaterThan(10);
     expect(tasks['__ci_fast__']).toBeDefined();
   });
+
   it('a //#test:scripts root task is registered', () => {
-    const tasks = readTurboTasks();
-    expect(tasks['//#test:scripts']).toBeDefined();
+    expect(readTurboTasks(TURBO)['//#test:scripts']).toBeDefined();
   });
+
   it('__ci_fast__ dependsOn includes //#test:scripts', () => {
-    const tasks = readTurboTasks();
-    const deps = tasks['__ci_fast__']?.dependsOn ?? [];
+    const deps = readTurboTasks(TURBO)['__ci_fast__']?.dependsOn ?? [];
     expect(deps).toContain('//#test:scripts');
   });
+
   it('the pre-existing gate members are still present (no accidental drop)', () => {
-    const deps = readTurboTasks()['__ci_fast__']?.dependsOn ?? [];
+    const deps = readTurboTasks(TURBO)['__ci_fast__']?.dependsOn ?? [];
     for (const member of ['lint', 'typecheck', 'test:unit', '//#codemod:check']) {
       expect(deps).toContain(member);
     }

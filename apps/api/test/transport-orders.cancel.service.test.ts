@@ -40,7 +40,12 @@ interface MakeDbOpts {
   updatedRow?: FakeOrderRow | undefined;
   linkedRunIds?: readonly string[];
 }
-function makeDb(opts: MakeDbOpts): { db: unknown; updateValues: ReturnType<typeof vi.fn>; cascadeWhere: ReturnType<typeof vi.fn>; appendInsertCalls: ReturnType<typeof vi.fn> } {
+function makeDb(opts: MakeDbOpts): {
+  db: unknown;
+  updateValues: ReturnType<typeof vi.fn>;
+  cascadeWhere: ReturnType<typeof vi.fn>;
+  appendInsertCalls: ReturnType<typeof vi.fn>;
+} {
   const updateValues = vi.fn();
   const cascadeWhere = vi.fn();
   const appendInsertCalls = vi.fn();
@@ -70,7 +75,7 @@ function makeDb(opts: MakeDbOpts): { db: unknown; updateValues: ReturnType<typeo
             const rows = (opts.linkedRunIds ?? []).map((roadRunId) => ({ roadRunId }));
             const thenable = {
               ...limitable,
-              then: <T,>(onFulfilled: (value: unknown[]) => T): Promise<T> =>
+              then: <T>(onFulfilled: (value: unknown[]) => T): Promise<T> =>
                 Promise.resolve(rows).then(onFulfilled),
             };
             return thenable;
@@ -81,9 +86,11 @@ function makeDb(opts: MakeDbOpts): { db: unknown; updateValues: ReturnType<typeo
     update: () => ({
       set: (v: unknown) => {
         const asRecord = v as Record<string, unknown>;
-        const isCascade = typeof v === 'object' && v !== null
-          && Object.keys(asRecord).length === 1
-          && asRecord['state'] === 'cancelled';
+        const isCascade =
+          typeof v === 'object' &&
+          v !== null &&
+          Object.keys(asRecord).length === 1 &&
+          asRecord['state'] === 'cancelled';
         if (isCascade) {
           return {
             where: (cond: unknown) => {
@@ -98,7 +105,8 @@ function makeDb(opts: MakeDbOpts): { db: unknown; updateValues: ReturnType<typeo
         updateValues(v);
         return {
           where: () => ({
-            returning: (): Promise<unknown[]> => Promise.resolve(opts.updatedRow ? [opts.updatedRow] : []),
+            returning: (): Promise<unknown[]> =>
+              Promise.resolve(opts.updatedRow ? [opts.updatedRow] : []),
           }),
         };
       },
@@ -110,7 +118,7 @@ function makeDb(opts: MakeDbOpts): { db: unknown; updateValues: ReturnType<typeo
       Promise.resolve({ rows: [{ next_seq: '1' }] }),
   };
   const db = {
-    transaction: async <T,>(cb: (tx: unknown) => Promise<T>): Promise<T> => cb(txObject),
+    transaction: async <T>(cb: (tx: unknown) => Promise<T>): Promise<T> => cb(txObject),
   };
   return { db, updateValues, cascadeWhere, appendInsertCalls };
 }
@@ -120,25 +128,37 @@ describe('@fleet/api - TransportOrdersCancelService.cancel', () => {
     const op = createOperatorContext();
     const { db } = makeDb({ selectRow: undefined });
     const svc = new TransportOrdersCancelService(db as never);
-    await expect(svc.cancel(validId, { reason: 'customer_request' }, op))
-      .rejects.toBeInstanceOf(TransportOrderNotFoundError);
+    await expect(svc.cancel(validId, { reason: 'customer_request' }, op)).rejects.toBeInstanceOf(
+      TransportOrderNotFoundError,
+    );
   });
   it('throws TransportOrderCannotBeCancelledError when current state is terminal completed', async () => {
     const op = createOperatorContext();
     const row: FakeOrderRow = {
-      transportOrderId: validId, companyId: op.companyId, state: 'completed',
-      cancelledAt: null, cancelledBy: null, cancellationReason: null, cancellationNote: null,
+      transportOrderId: validId,
+      companyId: op.companyId,
+      state: 'completed',
+      cancelledAt: null,
+      cancelledBy: null,
+      cancellationReason: null,
+      cancellationNote: null,
     };
     const { db } = makeDb({ selectRow: row });
     const svc = new TransportOrdersCancelService(db as never);
-    await expect(svc.cancel(validId, { reason: 'customer_request' }, op))
-      .rejects.toBeInstanceOf(TransportOrderCannotBeCancelledError);
+    await expect(svc.cancel(validId, { reason: 'customer_request' }, op)).rejects.toBeInstanceOf(
+      TransportOrderCannotBeCancelledError,
+    );
   });
   it('transitions draft -> cancelled and persists audit fields (idempotent=false)', async () => {
     const op = createOperatorContext();
     const beforeRow: FakeOrderRow = {
-      transportOrderId: validId, companyId: op.companyId, state: 'draft',
-      cancelledAt: null, cancelledBy: null, cancellationReason: null, cancellationNote: null,
+      transportOrderId: validId,
+      companyId: op.companyId,
+      state: 'draft',
+      cancelledAt: null,
+      cancelledBy: null,
+      cancellationReason: null,
+      cancellationNote: null,
     };
     const afterRow: FakeOrderRow = {
       ...beforeRow,
@@ -150,7 +170,11 @@ describe('@fleet/api - TransportOrdersCancelService.cancel', () => {
     };
     const { db, updateValues } = makeDb({ selectRow: beforeRow, updatedRow: afterRow });
     const svc = new TransportOrdersCancelService(db as never);
-    const result = await svc.cancel(validId, { reason: 'customer_request', note: 'unit test cancel' }, op);
+    const result = await svc.cancel(
+      validId,
+      { reason: 'customer_request', note: 'unit test cancel' },
+      op,
+    );
     expect(result.state).toBe('cancelled');
     expect(result.cancellationReason).toBe('customer_request');
     expect(result.cancellationNote).toBe('unit test cancel');
@@ -167,7 +191,9 @@ describe('@fleet/api - TransportOrdersCancelService.cancel', () => {
   it('is idempotent when state is already cancelled with the SAME reason (idempotent=true)', async () => {
     const op = createOperatorContext();
     const cancelledRow: FakeOrderRow = {
-      transportOrderId: validId, companyId: op.companyId, state: 'cancelled',
+      transportOrderId: validId,
+      companyId: op.companyId,
+      state: 'cancelled',
       cancelledAt: new Date('2026-05-23T11:00:00.000Z'),
       cancelledBy: op.operatorId,
       cancellationReason: 'customer_request',
@@ -184,7 +210,9 @@ describe('@fleet/api - TransportOrdersCancelService.cancel', () => {
   it('throws CannotBeCancelledError when already cancelled with a DIFFERENT reason', async () => {
     const op = createOperatorContext();
     const cancelledRow: FakeOrderRow = {
-      transportOrderId: validId, companyId: op.companyId, state: 'cancelled',
+      transportOrderId: validId,
+      companyId: op.companyId,
+      state: 'cancelled',
       cancelledAt: new Date('2026-05-23T11:00:00.000Z'),
       cancelledBy: op.operatorId,
       cancellationReason: 'customer_request',
@@ -192,17 +220,24 @@ describe('@fleet/api - TransportOrdersCancelService.cancel', () => {
     };
     const { db } = makeDb({ selectRow: cancelledRow });
     const svc = new TransportOrdersCancelService(db as never);
-    await expect(svc.cancel(validId, { reason: 'driver_unavailable' }, op))
-      .rejects.toBeInstanceOf(TransportOrderCannotBeCancelledError);
+    await expect(svc.cancel(validId, { reason: 'driver_unavailable' }, op)).rejects.toBeInstanceOf(
+      TransportOrderCannotBeCancelledError,
+    );
   });
   it('transitions assigned -> cancelled (FSM allows this)', async () => {
     const op = createOperatorContext();
     const beforeRow: FakeOrderRow = {
-      transportOrderId: validId, companyId: op.companyId, state: 'assigned',
-      cancelledAt: null, cancelledBy: null, cancellationReason: null, cancellationNote: null,
+      transportOrderId: validId,
+      companyId: op.companyId,
+      state: 'assigned',
+      cancelledAt: null,
+      cancelledBy: null,
+      cancellationReason: null,
+      cancellationNote: null,
     };
     const afterRow: FakeOrderRow = {
-      ...beforeRow, state: 'cancelled',
+      ...beforeRow,
+      state: 'cancelled',
       cancelledAt: new Date('2026-05-23T12:00:00.000Z'),
       cancelledBy: op.operatorId,
       cancellationReason: 'weather',
@@ -218,11 +253,17 @@ describe('@fleet/api - TransportOrdersCancelService.cancel', () => {
   it('transitions in_transit -> cancelled (FSM allows this)', async () => {
     const op = createOperatorContext();
     const beforeRow: FakeOrderRow = {
-      transportOrderId: validId, companyId: op.companyId, state: 'in_transit',
-      cancelledAt: null, cancelledBy: null, cancellationReason: null, cancellationNote: null,
+      transportOrderId: validId,
+      companyId: op.companyId,
+      state: 'in_transit',
+      cancelledAt: null,
+      cancelledBy: null,
+      cancellationReason: null,
+      cancellationNote: null,
     };
     const afterRow: FakeOrderRow = {
-      ...beforeRow, state: 'cancelled',
+      ...beforeRow,
+      state: 'cancelled',
       cancelledAt: new Date('2026-05-23T12:00:00.000Z'),
       cancelledBy: op.operatorId,
       cancellationReason: 'vehicle_breakdown',
@@ -236,25 +277,37 @@ describe('@fleet/api - TransportOrdersCancelService.cancel', () => {
   it('throws TransportOrderNotFoundError when the UPDATE ... RETURNING comes back empty (concurrent-writer race)', async () => {
     const op = createOperatorContext();
     const beforeRow: FakeOrderRow = {
-      transportOrderId: validId, companyId: op.companyId, state: 'draft',
-      cancelledAt: null, cancelledBy: null, cancellationReason: null, cancellationNote: null,
+      transportOrderId: validId,
+      companyId: op.companyId,
+      state: 'draft',
+      cancelledAt: null,
+      cancelledBy: null,
+      cancellationReason: null,
+      cancellationNote: null,
     };
     // updatedRow is undefined: a concurrent writer deleted/changed the
     // row between our SELECT and our UPDATE. The defensive throw must
     // surface as NotFound so the caller retries cleanly.
     const { db } = makeDb({ selectRow: beforeRow });
     const svc = new TransportOrdersCancelService(db as never);
-    await expect(svc.cancel(validId, { reason: 'customer_request' }, op))
-      .rejects.toBeInstanceOf(TransportOrderNotFoundError);
+    await expect(svc.cancel(validId, { reason: 'customer_request' }, op)).rejects.toBeInstanceOf(
+      TransportOrderNotFoundError,
+    );
   });
   it('runs the cascade UPDATE and emits one tri-write event per linked road_run', async () => {
     const op = createOperatorContext();
     const beforeRow: FakeOrderRow = {
-      transportOrderId: validId, companyId: op.companyId, state: 'draft',
-      cancelledAt: null, cancelledBy: null, cancellationReason: null, cancellationNote: null,
+      transportOrderId: validId,
+      companyId: op.companyId,
+      state: 'draft',
+      cancelledAt: null,
+      cancelledBy: null,
+      cancellationReason: null,
+      cancellationNote: null,
     };
     const afterRow: FakeOrderRow = {
-      ...beforeRow, state: 'cancelled',
+      ...beforeRow,
+      state: 'cancelled',
       cancelledAt: new Date('2026-05-23T12:00:00.000Z'),
       cancelledBy: op.operatorId,
       cancellationReason: 'customer_request',

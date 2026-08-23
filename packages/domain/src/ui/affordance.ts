@@ -45,11 +45,7 @@ export type ActionTone = z.infer<typeof ActionToneSchema>;
 // be solid (the confirm button inside a destructive dialog) or ghost (a row
 // action in a dense table); a primary action is solid exactly once per surface.
 // ---------------------------------------------------------------------------
-export const ACTION_EMPHASES = Object.freeze([
-  'solid',
-  'soft',
-  'ghost',
-] as const);
+export const ACTION_EMPHASES = Object.freeze(['solid', 'soft', 'ghost'] as const);
 
 export const ActionEmphasisSchema = z.enum(ACTION_EMPHASES);
 

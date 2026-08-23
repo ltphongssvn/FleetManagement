@@ -64,7 +64,15 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const RN_APPS = ['apps/driver-app', 'apps/owner-app'] as const;
 
 const SOURCE_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts']);
-const SKIP_DIRS = new Set(['node_modules', '.expo', 'dist', 'ios', 'android', '.turbo', 'coverage']);
+const SKIP_DIRS = new Set([
+  'node_modules',
+  '.expo',
+  'dist',
+  'ios',
+  'android',
+  '.turbo',
+  'coverage',
+]);
 
 interface PkgJson {
   dependencies?: Record<string, string>;
@@ -178,7 +186,11 @@ describe('React Native workspace dependency resolution', () => {
     if (conditions === null) return;
     expect(
       conditions.includes('react-native') || conditions.includes('default'),
-      dep + subpath + ' offers [' + conditions.join(', ') + ']. Metro asserts the union of ' +
+      dep +
+        subpath +
+        ' offers [' +
+        conditions.join(', ') +
+        ']. Metro asserts the union of ' +
         'default/import/require plus its condition names, so a subpath needs either a ' +
         'react-native condition or a default fallback; this offers neither and cannot bundle.',
     ).toBe(true);
@@ -193,7 +205,11 @@ describe('React Native workspace dependency resolution', () => {
     const rnPath = rn as string;
     expect(
       rnPath.includes('/dist/'),
-      dep + subpath + ': react-native points into dist (' + rnPath + '). dist requires a build ' +
+      dep +
+        subpath +
+        ': react-native points into dist (' +
+        rnPath +
+        '). dist requires a build ' +
         'on the EAS machine -- the stale-allowlist failure this guard exists to prevent.',
     ).toBe(false);
     expect(
@@ -202,15 +218,20 @@ describe('React Native workspace dependency resolution', () => {
     ).toBe(true);
   });
 
-  it.each(CASES)('$dep ($subpath) in $app has no import beside react-native', ({ dep, dir, subpath }) => {
-    const conditions = conditionsFor(dir, subpath);
-    if (conditions?.includes('react-native') !== true) return;
-    expect(
-      conditions,
-      dep + subpath + ' offers both react-native and import. Per facebook/metro#1278 Metro may ' +
-        'select import regardless of order, resolving to dist. Remove import from RN subpaths.',
-    ).not.toContain('import');
-  });
+  it.each(CASES)(
+    '$dep ($subpath) in $app has no import beside react-native',
+    ({ dep, dir, subpath }) => {
+      const conditions = conditionsFor(dir, subpath);
+      if (conditions?.includes('react-native') !== true) return;
+      expect(
+        conditions,
+        dep +
+          subpath +
+          ' offers both react-native and import. Per facebook/metro#1278 Metro may ' +
+          'select import regardless of order, resolving to dist. Remove import from RN subpaths.',
+      ).not.toContain('import');
+    },
+  );
 
   it.each(CASES)('$dep ($subpath) in $app puts types first', ({ dep, dir, subpath }) => {
     const conditions = conditionsFor(dir, subpath);

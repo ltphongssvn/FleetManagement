@@ -14,7 +14,9 @@ const TTL = 60;
 
 describe('RedisChallengeStore', () => {
   let redis: InstanceType<typeof RedisMock>;
-  beforeEach(() => { redis = new RedisMock(); });
+  beforeEach(() => {
+    redis = new RedisMock();
+  });
 
   it('put then take returns the stored challenge', async () => {
     const store = new RedisChallengeStore(redis as never, TTL);
@@ -70,5 +72,4 @@ describe('RedisChallengeStore', () => {
     await redis.set(CHALLENGE_KEY_PREFIX + 'drv-garbage', 'not-json-at-all');
     expect(await store.take('drv-garbage')).toBeNull();
   });
-
 });

@@ -20,13 +20,15 @@ const NL = String.fromCharCode(10);
 
 describe('parseEstateArgv', () => {
   it('defaults every flag to false', () => {
-    expect(parseEstateArgv([]))
-      .toEqual({ quiet: false, pushing: false, expectDigest: null });
+    expect(parseEstateArgv([])).toEqual({ quiet: false, pushing: false, expectDigest: null });
   });
 
   it('reads --quiet', () => {
-    expect(parseEstateArgv(['--quiet']))
-      .toEqual({ quiet: true, pushing: false, expectDigest: null });
+    expect(parseEstateArgv(['--quiet'])).toEqual({
+      quiet: true,
+      pushing: false,
+      expectDigest: null,
+    });
   });
 
   // A swallowed typo would print a confident verdict from a command the
@@ -59,20 +61,29 @@ describe('--pushing selects the pre-push policy', () => {
   });
 
   it('reads --pushing', () => {
-    expect(parseEstateArgv(['--pushing']))
-      .toEqual({ quiet: false, pushing: true, expectDigest: null });
+    expect(parseEstateArgv(['--pushing'])).toEqual({
+      quiet: false,
+      pushing: true,
+      expectDigest: null,
+    });
   });
 
   // The hook passes both, so the combination must parse.
   it('combines with --quiet, which is how the hook invokes it', () => {
-    expect(parseEstateArgv(['--quiet', '--pushing']))
-      .toEqual({ quiet: true, pushing: true, expectDigest: null });
+    expect(parseEstateArgv(['--quiet', '--pushing'])).toEqual({
+      quiet: true,
+      pushing: true,
+      expectDigest: null,
+    });
   });
 
   it('combines with --expect-digest', () => {
     const REAL = 'a'.repeat(64);
-    expect(parseEstateArgv(['--pushing', '--expect-digest=' + REAL]))
-      .toEqual({ quiet: false, pushing: true, expectDigest: REAL });
+    expect(parseEstateArgv(['--pushing', '--expect-digest=' + REAL])).toEqual({
+      quiet: false,
+      pushing: true,
+      expectDigest: REAL,
+    });
   });
 
   // A near-miss on this flag must not silently fall back to the STRICT policy
@@ -89,16 +100,22 @@ describe('parseWorktreeRecords', () => {
     const recs = parseWorktreeRecords(
       ['worktree /c/main', 'HEAD abc123', 'branch refs/heads/develop', ''].join(NL),
     );
-    expect(recs).toEqual([
-      { path: '/c/main', branch: 'develop', locked: false, prunable: false },
-    ]);
+    expect(recs).toEqual([{ path: '/c/main', branch: 'develop', locked: false, prunable: false }]);
   });
 
   it('reads several records separated by blank lines', () => {
-    const recs = parseWorktreeRecords([
-      'worktree /c/a', 'HEAD a1', 'branch refs/heads/feat/a', '',
-      'worktree /c/b', 'HEAD b1', 'branch refs/heads/feat/b', '',
-    ].join(NL));
+    const recs = parseWorktreeRecords(
+      [
+        'worktree /c/a',
+        'HEAD a1',
+        'branch refs/heads/feat/a',
+        '',
+        'worktree /c/b',
+        'HEAD b1',
+        'branch refs/heads/feat/b',
+        '',
+      ].join(NL),
+    );
     expect(recs.map((r) => r.path)).toEqual(['/c/a', '/c/b']);
     expect(recs.map((r) => r.branch)).toEqual(['feat/a', 'feat/b']);
   });
@@ -128,10 +145,15 @@ describe('parseWorktreeRecords', () => {
   });
 
   it('reads a prunable marker and its reason', () => {
-    const recs = parseWorktreeRecords([
-      'worktree /c/p', 'HEAD a1', 'detached',
-      'prunable gitdir file points to non-existent location', '',
-    ].join(NL));
+    const recs = parseWorktreeRecords(
+      [
+        'worktree /c/p',
+        'HEAD a1',
+        'detached',
+        'prunable gitdir file points to non-existent location',
+        '',
+      ].join(NL),
+    );
     expect(recs[0]?.prunable).toBe(true);
     expect(recs[0]?.branch).toBe('(detached)');
   });
@@ -162,9 +184,7 @@ describe('parseWorktreeRecords', () => {
     const recs = parseWorktreeRecords(
       ['locked', 'prunable', 'worktree /c/a', 'branch refs/heads/x', ''].join(NL),
     );
-    expect(recs).toEqual([
-      { path: '/c/a', branch: 'x', locked: false, prunable: false },
-    ]);
+    expect(recs).toEqual([{ path: '/c/a', branch: 'x', locked: false, prunable: false }]);
   });
 });
 

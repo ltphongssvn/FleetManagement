@@ -32,11 +32,9 @@ describe('findDuplicateKeys', () => {
 
   // The exact shape that produced the unreadable artifact.
   it('catches the FLEET_SKIP_ANDROID duplicate that broke the round trip', () => {
-    const found = findDuplicateKeys(env(
-      'DOCKER_DEFAULT_PLATFORM=linux/amd64',
-      'FLEET_SKIP_ANDROID=1',
-      'FLEET_SKIP_ANDROID=1',
-    ));
+    const found = findDuplicateKeys(
+      env('DOCKER_DEFAULT_PLATFORM=linux/amd64', 'FLEET_SKIP_ANDROID=1', 'FLEET_SKIP_ANDROID=1'),
+    );
     expect(found).toHaveLength(1);
     expect(found[0]?.key).toBe('FLEET_SKIP_ANDROID');
   });

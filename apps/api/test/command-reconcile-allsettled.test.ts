@@ -1,11 +1,24 @@
 // apps/api/test/command-reconcile-allsettled.test.ts
 import { describe, it, expect, vi } from 'vitest';
-import { CommandsGateway, COMMAND_DELIVERY_POLICY_VERSION } from '../src/commands/commands.gateway.js';
+import {
+  CommandsGateway,
+  COMMAND_DELIVERY_POLICY_VERSION,
+} from '../src/commands/commands.gateway.js';
 import type { IPushProvider } from '../src/push/push-provider.interface.js';
 import type { Clock } from '../src/common/clock.js';
 
 interface PendingMap {
-  readonly pending: Map<string, { operatorId: string; issuedAt: Date; attempts: number; pushAttempts: number; pushInFlight: boolean; policyVersion: string }>;
+  readonly pending: Map<
+    string,
+    {
+      operatorId: string;
+      issuedAt: Date;
+      attempts: number;
+      pushAttempts: number;
+      pushInFlight: boolean;
+      policyVersion: string;
+    }
+  >;
 }
 
 function gw(push: IPushProvider['sendToOperator']): CommandsGateway {
@@ -26,9 +39,14 @@ function seed(g: CommandsGateway, id: string): void {
 
 describe('@fleet/api - reconcileAndSettle (awaitable)', () => {
   it('returns a promise that resolves after all push fallbacks settle', async () => {
-    const ok = vi.fn().mockResolvedValue({ accepted: 1, rejected: 0 }) as unknown as IPushProvider['sendToOperator'];
+    const ok = vi.fn().mockResolvedValue({
+      accepted: 1,
+      rejected: 0,
+    }) as unknown as IPushProvider['sendToOperator'];
     const g = gw(ok);
-    seed(g, 'cA'); seed(g, 'cB'); seed(g, 'cC');
+    seed(g, 'cA');
+    seed(g, 'cB');
+    seed(g, 'cC');
     const result = await g.reconcileAndSettle(new Date());
     expect(result.flushed).toEqual(['cA', 'cB', 'cC']);
     expect(result.settled).toBe(3);
@@ -39,10 +57,13 @@ describe('@fleet/api - reconcileAndSettle (awaitable)', () => {
     let i = 0;
     const mixed = vi.fn().mockImplementation(() => {
       i += 1;
-      return i % 2 === 0 ? Promise.reject(new Error('fail')) : Promise.resolve({ accepted: 1, rejected: 0 });
+      return i % 2 === 0
+        ? Promise.reject(new Error('fail'))
+        : Promise.resolve({ accepted: 1, rejected: 0 });
     }) as unknown as IPushProvider['sendToOperator'];
     const g = gw(mixed);
-    seed(g, 'c1'); seed(g, 'c2');
+    seed(g, 'c1');
+    seed(g, 'c2');
     const result = await g.reconcileAndSettle(new Date());
     expect(result.settled).toBe(2);
   });

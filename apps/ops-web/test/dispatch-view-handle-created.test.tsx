@@ -20,9 +20,15 @@ vi.mock('next/navigation', () => ({
 // It only mounts once the drawer is opened, so opening the drawer is what
 // invokes DispatchView handleCreated (v8 records the function as executed).
 vi.mock('../src/features/dispatch/NaturalLanguageCreateForm', () => ({
-  NaturalLanguageCreateForm: ({ onCreated }: { onCreated?: (ref: string, op: { operatorId: string; assetId: string }) => void }) => {
+  NaturalLanguageCreateForm: ({
+    onCreated,
+  }: {
+    onCreated?: (ref: string, op: { operatorId: string; assetId: string }) => void;
+  }) => {
     if (onCreated) {
-      void Promise.resolve().then(() => { onCreated('XTT.05-form', { operatorId: 'op-1', assetId: 'veh-1' }); });
+      void Promise.resolve().then(() => {
+        onCreated('XTT.05-form', { operatorId: 'op-1', assetId: 'veh-1' });
+      });
     }
     return null;
   },

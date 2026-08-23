@@ -96,13 +96,7 @@ export function classifyStackAge(input: StackAgeInput): StackAge {
  *  mock-oauth2, driver-app) break every split, a failure already pinned by
  *  docker-reclaim's tests. */
 export function psIdsArgsForProject(project: string): readonly string[] {
-  return [
-    'ps',
-    '--filter',
-    'label=com.docker.compose.project=' + project,
-    '--format',
-    '{{.ID}}',
-  ];
+  return ['ps', '--filter', 'label=com.docker.compose.project=' + project, '--format', '{{.ID}}'];
 }
 /** StartedAt for each id, one per line, in RFC3339Nano. */
 export function inspectStartedAtArgs(ids: readonly string[]): readonly string[] {

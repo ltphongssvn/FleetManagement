@@ -57,24 +57,30 @@ describe('@fleet/main-worker - ErpJobDataSchema (boundary validation)', () => {
   });
 
   it('rejects non-UUID transportOrderId', () => {
-    expect(() => ErpJobDataSchema.parse({
-      ...validJob,
-      payload: { ...validJob.payload, transportOrderId: 'nope' },
-    })).toThrow();
+    expect(() =>
+      ErpJobDataSchema.parse({
+        ...validJob,
+        payload: { ...validJob.payload, transportOrderId: 'nope' },
+      }),
+    ).toThrow();
   });
 
   it('rejects unsupported currency', () => {
-    expect(() => ErpJobDataSchema.parse({
-      ...validJob,
-      payload: { ...validJob.payload, currency: 'JPY' },
-    })).toThrow();
+    expect(() =>
+      ErpJobDataSchema.parse({
+        ...validJob,
+        payload: { ...validJob.payload, currency: 'JPY' },
+      }),
+    ).toThrow();
   });
 
   it('rejects negative amount', () => {
-    expect(() => ErpJobDataSchema.parse({
-      ...validJob,
-      payload: { ...validJob.payload, amountCents: -1 },
-    })).toThrow();
+    expect(() =>
+      ErpJobDataSchema.parse({
+        ...validJob,
+        payload: { ...validJob.payload, amountCents: -1 },
+      }),
+    ).toThrow();
   });
 
   it('accepts null mapping fields (policy enforces unknown_customer/job_code)', () => {
@@ -92,51 +98,65 @@ describe('@fleet/main-worker - ErpJobDataSchema strictness + amount edges', () =
   });
 
   it('rejects extra payload field (.strict)', () => {
-    expect(() => ErpJobDataSchema.parse({
-      ...validJob,
-      payload: { ...validJob.payload, extra: 'no' },
-    })).toThrow();
+    expect(() =>
+      ErpJobDataSchema.parse({
+        ...validJob,
+        payload: { ...validJob.payload, extra: 'no' },
+      }),
+    ).toThrow();
   });
 
   it('rejects extra mapping field (.strict)', () => {
-    expect(() => ErpJobDataSchema.parse({
-      ...validJob,
-      mapping: { ...validJob.mapping, extra: 'no' },
-    })).toThrow();
+    expect(() =>
+      ErpJobDataSchema.parse({
+        ...validJob,
+        mapping: { ...validJob.mapping, extra: 'no' },
+      }),
+    ).toThrow();
   });
 
   it('rejects fractional amountCents', () => {
-    expect(() => ErpJobDataSchema.parse({
-      ...validJob,
-      payload: { ...validJob.payload, amountCents: 100.5 },
-    })).toThrow();
+    expect(() =>
+      ErpJobDataSchema.parse({
+        ...validJob,
+        payload: { ...validJob.payload, amountCents: 100.5 },
+      }),
+    ).toThrow();
   });
 
   it('rejects zero amountCents', () => {
-    expect(() => ErpJobDataSchema.parse({
-      ...validJob,
-      payload: { ...validJob.payload, amountCents: 0 },
-    })).toThrow();
+    expect(() =>
+      ErpJobDataSchema.parse({
+        ...validJob,
+        payload: { ...validJob.payload, amountCents: 0 },
+      }),
+    ).toThrow();
   });
 
   it('rejects amountCents above max cap', () => {
-    expect(() => ErpJobDataSchema.parse({
-      ...validJob,
-      payload: { ...validJob.payload, amountCents: 1_000_000_001 },
-    })).toThrow();
+    expect(() =>
+      ErpJobDataSchema.parse({
+        ...validJob,
+        payload: { ...validJob.payload, amountCents: 1_000_000_001 },
+      }),
+    ).toThrow();
   });
 
   it('rejects empty customerExternalId', () => {
-    expect(() => ErpJobDataSchema.parse({
-      ...validJob,
-      mapping: { ...validJob.mapping, customerExternalId: '' },
-    })).toThrow();
+    expect(() =>
+      ErpJobDataSchema.parse({
+        ...validJob,
+        mapping: { ...validJob.mapping, customerExternalId: '' },
+      }),
+    ).toThrow();
   });
 
   it('rejects empty erpSystem', () => {
-    expect(() => ErpJobDataSchema.parse({
-      ...validJob,
-      payload: { ...validJob.payload, erpSystem: '' },
-    })).toThrow();
+    expect(() =>
+      ErpJobDataSchema.parse({
+        ...validJob,
+        payload: { ...validJob.payload, erpSystem: '' },
+      }),
+    ).toThrow();
   });
 });

@@ -17,10 +17,20 @@ const AFTER = 15;
 const MAX = 5;
 function candidate(id: string, attempts: number): IntakeReconcileCandidate {
   return {
-    companyId: 'c', businessUnitId: 'b', depotId: 'd', legalEntityId: 'l',
-    manifestId: id, uploadSessionId: 'u', s3Key: 'k', s3Bucket: 'bk',
-    contentType: 'image/jpeg', expectedSizeBytes: 1, actualSizeBytes: 1, contentHash: null,
-    createdAt: new Date(), attempts,
+    companyId: 'c',
+    businessUnitId: 'b',
+    depotId: 'd',
+    legalEntityId: 'l',
+    manifestId: id,
+    uploadSessionId: 'u',
+    s3Key: 'k',
+    s3Bucket: 'bk',
+    contentType: 'image/jpeg',
+    expectedSizeBytes: 1,
+    actualSizeBytes: 1,
+    contentHash: null,
+    createdAt: new Date(),
+    attempts,
   };
 }
 function stubRepo(over: Partial<IntakeReconcileRepo>): IntakeReconcileRepo {
@@ -32,13 +42,13 @@ function stubRepo(over: Partial<IntakeReconcileRepo>): IntakeReconcileRepo {
   };
 }
 describe('@fleet/api - IntakeReconcilerService loop branches (unit)', () => {
-  beforeEach(() => { mockCaptureEvent.mockClear(); });
+  beforeEach(() => {
+    mockCaptureEvent.mockClear();
+  });
   it('does NOT count emitted when redriveOnce returns false (race lost)', async () => {
     const repo = stubRepo({
       findEligible: vi.fn().mockResolvedValue([candidate('m1', 0), candidate('m2', 0)]),
-      redriveOnce: vi.fn()
-        .mockResolvedValueOnce(true)
-        .mockResolvedValueOnce(false),
+      redriveOnce: vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false),
     });
     const svc = new IntakeReconcilerService(repo, AFTER, MAX, 25);
     const res = await svc.reconcileOnce();
@@ -47,8 +57,13 @@ describe('@fleet/api - IntakeReconcilerService loop branches (unit)', () => {
     expect(res.exhausted).toBe(0);
   });
   it('fires exactly one fatal per episode and re-arms after recovery', async () => {
-    const summary: IntakeExhaustedSummary = { count: 2, oldestManifestId: 'm9', oldestAgeMinutes: 99 };
-    const exhaustedSummary = vi.fn()
+    const summary: IntakeExhaustedSummary = {
+      count: 2,
+      oldestManifestId: 'm9',
+      oldestAgeMinutes: 99,
+    };
+    const exhaustedSummary = vi
+      .fn()
       .mockResolvedValueOnce(summary)
       .mockResolvedValueOnce(summary)
       .mockResolvedValueOnce(null)

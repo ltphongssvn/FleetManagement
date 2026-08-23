@@ -146,7 +146,7 @@
     "maestro",
     "pre-commit",
     "railway",
-    "sops"
+    "sops",
   ],
   "rules": {
     "files": "error",
@@ -160,126 +160,69 @@
     "nsExports": "warn",
     "nsTypes": "warn",
     "enumMembers": "warn",
-    "duplicates": "warn"
+    "duplicates": "warn",
   },
   "workspaces": {
     ".": {
       "ignoreDependencies": [
         "@semantic-release/github",
-        "conventional-changelog-conventionalcommits"
+        "conventional-changelog-conventionalcommits",
       ],
-      "entry": [
-        "scripts/**/*.{ts,mts}"
-      ],
-      "project": [
-        "scripts/**/*.{ts,mts}",
-        "*.{mjs,cjs,js}"
-      ],
-      "includeEntryExports": true
+      "entry": ["scripts/**/*.{ts,mts}"],
+      "project": ["scripts/**/*.{ts,mts}", "*.{mjs,cjs,js}"],
+      "includeEntryExports": true,
     },
     "apps/api": {
-      "project": [
-        "src/**/*.ts"
-      ]
+      "project": ["src/**/*.ts"],
     },
     "apps/ops-web": {
       "entry": [
         "src/app/**/{page,layout,route,template,error,loading,not-found}.tsx",
-        "src/app/**/{page,layout,route,template,error,loading,not-found}.ts"
+        "src/app/**/{page,layout,route,template,error,loading,not-found}.ts",
       ],
-      "project": [
-        "src/**/*.{ts,tsx,css}"
-      ]
+      "project": ["src/**/*.{ts,tsx,css}"],
     },
     "apps/driver-app": {
-      "entry": [
-        "app/**/*.{ts,tsx}"
-      ],
-      "project": [
-        "src/**/*.{ts,tsx}",
-        "app/**/*.{ts,tsx}"
-      ],
-      "ignoreDependencies": [
-        "expo-doctor",
-        "@sentry/cli"
-      ]
+      "entry": ["app/**/*.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx}", "app/**/*.{ts,tsx}"],
+      "ignoreDependencies": ["expo-doctor", "@sentry/cli"],
     },
     "apps/owner-app": {
-      "entry": [
-        "app/**/*.{ts,tsx}"
-      ],
-      "project": [
-        "src/**/*.{ts,tsx}",
-        "app/**/*.{ts,tsx}"
-      ],
-      "ignoreDependencies": [
-        "expo-doctor",
-        "@sentry/cli"
-      ]
+      "entry": ["app/**/*.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx}", "app/**/*.{ts,tsx}"],
+      "ignoreDependencies": ["expo-doctor", "@sentry/cli"],
     },
     "workers/main-worker": {
-      "entry": [
-        "src/index.ts"
-      ],
-      "project": [
-        "src/**/*.ts"
-      ]
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"],
     },
     "packages/domain": {
-      "entry": [
-        "src/index.ts"
-      ],
-      "project": [
-        "src/**/*.ts"
-      ]
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"],
     },
     "packages/sync-protocol": {
-      "entry": [
-        "src/index.ts"
-      ],
-      "project": [
-        "src/**/*.ts"
-      ]
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"],
     },
     "packages/observability": {
-      "entry": [
-        "src/index.ts"
-      ],
-      "project": [
-        "src/**/*.ts"
-      ]
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"],
     },
     "packages/design-tokens": {
-      "entry": [
-        "src/index.ts"
-      ],
-      "project": [
-        "src/**/*.ts"
-      ]
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"],
     },
     "packages/codemods": {
-      "entry": [
-        "src/index.ts"
-      ],
-      "project": [
-        "src/**/*.ts"
-      ]
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"],
     },
     "packages/test-fixtures": {
-      "entry": [
-        "src/index.ts"
-      ],
-      "project": [
-        "src/**/*.ts"
-      ]
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"],
     },
     "e2e": {
-      "entry": [
-        "**/*.spec.ts"
-      ],
-      "project": [
-        "**/*.ts"
-      ]
-    }
-  }
+      "entry": ["**/*.spec.ts"],
+      "project": ["**/*.ts"],
+    },
+  },
 }

@@ -39,10 +39,17 @@ const ENVELOPE_IST = {
 describe('FSM structured-error contract', () => {
   it('FLEET_ERROR_CODES pinned membership (12 members incl. device-binding + assignment-conflict)', () => {
     expect([...FLEET_ERROR_CODES].sort()).toEqual([
-      'DEVICE_NOT_REGISTERED', 'DEVICE_PENDING_APPROVAL', 'DEVICE_REVOKED',
+      'DEVICE_NOT_REGISTERED',
+      'DEVICE_PENDING_APPROVAL',
+      'DEVICE_REVOKED',
       'DRIVER_ALREADY_ASSIGNED',
-      'FORBIDDEN', 'INTERNAL', 'INVALID_STATE_TRANSITION',
-      'MANIFESTS_INCOMPLETE', 'NOT_FOUND', 'UNAUTHORIZED', 'VALIDATION_FAILED',
+      'FORBIDDEN',
+      'INTERNAL',
+      'INVALID_STATE_TRANSITION',
+      'MANIFESTS_INCOMPLETE',
+      'NOT_FOUND',
+      'UNAUTHORIZED',
+      'VALIDATION_FAILED',
       'VEHICLE_ALREADY_ASSIGNED',
     ]);
   });
@@ -53,10 +60,25 @@ describe('FSM structured-error contract', () => {
   });
 
   it('IST schema requires currentState and an array of non-empty action strings', () => {
-    expect(InvalidStateTransitionExtensionsSchema.safeParse({ allowedActions: [] }).success).toBe(false);
-    expect(InvalidStateTransitionExtensionsSchema.safeParse({ currentState: '', allowedActions: [] }).success).toBe(false);
-    expect(InvalidStateTransitionExtensionsSchema.safeParse({ currentState: 'planned', allowedActions: 'dispatched' }).success).toBe(false);
-    expect(InvalidStateTransitionExtensionsSchema.safeParse({ currentState: 'planned', allowedActions: ['', 'x'] }).success).toBe(false);
+    expect(InvalidStateTransitionExtensionsSchema.safeParse({ allowedActions: [] }).success).toBe(
+      false,
+    );
+    expect(
+      InvalidStateTransitionExtensionsSchema.safeParse({ currentState: '', allowedActions: [] })
+        .success,
+    ).toBe(false);
+    expect(
+      InvalidStateTransitionExtensionsSchema.safeParse({
+        currentState: 'planned',
+        allowedActions: 'dispatched',
+      }).success,
+    ).toBe(false);
+    expect(
+      InvalidStateTransitionExtensionsSchema.safeParse({
+        currentState: 'planned',
+        allowedActions: ['', 'x'],
+      }).success,
+    ).toBe(false);
   });
 
   it('IST parse returns null for envelopes without the extensions (legacy tolerance)', () => {
@@ -72,15 +94,28 @@ describe('FSM structured-error contract', () => {
   });
 
   it('parses manifests-incomplete extensions (non-negative ints) and rejects garbage', () => {
-    expect(parseManifestsIncompleteExtensions({ status: 409, code: 'MANIFESTS_INCOMPLETE', committed: 2, required: 4 }))
-      .toEqual({ committed: 2, required: 4 });
-    expect(ManifestsIncompleteExtensionsSchema.safeParse({ committed: -1, required: 4 }).success).toBe(false);
-    expect(ManifestsIncompleteExtensionsSchema.safeParse({ committed: 1.5, required: 4 }).success).toBe(false);
+    expect(
+      parseManifestsIncompleteExtensions({
+        status: 409,
+        code: 'MANIFESTS_INCOMPLETE',
+        committed: 2,
+        required: 4,
+      }),
+    ).toEqual({ committed: 2, required: 4 });
+    expect(
+      ManifestsIncompleteExtensionsSchema.safeParse({ committed: -1, required: 4 }).success,
+    ).toBe(false);
+    expect(
+      ManifestsIncompleteExtensionsSchema.safeParse({ committed: 1.5, required: 4 }).success,
+    ).toBe(false);
     expect(parseManifestsIncompleteExtensions({ status: 409 })).toBeNull();
   });
 
   it('derives the IST type via z.infer (compile-time SSOT proof)', () => {
-    const ext: InvalidStateTransitionExtensions = { currentState: 'started', allowedActions: ['completed', 'cancelled'] };
+    const ext: InvalidStateTransitionExtensions = {
+      currentState: 'started',
+      allowedActions: ['completed', 'cancelled'],
+    };
     expect(ext.allowedActions).toHaveLength(2);
   });
 });

@@ -6,7 +6,11 @@ import { CommandsController } from '../src/commands/commands.controller.js';
 import { CommandsGateway } from '../src/commands/commands.gateway.js';
 import { CommandsService } from '../src/commands/commands.service.js';
 import { TenantPolicy, CrossTenantError } from '../src/auth/tenant-policy.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+} from './helpers/migrate-test-db.js';
 import type { OperatorContext } from '../src/auth/operator-context.js';
 
 let testDb: MigratedTestDb;
@@ -20,11 +24,16 @@ const OP_B = '00000000-0000-0000-0000-0000000000b5';
 const RR_B = '00000000-0000-0000-0000-0000000000b9';
 
 const ctxA: OperatorContext = {
-  operatorId: OP_A, companyId: COMP_A, businessUnitId: BU, depotId: DEPOT, legalEntityId: LE,
+  operatorId: OP_A,
+  companyId: COMP_A,
+  businessUnitId: BU,
+  depotId: DEPOT,
+  legalEntityId: LE,
 };
 
 function makeCtrl(): CommandsController {
-  const noopPush = (): Promise<{ accepted: number; rejected: number }> => Promise.resolve({ accepted: 0, rejected: 0 });
+  const noopPush = (): Promise<{ accepted: number; rejected: number }> =>
+    Promise.resolve({ accepted: 0, rejected: 0 });
   const gw = new CommandsGateway({ sendToOperator: noopPush }, { now: () => new Date() });
   Object.assign(gw as unknown as { server: unknown }, {
     server: { sockets: { adapter: { rooms: new Map() } }, to: () => ({ emit: () => undefined }) },
@@ -34,7 +43,17 @@ function makeCtrl(): CommandsController {
   return new CommandsController(gw, svc, policy);
 }
 
-const validCmd = (over: Partial<{ targetOperatorId: string; aggregateId: string }> = {}): { commandId: string; type: string; targetOperatorId: string; aggregateType: string; aggregateId: string; payload: Record<string, unknown>; issuedAt: string } => ({
+const validCmd = (
+  over: Partial<{ targetOperatorId: string; aggregateId: string }> = {},
+): {
+  commandId: string;
+  type: string;
+  targetOperatorId: string;
+  aggregateType: string;
+  aggregateId: string;
+  payload: Record<string, unknown>;
+  issuedAt: string;
+} => ({
   commandId: '11111111-1111-7111-8111-111111111111',
   type: 'assign_run',
   targetOperatorId: over.targetOperatorId ?? OP_A,
@@ -45,8 +64,12 @@ const validCmd = (over: Partial<{ targetOperatorId: string; aggregateId: string 
 });
 
 describe('@fleet/api - CommandsController tenant policy', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_cmd_tenant'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_cmd_tenant');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
   beforeEach(async () => {
     await testDb.db.execute(sql`TRUNCATE TABLE device_registry, road_run CASCADE`);
     // Seed operator OP_A in COMP_A
@@ -68,14 +91,16 @@ describe('@fleet/api - CommandsController tenant policy', () => {
 
   it('rejects targetOperatorId from another company', async () => {
     const ctrl = makeCtrl();
-    await expect(ctrl.issue(validCmd({ targetOperatorId: OP_B }), ctxA))
-      .rejects.toBeInstanceOf(CrossTenantError);
+    await expect(ctrl.issue(validCmd({ targetOperatorId: OP_B }), ctxA)).rejects.toBeInstanceOf(
+      CrossTenantError,
+    );
   });
 
   it('rejects aggregateId (road_run) from another company', async () => {
     const ctrl = makeCtrl();
-    await expect(ctrl.issue(validCmd({ aggregateId: RR_B }), ctxA))
-      .rejects.toBeInstanceOf(CrossTenantError);
+    await expect(ctrl.issue(validCmd({ aggregateId: RR_B }), ctxA)).rejects.toBeInstanceOf(
+      CrossTenantError,
+    );
   });
 
   it('accepts when targetOperator + aggregate both belong to op.companyId', async () => {

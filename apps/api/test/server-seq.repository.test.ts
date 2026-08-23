@@ -3,13 +3,21 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { allocateServerSeq } from '../src/database/server-seq.repository.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+} from './helpers/migrate-test-db.js';
 
 let testDb: MigratedTestDb;
 
 describe('@fleet/api - allocateServerSeq', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_seq'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_test_seq');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
   beforeEach(async () => {
     await testDb.db.execute(sql`SELECT setval('fleet_server_seq', 1, false)`);
   });
@@ -29,9 +37,7 @@ describe('@fleet/api - allocateServerSeq', () => {
   it('produces N distinct values under N concurrent transactions', async () => {
     const N = 10;
     const results = await Promise.all(
-      Array.from({ length: N }, () =>
-        testDb.db.transaction(async (tx) => allocateServerSeq(tx)),
-      ),
+      Array.from({ length: N }, () => testDb.db.transaction(async (tx) => allocateServerSeq(tx))),
     );
     const distinct = new Set(results.map(String));
     expect(distinct.size).toBe(N);

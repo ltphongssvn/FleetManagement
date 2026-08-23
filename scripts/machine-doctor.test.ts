@@ -94,7 +94,9 @@ describe('testing locally requires a container runtime, not a copied env file', 
   });
 
   it('is BROKEN when the daemon is unreachable, the empty-log failure', () => {
-    expect(capabilityStatus('test-locally', { ...ready, containerRuntimeUp: false })).toBe('broken');
+    expect(capabilityStatus('test-locally', { ...ready, containerRuntimeUp: false })).toBe(
+      'broken',
+    );
   });
 });
 
@@ -121,9 +123,9 @@ describe('decrypting is reported honestly, including the half nobody can fix alo
 
 describe('the generated-file merge driver is config, and config rots silently', () => {
   it('is broken until registered, because a declared-but-unregistered driver does nothing', () => {
-    expect(capabilityStatus('merge-generated-files', { ...ready, mergeDriverRegistered: false })).toBe(
-      'broken',
-    );
+    expect(
+      capabilityStatus('merge-generated-files', { ...ready, mergeDriverRegistered: false }),
+    ).toBe('broken');
   });
 });
 

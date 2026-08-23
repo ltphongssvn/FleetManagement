@@ -17,7 +17,10 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-interface PluginEntry { 0: string; 1?: Record<string, unknown> }
+interface PluginEntry {
+  0: string;
+  1?: Record<string, unknown>;
+}
 interface AppJson {
   expo: {
     plugins: (string | PluginEntry)[];
@@ -31,7 +34,9 @@ interface ViLocale {
   [key: string]: unknown;
 }
 const app = JSON.parse(readFileSync(resolve(__dirname, '../app.json'), 'utf8')) as AppJson;
-const viLocale = JSON.parse(readFileSync(resolve(__dirname, '../locales/vi.json'), 'utf8')) as ViLocale;
+const viLocale = JSON.parse(
+  readFileSync(resolve(__dirname, '../locales/vi.json'), 'utf8'),
+) as ViLocale;
 function findPlugin(name: string): PluginEntry | undefined {
   for (const p of app.expo.plugins) {
     if (Array.isArray(p) && p[0] === name) return p as unknown as PluginEntry;
@@ -43,7 +48,10 @@ function findPlugin(name: string): PluginEntry | undefined {
 const VN_DIACRITICS = /[ăâđêôơưàáạảãằắặẳẵầấậẩẫèéẹẻẽềếệểễìíịỉĩòóọỏõồốộổỗờớợởỡùúụủũừứựửữỳýỵỷỹ]/i;
 describe('@fleet/driver-app - expo-image-picker camera permission localization', () => {
   it('declares the expo-image-picker config plugin', () => {
-    expect(findPlugin('expo-image-picker'), 'expo-image-picker must be a configured plugin').toBeDefined();
+    expect(
+      findPlugin('expo-image-picker'),
+      'expo-image-picker must be a configured plugin',
+    ).toBeDefined();
   });
   it('sets a Vietnamese cameraPermission rationale string', () => {
     const plugin = findPlugin('expo-image-picker');
@@ -65,7 +73,8 @@ describe('@fleet/driver-app - expo-image-picker camera permission localization',
   it('nests iOS NS* purpose strings under the ios key in the locale file', () => {
     const ios = viLocale.ios ?? {};
     const cam = ios['NSCameraUsageDescription'];
-    if (typeof cam !== 'string') throw new Error('locales/vi.json must nest NSCameraUsageDescription under ios');
+    if (typeof cam !== 'string')
+      throw new Error('locales/vi.json must nest NSCameraUsageDescription under ios');
     expect(cam).toMatch(VN_DIACRITICS);
   });
   it('keeps the locale file free of bare top-level NS* keys (Android ExtraTranslation trigger)', () => {

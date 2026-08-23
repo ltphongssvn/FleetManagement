@@ -11,13 +11,21 @@ import { ConflictException } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { ReferenceService } from '../src/reference/reference.service.js';
 import { customer, cargoType, vehicle, warehouse } from '../src/database/schema/reference.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { withTxIsolation } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 describe('@fleet/api - ReferenceService re-add reactivates soft-deleted rows (T5c)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('createCustomer reactivates a soft-deleted row instead of throwing', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const svc = new ReferenceService(tx as never);
@@ -27,7 +35,8 @@ describe('@fleet/api - ReferenceService re-add reactivates soft-deleted rows (T5
       // re-add: must NOT throw, must return the same name, row is active again
       const reborn = await svc.createCustomer(op, 'ReAct');
       expect(reborn.label).toBe('ReAct');
-      const [row] = await tx.select({ active: customer.active })
+      const [row] = await tx
+        .select({ active: customer.active })
         .from(customer)
         .where(and(eq(customer.companyId, op.companyId), eq(customer.customerId, reborn.id)));
       expect(row?.active).toBe(true);
@@ -50,7 +59,8 @@ describe('@fleet/api - ReferenceService re-add reactivates soft-deleted rows (T5
       await svc.deleteCargoType(op, created.id);
       const reborn = await svc.createCargoType(op, 'TẤM');
       expect(reborn.label).toBe('TẤM');
-      const [row] = await tx.select({ active: cargoType.active })
+      const [row] = await tx
+        .select({ active: cargoType.active })
         .from(cargoType)
         .where(and(eq(cargoType.companyId, op.companyId), eq(cargoType.cargoTypeId, reborn.id)));
       expect(row?.active).toBe(true);
@@ -64,7 +74,8 @@ describe('@fleet/api - ReferenceService re-add reactivates soft-deleted rows (T5
       await svc.deleteVehicle(op, created.id);
       const reborn = await svc.createVehicle(op, '99H-RA1');
       expect(reborn.label).toBe('99H-RA1');
-      const [row] = await tx.select({ active: vehicle.active })
+      const [row] = await tx
+        .select({ active: vehicle.active })
         .from(vehicle)
         .where(and(eq(vehicle.companyId, op.companyId), eq(vehicle.vehicleId, reborn.id)));
       expect(row?.active).toBe(true);
@@ -78,7 +89,8 @@ describe('@fleet/api - ReferenceService re-add reactivates soft-deleted rows (T5
       await svc.deleteWarehouse(op, created.id);
       const reborn = await svc.createWarehouse(op, 'ReHouse', 'pickup');
       expect(reborn.label).toBe('ReHouse');
-      const [row] = await tx.select({ active: warehouse.active })
+      const [row] = await tx
+        .select({ active: warehouse.active })
         .from(warehouse)
         .where(and(eq(warehouse.companyId, op.companyId), eq(warehouse.warehouseId, reborn.id)));
       expect(row?.active).toBe(true);

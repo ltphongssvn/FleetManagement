@@ -29,7 +29,10 @@
 // pass has changed behaviour and is no longer a refactor.
 import { describe, expect, it } from 'vitest';
 import { FLEET_OWNER_ROLE as DOMAIN_OWNER_ROLE, FLEET_ROLES } from '@fleet/domain';
-import { FLEET_OWNER_ROLE as API_OWNER_ROLE, decideOwnerAccess } from '../src/owner/owner-role-policy.js';
+import {
+  FLEET_OWNER_ROLE as API_OWNER_ROLE,
+  decideOwnerAccess,
+} from '../src/owner/owner-role-policy.js';
 
 describe('@fleet/api owner role is the @fleet/domain SSOT', () => {
   it('agrees with the domain SSOT (necessary, not sufficient -- see header)', () => {
@@ -64,8 +67,9 @@ describe('decideOwnerAccess behaviour is unchanged by the relocation', () => {
   });
 
   it('grants among unrelated realm roles', () => {
-    expect(decideOwnerAccess(['offline_access', DOMAIN_OWNER_ROLE, 'uma_authorization']))
-      .toEqual({ outcome: 'granted' });
+    expect(decideOwnerAccess(['offline_access', DOMAIN_OWNER_ROLE, 'uma_authorization'])).toEqual({
+      outcome: 'granted',
+    });
   });
 
   it('denies a lookalike -- no prefix, no substring', () => {

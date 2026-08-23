@@ -12,7 +12,11 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq } from 'drizzle-orm';
 import { TransportOrdersService } from '../src/transport-orders/transport-orders.service.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
 import { driver, vehicle } from '../src/database/schema/reference.js';
 import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
@@ -31,18 +35,38 @@ const fakeSigner: StopProofUrlSigner = {
 
 let testDb: PgliteTestDb;
 
-async function seedActivePair(tx: TestTx, op: ReturnType<typeof createOperatorContext>): Promise<{ operatorId: string; vehicleId: string }> {
-  const tn = { companyId: op.companyId, businessUnitId: op.businessUnitId, depotId: op.depotId, legalEntityId: op.legalEntityId };
-  const [d] = await tx.insert(driver).values({ ...tn, fullName: 'ReviewProofDriver', operatorId: op.operatorId }).returning({ driverId: driver.driverId });
-  const [v] = await tx.insert(vehicle).values({ ...tn, plate: 'RVP-' + randomUUID().slice(0, 4) }).returning({ vehicleId: vehicle.vehicleId });
+async function seedActivePair(
+  tx: TestTx,
+  op: ReturnType<typeof createOperatorContext>,
+): Promise<{ operatorId: string; vehicleId: string }> {
+  const tn = {
+    companyId: op.companyId,
+    businessUnitId: op.businessUnitId,
+    depotId: op.depotId,
+    legalEntityId: op.legalEntityId,
+  };
+  const [d] = await tx
+    .insert(driver)
+    .values({ ...tn, fullName: 'ReviewProofDriver', operatorId: op.operatorId })
+    .returning({ driverId: driver.driverId });
+  const [v] = await tx
+    .insert(vehicle)
+    .values({ ...tn, plate: 'RVP-' + randomUUID().slice(0, 4) })
+    .returning({ vehicleId: vehicle.vehicleId });
   if (d === undefined || v === undefined) throw new Error('seed failed');
-  await tx.insert(driverVehicleAssignment).values({ ...tn, driverId: d.driverId, vehicleId: v.vehicleId });
+  await tx
+    .insert(driverVehicleAssignment)
+    .values({ ...tn, driverId: d.driverId, vehicleId: v.vehicleId });
   return { operatorId: op.operatorId, vehicleId: v.vehicleId };
 }
 
 describe('@fleet/api - findByCompanyIdOrRef stop proof (review parity with the board)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
 
   it('returns the committed Phieu Can proof (presigned URL + extracted kg) on the stop that has one, and null on the stop that does not', async () => {
     let deliveryProofUrl: string | null | undefined;
@@ -52,34 +76,54 @@ describe('@fleet/api - findByCompanyIdOrRef stop proof (review parity with the b
     await withTxIsolation(testDb, async (tx) => {
       const svc = new TransportOrdersService(tx as never, undefined, fakeSigner);
       const op = createOperatorContext();
-      const tn = { companyId: op.companyId, businessUnitId: op.businessUnitId, depotId: op.depotId, legalEntityId: op.legalEntityId };
+      const tn = {
+        companyId: op.companyId,
+        businessUnitId: op.businessUnitId,
+        depotId: op.depotId,
+        legalEntityId: op.legalEntityId,
+      };
       const { operatorId, vehicleId } = await seedActivePair(tx, op);
-      const created = await svc.create({
-        stops: [
-          { sequence: 1, stopType: 'pickup' },
-          { sequence: 2, stopType: 'delivery' },
-        ],
-        roadRun: { plannedStartAt: '2026-07-01T07:00:00.000Z', assignedOperatorId: operatorId, assignedAssetId: vehicleId },
-      }, op);
+      const created = await svc.create(
+        {
+          stops: [
+            { sequence: 1, stopType: 'pickup' },
+            { sequence: 2, stopType: 'delivery' },
+          ],
+          roadRun: {
+            plannedStartAt: '2026-07-01T07:00:00.000Z',
+            assignedOperatorId: operatorId,
+            assignedAssetId: vehicleId,
+          },
+        },
+        op,
+      );
       // Resolve the real stop ids: the proof association is explicit
       // (manifest.stop_id), never inferred from sequence.
       const stopRows = await tx
         .select({ stopId: stop.stopId, sequence: stop.sequence })
         .from(stop)
-        .where(and(eq(stop.companyId, op.companyId), eq(stop.transportOrderId, created.transportOrderId)))
+        .where(
+          and(
+            eq(stop.companyId, op.companyId),
+            eq(stop.transportOrderId, created.transportOrderId),
+          ),
+        )
         .orderBy(asc(stop.sequence));
       const deliveryStop = stopRows[1];
       if (deliveryStop === undefined) throw new Error('expected two stops');
-      const [m] = await tx.insert(manifest).values({
-        ...tn,
-        transportOrderId: created.transportOrderId,
-        manifestCorrelationId: randomUUID(),
-        stopId: deliveryStop.stopId,
-        state: 'committed',
-        committedAt: new Date('2026-07-01T09:00:00.000Z'),
-        extractedNetWeightKg: '7920.000',
-        extractionStatus: 'extracted',
-      }).returning({ manifestId: manifest.manifestId });
+      const [m] = await tx
+        .insert(manifest)
+        .values({
+          ...tn,
+          transportOrderId: created.transportOrderId,
+          manifestCorrelationId: randomUUID(),
+          stopId: deliveryStop.stopId,
+          state: 'committed',
+          committedAt: new Date('2026-07-01T09:00:00.000Z'),
+          extractedNetWeightKg: '7920.000',
+          extractionStatus: 'extracted',
+        })
+        .returning({ manifestId: manifest.manifestId });
       if (m === undefined) throw new Error('manifest seed failed');
       await tx.insert(uploadSession).values({
         ...tn,
@@ -93,7 +137,8 @@ describe('@fleet/api - findByCompanyIdOrRef stop proof (review parity with the b
       const found = await svc.findByCompanyIdOrRef(created.transportOrderId, op);
       const pickup = found.stops[0];
       const delivery = found.stops[1];
-      if (pickup === undefined || delivery === undefined) throw new Error('expected two review stops');
+      if (pickup === undefined || delivery === undefined)
+        throw new Error('expected two review stops');
       pickupProof = pickup.proof;
       deliveryProofUrl = delivery.proof === null ? null : delivery.proof.photoUrl;
       deliveryKg = delivery.proof === null ? null : (delivery.proof.extractedNetWeightKg ?? null);
@@ -110,26 +155,46 @@ describe('@fleet/api - findByCompanyIdOrRef stop proof (review parity with the b
     await withTxIsolation(testDb, async (tx) => {
       const svc = new TransportOrdersService(tx as never);
       const op = createOperatorContext();
-      const tn = { companyId: op.companyId, businessUnitId: op.businessUnitId, depotId: op.depotId, legalEntityId: op.legalEntityId };
+      const tn = {
+        companyId: op.companyId,
+        businessUnitId: op.businessUnitId,
+        depotId: op.depotId,
+        legalEntityId: op.legalEntityId,
+      };
       const { operatorId, vehicleId } = await seedActivePair(tx, op);
-      const created = await svc.create({
-        stops: [{ sequence: 1, stopType: 'delivery' }],
-        roadRun: { plannedStartAt: '2026-07-02T07:00:00.000Z', assignedOperatorId: operatorId, assignedAssetId: vehicleId },
-      }, op);
+      const created = await svc.create(
+        {
+          stops: [{ sequence: 1, stopType: 'delivery' }],
+          roadRun: {
+            plannedStartAt: '2026-07-02T07:00:00.000Z',
+            assignedOperatorId: operatorId,
+            assignedAssetId: vehicleId,
+          },
+        },
+        op,
+      );
       const stopRows = await tx
         .select({ stopId: stop.stopId })
         .from(stop)
-        .where(and(eq(stop.companyId, op.companyId), eq(stop.transportOrderId, created.transportOrderId)));
+        .where(
+          and(
+            eq(stop.companyId, op.companyId),
+            eq(stop.transportOrderId, created.transportOrderId),
+          ),
+        );
       const only = stopRows[0];
       if (only === undefined) throw new Error('expected one stop');
-      const [m] = await tx.insert(manifest).values({
-        ...tn,
-        transportOrderId: created.transportOrderId,
-        manifestCorrelationId: randomUUID(),
-        stopId: only.stopId,
-        state: 'committed',
-        committedAt: new Date('2026-07-02T09:00:00.000Z'),
-      }).returning({ manifestId: manifest.manifestId });
+      const [m] = await tx
+        .insert(manifest)
+        .values({
+          ...tn,
+          transportOrderId: created.transportOrderId,
+          manifestCorrelationId: randomUUID(),
+          stopId: only.stopId,
+          state: 'committed',
+          committedAt: new Date('2026-07-02T09:00:00.000Z'),
+        })
+        .returning({ manifestId: manifest.manifestId });
       if (m === undefined) throw new Error('manifest seed failed');
       await tx.insert(uploadSession).values({
         ...tn,
@@ -156,28 +221,48 @@ describe('@fleet/api - findByCompanyIdOrRef stop proof (review parity with the b
     await withTxIsolation(testDb, async (tx) => {
       const svc = new TransportOrdersService(tx as never, undefined, fakeSigner);
       const op = createOperatorContext();
-      const tn = { companyId: op.companyId, businessUnitId: op.businessUnitId, depotId: op.depotId, legalEntityId: op.legalEntityId };
+      const tn = {
+        companyId: op.companyId,
+        businessUnitId: op.businessUnitId,
+        depotId: op.depotId,
+        legalEntityId: op.legalEntityId,
+      };
       const { operatorId, vehicleId } = await seedActivePair(tx, op);
-      const created = await svc.create({
-        stops: [{ sequence: 1, stopType: 'delivery' }],
-        roadRun: { plannedStartAt: '2026-07-03T07:00:00.000Z', assignedOperatorId: operatorId, assignedAssetId: vehicleId },
-      }, op);
+      const created = await svc.create(
+        {
+          stops: [{ sequence: 1, stopType: 'delivery' }],
+          roadRun: {
+            plannedStartAt: '2026-07-03T07:00:00.000Z',
+            assignedOperatorId: operatorId,
+            assignedAssetId: vehicleId,
+          },
+        },
+        op,
+      );
       const stopRows = await tx
         .select({ stopId: stop.stopId })
         .from(stop)
-        .where(and(eq(stop.companyId, op.companyId), eq(stop.transportOrderId, created.transportOrderId)));
+        .where(
+          and(
+            eq(stop.companyId, op.companyId),
+            eq(stop.transportOrderId, created.transportOrderId),
+          ),
+        );
       const only = stopRows[0];
       if (only === undefined) throw new Error('expected one stop');
       // TWO committed manifests on the SAME stop: a re-upload. Neither carries a
       // committedAt nor an extracted weight -- extraction is still pending.
       for (const key of ['proofs/first.jpg', 'proofs/second.jpg']) {
-        const [m] = await tx.insert(manifest).values({
-          ...tn,
-          transportOrderId: created.transportOrderId,
-          manifestCorrelationId: randomUUID(),
-          stopId: only.stopId,
-          state: 'committed',
-        }).returning({ manifestId: manifest.manifestId });
+        const [m] = await tx
+          .insert(manifest)
+          .values({
+            ...tn,
+            transportOrderId: created.transportOrderId,
+            manifestCorrelationId: randomUUID(),
+            stopId: only.stopId,
+            state: 'committed',
+          })
+          .returning({ manifestId: manifest.manifestId });
         if (m === undefined) throw new Error('manifest seed failed');
         await tx.insert(uploadSession).values({
           ...tn,

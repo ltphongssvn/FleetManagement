@@ -22,17 +22,17 @@
 // recent is a LOSS-RISK guard: it refuses even when retired, because active work
 // is active regardless of merge intent. It is the committed-about-to-continue
 // complement to dirty (uncommitted work).
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from 'vitest';
 import {
   decideClose,
   WorktreeCloseInputSchema,
   RECENT_IDLE_THRESHOLD_HOURS,
   type WorktreeCloseInput,
-} from "./close-worktree.js";
+} from './close-worktree.js';
 
 const REMOVABLE: WorktreeCloseInput = {
-  path: "/c/t20-twelve-factor",
-  branch: "feature/twelve-factor-audit",
+  path: '/c/t20-twelve-factor',
+  branch: 'feature/twelve-factor-audit',
   hasUpstream: true,
   aheadOfRemote: 0,
   dirtyFileCount: 0,
@@ -43,49 +43,66 @@ const REMOVABLE: WorktreeCloseInput = {
   idleHours: 999,
 };
 
-describe("decideClose: recency guard protects active worktrees", () => {
-  it("FAIL-SAFE: idleHours defaults to 0 (recent) when omitted", () => {
+describe('decideClose: recency guard protects active worktrees', () => {
+  it('FAIL-SAFE: idleHours defaults to 0 (recent) when omitted', () => {
     const parsed = WorktreeCloseInputSchema.parse({
-      path: "/p", branch: "b", hasUpstream: true, aheadOfRemote: 0,
-      dirtyFileCount: 0, containedInIntegration: true, isPrimaryClone: false,
+      path: '/p',
+      branch: 'b',
+      hasUpstream: true,
+      aheadOfRemote: 0,
+      dirtyFileCount: 0,
+      containedInIntegration: true,
+      isPrimaryClone: false,
     });
     expect(parsed.idleHours).toBe(0);
   });
 
-  it("FAIL-SAFE: a caller omitting idleHours REFUSES with recent, never deletes", () => {
-    const v = decideClose(WorktreeCloseInputSchema.parse({
-      path: "/p", branch: "b", hasUpstream: true, aheadOfRemote: 0,
-      dirtyFileCount: 0, containedInIntegration: true, isPrimaryClone: false,
-    }));
-    expect(v.action).toBe("refuse");
-    expect(v.reasons).toContain("recent");
+  it('FAIL-SAFE: a caller omitting idleHours REFUSES with recent, never deletes', () => {
+    const v = decideClose(
+      WorktreeCloseInputSchema.parse({
+        path: '/p',
+        branch: 'b',
+        hasUpstream: true,
+        aheadOfRemote: 0,
+        dirtyFileCount: 0,
+        containedInIntegration: true,
+        isPrimaryClone: false,
+      }),
+    );
+    expect(v.action).toBe('refuse');
+    expect(v.reasons).toContain('recent');
   });
 
-  it("removes a merged, clean, STALE worktree (idle past threshold)", () => {
-    expect(decideClose(REMOVABLE).action).toBe("remove");
+  it('removes a merged, clean, STALE worktree (idle past threshold)', () => {
+    expect(decideClose(REMOVABLE).action).toBe('remove');
   });
 
-  it("REFUSES a merged, clean worktree touched within the idle window", () => {
+  it('REFUSES a merged, clean worktree touched within the idle window', () => {
     const v = decideClose({ ...REMOVABLE, idleHours: 1 });
-    expect(v.action).toBe("refuse");
-    expect(v.reasons).toContain("recent");
+    expect(v.action).toBe('refuse');
+    expect(v.reasons).toContain('recent');
   });
 
-  it("recent refuses even a retired close (active work is active)", () => {
-    const v = decideClose({ ...REMOVABLE, retired: true, containedInIntegration: false, idleHours: 2 });
-    expect(v.action).toBe("refuse");
-    expect(v.reasons).toContain("recent");
+  it('recent refuses even a retired close (active work is active)', () => {
+    const v = decideClose({
+      ...REMOVABLE,
+      retired: true,
+      containedInIntegration: false,
+      idleHours: 2,
+    });
+    expect(v.action).toBe('refuse');
+    expect(v.reasons).toContain('recent');
   });
 
-  it("exactly at the threshold is NOT recent (boundary is strict <)", () => {
+  it('exactly at the threshold is NOT recent (boundary is strict <)', () => {
     const v = decideClose({ ...REMOVABLE, idleHours: RECENT_IDLE_THRESHOLD_HOURS });
-    expect(v.action).toBe("remove");
+    expect(v.action).toBe('remove');
   });
 
-  it("reports recent alongside other loss-risk reasons at once", () => {
+  it('reports recent alongside other loss-risk reasons at once', () => {
     const v = decideClose({ ...REMOVABLE, dirtyFileCount: 3, idleHours: 1 });
-    expect(v.action).toBe("refuse");
-    expect(v.reasons).toContain("recent");
-    expect(v.reasons).toContain("dirty");
+    expect(v.action).toBe('refuse');
+    expect(v.reasons).toContain('recent');
+    expect(v.reasons).toContain('dirty');
   });
 });

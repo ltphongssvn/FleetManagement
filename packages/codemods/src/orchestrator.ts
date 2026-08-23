@@ -34,7 +34,9 @@ export interface RunProjectCodemodOptions {
 }
 
 function isGenerated(sourceFile: SourceFile, filePath: string): boolean {
-  return sourceFile.isDeclarationFile() || sourceFile.isInNodeModules() || filePath.includes('/dist/');
+  return (
+    sourceFile.isDeclarationFile() || sourceFile.isInNodeModules() || filePath.includes('/dist/')
+  );
 }
 
 export function runCodemod(options: RunCodemodOptions): OrchestratorResult {
@@ -62,7 +64,13 @@ export function runCodemod(options: RunCodemodOptions): OrchestratorResult {
       results.push({ filePath, changed: false, error: message });
     }
   }
-  return OrchestratorResultSchema.parse({ dryRun, scanned: results.length, changed, errored, results });
+  return OrchestratorResultSchema.parse({
+    dryRun,
+    scanned: results.length,
+    changed,
+    errored,
+    results,
+  });
 }
 
 export function runProjectCodemod(options: RunProjectCodemodOptions): ProjectOutcome {

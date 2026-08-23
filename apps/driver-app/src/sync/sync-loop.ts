@@ -53,11 +53,19 @@ export interface SyncStateStore {
 
 export type SyncLoopOutcome =
   | { readonly kind: 'idle' }
-  | { readonly kind: 'applied'; readonly newCursor: SyncCursor; readonly transitions: readonly ActionTransition[] }
+  | {
+      readonly kind: 'applied';
+      readonly newCursor: SyncCursor;
+      readonly transitions: readonly ActionTransition[];
+    }
   | { readonly kind: 'cursor_expired_recovered' }
   | { readonly kind: 'protocol_violation'; readonly expected: number; readonly actual: number }
   | { readonly kind: 'transport_failure'; readonly error: Error; readonly rolledBackCount: number }
-  | { readonly kind: 'storage_failure'; readonly error: Error; readonly stage: 'apply_ack' | 'rollback' | 'reset' };
+  | {
+      readonly kind: 'storage_failure';
+      readonly error: Error;
+      readonly stage: 'apply_ack' | 'rollback' | 'reset';
+    };
 
 async function rollbackIfDispatched(
   store: SyncStateStore,
@@ -85,10 +93,7 @@ export async function runSyncOnce(
   transport: SyncTransport,
   store: SyncStateStore,
 ): Promise<SyncLoopOutcome> {
-  const [dispatchable, cursor] = await Promise.all([
-    store.readDispatchable(),
-    store.readCursor(),
-  ]);
+  const [dispatchable, cursor] = await Promise.all([store.readDispatchable(), store.readCursor()]);
   const plan = planSyncRequest(dispatchable, cursor);
 
   // #718: claim before transport so a concurrent runSyncOnce sees these as
@@ -114,7 +119,11 @@ export async function runSyncOnce(
     if (rb.storageError) {
       return { kind: 'storage_failure', error: rb.storageError, stage: 'rollback' };
     }
-    return { kind: 'transport_failure', error: transportError, rolledBackCount: rb.rolledBackCount };
+    return {
+      kind: 'transport_failure',
+      error: transportError,
+      rolledBackCount: rb.rolledBackCount,
+    };
   }
 
   const outcome: AckOutcome = reconcileSyncAck(plan.dispatchedActionIds, response);
@@ -165,7 +174,11 @@ export async function runSyncOnce(
   // equivalent because transitions.length > 0 implies dispatchedActionIds.length > 0
   // (transitions are derived from dispatched), making the third clause dominate.
   // Stryker disable next-line ConditionalExpression: equivalent (transitions implies dispatched)
-  if (outcome.transitions.length === 0 && response.deltas.length === 0 && plan.dispatchedActionIds.length === 0) {
+  if (
+    outcome.transitions.length === 0 &&
+    response.deltas.length === 0 &&
+    plan.dispatchedActionIds.length === 0
+  ) {
     return { kind: 'idle' };
   }
   return { kind: 'applied', newCursor: outcome.newCursor, transitions: outcome.transitions };

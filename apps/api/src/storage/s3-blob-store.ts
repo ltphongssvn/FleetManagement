@@ -53,7 +53,11 @@ export class S3BlobStore implements IBlobStore {
     this.bucket = config.getOrThrow('S3_ARTIFACTS_BUCKET', { infer: true });
     this.publicUrl = config.get('S3_PUBLIC_URL', { infer: true });
   }
-  async presignUpload(input: { key: string; contentType: string; ttlSeconds: number }): Promise<PresignedUpload> {
+  async presignUpload(input: {
+    key: string;
+    contentType: string;
+    ttlSeconds: number;
+  }): Promise<PresignedUpload> {
     const command = new PutObjectCommand({
       Bucket: this.bucket,
       Key: input.key,

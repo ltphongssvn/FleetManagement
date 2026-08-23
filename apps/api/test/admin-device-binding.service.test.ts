@@ -12,28 +12,44 @@ import {
 } from '@fleet/sync-protocol';
 import { AdminDeviceBindingService } from '../src/admin/admin-device-binding.service.js';
 import { deviceRegistry } from '../src/database/schema/device.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 const COMPANY = '00000000-0000-0000-0000-000000000001';
 const OTHER_COMPANY = '00000000-0000-0000-0000-0000000000ff';
-const DEFAULT_QUERY = { status: 'pending' as const, page: 1, pageSize: ADMIN_DEVICE_PAGE_SIZE_DEFAULT };
+const DEFAULT_QUERY = {
+  status: 'pending' as const,
+  page: 1,
+  pageSize: ADMIN_DEVICE_PAGE_SIZE_DEFAULT,
+};
 describe('AdminDeviceBindingService (pglite)', () => {
   let testDb: PgliteTestDb;
   let service: AdminDeviceBindingService;
   let deviceId: string;
   // status typed to the VOCABULARY, not string: the column now declares its enum,
   // so a seed can no longer write a lifecycle state the contract rejects.
-  async function seed(companyId: string, status: DeviceBindingStatus, operatorId: string): Promise<string> {
-    const r = await testDb.db.insert(deviceRegistry).values({
-      companyId,
-      businessUnitId: '00000000-0000-0000-0000-000000000002',
-      depotId: '00000000-0000-0000-0000-000000000003',
-      legalEntityId: '00000000-0000-0000-0000-000000000004',
-      operatorId,
-      platform: 'android',
-      appVersion: '1.0.0',
-      bindingStatus: status,
-    }).returning({ deviceId: deviceRegistry.deviceId });
-    const row = r[0]; if (row === undefined) throw new Error('seed failed');
+  async function seed(
+    companyId: string,
+    status: DeviceBindingStatus,
+    operatorId: string,
+  ): Promise<string> {
+    const r = await testDb.db
+      .insert(deviceRegistry)
+      .values({
+        companyId,
+        businessUnitId: '00000000-0000-0000-0000-000000000002',
+        depotId: '00000000-0000-0000-0000-000000000003',
+        legalEntityId: '00000000-0000-0000-0000-000000000004',
+        operatorId,
+        platform: 'android',
+        appVersion: '1.0.0',
+        bindingStatus: status,
+      })
+      .returning({ deviceId: deviceRegistry.deviceId });
+    const row = r[0];
+    if (row === undefined) throw new Error('seed failed');
     return row.deviceId;
   }
   beforeEach(async () => {
@@ -83,7 +99,11 @@ describe('AdminDeviceBindingService (pglite)', () => {
     const when = new Date();
     await testDb.db
       .update(deviceRegistry)
-      .set({ attestationVerifiedAt: when, attestationSecurityLevel: 'strongbox', attestationEnvironment: 'production' })
+      .set({
+        attestationVerifiedAt: when,
+        attestationSecurityLevel: 'strongbox',
+        attestationEnvironment: 'production',
+      })
       .where(eq(deviceRegistry.deviceId, deviceId));
     const res = await service.list(COMPANY, DEFAULT_QUERY);
     expect(res.data[0]?.attestationVerifiedAt).toBe(when.toISOString());
@@ -91,19 +111,28 @@ describe('AdminDeviceBindingService (pglite)', () => {
   });
   it('activate flips pending to active', async () => {
     await service.setBinding(COMPANY, deviceId, { action: 'activate' });
-    const rows = await testDb.db.select().from(deviceRegistry).where(eq(deviceRegistry.deviceId, deviceId));
+    const rows = await testDb.db
+      .select()
+      .from(deviceRegistry)
+      .where(eq(deviceRegistry.deviceId, deviceId));
     expect(rows[0]?.bindingStatus).toBe('active');
   });
   it('revoke records revoked status, timestamp, and reason', async () => {
     await service.setBinding(COMPANY, deviceId, { action: 'revoke', revokedReason: 'lost device' });
-    const rows = await testDb.db.select().from(deviceRegistry).where(eq(deviceRegistry.deviceId, deviceId));
+    const rows = await testDb.db
+      .select()
+      .from(deviceRegistry)
+      .where(eq(deviceRegistry.deviceId, deviceId));
     expect(rows[0]?.bindingStatus).toBe('revoked');
     expect(rows[0]?.bindingRevokedReason).toBe('lost device');
     expect(rows[0]?.bindingRevokedAt).toBeInstanceOf(Date);
   });
   it('revoke without a reason stores null', async () => {
     await service.setBinding(COMPANY, deviceId, { action: 'revoke' });
-    const rows = await testDb.db.select().from(deviceRegistry).where(eq(deviceRegistry.deviceId, deviceId));
+    const rows = await testDb.db
+      .select()
+      .from(deviceRegistry)
+      .where(eq(deviceRegistry.deviceId, deviceId));
     expect(rows[0]?.bindingStatus).toBe('revoked');
     expect(rows[0]?.bindingRevokedReason).toBeNull();
   });
@@ -118,6 +147,8 @@ describe('AdminDeviceBindingService (pglite)', () => {
   });
   it('setBinding on another company device throws not-found', async () => {
     const otherId = await seed(OTHER_COMPANY, 'pending', '00000000-0000-0000-0000-0000000000c3');
-    await expect(service.setBinding(COMPANY, otherId, { action: 'activate' })).rejects.toThrow(/not found/i);
+    await expect(service.setBinding(COMPANY, otherId, { action: 'activate' })).rejects.toThrow(
+      /not found/i,
+    );
   });
 });

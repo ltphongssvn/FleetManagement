@@ -49,9 +49,9 @@ function formatVerifiedAt(iso: string | null): string {
   return Number.isNaN(d.getTime()) ? 'Chưa xác thực' : d.toLocaleString('vi-VN');
 }
 
-export function DevicesApprovalSection(
-  { client: injected }: { client?: DevicesApprovalClient } = {},
-): JSX.Element {
+export function DevicesApprovalSection({
+  client: injected,
+}: { client?: DevicesApprovalClient } = {}): JSX.Element {
   const [status, setStatus] = useState<DeviceBindingStatus>('pending');
   const [rows, setRows] = useState<readonly AdminDeviceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,24 +59,29 @@ export function DevicesApprovalSection(
   const [busy, setBusy] = useState(false);
   const [client] = useState<DevicesApprovalClient>(() => injected ?? new AdminDevicesClient({}));
 
-  const refresh = useCallback(async (next: DeviceBindingStatus): Promise<void> => {
-    setLoading(true);
-    try {
-      const page = await client.list({ status: next, page: 1, pageSize: PAGE_SIZE });
-      setRows(page.data);
-      setError(null);
-    } catch (e) {
-      if (isSessionExpired(e)) {
-        navigateToSessionRefresh();
-        return;
+  const refresh = useCallback(
+    async (next: DeviceBindingStatus): Promise<void> => {
+      setLoading(true);
+      try {
+        const page = await client.list({ status: next, page: 1, pageSize: PAGE_SIZE });
+        setRows(page.data);
+        setError(null);
+      } catch (e) {
+        if (isSessionExpired(e)) {
+          navigateToSessionRefresh();
+          return;
+        }
+        setError(vnExceptionMessage(e, 'tải danh sách thiết bị thất bại'));
+      } finally {
+        setLoading(false);
       }
-      setError(vnExceptionMessage(e, 'tải danh sách thiết bị thất bại'));
-    } finally {
-      setLoading(false);
-    }
-  }, [client]);
+    },
+    [client],
+  );
 
-  useEffect(() => { void refresh(status); }, [refresh, status]);
+  useEffect(() => {
+    void refresh(status);
+  }, [refresh, status]);
 
   const handleActivate = async (deviceId: string): Promise<void> => {
     setBusy(true);
@@ -144,18 +149,30 @@ export function DevicesApprovalSection(
           <RowActionMenu
             label={'Thao tác cho thiết bị ' + row.platform}
             actions={[
-              ...(row.bindingStatus !== 'active' ? [{
-                key: 'activate',
-                label: 'Duyệt',
-                disabled: busy,
-                onSelect: () => { void handleActivate(row.deviceId); },
-              }] : []),
-              ...(row.bindingStatus !== 'revoked' ? [{
-                key: 'revoke',
-                label: 'Thu hồi',
-                disabled: busy,
-                onSelect: () => { void handleRevoke(row.deviceId); },
-              }] : []),
+              ...(row.bindingStatus !== 'active'
+                ? [
+                    {
+                      key: 'activate',
+                      label: 'Duyệt',
+                      disabled: busy,
+                      onSelect: () => {
+                        void handleActivate(row.deviceId);
+                      },
+                    },
+                  ]
+                : []),
+              ...(row.bindingStatus !== 'revoked'
+                ? [
+                    {
+                      key: 'revoke',
+                      label: 'Thu hồi',
+                      disabled: busy,
+                      onSelect: () => {
+                        void handleRevoke(row.deviceId);
+                      },
+                    },
+                  ]
+                : []),
             ]}
           />
         );
@@ -164,15 +181,17 @@ export function DevicesApprovalSection(
   ];
 
   return (
-    <section aria-label='Duyệt thiết bị' className='space-y-4'>
-      <h3 className='text-lg font-semibold'>Duyệt thiết bị</h3>
-      <div className='flex gap-2'>
+    <section aria-label="Duyệt thiết bị" className="space-y-4">
+      <h3 className="text-lg font-semibold">Duyệt thiết bị</h3>
+      <div className="flex gap-2">
         {FILTERS.map((f) => (
           <button
             key={f.status}
-            type='button'
+            type="button"
             data-testid={'device-filter-' + f.status}
-            onClick={() => { setStatus(f.status); }}
+            onClick={() => {
+              setStatus(f.status);
+            }}
             className={
               f.status === status
                 ? 'rounded-md bg-indigo-600 px-3 py-1 text-sm text-white'
@@ -184,16 +203,20 @@ export function DevicesApprovalSection(
         ))}
       </div>
       {error !== null ? (
-        <div data-testid='devices-section-error' className='text-red-600'>Lỗi: {error}</div>
+        <div data-testid="devices-section-error" className="text-red-600">
+          Lỗi: {error}
+        </div>
       ) : null}
       {loading ? (
-        <div data-testid='devices-section-loading' className='py-4 text-sm text-slate-500'>Đang tải…</div>
+        <div data-testid="devices-section-loading" className="py-4 text-sm text-slate-500">
+          Đang tải…
+        </div>
       ) : (
         <DataTable
           columns={columns}
           data={rows}
-          searchPlaceholder='Tìm thiết bị'
-          emptyLabel='Không có thiết bị'
+          searchPlaceholder="Tìm thiết bị"
+          emptyLabel="Không có thiết bị"
           pageSize={10}
           rowAttrs={(row) => ({ testId: 'device-row-' + row.deviceId })}
         />

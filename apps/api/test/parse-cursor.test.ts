@@ -50,9 +50,7 @@ describe('@fleet/api - parseCursor', () => {
 describe('@fleet/api - clampNonNegative', () => {
   it('returns a positive bigint unchanged (kills ConditionalExpression -> true mutant + ZERO return)', () => {
     expect(clampNonNegative(1n)).toBe(1n);
-    expect(clampNonNegative(123456789012345678901234567890n)).toBe(
-      123456789012345678901234567890n,
-    );
+    expect(clampNonNegative(123456789012345678901234567890n)).toBe(123456789012345678901234567890n);
   });
 
   it('returns 0n unchanged at the boundary (kills ConditionalExpression -> true mutant)', () => {

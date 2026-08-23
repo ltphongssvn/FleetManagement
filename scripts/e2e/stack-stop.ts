@@ -80,7 +80,9 @@ function main(): number {
     process.stderr.write('[stack:stop] no fleet projects running' + NL);
   }
   for (const project of projects) {
-    process.stderr.write('[stack:stop] stopping ' + project + ' (data-safe; volumes + state retained)' + NL);
+    process.stderr.write(
+      '[stack:stop] stopping ' + project + ' (data-safe; volumes + state retained)' + NL,
+    );
     spawnSync('docker', [...stopComposeArgs(project)], { stdio: 'inherit' });
   }
 
@@ -90,7 +92,9 @@ function main(): number {
       '[stack:stop] STOPPED -- restart on demand: pnpm run stack:restart (or stack:up)' + NL,
     );
   } else {
-    process.stderr.write('[stack:stop] INCOMPLETE -- still running: ' + v.survivors.join(', ') + NL);
+    process.stderr.write(
+      '[stack:stop] INCOMPLETE -- still running: ' + v.survivors.join(', ') + NL,
+    );
   }
   return v.exitCode;
 }
@@ -101,8 +105,11 @@ if (isMain) {
     process.exit(main());
   } catch (e) {
     process.stderr.write(
-      '[stack:stop] CANNOT VERIFY -- ' + (e instanceof Error ? e.message : String(e)) + NL +
-      'The Docker daemon is unreachable, so no claim about idle stacks can be made.' + NL,
+      '[stack:stop] CANNOT VERIFY -- ' +
+        (e instanceof Error ? e.message : String(e)) +
+        NL +
+        'The Docker daemon is unreachable, so no claim about idle stacks can be made.' +
+        NL,
     );
     process.exit(1);
   }

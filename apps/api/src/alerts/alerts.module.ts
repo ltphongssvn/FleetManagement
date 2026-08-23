@@ -30,5 +30,4 @@ const alertsWorkerFactoryProvider: Provider = {
   providers: [alertsWorkerFactoryProvider, AlertsConsumerService],
   exports: [AlertsConsumerService],
 })
-
 export class AlertsModule {}

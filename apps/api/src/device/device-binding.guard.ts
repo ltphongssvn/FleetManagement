@@ -69,7 +69,9 @@ export class DeviceBindingGuard implements CanActivate {
   constructor(
     @Inject(DEVICE_BINDING_STATUS_PORT) private readonly port: DeviceBindingStatusPort,
     @Optional() @Inject(DEVICE_BINDING_ENFORCEMENT_CONFIG) config?: DeviceBindingEnforcementConfig,
-    @Optional() @Inject(DEVICE_BINDING_AUDIT_LOGGER) private readonly logger?: DeviceBindingAuditLogger,
+    @Optional()
+    @Inject(DEVICE_BINDING_AUDIT_LOGGER)
+    private readonly logger?: DeviceBindingAuditLogger,
   ) {
     this.config = config ?? OFF_CONFIG;
   }
@@ -97,7 +99,11 @@ export class DeviceBindingGuard implements CanActivate {
   }
   // Central decision for a would-be rejection. In monitor mode the request is
   // ALLOWED and the event logged; in enforce mode it is rejected.
-  private decide(operatorId: string | undefined, code: DeviceBindingProblemCode, message: string): boolean {
+  private decide(
+    operatorId: string | undefined,
+    code: DeviceBindingProblemCode,
+    message: string,
+  ): boolean {
     if (this.config.mode === 'monitor') {
       if (operatorId !== undefined) this.logger?.wouldReject({ operatorId, code });
       return true;

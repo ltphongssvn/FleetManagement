@@ -24,15 +24,21 @@ import { EXTRACTION_FAILURE_REASONS } from './extraction-vocabulary.js';
 import { ProofUrlSchema } from './proof-url.js';
 
 export const STOP_TYPES = ['pickup', 'delivery'] as const;
-export type StopType = typeof STOP_TYPES[number];
+export type StopType = (typeof STOP_TYPES)[number];
 
 // Road-run lifecycle vocabulary. SSOT is @fleet/domain RoadRunStateSchema
 // (packages/domain/src/transport/road-run-state.ts); inlined here (NOT imported)
 // so this contract package stays dependency-free (zod only), matching how the
 // manifest extraction enums are inlined in this same file's neighbours. Kept in
 // lockstep with @fleet/domain by the contract tests.
-export const ROAD_RUN_STATES = ['planned', 'dispatched', 'started', 'completed', 'cancelled'] as const;
-export type RoadRunStateName = typeof ROAD_RUN_STATES[number];
+export const ROAD_RUN_STATES = [
+  'planned',
+  'dispatched',
+  'started',
+  'completed',
+  'cancelled',
+] as const;
+export type RoadRunStateName = (typeof ROAD_RUN_STATES)[number];
 
 /** SSOT for a Phieu Can net-weight VALUE (kg): a finite positive number. One
  *  definition reused by StopProofSchema (read model) and ExtractionResultWire
@@ -59,10 +65,12 @@ export type WeightDiffKg = z.infer<typeof weightDiffKgSchema>;
  *  — so the board column and the exported column share ONE computation and can
  *  never diverge. extractedNetWeightKg is a true blank (null) when unknown, never
  *  0, so an absent weight forces the whole diff to null rather than skewing it. */
-export const WeightDiffStopSchema = z.object({
-  stopType: z.enum(STOP_TYPES),
-  extractedNetWeightKg: z.union([netWeightKgSchema, z.null()]),
-}).strict();
+export const WeightDiffStopSchema = z
+  .object({
+    stopType: z.enum(STOP_TYPES),
+    extractedNetWeightKg: z.union([netWeightKgSchema, z.null()]),
+  })
+  .strict();
 export type WeightDiffStop = z.infer<typeof WeightDiffStopSchema>;
 
 /** SSOT pickup-vs-delivery net-weight difference (kg) for ONE road run, computed
@@ -89,67 +97,67 @@ export function computeWeightDiffKg(stops: readonly WeightDiffStop[]): WeightDif
   return deliveryKg - pickupTotal;
 }
 
-
 /** Proof of capture for a stop: the committed manifest + a presigned GET URL.
  *  .strict(): this is the API-authored outgoing shape, validated server-side. */
-export const StopProofSchema = z.object({
-  manifestId: z.guid(),
-  // ProofUrlSchema, NOT a bare z.url(). Zod documents z.url() as "quite
-  // permissive" -- it delegates to the native URL constructor, so mailto:,
-  // data:, file: and javascript: all parse successfully. Verified against zod
-  // 4.4.3 in this repo rather than assumed: a RED test asserting rejection
-  // failed on every one of them.
-  //
-  // ops-web renders this value directly into an anchor href (board-stops.tsx),
-  // so an unconstrained scheme is stored XSS. The scheme allowlist lives in
-  // proof-url.ts as one definition, so the API-authored outgoing shape and the
-  // ops-web client-parsed shape can never disagree about what is renderable.
-  photoUrl: ProofUrlSchema,
-  capturedAt: z.iso.datetime(),
-  // EXPAND-only (phieu-can net-weight extraction): net goods weight in kg parsed
-  // from the committed Phieu Can by the extraction worker. optional => old
-  // producers omitting the key stay valid; null => extraction pending/failed;
-  // positive number => render kg next to the Phieu Can link.
-  extractedNetWeightKg: z.union([netWeightKgSchema, z.null()]).optional(),
-  // EXPAND-only: extraction lifecycle status so the board renders the four UI
-  // states distinctly — 'pending' (processing) vs 'not_found'/'unreadable'
-  // (needs manual entry) vs 'extracted'/'manual' (has a value). Vocabulary is
-  // the SSOT @fleet/domain manifestExtractionStatusSchema; inlined here (not
-  // imported) to keep the contract package dependency-free. optional => old
-  // producers stay valid.
-  extractionStatus: z
-    .enum(['pending', 'extracted', 'not_found', 'unreadable', 'manual'])
-    .optional(),
-  // EXPAND-only (review queue): the deterministic cause of a non-extracted
-  // outcome, so the board can show WHY (unparseable vs object_missing vs ...)
-  // and filter a dispatcher review queue — not just the bare 'unreadable'
-  // status. Vocabulary is the SSOT @fleet/sync-protocol EXTRACTION_FAILURE_REASONS;
-  // inlined here to keep the contract dependency-free. optional => old producers
-  // stay valid; null => pending/extracted/manual rows carry no reason.
-  extractionReason: z
-    .enum(EXTRACTION_FAILURE_REASONS)
-    .nullable()
-    .optional(),
-}).strict();
+export const StopProofSchema = z
+  .object({
+    manifestId: z.guid(),
+    // ProofUrlSchema, NOT a bare z.url(). Zod documents z.url() as "quite
+    // permissive" -- it delegates to the native URL constructor, so mailto:,
+    // data:, file: and javascript: all parse successfully. Verified against zod
+    // 4.4.3 in this repo rather than assumed: a RED test asserting rejection
+    // failed on every one of them.
+    //
+    // ops-web renders this value directly into an anchor href (board-stops.tsx),
+    // so an unconstrained scheme is stored XSS. The scheme allowlist lives in
+    // proof-url.ts as one definition, so the API-authored outgoing shape and the
+    // ops-web client-parsed shape can never disagree about what is renderable.
+    photoUrl: ProofUrlSchema,
+    capturedAt: z.iso.datetime(),
+    // EXPAND-only (phieu-can net-weight extraction): net goods weight in kg parsed
+    // from the committed Phieu Can by the extraction worker. optional => old
+    // producers omitting the key stay valid; null => extraction pending/failed;
+    // positive number => render kg next to the Phieu Can link.
+    extractedNetWeightKg: z.union([netWeightKgSchema, z.null()]).optional(),
+    // EXPAND-only: extraction lifecycle status so the board renders the four UI
+    // states distinctly — 'pending' (processing) vs 'not_found'/'unreadable'
+    // (needs manual entry) vs 'extracted'/'manual' (has a value). Vocabulary is
+    // the SSOT @fleet/domain manifestExtractionStatusSchema; inlined here (not
+    // imported) to keep the contract package dependency-free. optional => old
+    // producers stay valid.
+    extractionStatus: z
+      .enum(['pending', 'extracted', 'not_found', 'unreadable', 'manual'])
+      .optional(),
+    // EXPAND-only (review queue): the deterministic cause of a non-extracted
+    // outcome, so the board can show WHY (unparseable vs object_missing vs ...)
+    // and filter a dispatcher review queue — not just the bare 'unreadable'
+    // status. Vocabulary is the SSOT @fleet/sync-protocol EXTRACTION_FAILURE_REASONS;
+    // inlined here to keep the contract dependency-free. optional => old producers
+    // stay valid; null => pending/extracted/manual rows carry no reason.
+    extractionReason: z.enum(EXTRACTION_FAILURE_REASONS).nullable().optional(),
+  })
+  .strict();
 export type StopProof = z.infer<typeof StopProofSchema>;
 
 /** One stop as the dispatch board sees it (API-authored outgoing shape, .strict()).
  *  proof === null => no committed photo yet (render arrival status); non-null =>
  *  render the "Phieu Can" link. */
-export const DispatchStopViewSchema = z.object({
-  stopId: z.guid(),
-  sequence: z.number().int().positive(),
-  stopType: z.enum(STOP_TYPES),
-  warehouseName: z.union([z.string(), z.null()]),
-  // Preserved from the pre-existing DispatchBoardStop shape (EXPAND-only): the
-  // board still shows arrival/departure; proof is ADDED, nothing removed, so old
-  // ops-web code stays valid.
-  arrivedAt: z.union([z.iso.datetime(), z.null()]),
-  departedAt: z.union([z.iso.datetime(), z.null()]),
-  // proof === null => no committed manifest for this stop (render arrival status);
-  // non-null => render the "Phieu Can" hyperlink to proof.photoUrl.
-  proof: z.union([StopProofSchema, z.null()]),
-}).strict();
+export const DispatchStopViewSchema = z
+  .object({
+    stopId: z.guid(),
+    sequence: z.number().int().positive(),
+    stopType: z.enum(STOP_TYPES),
+    warehouseName: z.union([z.string(), z.null()]),
+    // Preserved from the pre-existing DispatchBoardStop shape (EXPAND-only): the
+    // board still shows arrival/departure; proof is ADDED, nothing removed, so old
+    // ops-web code stays valid.
+    arrivedAt: z.union([z.iso.datetime(), z.null()]),
+    departedAt: z.union([z.iso.datetime(), z.null()]),
+    // proof === null => no committed manifest for this stop (render arrival status);
+    // non-null => render the "Phieu Can" hyperlink to proof.photoUrl.
+    proof: z.union([StopProofSchema, z.null()]),
+  })
+  .strict();
 export type DispatchStopView = z.infer<typeof DispatchStopViewSchema>;
 
 // ============================================================================

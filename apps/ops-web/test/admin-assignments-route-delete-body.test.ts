@@ -15,7 +15,9 @@ const TOKEN_EP = 'https://kc.example.com/realms/fleet/protocol/openid-connect/to
 const API = 'http://api.internal:3000';
 const MINTED = 'minted.access.token';
 
-interface Ctx { params: Promise<{ id: string }> }
+interface Ctx {
+  params: Promise<{ id: string }>;
+}
 type DeleteHandler = (req: NextRequest, ctx: Ctx) => Promise<NextResponse>;
 
 function seedCookies(map: Record<string, string>): void {
@@ -45,7 +47,8 @@ function fetchStub(): ReturnType<typeof vi.fn> {
 
 function makeDeleteReq(payload: string): NextRequest {
   return new NextRequest(
-    new URL('https://ops.example.com/api/admin/driver-vehicle-assignments/a1'), {
+    new URL('https://ops.example.com/api/admin/driver-vehicle-assignments/a1'),
+    {
       method: 'DELETE',
       body: payload,
       headers: { 'content-type': 'application/json' },
@@ -70,14 +73,15 @@ describe('/api/admin/driver-vehicle-assignments/[id] DELETE rides the seam with 
     seedCookies({ fleet_session: 'live-token' });
     const fetchMock = fetchStub();
     vi.stubGlobal('fetch', fetchMock);
-    const { DELETE } = (await import(
-      '@/app/api/admin/driver-vehicle-assignments/[id]/route'
-    )) as unknown as { DELETE: DeleteHandler };
+    const { DELETE } =
+      (await import('@/app/api/admin/driver-vehicle-assignments/[id]/route')) as unknown as {
+        DELETE: DeleteHandler;
+      };
     const payload = JSON.stringify({ reason: 'driver reassigned to new truck' });
     const res = await DELETE(makeDeleteReq(payload), ctx);
     expect(res.status).toBe(200);
-    const call = fetchMock.mock.calls.find(
-      (c) => String(c[0]).includes('/admin/driver-vehicle-assignments/a1'),
+    const call = fetchMock.mock.calls.find((c) =>
+      String(c[0]).includes('/admin/driver-vehicle-assignments/a1'),
     );
     expect(call).toBeDefined();
     const init = (call as unknown[])[1] as RequestInit;
@@ -90,14 +94,15 @@ describe('/api/admin/driver-vehicle-assignments/[id] DELETE rides the seam with 
     seedCookies({ fleet_refresh: 'old-rt' });
     const fetchMock = fetchStub();
     vi.stubGlobal('fetch', fetchMock);
-    const { DELETE } = (await import(
-      '@/app/api/admin/driver-vehicle-assignments/[id]/route'
-    )) as unknown as { DELETE: DeleteHandler };
+    const { DELETE } =
+      (await import('@/app/api/admin/driver-vehicle-assignments/[id]/route')) as unknown as {
+        DELETE: DeleteHandler;
+      };
     const payload = JSON.stringify({ reason: 'xe hong, thu hoi phan cong' });
     const res = await DELETE(makeDeleteReq(payload), ctx);
     expect(res.status).toBe(200);
-    const backend = fetchMock.mock.calls.find(
-      (c) => String(c[0]).includes('/admin/driver-vehicle-assignments/a1'),
+    const backend = fetchMock.mock.calls.find((c) =>
+      String(c[0]).includes('/admin/driver-vehicle-assignments/a1'),
     );
     expect(backend).toBeDefined();
     const init = (backend as unknown[])[1] as RequestInit;

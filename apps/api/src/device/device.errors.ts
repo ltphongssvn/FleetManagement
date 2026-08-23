@@ -9,7 +9,10 @@ export class DomainError extends Error {
 }
 
 export class SessionAlreadyActiveError extends DomainError {
-  constructor(public readonly operatorId: string, public readonly surface: string) {
+  constructor(
+    public readonly operatorId: string,
+    public readonly surface: string,
+  ) {
     super(`Mutating session already active for operator=${operatorId} surface=${surface}`);
   }
 }

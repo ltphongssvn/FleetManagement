@@ -37,12 +37,12 @@ const DIRTY = createWorktreeState({ path: '/c/b', dirtyFileCount: 2 });
 const SRC = digestOf('worktree /c/a');
 const NL = String.fromCharCode(10);
 
-function streamsFor(
-  ...states: readonly ReturnType<typeof createWorktreeState>[]
-): EstateStreams {
-  return estateStreams(runEstateVerify({
-    gather: () => observedFixture(states, SRC),
-  }));
+function streamsFor(...states: readonly ReturnType<typeof createWorktreeState>[]): EstateStreams {
+  return estateStreams(
+    runEstateVerify({
+      gather: () => observedFixture(states, SRC),
+    }),
+  );
 }
 
 /** The lines actually written, with the trailing newline removed. */
@@ -63,13 +63,16 @@ describe('stdout carries EXACTLY one line, and it is JSON', () => {
   // unobservable reason is covered without anyone remembering to add it.
   it('writes one line for every unobservable outcome', () => {
     for (const reason of UNOBSERVABLE_REASONS) {
-      const s = estateStreams(runEstateVerify({
-        // git-failed carries NO source digest: there was no porcelain to
-        // address, and claiming one would fabricate provenance.
-        gather: () => (reason === 'git-failed'
-          ? unobservableFixture(reason)
-          : unobservableFixture(reason, SRC)),
-      }));
+      const s = estateStreams(
+        runEstateVerify({
+          // git-failed carries NO source digest: there was no porcelain to
+          // address, and claiming one would fabricate provenance.
+          gather: () =>
+            reason === 'git-failed'
+              ? unobservableFixture(reason)
+              : unobservableFixture(reason, SRC),
+        }),
+      );
       expect(lines(s.stdout)).toHaveLength(1);
     }
   });
@@ -77,9 +80,13 @@ describe('stdout carries EXACTLY one line, and it is JSON', () => {
   // The fail-closed boundary must not break the line contract either: a crash
   // still emits one event, because silence would read as consent.
   it('writes one line even when the classifier throws', () => {
-    const s = estateStreams(runEstateVerify({
-      gather: () => { throw new Error('boom'); },
-    }));
+    const s = estateStreams(
+      runEstateVerify({
+        gather: () => {
+          throw new Error('boom');
+        },
+      }),
+    );
     expect(lines(s.stdout)).toHaveLength(1);
   });
 
@@ -96,11 +103,12 @@ describe('stdout carries EXACTLY one line, and it is JSON', () => {
   // which is why the event is serialised, never assembled by hand.
   it('escapes a branch name that would otherwise split the line', () => {
     const awkward = createWorktreeState({
-      path: '/c/odd', branch: 'feat/"quoted"', dirtyFileCount: 1,
+      path: '/c/odd',
+      branch: 'feat/"quoted"',
+      dirtyFileCount: 1,
     });
     expect(lines(streamsFor(awkward).stdout)).toHaveLength(1);
-    expect(EstateEventSchema.safeParse(JSON.parse(streamsFor(awkward).stdout)).success)
-      .toBe(true);
+    expect(EstateEventSchema.safeParse(JSON.parse(streamsFor(awkward).stdout)).success).toBe(true);
   });
 });
 
@@ -139,9 +147,12 @@ describe('stderr is commentary, and --quiet silences only that', () => {
   });
 
   it('writes NOTHING to stderr under --quiet', () => {
-    const s = estateStreams(runEstateVerify({
-      gather: () => observedFixture([CLEAN], SRC),
-    }), true);
+    const s = estateStreams(
+      runEstateVerify({
+        gather: () => observedFixture([CLEAN], SRC),
+      }),
+      true,
+    );
     expect(s.stderr).toBe('');
   });
 
@@ -149,9 +160,12 @@ describe('stderr is commentary, and --quiet silences only that', () => {
   // would be indistinguishable from one that never happened -- the confident
   // zero this whole task exists to refuse.
   it('still writes the event to stdout under --quiet', () => {
-    const s = estateStreams(runEstateVerify({
-      gather: () => observedFixture([CLEAN], SRC),
-    }), true);
+    const s = estateStreams(
+      runEstateVerify({
+        gather: () => observedFixture([CLEAN], SRC),
+      }),
+      true,
+    );
     expect(lines(s.stdout)).toHaveLength(1);
     expect(EstateEventSchema.safeParse(JSON.parse(s.stdout)).success).toBe(true);
   });
@@ -201,15 +215,23 @@ describe('a control character cannot reach either stream', () => {
   // The published shape, not only the input shape: body.problems is what a
   // subscriber reads and what the sentence is built from.
   it('REJECTS a published problem whose branch carries an ESC byte', () => {
-    expect(EstateProblemSchema.safeParse({
-      path: '/c/a', branch: 'feat/' + ESC + '[2J', reasons: ['dirty'],
-    }).success).toBe(false);
+    expect(
+      EstateProblemSchema.safeParse({
+        path: '/c/a',
+        branch: 'feat/' + ESC + '[2J',
+        reasons: ['dirty'],
+      }).success,
+    ).toBe(false);
   });
 
   it('accepts a published problem with an ordinary branch', () => {
-    expect(EstateProblemSchema.safeParse({
-      path: '/c/a', branch: 'feat/x', reasons: ['dirty'],
-    }).success).toBe(true);
+    expect(
+      EstateProblemSchema.safeParse({
+        path: '/c/a',
+        branch: 'feat/x',
+        reasons: ['dirty'],
+      }).success,
+    ).toBe(true);
   });
 
   // The end-to-end property: neither stream can carry an escape, because no

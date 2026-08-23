@@ -35,23 +35,27 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readTurboTasks } from '@fleet/test-fixtures';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const read = (rel: string): string => readFileSync(resolve(repoRoot, rel), 'utf8');
 const NL = String.fromCharCode(10);
 
-/** turbo.jsonc is JSONC; strip whole-line comments before parsing. Line
- *  comments only -- the task map uses no block comments. */
-function parseJsonc(src: string): { tasks: Record<string, { dependsOn?: string[] }> } {
-  const stripped = src.split(NL).filter((l) => !l.trimStart().startsWith('//')).join(NL);
-  return JSON.parse(stripped) as { tasks: Record<string, { dependsOn?: string[] }> };
-}
-
 /** Package tasks that declare an upstream-BUILD edge, so their inputs are other
  *  packages' emitted artifacts rather than source. Root tasks (//#) and
- *  orchestration nodes (__ci__) are excluded: they are not per-package lanes. */
+ *  orchestration nodes (__ci__) are excluded: they are not per-package lanes.
+ *
+ *  PARSING (2026-08-23). This carried its own JSONC reader -- strip every line
+ *  whose first token is //, then JSON.parse -- the FIFTH copy of that bug and
+ *  the only one outside scripts/. It deleted all 47 turbo root-task definitions
+ *  before parsing, since a //# task name opens with the same two characters as
+ *  a line comment, and this guard then filtered those names out again, hiding
+ *  the damage. Prettier's committed trailingComma:"all" made JSON.parse throw
+ *  and surfaced it. Now the shared @fleet/test-fixtures reader, which uses
+ *  TypeScript's own JSONC parser -- imported BY PACKAGE NAME, never by a
+ *  relative path across the workspace boundary. */
 function tasksRequiringUpstreamBuild(): readonly string[] {
-  const { tasks } = parseJsonc(read('turbo.jsonc'));
+  const tasks = readTurboTasks(resolve(repoRoot, 'turbo.jsonc'));
   return Object.entries(tasks)
     .filter(([, cfg]) => (cfg.dependsOn ?? []).includes('^build'))
     .map(([name]) => name)
@@ -64,8 +68,13 @@ function tasksRequiringUpstreamBuild(): readonly string[] {
  *  boundary so `run lint` and `present lint` match while `commitlint` does
  *  not -- the same weak-matcher trap that bit the comment-vs-code gates. */
 function invokesTask(entry: string, task: string): boolean {
-  const escaped = task.replace(/[.*+?^${}()|[\]\\]/g, String.fromCharCode(92) + 'function hookEntries(): readonly string[] {');
-  return new RegExp('(^|[\\s])' + escaped + '([\\s;' + String.fromCharCode(39) + '\\"]|$)').test(entry);
+  const escaped = task.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    String.fromCharCode(92) + 'function hookEntries(): readonly string[] {',
+  );
+  return new RegExp('(^|[\\s])' + escaped + '([\\s;' + String.fromCharCode(39) + '\\"]|$)').test(
+    entry,
+  );
 }
 function hookEntries(): readonly string[] {
   return read('.pre-commit-config.yaml')

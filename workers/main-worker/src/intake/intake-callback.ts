@@ -24,7 +24,11 @@ export interface FetchIntakeCallbackConfig {
 }
 export class FetchIntakeCallback implements IntakeCallback {
   constructor(private readonly config: FetchIntakeCallbackConfig) {}
-  async finalize(input: { uploadSessionId: string; accepted: boolean; rejectionReasonCode?: string }): Promise<void> {
+  async finalize(input: {
+    uploadSessionId: string;
+    accepted: boolean;
+    rejectionReasonCode?: string;
+  }): Promise<void> {
     const token = await this.config.bearerToken();
     const fetchFn = this.config.fetchFn ?? globalThis.fetch;
     const res = await fetchFn(this.config.apiUrl + '/upload/intake-result', {

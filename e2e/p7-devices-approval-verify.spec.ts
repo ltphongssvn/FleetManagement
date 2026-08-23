@@ -23,11 +23,11 @@ const ENVELOPE_KEYS: readonly [string, string][] = [
 ];
 
 test.describe('P7 devices approval queue (live-stack DoD) @smoke', () => {
-  test('happy path: BFF returns the typed paginated envelope for the pending queue', async ({ page }) => {
+  test('happy path: BFF returns the typed paginated envelope for the pending queue', async ({
+    page,
+  }) => {
     await loginAs(page);
-    const res = await page.request.get(
-      '/api/admin/devices?status=pending&page=1&pageSize=20',
-    );
+    const res = await page.request.get('/api/admin/devices?status=pending&page=1&pageSize=20');
     expect(res.status()).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
     expect(Array.isArray(body['data'])).toBe(true);
@@ -39,11 +39,11 @@ test.describe('P7 devices approval queue (live-stack DoD) @smoke', () => {
     expect(body['pageSize']).toBe(20);
   });
 
-  test('business logic: the status filter is honored (active queue is a valid page)', async ({ page }) => {
+  test('business logic: the status filter is honored (active queue is a valid page)', async ({
+    page,
+  }) => {
     await loginAs(page);
-    const res = await page.request.get(
-      '/api/admin/devices?status=active&page=1&pageSize=20',
-    );
+    const res = await page.request.get('/api/admin/devices?status=active&page=1&pageSize=20');
     expect(res.status()).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
     expect(Array.isArray(body['data'])).toBe(true);
@@ -51,20 +51,18 @@ test.describe('P7 devices approval queue (live-stack DoD) @smoke', () => {
 
   test('authz negative: the BFF rejects an unauthenticated request', async ({ request }) => {
     // No loginAs: a bare APIRequestContext carries no fleet_session cookie.
-    const res = await request.get(
-      '/api/admin/devices?status=pending&page=1&pageSize=20',
-    );
+    const res = await request.get('/api/admin/devices?status=pending&page=1&pageSize=20');
     expect(res.status()).toBe(401);
   });
 
-  test('the admin page renders the Thiet bi devices section with its pending tab', async ({ page }) => {
+  test('the admin page renders the Thiet bi devices section with its pending tab', async ({
+    page,
+  }) => {
     await loginAs(page);
     await page.goto('/admin/co-so-du-lieu');
-    await expect(
-      page.getByRole('heading', { name: 'Thiết bị', exact: true }),
-    ).toBeVisible({ timeout: 15_000 });
-    await expect(
-      page.getByRole('button', { name: 'Chờ duyệt' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Thiết bị', exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole('button', { name: 'Chờ duyệt' })).toBeVisible();
   });
 });

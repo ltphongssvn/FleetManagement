@@ -31,8 +31,7 @@ const OIDC_E2E_ENV = {
     process.env['OIDC_TOKEN_ENDPOINT'] ??
     'https://kc.e2e.example/realms/fleet/protocol/openid-connect/token',
   OIDC_CLIENT_ID: process.env['OIDC_CLIENT_ID'] ?? 'ops-web',
-  OIDC_REDIRECT_URI:
-    process.env['OIDC_REDIRECT_URI'] ?? 'http://localhost:3001/api/auth/callback',
+  OIDC_REDIRECT_URI: process.env['OIDC_REDIRECT_URI'] ?? 'http://localhost:3001/api/auth/callback',
   OIDC_DISPATCH_ACR_VALUES: process.env['OIDC_DISPATCH_ACR_VALUES'] ?? 'aal3',
 } as const;
 // Ensure the test process itself can read OIDC_AUTHORIZATION_ENDPOINT (the spec
@@ -60,9 +59,7 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
-  projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-  ],
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {

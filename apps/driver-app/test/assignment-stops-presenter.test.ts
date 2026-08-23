@@ -33,10 +33,30 @@ import { createListAssignedStop } from '@fleet/test-fixtures';
 import { presentAssignmentStops } from '../src/assignments/assignment-stops-presenter.js';
 import type { StopRow } from '../src/assignments/assignments-client.js';
 const stops: readonly StopRow[] = [
-  createListAssignedStop({ sequence: 1, stopType: 'pickup', plannedAt: '2026-05-10T08:00:00Z', warehouseName: 'Kho nhận 1' }),
-  createListAssignedStop({ sequence: 2, stopType: 'pickup', plannedAt: '2026-05-10T09:00:00Z', warehouseName: 'Kho nhận 2' }),
-  createListAssignedStop({ sequence: 3, stopType: 'pickup', plannedAt: null, warehouseName: 'Kho nhận 3' }),
-  createListAssignedStop({ sequence: 4, stopType: 'delivery', plannedAt: '2026-05-10T14:00:00Z', warehouseName: 'Kho giao' }),
+  createListAssignedStop({
+    sequence: 1,
+    stopType: 'pickup',
+    plannedAt: '2026-05-10T08:00:00Z',
+    warehouseName: 'Kho nhận 1',
+  }),
+  createListAssignedStop({
+    sequence: 2,
+    stopType: 'pickup',
+    plannedAt: '2026-05-10T09:00:00Z',
+    warehouseName: 'Kho nhận 2',
+  }),
+  createListAssignedStop({
+    sequence: 3,
+    stopType: 'pickup',
+    plannedAt: null,
+    warehouseName: 'Kho nhận 3',
+  }),
+  createListAssignedStop({
+    sequence: 4,
+    stopType: 'delivery',
+    plannedAt: '2026-05-10T14:00:00Z',
+    warehouseName: 'Kho giao',
+  }),
 ];
 describe('presentAssignmentStops (multi-stop parity)', () => {
   it('produces one row per stop in sequence order', () => {
@@ -53,15 +73,24 @@ describe('presentAssignmentStops (multi-stop parity)', () => {
   });
   it('shows the warehouse name, falling back to a placeholder when null', () => {
     const vm = presentAssignmentStops([
-      createListAssignedStop({ sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: null }),
+      createListAssignedStop({
+        sequence: 1,
+        stopType: 'pickup',
+        plannedAt: null,
+        warehouseName: null,
+      }),
     ]);
     expect(vm[0]?.warehouseName).toBe('— Chưa có kho —');
   });
   it('marks a stop completed when departedAt is set', () => {
     const vm = presentAssignmentStops([
       createListAssignedStop({
-        sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: 'Kho A',
-        arrivedAt: '2026-05-10T08:30:00Z', departedAt: '2026-05-10T08:45:00Z',
+        sequence: 1,
+        stopType: 'pickup',
+        plannedAt: null,
+        warehouseName: 'Kho A',
+        arrivedAt: '2026-05-10T08:30:00Z',
+        departedAt: '2026-05-10T08:45:00Z',
       }),
     ]);
     expect(vm[0]?.done).toBe(true);
@@ -72,9 +101,24 @@ describe('presentAssignmentStops (multi-stop parity)', () => {
   });
   it('numbers pickups independently of delivery interleaving', () => {
     const interleaved: readonly StopRow[] = [
-      createListAssignedStop({ sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: 'P1' }),
-      createListAssignedStop({ sequence: 2, stopType: 'delivery', plannedAt: null, warehouseName: 'D1' }),
-      createListAssignedStop({ sequence: 3, stopType: 'pickup', plannedAt: null, warehouseName: 'P2' }),
+      createListAssignedStop({
+        sequence: 1,
+        stopType: 'pickup',
+        plannedAt: null,
+        warehouseName: 'P1',
+      }),
+      createListAssignedStop({
+        sequence: 2,
+        stopType: 'delivery',
+        plannedAt: null,
+        warehouseName: 'D1',
+      }),
+      createListAssignedStop({
+        sequence: 3,
+        stopType: 'pickup',
+        plannedAt: null,
+        warehouseName: 'P2',
+      }),
     ];
     const vm = presentAssignmentStops(interleaved);
     expect(vm.map((r) => r.label)).toEqual(['Kho nhận hàng 1', 'Kho giao hàng', 'Kho nhận hàng 2']);
@@ -98,9 +142,24 @@ describe('presentAssignmentStops (multi-stop parity)', () => {
   });
   it('keeps loading stopIndex aligned to pickup order under interleaving', () => {
     const interleaved: readonly StopRow[] = [
-      createListAssignedStop({ sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: 'P1' }),
-      createListAssignedStop({ sequence: 2, stopType: 'delivery', plannedAt: null, warehouseName: 'D1' }),
-      createListAssignedStop({ sequence: 3, stopType: 'pickup', plannedAt: null, warehouseName: 'P2' }),
+      createListAssignedStop({
+        sequence: 1,
+        stopType: 'pickup',
+        plannedAt: null,
+        warehouseName: 'P1',
+      }),
+      createListAssignedStop({
+        sequence: 2,
+        stopType: 'delivery',
+        plannedAt: null,
+        warehouseName: 'D1',
+      }),
+      createListAssignedStop({
+        sequence: 3,
+        stopType: 'pickup',
+        plannedAt: null,
+        warehouseName: 'P2',
+      }),
     ];
     const vm = presentAssignmentStops(interleaved);
     expect(vm[0]?.stopKind).toBe('loading');

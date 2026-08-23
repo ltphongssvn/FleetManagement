@@ -9,7 +9,10 @@
 // fast getApiUrl precedent.
 const COMPOSE_HOST = 'http://api:3000';
 
-interface ApiUrlEnv { FLEET_API_URL?: string | undefined; NODE_ENV?: string | undefined }
+interface ApiUrlEnv {
+  FLEET_API_URL?: string | undefined;
+  NODE_ENV?: string | undefined;
+}
 
 export function getApiUrl(env: ApiUrlEnv = process.env): string {
   const configured = env.FLEET_API_URL;

@@ -4,7 +4,10 @@
 // thin React wrapper (see use-trip-history.tsx) and, like use-auth.tsx, is
 // not unit-tested; all testable logic lives here.
 import { describe, it, expect, vi } from 'vitest';
-import { TRIP_HISTORY_QUERY_KEY, makeTripHistoryQueryFn } from '../src/assignments/trip-history-query.js';
+import {
+  TRIP_HISTORY_QUERY_KEY,
+  makeTripHistoryQueryFn,
+} from '../src/assignments/trip-history-query.js';
 import type { TripHistoryMonth } from '../src/assignments/assignments-client.js';
 describe('TRIP_HISTORY_QUERY_KEY', () => {
   it('is a stable array key for the trip-history cache entry', () => {

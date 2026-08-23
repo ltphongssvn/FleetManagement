@@ -44,16 +44,18 @@ export async function appendTriWrite(
   };
 
   if (params.idempotent === true) {
-    const inserted = await tx.insert(syncChangeFeed).values({
-      ...tenancy,
-      serverSeq: params.serverSeq,
-      actionId: params.actionId,
-      aggregateType: params.aggregateType,
-      aggregateId: params.aggregateId,
-      delta: params.delta,
-    })
-    .onConflictDoNothing({ target: syncChangeFeed.actionId })
-    .returning({ feedId: syncChangeFeed.feedId });
+    const inserted = await tx
+      .insert(syncChangeFeed)
+      .values({
+        ...tenancy,
+        serverSeq: params.serverSeq,
+        actionId: params.actionId,
+        aggregateType: params.aggregateType,
+        aggregateId: params.aggregateId,
+        delta: params.delta,
+      })
+      .onConflictDoNothing({ target: syncChangeFeed.actionId })
+      .returning({ feedId: syncChangeFeed.feedId });
     if (inserted.length === 0) return { duplicate: true };
   } else {
     await tx.insert(syncChangeFeed).values({

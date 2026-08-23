@@ -71,7 +71,16 @@ function useAuthEngine(): UseAuthResult {
       scopes: [...cfg.scopes],
       usePKCE: cfg.usePKCE,
     },
-    { authorizationEndpoint: cfg.discoveryUrl.replace('/.well-known/openid-configuration', '/protocol/openid-connect/auth'), tokenEndpoint: cfg.discoveryUrl.replace('/.well-known/openid-configuration', '/protocol/openid-connect/token') },
+    {
+      authorizationEndpoint: cfg.discoveryUrl.replace(
+        '/.well-known/openid-configuration',
+        '/protocol/openid-connect/auth',
+      ),
+      tokenEndpoint: cfg.discoveryUrl.replace(
+        '/.well-known/openid-configuration',
+        '/protocol/openid-connect/token',
+      ),
+    },
   );
 
   useEffect(() => {
@@ -92,7 +101,10 @@ function useAuthEngine(): UseAuthResult {
         setState({ status: 'unauthenticated', error: 'Đăng nhập bị hủy' });
         return;
       }
-      const tokenEndpoint = cfg.discoveryUrl.replace('/.well-known/openid-configuration', '/protocol/openid-connect/token');
+      const tokenEndpoint = cfg.discoveryUrl.replace(
+        '/.well-known/openid-configuration',
+        '/protocol/openid-connect/token',
+      );
       const tokenResult = await exchangeCodeAsync(
         {
           clientId: cfg.clientId,
@@ -102,11 +114,17 @@ function useAuthEngine(): UseAuthResult {
         },
         { tokenEndpoint },
       );
-      const stored: StoredToken = { accessToken: tokenResult.accessToken, issuedAt: Math.floor(Date.now() / 1000) };
+      const stored: StoredToken = {
+        accessToken: tokenResult.accessToken,
+        issuedAt: Math.floor(Date.now() / 1000),
+      };
       await saveToken(stored);
       setState({ status: 'authenticated', error: null });
     } catch (e) {
-      setState({ status: 'unauthenticated', error: e instanceof Error ? e.message : 'Lỗi đăng nhập' });
+      setState({
+        status: 'unauthenticated',
+        error: e instanceof Error ? e.message : 'Lỗi đăng nhập',
+      });
     }
   }, [promptAsync, cfg, request]);
 

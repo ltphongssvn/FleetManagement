@@ -33,7 +33,14 @@ import bcrypt from 'bcryptjs';
 import { sql } from 'drizzle-orm';
 import type { FleetDb } from '../database.module.js';
 import { normalizeDisplayName } from '@fleet/domain';
-import { driver, vehicle, customer, cargoType, warehouse, orderSequence } from '../schema/reference.js';
+import {
+  driver,
+  vehicle,
+  customer,
+  cargoType,
+  warehouse,
+  orderSequence,
+} from '../schema/reference.js';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 const TENANCY = {
   companyId: COMPANY_ID,
@@ -84,21 +91,50 @@ const TRUCKS: readonly { plate: string; driverName: string | null }[] = [
   { plate: '70H 08777', driverName: 'MAI HIỀN DIỆU' },
 ];
 const PICKUP_WAREHOUSES: readonly string[] = [
-  'Cần Thơ', 'Chơn Chính', 'Cường Thắng ( Cần Thơ )', 'Cường Thắng ( Kiến Tường )',
-  'Đức Tài', 'Hậu Thạnh Đông', 'Hiệp Hưng ( Tam Nông )',
-  'Lương Thực ( Bình Minh Đồng Tháp )', 'Lương Thực ( Đồng Tháp )',
-  'Lương Thực ( Lai Vung Đồng Tháp )', 'Lương Thực ( Thanh Bình ĐT )',
-  'Lương Thực 1 ( Đồng Tháp )', 'Mecofood', 'Mêkong ( Lai Vung )',
-  'Mêkong ( Lấp Vò )', 'Mêkong ( Tiền Giang )', 'Mêkong + Quân Thụy ( Lai Vung )',
-  'Ngọc Phương Nam', 'Ngôi Sao', 'Phú An ( Lương Thực Miền Bắc Đồng Tháp )',
-  'Phú An ( Mêkong Lai Vung )', 'Quân Thuỵ ( Đồng Tháp )', 'Quốc Doanh 1',
-  'Quốc Doanh 2', 'T&T ( Cần Thơ )', 'T&T ( Sa Đéc )', 'Tam Lộc',
-  'Tâm Thành Phát ( Cái Bè )', 'Thốt Nốt', 'Trí Mai', 'Út Hạnh',
-  'Vĩnh Hưng', 'XN Tân Thạnh',
+  'Cần Thơ',
+  'Chơn Chính',
+  'Cường Thắng ( Cần Thơ )',
+  'Cường Thắng ( Kiến Tường )',
+  'Đức Tài',
+  'Hậu Thạnh Đông',
+  'Hiệp Hưng ( Tam Nông )',
+  'Lương Thực ( Bình Minh Đồng Tháp )',
+  'Lương Thực ( Đồng Tháp )',
+  'Lương Thực ( Lai Vung Đồng Tháp )',
+  'Lương Thực ( Thanh Bình ĐT )',
+  'Lương Thực 1 ( Đồng Tháp )',
+  'Mecofood',
+  'Mêkong ( Lai Vung )',
+  'Mêkong ( Lấp Vò )',
+  'Mêkong ( Tiền Giang )',
+  'Mêkong + Quân Thụy ( Lai Vung )',
+  'Ngọc Phương Nam',
+  'Ngôi Sao',
+  'Phú An ( Lương Thực Miền Bắc Đồng Tháp )',
+  'Phú An ( Mêkong Lai Vung )',
+  'Quân Thuỵ ( Đồng Tháp )',
+  'Quốc Doanh 1',
+  'Quốc Doanh 2',
+  'T&T ( Cần Thơ )',
+  'T&T ( Sa Đéc )',
+  'Tam Lộc',
+  'Tâm Thành Phát ( Cái Bè )',
+  'Thốt Nốt',
+  'Trí Mai',
+  'Út Hạnh',
+  'Vĩnh Hưng',
+  'XN Tân Thạnh',
 ];
 const DELIVERY_WAREHOUSES: readonly string[] = [
-  'ĐA NĂNG', 'ĐẠI THÀNH', 'DƯƠNG VŨ', '8 ĐẠT', 'CHỢ GẠO', 'ĐẠI HỮU',
-  'HIỀN NGUYỄN', '8 TẺO', '3 ĐỰC',
+  'ĐA NĂNG',
+  'ĐẠI THÀNH',
+  'DƯƠNG VŨ',
+  '8 ĐẠT',
+  'CHỢ GẠO',
+  'ĐẠI HỮU',
+  'HIỀN NGUYỄN',
+  '8 TẺO',
+  '3 ĐỰC',
 ];
 const CARGO_TYPES: readonly string[] = ['TẤM', 'CHI', 'CÁM', 'GẠO', 'TRẤU', 'XI MĂNG'];
 const CUSTOMERS: readonly string[] = ['ĐA NĂNG', 'ĐẠI THÀNH'];
@@ -118,25 +154,31 @@ export async function seedReference(db: FleetDb, opts: SeedOptions = {}): Promis
     // Upsert on the (company_id, phone) unique constraint so a pre-existing
     // row with a stale password hash is corrected on every boot — the seed
     // is authoritative for the pilot login driver's credentials.
-    await db.insert(driver).values({
-      ...TENANCY,
-      fullName,
-      phone: d.phone,
-      passwordHash,
-      operatorId: d.operatorId,
-    }).onConflictDoUpdate({
-      // The phone index became PARTIAL (WHERE active = true AND phone IS NOT
-      // NULL) in migration 20260810180000, and Postgres only infers a partial
-      // index as the arbiter when the statement predicate IMPLIES the index
-      // predicate. Without targetWhere this upsert raised 42P10 at boot -- a
-      // pre-existing line broken by the index change, not by this seed.
-      target: [driver.companyId, driver.phone],
-      targetWhere: sql`active = true AND phone IS NOT NULL`,
-      set: { fullName, passwordHash, operatorId: d.operatorId, active: true },
-    });
+    await db
+      .insert(driver)
+      .values({
+        ...TENANCY,
+        fullName,
+        phone: d.phone,
+        passwordHash,
+        operatorId: d.operatorId,
+      })
+      .onConflictDoUpdate({
+        // The phone index became PARTIAL (WHERE active = true AND phone IS NOT
+        // NULL) in migration 20260810180000, and Postgres only infers a partial
+        // index as the arbiter when the statement predicate IMPLIES the index
+        // predicate. Without targetWhere this upsert raised 42P10 at boot -- a
+        // pre-existing line broken by the index change, not by this seed.
+        target: [driver.companyId, driver.phone],
+        targetWhere: sql`active = true AND phone IS NOT NULL`,
+        set: { fullName, passwordHash, operatorId: d.operatorId, active: true },
+      });
   }
   for (const t of TRUCKS) {
-    await db.insert(vehicle).values({ ...TENANCY, plate: t.plate, vehicleType: 'box_truck' }).onConflictDoNothing();
+    await db
+      .insert(vehicle)
+      .values({ ...TENANCY, plate: t.plate, vehicleType: 'box_truck' })
+      .onConflictDoNothing();
     if (t.driverName) {
       // Normalize before writing; BARE do-nothing on purpose. The name index is
       // an EXPRESSION index over the canonical fold, and Postgres infers the
@@ -149,22 +191,38 @@ export async function seedReference(db: FleetDb, opts: SeedOptions = {}): Promis
       // correct only once both sides are canonical: the original defect was
       // never a missing target, it was that the twin violated NOTHING because
       // the keys differed.
-      await db.insert(driver)
+      await db
+        .insert(driver)
         .values({ ...TENANCY, fullName: normalizeDisplayName(t.driverName) })
         .onConflictDoNothing();
     }
   }
   for (const w of PICKUP_WAREHOUSES) {
-    await db.insert(warehouse).values({ ...TENANCY, name: w, role: 'pickup' }).onConflictDoNothing();
+    await db
+      .insert(warehouse)
+      .values({ ...TENANCY, name: w, role: 'pickup' })
+      .onConflictDoNothing();
   }
   for (const w of DELIVERY_WAREHOUSES) {
-    await db.insert(warehouse).values({ ...TENANCY, name: w, role: 'delivery' }).onConflictDoNothing();
+    await db
+      .insert(warehouse)
+      .values({ ...TENANCY, name: w, role: 'delivery' })
+      .onConflictDoNothing();
   }
   for (const c of CARGO_TYPES) {
-    await db.insert(cargoType).values({ ...TENANCY, name: c }).onConflictDoNothing();
+    await db
+      .insert(cargoType)
+      .values({ ...TENANCY, name: c })
+      .onConflictDoNothing();
   }
   for (const c of CUSTOMERS) {
-    await db.insert(customer).values({ ...TENANCY, name: c }).onConflictDoNothing();
+    await db
+      .insert(customer)
+      .values({ ...TENANCY, name: c })
+      .onConflictDoNothing();
   }
-  await db.insert(orderSequence).values({ ...TENANCY, prefix: 'XTT', nextValue: 1, padWidth: 3 }).onConflictDoNothing();
+  await db
+    .insert(orderSequence)
+    .values({ ...TENANCY, prefix: 'XTT', nextValue: 1, padWidth: 3 })
+    .onConflictDoNothing();
 }

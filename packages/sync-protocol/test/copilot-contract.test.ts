@@ -46,8 +46,12 @@ describe('@fleet/sync-protocol copilot contract', () => {
       expectTypeOf<CopilotPlan>().toEqualTypeOf<z.infer<typeof CopilotPlanSchema>>();
       expectTypeOf<CopilotCommand>().toEqualTypeOf<z.infer<typeof CopilotCommandSchema>>();
       expectTypeOf<CopilotEntityRef>().toEqualTypeOf<z.infer<typeof CopilotEntityRefSchema>>();
-      expectTypeOf<CopilotPlanResponse>().toEqualTypeOf<z.infer<typeof CopilotPlanResponseSchema>>();
-      expectTypeOf<CopilotExecutionResult>().toEqualTypeOf<z.infer<typeof CopilotExecutionResultSchema>>();
+      expectTypeOf<CopilotPlanResponse>().toEqualTypeOf<
+        z.infer<typeof CopilotPlanResponseSchema>
+      >();
+      expectTypeOf<CopilotExecutionResult>().toEqualTypeOf<
+        z.infer<typeof CopilotExecutionResultSchema>
+      >();
     });
   });
 
@@ -65,94 +69,142 @@ describe('@fleet/sync-protocol copilot contract', () => {
   describe('CopilotEntityRefSchema', () => {
     it('accepts a resolved id ref with an explicit id space', () => {
       const idRef = {
-        kind: 'id', idSpace: 'vehicleId', id: GUID_A,
+        kind: 'id',
+        idSpace: 'vehicleId',
+        id: GUID_A,
       } satisfies CopilotEntityRef;
       expect(CopilotEntityRefSchema.safeParse(idRef).success).toBe(true);
     });
     it('accepts a step-output ref chaining a prior command', () => {
       const stepRef = {
-        kind: 'stepOutput', fromCommandId: GUID_A, output: 'driverId',
+        kind: 'stepOutput',
+        fromCommandId: GUID_A,
+        output: 'driverId',
       } satisfies CopilotEntityRef;
       expect(CopilotEntityRefSchema.safeParse(stepRef).success).toBe(true);
     });
     it('rejects an unknown id space and a non-guid id', () => {
-      expect(CopilotEntityRefSchema.safeParse({
-        kind: 'id', idSpace: 'id', id: GUID_A,
-      }).success).toBe(false);
-      expect(CopilotEntityRefSchema.safeParse({
-        kind: 'id', idSpace: 'vehicleId', id: 'xe-62H',
-      }).success).toBe(false);
+      expect(
+        CopilotEntityRefSchema.safeParse({
+          kind: 'id',
+          idSpace: 'id',
+          id: GUID_A,
+        }).success,
+      ).toBe(false);
+      expect(
+        CopilotEntityRefSchema.safeParse({
+          kind: 'id',
+          idSpace: 'vehicleId',
+          id: 'xe-62H',
+        }).success,
+      ).toBe(false);
     });
   });
 
   describe('CopilotCommandSchema (strict producer payloads)', () => {
     it('parses create_customer with nullable phone', () => {
       const r = CopilotCommandSchema.safeParse({
-        type: 'create_customer', commandId: GUID_A,
-        name: 'Cty TNHH Minh Chau', phone: null,
+        type: 'create_customer',
+        commandId: GUID_A,
+        name: 'Cty TNHH Minh Chau',
+        phone: null,
       });
       expect(r.success).toBe(true);
     });
     it('rejects unknown keys on any command (LLM hallucination guard)', () => {
       const r = CopilotCommandSchema.safeParse({
-        type: 'create_customer', commandId: GUID_A,
-        name: 'X', phone: null, tenantId: 'evil',
+        type: 'create_customer',
+        commandId: GUID_A,
+        name: 'X',
+        phone: null,
+        tenantId: 'evil',
       });
       expect(r.success).toBe(false);
     });
     it('parses create_cargo_type', () => {
       const r = CopilotCommandSchema.safeParse({
-        type: 'create_cargo_type', commandId: GUID_A, name: 'Gạo',
+        type: 'create_cargo_type',
+        commandId: GUID_A,
+        name: 'Gạo',
       });
       expect(r.success).toBe(true);
     });
     it('requires a non-empty plate on create_vehicle', () => {
-      expect(CopilotCommandSchema.safeParse({
-        type: 'create_vehicle', commandId: GUID_A, plate: '',
-      }).success).toBe(false);
-      expect(CopilotCommandSchema.safeParse({
-        type: 'create_vehicle', commandId: GUID_A, plate: '62H 05194',
-      }).success).toBe(true);
+      expect(
+        CopilotCommandSchema.safeParse({
+          type: 'create_vehicle',
+          commandId: GUID_A,
+          plate: '',
+        }).success,
+      ).toBe(false);
+      expect(
+        CopilotCommandSchema.safeParse({
+          type: 'create_vehicle',
+          commandId: GUID_A,
+          plate: '62H 05194',
+        }).success,
+      ).toBe(true);
     });
     it('enforces the warehouse role enum', () => {
-      expect(CopilotCommandSchema.safeParse({
-        type: 'create_warehouse', commandId: GUID_A,
-        name: 'Kho Long An', role: 'pickup',
-      }).success).toBe(true);
-      expect(CopilotCommandSchema.safeParse({
-        type: 'create_warehouse', commandId: GUID_A,
-        name: 'Kho Long An', role: 'both',
-      }).success).toBe(false);
+      expect(
+        CopilotCommandSchema.safeParse({
+          type: 'create_warehouse',
+          commandId: GUID_A,
+          name: 'Kho Long An',
+          role: 'pickup',
+        }).success,
+      ).toBe(true);
+      expect(
+        CopilotCommandSchema.safeParse({
+          type: 'create_warehouse',
+          commandId: GUID_A,
+          name: 'Kho Long An',
+          role: 'both',
+        }).success,
+      ).toBe(false);
     });
     it('parses create_driver with password null (executor generates it)', () => {
       const cmd = {
-        type: 'create_driver', commandId: GUID_A,
-        fullName: 'Nguyễn Văn A', phone: '0900000123', password: null,
+        type: 'create_driver',
+        commandId: GUID_A,
+        fullName: 'Nguyễn Văn A',
+        phone: '0900000123',
+        password: null,
       } satisfies CopilotCommand;
       expect(CopilotCommandSchema.safeParse(cmd).success).toBe(true);
     });
     it('bounds create_driver phone like the admin endpoint (8..32)', () => {
       const r = CopilotCommandSchema.safeParse({
-        type: 'create_driver', commandId: GUID_A,
-        fullName: 'Nguyễn Văn A', phone: '090', password: null,
+        type: 'create_driver',
+        commandId: GUID_A,
+        fullName: 'Nguyễn Văn A',
+        phone: '090',
+        password: null,
       });
       expect(r.success).toBe(false);
     });
     it('accepts assign_driver_to_vehicle with an id ref or a step output', () => {
-      expect(CopilotCommandSchema.safeParse({
-        type: 'assign_driver_to_vehicle', commandId: GUID_A,
-        driver: { kind: 'id', idSpace: 'driverId', id: GUID_B },
-        vehicle: { kind: 'id', idSpace: 'vehicleId', id: GUID_C },
-      }).success).toBe(true);
-      expect(CopilotCommandSchema.safeParse({
-        type: 'assign_driver_to_vehicle', commandId: GUID_A,
-        driver: { kind: 'stepOutput', fromCommandId: GUID_B, output: 'driverId' },
-        vehicle: { kind: 'id', idSpace: 'vehicleId', id: GUID_C },
-      }).success).toBe(true);
+      expect(
+        CopilotCommandSchema.safeParse({
+          type: 'assign_driver_to_vehicle',
+          commandId: GUID_A,
+          driver: { kind: 'id', idSpace: 'driverId', id: GUID_B },
+          vehicle: { kind: 'id', idSpace: 'vehicleId', id: GUID_C },
+        }).success,
+      ).toBe(true);
+      expect(
+        CopilotCommandSchema.safeParse({
+          type: 'assign_driver_to_vehicle',
+          commandId: GUID_A,
+          driver: { kind: 'stepOutput', fromCommandId: GUID_B, output: 'driverId' },
+          vehicle: { kind: 'id', idSpace: 'vehicleId', id: GUID_C },
+        }).success,
+      ).toBe(true);
     });
     it('rejects an operatorId ref where a driverId is required', () => {
       const r = CopilotCommandSchema.safeParse({
-        type: 'assign_driver_to_vehicle', commandId: GUID_A,
+        type: 'assign_driver_to_vehicle',
+        commandId: GUID_A,
         driver: { kind: 'id', idSpace: 'operatorId', id: GUID_B },
         vehicle: { kind: 'id', idSpace: 'vehicleId', id: GUID_C },
       });
@@ -166,11 +218,15 @@ describe('@fleet/sync-protocol copilot contract', () => {
       summaryVi: 'Sẽ tạo tài xế Nguyễn Văn A và gán vào xe 62H-05194',
       commands: [
         {
-          type: 'create_driver', commandId: GUID_B,
-          fullName: 'Nguyễn Văn A', phone: '0900000123', password: null,
+          type: 'create_driver',
+          commandId: GUID_B,
+          fullName: 'Nguyễn Văn A',
+          phone: '0900000123',
+          password: null,
         },
         {
-          type: 'assign_driver_to_vehicle', commandId: GUID_C,
+          type: 'assign_driver_to_vehicle',
+          commandId: GUID_C,
           driver: { kind: 'stepOutput', fromCommandId: GUID_B, output: 'driverId' },
           vehicle: { kind: 'id', idSpace: 'vehicleId', id: GUID_A },
         },
@@ -180,17 +236,25 @@ describe('@fleet/sync-protocol copilot contract', () => {
       expect(CopilotPlanSchema.safeParse(flagship).success).toBe(true);
     });
     it('requires at least one command and a non-empty Vietnamese summary', () => {
-      expect(CopilotPlanSchema.safeParse({
-        planId: GUID_A, summaryVi: 'Tóm tắt', commands: [],
-      }).success).toBe(false);
-      expect(CopilotPlanSchema.safeParse({
-        planId: GUID_A, summaryVi: '',
-        commands: flagship.commands.slice(0, 1),
-      }).success).toBe(false);
+      expect(
+        CopilotPlanSchema.safeParse({
+          planId: GUID_A,
+          summaryVi: 'Tóm tắt',
+          commands: [],
+        }).success,
+      ).toBe(false);
+      expect(
+        CopilotPlanSchema.safeParse({
+          planId: GUID_A,
+          summaryVi: '',
+          commands: flagship.commands.slice(0, 1),
+        }).success,
+      ).toBe(false);
     });
     it('rejects duplicate commandIds inside one plan', () => {
       const dup = {
-        planId: GUID_A, summaryVi: 'Trùng id',
+        planId: GUID_A,
+        summaryVi: 'Trùng id',
         commands: [
           { type: 'create_cargo_type', commandId: GUID_B, name: 'Gạo' },
           { type: 'create_cargo_type', commandId: GUID_B, name: 'Xi măng' },
@@ -205,7 +269,8 @@ describe('@fleet/sync-protocol copilot contract', () => {
       const planResp = CopilotPlanResponseSchema.safeParse({
         kind: 'plan',
         plan: {
-          planId: GUID_A, summaryVi: 'Sẽ tạo tên hàng Gạo',
+          planId: GUID_A,
+          summaryVi: 'Sẽ tạo tên hàng Gạo',
           commands: [{ type: 'create_cargo_type', commandId: GUID_B, name: 'Gạo' }],
         },
       });
@@ -222,7 +287,9 @@ describe('@fleet/sync-protocol copilot contract', () => {
     });
     it('tolerates unknown envelope keys for forward compatibility', () => {
       const r = CopilotPlanResponseSchema.safeParse({
-        kind: 'clarify', questionVi: 'Xe nào?', futureField: 1,
+        kind: 'clarify',
+        questionVi: 'Xe nào?',
+        futureField: 1,
       });
       expect(r.success).toBe(true);
     });
@@ -231,22 +298,30 @@ describe('@fleet/sync-protocol copilot contract', () => {
   describe('CopilotExecutionResultSchema', () => {
     it('parses outcomes with one-time password and a duplicate short-circuit', () => {
       const ok = CopilotExecutionResultSchema.safeParse({
-        planId: GUID_A, status: 'completed',
-        results: [{
-          commandId: GUID_B, outcome: 'ok',
-          createdId: GUID_C, idSpace: 'driverId',
-          generatedPassword: GENERATED_CRED,
-        }],
+        planId: GUID_A,
+        status: 'completed',
+        results: [
+          {
+            commandId: GUID_B,
+            outcome: 'ok',
+            createdId: GUID_C,
+            idSpace: 'driverId',
+            generatedPassword: GENERATED_CRED,
+          },
+        ],
       });
       expect(ok.success).toBe(true);
       const dup = CopilotExecutionResultSchema.safeParse({
-        planId: GUID_A, status: 'duplicate', results: [],
+        planId: GUID_A,
+        status: 'duplicate',
+        results: [],
       });
       expect(dup.success).toBe(true);
     });
     it('parses a failed run with the remainder skipped', () => {
       const r = CopilotExecutionResultSchema.safeParse({
-        planId: GUID_A, status: 'failed',
+        planId: GUID_A,
+        status: 'failed',
         results: [
           { commandId: GUID_B, outcome: 'failed', errorCode: 'VALIDATION_FAILED' },
           { commandId: GUID_C, outcome: 'skipped' },
@@ -264,16 +339,16 @@ describe('@fleet/sync-protocol copilot contract', () => {
     });
     it('return the parsed value on valid input', () => {
       const plan = {
-        planId: GUID_A, summaryVi: 'OK',
+        planId: GUID_A,
+        summaryVi: 'OK',
         commands: [{ type: 'create_cargo_type', commandId: GUID_B, name: 'Muối' }],
       };
       expect(parseCopilotPlan(plan)?.planId).toBe(GUID_A);
+      expect(parseCopilotPlanResponse({ kind: 'clarify', questionVi: 'Xe nào?' })?.kind).toBe(
+        'clarify',
+      );
       expect(
-        parseCopilotPlanResponse({ kind: 'clarify', questionVi: 'Xe nào?' })?.kind,
-      ).toBe('clarify');
-      expect(
-        parseCopilotExecutionResult({ planId: GUID_A, status: 'completed', results: [] })
-          ?.status,
+        parseCopilotExecutionResult({ planId: GUID_A, status: 'completed', results: [] })?.status,
       ).toBe('completed');
     });
   });

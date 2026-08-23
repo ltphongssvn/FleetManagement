@@ -7,7 +7,9 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { OrderReview } from '@/features/dispatch/OrderReview';
 import type { ListAssignedRow } from '@/features/dispatch/types';
-afterEach(() => { cleanup(); });
+afterEach(() => {
+  cleanup();
+});
 const ORDER_UUID = '6cf70728-1344-461a-b8ec-7c408edac32e';
 const row: ListAssignedRow = {
   transportOrderId: ORDER_UUID,

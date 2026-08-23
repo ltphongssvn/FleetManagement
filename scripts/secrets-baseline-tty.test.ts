@@ -56,8 +56,11 @@ describe('auditNeedsTty: only the interactive mode needs a terminal', () => {
     const modes: readonly BaselineMode[] = ['scan', 'audit'];
     for (const mode of modes) {
       for (const tty of [true, false]) {
-        expect([mode, tty, auditNeedsTty(mode, tty)])
-          .toEqual([mode, tty, mode === 'audit' && !tty]);
+        expect([mode, tty, auditNeedsTty(mode, tty)]).toEqual([
+          mode,
+          tty,
+          mode === 'audit' && !tty,
+        ]);
       }
     }
   });

@@ -49,33 +49,59 @@ function git(args: string[], opts: { allowFail?: boolean } = {}): string {
 function main(): number {
   const branch = git(['rev-parse', '--abbrev-ref', 'HEAD']);
   if (branch === 'develop' || branch === 'main' || branch === 'HEAD') {
-    process.stdout.write('[sync:develop] on ' + branch + ' -- nothing to do (sync:worktrees owns integration branches)' + String.fromCharCode(10));
+    process.stdout.write(
+      '[sync:develop] on ' +
+        branch +
+        ' -- nothing to do (sync:worktrees owns integration branches)' +
+        String.fromCharCode(10),
+    );
     return 0;
   }
   const dirty = git(['status', '--porcelain']);
   if (dirty !== '') {
-    process.stderr.write('[sync:develop] REFUSED: working tree not clean. Commit or stash first.' + String.fromCharCode(10));
+    process.stderr.write(
+      '[sync:develop] REFUSED: working tree not clean. Commit or stash first.' +
+        String.fromCharCode(10),
+    );
     return 1;
   }
   git(['fetch', 'origin', 'develop']);
   const counts = git(['rev-list', '--left-right', '--count', 'HEAD...origin/develop']);
   const behind = Number(counts.split(/\s+/)[1]);
   if (behind === 0) {
-    process.stdout.write('[sync:develop] ' + branch + ' already contains origin/develop -- up to date.' + String.fromCharCode(10));
+    process.stdout.write(
+      '[sync:develop] ' +
+        branch +
+        ' already contains origin/develop -- up to date.' +
+        String.fromCharCode(10),
+    );
     return 0;
   }
-  process.stdout.write('[sync:develop] ' + branch + ' is behind origin/develop by ' + String(behind) + ' commit(s) -- merging down.' + String.fromCharCode(10));
+  process.stdout.write(
+    '[sync:develop] ' +
+      branch +
+      ' is behind origin/develop by ' +
+      String(behind) +
+      ' commit(s) -- merging down.' +
+      String.fromCharCode(10),
+  );
   try {
     const out = execFileSync('git', ['merge', '--no-edit', 'origin/develop'], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     process.stdout.write(out);
-    process.stdout.write('[sync:develop] merged clean. Include the merge commit in your next push.' + String.fromCharCode(10));
+    process.stdout.write(
+      '[sync:develop] merged clean. Include the merge commit in your next push.' +
+        String.fromCharCode(10),
+    );
     return 0;
   } catch {
     const conflicts = git(['diff', '--name-only', '--diff-filter=U'], { allowFail: true });
-    process.stderr.write('[sync:develop] CONFLICTS -- resolve by evidence, then git add <paths> and git commit:' + String.fromCharCode(10));
+    process.stderr.write(
+      '[sync:develop] CONFLICTS -- resolve by evidence, then git add <paths> and git commit:' +
+        String.fromCharCode(10),
+    );
     process.stderr.write(conflicts + String.fromCharCode(10));
     return 1;
   }

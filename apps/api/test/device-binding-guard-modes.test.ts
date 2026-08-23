@@ -46,13 +46,19 @@ describe('DeviceBindingGuard enforcement modes', () => {
     const logger: DeviceBindingAuditLogger = { wouldReject: vi.fn() };
     const guard = makeGuard('pending', { mode: 'monitor', exemptOperatorIds: NO_EXEMPT }, logger);
     await expect(guard.canActivate(ctxFor(CLAIMS))).resolves.toBe(true);
-    expect(logger.wouldReject).toHaveBeenCalledWith({ operatorId: OPERATOR_ID, code: 'DEVICE_PENDING_APPROVAL' });
+    expect(logger.wouldReject).toHaveBeenCalledWith({
+      operatorId: OPERATOR_ID,
+      code: 'DEVICE_PENDING_APPROVAL',
+    });
   });
   it('monitor: ALLOWS an unregistered device but logs would-reject', async () => {
     const logger: DeviceBindingAuditLogger = { wouldReject: vi.fn() };
     const guard = makeGuard(null, { mode: 'monitor', exemptOperatorIds: NO_EXEMPT }, logger);
     await expect(guard.canActivate(ctxFor(CLAIMS))).resolves.toBe(true);
-    expect(logger.wouldReject).toHaveBeenCalledWith({ operatorId: OPERATOR_ID, code: 'DEVICE_NOT_REGISTERED' });
+    expect(logger.wouldReject).toHaveBeenCalledWith({
+      operatorId: OPERATOR_ID,
+      code: 'DEVICE_NOT_REGISTERED',
+    });
   });
   it('monitor: allows an active device without logging', async () => {
     const logger: DeviceBindingAuditLogger = { wouldReject: vi.fn() };
@@ -85,16 +91,27 @@ describe('DeviceBindingGuard enforcement modes', () => {
     await expect(guard.canActivate(ctxFor(undefined))).rejects.toBeInstanceOf(ForbiddenException);
   });
   it('break-glass: exempt operator allowed when pending under enforce', async () => {
-    const guard = makeGuard('pending', { mode: 'enforce', exemptOperatorIds: new Set([OPERATOR_ID]) });
+    const guard = makeGuard('pending', {
+      mode: 'enforce',
+      exemptOperatorIds: new Set([OPERATOR_ID]),
+    });
     await expect(guard.canActivate(ctxFor(CLAIMS))).resolves.toBe(true);
   });
   it('break-glass: exempt operator allowed when revoked under enforce', async () => {
-    const guard = makeGuard('revoked', { mode: 'enforce', exemptOperatorIds: new Set([OPERATOR_ID]) });
+    const guard = makeGuard('revoked', {
+      mode: 'enforce',
+      exemptOperatorIds: new Set([OPERATOR_ID]),
+    });
     await expect(guard.canActivate(ctxFor(CLAIMS))).resolves.toBe(true);
   });
   it('break-glass: exempt operator not even evaluated (port not called)', async () => {
-    const port: DeviceBindingStatusPort = { statusForOperator: vi.fn(() => Promise.resolve('revoked' as DeviceBindingStatus)) };
-    const guard = new DeviceBindingGuard(port, { mode: 'enforce', exemptOperatorIds: new Set([OPERATOR_ID]) });
+    const port: DeviceBindingStatusPort = {
+      statusForOperator: vi.fn(() => Promise.resolve('revoked' as DeviceBindingStatus)),
+    };
+    const guard = new DeviceBindingGuard(port, {
+      mode: 'enforce',
+      exemptOperatorIds: new Set([OPERATOR_ID]),
+    });
     await expect(guard.canActivate(ctxFor(CLAIMS))).resolves.toBe(true);
     expect(port.statusForOperator).not.toHaveBeenCalled();
   });

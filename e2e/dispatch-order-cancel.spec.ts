@@ -27,7 +27,13 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { type z } from 'zod';
-import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, CreateTransportOrderResponseSchema } from './helpers/contracts';
+import {
+  parseJson,
+  CreateDriverResponseSchema,
+  ReferenceItemSchema,
+  AssignmentResponseSchema,
+  CreateTransportOrderResponseSchema,
+} from './helpers/contracts';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 
@@ -39,12 +45,19 @@ const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const DOLLAR = String.fromCharCode(36);
 const BOARD_URL = new RegExp('/' + DOLLAR);
 
-async function apiPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+async function apiPost<T>(
+  api: APIRequestContext,
+  token: string,
+  path: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
-  if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
+  if (!res.ok())
+    throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   return parseJson(res, schema);
 }
 
@@ -61,20 +74,30 @@ async function seedOrder(api: APIRequestContext): Promise<SeededOrder> {
   const ts = String(Date.now());
   const phone = '09' + ts.slice(-8);
   const drv = await apiPost(
-    api, token, '/admin/drivers',
+    api,
+    token,
+    '/admin/drivers',
     { fullName: 'E2E-CANCEL-' + ts, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
     CreateDriverResponseSchema,
   );
   const veh = await apiPost(
-    api, token, '/reference/vehicles', { name: 'E2E-CANCEL-' + ts },
+    api,
+    token,
+    '/reference/vehicles',
+    { name: 'E2E-CANCEL-' + ts },
     ReferenceItemSchema,
   );
-  await apiPost(api, token, '/admin/driver-vehicle-assignments',
+  await apiPost(
+    api,
+    token,
+    '/admin/driver-vehicle-assignments',
     { driverId: drv.driverId, vehicleId: veh.id },
     AssignmentResponseSchema,
   );
   const order = await apiPost(
-    api, token, '/transport-orders',
+    api,
+    token,
+    '/transport-orders',
     {
       stops: [{ sequence: 1, stopType: 'pickup' }],
       roadRun: { assignedOperatorId: drv.operatorId, assignedAssetId: veh.id },
@@ -115,14 +138,19 @@ test.describe.serial('dispatch order cancel', () => {
     }
   });
 
-  test('dispatcher cancels an order via the review view and the state flips to cancelled', async ({ page, request }) => {
+  test('dispatcher cancels an order via the review view and the state flips to cancelled', async ({
+    page,
+    request,
+  }) => {
     const order = await seedOrder(request);
     seededOrders.push(order);
     sharedOrder = order;
 
     await login(page);
     await page.goto('/dispatch/orders/' + order.externalRef);
-    await expect(page.getByRole('heading', { name: /chi tiết|order review|đơn vận chuyển/i })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /chi tiết|order review|đơn vận chuyển/i }),
+    ).toBeVisible();
     const cancelButton = page.getByTestId('order-cancel-open');
     await expect(cancelButton, 'cancel control visible for cancellable order').toBeVisible();
     await cancelButton.click();
@@ -142,31 +170,44 @@ test.describe.serial('dispatch order cancel', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Lệnh điều xe' })).toBeVisible();
   });
 
-  test('idempotent: second cancel with same reason returns 200 and same record', async ({ page }) => {
+  test('idempotent: second cancel with same reason returns 200 and same record', async ({
+    page,
+  }) => {
     expect(sharedOrder, 'shared seeded order from the first test').toBeDefined();
     if (sharedOrder === undefined) throw new Error('unreachable: guarded above');
     await login(page);
-    const first = await page.request.post('/api/transport-orders/' + sharedOrder.transportOrderId + '/cancel', {
-      data: { reason: 'customer_request', note: 'first retry' },
-    });
+    const first = await page.request.post(
+      '/api/transport-orders/' + sharedOrder.transportOrderId + '/cancel',
+      {
+        data: { reason: 'customer_request', note: 'first retry' },
+      },
+    );
     expect(first.status(), 'idempotent re-cancel with same reason returns 200').toBe(200);
   });
 
-  test('conflict: cancel with a different reason after first commit returns 409', async ({ page }) => {
+  test('conflict: cancel with a different reason after first commit returns 409', async ({
+    page,
+  }) => {
     expect(sharedOrder, 'shared seeded order from the first test').toBeDefined();
     if (sharedOrder === undefined) throw new Error('unreachable: guarded above');
     await login(page);
-    const conflict = await page.request.post('/api/transport-orders/' + sharedOrder.transportOrderId + '/cancel', {
-      data: { reason: 'driver_unavailable', note: 'different reason' },
-    });
+    const conflict = await page.request.post(
+      '/api/transport-orders/' + sharedOrder.transportOrderId + '/cancel',
+      {
+        data: { reason: 'driver_unavailable', note: 'different reason' },
+      },
+    );
     expect(conflict.status()).toBe(409);
   });
 
   test('cancel BFF returns 404 for an unknown order id (tenant boundary)', async ({ page }) => {
     await login(page);
-    const res = await page.request.post('/api/transport-orders/00000000-0000-0000-0000-000000000000/cancel', {
-      data: { reason: 'customer_request' },
-    });
+    const res = await page.request.post(
+      '/api/transport-orders/00000000-0000-0000-0000-000000000000/cancel',
+      {
+        data: { reason: 'customer_request' },
+      },
+    );
     expect(res.status()).toBe(404);
   });
 });

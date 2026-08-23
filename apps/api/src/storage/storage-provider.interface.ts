@@ -8,7 +8,11 @@ export interface PresignedUpload {
 }
 
 export interface IBlobStore {
-  presignUpload(input: { key: string; contentType: string; ttlSeconds: number }): Promise<PresignedUpload>;
+  presignUpload(input: {
+    key: string;
+    contentType: string;
+    ttlSeconds: number;
+  }): Promise<PresignedUpload>;
 }
 
 export const BLOB_STORE = 'BLOB_STORE' as const;

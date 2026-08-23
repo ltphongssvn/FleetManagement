@@ -4,7 +4,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { CommandsGateway } from '../src/commands/commands.gateway.js';
 import { OperatorContextFactory } from '../src/auth/operator-context.factory.js';
-import type { IIdentityProvider, VerifiedIdentity } from '../src/auth/identity-provider.interface.js';
+import type {
+  IIdentityProvider,
+  VerifiedIdentity,
+} from '../src/auth/identity-provider.interface.js';
 
 const validIdentity: VerifiedIdentity = {
   subject: 'user-1',
@@ -25,7 +28,10 @@ interface FakeSocket {
   disconnect(close?: boolean): void;
 }
 
-function makeSocket(auth: Record<string, unknown>, headers: Record<string, string | undefined> = {}): FakeSocket {
+function makeSocket(
+  auth: Record<string, unknown>,
+  headers: Record<string, string | undefined> = {},
+): FakeSocket {
   const sock: FakeSocket = {
     id: 's1',
     handshake: { auth, headers },
@@ -33,8 +39,13 @@ function makeSocket(auth: Record<string, unknown>, headers: Record<string, strin
     joined: [],
     disconnected: false,
     disconnectArg: undefined,
-    join(room) { this.joined.push(room); },
-    disconnect(close) { this.disconnected = true; this.disconnectArg = close; },
+    join(room) {
+      this.joined.push(room);
+    },
+    disconnect(close) {
+      this.disconnected = true;
+      this.disconnectArg = close;
+    },
   };
   return sock;
 }
@@ -89,7 +100,9 @@ describe('@fleet/api - handleConnection guards', () => {
   });
 
   it('on idp.verifyToken rejection, disconnects with close=true (kills line 181 disconnect(true) BooleanLiteral)', async () => {
-    const idp: IIdentityProvider = { verifyToken: vi.fn().mockRejectedValue(new Error('jwt expired')) };
+    const idp: IIdentityProvider = {
+      verifyToken: vi.fn().mockRejectedValue(new Error('jwt expired')),
+    };
     const factory = new OperatorContextFactory();
     const gw = new CommandsGateway(undefined, undefined, undefined, idp, factory);
     const sock = makeSocket({ token: 'bad' });
@@ -102,7 +115,9 @@ describe('@fleet/api - handleConnection guards', () => {
   it('on operatorFactory.fromIdentity throw, disconnects with close=true (kills line 181 disconnect(true))', async () => {
     const idp: IIdentityProvider = { verifyToken: vi.fn().mockResolvedValue(validIdentity) };
     const factory = {
-      fromIdentity: vi.fn(() => { throw new Error('invalid claims'); }),
+      fromIdentity: vi.fn(() => {
+        throw new Error('invalid claims');
+      }),
     } as unknown as OperatorContextFactory;
     const gw = new CommandsGateway(undefined, undefined, undefined, idp, factory);
     const sock = makeSocket({ token: 'good' });

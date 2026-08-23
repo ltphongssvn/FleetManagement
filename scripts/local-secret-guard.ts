@@ -67,7 +67,8 @@ const PROD_VARIABLE_RE = /^(?:PROD|PRODUCTION)_[A-Z0-9_]*(?:URL|DSN|PASSWORD|SEC
 const HOST_TOKEN_RE = /[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+/gi;
 
 // Machine-generated or binary content: no human pastes topology there.
-const SKIP_FILE_RE = /(?:^|\/)(?:pnpm-lock\.yaml|package-lock\.json|yarn\.lock)$|\.(?:png|jpe?g|gif|webp|ico|pdf|zip|gz|wav|mp3|mp4|woff2?|ttf|eot|keystore|jks|p8|p12)$/i;
+const SKIP_FILE_RE =
+  /(?:^|\/)(?:pnpm-lock\.yaml|package-lock\.json|yarn\.lock)$|\.(?:png|jpe?g|gif|webp|ico|pdf|zip|gz|wav|mp3|mp4|woff2?|ttf|eot|keystore|jks|p8|p12)$/i;
 
 const LINE_SPLIT_RE = /(?:\r\n|\r|\n)/;
 const QUOTE_STRIP_RE = /^['\u0022]|['\u0022]$/g;
@@ -96,7 +97,10 @@ export function findViolationsInEnv(file: string, body: string): Violation[] {
     const eq = raw.indexOf('=');
     if (eq <= 0) continue;
     const variable = raw.slice(0, eq).trim();
-    const value = raw.slice(eq + 1).trim().replace(QUOTE_STRIP_RE, '');
+    const value = raw
+      .slice(eq + 1)
+      .trim()
+      .replace(QUOTE_STRIP_RE, '');
     if (value === '') continue;
     if (PROD_VARIABLE_RE.test(variable) && CREDENTIAL_URL_RE.test(value)) {
       // Record the NAME and LOCATION only -- never the value.
@@ -159,7 +163,8 @@ export function formatReport(
   const parts: string[] = [];
   if (violations.length > 0) {
     parts.push(
-      'local-secret-guard: FAIL -- ' + String(violations.length) +
+      'local-secret-guard: FAIL -- ' +
+        String(violations.length) +
         ' production credential literal(s) in local env file(s):',
     );
     for (const v of violations) {
@@ -178,13 +183,19 @@ export function formatReport(
   if (hostViolations.length > 0) {
     if (parts.length > 0) parts.push('');
     parts.push(
-      'local-secret-guard: FAIL -- ' + String(hostViolations.length) +
+      'local-secret-guard: FAIL -- ' +
+        String(hostViolations.length) +
         ' occurrence(s) of PRODUCTION TOPOLOGY in tracked source:',
     );
     for (const h of hostViolations) {
       parts.push(
-        '  - ' + h.file + ':' + String(h.line) +
-          ' -> forbidden host [sha256 ' + h.hashPrefix + '...]',
+        '  - ' +
+          h.file +
+          ':' +
+          String(h.line) +
+          ' -> forbidden host [sha256 ' +
+          h.hashPrefix +
+          '...]',
       );
     }
     parts.push(
@@ -229,8 +240,11 @@ function main(): void {
       forbidden = loadForbiddenHostHashes(readFileSync(configPath, 'utf8'));
     } catch (e) {
       process.stderr.write(
-        'local-secret-guard: invalid config at ' + CONFIG_FILE + ': ' +
-          (e instanceof Error ? e.message : String(e)) + '\n',
+        'local-secret-guard: invalid config at ' +
+          CONFIG_FILE +
+          ': ' +
+          (e instanceof Error ? e.message : String(e)) +
+          '\n',
       );
       process.exit(2);
     }

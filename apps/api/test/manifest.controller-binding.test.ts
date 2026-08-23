@@ -10,18 +10,12 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 describe('@fleet/api - ManifestController auth binding', () => {
   it('does not import PILOT_OPERATOR_CONTEXT directly', () => {
-    const source = readFileSync(
-      resolve(here, '../src/manifest/manifest.controller.ts'),
-      'utf-8',
-    );
+    const source = readFileSync(resolve(here, '../src/manifest/manifest.controller.ts'), 'utf-8');
     expect(source).not.toMatch(/PILOT_OPERATOR_CONTEXT/);
   });
 
   it('imports OperatorContextFactory', () => {
-    const source = readFileSync(
-      resolve(here, '../src/manifest/manifest.controller.ts'),
-      'utf-8',
-    );
+    const source = readFileSync(resolve(here, '../src/manifest/manifest.controller.ts'), 'utf-8');
     expect(source).toMatch(/OperatorContextFactory/);
   });
 });

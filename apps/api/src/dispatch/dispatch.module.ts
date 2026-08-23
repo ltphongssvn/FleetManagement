@@ -15,7 +15,11 @@ import { AuthModule } from '../auth/auth.module.js';
 import { StopProofModule } from './stop-proof.module.js';
 import { DispatchController } from './dispatch.controller.js';
 import { DispatchRosterSplitController } from './dispatch-roster-split.controller.js';
-import { DispatchRosterSplitService, ROSTER_SPLIT_NOW, type NowFn } from './dispatch-roster-split.service.js';
+import {
+  DispatchRosterSplitService,
+  ROSTER_SPLIT_NOW,
+  type NowFn,
+} from './dispatch-roster-split.service.js';
 import { DriverAssignmentsController } from './driver-assignments.controller.js';
 import { DriverDeliveryController } from './driver-delivery.controller.js';
 import { DriverDeliveryService } from './driver-delivery.service.js';
@@ -39,5 +43,4 @@ import { DriverDeliveryService } from './driver-delivery.service.js';
   ],
   exports: [StopProofModule],
 })
-
 export class DispatchModule {}

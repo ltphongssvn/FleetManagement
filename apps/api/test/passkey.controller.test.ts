@@ -47,7 +47,9 @@ describe('PasskeyController', () => {
       finishRegistration: vi.fn().mockResolvedValue({ verified: true }),
     } as unknown as PasskeyRegistrationService;
     authSvc = {
-      beginAuthentication: vi.fn().mockResolvedValue({ challenge: 'auth-chal', rpId: 'fleet.example', timeout: 60000 }),
+      beginAuthentication: vi
+        .fn()
+        .mockResolvedValue({ challenge: 'auth-chal', rpId: 'fleet.example', timeout: 60000 }),
       finishAuthentication: vi.fn().mockResolvedValue({ claims: CLAIMS }),
     } as unknown as PasskeyAuthenticationService;
     signJwt = vi.fn().mockResolvedValue('signed.jwt.token');

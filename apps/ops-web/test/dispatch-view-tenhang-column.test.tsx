@@ -14,7 +14,10 @@ const RUN_ID = '33333333-3333-4333-8333-333333333333';
 const refs = {
   drivers: [{ id: DRIVER_ID, label: 'Nguyen Van A' }],
   vehicles: [{ id: VEHICLE_ID, label: '51C-12345' }],
-  customers: [], cargoTypes: [], pickupWarehouses: [], deliveryWarehouses: [],
+  customers: [],
+  cargoTypes: [],
+  pickupWarehouses: [],
+  deliveryWarehouses: [],
   driverVehicleAssignments: [],
 };
 function dataRow(): HTMLElement {

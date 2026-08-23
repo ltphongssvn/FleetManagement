@@ -9,7 +9,9 @@ import { AuthLoginController } from '../src/auth/auth-login.controller.js';
 import { AuthRefreshController } from '../src/auth/auth-refresh.controller.js';
 import { RefreshTokenService } from '../src/auth/refresh-token.service.js';
 
-interface ProviderShape { provide?: unknown }
+interface ProviderShape {
+  provide?: unknown;
+}
 
 describe('AuthModule wiring', () => {
   const controllers = Reflect.getMetadata('controllers', AuthModule) as unknown[];

@@ -56,7 +56,9 @@ describe('board-stops Phiếu Cân proof link', () => {
     renderCells([stop]);
     expect(screen.queryByRole('link', { name: /Phiếu Cân/i })).toBeNull();
     // Disambiguate by the per-slot testid the component already emits.
-    expect(screen.getByTestId('board-stop-status-XTT.06-005-pickup-1')).toHaveTextContent('Chưa tới');
+    expect(screen.getByTestId('board-stop-status-XTT.06-005-pickup-1')).toHaveTextContent(
+      'Chưa tới',
+    );
   });
 
   it('renders the extracted net weight (vi-VN formatted kg) stacked under the Phiếu Cân link', () => {
@@ -71,7 +73,10 @@ describe('board-stops Phiếu Cân proof link', () => {
     renderCells([stop]);
     const cell = screen.getByTestId('board-stop-status-XTT.06-005-pickup-1');
     expect(cell).toHaveTextContent('20.730 kg');
-    expect(screen.getByRole('link', { name: /Phiếu Cân/i })).toHaveAttribute('href', PROOF.photoUrl);
+    expect(screen.getByRole('link', { name: /Phiếu Cân/i })).toHaveAttribute(
+      'href',
+      PROOF.photoUrl,
+    );
     // Layout contract: the kg is stacked UNDER the link, not inline beside it.
     // The kg lives in its own testid'd node, the cell is a vertical column, and the
     // kg text carries no inline '·' separator (that prefix is the old beside layout).
@@ -102,11 +107,20 @@ describe('board-stops Phiếu Cân proof link', () => {
 
 describe('board-stops extraction status (gap 2: four distinct states)', () => {
   function stopWith(proof: StopProof): DispatchBoardStop {
-    return { sequence: 1, stopType: 'pickup', warehouseName: 'Kho A', arrivedAt: null, departedAt: null, proof };
+    return {
+      sequence: 1,
+      stopType: 'pickup',
+      warehouseName: 'Kho A',
+      arrivedAt: null,
+      departedAt: null,
+      proof,
+    };
   }
 
   it('extracted: shows the kg value', () => {
-    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: 20730, extractionStatus: 'extracted' })]);
+    renderCells([
+      stopWith({ ...PROOF, extractedNetWeightKg: 20730, extractionStatus: 'extracted' }),
+    ]);
     expect(screen.getByText(/20\.730 kg/)).toBeInTheDocument();
   });
 
@@ -116,12 +130,16 @@ describe('board-stops extraction status (gap 2: four distinct states)', () => {
   });
 
   it('not_found: shows a "needs entry" affordance, not a blank', () => {
-    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'not_found' })]);
+    renderCells([
+      stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'not_found' }),
+    ]);
     expect(screen.getByText(/Nhập KL/i)).toBeInTheDocument();
   });
 
   it('unreadable: shows a "needs entry" affordance', () => {
-    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'unreadable' })]);
+    renderCells([
+      stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'unreadable' }),
+    ]);
     expect(screen.getByText(/Nhập KL/i)).toBeInTheDocument();
   });
 
@@ -134,39 +152,93 @@ describe('board-stops extraction status (gap 2: four distinct states)', () => {
 
 describe('board-stops extraction reason hint (review queue: WHY it failed)', () => {
   function stopWith(proof: StopProof): DispatchBoardStop {
-    return { sequence: 1, stopType: 'pickup', warehouseName: 'Kho A', arrivedAt: null, departedAt: null, proof };
+    return {
+      sequence: 1,
+      stopType: 'pickup',
+      warehouseName: 'Kho A',
+      arrivedAt: null,
+      departedAt: null,
+      proof,
+    };
   }
 
   it('unreadable + unparseable: shows a Vietnamese reason hint by the needs-entry button', () => {
-    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'unreadable', extractionReason: 'unparseable' })]);
+    renderCells([
+      stopWith({
+        ...PROOF,
+        extractedNetWeightKg: null,
+        extractionStatus: 'unreadable',
+        extractionReason: 'unparseable',
+      }),
+    ]);
     expect(screen.getByText(/Nhập KL/i)).toBeInTheDocument();
-    expect(screen.getByTestId('board-stop-reason-XTT.06-005-pickup-1')).toHaveTextContent('không đọc được số');
+    expect(screen.getByTestId('board-stop-reason-XTT.06-005-pickup-1')).toHaveTextContent(
+      'không đọc được số',
+    );
   });
 
   it('not_found + object_missing: shows the matching reason hint', () => {
-    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'not_found', extractionReason: 'object_missing' })]);
-    expect(screen.getByTestId('board-stop-reason-XTT.06-005-pickup-1')).toHaveTextContent('thiếu ảnh');
+    renderCells([
+      stopWith({
+        ...PROOF,
+        extractedNetWeightKg: null,
+        extractionStatus: 'not_found',
+        extractionReason: 'object_missing',
+      }),
+    ]);
+    expect(screen.getByTestId('board-stop-reason-XTT.06-005-pickup-1')).toHaveTextContent(
+      'thiếu ảnh',
+    );
   });
 
   it('above_sanity_max: shows the out-of-range reason hint', () => {
-    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'unreadable', extractionReason: 'above_sanity_max' })]);
-    expect(screen.getByTestId('board-stop-reason-XTT.06-005-pickup-1')).toHaveTextContent('vượt ngưỡng');
+    renderCells([
+      stopWith({
+        ...PROOF,
+        extractedNetWeightKg: null,
+        extractionStatus: 'unreadable',
+        extractionReason: 'above_sanity_max',
+      }),
+    ]);
+    expect(screen.getByTestId('board-stop-reason-XTT.06-005-pickup-1')).toHaveTextContent(
+      'vượt ngưỡng',
+    );
   });
 
   it('not_found + multiple_slips: shows the multiple-slips reason hint (T33)', () => {
-    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'not_found', extractionReason: 'multiple_slips' })]);
+    renderCells([
+      stopWith({
+        ...PROOF,
+        extractedNetWeightKg: null,
+        extractionStatus: 'not_found',
+        extractionReason: 'multiple_slips',
+      }),
+    ]);
     expect(screen.getByText(/Nhập KL/i)).toBeInTheDocument();
-    expect(screen.getByTestId('board-stop-reason-XTT.06-005-pickup-1')).toHaveTextContent('nhiều phiếu');
+    expect(screen.getByTestId('board-stop-reason-XTT.06-005-pickup-1')).toHaveTextContent(
+      'nhiều phiếu',
+    );
   });
 
   it('unreadable + non_standard_format: shows the non-standard-format reason hint (T33)', () => {
-    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'unreadable', extractionReason: 'non_standard_format' })]);
+    renderCells([
+      stopWith({
+        ...PROOF,
+        extractedNetWeightKg: null,
+        extractionStatus: 'unreadable',
+        extractionReason: 'non_standard_format',
+      }),
+    ]);
     expect(screen.getByText(/Nhập KL/i)).toBeInTheDocument();
-    expect(screen.getByTestId('board-stop-reason-XTT.06-005-pickup-1')).toHaveTextContent('phiếu không chuẩn');
+    expect(screen.getByTestId('board-stop-reason-XTT.06-005-pickup-1')).toHaveTextContent(
+      'phiếu không chuẩn',
+    );
   });
 
   it('no reason present: needs-entry button shows WITHOUT a reason hint node', () => {
-    renderCells([stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'not_found' })]);
+    renderCells([
+      stopWith({ ...PROOF, extractedNetWeightKg: null, extractionStatus: 'not_found' }),
+    ]);
     expect(screen.getByText(/Nhập KL/i)).toBeInTheDocument();
     expect(screen.queryByTestId('board-stop-reason-XTT.06-005-pickup-1')).toBeNull();
   });

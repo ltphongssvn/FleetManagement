@@ -66,7 +66,10 @@ describe('@fleet/api ProblemDetailsExceptionFilter', () => {
     const filter = new ProblemDetailsExceptionFilter();
     const res = makeRes();
     const ex = new HttpException(
-      { message: 'Cannot complete a run that has not been started.', code: 'INVALID_STATE_TRANSITION' },
+      {
+        message: 'Cannot complete a run that has not been started.',
+        code: 'INVALID_STATE_TRANSITION',
+      },
       409,
     );
     filter.catch(ex, makeHost(res, '/driver/assignments/8269d97f/complete'));
@@ -94,7 +97,10 @@ describe('@fleet/api ProblemDetailsExceptionFilter', () => {
   it('defaults 400 to VALIDATION_FAILED and joins Nest array messages', () => {
     const filter = new ProblemDetailsExceptionFilter();
     const res = makeRes();
-    const ex = new HttpException({ statusCode: 400, message: ['plate is required', 'driver is required'] }, 400);
+    const ex = new HttpException(
+      { statusCode: 400, message: ['plate is required', 'driver is required'] },
+      400,
+    );
     filter.catch(ex, makeHost(res, '/orders'));
     const body = bodyOf(res);
     expect(body['code']).toBe('VALIDATION_FAILED');

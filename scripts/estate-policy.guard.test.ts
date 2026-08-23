@@ -29,10 +29,7 @@ import {
   reasonsUnder,
   type EstatePolicy,
 } from './estate-policy.js';
-import {
-  ESTATE_REASONS,
-  REASON_KINDS,
-} from './estate-vocabulary.js';
+import { ESTATE_REASONS, REASON_KINDS } from './estate-vocabulary.js';
 import {
   TimestampSchema,
   classifyEstate,
@@ -72,23 +69,23 @@ describe('the policy is a parsed value, not an object literal', () => {
   // TOTALITY. A reason with no kind would classify as undefined and silently
   // never reach a halt; a reason with no trigger would never be raised at all.
   it('classifies EVERY reason the vocabulary declares', () => {
-    expect(Object.keys(ESTATE_POLICY.reason_kind).sort())
-      .toEqual([...ESTATE_REASONS].sort());
+    expect(Object.keys(ESTATE_POLICY.reason_kind).sort()).toEqual([...ESTATE_REASONS].sort());
   });
 
   it('gives EVERY reason a trigger field', () => {
-    expect(Object.keys(ESTATE_POLICY.reason_trigger).sort())
-      .toEqual([...ESTATE_REASONS].sort());
+    expect(Object.keys(ESTATE_POLICY.reason_trigger).sort()).toEqual([...ESTATE_REASONS].sort());
   });
 
   // A precedence list missing a kind means that kind can never decide a halt.
   it('orders EVERY kind, so precedence is total', () => {
-    expect([...ESTATE_POLICY.kind_precedence].sort())
-      .toEqual([...REASON_KINDS].sort());
+    expect([...ESTATE_POLICY.kind_precedence].sort()).toEqual([...REASON_KINDS].sort());
   });
 
   it('REJECTS a policy naming a trigger field that does not exist', () => {
-    const bad = { ...ESTATE_POLICY, reason_trigger: { ...ESTATE_POLICY.reason_trigger, dirty: 'noSuchField' } };
+    const bad = {
+      ...ESTATE_POLICY,
+      reason_trigger: { ...ESTATE_POLICY.reason_trigger, dirty: 'noSuchField' },
+    };
     expect(EstatePolicySchema.safeParse(bad).success).toBe(false);
   });
 });
@@ -134,13 +131,15 @@ describe('every emitted event names the policy that produced its advice', () => 
   });
 
   it('an unreadable event carries it, since REPAIR_TOOLING is advice too', () => {
-    expect(unreadableEstateEvent('git-failed', AT).policy_digest)
-      .toBe(policyDigestOf(ESTATE_POLICY));
+    expect(unreadableEstateEvent('git-failed', AT).policy_digest).toBe(
+      policyDigestOf(ESTATE_POLICY),
+    );
   });
 
   it('a stale event carries it, since REREAD_ESTATE is advice too', () => {
-    expect(estateStaleEvent(digestOf('a'), digestOf('b'), AT).policy_digest)
-      .toBe(policyDigestOf(ESTATE_POLICY));
+    expect(estateStaleEvent(digestOf('a'), digestOf('b'), AT).policy_digest).toBe(
+      policyDigestOf(ESTATE_POLICY),
+    );
   });
 
   // The decider is where an INJECTED policy could otherwise pass unrecorded.
@@ -167,8 +166,7 @@ describe('a different policy produces a different verdict, visibly', () => {
   });
 
   it('the REVERSED policy reports work-in-progress for the same worktree', () => {
-    expect(actionUnder(reasonsUnder(BOTH, REVERSED), REVERSED))
-      .toBe('HALT_WORK_IN_PROGRESS');
+    expect(actionUnder(reasonsUnder(BOTH, REVERSED), REVERSED)).toBe('HALT_WORK_IN_PROGRESS');
   });
 
   // Same estate, different rules, different advice -- and the digests differ,

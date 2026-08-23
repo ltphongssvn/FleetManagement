@@ -44,7 +44,9 @@ export type SetManualNetWeightResult =
   | { readonly status: 'conflict' }
   | { readonly status: 'api_error'; readonly message: string };
 
-export async function setManualNetWeight(input: SetManualNetWeightInput): Promise<SetManualNetWeightResult> {
+export async function setManualNetWeight(
+  input: SetManualNetWeightInput,
+): Promise<SetManualNetWeightResult> {
   const parsed = SetManualNetWeightInputSchema.safeParse(input);
   if (!parsed.success) return { status: 'invalid' };
 

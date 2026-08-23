@@ -22,9 +22,19 @@
 // immutable production contract values once shipped. Delivery mechanics
 // (channelId, priority, interruptionLevel, sound) are PROVIDER-owned (S4);
 // this consumer owns only WHO (operator address) and WHAT (title/body/data).
-import { Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  type OnModuleDestroy,
+  type OnModuleInit,
+} from '@nestjs/common';
 import { Worker, UnrecoverableError, type ConnectionOptions } from 'bullmq';
-import { DriverAlertJobSchema, OUTBOX_QUEUES, type DriverAlertPushData } from '@fleet/sync-protocol';
+import {
+  DriverAlertJobSchema,
+  OUTBOX_QUEUES,
+  type DriverAlertPushData,
+} from '@fleet/sync-protocol';
 import { PUSH_PROVIDER, type IPushProvider } from '../push/push-provider.interface.js';
 
 /** Immutable VI title for a new transport order alert. */
@@ -39,7 +49,10 @@ export interface WorkerLike {
   close(): Promise<void>;
 }
 /** Processor contract the factory wires into the Worker. */
-export type AlertsJobProcessor = (job: { readonly id?: string | null; readonly data: unknown }) => Promise<void>;
+export type AlertsJobProcessor = (job: {
+  readonly id?: string | null;
+  readonly data: unknown;
+}) => Promise<void>;
 /** Factory seam: production builds a real BullMQ Worker; tests capture the processor. */
 export type AlertsWorkerFactory = (queueName: string, processor: AlertsJobProcessor) => WorkerLike;
 export const ALERTS_WORKER_FACTORY = 'ALERTS_WORKER_FACTORY' as const;
@@ -48,7 +61,10 @@ export const ALERTS_WORKER_FACTORY = 'ALERTS_WORKER_FACTORY' as const;
  *  named, side-effect-free function so the id-nullish-coalescing branch is
  *  directly unit-testable without booting a real Worker (which needs Redis).
  *  Leaves new Worker(...) below as the only broker-coupled line. */
-export function toProcessorJob(rawJob: { readonly id?: string | null; readonly data: unknown }): { readonly id: string | null; readonly data: unknown } {
+export function toProcessorJob(rawJob: { readonly id?: string | null; readonly data: unknown }): {
+  readonly id: string | null;
+  readonly data: unknown;
+} {
   return { id: rawJob.id ?? null, data: rawJob.data };
 }
 /** Default factory: real BullMQ Worker on the shared connection options.
@@ -89,7 +105,9 @@ export class AlertsConsumerService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
-    this.worker = this.workerFactory(OUTBOX_QUEUES.ALERTS, async (job) => { await this.process(job); });
+    this.worker = this.workerFactory(OUTBOX_QUEUES.ALERTS, async (job) => {
+      await this.process(job);
+    });
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -99,15 +117,20 @@ export class AlertsConsumerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async process(job: { readonly id?: string | null; readonly data: unknown }): Promise<void> {
+  private async process(job: {
+    readonly id?: string | null;
+    readonly data: unknown;
+  }): Promise<void> {
     const parsed = DriverAlertJobSchema.safeParse(job.data);
     if (!parsed.success) {
       // Poison: retries cannot fix a schema failure. UnrecoverableError makes
       // BullMQ fail the job immediately (no backoff loop).
       throw new UnrecoverableError(
-        'driver_alert job ' + jobLabel(job.id) + ' schema_validation_failed: '
-        /* c8 ignore next -- a ZodError always carries >=1 issue; the ?? fallback is unreachable defensive code */
-        + (parsed.error.issues[0]?.message ?? 'unknown'),
+        'driver_alert job ' +
+          jobLabel(job.id) +
+          ' schema_validation_failed: ' +
+          /* c8 ignore next -- a ZodError always carries >=1 issue; the ?? fallback is unreachable defensive code */
+          (parsed.error.issues[0]?.message ?? 'unknown'),
       );
     }
     // Axis-2 derivation, Axis-1 no-redundant-revalidation: the push-data wire
@@ -122,13 +145,22 @@ export class AlertsConsumerService implements OnModuleInit, OnModuleDestroy {
     });
     if (result.accepted === 0) {
       throw new Error(
-        'driver_alert job ' + jobLabel(job.id) + ' accepted 0 (rejected '
-        + String(result.rejected) + ') for operator ' + assignedOperatorId,
+        'driver_alert job ' +
+          jobLabel(job.id) +
+          ' accepted 0 (rejected ' +
+          String(result.rejected) +
+          ') for operator ' +
+          assignedOperatorId,
       );
     }
     this.logger.log(
-      'driver_alert delivered ' + parsed.data.externalRef + ' -> operator '
-      + assignedOperatorId + ' (accepted ' + String(result.accepted) + ')',
+      'driver_alert delivered ' +
+        parsed.data.externalRef +
+        ' -> operator ' +
+        assignedOperatorId +
+        ' (accepted ' +
+        String(result.accepted) +
+        ')',
     );
   }
 }

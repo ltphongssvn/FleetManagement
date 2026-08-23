@@ -65,25 +65,26 @@ export function StopProofView({
 }): JSX.Element {
   const kg = proof.extractedNetWeightKg ?? null;
   return (
-    <span data-testid={testIds.root} className='inline-flex flex-col items-start gap-0.5'>
-      <a href={proof.photoUrl}
-        target='_blank'
-        rel='noopener noreferrer'
-        className='text-primary-text underline hover:text-primary-hover'
+    <span data-testid={testIds.root} className="inline-flex flex-col items-start gap-0.5">
+      <a
+        href={proof.photoUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-primary-text underline hover:text-primary-hover"
       >
         {'Phiếu Cân'}
       </a>
       {kg !== null ? (
-        <span data-testid={testIds.netWeight} className='text-text-secondary tabular-nums'>
+        <span data-testid={testIds.netWeight} className="text-text-secondary tabular-nums">
           {formatNetWeightKg(kg)}
         </span>
       ) : proof.extractionStatus === 'not_found' || proof.extractionStatus === 'unreadable' ? (
         <>
           <button
-            type='button'
+            type="button"
             data-testid={testIds.needsEntry}
             onClick={() => onEnterNetWeight?.(proof.manifestId)}
-            className='text-warning-text underline decoration-dotted hover:text-warning-strong'
+            className="text-warning-text underline decoration-dotted hover:text-warning-strong"
           >
             {'Nhập KL'}
           </button>
@@ -91,14 +92,14 @@ export function StopProofView({
             <span
               data-testid={testIds.reason}
               title={proof.extractionReason}
-              className='text-warning-text text-xs italic'
+              className="text-warning-text text-xs italic"
             >
               {REASON_VI[proof.extractionReason]}
             </span>
           ) : null}
         </>
       ) : proof.extractionStatus === 'pending' || proof.extractionStatus === undefined ? (
-        <span data-testid={testIds.pending} className='text-text-faint italic'>
+        <span data-testid={testIds.pending} className="text-text-faint italic">
           {'Đang xử lý'}
         </span>
       ) : null}

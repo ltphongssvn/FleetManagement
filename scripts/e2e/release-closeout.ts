@@ -22,9 +22,19 @@ export interface ReleaseDecision {
 
 export function backMergeSubject(d: ReleaseDecision, prNumber: number): string {
   if (d.released && d.version !== null) {
-    return 'Merge main into develop: back-merge #' + String(prNumber) + ' (release v' + d.version + ' published)';
+    return (
+      'Merge main into develop: back-merge #' +
+      String(prNumber) +
+      ' (release v' +
+      d.version +
+      ' published)'
+    );
   }
-  return 'Merge main into develop: back-merge #' + String(prNumber) + ' (chore-only, no release published)';
+  return (
+    'Merge main into develop: back-merge #' +
+    String(prNumber) +
+    ' (chore-only, no release published)'
+  );
 }
 
 // Resolve the published release from git tags — the authoritative post-publish
@@ -91,32 +101,55 @@ function main(): void {
   // Authoritative post-publish source: the tag the Release run created at main
   // HEAD that is not yet on develop. Refs are shared across worktrees; read via
   // mainWt. No release:dry here — it is blind post-publish and needs a GH token.
-  const tagsAtMainHead = run('git', ['-C', mainWt, 'tag', '--points-at', 'origin/' + cfg.baseBranch], { allowFail: true })
+  const tagsAtMainHead = run(
+    'git',
+    ['-C', mainWt, 'tag', '--points-at', 'origin/' + cfg.baseBranch],
+    { allowFail: true },
+  )
     .split('\n')
     .map((t) => t.trim())
     .filter((t) => t.length > 0);
-  const tagsOnDevelop = run('git', ['-C', mainWt, 'tag', '--merged', 'origin/' + cfg.developBranch], { allowFail: true })
+  const tagsOnDevelop = run(
+    'git',
+    ['-C', mainWt, 'tag', '--merged', 'origin/' + cfg.developBranch],
+    { allowFail: true },
+  )
     .split('\n')
     .map((t) => t.trim())
     .filter((t) => t.length > 0);
   const decision = resolveReleaseFromTags(tagsAtMainHead, tagsOnDevelop);
-  console.log(decision.released ? '\u2705 release: v' + (decision.version ?? '?') + ' published' : '\u2139\ufe0f  release: none (chore-only)');
+  console.log(
+    decision.released
+      ? '\u2705 release: v' + (decision.version ?? '?') + ' published'
+      : '\u2139\ufe0f  release: none (chore-only)',
+  );
 
   const subject = backMergeSubject(decision, cfg.prNumber);
   console.log('\ud83d\udd01 back-merge subject: ' + subject);
 
   run('git', ['checkout', cfg.developBranch]);
   run('git', ['pull', '--ff-only'], { allowFail: true });
-  const mergeOut = run('git', ['merge', 'origin/' + cfg.baseBranch, '--no-ff', '-m', subject], { allowFail: true });
+  const mergeOut = run('git', ['merge', 'origin/' + cfg.baseBranch, '--no-ff', '-m', subject], {
+    allowFail: true,
+  });
   if (/Already up to date/i.test(mergeOut)) {
     console.log('\u2705 develop already contains main — nothing to back-merge.');
     return;
   }
   run('git', ['push', 'origin', cfg.developBranch]);
   run('git', ['fetch', 'origin', '--prune', '--quiet'], { allowFail: true });
-  const delta = run('git', ['rev-list', '--left-right', '--count', 'origin/' + cfg.baseBranch + '...origin/' + cfg.developBranch]).trim();
-  console.log('\u2705 reconciled — main<->develop delta (left=main ahead, right=develop ahead): ' + delta);
+  const delta = run('git', [
+    'rev-list',
+    '--left-right',
+    '--count',
+    'origin/' + cfg.baseBranch + '...origin/' + cfg.developBranch,
+  ]).trim();
+  console.log(
+    '\u2705 reconciled — main<->develop delta (left=main ahead, right=develop ahead): ' + delta,
+  );
 }
 
 const isEntry = process.argv[1] !== undefined && import.meta.url === 'file://' + process.argv[1];
-if (isEntry) { main(); }
+if (isEntry) {
+  main();
+}

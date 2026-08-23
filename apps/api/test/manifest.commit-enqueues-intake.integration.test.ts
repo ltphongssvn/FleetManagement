@@ -19,7 +19,12 @@ import type { OperatorContext } from '../src/auth/operator-context.js';
 import type { IBlobStore, PresignedUpload } from '../src/storage/storage-provider.interface.js';
 import type { ConfigService } from '@nestjs/config';
 import type { Env } from '../src/config/env.config.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+  truncateAllTables,
+} from './helpers/migrate-test-db.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 
 let testDb: MigratedTestDb;
@@ -27,12 +32,16 @@ let service: ManifestService;
 const OP: OperatorContext = createOperatorContext();
 
 function fakeBlobStore(): IBlobStore {
-  return { presignUpload: vi.fn().mockImplementation(() => Promise.resolve({
-    url: 'https://s3.example/presigned',
-    key: 'manifests/co/' + randomUUID() + '/x.jpg',
-    bucket: 'fleet-test',
-    expiresAt: new Date('2026-04-27T20:00:00Z'),
-  } satisfies PresignedUpload))};
+  return {
+    presignUpload: vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        url: 'https://s3.example/presigned',
+        key: 'manifests/co/' + randomUUID() + '/x.jpg',
+        bucket: 'fleet-test',
+        expiresAt: new Date('2026-04-27T20:00:00Z'),
+      } satisfies PresignedUpload),
+    ),
+  };
 }
 function fakeConfig(): ConfigService<Env, true> {
   return { getOrThrow: vi.fn().mockReturnValue(900) } as unknown as ConfigService<Env, true>;
@@ -45,16 +54,28 @@ async function negotiateThenCommit(): Promise<void> {
     INSERT INTO transport_order (transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, state)
     VALUES (${transportOrderId}::uuid, ${OP.companyId}::uuid, ${OP.businessUnitId}::uuid, ${OP.depotId}::uuid, ${OP.legalEntityId}::uuid, 'assigned')
   `);
-  const negotiated = await service.negotiateUpload({
-    manifestCorrelationId: correlationId, transportOrderId,
-    contentType: 'image/jpeg', expectedSizeBytes: 1000,
-  }, OP);
-  await service.commitUpload({ uploadSessionId: negotiated.uploadSessionId, actualSizeBytes: 900 }, OP);
+  const negotiated = await service.negotiateUpload(
+    {
+      manifestCorrelationId: correlationId,
+      transportOrderId,
+      contentType: 'image/jpeg',
+      expectedSizeBytes: 1000,
+    },
+    OP,
+  );
+  await service.commitUpload(
+    { uploadSessionId: negotiated.uploadSessionId, actualSizeBytes: 900 },
+    OP,
+  );
 }
 
 describe('@fleet/api - commitUpload enqueues a schema-valid intake job', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_intake_contract'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_test_intake_contract');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
   beforeEach(async () => {
     service = new ManifestService(testDb.db, fakeBlobStore(), fakeConfig());
     await truncateAllTables(testDb.db);

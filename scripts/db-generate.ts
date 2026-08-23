@@ -85,8 +85,10 @@ function main(): number {
       '[db:generate] FAILED: ' + verdict.reasons.join(', ') + String.fromCharCode(10),
     );
     process.stderr.write(
-      '[db:generate] drizzle-kit exit code was ' + String(exitCode)
-        + ' -- it is unreliable, the output above is the contract.' + String.fromCharCode(10),
+      '[db:generate] drizzle-kit exit code was ' +
+        String(exitCode) +
+        ' -- it is unreliable, the output above is the contract.' +
+        String.fromCharCode(10),
     );
     return 1;
   }

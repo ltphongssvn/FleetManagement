@@ -59,7 +59,10 @@ export interface GeminiVlmExtractorConfig {
 export class GeminiVlmExtractor implements VlmExtractorPort {
   constructor(private readonly config: GeminiVlmExtractorConfig) {}
 
-  async extractNetWeight(input: { readonly bytes: Uint8Array; readonly contentType: string }): Promise<VlmRawNetWeight | null> {
+  async extractNetWeight(input: {
+    readonly bytes: Uint8Array;
+    readonly contentType: string;
+  }): Promise<VlmRawNetWeight | null> {
     const fetchFn = this.config.fetchFn ?? globalThis.fetch;
     const base = this.config.baseUrl ?? 'https://generativelanguage.googleapis.com/v1beta';
     // Plain string concatenation (no template literals): keeps this file free of
@@ -69,19 +72,28 @@ export class GeminiVlmExtractor implements VlmExtractorPort {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.config.apiKey },
       body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: PROMPT },
-            { inline_data: { mime_type: input.contentType, data: Buffer.from(input.bytes).toString('base64') } },
-          ],
-        }],
+        contents: [
+          {
+            parts: [
+              { text: PROMPT },
+              {
+                inline_data: {
+                  mime_type: input.contentType,
+                  data: Buffer.from(input.bytes).toString('base64'),
+                },
+              },
+            ],
+          },
+        ],
         generationConfig: { response_mime_type: 'application/json', temperature: 0 },
       }),
     });
     if (!res.ok) {
       throw new Error('gemini generateContent HTTP ' + String(res.status) + ' ' + res.statusText);
     }
-    const payload = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+    const payload = (await res.json()) as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    };
     const text = payload.candidates?.[0]?.content?.parts?.[0]?.text;
     if (typeof text !== 'string') return null;
     let parsedJson: unknown;

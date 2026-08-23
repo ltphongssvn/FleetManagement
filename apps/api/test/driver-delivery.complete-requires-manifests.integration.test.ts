@@ -18,20 +18,34 @@
 // complete() REJECTS. Case B: 2 committed manifests (all photos) ->
 // complete() SUCCEEDS, road_run 'completed'.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { roadRun, roadRunTransportOrder, transportOrder, stop } from '../src/database/schema/transport.js';
+import {
+  roadRun,
+  roadRunTransportOrder,
+  transportOrder,
+  stop,
+} from '../src/database/schema/transport.js';
 import { manifest } from '../src/database/schema/manifest.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { withTxIsolation } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 import { randomUUID } from 'node:crypto';
 let testDb: PgliteTestDb;
 type Op = ReturnType<typeof createOperatorContext>;
 function tenancy(op: Op): {
-  companyId: string; businessUnitId: string; depotId: string; legalEntityId: string;
+  companyId: string;
+  businessUnitId: string;
+  depotId: string;
+  legalEntityId: string;
 } {
   return {
-    companyId: op.companyId, businessUnitId: op.businessUnitId,
-    depotId: op.depotId, legalEntityId: op.legalEntityId,
+    companyId: op.companyId,
+    businessUnitId: op.businessUnitId,
+    depotId: op.depotId,
+    legalEntityId: op.legalEntityId,
   };
 }
 // Seed a started road_run bound to op.operatorId, with one transport_order
@@ -47,41 +61,67 @@ async function seedStartedRun(
   const t = tenancy(op);
   const db = tx as {
     insert: (table: unknown) => {
-      values: (v: unknown) => Promise<void> & { returning: () => Promise<readonly Record<string, string>[]> };
+      values: (
+        v: unknown,
+      ) => Promise<void> & { returning: () => Promise<readonly Record<string, string>[]> };
     };
   };
-  const [rr] = await db.insert(roadRun).values({
-    ...t, state: 'started',
-    assignedOperatorId: op.operatorId, assignedAssetId: randomUUID(),
-    startedAt: new Date(),
-  }).returning();
-  const [to] = await db.insert(transportOrder).values({
-    ...t, state: 'in_transit', externalRef: 'XTT.06-' + String(Date.now()).slice(-6),
-  }).returning();
+  const [rr] = await db
+    .insert(roadRun)
+    .values({
+      ...t,
+      state: 'started',
+      assignedOperatorId: op.operatorId,
+      assignedAssetId: randomUUID(),
+      startedAt: new Date(),
+    })
+    .returning();
+  const [to] = await db
+    .insert(transportOrder)
+    .values({
+      ...t,
+      state: 'in_transit',
+      externalRef: 'XTT.06-' + String(Date.now()).slice(-6),
+    })
+    .returning();
   if (rr === undefined || to === undefined) throw new Error('seed failed');
   const roadRunId = rr['roadRunId'];
   const transportOrderId = to['transportOrderId'];
-  if (roadRunId === undefined || transportOrderId === undefined) throw new Error('seed missing ids');
+  if (roadRunId === undefined || transportOrderId === undefined)
+    throw new Error('seed missing ids');
   await db.insert(roadRunTransportOrder).values({
-    ...t, roadRunId, transportOrderId, sequence: 1,
+    ...t,
+    roadRunId,
+    transportOrderId,
+    sequence: 1,
   });
   for (let i = 0; i < stopCount; i++) {
     await db.insert(stop).values({
-      ...t, transportOrderId, sequence: i + 1,
+      ...t,
+      transportOrderId,
+      sequence: i + 1,
       stopType: i === 0 ? 'pickup' : 'delivery',
     });
   }
   for (let i = 0; i < committedManifests; i++) {
     await db.insert(manifest).values({
-      ...t, transportOrderId, manifestCorrelationId: randomUUID(),
-      state: 'committed', capturedByOperatorId: op.operatorId, committedAt: new Date(),
+      ...t,
+      transportOrderId,
+      manifestCorrelationId: randomUUID(),
+      state: 'committed',
+      capturedByOperatorId: op.operatorId,
+      committedAt: new Date(),
     });
   }
   return roadRunId;
 }
 describe('@fleet/api - DriverDeliveryService.complete requires all manifests committed', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('REJECTS completion when a stop is missing its committed manifest (1 of 2 photos)', async () => {
     const outcome = await withTxIsolation(testDb, async (tx) => {
       const { DriverDeliveryService } = await import('../src/dispatch/driver-delivery.service.js');

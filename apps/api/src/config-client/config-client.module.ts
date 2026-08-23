@@ -7,5 +7,4 @@ import { ConfigClientController } from './config-client.controller.js';
   imports: [AuthModule],
   controllers: [ConfigClientController],
 })
-
 export class ConfigClientModule {}

@@ -39,7 +39,11 @@ class FakeRepo implements RefreshTokenRepositoryPort {
     this.rows.push({ ...row });
     return Promise.resolve();
   }
-  claimForRotation(tokenHash: string, replacedByTokenHash: string, nowMs: number): Promise<RefreshTokenRecord | null> {
+  claimForRotation(
+    tokenHash: string,
+    replacedByTokenHash: string,
+    nowMs: number,
+  ): Promise<RefreshTokenRecord | null> {
     const row = this.rows.find(
       (r) => r.tokenHash === tokenHash && r.revokedAt === null && r.expiresAt.getTime() > nowMs,
     );
@@ -201,7 +205,9 @@ describe('RefreshTokenService decideUnclaimed fallback (adapter anomalies)', () 
       driverActive,
     };
   }
-  function stubRepo(found: RefreshTokenRecord | null): RefreshTokenRepositoryPort & { inserted: number } {
+  function stubRepo(
+    found: RefreshTokenRecord | null,
+  ): RefreshTokenRepositoryPort & { inserted: number } {
     const repo = {
       inserted: 0,
       insert(): Promise<void> {
@@ -227,7 +233,10 @@ describe('RefreshTokenService decideUnclaimed fallback (adapter anomalies)', () 
   it('unclaimed but live row with a disabled driver resolves driver-disabled, mints nothing', async () => {
     const repo = stubRepo(liveRow(false));
     const signJwt = vi.fn();
-    const svc = new RefreshTokenService(repo, signJwt as never, { accessTtlSeconds: 900, refreshTtlSeconds: 3600 });
+    const svc = new RefreshTokenService(repo, signJwt as never, {
+      accessTtlSeconds: 900,
+      refreshTtlSeconds: 3600,
+    });
     const out = await svc.rotate('presented-token', NOW);
     expect(out).toEqual({ kind: 'driver-disabled' });
     expect(repo.inserted).toBe(0);
@@ -237,7 +246,10 @@ describe('RefreshTokenService decideUnclaimed fallback (adapter anomalies)', () 
   it('unclaimed yet policy-ok row fails closed to not-found, mints nothing', async () => {
     const repo = stubRepo(liveRow(true));
     const signJwt = vi.fn();
-    const svc = new RefreshTokenService(repo, signJwt as never, { accessTtlSeconds: 900, refreshTtlSeconds: 3600 });
+    const svc = new RefreshTokenService(repo, signJwt as never, {
+      accessTtlSeconds: 900,
+      refreshTtlSeconds: 3600,
+    });
     const out = await svc.rotate('presented-token', NOW);
     expect(out).toEqual({ kind: 'not-found' });
     expect(repo.inserted).toBe(0);

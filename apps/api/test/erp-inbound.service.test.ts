@@ -17,8 +17,12 @@ vi.mock('../src/database/schema/index.js', () => ({
 import { ErpInboundService } from '../src/erp-inbound/erp-inbound.service.js';
 import type { InvoiceAckInput } from '../src/erp-inbound/erp-inbound.dto.js';
 
-interface SetCall { values: Record<string, unknown> }
-interface WhereCall { predicate: unknown }
+interface SetCall {
+  values: Record<string, unknown>;
+}
+interface WhereCall {
+  predicate: unknown;
+}
 interface FakeDb {
   setCalls: SetCall[];
   whereCalls: WhereCall[];
@@ -132,7 +136,11 @@ describe('@fleet/api - ErpInboundService.recordInvoiceAck (unit)', () => {
     expect(whereCall.predicate).toMatchObject({
       _kind: 'and',
       preds: [
-        { _kind: 'eq', col: 'erpInvoiceMap.manifestCorrelationId', value: '22222222-2222-4222-8222-222222222222' },
+        {
+          _kind: 'eq',
+          col: 'erpInvoiceMap.manifestCorrelationId',
+          value: '22222222-2222-4222-8222-222222222222',
+        },
         { _kind: 'eq', col: 'erpInvoiceMap.erpSystem', value: 'oracle' },
       ],
     });

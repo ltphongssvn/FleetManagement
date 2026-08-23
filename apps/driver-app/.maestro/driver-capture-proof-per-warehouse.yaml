@@ -44,27 +44,27 @@ appId: com.fleetmanagement.driver
 - launchApp:
     clearState: true
 - tapOn:
-    text: "Wait"
+    text: 'Wait'
     optional: true
 - extendedWaitUntil:
-    visible: "Đăng nhập để xem lệnh điều xe"
+    visible: 'Đăng nhập để xem lệnh điều xe'
     timeout: 120000
 # --- Log in as the seeded driver (env from the handoff via the harness) ---
 - tapOn:
-    text: "Số điện thoại"
+    text: 'Số điện thoại'
 - inputText: "${MAESTRO_DRIVER_PHONE ?? '0900000001'}"
 - tapOn:
-    text: "Mật khẩu"
+    text: 'Mật khẩu'
 - inputText: "${MAESTRO_DRIVER_PASSWORD ?? 'driver1pass'}"
 - hideKeyboard
 - tapOn:
-    text: "Đăng nhập"
+    text: 'Đăng nhập'
 - extendedWaitUntil:
-    visible: "Trạng thái đồng bộ"
+    visible: 'Trạng thái đồng bộ'
     timeout: 60000
 # --- Open the assignments list and wait for the seeded order to load ---
 - tapOn:
-    text: "Xem lệnh điều xe"
+    text: 'Xem lệnh điều xe'
 - extendedWaitUntil:
     visible: "${MAESTRO_ORDER_REF ?? 'XTT'}"
     timeout: 60000
@@ -73,12 +73,12 @@ appId: com.fleetmanagement.driver
 # seed-independent prefix. Tapping navigates (captureHrefForStop) to the loading
 # stop #1 capture screen.
 - tapOn:
-    text: "Chụp ảnh phiếu nhận hàng.*"
+    text: 'Chụp ảnh phiếu nhận hàng.*'
 - extendedWaitUntil:
-    visible: "Phiếu nhận hàng - Kho nhận hàng 1.*"
+    visible: 'Phiếu nhận hàng - Kho nhận hàng 1.*'
     timeout: 30000
-- assertVisible: "Chụp ảnh phiếu nhận hàng tại kho nhận hàng 1.*"
-- assertVisible: "Chụp ảnh"
+- assertVisible: 'Chụp ảnh phiếu nhận hàng tại kho nhận hàng 1.*'
+- assertVisible: 'Chụp ảnh'
 # Back to the assignments list to reach the delivery stop.
 - back
 - extendedWaitUntil:
@@ -86,9 +86,9 @@ appId: com.fleetmanagement.driver
     timeout: 30000
 # --- Delivery (unloading) proof: tap the delivery capture button ---
 - tapOn:
-    text: "Chụp ảnh phiếu giao hàng.*"
+    text: 'Chụp ảnh phiếu giao hàng.*'
 - extendedWaitUntil:
-    visible: "Phiếu giao hàng - Kho dỡ hàng.*"
+    visible: 'Phiếu giao hàng - Kho dỡ hàng.*'
     timeout: 30000
-- assertVisible: "Chụp ảnh phiếu giao hàng tại kho dỡ hàng.*"
-- assertVisible: "Chụp ảnh"
+- assertVisible: 'Chụp ảnh phiếu giao hàng tại kho dỡ hàng.*'
+- assertVisible: 'Chụp ảnh'

@@ -28,7 +28,10 @@ vi.mock('@/features/admin/reference-admin-client', () => ({
 }));
 import ReferenceAdminPage from '@/app/admin/reference/page';
 
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 beforeEach(() => {
   listMock.mockResolvedValue([{ id: 'r1', label: 'TẤM' }]);
 });

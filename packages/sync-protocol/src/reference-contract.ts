@@ -31,7 +31,9 @@ export type DriverVehicleAssignmentItem = z.infer<typeof DriverVehicleAssignment
 export const DriverVehicleAssignmentsResponseSchema = z.object({
   items: z.array(DriverVehicleAssignmentItemSchema),
 });
-export type DriverVehicleAssignmentsResponse = z.infer<typeof DriverVehicleAssignmentsResponseSchema>;
+export type DriverVehicleAssignmentsResponse = z.infer<
+  typeof DriverVehicleAssignmentsResponseSchema
+>;
 
 export const PeekOrderRefResponseSchema = z.object({
   ref: z.string(),

@@ -11,18 +11,14 @@
 // schema removes the duplication AND upgrades the ack types to their validated
 // schema form (CommandAck is now z.infer of a discriminatedUnion, so a drifted
 // ack shape is catchable at runtime, not just at compile time).
-import {
-  CommandPayloadSchema,
-  type CommandPayload,
-  type CommandAck,
-} from "@fleet/sync-protocol";
+import { CommandPayloadSchema, type CommandPayload, type CommandAck } from '@fleet/sync-protocol';
 
 export type {
   CommandType,
   CommandPayload,
   AckRejectionReason,
   CommandAck,
-} from "@fleet/sync-protocol";
+} from '@fleet/sync-protocol';
 
 export interface ReceiverState {
   readonly inbox: readonly CommandPayload[];
@@ -36,7 +32,7 @@ export interface ReceiveResult {
   readonly command?: CommandPayload;
 }
 
-const UNKNOWN_COMMAND_ID = "00000000-0000-0000-0000-000000000000" as const;
+const UNKNOWN_COMMAND_ID = '00000000-0000-0000-0000-000000000000' as const;
 
 export function initialReceiverState(): ReceiverState {
   return { inbox: [], seenCommandIds: new Set() };
@@ -52,7 +48,7 @@ export function initialReceiverState(): ReceiverState {
  */
 /** Type guard: rawPayload is a non-null, non-array, non-primitive object we can index. */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return typeof value === 'object' && value !== null;
 }
 
 export function receiveCommand(
@@ -68,19 +64,17 @@ export function receiveCommand(
     // Narrow rawPayload to an indexable Record only when it is a real object
     // (excludes null, primitives, and undefined). Using a typeguard function
     // gives Stryker fewer redundant conditional mutants than an inlined and-chain.
-    const rawCommandId = isPlainObject(rawPayload) ? rawPayload["commandId"] : undefined;
-    const maybeId: string = typeof rawCommandId === "string"
-      ? rawCommandId
-      : UNKNOWN_COMMAND_ID;
+    const rawCommandId = isPlainObject(rawPayload) ? rawPayload['commandId'] : undefined;
+    const maybeId: string = typeof rawCommandId === 'string' ? rawCommandId : UNKNOWN_COMMAND_ID;
     return {
       state,
       ack: {
         commandId: maybeId,
         ackedAt,
-        status: "rejected",
-        reasonCode: "client_error",
+        status: 'rejected',
+        reasonCode: 'client_error',
         // Stryker disable next-line OptionalChaining,StringLiteral: zod guarantees issues[0] is set when success=false; the optional-chain mutant is equivalent, and the fallback string is unreachable.
-        reasonText: parsed.error.issues[0]?.message ?? "invalid payload",
+        reasonText: parsed.error.issues[0]?.message ?? 'invalid payload',
       },
     };
   }
@@ -91,8 +85,8 @@ export function receiveCommand(
       ack: {
         commandId: cmd.commandId,
         ackedAt,
-        status: "rejected",
-        reasonCode: "duplicate_command",
+        status: 'rejected',
+        reasonCode: 'duplicate_command',
       },
     };
   }
@@ -106,7 +100,7 @@ export function receiveCommand(
     ack: {
       commandId: cmd.commandId,
       ackedAt,
-      status: "received",
+      status: 'received',
     },
     command: cmd,
   };

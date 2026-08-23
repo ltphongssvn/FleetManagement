@@ -44,7 +44,9 @@ const iosIdfv = (seed: number): string => {
     raw.push(upper[n & 0xf] ?? '0');
   }
   const h = raw.join('');
-  return [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20, 32)].join('-');
+  return [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20, 32)].join(
+    '-',
+  );
 };
 const SSAID_EXAMPLE = androidSsaid(1);
 const IDFV_EXAMPLE = iosIdfv(2);
@@ -52,7 +54,10 @@ const GUID = '018f6b2a-1111-7000-8000-000000000001';
 
 describe('DeviceIdentitySchema', () => {
   it('accepts an android SSAID identity', () => {
-    const r = DeviceIdentitySchema.safeParse({ platform: 'android', installationId: SSAID_EXAMPLE });
+    const r = DeviceIdentitySchema.safeParse({
+      platform: 'android',
+      installationId: SSAID_EXAMPLE,
+    });
     expect(r.success).toBe(true);
   });
   it('accepts an ios IDFV identity', () => {
@@ -60,17 +65,25 @@ describe('DeviceIdentitySchema', () => {
     expect(r.success).toBe(true);
   });
   it('rejects web platform (binding is mobile-only)', () => {
-    expect(DeviceIdentitySchema.safeParse({ platform: 'web', installationId: 'x1' }).success).toBe(false);
+    expect(DeviceIdentitySchema.safeParse({ platform: 'web', installationId: 'x1' }).success).toBe(
+      false,
+    );
   });
   it('rejects an empty installationId', () => {
-    expect(DeviceIdentitySchema.safeParse({ platform: 'android', installationId: '' }).success).toBe(false);
+    expect(
+      DeviceIdentitySchema.safeParse({ platform: 'android', installationId: '' }).success,
+    ).toBe(false);
   });
   it('rejects an installationId longer than 128 chars', () => {
     const long = 'a'.repeat(129);
-    expect(DeviceIdentitySchema.safeParse({ platform: 'android', installationId: long }).success).toBe(false);
+    expect(
+      DeviceIdentitySchema.safeParse({ platform: 'android', installationId: long }).success,
+    ).toBe(false);
   });
   it('rejects unsafe characters in installationId', () => {
-    expect(DeviceIdentitySchema.safeParse({ platform: 'android', installationId: 'abc def' }).success).toBe(false);
+    expect(
+      DeviceIdentitySchema.safeParse({ platform: 'android', installationId: 'abc def' }).success,
+    ).toBe(false);
   });
   it('strips unknown keys (strip mode pinned)', () => {
     const r = DeviceIdentitySchema.safeParse({ platform: 'ios', installationId: GUID, extra: 1 });
@@ -123,7 +136,10 @@ describe('DeviceEnrollRequestSchema', () => {
     expect(DeviceEnrollRequestSchema.safeParse(rest).success).toBe(false);
   });
   it('accepts an optional expoPushToken', () => {
-    const r = DeviceEnrollRequestSchema.safeParse({ ...base, expoPushToken: 'ExponentPushToken[abc]' });
+    const r = DeviceEnrollRequestSchema.safeParse({
+      ...base,
+      expoPushToken: 'ExponentPushToken[abc]',
+    });
     expect(r.success).toBe(true);
   });
 });
@@ -134,7 +150,9 @@ describe('DeviceEnrollResponseSchema', () => {
     expect(r.success).toBe(true);
   });
   it('rejects a non-guid deviceId', () => {
-    expect(DeviceEnrollResponseSchema.safeParse({ deviceId: 'nope', bindingStatus: 'active' }).success).toBe(false);
+    expect(
+      DeviceEnrollResponseSchema.safeParse({ deviceId: 'nope', bindingStatus: 'active' }).success,
+    ).toBe(false);
   });
 });
 
@@ -153,7 +171,11 @@ describe('null-never-throw parse helpers', () => {
     expect(parseDeviceEnrollRequest({})).toBeNull();
   });
   it('parseDeviceEnrollRequest returns the typed value on valid input', () => {
-    const v = parseDeviceEnrollRequest({ platform: 'ios', appVersion: '2.19.2', installationId: GUID });
+    const v = parseDeviceEnrollRequest({
+      platform: 'ios',
+      appVersion: '2.19.2',
+      installationId: GUID,
+    });
     expect(v).not.toBeNull();
     expect(v?.platform).toBe('ios');
   });

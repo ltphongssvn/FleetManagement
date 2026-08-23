@@ -58,7 +58,11 @@ describe('@fleet/ops-web - PKCE authorization request', () => {
 
   it('defaults scope to openid profile fleet, space-delimited', async () => {
     const req = await buildAuthorizationRequest(
-      { authorizationEndpoint: ENDPOINT, clientId: 'ops-web', redirectUri: 'https://ops.example.com/cb' },
+      {
+        authorizationEndpoint: ENDPOINT,
+        clientId: 'ops-web',
+        redirectUri: 'https://ops.example.com/cb',
+      },
       fixedRandom(['v', 's', 'n']),
     );
     expect(new URL(req.authorizeUrl).searchParams.get('scope')).toBe('openid profile fleet');
@@ -66,13 +70,22 @@ describe('@fleet/ops-web - PKCE authorization request', () => {
 
   it('includes acr_values only when configured (drives dispatcher step-up at login)', async () => {
     const without = await buildAuthorizationRequest(
-      { authorizationEndpoint: ENDPOINT, clientId: 'ops-web', redirectUri: 'https://ops.example.com/cb' },
+      {
+        authorizationEndpoint: ENDPOINT,
+        clientId: 'ops-web',
+        redirectUri: 'https://ops.example.com/cb',
+      },
       fixedRandom(['v', 's', 'n']),
     );
     expect(new URL(without.authorizeUrl).searchParams.has('acr_values')).toBe(false);
 
     const withAcr = await buildAuthorizationRequest(
-      { authorizationEndpoint: ENDPOINT, clientId: 'ops-web', redirectUri: 'https://ops.example.com/cb', acrValues: 'aal2' },
+      {
+        authorizationEndpoint: ENDPOINT,
+        clientId: 'ops-web',
+        redirectUri: 'https://ops.example.com/cb',
+        acrValues: 'aal2',
+      },
       fixedRandom(['v', 's', 'n']),
     );
     expect(new URL(withAcr.authorizeUrl).searchParams.get('acr_values')).toBe('aal2');

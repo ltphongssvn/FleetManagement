@@ -13,7 +13,12 @@ export const MAX_LOADING_WAREHOUSES = 4 as const;
 export type CaptureStopKind = 'loading' | 'unloading';
 
 export type CaptureStop =
-  | { readonly kind: 'loading'; readonly stopIndex: number; readonly displayIndex: number; readonly stopSequence: number | null }
+  | {
+      readonly kind: 'loading';
+      readonly stopIndex: number;
+      readonly displayIndex: number;
+      readonly stopSequence: number | null;
+    }
   | { readonly kind: 'unloading'; readonly stopSequence: number | null };
 
 export type CaptureStopRejectionCode =
@@ -79,5 +84,10 @@ export function parseCaptureStop(params: CaptureStopParams): CaptureStopParseRes
   if (idx < 0 || idx >= MAX_LOADING_WAREHOUSES) {
     return reject('loading_index_out_of_range');
   }
-  return accept({ kind: 'loading', stopIndex: idx, displayIndex: idx + 1, stopSequence: parseStopSequence(params.stopSequence) });
+  return accept({
+    kind: 'loading',
+    stopIndex: idx,
+    displayIndex: idx + 1,
+    stopSequence: parseStopSequence(params.stopSequence),
+  });
 }

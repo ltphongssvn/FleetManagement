@@ -39,9 +39,14 @@ import { waitForBoardReady } from './helpers/create-order';
 const POSTGRES_CONTAINER = process.env['E2E_PG_CONTAINER'] ?? 'fleet-pilot-postgres-1';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 const DISPATCHER_OPERATOR_ID = '00000000-0000-0000-0000-0000000000aa';
-interface PsqlResult { stdout: string; stderr: string; failed: boolean }
+interface PsqlResult {
+  stdout: string;
+  stderr: string;
+  failed: boolean;
+}
 function dockerPsql(sql: string): PsqlResult {
-  const cmd = 'docker exec -i ' + POSTGRES_CONTAINER + ' psql -U fleet -d fleet -tA -v ON_ERROR_STOP=1';
+  const cmd =
+    'docker exec -i ' + POSTGRES_CONTAINER + ' psql -U fleet -d fleet -tA -v ON_ERROR_STOP=1';
   try {
     const stdout = execSync(cmd, { input: sql, stdio: ['pipe', 'pipe', 'pipe'] }).toString();
     return { stdout, stderr: '', failed: false };
@@ -67,15 +72,37 @@ function countExportLog(operatorId: string, trigger: string, dayKey: string): nu
   const sq = String.fromCharCode(39);
   const sql =
     'SELECT COUNT(*)::int FROM transport_order_export_log ' +
-    'WHERE company_id=' + sq + COMPANY_ID + sq + ' ' +
-    'AND trigger=' + sq + trigger + sq + ' ' +
-    'AND day_key=' + sq + dayKey + sq + ' ' +
-    'AND operator_id=' + sq + operatorId + sq + ';';
+    'WHERE company_id=' +
+    sq +
+    COMPANY_ID +
+    sq +
+    ' ' +
+    'AND trigger=' +
+    sq +
+    trigger +
+    sq +
+    ' ' +
+    'AND day_key=' +
+    sq +
+    dayKey +
+    sq +
+    ' ' +
+    'AND operator_id=' +
+    sq +
+    operatorId +
+    sq +
+    ';';
   const r = dockerPsql(sql);
   const n = parseInt(r.stdout.trim(), 10);
   return Number.isNaN(n) ? 0 : n;
 }
-async function waitForExportLogAtLeast(operatorId: string, trigger: string, dayKey: string, minCount: number, budgetMs = 10000): Promise<number> {
+async function waitForExportLogAtLeast(
+  operatorId: string,
+  trigger: string,
+  dayKey: string,
+  minCount: number,
+  budgetMs = 10000,
+): Promise<number> {
   const deadline = Date.now() + budgetMs;
   let n = countExportLog(operatorId, trigger, dayKey);
   while (n < minCount && Date.now() < deadline) {
@@ -86,7 +113,9 @@ async function waitForExportLogAtLeast(operatorId: string, trigger: string, dayK
 }
 test.describe.configure({ mode: 'serial' });
 test.describe('dispatch export-excel backup chain (L1-L5)', () => {
-  test('L1+L2+L3: manual export button downloads .xlsx with Vietnamese headers', async ({ page }) => {
+  test('L1+L2+L3: manual export button downloads .xlsx with Vietnamese headers', async ({
+    page,
+  }) => {
     await loginAsDispatcher(page);
     await page.goto('/');
     await waitForBoardReady(page);

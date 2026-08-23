@@ -16,11 +16,33 @@ export default function LoginScreen(): JSX.Element {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.backdrop, alignItems: 'center', justifyContent: 'center', padding: spacing.xl }}>
-      <Text style={{ color: colors.white, fontSize: fontSize.xxl, fontWeight: '800', marginBottom: spacing.sm }}>
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: colors.backdrop,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: spacing.xl,
+      }}
+    >
+      <Text
+        style={{
+          color: colors.white,
+          fontSize: fontSize.xxl,
+          fontWeight: '800',
+          marginBottom: spacing.sm,
+        }}
+      >
         Fleet Owner
       </Text>
-      <Text style={{ color: colors.slate400, fontSize: fontSize.base, marginBottom: spacing.xxl, textAlign: 'center' }}>
+      <Text
+        style={{
+          color: colors.slate400,
+          fontSize: fontSize.base,
+          marginBottom: spacing.xxl,
+          textAlign: 'center',
+        }}
+      >
         Bảng điều khiển tỷ lệ tài xế đã cài đặt ứng dụng
       </Text>
 
@@ -28,20 +50,40 @@ export default function LoginScreen(): JSX.Element {
         <ActivityIndicator size="large" color={colors.indigo500} />
       ) : (
         <Pressable
-          onPress={() => { void login(); }}
+          onPress={() => {
+            void login();
+          }}
           accessibilityRole="button"
           accessibilityLabel="Đăng nhập"
           style={({ pressed }) => [
-            { backgroundColor: colors.indigo600, borderRadius: radius.lg, paddingHorizontal: spacing.xxl, paddingVertical: spacing.md, minWidth: 200, alignItems: 'center' },
+            {
+              backgroundColor: colors.indigo600,
+              borderRadius: radius.lg,
+              paddingHorizontal: spacing.xxl,
+              paddingVertical: spacing.md,
+              minWidth: 200,
+              alignItems: 'center',
+            },
             pressed && { backgroundColor: colors.indigo700 },
           ]}
         >
-          <Text style={{ color: colors.white, fontSize: fontSize.lg, fontWeight: '700' }}>Đăng nhập</Text>
+          <Text style={{ color: colors.white, fontSize: fontSize.lg, fontWeight: '700' }}>
+            Đăng nhập
+          </Text>
         </Pressable>
       )}
 
       {error !== null ? (
-        <Text style={{ color: colors.red200, fontSize: fontSize.sm, marginTop: spacing.lg, textAlign: 'center' }}>{error}</Text>
+        <Text
+          style={{
+            color: colors.red200,
+            fontSize: fontSize.sm,
+            marginTop: spacing.lg,
+            textAlign: 'center',
+          }}
+        >
+          {error}
+        </Text>
       ) : null}
     </View>
   );

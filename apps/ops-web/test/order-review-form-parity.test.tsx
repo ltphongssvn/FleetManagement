@@ -7,7 +7,9 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { OrderReview } from '@/features/dispatch/OrderReview';
 import type { ListAssignedRow } from '@/features/dispatch/types';
-afterEach(() => { cleanup(); });
+afterEach(() => {
+  cleanup();
+});
 const row: ListAssignedRow = {
   transportOrderId: '11111111-1111-1111-1111-111111111111',
   externalRef: 'XTT.05-004',
@@ -27,11 +29,51 @@ const row: ListAssignedRow = {
   canCancel: true,
   cancelBlockedReason: null,
   stops: [
-    { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'WH1', arrivedAt: null, departedAt: null, proof: null },
-    { sequence: 2, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'WH2', arrivedAt: null, departedAt: null, proof: null },
-    { sequence: 3, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'WH3', arrivedAt: null, departedAt: null, proof: null },
-    { sequence: 4, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'WH4', arrivedAt: null, departedAt: null, proof: null },
-    { sequence: 5, stopType: 'delivery', plannedAt: '2026-05-30T18:18:00.000Z', warehouseName: 'WH5', arrivedAt: null, departedAt: null, proof: null },
+    {
+      sequence: 1,
+      stopType: 'pickup',
+      plannedAt: '2026-05-30T17:18:00.000Z',
+      warehouseName: 'WH1',
+      arrivedAt: null,
+      departedAt: null,
+      proof: null,
+    },
+    {
+      sequence: 2,
+      stopType: 'pickup',
+      plannedAt: '2026-05-30T17:18:00.000Z',
+      warehouseName: 'WH2',
+      arrivedAt: null,
+      departedAt: null,
+      proof: null,
+    },
+    {
+      sequence: 3,
+      stopType: 'pickup',
+      plannedAt: '2026-05-30T17:18:00.000Z',
+      warehouseName: 'WH3',
+      arrivedAt: null,
+      departedAt: null,
+      proof: null,
+    },
+    {
+      sequence: 4,
+      stopType: 'pickup',
+      plannedAt: '2026-05-30T17:18:00.000Z',
+      warehouseName: 'WH4',
+      arrivedAt: null,
+      departedAt: null,
+      proof: null,
+    },
+    {
+      sequence: 5,
+      stopType: 'delivery',
+      plannedAt: '2026-05-30T18:18:00.000Z',
+      warehouseName: 'WH5',
+      arrivedAt: null,
+      departedAt: null,
+      proof: null,
+    },
   ],
 };
 describe('OrderReview - form parity (T8)', () => {
@@ -68,11 +110,22 @@ describe('OrderReview - form parity (T8)', () => {
 // Each stop shows the warehouse name (not just the slot label) and a status
 // derived from arrivedAt/departedAt: 'Đã hoàn thành <time>' when arrived,
 // else 'Chưa tới'. The stops list carries a column header for the date. ---
-import { describe as describeT9, it as itT9, expect as expectT9, afterEach as afterEachT9 } from 'vitest';
-import { render as renderT9, screen as screenT9, cleanup as cleanupT9 } from '@testing-library/react';
+import {
+  describe as describeT9,
+  it as itT9,
+  expect as expectT9,
+  afterEach as afterEachT9,
+} from 'vitest';
+import {
+  render as renderT9,
+  screen as screenT9,
+  cleanup as cleanupT9,
+} from '@testing-library/react';
 import { OrderReview as OrderReviewT9 } from '@/features/dispatch/OrderReview';
 import type { ListAssignedRow as ListAssignedRowT9 } from '@/features/dispatch/types';
-afterEachT9(() => { cleanupT9(); });
+afterEachT9(() => {
+  cleanupT9();
+});
 const t9row: ListAssignedRowT9 = {
   transportOrderId: '22222222-2222-2222-2222-222222222222',
   externalRef: 'XTT.05-001',
@@ -92,9 +145,33 @@ const t9row: ListAssignedRowT9 = {
   canCancel: true,
   cancelBlockedReason: null,
   stops: [
-    { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'Chơn Chính', arrivedAt: '2026-05-30T17:30:00.000Z', departedAt: '2026-05-30T17:45:00.000Z', proof: null },
-    { sequence: 2, stopType: 'pickup', plannedAt: '2026-05-30T17:18:00.000Z', warehouseName: 'Cần Thơ', arrivedAt: null, departedAt: null, proof: null },
-    { sequence: 3, stopType: 'delivery', plannedAt: '2026-05-30T18:18:00.000Z', warehouseName: 'ĐA NĂNG', arrivedAt: null, departedAt: null, proof: null },
+    {
+      sequence: 1,
+      stopType: 'pickup',
+      plannedAt: '2026-05-30T17:18:00.000Z',
+      warehouseName: 'Chơn Chính',
+      arrivedAt: '2026-05-30T17:30:00.000Z',
+      departedAt: '2026-05-30T17:45:00.000Z',
+      proof: null,
+    },
+    {
+      sequence: 2,
+      stopType: 'pickup',
+      plannedAt: '2026-05-30T17:18:00.000Z',
+      warehouseName: 'Cần Thơ',
+      arrivedAt: null,
+      departedAt: null,
+      proof: null,
+    },
+    {
+      sequence: 3,
+      stopType: 'delivery',
+      plannedAt: '2026-05-30T18:18:00.000Z',
+      warehouseName: 'ĐA NĂNG',
+      arrivedAt: null,
+      departedAt: null,
+      proof: null,
+    },
   ],
 };
 describeT9('OrderReview - per-stop status + warehouse name (T9)', () => {

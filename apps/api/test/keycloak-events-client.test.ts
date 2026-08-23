@@ -20,7 +20,11 @@ const CONFIG = {
 } as const;
 
 function tokenRes(token: string): unknown {
-  return { ok: true, status: 200, json: () => Promise.resolve({ access_token: token, token_type: 'Bearer', expires_in: 60 }) };
+  return {
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve({ access_token: token, token_type: 'Bearer', expires_in: 60 }),
+  };
 }
 function eventsRes(events: unknown): unknown {
   return { ok: true, status: 200, json: () => Promise.resolve(events) };
@@ -39,7 +43,8 @@ const LOGIN_EVENT = {
 
 describe('@fleet/api - KeycloakEventsClient', () => {
   it('POSTs the token endpoint with client_credentials form body', async () => {
-    const fetchFn = vi.fn()
+    const fetchFn = vi
+      .fn()
       .mockResolvedValueOnce(tokenRes('tok-abc'))
       .mockResolvedValueOnce(eventsRes([LOGIN_EVENT]));
     await makeClient(fetchFn).fetchLoginEventsSince(0);
@@ -54,7 +59,8 @@ describe('@fleet/api - KeycloakEventsClient', () => {
   });
 
   it('GETs the admin events endpoint with the bearer token, type=LOGIN, and dateFrom from the cursor', async () => {
-    const fetchFn = vi.fn()
+    const fetchFn = vi
+      .fn()
       .mockResolvedValueOnce(tokenRes('tok-xyz'))
       .mockResolvedValueOnce(eventsRes([LOGIN_EVENT]));
     await makeClient(fetchFn).fetchLoginEventsSince(1_751_000_000_000);
@@ -69,7 +75,8 @@ describe('@fleet/api - KeycloakEventsClient', () => {
   });
 
   it('parses and returns the events via KeycloakLoginEventSchema', async () => {
-    const fetchFn = vi.fn()
+    const fetchFn = vi
+      .fn()
       .mockResolvedValueOnce(tokenRes('t'))
       .mockResolvedValueOnce(eventsRes([LOGIN_EVENT]));
     const events = await makeClient(fetchFn).fetchLoginEventsSince(0);
@@ -79,20 +86,30 @@ describe('@fleet/api - KeycloakEventsClient', () => {
 
   it('throws when the token response is not ok', async () => {
     const fetchFn = vi.fn().mockResolvedValueOnce({
-      ok: false, status: 401, statusText: 'Unauthorized', text: () => Promise.resolve('bad client'),
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      text: () => Promise.resolve('bad client'),
     });
     await expect(makeClient(fetchFn).fetchLoginEventsSince(0)).rejects.toThrow(/token.*401/i);
   });
 
   it('throws when the events response is not ok', async () => {
-    const fetchFn = vi.fn()
+    const fetchFn = vi
+      .fn()
       .mockResolvedValueOnce(tokenRes('t'))
-      .mockResolvedValueOnce({ ok: false, status: 403, statusText: 'Forbidden', text: () => Promise.resolve('no view-events') });
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: 'Forbidden',
+        text: () => Promise.resolve('no view-events'),
+      });
     await expect(makeClient(fetchFn).fetchLoginEventsSince(0)).rejects.toThrow(/events.*403/i);
   });
 
   it('rejects a malformed event payload (schema guard)', async () => {
-    const fetchFn = vi.fn()
+    const fetchFn = vi
+      .fn()
       .mockResolvedValueOnce(tokenRes('t'))
       .mockResolvedValueOnce(eventsRes([{ type: 'LOGIN' }])); // missing time + realmId
     await expect(makeClient(fetchFn).fetchLoginEventsSince(0)).rejects.toThrow();
@@ -100,9 +117,7 @@ describe('@fleet/api - KeycloakEventsClient', () => {
 
   it('uses globalThis.fetch when no fetchFn is injected', async () => {
     const original = globalThis.fetch;
-    const spy = vi.fn()
-      .mockResolvedValueOnce(tokenRes('t'))
-      .mockResolvedValueOnce(eventsRes([]));
+    const spy = vi.fn().mockResolvedValueOnce(tokenRes('t')).mockResolvedValueOnce(eventsRes([]));
     globalThis.fetch = spy as never;
     try {
       const client = new KeycloakEventsClient(CONFIG);
@@ -115,20 +130,34 @@ describe('@fleet/api - KeycloakEventsClient', () => {
   });
 
   it('throws when the token response omits access_token', async () => {
-    const fetchFn = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ token_type: 'Bearer' }) });
+    const fetchFn = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ token_type: 'Bearer' }),
+    });
     await expect(makeClient(fetchFn).fetchLoginEventsSince(0)).rejects.toThrow(/access_token/i);
   });
 
   it('still throws when the token error body cannot be read (catch fallback)', async () => {
-    const fetchFn = vi.fn().mockResolvedValueOnce({ ok: false, status: 401, statusText: 'Unauthorized', text: () => Promise.reject(new Error('stream error')) });
+    const fetchFn = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      text: () => Promise.reject(new Error('stream error')),
+    });
     await expect(makeClient(fetchFn).fetchLoginEventsSince(0)).rejects.toThrow(/token.*401/i);
   });
 
   it('still throws when the events error body cannot be read (catch fallback)', async () => {
-    const fetchFn = vi.fn()
+    const fetchFn = vi
+      .fn()
       .mockResolvedValueOnce(tokenRes('t'))
-      .mockResolvedValueOnce({ ok: false, status: 403, statusText: 'Forbidden', text: () => Promise.reject(new Error('stream error')) });
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: 'Forbidden',
+        text: () => Promise.reject(new Error('stream error')),
+      });
     await expect(makeClient(fetchFn).fetchLoginEventsSince(0)).rejects.toThrow(/events.*403/i);
   });
-
 });

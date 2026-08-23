@@ -77,7 +77,8 @@ const COMBINATION_COUNT = 2 ** ESTATE_REASONS.length;
 /** Every subset of the vocabulary, in declaration order within each subset. */
 const COMBINATIONS: readonly (readonly EstateReason[])[] = Object.freeze(
   Array.from({ length: COMBINATION_COUNT }, (_unused, mask) =>
-    Object.freeze(ESTATE_REASONS.filter((_r, index) => (mask & (1 << index)) !== 0))),
+    Object.freeze(ESTATE_REASONS.filter((_r, index) => (mask & (1 << index)) !== 0)),
+  ),
 );
 
 function stateFor(raised: readonly EstateReason[], path = '/c/a'): WorktreeState {
@@ -86,10 +87,7 @@ function stateFor(raised: readonly EstateReason[], path = '/c/a'): WorktreeState
     branch: 'feat/x',
     // reduce rather than Object.assign(...spread): the spread form erases to
     // any, which discards the very typing that makes RAISE_REASON total.
-    ...raised.reduce<Partial<WorktreeState>>(
-      (acc, r) => ({ ...acc, ...RAISE_REASON[r] }),
-      {},
-    ),
+    ...raised.reduce<Partial<WorktreeState>>((acc, r) => ({ ...acc, ...RAISE_REASON[r] }), {}),
   });
 }
 

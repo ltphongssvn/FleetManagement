@@ -47,10 +47,11 @@ import { parseBoardSearchParams } from '@/features/dispatch/parse-board-params';
 // Next.js 16 App Router: searchParams is a Promise in async server components.
 type SearchParams = Record<string, string | string[] | undefined>;
 
-
-export default async function HomePage(
-  { searchParams }: { searchParams?: Promise<SearchParams> },
-): Promise<JSX.Element> {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams?: Promise<SearchParams>;
+}): Promise<JSX.Element> {
   const username = await getSessionUsername();
   const sp: SearchParams = searchParams ? await searchParams : {};
   const { group, page, search } = parseBoardSearchParams(sp);
@@ -61,10 +62,12 @@ export default async function HomePage(
   ]);
   return (
     <AppShell {...(username ? { username } : {})}>
-      <div className='mx-auto w-full max-w-5xl'>
-        <div className='mb-6'>
-          <h1 className='text-3xl font-bold tracking-tight text-white drop-shadow-sm'>Bảng điều phối</h1>
-          <p className='mt-2 text-sm text-slate-300'>Tạo và phân công lệnh điều xe cho đội xe.</p>
+      <div className="mx-auto w-full max-w-5xl">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold tracking-tight text-white drop-shadow-sm">
+            Bảng điều phối
+          </h1>
+          <p className="mt-2 text-sm text-slate-300">Tạo và phân công lệnh điều xe cho đội xe.</p>
         </div>
         {rosterSplit === null ? null : <RosterSplitPanel split={rosterSplit} />}
         <DispatchView

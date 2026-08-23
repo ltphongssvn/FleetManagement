@@ -108,10 +108,7 @@ describe('@fleet/main-worker - applyDispatchBoardEvent', () => {
     }
   });
   it('rejects initial row creation with missing required fields', () => {
-    const result = applyDispatchBoardEvent(
-      event({ delta: { state: 'planned' } }),
-      null,
-    );
+    const result = applyDispatchBoardEvent(event({ delta: { state: 'planned' } }), null);
     expect(result.kind).toBe('noop');
     if (result.kind === 'noop') expect(result.reason).toBe('invalid_delta');
   });
@@ -157,18 +154,12 @@ describe('@fleet/main-worker - applyDispatchBoardEvent', () => {
     }
   });
   it('rejects invalid state value', () => {
-    const result = applyDispatchBoardEvent(
-      event({ delta: { state: 'flying' } }),
-      baseCurrent,
-    );
+    const result = applyDispatchBoardEvent(event({ delta: { state: 'flying' } }), baseCurrent);
     expect(result.kind).toBe('noop');
     if (result.kind === 'noop') expect(result.reason).toBe('invalid_delta');
   });
   it('rejects non-string state value (asState typeof guard)', () => {
-    const result = applyDispatchBoardEvent(
-      event({ delta: { state: 42 } }),
-      baseCurrent,
-    );
+    const result = applyDispatchBoardEvent(event({ delta: { state: 42 } }), baseCurrent);
     expect(result.kind).toBe('noop');
     if (result.kind === 'noop') expect(result.reason).toBe('invalid_delta');
   });
@@ -308,37 +299,45 @@ describe('@fleet/main-worker - SyncFeedEventSchema (boundary)', () => {
     expect(r.serverSeq).toBe(0n);
   });
   it('rejects negative number serverSeq with the documented error message', () => {
-    expect(() => SyncFeedEventSchema.parse({
-      serverSeq: -1,
-      aggregateType: 'road_run',
-      aggregateId: ROAD_RUN_ID,
-      delta: {},
-    })).toThrow(/serverSeq must be non-negative integer/);
+    expect(() =>
+      SyncFeedEventSchema.parse({
+        serverSeq: -1,
+        aggregateType: 'road_run',
+        aggregateId: ROAD_RUN_ID,
+        delta: {},
+      }),
+    ).toThrow(/serverSeq must be non-negative integer/);
   });
   it('rejects fractional number serverSeq with the documented error message', () => {
-    expect(() => SyncFeedEventSchema.parse({
-      serverSeq: 1.5,
-      aggregateType: 'road_run',
-      aggregateId: ROAD_RUN_ID,
-      delta: {},
-    })).toThrow(/serverSeq must be non-negative integer/);
+    expect(() =>
+      SyncFeedEventSchema.parse({
+        serverSeq: 1.5,
+        aggregateType: 'road_run',
+        aggregateId: ROAD_RUN_ID,
+        delta: {},
+      }),
+    ).toThrow(/serverSeq must be non-negative integer/);
   });
   it('rejects non-UUID aggregateId', () => {
-    expect(() => SyncFeedEventSchema.parse({
-      serverSeq: 1n,
-      aggregateType: 'road_run',
-      aggregateId: 'nope',
-      delta: {},
-    })).toThrow();
+    expect(() =>
+      SyncFeedEventSchema.parse({
+        serverSeq: 1n,
+        aggregateType: 'road_run',
+        aggregateId: 'nope',
+        delta: {},
+      }),
+    ).toThrow();
   });
   it('rejects extra top-level fields (.strict)', () => {
-    expect(() => SyncFeedEventSchema.parse({
-      serverSeq: 1n,
-      aggregateType: 'road_run',
-      aggregateId: ROAD_RUN_ID,
-      delta: {},
-      extra: 'no',
-    })).toThrow();
+    expect(() =>
+      SyncFeedEventSchema.parse({
+        serverSeq: 1n,
+        aggregateType: 'road_run',
+        aggregateId: ROAD_RUN_ID,
+        delta: {},
+        extra: 'no',
+      }),
+    ).toThrow();
   });
 });
 describe('@fleet/main-worker - applyDispatchBoardEvent property invariants', () => {
@@ -354,7 +353,14 @@ describe('@fleet/main-worker - applyDispatchBoardEvent property invariants', () 
             fc.constant('not-an-object'),
             fc.record({
               state: fc.oneof(
-                fc.constantFrom('planned', 'dispatched', 'started', 'completed', 'cancelled', 'invalid'),
+                fc.constantFrom(
+                  'planned',
+                  'dispatched',
+                  'started',
+                  'completed',
+                  'cancelled',
+                  'invalid',
+                ),
                 fc.integer(),
                 fc.constant(null),
               ),
@@ -377,33 +383,37 @@ describe('@fleet/main-worker - applyDispatchBoardEvent property invariants', () 
   });
   it('upsert always advances serverSeq strictly past current', () => {
     fc.assert(
-      fc.property(
-        fc.bigInt({ min: 101n, max: 1_000_000n }),
-        (seq) => {
-          const r = applyDispatchBoardEvent(
-            { serverSeq: seq, aggregateType: 'road_run', aggregateId: ROAD_RUN_ID, delta: { state: 'started' } },
-            baseCurrent,
-          );
-          if (r.kind === 'upsert') {
-            return r.row.serverSeq === seq && r.row.serverSeq > baseCurrent.serverSeq;
-          }
-          return true;
-        },
-      ),
+      fc.property(fc.bigInt({ min: 101n, max: 1_000_000n }), (seq) => {
+        const r = applyDispatchBoardEvent(
+          {
+            serverSeq: seq,
+            aggregateType: 'road_run',
+            aggregateId: ROAD_RUN_ID,
+            delta: { state: 'started' },
+          },
+          baseCurrent,
+        );
+        if (r.kind === 'upsert') {
+          return r.row.serverSeq === seq && r.row.serverSeq > baseCurrent.serverSeq;
+        }
+        return true;
+      }),
     );
   });
   it('stale events (seq <= current.seq) always noop', () => {
     fc.assert(
-      fc.property(
-        fc.bigInt({ min: 0n, max: 100n }),
-        (seq) => {
-          const r = applyDispatchBoardEvent(
-            { serverSeq: seq, aggregateType: 'road_run', aggregateId: ROAD_RUN_ID, delta: { state: 'started' } },
-            baseCurrent,
-          );
-          return r.kind === 'noop' && r.reason === 'stale_event';
-        },
-      ),
+      fc.property(fc.bigInt({ min: 0n, max: 100n }), (seq) => {
+        const r = applyDispatchBoardEvent(
+          {
+            serverSeq: seq,
+            aggregateType: 'road_run',
+            aggregateId: ROAD_RUN_ID,
+            delta: { state: 'started' },
+          },
+          baseCurrent,
+        );
+        return r.kind === 'noop' && r.reason === 'stale_event';
+      }),
     );
   });
   it('non-road_run aggregateType always noop with unobserved_aggregate', () => {
@@ -412,7 +422,12 @@ describe('@fleet/main-worker - applyDispatchBoardEvent property invariants', () 
         fc.string({ minLength: 1, maxLength: 32 }).filter((s) => s !== 'road_run'),
         (aggregateType) => {
           const r = applyDispatchBoardEvent(
-            { serverSeq: 999n, aggregateType, aggregateId: ROAD_RUN_ID, delta: { state: 'planned' } },
+            {
+              serverSeq: 999n,
+              aggregateType,
+              aggregateId: ROAD_RUN_ID,
+              delta: { state: 'planned' },
+            },
             baseCurrent,
           );
           return r.kind === 'noop' && r.reason === 'unobserved_aggregate';
@@ -427,10 +442,7 @@ describe('@fleet/main-worker - applyDispatchBoardEvent additional invariants', (
       ...baseCurrent,
       roadRunId: '99999999-9999-4999-8999-999999999999',
     };
-    const result = applyDispatchBoardEvent(
-      event({ delta: { state: 'dispatched' } }),
-      wrongRow,
-    );
+    const result = applyDispatchBoardEvent(event({ delta: { state: 'dispatched' } }), wrongRow);
     expect(result.kind).toBe('noop');
     if (result.kind === 'noop') expect(result.reason).toBe('invalid_delta');
   });

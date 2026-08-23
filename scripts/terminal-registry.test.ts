@@ -47,29 +47,35 @@ describe('terminalRefName', () => {
 
 describe('parseTerminalRefs', () => {
   it('reads the numbers out of remote-tracking terminal refs', () => {
-    expect(parseTerminalRefs([
-      'refs/remotes/origin/terminals/77',
-      'refs/remotes/origin/terminals/88',
-      'refs/remotes/origin/terminals/89',
-    ])).toEqual([77, 88, 89]);
+    expect(
+      parseTerminalRefs([
+        'refs/remotes/origin/terminals/77',
+        'refs/remotes/origin/terminals/88',
+        'refs/remotes/origin/terminals/89',
+      ]),
+    ).toEqual([77, 88, 89]);
   });
 
   it('ignores refs that are not terminal refs', () => {
-    expect(parseTerminalRefs([
-      'refs/remotes/origin/develop',
-      'refs/remotes/origin/chore/turbo-2-10-9',
-      'refs/remotes/origin/terminals/42',
-    ])).toEqual([42]);
+    expect(
+      parseTerminalRefs([
+        'refs/remotes/origin/develop',
+        'refs/remotes/origin/chore/turbo-2-10-9',
+        'refs/remotes/origin/terminals/42',
+      ]),
+    ).toEqual([42]);
   });
 
   // A ref whose leaf is not a bare integer is corrupt, not a terminal. Reading
   // it as 0 would let a malformed ref silently lower the ceiling.
   it('ignores a malformed leaf rather than reading it as zero', () => {
-    expect(parseTerminalRefs([
-      'refs/remotes/origin/terminals/abc',
-      'refs/remotes/origin/terminals/12x',
-      'refs/remotes/origin/terminals/7',
-    ])).toEqual([7]);
+    expect(
+      parseTerminalRefs([
+        'refs/remotes/origin/terminals/abc',
+        'refs/remotes/origin/terminals/12x',
+        'refs/remotes/origin/terminals/7',
+      ]),
+    ).toEqual([7]);
   });
 
   it('returns empty for no refs at all (first ever allocation)', () => {
@@ -95,8 +101,9 @@ describe('nextTerminalNumber', () => {
 
 describe('worktreeDirName', () => {
   it('builds the conventional t<N>-wt<M>-<slug> name', () => {
-    expect(worktreeDirName(90, 1, 'worktree-terminal-registry'))
-      .toBe('t90-wt1-worktree-terminal-registry');
+    expect(worktreeDirName(90, 1, 'worktree-terminal-registry')).toBe(
+      't90-wt1-worktree-terminal-registry',
+    );
   });
 
   it('rejects a slug that would produce an ambiguous directory', () => {
@@ -116,7 +123,9 @@ describe('git argv planners', () => {
   // re-issue terminal 1. Caught live against a registry holding 89 and 90.
   it('lists by prefix so the glob cannot silently match nothing', () => {
     expect(listTerminalRefsArgs()).toStrictEqual([
-      'for-each-ref', '--format=%(refname)', 'refs/remotes/',
+      'for-each-ref',
+      '--format=%(refname)',
+      'refs/remotes/',
     ]);
   });
 

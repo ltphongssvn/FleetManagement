@@ -10,7 +10,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { IDENTITY_PROVIDER, type IIdentityProvider, type VerifiedIdentity } from './identity-provider.interface.js';
+import {
+  IDENTITY_PROVIDER,
+  type IIdentityProvider,
+  type VerifiedIdentity,
+} from './identity-provider.interface.js';
 import type { OperatorContext } from './operator-context.js';
 import { OperatorContextFactory } from './operator-context.factory.js';
 

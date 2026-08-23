@@ -6,7 +6,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
-afterEach(() => { cleanup(); });
+afterEach(() => {
+  cleanup();
+});
 import type * as ReactModule from 'react';
 
 vi.mock('@/features/dispatch/create-order.action', () => ({ createOrder: vi.fn() }));

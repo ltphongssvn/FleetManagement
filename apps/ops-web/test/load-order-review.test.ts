@@ -119,11 +119,14 @@ describe('loadOrderReview', () => {
   it('parses the response at the trust boundary against the SSOT schema', async () => {
     Object.assign(process.env, { NODE_ENV: 'production' });
     process.env['FLEET_API_URL'] = 'http://api:3000';
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve(apiRow),
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(apiRow),
+      }),
+    );
     const { loadOrderReview } = await import('../src/features/dispatch/load-order-review.js');
     const row = await loadOrderReview('XTT.07-010');
     expect(row.transportOrderId).toBe(apiRow.transportOrderId);
@@ -134,11 +137,14 @@ describe('loadOrderReview', () => {
   it('throws a descriptive error when the response shape drifts', async () => {
     Object.assign(process.env, { NODE_ENV: 'production' });
     process.env['FLEET_API_URL'] = 'http://api:3000';
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ wrong: 'shape' }),
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ wrong: 'shape' }),
+      }),
+    );
     const { loadOrderReview } = await import('../src/features/dispatch/load-order-review.js');
     await expect(loadOrderReview('XTT.07-010')).rejects.toThrow(/shape invalid/);
   });
@@ -146,12 +152,17 @@ describe('loadOrderReview', () => {
   it('signals NOT FOUND (not a throw) when the API answers 404', async () => {
     Object.assign(process.env, { NODE_ENV: 'production' });
     process.env['FLEET_API_URL'] = 'http://api:3000';
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      status: 404,
-      statusText: 'Not Found',
-    }));
-    const notFoundMock = vi.fn(() => { throw new Error('NEXT_NOT_FOUND'); });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+      }),
+    );
+    const notFoundMock = vi.fn(() => {
+      throw new Error('NEXT_NOT_FOUND');
+    });
     vi.doMock('next/navigation', () => ({ notFound: notFoundMock, redirect: vi.fn() }));
     const { loadOrderReview } = await import('../src/features/dispatch/load-order-review.js');
     await expect(loadOrderReview('XTT.07-999')).rejects.toThrow('NEXT_NOT_FOUND');
@@ -165,12 +176,17 @@ describe('loadOrderReview', () => {
   it('redirects to the silent-refresh route when the API answers 401', async () => {
     Object.assign(process.env, { NODE_ENV: 'production' });
     process.env['FLEET_API_URL'] = 'http://api:3000';
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      status: 401,
-      statusText: 'Unauthorized',
-    }));
-    const redirectMock = vi.fn((url: string) => { throw new Error('NEXT_REDIRECT:' + url); });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+      }),
+    );
+    const redirectMock = vi.fn((url: string) => {
+      throw new Error('NEXT_REDIRECT:' + url);
+    });
     vi.doMock('next/navigation', () => ({ notFound: vi.fn(), redirect: redirectMock }));
     const { loadOrderReview } = await import('../src/features/dispatch/load-order-review.js');
     await expect(loadOrderReview('XTT.07-001')).rejects.toThrow(/NEXT_REDIRECT/);
@@ -185,11 +201,14 @@ describe('loadOrderReview', () => {
   it('throws the pinned load-failure message on other failures', async () => {
     Object.assign(process.env, { NODE_ENV: 'production' });
     process.env['FLEET_API_URL'] = 'http://api:3000';
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      status: 503,
-      statusText: 'Service Unavailable',
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        statusText: 'Service Unavailable',
+      }),
+    );
     const { loadOrderReview } = await import('../src/features/dispatch/load-order-review.js');
     await expect(loadOrderReview('XTT.07-010')).rejects.toThrow(/Failed to load order: 503/);
   });

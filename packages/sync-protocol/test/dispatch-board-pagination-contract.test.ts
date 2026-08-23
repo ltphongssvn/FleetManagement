@@ -39,7 +39,11 @@ describe('roadRunStatusGroupSchema', () => {
 
 describe('statesForStatusGroup (partition lockstep guard)', () => {
   it('maps active -> the three non-terminal states', () => {
-    expect([...statesForStatusGroup('active')].sort()).toEqual(['dispatched', 'planned', 'started']);
+    expect([...statesForStatusGroup('active')].sort()).toEqual([
+      'dispatched',
+      'planned',
+      'started',
+    ]);
   });
   it('maps finished -> completed ONLY (cancelled split out to its own group)', () => {
     expect([...statesForStatusGroup('finished')].sort()).toEqual(['completed']);
@@ -72,7 +76,10 @@ describe('RoadRunPageQuerySchema', () => {
     expect(RoadRunPageQuerySchema.parse({})).toEqual({ group: 'active', page: 1, pageSize: 20 });
   });
   it('coerces numeric query strings (page/pageSize arrive as strings)', () => {
-    expect(RoadRunPageQuerySchema.parse({ page: '3', pageSize: '50' })).toMatchObject({ page: 3, pageSize: 50 });
+    expect(RoadRunPageQuerySchema.parse({ page: '3', pageSize: '50' })).toMatchObject({
+      page: 3,
+      pageSize: 50,
+    });
   });
   it('rejects page < 1 (kills positive() removal)', () => {
     expect(RoadRunPageQuerySchema.safeParse({ page: '0' }).success).toBe(false);
@@ -91,7 +98,14 @@ describe('RoadRunPageQuerySchema', () => {
 describe('makePaginatedResponseSchema (generic offset envelope)', () => {
   const ItemSchema = z.object({ id: z.string() });
   const Paged = makePaginatedResponseSchema(ItemSchema);
-  const good = { data: [{ id: 'a' }], page: 1, pageSize: 20, total: 1, totalPages: 1, hasMore: false };
+  const good = {
+    data: [{ id: 'a' }],
+    page: 1,
+    pageSize: 20,
+    total: 1,
+    totalPages: 1,
+    hasMore: false,
+  };
   it('accepts a well-formed page envelope with a typed data array', () => {
     expect(Paged.parse(good)).toEqual(good);
   });

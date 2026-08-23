@@ -18,7 +18,9 @@ import { readFileSync } from 'node:fs';
 import type { EasBuildDedupPort } from '../src/eas-inbound/eas-build-dedup.store.js';
 const captureMessage = vi.fn();
 vi.mock('@sentry/nestjs', () => ({
-  captureMessage: (...args: unknown[]) => { captureMessage(...args); },
+  captureMessage: (...args: unknown[]) => {
+    captureMessage(...args);
+  },
 }));
 import { EasInboundController } from '../src/eas-inbound/eas-inbound.controller.js';
 import type { ConfigService } from '@nestjs/config';
@@ -52,10 +54,15 @@ function makeDedup(): EasBuildDedupPort & { calls: string[] } {
 // re-scoping its logger, which an instance-level spy would not.
 function captureLogs(): { lines: Record<string, unknown>[]; restore: () => void } {
   const lines: Record<string, unknown>[] = [];
-  const spy = vi
-    .spyOn(Logger.prototype, 'log')
-    .mockImplementation((v: unknown) => { lines.push(v as Record<string, unknown>); });
-  return { lines, restore: (): void => { spy.mockRestore(); } };
+  const spy = vi.spyOn(Logger.prototype, 'log').mockImplementation((v: unknown) => {
+    lines.push(v as Record<string, unknown>);
+  });
+  return {
+    lines,
+    restore: (): void => {
+      spy.mockRestore();
+    },
+  };
 }
 
 // Dedup double that always returns true (isolates non-dedup assertions).
@@ -67,7 +74,9 @@ function alwaysFresh(): EasBuildDedupPort {
 // makeConfig() is the default (secret present). A separate no-arg wrapper avoids
 // the default-parameter trap where passing undefined would re-apply the default.
 function makeConfigWith(secret: string | undefined): ConfigService {
-  return { get: (key: string): unknown => (key === 'EAS_WEBHOOK_SECRET' ? secret : undefined) } as ConfigService;
+  return {
+    get: (key: string): unknown => (key === 'EAS_WEBHOOK_SECRET' ? secret : undefined),
+  } as ConfigService;
 }
 function makeConfig(): ConfigService {
   return makeConfigWith(SECRET);
@@ -106,21 +115,30 @@ describe('@fleet/api - EasInboundController', () => {
   it('rejects (fail-closed) when EAS_WEBHOOK_SECRET is unset in config', async () => {
     const noSecretCtl = new EasInboundController(alwaysFresh(), makeConfigWith(undefined));
     const req = makeReq(FINISHED);
-    await expect(noSecretCtl.buildStatus(req as never, sign(req.rawBody))).rejects.toThrow(/signature/i);
+    await expect(noSecretCtl.buildStatus(req as never, sign(req.rawBody))).rejects.toThrow(
+      /signature/i,
+    );
   });
   it('rejects a bad signature', async () => {
     const req = makeReq(FINISHED);
-    await expect(ctl.buildStatus(req as never, 'sha1=' + 'ab'.repeat(20))).rejects.toThrow(/signature/i);
+    await expect(ctl.buildStatus(req as never, 'sha1=' + 'ab'.repeat(20))).rejects.toThrow(
+      /signature/i,
+    );
   });
   it('rejects when rawBody is unavailable', async () => {
-    await expect(ctl.buildStatus({ body: FINISHED } as never, 'sha1=deadbeef')).rejects.toThrow(/signature|raw/i);
+    await expect(ctl.buildStatus({ body: FINISHED } as never, 'sha1=deadbeef')).rejects.toThrow(
+      /signature|raw/i,
+    );
   });
   it('errored build -> Sentry fatal with build facts, returns received', async () => {
     const req = makeReq(ERRORED);
     const res = await ctl.buildStatus(req as never, sign(req.rawBody));
     expect(res).toEqual({ received: true });
     expect(captureMessage).toHaveBeenCalledTimes(1);
-    const [msg, ctx] = captureMessage.mock.calls[0] as [string, { level: string; extra: Record<string, unknown> }];
+    const [msg, ctx] = captureMessage.mock.calls[0] as [
+      string,
+      { level: string; extra: Record<string, unknown> },
+    ];
     expect(msg).toMatch(/EAS build errored/i);
     expect(ctx.level).toBe('fatal');
     expect(ctx.extra['buildId']).toBe('build-err-1');
@@ -199,7 +217,9 @@ describe('@fleet/api - EasInboundController', () => {
     const dedupCtl = new EasInboundController(dedup, makeConfig());
     const req = makeReq(ERRORED);
     await dedupCtl.buildStatus(req as never, sign(req.rawBody));
-    await expect(dedupCtl.buildStatus(req as never, 'sha1=' + 'cd'.repeat(20))).rejects.toThrow(/signature/i);
+    await expect(dedupCtl.buildStatus(req as never, 'sha1=' + 'cd'.repeat(20))).rejects.toThrow(
+      /signature/i,
+    );
     // markSeen must NOT have been consulted for the unsigned replay.
     expect(dedup.calls).toEqual(['build-err-1']);
   });

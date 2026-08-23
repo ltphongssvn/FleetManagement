@@ -18,20 +18,41 @@ const OP: OperatorContext = {
   legalEntityId: '00000000-0000-0000-0000-000000000004',
 };
 const DEVICE_ID = '00000000-0000-0000-0000-0000000000d1';
-const EMPTY_PAGE = { data: [], page: 1, pageSize: ADMIN_DEVICE_PAGE_SIZE_DEFAULT, total: 0, totalPages: 0, hasMore: false };
+const EMPTY_PAGE = {
+  data: [],
+  page: 1,
+  pageSize: ADMIN_DEVICE_PAGE_SIZE_DEFAULT,
+  total: 0,
+  totalPages: 0,
+  hasMore: false,
+};
 describe('AdminDeviceBindingController', () => {
   it('GET parses default query (status pending) and returns the service envelope', async () => {
-    const service = { list: vi.fn().mockResolvedValue(EMPTY_PAGE), setBinding: vi.fn() } as unknown as AdminDeviceBindingService;
+    const service = {
+      list: vi.fn().mockResolvedValue(EMPTY_PAGE),
+      setBinding: vi.fn(),
+    } as unknown as AdminDeviceBindingService;
     const ctrl = new AdminDeviceBindingController(service);
     const r = await ctrl.list(OP, {});
     expect(r).toEqual(EMPTY_PAGE);
-    expect(service.list).toHaveBeenCalledWith(OP.companyId, { status: 'pending', page: 1, pageSize: ADMIN_DEVICE_PAGE_SIZE_DEFAULT });
+    expect(service.list).toHaveBeenCalledWith(OP.companyId, {
+      status: 'pending',
+      page: 1,
+      pageSize: ADMIN_DEVICE_PAGE_SIZE_DEFAULT,
+    });
   });
   it('GET coerces + forwards explicit status/page/pageSize query params', async () => {
-    const service = { list: vi.fn().mockResolvedValue(EMPTY_PAGE), setBinding: vi.fn() } as unknown as AdminDeviceBindingService;
+    const service = {
+      list: vi.fn().mockResolvedValue(EMPTY_PAGE),
+      setBinding: vi.fn(),
+    } as unknown as AdminDeviceBindingService;
     const ctrl = new AdminDeviceBindingController(service);
     await ctrl.list(OP, { status: 'active', page: '2', pageSize: '5' });
-    expect(service.list).toHaveBeenCalledWith(OP.companyId, { status: 'active', page: 2, pageSize: 5 });
+    expect(service.list).toHaveBeenCalledWith(OP.companyId, {
+      status: 'active',
+      page: 2,
+      pageSize: 5,
+    });
   });
   it('GET rejects an unknown status query value via zod', async () => {
     const service = { list: vi.fn(), setBinding: vi.fn() } as unknown as AdminDeviceBindingService;
@@ -46,17 +67,28 @@ describe('AdminDeviceBindingController', () => {
     expect(service.list).not.toHaveBeenCalled();
   });
   it('PATCH activate calls setBinding with the parsed action', async () => {
-    const service = { list: vi.fn(), setBinding: vi.fn().mockResolvedValue(undefined) } as unknown as AdminDeviceBindingService;
+    const service = {
+      list: vi.fn(),
+      setBinding: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AdminDeviceBindingService;
     const ctrl = new AdminDeviceBindingController(service);
     const r = await ctrl.patch(OP, DEVICE_ID, { action: 'activate' });
     expect(r).toEqual({ ok: true });
-    expect(service.setBinding).toHaveBeenCalledWith(OP.companyId, DEVICE_ID, { action: 'activate' });
+    expect(service.setBinding).toHaveBeenCalledWith(OP.companyId, DEVICE_ID, {
+      action: 'activate',
+    });
   });
   it('PATCH revoke passes the reason through', async () => {
-    const service = { list: vi.fn(), setBinding: vi.fn().mockResolvedValue(undefined) } as unknown as AdminDeviceBindingService;
+    const service = {
+      list: vi.fn(),
+      setBinding: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AdminDeviceBindingService;
     const ctrl = new AdminDeviceBindingController(service);
     await ctrl.patch(OP, DEVICE_ID, { action: 'revoke', revokedReason: 'stolen' });
-    expect(service.setBinding).toHaveBeenCalledWith(OP.companyId, DEVICE_ID, { action: 'revoke', revokedReason: 'stolen' });
+    expect(service.setBinding).toHaveBeenCalledWith(OP.companyId, DEVICE_ID, {
+      action: 'revoke',
+      revokedReason: 'stolen',
+    });
   });
   it('PATCH rejects an invalid action via zod', async () => {
     const service = { list: vi.fn(), setBinding: vi.fn() } as unknown as AdminDeviceBindingService;

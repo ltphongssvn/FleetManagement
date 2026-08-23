@@ -34,13 +34,17 @@ export default function Home(): JSX.Element {
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.headerTitle}>Trạng thái đồng bộ</Text>
-          <Text style={styles.headerSub}>{view.label} · {view.secondary}</Text>
+          <Text style={styles.headerSub}>
+            {view.label} · {view.secondary}
+          </Text>
         </View>
         <View style={styles.cardBody}>
           {ACTIONS.map((a) => (
             <Pressable
               key={a.href}
-              onPress={() => { router.push(a.href as Href); }}
+              onPress={() => {
+                router.push(a.href as Href);
+              }}
               accessibilityRole="button"
               accessibilityLabel={a.label}
               style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}

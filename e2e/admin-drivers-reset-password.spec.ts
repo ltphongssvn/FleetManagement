@@ -25,7 +25,10 @@ const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 async function login(page: Page): Promise<void> {
   await loginAs(page);
 }
-test('dispatcher resets a driver password from /admin/drivers and the new password authenticates', async ({ page, request }) => {
+test('dispatcher resets a driver password from /admin/drivers and the new password authenticates', async ({
+  page,
+  request,
+}) => {
   await login(page);
   await page.goto('/admin/drivers');
   // Locate the driver's entry by displayed full name. The pilot driver may
@@ -36,7 +39,9 @@ test('dispatcher resets a driver password from /admin/drivers and the new passwo
   await expect(row).toBeVisible({ timeout: 15_000 });
   // The reset control prompts for the new password (mirrors the Hủy phân công
   // window.prompt pattern). Pre-answer the dialog with the new password.
-  page.on('dialog', (dialog) => { void dialog.accept(NEW_PASSWORD); });
+  page.on('dialog', (dialog) => {
+    void dialog.accept(NEW_PASSWORD);
+  });
   // Dat lai mat khau now lives in the per-row Thao tac overflow menu (E1-drivers consolidation).
   // The trigger is inside the row, but Headless-UI renders MenuItems with anchor=bottom end,
   // which portals the panel to the document root -- so the menuitem is queried at page scope,

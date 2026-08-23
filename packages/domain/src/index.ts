@@ -81,7 +81,7 @@ export {
   ManifestRejectionReasonSchema,
   type ManifestRejectionReason,
 } from './manifest/manifest-rejection-reason.js';
-export * from "./number-format/parse-one-number.js";
+export * from './number-format/parse-one-number.js';
 export * from './manifest/manifest-extraction-status.js';
 
 // T33: phieu-can STANDARD FORMAT SSOT + the pure goods-kg derivation rule.

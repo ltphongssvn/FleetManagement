@@ -31,11 +31,7 @@
 // assertion encoded a misreading as a contract -- the same shape as the
 // --reporter=dot test that asserted intent rather than behaviour.
 import { describe, it, expect } from 'vitest';
-import {
-  buildStampVariables,
-  railwayVariablesArgs,
-  evaluateDeployedSha,
-} from './deploy-stamp.js';
+import { buildStampVariables, railwayVariablesArgs, evaluateDeployedSha } from './deploy-stamp.js';
 
 const SHA = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);

@@ -8,11 +8,13 @@ import { coreTickers } from './helpers/scheduler-ticker-factory.js';
 import type { CommandsGateway } from '../src/commands/commands.gateway.js';
 
 function makeSvc(gateway: CommandsGateway): SchedulerService {
-  return new SchedulerService(coreTickers({
-    outbox: () => undefined,
-    projection: () => undefined,
-    reconciler: () => gateway.reconcileNow(),
-  }));
+  return new SchedulerService(
+    coreTickers({
+      outbox: () => undefined,
+      projection: () => undefined,
+      reconciler: () => gateway.reconcileNow(),
+    }),
+  );
 }
 
 describe('@fleet/api - SchedulerService drives CommandsGateway reconciler', () => {
@@ -25,7 +27,9 @@ describe('@fleet/api - SchedulerService drives CommandsGateway reconciler', () =
   });
 
   it('continues (does not reject) even if gateway.reconcileNow throws', async () => {
-    const reconcileNow = vi.fn().mockImplementation(() => { throw new Error('boom'); });
+    const reconcileNow = vi.fn().mockImplementation(() => {
+      throw new Error('boom');
+    });
     const svc = makeSvc({ reconcileNow } as unknown as CommandsGateway);
     await expect(svc.drainByKey('reconciler')).resolves.toBeUndefined();
     svc.onModuleDestroy();

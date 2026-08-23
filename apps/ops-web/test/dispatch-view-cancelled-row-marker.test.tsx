@@ -15,7 +15,10 @@ const VEHICLE_ID = '22222222-2222-4222-8222-222222222222';
 const refs = {
   drivers: [{ id: DRIVER_ID, label: 'Nguyễn Văn A' }],
   vehicles: [{ id: VEHICLE_ID, label: '51C-12345' }],
-  customers: [], cargoTypes: [], pickupWarehouses: [], deliveryWarehouses: [],
+  customers: [],
+  cargoTypes: [],
+  pickupWarehouses: [],
+  deliveryWarehouses: [],
   driverVehicleAssignments: [],
 };
 function baseRun(overrides: Partial<DispatchBoardRoadRun>): DispatchBoardRoadRun {

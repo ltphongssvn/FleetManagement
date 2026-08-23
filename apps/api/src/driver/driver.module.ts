@@ -11,5 +11,4 @@ import { DriverPasswordChangeController } from './driver-password-change.control
   providers: [DriverMeService, DriverPasswordChangeService],
   exports: [DriverMeService, DriverPasswordChangeService],
 })
-
 export class DriverModule {}

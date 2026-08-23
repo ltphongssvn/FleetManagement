@@ -85,13 +85,17 @@ describe('worktree:stale-gate is wired to a gate, not merely defined', () => {
   // (dirty, unpushed, stashed); this asks whether FINISHED work was never
   // reclaimed. Dropping either leaves half the estate unguarded.
   it('stands beside the estate gate it complements', () => {
-    const prePush = hooks().filter((h) => h.stages?.includes('pre-push')).map((h) => h.id);
+    const prePush = hooks()
+      .filter((h) => h.stages?.includes('pre-push'))
+      .map((h) => h.id);
     expect(prePush).toContain('estate-verify-push');
     expect(prePush).toContain(HOOK_ID);
   });
 
   it('keeps the other pre-push gates it stands beside', () => {
-    const prePush = hooks().filter((h) => h.stages?.includes('pre-push')).map((h) => h.id);
+    const prePush = hooks()
+      .filter((h) => h.stages?.includes('pre-push'))
+      .map((h) => h.id);
     expect(prePush).toContain('pnpm-build-push');
     expect(prePush).toContain('pnpm-test-coverage-push');
   });

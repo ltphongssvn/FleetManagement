@@ -58,19 +58,33 @@ describe('@fleet/sync-protocol - CommandPayloadSchema', () => {
     expect(parsed.commandId).toBe(U);
   });
   it('rejects a non-uuid commandId', () => {
-    expect(CommandPayloadSchema.safeParse({ ...validCommand, commandId: 'bad' }).success).toBe(false);
+    expect(CommandPayloadSchema.safeParse({ ...validCommand, commandId: 'bad' }).success).toBe(
+      false,
+    );
   });
   it('rejects a non-uuid targetOperatorId', () => {
-    expect(CommandPayloadSchema.safeParse({ ...validCommand, targetOperatorId: 'bad' }).success).toBe(false);
+    expect(
+      CommandPayloadSchema.safeParse({ ...validCommand, targetOperatorId: 'bad' }).success,
+    ).toBe(false);
   });
   it('rejects a non-datetime issuedAt', () => {
-    expect(CommandPayloadSchema.safeParse({ ...validCommand, issuedAt: 'yesterday' }).success).toBe(false);
+    expect(CommandPayloadSchema.safeParse({ ...validCommand, issuedAt: 'yesterday' }).success).toBe(
+      false,
+    );
   });
 });
 
 describe('@fleet/sync-protocol - AckRejectionReasonSchema', () => {
   it('accepts every canonical rejection reason', () => {
-    for (const r of ['operator_offline', 'operator_busy', 'invalid_state', 'not_authorized', 'stale_command', 'duplicate_command', 'client_error']) {
+    for (const r of [
+      'operator_offline',
+      'operator_busy',
+      'invalid_state',
+      'not_authorized',
+      'stale_command',
+      'duplicate_command',
+      'client_error',
+    ]) {
       expect(AckRejectionReasonSchema.parse(r)).toBe(r);
     }
   });
@@ -85,7 +99,12 @@ describe('@fleet/sync-protocol - AckRejectionReasonSchema', () => {
 
 describe('@fleet/sync-protocol - CommandAckSchema (discriminated union)', () => {
   const received = { commandId: U, ackedAt: '2026-06-11T13:34:58.000Z', status: 'received' };
-  const rejected = { commandId: U, ackedAt: '2026-06-11T13:34:58.000Z', status: 'rejected', reasonCode: 'operator_offline' };
+  const rejected = {
+    commandId: U,
+    ackedAt: '2026-06-11T13:34:58.000Z',
+    status: 'rejected',
+    reasonCode: 'operator_offline',
+  };
   it('parses a received ack', () => {
     const a: CommandAck = CommandAckSchema.parse(received);
     expect(a.status).toBe('received');
@@ -94,7 +113,9 @@ describe('@fleet/sync-protocol - CommandAckSchema (discriminated union)', () => 
     expect(CommandAckSchema.parse(rejected).status).toBe('rejected');
   });
   it('accepts an optional reasonText on a rejected ack', () => {
-    expect(CommandAckSchema.parse({ ...rejected, reasonText: 'offline 5m' }).status).toBe('rejected');
+    expect(CommandAckSchema.parse({ ...rejected, reasonText: 'offline 5m' }).status).toBe(
+      'rejected',
+    );
   });
   it('rejects a rejected ack missing its reasonCode', () => {
     const { reasonCode: _omit, ...bad } = rejected;

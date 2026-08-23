@@ -107,9 +107,7 @@ function countLines(s: string): number {
 /** One worktree record from `git worktree list --porcelain`. Blank-line
  *  separated; a record may carry bare `locked` / `prunable` markers, and a
  *  detached one carries no `branch` line at all. */
-export function parseWorktreeRecords(
-  porcelain: string,
-): readonly WorktreeRecord[] {
+export function parseWorktreeRecords(porcelain: string): readonly WorktreeRecord[] {
   const out: WorktreeRecord[] = [];
   let cur: WorktreeRecord | null = null;
   for (const line of porcelain.split(NL)) {
@@ -143,10 +141,7 @@ export function parseWorktreeRecords(
  *  Every required reading must have RUN. Previously a failure here produced a
  *  zero and the zero was reported as cleanliness; now it produces git-failed,
  *  which the decider turns into exit 3 and REPAIR_TOOLING. */
-export function gatherOneFrom(
-  rec: WorktreeRecord,
-  readings: WorktreeReadings,
-): GatheredOne {
+export function gatherOneFrom(rec: WorktreeRecord, readings: WorktreeReadings): GatheredOne {
   // status and stash are REQUIRED. Empty output from them is meaningful; a
   // failure is not, and must never be read as a zero.
   if (!readings.status.ok || !readings.stash.ok) return { kind: 'git-failed' };
@@ -159,9 +154,10 @@ export function gatherOneFrom(
   // confident zero wearing a different hat.
   if (hasUpstream && !readings.ahead.ok) return { kind: 'git-failed' };
 
-  const ahead = hasUpstream && readings.ahead.ok
-    ? Number(readings.ahead.out.length > 0 ? readings.ahead.out : '0')
-    : 0;
+  const ahead =
+    hasUpstream && readings.ahead.ok
+      ? Number(readings.ahead.out.length > 0 ? readings.ahead.out : '0')
+      : 0;
   // git prints a decimal count; anything else means the format moved under us.
   if (!Number.isFinite(ahead) || !Number.isInteger(ahead) || ahead < 0) {
     return { kind: 'git-failed' };

@@ -10,7 +10,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { getApiUrl } from '../src/config/api-url.js';
 
-interface DevGlobal { __DEV__?: boolean }
+interface DevGlobal {
+  __DEV__?: boolean;
+}
 function setDev(value: boolean | undefined): void {
   const g = globalThis as unknown as DevGlobal;
   if (value === undefined) delete g.__DEV__;

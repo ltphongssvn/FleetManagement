@@ -6,7 +6,12 @@ import { randomUUID } from 'node:crypto';
 import { DriverMeService } from '../src/driver/driver-me.service.js';
 import { driver, vehicle } from '../src/database/schema/reference.js';
 import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+  truncateAllTables,
+} from './helpers/migrate-test-db.js';
 
 let testDb: MigratedTestDb;
 const COMPANY = '00000000-0000-0000-0000-000000000000';
@@ -18,8 +23,12 @@ const TENANCY = {
 };
 
 describe('@fleet/api - DriverMeService', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_driverme'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_test_driverme');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
   beforeEach(async () => {
     await truncateAllTables(testDb.db);
   });
@@ -29,8 +38,9 @@ describe('@fleet/api - DriverMeService', () => {
   }
 
   it('throws when no driver matches the operator', async () => {
-    await expect(svc().fetchMe({ operatorId: randomUUID(), companyId: COMPANY }))
-      .rejects.toThrow(/driver not found/i);
+    await expect(svc().fetchMe({ operatorId: randomUUID(), companyId: COMPANY })).rejects.toThrow(
+      /driver not found/i,
+    );
   });
 
   it('returns assignedVehicle=null when the driver has no active assignment', async () => {
@@ -43,15 +53,20 @@ describe('@fleet/api - DriverMeService', () => {
 
   it('ignores a revoked assignment (assignedVehicle stays null)', async () => {
     const operatorId = randomUUID();
-    const [d] = await testDb.db.insert(driver)
+    const [d] = await testDb.db
+      .insert(driver)
       .values({ ...TENANCY, fullName: 'REVOKED', operatorId })
       .returning({ driverId: driver.driverId });
-    const [v] = await testDb.db.insert(vehicle)
+    const [v] = await testDb.db
+      .insert(vehicle)
       .values({ ...TENANCY, plate: 'REV-001' })
       .returning({ vehicleId: vehicle.vehicleId });
     if (d === undefined || v === undefined) throw new Error('insert returned no row');
     await testDb.db.insert(driverVehicleAssignment).values({
-      ...TENANCY, driverId: d.driverId, vehicleId: v.vehicleId, revokedAt: new Date(),
+      ...TENANCY,
+      driverId: d.driverId,
+      vehicleId: v.vehicleId,
+      revokedAt: new Date(),
     });
     const result = await svc().fetchMe({ operatorId, companyId: COMPANY });
     expect(result.assignedVehicle).toBeNull();
@@ -59,15 +74,19 @@ describe('@fleet/api - DriverMeService', () => {
 
   it('returns the assigned vehicle on the full happy path', async () => {
     const operatorId = randomUUID();
-    const [d] = await testDb.db.insert(driver)
+    const [d] = await testDb.db
+      .insert(driver)
       .values({ ...TENANCY, fullName: 'HAPPY', operatorId })
       .returning({ driverId: driver.driverId });
-    const [v] = await testDb.db.insert(vehicle)
+    const [v] = await testDb.db
+      .insert(vehicle)
       .values({ ...TENANCY, plate: 'HAP-001' })
       .returning({ vehicleId: vehicle.vehicleId });
     if (d === undefined || v === undefined) throw new Error('insert returned no row');
     await testDb.db.insert(driverVehicleAssignment).values({
-      ...TENANCY, driverId: d.driverId, vehicleId: v.vehicleId,
+      ...TENANCY,
+      driverId: d.driverId,
+      vehicleId: v.vehicleId,
     });
     const result = await svc().fetchMe({ operatorId, companyId: COMPANY });
     expect(result.driver.fullName).toBe('HAPPY');

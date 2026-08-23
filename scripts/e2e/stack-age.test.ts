@@ -45,8 +45,7 @@ import {
 } from './stack-age.js';
 const NL = String.fromCharCode(10);
 const NOW = new Date('2026-08-05T12:00:00.000Z');
-const hoursAgo = (h: number): string =>
-  new Date(NOW.getTime() - h * 3_600_000).toISOString();
+const hoursAgo = (h: number): string => new Date(NOW.getTime() - h * 3_600_000).toISOString();
 describe('startedAtSchema (docker output is a trust boundary)', () => {
   it('accepts the RFC3339Nano form docker actually emits (9 fractional digits)', () => {
     expect(startedAtSchema.safeParse('2021-05-07T17:27:52.347500403Z').success).toBe(true);

@@ -24,11 +24,13 @@ function makeSvc(deps: {
   scope?: string;
 }): SchedulerService {
   const scope = deps.scope ?? 'pilot-scope-uuid';
-  return new SchedulerService(coreTickers({
-    outbox: () => deps.outbox.drainOnce(),
-    projection: () => deps.proj.drainOnce(scope),
-    reconciler: () => deps.gw.reconcileNow(),
-  }));
+  return new SchedulerService(
+    coreTickers({
+      outbox: () => deps.outbox.drainOnce(),
+      projection: () => deps.proj.drainOnce(scope),
+      reconciler: () => deps.gw.reconcileNow(),
+    }),
+  );
 }
 
 describe('SchedulerService (registry core ticks)', () => {
@@ -37,7 +39,10 @@ describe('SchedulerService (registry core ticks)', () => {
     vi.useFakeTimers();
     logErr = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
   });
-  afterEach(() => { vi.useRealTimers(); logErr.mockRestore(); });
+  afterEach(() => {
+    vi.useRealTimers();
+    logErr.mockRestore();
+  });
 
   it('drainByKey(outbox) calls outboxRelay.drainOnce', async () => {
     const drainOnce = vi.fn().mockResolvedValue(undefined);
@@ -66,7 +71,9 @@ describe('SchedulerService (registry core ticks)', () => {
 
   it('drainByKey(outbox) swallows errors and logs them (#615)', async () => {
     const svc = makeSvc({
-      outbox: { drainOnce: vi.fn().mockRejectedValue(new Error('redis down')) } as unknown as OutboxRelayService,
+      outbox: {
+        drainOnce: vi.fn().mockRejectedValue(new Error('redis down')),
+      } as unknown as OutboxRelayService,
       proj: { drainOnce: vi.fn() } as unknown as ProjectionRunnerService,
       gw: { reconcileNow: () => [] } as unknown as CommandsGateway,
     });
@@ -78,7 +85,9 @@ describe('SchedulerService (registry core ticks)', () => {
   it('drainByKey(projection) swallows errors and logs', async () => {
     const svc = makeSvc({
       outbox: { drainOnce: vi.fn() } as unknown as OutboxRelayService,
-      proj: { drainOnce: vi.fn().mockRejectedValue(new Error('db locked')) } as unknown as ProjectionRunnerService,
+      proj: {
+        drainOnce: vi.fn().mockRejectedValue(new Error('db locked')),
+      } as unknown as ProjectionRunnerService,
       gw: { reconcileNow: () => [] } as unknown as CommandsGateway,
     });
     await svc.drainByKey('projection');
@@ -90,7 +99,9 @@ describe('SchedulerService (registry core ticks)', () => {
     const drainOnce = vi.fn().mockResolvedValue(undefined);
     const svc = makeSvc({
       outbox: { drainOnce } as unknown as OutboxRelayService,
-      proj: { drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as ProjectionRunnerService,
+      proj: {
+        drainOnce: vi.fn().mockResolvedValue(undefined),
+      } as unknown as ProjectionRunnerService,
       gw: { reconcileNow: () => [] } as unknown as CommandsGateway,
     });
     svc.onModuleInit();
@@ -104,7 +115,9 @@ describe('SchedulerService (registry core ticks)', () => {
     const drainOnce = vi.fn().mockResolvedValue(undefined);
     const svc = makeSvc({
       outbox: { drainOnce } as unknown as OutboxRelayService,
-      proj: { drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as ProjectionRunnerService,
+      proj: {
+        drainOnce: vi.fn().mockResolvedValue(undefined),
+      } as unknown as ProjectionRunnerService,
       gw: { reconcileNow: () => [] } as unknown as CommandsGateway,
     });
     svc.onModuleInit();
@@ -116,7 +129,9 @@ describe('SchedulerService (registry core ticks)', () => {
 
   it('drainByKey(outbox) swallows non-Error thrown values (#661)', async () => {
     const svc = makeSvc({
-      outbox: { drainOnce: vi.fn().mockRejectedValue('redis exploded') } as unknown as OutboxRelayService,
+      outbox: {
+        drainOnce: vi.fn().mockRejectedValue('redis exploded'),
+      } as unknown as OutboxRelayService,
       proj: { drainOnce: vi.fn() } as unknown as ProjectionRunnerService,
       gw: { reconcileNow: () => [] } as unknown as CommandsGateway,
     });
@@ -138,14 +153,19 @@ describe('SchedulerService (registry core ticks)', () => {
   });
 
   it('drainByKey(reconciler) swallows and logs reconcileNow errors', async () => {
-    const reconcileNow = vi.fn(() => { throw new Error('reconcile boom'); });
+    const reconcileNow = vi.fn(() => {
+      throw new Error('reconcile boom');
+    });
     const svc = makeSvc({
       outbox: { drainOnce: vi.fn() } as unknown as OutboxRelayService,
       proj: { drainOnce: vi.fn() } as unknown as ProjectionRunnerService,
       gw: { reconcileNow } as unknown as CommandsGateway,
     });
     await svc.drainByKey('reconciler');
-    expect(logErr).toHaveBeenCalledWith(expect.stringContaining('reconcile boom'), expect.any(String));
+    expect(logErr).toHaveBeenCalledWith(
+      expect.stringContaining('reconcile boom'),
+      expect.any(String),
+    );
     svc.onModuleDestroy();
   });
 
@@ -153,7 +173,9 @@ describe('SchedulerService (registry core ticks)', () => {
     const reconcileNow = vi.fn().mockReturnValue([]);
     const svc = makeSvc({
       outbox: { drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as OutboxRelayService,
-      proj: { drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as ProjectionRunnerService,
+      proj: {
+        drainOnce: vi.fn().mockResolvedValue(undefined),
+      } as unknown as ProjectionRunnerService,
       gw: { reconcileNow } as unknown as CommandsGateway,
     });
     svc.onModuleInit();

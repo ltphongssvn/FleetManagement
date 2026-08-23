@@ -7,15 +7,22 @@ import { MetricsService } from '../src/metrics/metrics.service.js';
 // Patch drizzle-orm so eq/sql produce inspectable marker objects.
 vi.mock('drizzle-orm', () => ({
   eq: (col: unknown, value: unknown) => ({ _kind: 'eq', col, value }),
-  sql: (strings: TemplateStringsArray, ..._values: unknown[]) => ({ _kind: 'sql', raw: strings.join('?') }),
+  sql: (strings: TemplateStringsArray, ..._values: unknown[]) => ({
+    _kind: 'sql',
+    raw: strings.join('?'),
+  }),
 }));
 
 vi.mock('../src/database/schema/index.js', () => ({
   outbox: { status: 'outbox.status' },
 }));
 
-interface SelectCall { shape: Record<string, unknown> }
-interface WhereCall { predicate: unknown }
+interface SelectCall {
+  shape: Record<string, unknown>;
+}
+interface WhereCall {
+  predicate: unknown;
+}
 interface FakeDb {
   selectCalls: SelectCall[];
   whereCalls: WhereCall[];
@@ -132,7 +139,11 @@ describe('@fleet/api - MetricsService.snapshot (unit)', () => {
     expect(fake.whereCalls).toHaveLength(1);
     const firstWhere = fake.whereCalls[0];
     if (!firstWhere) throw new Error('expected one where call');
-    expect(firstWhere.predicate).toMatchObject({ _kind: 'eq', col: 'outbox.status', value: 'dead_letter' });
+    expect(firstWhere.predicate).toMatchObject({
+      _kind: 'eq',
+      col: 'outbox.status',
+      value: 'dead_letter',
+    });
   });
 
   it('returns all three documented fields (kills ObjectLiteral return {} mutant)', async () => {
@@ -150,6 +161,8 @@ describe('@fleet/api - MetricsService.snapshot (unit)', () => {
     const m1 = await svc.snapshot();
     await new Promise((r) => setTimeout(r, 5));
     const m2 = await svc.snapshot();
-    expect(new Date(m2.capturedAt).getTime()).toBeGreaterThanOrEqual(new Date(m1.capturedAt).getTime());
+    expect(new Date(m2.capturedAt).getTime()).toBeGreaterThanOrEqual(
+      new Date(m1.capturedAt).getTime(),
+    );
   });
 });

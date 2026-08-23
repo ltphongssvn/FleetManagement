@@ -54,7 +54,11 @@ function main(): void {
   process.stdout.write(JSON.stringify(result, null, 2) + '\n');
   if (options.check) {
     if (hasDrift(result)) {
-      process.stderr.write('codemod ' + options.transform + ': drift detected (source is not migrated). Run the codemod and commit.\n');
+      process.stderr.write(
+        'codemod ' +
+          options.transform +
+          ': drift detected (source is not migrated). Run the codemod and commit.\n',
+      );
       process.exitCode = 1;
     }
     return;

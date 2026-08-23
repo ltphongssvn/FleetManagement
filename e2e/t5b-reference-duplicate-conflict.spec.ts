@@ -16,7 +16,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { loginAs } from './helpers/auth';
 
-
 // Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
   await loginAs(page);
@@ -25,9 +24,13 @@ async function login(page: Page): Promise<void> {
 test('duplicate Khách hàng add surfaces friendly conflict, not HTTP 500', async ({ page }) => {
   await login(page);
   await page.goto('/admin/reference');
-  await expect(page.getByRole('heading', { name: /Quản lý dữ liệu điều phối/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: /Quản lý dữ liệu điều phối/i })).toBeVisible({
+    timeout: 15_000,
+  });
   // Khách hàng section is the first <section>.
-  const section = page.locator('section').filter({ has: page.getByRole('heading', { name: /^Khách hàng$/ }) });
+  const section = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: /^Khách hàng$/ }) });
   await expect(section).toBeVisible({ timeout: 15_000 });
   // Pick the first existing customer name as the duplicate to re-add. The
   // section now renders through the shared DataTable (TanStack v8): rows are

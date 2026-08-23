@@ -49,38 +49,77 @@ describe('@fleet/sync-protocol - order-timeline contract', () => {
     expect(parsed.events).toHaveLength(8);
   });
   it('accepts legacy-null boundStopSequence (old-client back-compat surfaced honestly)', () => {
-    const e = OrderTimelineEventSchema.parse(
-      { eventType: 'manifest_committed', at: T, manifestId: U, boundStopSequence: null });
+    const e = OrderTimelineEventSchema.parse({
+      eventType: 'manifest_committed',
+      at: T,
+      manifestId: U,
+      boundStopSequence: null,
+    });
     expect(e.eventType === 'manifest_committed' && e.boundStopSequence).toBeNull();
   });
   it('accepts order_cancelled and manifest_rejected with nullable detail fields', () => {
-    expect(OrderTimelineEventSchema.parse(
-      { eventType: 'order_cancelled', at: T, reason: 'customer_request', note: null }).eventType).toBe('order_cancelled');
-    expect(OrderTimelineEventSchema.parse(
-      { eventType: 'manifest_rejected', at: T, manifestId: U, boundStopSequence: null, reasonText: null }).eventType).toBe('manifest_rejected');
+    expect(
+      OrderTimelineEventSchema.parse({
+        eventType: 'order_cancelled',
+        at: T,
+        reason: 'customer_request',
+        note: null,
+      }).eventType,
+    ).toBe('order_cancelled');
+    expect(
+      OrderTimelineEventSchema.parse({
+        eventType: 'manifest_rejected',
+        at: T,
+        manifestId: U,
+        boundStopSequence: null,
+        reasonText: null,
+      }).eventType,
+    ).toBe('manifest_rejected');
   });
   it('accepts order_cancelled with a null reason (audit row without a recorded reason)', () => {
-    const e = OrderTimelineEventSchema.parse({ eventType: 'order_cancelled', at: T, reason: null, note: null });
+    const e = OrderTimelineEventSchema.parse({
+      eventType: 'order_cancelled',
+      at: T,
+      reason: null,
+      note: null,
+    });
     expect(e.eventType).toBe('order_cancelled');
   });
   it('accepts EVERY canonical cancel reason (lockstep with @fleet/domain CANCEL_REASONS)', () => {
     for (const reason of CANCEL_REASONS) {
-      const e = OrderTimelineEventSchema.parse({ eventType: 'order_cancelled', at: T, reason, note: null });
+      const e = OrderTimelineEventSchema.parse({
+        eventType: 'order_cancelled',
+        at: T,
+        reason,
+        note: null,
+      });
       expect(e.eventType === 'order_cancelled' && e.reason).toBe(reason);
     }
   });
   it('rejects unknown event types', () => {
-    expect(() => OrderTimelineEventSchema.parse({ eventType: 'order_teleported', at: T })).toThrow();
+    expect(() =>
+      OrderTimelineEventSchema.parse({ eventType: 'order_teleported', at: T }),
+    ).toThrow();
   });
   it('rejects extra keys (strict objects guard contract drift)', () => {
-    expect(() => OrderTimelineEventSchema.parse(
-      { eventType: 'order_created', at: T, surprise: 1 })).toThrow();
-    expect(() => OrderTimelineSchema.parse(
-      { externalRef: 'X', transportOrderId: U, events: [], extra: true })).toThrow();
+    expect(() =>
+      OrderTimelineEventSchema.parse({ eventType: 'order_created', at: T, surprise: 1 }),
+    ).toThrow();
+    expect(() =>
+      OrderTimelineSchema.parse({ externalRef: 'X', transportOrderId: U, events: [], extra: true }),
+    ).toThrow();
   });
   it('rejects non-datetime at and non-positive stopSequence', () => {
-    expect(() => OrderTimelineEventSchema.parse({ eventType: 'order_created', at: 'yesterday' })).toThrow();
-    expect(() => OrderTimelineEventSchema.parse(
-      { eventType: 'stop_arrived', at: T, stopSequence: 0, stopType: 'pickup' })).toThrow();
+    expect(() =>
+      OrderTimelineEventSchema.parse({ eventType: 'order_created', at: 'yesterday' }),
+    ).toThrow();
+    expect(() =>
+      OrderTimelineEventSchema.parse({
+        eventType: 'stop_arrived',
+        at: T,
+        stopSequence: 0,
+        stopType: 'pickup',
+      }),
+    ).toThrow();
   });
 });

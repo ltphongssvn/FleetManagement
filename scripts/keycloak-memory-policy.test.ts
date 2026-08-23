@@ -27,15 +27,11 @@ const APPEND_OK =
   '-XX:G1PeriodicGCInterval=60000 -XX:-G1PeriodicGCInvokesConcurrent ' +
   '-XX:MinHeapFreeRatio=5 -XX:MaxHeapFreeRatio=25';
 
-const envWith = (
-  variables: Record<string, string>,
-  memoryBytes: number | null,
-): unknown => ({
+const envWith = (variables: Record<string, string>, memoryBytes: number | null): unknown => ({
   services: {
     'uuid-keycloak': {
       variables,
-      deploy:
-        memoryBytes === null ? {} : { limitOverride: { containers: { memoryBytes } } },
+      deploy: memoryBytes === null ? {} : { limitOverride: { containers: { memoryBytes } } },
     },
     'uuid-api': { variables: { DATABASE_URL: 'postgres://x' } },
   },
@@ -66,7 +62,9 @@ describe('parseJvmFlags', () => {
   });
 
   it('skips malformed tokens instead of failing the whole parse', () => {
-    expect(parseJvmFlags('-XX:Broken= -XX:MaxRAMPercentage=70 --junk').get('MaxRAMPercentage')).toBe('70');
+    expect(
+      parseJvmFlags('-XX:Broken= -XX:MaxRAMPercentage=70 --junk').get('MaxRAMPercentage'),
+    ).toBe('70');
   });
 
   it('numericFlag returns undefined for absent and non-numeric values', () => {

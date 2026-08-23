@@ -122,7 +122,12 @@ const styles = StyleSheet.create({
   title: { ...typography.title, color: colors.slate900 },
   subtitle: { ...typography.caption, color: colors.slate500, marginTop: spacing.xs },
   cardBody: { paddingHorizontal: spacing.xl, paddingVertical: spacing.xl },
-  label: { ...typography.label, color: colors.slate600, textTransform: 'uppercase', marginBottom: spacing.xs },
+  label: {
+    ...typography.label,
+    color: colors.slate600,
+    textTransform: 'uppercase',
+    marginBottom: spacing.xs,
+  },
   input: {
     width: '100%',
     borderWidth: 1,

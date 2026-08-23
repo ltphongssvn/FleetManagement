@@ -89,7 +89,15 @@ describe('toNdjson', () => {
 
 describe('summarizeTurboRun', () => {
   const payload = {
-    execution: { exitCode: 0, attempted: 1, cached: 1, failed: 0, success: 0, startTime: 1000, endTime: 1223 },
+    execution: {
+      exitCode: 0,
+      attempted: 1,
+      cached: 1,
+      failed: 0,
+      success: 0,
+      startTime: 1000,
+      endTime: 1223,
+    },
     tasks: [
       {
         taskId: '@fleet/domain#typecheck',
@@ -145,7 +153,12 @@ describe('flockBackend', () => {
   });
   it('wraps the command in file-then-command form with a wait budget', () => {
     expect(backend.wrap(['pnpm', 'exec'], 3600)).toEqual([
-      'flock', '-w', '3600', '/home/u/.cache/fleetmanagement/gate.lock', 'pnpm', 'exec',
+      'flock',
+      '-w',
+      '3600',
+      '/home/u/.cache/fleetmanagement/gate.lock',
+      'pnpm',
+      'exec',
     ]);
   });
   it('never emits a bare -- separator, which flock would try to execute', () => {

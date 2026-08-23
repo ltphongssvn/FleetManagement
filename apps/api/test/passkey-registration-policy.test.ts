@@ -45,7 +45,11 @@ describe('decidePasskeyRegistrationOutcome', () => {
   });
 
   it('returns limit-exceeded when driver has >= max passkeys', () => {
-    const r = decidePasskeyRegistrationOutcome({ ...ACTIVE_DRIVER, existingCredentialCount: 10 }, false, 10);
+    const r = decidePasskeyRegistrationOutcome(
+      { ...ACTIVE_DRIVER, existingCredentialCount: 10 },
+      false,
+      10,
+    );
     expect(r.kind).toBe('limit-exceeded');
   });
 
@@ -64,17 +68,29 @@ describe('decidePasskeyRegistrationOutcome', () => {
   });
 
   it('treats existingCredentialCount = max - 1 as still allowed', () => {
-    const r = decidePasskeyRegistrationOutcome({ ...ACTIVE_DRIVER, existingCredentialCount: 9 }, false, 10);
+    const r = decidePasskeyRegistrationOutcome(
+      { ...ACTIVE_DRIVER, existingCredentialCount: 9 },
+      false,
+      10,
+    );
     expect(r.kind).toBe('ok');
   });
 
   it('checks collision before limit (collision is hard rejection)', () => {
-    const r = decidePasskeyRegistrationOutcome({ ...ACTIVE_DRIVER, existingCredentialCount: 10 }, true, 10);
+    const r = decidePasskeyRegistrationOutcome(
+      { ...ACTIVE_DRIVER, existingCredentialCount: 10 },
+      true,
+      10,
+    );
     expect(r.kind).toBe('credential-collision');
   });
 
   it('checks disabled before missing-operator', () => {
-    const r = decidePasskeyRegistrationOutcome({ ...ACTIVE_DRIVER, active: false, operatorId: null }, false, 10);
+    const r = decidePasskeyRegistrationOutcome(
+      { ...ACTIVE_DRIVER, active: false, operatorId: null },
+      false,
+      10,
+    );
     expect(r.kind).toBe('disabled');
   });
 });

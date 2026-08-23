@@ -10,7 +10,10 @@ import type { QueuedActionWithPayload } from '../sync/sync-policy.js';
 import { dispatchableActions } from './action-queue-policy.js';
 import { localActionLog, syncCursor } from './schema.js';
 
-type Db = ExpoSQLiteDatabase<{ localActionLog: typeof localActionLog; syncCursor: typeof syncCursor }>;
+type Db = ExpoSQLiteDatabase<{
+  localActionLog: typeof localActionLog;
+  syncCursor: typeof syncCursor;
+}>;
 
 export class SqliteSyncStore implements SyncStateStore {
   private readonly db: Db;
@@ -20,15 +23,17 @@ export class SqliteSyncStore implements SyncStateStore {
 
   async readDispatchable(): Promise<readonly QueuedActionWithPayload[]> {
     const rows = await this.db.select().from(localActionLog).orderBy(asc(localActionLog.sequence));
-    const queueable = rows.map((r): QueuedActionWithPayload => ({
-      actionId: r.actionId,
-      aggregateType: r.aggregateType,
-      aggregateId: r.aggregateId,
-      status: r.status,
-      sequence: r.sequence,
-      blockedByActionId: r.blockedByActionId,
-      payload: r.payload,
-    }));
+    const queueable = rows.map(
+      (r): QueuedActionWithPayload => ({
+        actionId: r.actionId,
+        aggregateType: r.aggregateType,
+        aggregateId: r.aggregateId,
+        status: r.status,
+        sequence: r.sequence,
+        blockedByActionId: r.blockedByActionId,
+        payload: r.payload,
+      }),
+    );
     return dispatchableActions(queueable) as readonly QueuedActionWithPayload[];
   }
 
@@ -41,14 +46,18 @@ export class SqliteSyncStore implements SyncStateStore {
     await this.db.transaction(async (tx) => {
       const now = new Date();
       // Apply per-action transitions concurrently inside the same tx (#710).
-      await Promise.all(commit.transitions.map((t) =>
-        tx.update(localActionLog)
-          .set({ status: t.newStatus, syncedAt: t.newStatus === 'synced' ? now : null })
-          .where(eq(localActionLog.actionId, t.actionId as ActionId)),
-      ));
+      await Promise.all(
+        commit.transitions.map((t) =>
+          tx
+            .update(localActionLog)
+            .set({ status: t.newStatus, syncedAt: t.newStatus === 'synced' ? now : null })
+            .where(eq(localActionLog.actionId, t.actionId as ActionId)),
+        ),
+      );
       // Upsert cursor + advance lastSeenSeq (PDF: client dedup > last_seen_seq).
       // MAX() guards against out-of-order responses overwriting a higher seq with a lower one.
-      await tx.insert(syncCursor)
+      await tx
+        .insert(syncCursor)
         .values({ id: 1, cursor: commit.newCursor, lastSeenSeq: commit.eventSeq, updatedAt: now })
         .onConflictDoUpdate({
           target: syncCursor.id,
@@ -67,7 +76,8 @@ export class SqliteSyncStore implements SyncStateStore {
 
   async rollbackDispatched(actionIds: readonly string[]): Promise<void> {
     if (actionIds.length === 0) return;
-    await this.db.update(localActionLog)
+    await this.db
+      .update(localActionLog)
       .set({ status: 'pending' })
       .where(inArray(localActionLog.actionId, actionIds as ActionId[]));
   }
@@ -75,9 +85,13 @@ export class SqliteSyncStore implements SyncStateStore {
   async resetForCursorExpired(): Promise<void> {
     await this.db.transaction(async (tx) => {
       const now = new Date();
-      await tx.update(localActionLog).set({ status: 'pending' }).where(eq(localActionLog.status, 'syncing'));
+      await tx
+        .update(localActionLog)
+        .set({ status: 'pending' })
+        .where(eq(localActionLog.status, 'syncing'));
       // Upsert: if no cursor row exists yet (fresh app), insert; else reset.
-      await tx.insert(syncCursor)
+      await tx
+        .insert(syncCursor)
         .values({ id: 1, cursor: '0', lastSeenSeq: 0, updatedAt: now })
         .onConflictDoUpdate({
           target: syncCursor.id,
@@ -90,7 +104,8 @@ export class SqliteSyncStore implements SyncStateStore {
    *  call rollbackDispatched on transport failure. */
   async claimDispatched(actionIds: readonly string[]): Promise<void> {
     if (actionIds.length === 0) return;
-    await this.db.update(localActionLog)
+    await this.db
+      .update(localActionLog)
       .set({ status: 'syncing' })
       .where(inArray(localActionLog.actionId, actionIds as ActionId[]));
   }

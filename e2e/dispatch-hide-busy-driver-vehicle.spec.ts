@@ -27,16 +27,34 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { dockerPsql, dockerExecNode } from './helpers/docker-exec';
 import { type z } from 'zod';
-import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, ReferenceListResponseSchema } from './helpers/contracts';
+import {
+  parseJson,
+  CreateDriverResponseSchema,
+  ReferenceItemSchema,
+  AssignmentResponseSchema,
+  ReferenceListResponseSchema,
+} from './helpers/contracts';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
-function sq39(): string { return String.fromCharCode(39); }
+function sq39(): string {
+  return String.fromCharCode(39);
+}
 function mintDispatcherToken(): string {
   const script =
-    'fetch(' + JSON.stringify('http://mock-oauth2:8080/fleet/token') +
-    ',{method:' + JSON.stringify('POST') +
-    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-    ',body:' + JSON.stringify('grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret') + '})' +
+    'fetch(' +
+    JSON.stringify('http://mock-oauth2:8080/fleet/token') +
+    ',{method:' +
+    JSON.stringify('POST') +
+    ',headers:{' +
+    JSON.stringify('content-type') +
+    ':' +
+    JSON.stringify('application/x-www-form-urlencoded') +
+    '}' +
+    ',body:' +
+    JSON.stringify(
+      'grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret',
+    ) +
+    '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(j.access_token))';
   // Per-worktree Docker isolation (2026-07-06): container name derives from
   // the compose project; hardcoding the legacy fleet-pilot name minted from
@@ -46,23 +64,39 @@ function mintDispatcherToken(): string {
   if (out.length === 0 || !out.includes('.')) throw new Error('Token mint failed: ' + out);
   return out.trim();
 }
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+async function adminPost<T>(
+  api: APIRequestContext,
+  token: string,
+  path: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
-  if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
+  if (!res.ok())
+    throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   return parseJson(res, schema);
 }
-async function listLabels(api: APIRequestContext, token: string, path: string): Promise<readonly string[]> {
+async function listLabels(
+  api: APIRequestContext,
+  token: string,
+  path: string,
+): Promise<readonly string[]> {
   const res = await api.get(API_URL + path, { headers: { Authorization: 'Bearer ' + token } });
   if (!res.ok()) throw new Error('GET ' + path + ' failed ' + String(res.status()));
   const json = await parseJson(res, ReferenceListResponseSchema);
   return json.items.map((i) => i.label);
 }
 interface SeededPair {
-  driverId: string; operatorId: string; vehicleId: string;
-  vehicleLabel: string; driverLabel: string; assignmentId: string; token: string;
+  driverId: string;
+  operatorId: string;
+  vehicleId: string;
+  vehicleLabel: string;
+  driverLabel: string;
+  assignmentId: string;
+  token: string;
 }
 async function setupPair(api: APIRequestContext, suffix: string): Promise<SeededPair> {
   const token = mintDispatcherToken();
@@ -71,34 +105,87 @@ async function setupPair(api: APIRequestContext, suffix: string): Promise<Seeded
   const driverLabel = 'E2E DRIVER ' + suffix + ' ' + String(ts);
   const vehicleLabel = 'E2E-' + suffix + '-' + String(ts);
   const drv = await adminPost(
-    api, token, '/admin/drivers',
+    api,
+    token,
+    '/admin/drivers',
     { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
     CreateDriverResponseSchema,
   );
-  const veh = await adminPost(api, token, '/reference/vehicles', { name: vehicleLabel }, ReferenceItemSchema);
+  const veh = await adminPost(
+    api,
+    token,
+    '/reference/vehicles',
+    { name: vehicleLabel },
+    ReferenceItemSchema,
+  );
   const asgn = await adminPost(
-    api, token, '/admin/driver-vehicle-assignments', { driverId: drv.driverId, vehicleId: veh.id },
+    api,
+    token,
+    '/admin/driver-vehicle-assignments',
+    { driverId: drv.driverId, vehicleId: veh.id },
     AssignmentResponseSchema,
   );
-  return { driverId: drv.driverId, operatorId: drv.operatorId, vehicleId: veh.id, vehicleLabel, driverLabel, assignmentId: asgn.assignmentId, token };
+  return {
+    driverId: drv.driverId,
+    operatorId: drv.operatorId,
+    vehicleId: veh.id,
+    vehicleLabel,
+    driverLabel,
+    assignmentId: asgn.assignmentId,
+    token,
+  };
 }
 function insertRoadRun(operatorId: string, assetId: string, state: string): string {
   const sq = sq39();
-  const T4 = sq + COMPANY_ID + sq + ',' + sq + COMPANY_ID + sq + ',' + sq + COMPANY_ID + sq + ',' + sq + COMPANY_ID + sq;
+  const T4 =
+    sq +
+    COMPANY_ID +
+    sq +
+    ',' +
+    sq +
+    COMPANY_ID +
+    sq +
+    ',' +
+    sq +
+    COMPANY_ID +
+    sq +
+    ',' +
+    sq +
+    COMPANY_ID +
+    sq;
   const sql =
     'WITH rr AS (INSERT INTO road_run ' +
     '(company_id, business_unit_id, depot_id, legal_entity_id, state, assigned_operator_id, assigned_asset_id, started_at) VALUES (' +
-    T4 + ',' +
-    sq + state + sq + ',' + sq + operatorId + sq + ',' + sq + assetId + sq + ', now()) RETURNING road_run_id), ' +
-    't AS (INSERT INTO transport_order (company_id, business_unit_id, depot_id, legal_entity_id) VALUES (' + T4 + ') RETURNING transport_order_id) ' +
+    T4 +
+    ',' +
+    sq +
+    state +
+    sq +
+    ',' +
+    sq +
+    operatorId +
+    sq +
+    ',' +
+    sq +
+    assetId +
+    sq +
+    ', now()) RETURNING road_run_id), ' +
+    't AS (INSERT INTO transport_order (company_id, business_unit_id, depot_id, legal_entity_id) VALUES (' +
+    T4 +
+    ') RETURNING transport_order_id) ' +
     'INSERT INTO road_run_transport_order (company_id, business_unit_id, depot_id, legal_entity_id, road_run_id, transport_order_id, sequence) ' +
-    'SELECT ' + T4 + ', rr.road_run_id, t.transport_order_id, 1 FROM rr, t RETURNING road_run_id;';
+    'SELECT ' +
+    T4 +
+    ', rr.road_run_id, t.transport_order_id, 1 FROM rr, t RETURNING road_run_id;';
   const r = dockerPsql(sql);
   if (r.failed) throw new Error('road_run insert failed: ' + r.stderr);
   // psql -tA on an INSERT ... RETURNING emits the returned value AND a status
   // line (INSERT 0 1). Take only the first non-empty line (the uuid) so the
   // later completed-state UPDATE targets a clean road_run_id.
-  const firstLine = r.stdout.split(String.fromCharCode(10)).map((l) => l.trim()).find((l) => l.length > 0);
+  const firstLine = r.stdout
+    .split(String.fromCharCode(10))
+    .map((l) => l.trim())
+    .find((l) => l.length > 0);
   if (firstLine === undefined) throw new Error('road_run insert returned no id: ' + r.stdout);
   return firstLine;
 }
@@ -113,19 +200,48 @@ test.describe('dispatch dropdowns hide busy (incomplete-road-run) driver + vehic
       const id = seededRoadRunIds.pop();
       if (id === undefined) continue;
       try {
-        dockerPsql('DELETE FROM transport_order WHERE transport_order_id IN (SELECT transport_order_id FROM road_run_transport_order WHERE road_run_id=' + sq + id + sq + ');');
+        dockerPsql(
+          'DELETE FROM transport_order WHERE transport_order_id IN (SELECT transport_order_id FROM road_run_transport_order WHERE road_run_id=' +
+            sq +
+            id +
+            sq +
+            ');',
+        );
         dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + id + sq + ';');
-      } catch { /* tolerate */ }
+      } catch {
+        /* tolerate */
+      }
     }
     while (seededPairs.length > 0) {
       const pair = seededPairs.pop();
       if (pair === undefined) continue;
-      try { await request.delete(API_URL + '/admin/driver-vehicle-assignments/' + pair.assignmentId, { headers: { Authorization: 'Bearer ' + pair.token, 'Content-Type': 'application/json' }, data: JSON.stringify({ reason: 'e2e-afterEach' }) }); } catch { /* tolerate */ }
-      try { await request.delete(API_URL + '/reference/vehicles/' + pair.vehicleId, { headers: { Authorization: 'Bearer ' + pair.token } }); } catch { /* tolerate */ }
-      try { await request.delete(API_URL + '/admin/drivers/' + pair.driverId, { headers: { Authorization: 'Bearer ' + pair.token } }); } catch { /* tolerate */ }
+      try {
+        await request.delete(API_URL + '/admin/driver-vehicle-assignments/' + pair.assignmentId, {
+          headers: { Authorization: 'Bearer ' + pair.token, 'Content-Type': 'application/json' },
+          data: JSON.stringify({ reason: 'e2e-afterEach' }),
+        });
+      } catch {
+        /* tolerate */
+      }
+      try {
+        await request.delete(API_URL + '/reference/vehicles/' + pair.vehicleId, {
+          headers: { Authorization: 'Bearer ' + pair.token },
+        });
+      } catch {
+        /* tolerate */
+      }
+      try {
+        await request.delete(API_URL + '/admin/drivers/' + pair.driverId, {
+          headers: { Authorization: 'Bearer ' + pair.token },
+        });
+      } catch {
+        /* tolerate */
+      }
     }
   });
-  test('busy pair (started road_run) is hidden from Số xe + Tài xế, reappears when completed', async ({ request }) => {
+  test('busy pair (started road_run) is hidden from Số xe + Tài xế, reappears when completed', async ({
+    request,
+  }) => {
     const pair = await setupPair(request, 'BUSY');
     seededPairs.push(pair);
     // Baseline: a freshly-paired idle driver+vehicle IS selectable.
@@ -143,7 +259,17 @@ test.describe('dispatch dropdowns hide busy (incomplete-road-run) driver + vehic
     expect(vehiclesBusy).not.toContain(pair.vehicleLabel);
     // Complete the road_run -> pair must REAPPEAR (free to be reassigned).
     const sq = sq39();
-    dockerPsql('UPDATE road_run SET state=' + sq + 'completed' + sq + ', completed_at=now() WHERE road_run_id=' + sq + rrId + sq + ';');
+    dockerPsql(
+      'UPDATE road_run SET state=' +
+        sq +
+        'completed' +
+        sq +
+        ', completed_at=now() WHERE road_run_id=' +
+        sq +
+        rrId +
+        sq +
+        ';',
+    );
     const driversDone = await listLabels(request, pair.token, '/reference/drivers');
     const vehiclesDone = await listLabels(request, pair.token, '/reference/vehicles');
     expect(driversDone).toContain(pair.driverLabel);

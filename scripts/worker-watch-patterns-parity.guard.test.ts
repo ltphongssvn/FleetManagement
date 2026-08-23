@@ -36,8 +36,7 @@ import { parse as parseYaml } from 'yaml';
 
 const REPO_ROOT = join(import.meta.dirname, '..');
 
-const readJson = (p: string): unknown =>
-  JSON.parse(readFileSync(join(REPO_ROOT, p), 'utf8'));
+const readJson = (p: string): unknown => JSON.parse(readFileSync(join(REPO_ROOT, p), 'utf8'));
 
 /** The SSOT: what Railway actually enforces. */
 function railwayWatchPatterns(): readonly string[] {

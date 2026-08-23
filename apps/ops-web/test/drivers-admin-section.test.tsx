@@ -19,13 +19,22 @@ function fakeClient(rows: readonly AdminDriverRow[]): DriversAdminClient {
     resetPassword: vi.fn().mockResolvedValue(undefined),
   } as unknown as DriversAdminClient;
 }
-const ONE_ROW: AdminDriverRow[] = [{
-  driverId: 'dr1', fullName: 'NGUYEN VAN A', phone: '0900000001',
-  operatorId: null, assignedVehicle: null, assignmentId: null, devices: [],
-}];
+const ONE_ROW: AdminDriverRow[] = [
+  {
+    driverId: 'dr1',
+    fullName: 'NGUYEN VAN A',
+    phone: '0900000001',
+    operatorId: null,
+    assignedVehicle: null,
+    assignmentId: null,
+    devices: [],
+  },
+];
 beforeEach(() => {
   globalThis.fetch = vi.fn().mockResolvedValue({
-    ok: true, status: 200, json: () => Promise.resolve({ items: [] }),
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve({ items: [] }),
   }) as never;
 });
 describe('DriversAdminSection', () => {
@@ -38,10 +47,17 @@ describe('DriversAdminSection', () => {
     expect(await screen.findByRole('button', { name: 'Đăng ký tài xế' })).toBeInTheDocument();
   });
   it('renders an assign-vehicle control for an unassigned driver', async () => {
-    const rows: AdminDriverRow[] = [{
-      driverId: 'dr1', fullName: 'NGUYEN VAN A', phone: '0900000001',
-      operatorId: null, assignedVehicle: null, assignmentId: null, devices: [],
-    }];
+    const rows: AdminDriverRow[] = [
+      {
+        driverId: 'dr1',
+        fullName: 'NGUYEN VAN A',
+        phone: '0900000001',
+        operatorId: null,
+        assignedVehicle: null,
+        assignmentId: null,
+        devices: [],
+      },
+    ];
     render(<DriversAdminSection client={fakeClient(rows)} />);
     expect(await screen.findByTestId('driver-assign-vehicle-dr1')).toBeInTheDocument();
   });

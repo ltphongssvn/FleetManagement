@@ -27,15 +27,16 @@ import { stopComposeArgs, stackStopVerdict } from './stack-stop.js';
 describe('stopComposeArgs', () => {
   it('emits exactly the data-safe stop argv, and nothing else', () => {
     expect(stopComposeArgs('fleet-c5f84458784f')).toStrictEqual([
-      'compose', '-p', 'fleet-c5f84458784f', 'stop',
+      'compose',
+      '-p',
+      'fleet-c5f84458784f',
+      'stop',
     ]);
   });
 
   // The legacy shared stack is still a real project and must stay stoppable.
   it('works for the legacy shared fleet-pilot project too', () => {
-    expect(stopComposeArgs('fleet-pilot')).toStrictEqual([
-      'compose', '-p', 'fleet-pilot', 'stop',
-    ]);
+    expect(stopComposeArgs('fleet-pilot')).toStrictEqual(['compose', '-p', 'fleet-pilot', 'stop']);
   });
 
   // The project name becomes a process argument. spawnSync with an argv array
@@ -52,13 +53,17 @@ describe('stopComposeArgs', () => {
 describe('stackStopVerdict', () => {
   it('STOPPED when nothing survives', () => {
     expect(stackStopVerdict([])).toStrictEqual({
-      verdict: 'STOPPED', survivors: [], exitCode: 0,
+      verdict: 'STOPPED',
+      survivors: [],
+      exitCode: 0,
     });
   });
 
   it('INCOMPLETE and NON-ZERO when a project is still running', () => {
     expect(stackStopVerdict(['fleet-pilot'])).toStrictEqual({
-      verdict: 'INCOMPLETE', survivors: ['fleet-pilot'], exitCode: 1,
+      verdict: 'INCOMPLETE',
+      survivors: ['fleet-pilot'],
+      exitCode: 1,
     });
   });
 });

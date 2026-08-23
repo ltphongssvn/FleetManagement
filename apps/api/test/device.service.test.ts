@@ -8,24 +8,25 @@ import { SESSION_MODES } from '@fleet/domain';
 describe('@fleet/api - DeviceService Zod validation', () => {
   it('rejects invalid surface via Zod schema', async () => {
     const svc = new DeviceService(null as never);
-    await expect(svc.issueSession({
-      deviceId: '00000000-0000-0000-0000-000000000001',
-      operatorId: '00000000-0000-0000-0000-000000000002',
-      surface: 'invalid' as never,
-      sessionMode: 'mutating',
-      companyId: '00000000-0000-0000-0000-000000000003',
-      businessUnitId: '00000000-0000-0000-0000-000000000004',
-      depotId: '00000000-0000-0000-0000-000000000005',
-      legalEntityId: '00000000-0000-0000-0000-000000000006',
-    })).rejects.toThrow();
+    await expect(
+      svc.issueSession({
+        deviceId: '00000000-0000-0000-0000-000000000001',
+        operatorId: '00000000-0000-0000-0000-000000000002',
+        surface: 'invalid' as never,
+        sessionMode: 'mutating',
+        companyId: '00000000-0000-0000-0000-000000000003',
+        businessUnitId: '00000000-0000-0000-0000-000000000004',
+        depotId: '00000000-0000-0000-0000-000000000005',
+        legalEntityId: '00000000-0000-0000-0000-000000000006',
+      }),
+    ).rejects.toThrow();
   });
 
   it('rejects invalid revocation reason via Zod', async () => {
     const svc = new DeviceService(null as never);
-    await expect(svc.revokeSession(
-      '00000000-0000-0000-0000-00000000000a',
-      'not-a-valid-reason' as never,
-    )).rejects.toThrow();
+    await expect(
+      svc.revokeSession('00000000-0000-0000-0000-00000000000a', 'not-a-valid-reason' as never),
+    ).rejects.toThrow();
   });
 });
 

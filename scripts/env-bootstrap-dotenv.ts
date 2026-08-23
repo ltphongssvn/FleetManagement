@@ -83,9 +83,7 @@ export function findDuplicateKeys(content: string): readonly DotenvDuplicate[] {
  *  Names the CONSEQUENCE, not just the rule: "duplicate key" reads as pedantry
  *  until you know it produces ciphertext nobody can ever open. */
 export function describeDuplicates(duplicates: readonly DotenvDuplicate[]): string {
-  const listed = duplicates
-    .map((d) => '  ' + d.key + ' on lines ' + d.lines.join(', '))
-    .join(NL);
+  const listed = duplicates.map((d) => '  ' + d.key + ' on lines ' + d.lines.join(', ')).join(NL);
   return [
     'refusing to encrypt: .env assigns a key more than once',
     listed,

@@ -19,7 +19,9 @@ import { CommandsService } from '../src/commands/commands.service.js';
 import type { CommandPayload } from '../src/commands/command.dto.js';
 import type { OperatorContext } from '../src/auth/operator-context.js';
 
-interface FakeTx { __tx: true }
+interface FakeTx {
+  __tx: true;
+}
 const FAKE_TX: FakeTx = { __tx: true };
 
 function makeDb(): { db: object; transactionCalls: number } {
@@ -30,7 +32,12 @@ function makeDb(): { db: object; transactionCalls: number } {
       return fn(FAKE_TX);
     },
   };
-  return { db, get transactionCalls() { return transactionCalls; } };
+  return {
+    db,
+    get transactionCalls() {
+      return transactionCalls;
+    },
+  };
 }
 
 const OP: OperatorContext = Object.freeze({

@@ -29,7 +29,9 @@ const DRIVER = {
 const CRED_ID_B64URL = 'Y3JlZC1pZA';
 const CRED_ID_BUF = Buffer.from(CRED_ID_B64URL, 'base64url');
 
-function makeRepo(overrides: Partial<PasskeyCredentialRepository> = {}): PasskeyCredentialRepository {
+function makeRepo(
+  overrides: Partial<PasskeyCredentialRepository> = {},
+): PasskeyCredentialRepository {
   return {
     insert: vi.fn(),
     findByCredentialId: vi.fn().mockResolvedValue(null),
@@ -43,8 +45,15 @@ function makeRepo(overrides: Partial<PasskeyCredentialRepository> = {}): Passkey
 function makeStore(): ChallengeStore {
   const m = new Map<string, string>();
   return {
-    put: vi.fn((k: string, v: string) => { m.set(k, v); return Promise.resolve(); }),
-    take: vi.fn((k: string) => { const v = m.get(k); m.delete(k); return Promise.resolve(v ?? null); }),
+    put: vi.fn((k: string, v: string) => {
+      m.set(k, v);
+      return Promise.resolve();
+    }),
+    take: vi.fn((k: string) => {
+      const v = m.get(k);
+      m.delete(k);
+      return Promise.resolve(v ?? null);
+    }),
   };
 }
 
@@ -98,7 +107,10 @@ describe('PasskeyAuthenticationService', () => {
     it('verifies, updates sign_count, returns LoginClaims', async () => {
       const s = svc();
       await s.beginAuthentication();
-      const result = await s.finishAuthentication({ id: CRED_ID_B64URL, response: { clientDataJSON: 'auth-chal-b64url' } } as never, 'auth-chal-b64url');
+      const result = await s.finishAuthentication(
+        { id: CRED_ID_B64URL, response: { clientDataJSON: 'auth-chal-b64url' } } as never,
+        'auth-chal-b64url',
+      );
       expect(result.claims).toEqual({
         sub: DRIVER.operatorId,
         companyId: DRIVER.companyId,
@@ -111,32 +123,36 @@ describe('PasskeyAuthenticationService', () => {
     });
 
     it('throws 401 when no stored challenge', async () => {
-      await expect(svc().finishAuthentication({} as never, 'unknown-chal'))
-        .rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(svc().finishAuthentication({} as never, 'unknown-chal')).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
     });
 
     it('throws 401 when @simplewebauthn verification fails', async () => {
       verifyResp = vi.fn().mockResolvedValue({ verified: false });
       const s = svc();
       await s.beginAuthentication();
-      await expect(s.finishAuthentication({ id: CRED_ID_B64URL } as never, 'auth-chal-b64url'))
-        .rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(
+        s.finishAuthentication({ id: CRED_ID_B64URL } as never, 'auth-chal-b64url'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
     it('throws 401 when credential lookup returns null (credential-not-found)', async () => {
       lookupByCred = vi.fn().mockResolvedValue(null);
       const s = svc();
       await s.beginAuthentication();
-      await expect(s.finishAuthentication({ id: CRED_ID_B64URL } as never, 'auth-chal-b64url'))
-        .rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(
+        s.finishAuthentication({ id: CRED_ID_B64URL } as never, 'auth-chal-b64url'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
     it('throws 403 when driver inactive', async () => {
       lookupByCred = vi.fn().mockResolvedValue({ ...DRIVER, active: false });
       const s = svc();
       await s.beginAuthentication();
-      await expect(s.finishAuthentication({ id: CRED_ID_B64URL } as never, 'auth-chal-b64url'))
-        .rejects.toBeInstanceOf(ForbiddenException);
+      await expect(
+        s.finishAuthentication({ id: CRED_ID_B64URL } as never, 'auth-chal-b64url'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('throws 401 (cloned-authenticator) when newCounter <= storedSignCount and stored > 0', async () => {
@@ -146,8 +162,9 @@ describe('PasskeyAuthenticationService', () => {
       });
       const s = svc();
       await s.beginAuthentication();
-      await expect(s.finishAuthentication({ id: CRED_ID_B64URL } as never, 'auth-chal-b64url'))
-        .rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(
+        s.finishAuthentication({ id: CRED_ID_B64URL } as never, 'auth-chal-b64url'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
       expect(repo.updateSignCountAndLastUsed).not.toHaveBeenCalled();
     });
 
@@ -155,16 +172,20 @@ describe('PasskeyAuthenticationService', () => {
       const s = svc();
       await s.beginAuthentication();
       await s.finishAuthentication({ id: CRED_ID_B64URL } as never, 'auth-chal-b64url');
-      await expect(s.finishAuthentication({ id: CRED_ID_B64URL } as never, 'auth-chal-b64url'))
-        .rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(
+        s.finishAuthentication({ id: CRED_ID_B64URL } as never, 'auth-chal-b64url'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
     it('throws 401 when repo.findByCredentialId returns null (line 79 credential_not_found)', async () => {
-      repo = makeRepo({ findByCredentialId: vi.fn().mockResolvedValue(null) } as Partial<PasskeyCredentialRepository>);
+      repo = makeRepo({
+        findByCredentialId: vi.fn().mockResolvedValue(null),
+      } as Partial<PasskeyCredentialRepository>);
       const s = svc();
       await s.beginAuthentication();
-      await expect(s.finishAuthentication({ id: CRED_ID_B64URL } as never, 'auth-chal-b64url'))
-        .rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(
+        s.finishAuthentication({ id: CRED_ID_B64URL } as never, 'auth-chal-b64url'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
     it('handles a stored credential with null transports (lines 81-83 else arm)', async () => {
@@ -178,7 +199,10 @@ describe('PasskeyAuthenticationService', () => {
       } as Partial<PasskeyCredentialRepository>);
       const s = svc();
       await s.beginAuthentication();
-      const result = await s.finishAuthentication({ id: CRED_ID_B64URL, response: { clientDataJSON: 'auth-chal-b64url' } } as never, 'auth-chal-b64url');
+      const result = await s.finishAuthentication(
+        { id: CRED_ID_B64URL, response: { clientDataJSON: 'auth-chal-b64url' } } as never,
+        'auth-chal-b64url',
+      );
       expect(result.claims.sub).toBe(DRIVER.operatorId);
     });
   });

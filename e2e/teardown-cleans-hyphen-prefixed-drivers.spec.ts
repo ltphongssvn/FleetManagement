@@ -12,9 +12,39 @@ test.describe.serial('global teardown removes hyphen-prefixed E2E drivers', () =
     const insert =
       'INSERT INTO driver (driver_id, company_id, business_unit_id, depot_id, legal_entity_id, full_name, phone, password_hash, operator_id, active) VALUES (' +
       'gen_random_uuid(), ' +
-      sq + zero + sq + ', ' + sq + zero + sq + ', ' + sq + zero + sq + ', ' + sq + zero + sq + ', ' +
-      sq + probe + sq + ', ' + sq + '09' + String(Date.now()).slice(-8) + sq + ', ' +
-      sq + 'x' + sq + ', ' + sq + opId + sq + ', true);';
+      sq +
+      zero +
+      sq +
+      ', ' +
+      sq +
+      zero +
+      sq +
+      ', ' +
+      sq +
+      zero +
+      sq +
+      ', ' +
+      sq +
+      zero +
+      sq +
+      ', ' +
+      sq +
+      probe +
+      sq +
+      ', ' +
+      sq +
+      '09' +
+      String(Date.now()).slice(-8) +
+      sq +
+      ', ' +
+      sq +
+      'x' +
+      sq +
+      ', ' +
+      sq +
+      opId +
+      sq +
+      ', true);';
     const ins = dockerPsql(insert);
     if (ins.failed) throw new Error('seed insert failed: ' + ins.stderr);
 

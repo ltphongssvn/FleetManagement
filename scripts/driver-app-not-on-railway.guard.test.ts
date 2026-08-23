@@ -17,17 +17,12 @@ const REPO_ROOT = join(import.meta.dirname, '..');
 const DEPLOY_MD = join(REPO_ROOT, 'DEPLOY.md');
 
 describe('driver-app is not a Railway service', () => {
-  it.each(['railway.json', 'railway.toml'])(
-    'has no %s',
-    (name) => {
-      expect(existsSync(join(REPO_ROOT, 'apps/driver-app', name))).toBe(false);
-    },
-  );
+  it.each(['railway.json', 'railway.toml'])('has no %s', (name) => {
+    expect(existsSync(join(REPO_ROOT, 'apps/driver-app', name))).toBe(false);
+  });
 
   it('has no Railway config test asserting the opposite', () => {
-    expect(
-      existsSync(join(REPO_ROOT, 'apps/driver-app/test/railway-config.test.ts')),
-    ).toBe(false);
+    expect(existsSync(join(REPO_ROOT, 'apps/driver-app/test/railway-config.test.ts'))).toBe(false);
   });
 
   it('DEPLOY.md still records the decision this guard enforces', () => {

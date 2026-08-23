@@ -34,15 +34,22 @@ export class RefreshTokenRepositoryImpl implements RefreshTokenRepositoryPort {
     });
   }
 
-  async claimForRotation(tokenHash: string, replacedByTokenHash: string, nowMs: number): Promise<RefreshTokenRecord | null> {
+  async claimForRotation(
+    tokenHash: string,
+    replacedByTokenHash: string,
+    nowMs: number,
+  ): Promise<RefreshTokenRecord | null> {
     const now = new Date(nowMs);
-    const claimed = await this.db.update(driverRefreshToken)
+    const claimed = await this.db
+      .update(driverRefreshToken)
       .set({ revokedAt: now, revokedReason: 'rotated', replacedByTokenHash })
-      .where(and(
-        eq(driverRefreshToken.tokenHash, tokenHash),
-        isNull(driverRefreshToken.revokedAt),
-        gt(driverRefreshToken.expiresAt, now),
-      ))
+      .where(
+        and(
+          eq(driverRefreshToken.tokenHash, tokenHash),
+          isNull(driverRefreshToken.revokedAt),
+          gt(driverRefreshToken.expiresAt, now),
+        ),
+      )
       .returning();
     const row = claimed[0];
     if (row === undefined) return null;
@@ -50,7 +57,8 @@ export class RefreshTokenRepositoryImpl implements RefreshTokenRepositoryPort {
   }
 
   async findByTokenHash(tokenHash: string): Promise<RefreshTokenRecord | null> {
-    const rows = await this.db.select({ token: driverRefreshToken, active: driver.active })
+    const rows = await this.db
+      .select({ token: driverRefreshToken, active: driver.active })
       .from(driverRefreshToken)
       .innerJoin(driver, eq(driver.driverId, driverRefreshToken.driverId))
       .where(eq(driverRefreshToken.tokenHash, tokenHash))
@@ -61,25 +69,24 @@ export class RefreshTokenRepositoryImpl implements RefreshTokenRepositoryPort {
   }
 
   async revokeFamily(familyId: string, reason: string, nowMs: number): Promise<void> {
-    await this.db.update(driverRefreshToken)
+    await this.db
+      .update(driverRefreshToken)
       .set({ revokedAt: new Date(nowMs), revokedReason: reason })
-      .where(and(
-        eq(driverRefreshToken.familyId, familyId),
-        isNull(driverRefreshToken.revokedAt),
-      ));
+      .where(and(eq(driverRefreshToken.familyId, familyId), isNull(driverRefreshToken.revokedAt)));
   }
 
   async revokeByTokenHash(tokenHash: string, reason: string, nowMs: number): Promise<void> {
-    await this.db.update(driverRefreshToken)
+    await this.db
+      .update(driverRefreshToken)
       .set({ revokedAt: new Date(nowMs), revokedReason: reason })
-      .where(and(
-        eq(driverRefreshToken.tokenHash, tokenHash),
-        isNull(driverRefreshToken.revokedAt),
-      ));
+      .where(
+        and(eq(driverRefreshToken.tokenHash, tokenHash), isNull(driverRefreshToken.revokedAt)),
+      );
   }
 
   private async withDriverActive(row: TokenRow): Promise<RefreshTokenRecord> {
-    const drivers = await this.db.select({ active: driver.active })
+    const drivers = await this.db
+      .select({ active: driver.active })
       .from(driver)
       .where(eq(driver.driverId, row.driverId))
       .limit(1);

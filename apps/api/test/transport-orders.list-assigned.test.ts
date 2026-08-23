@@ -38,9 +38,29 @@ describe('GET /transport-orders/assigned', () => {
       depotId: '00000000-0000-0000-0000-000000000000',
       legalEntityId: '00000000-0000-0000-0000-000000000000',
     };
-    svc.listAssigned.mockResolvedValueOnce({ rows: [{ transportOrderId: 't1', externalRef: 'TO-1', roadRunId: 'r1', state: 'planned', stops: [] }] });
+    svc.listAssigned.mockResolvedValueOnce({
+      rows: [
+        {
+          transportOrderId: 't1',
+          externalRef: 'TO-1',
+          roadRunId: 'r1',
+          state: 'planned',
+          stops: [],
+        },
+      ],
+    });
     const r = await controller.listAssigned(op);
     expect(svc.listAssigned).toHaveBeenCalledWith(op);
-    expect(r).toEqual({ rows: [{ transportOrderId: 't1', externalRef: 'TO-1', roadRunId: 'r1', state: 'planned', stops: [] }] });
+    expect(r).toEqual({
+      rows: [
+        {
+          transportOrderId: 't1',
+          externalRef: 'TO-1',
+          roadRunId: 'r1',
+          state: 'planned',
+          stops: [],
+        },
+      ],
+    });
   });
 });

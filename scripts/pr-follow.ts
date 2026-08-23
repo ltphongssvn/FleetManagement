@@ -170,10 +170,7 @@ export function runStateFor(
 }
 
 // See correlation rule 2 in the header: SHA matching is impossible for this run.
-export function deployRunAfter(
-  runs: readonly RunRecord[],
-  afterIso: string,
-): RunRecord | null {
+export function deployRunAfter(runs: readonly RunRecord[], afterIso: string): RunRecord | null {
   const cutoff = Date.parse(afterIso);
   const candidates = runs
     .filter((r) => r.workflowName === DEPLOY_WORKFLOW)
@@ -194,8 +191,13 @@ export type PhaseName =
   | 'deploy';
 
 export const PHASES: readonly PhaseName[] = [
-  'pr-checks', 'pr-merged', 'develop-gates',
-  'promoted', 'release', 'main-e2e', 'deploy',
+  'pr-checks',
+  'pr-merged',
+  'develop-gates',
+  'promoted',
+  'release',
+  'main-e2e',
+  'deploy',
 ];
 
 export interface PhaseResult {
@@ -265,7 +267,15 @@ export function describeFailure(
   if (failed.length === 0) return 'FAILED at ' + phase;
   const NL2 = String.fromCharCode(10);
   const lines = failed.map((f) => '  ' + f.workflowName + ': ' + runUrl(repo, f.databaseId));
-  return 'FAILED at ' + phase + ' -- ' + String(failed.length) + ' workflow(s) failed:' + NL2 + lines.join(NL2);
+  return (
+    'FAILED at ' +
+    phase +
+    ' -- ' +
+    String(failed.length) +
+    ' workflow(s) failed:' +
+    NL2 +
+    lines.join(NL2)
+  );
 }
 
 export function computeVerdict(results: readonly PhaseResult[]): VerdictResult {
@@ -324,8 +334,14 @@ function parseJsonAs<T>(raw: string, schema: z.ZodType<T>, fallback: T): T {
 
 function listRuns(branch: string): readonly RunRecord[] {
   const raw = sh('gh', [
-    'run', 'list', '--branch', branch, '--limit', '40',
-    '--json', 'databaseId,workflowName,status,conclusion,headSha,createdAt,event',
+    'run',
+    'list',
+    '--branch',
+    branch,
+    '--limit',
+    '40',
+    '--json',
+    'databaseId,workflowName,status,conclusion,headSha,createdAt,event',
   ]).out;
   return parseJsonAs(raw, RunListSchema, []);
 }
@@ -386,7 +402,14 @@ function completedAt(runs: readonly RunRecord[], workflow: string, sha: string):
 // owner/name for run URLs. Read from gh so a fork or rename cannot produce a
 // link that 404s; falls back to the remote path when gh is unavailable.
 function repoSlug(): string {
-  const fromGh = sh('gh', ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner']).out.trim();
+  const fromGh = sh('gh', [
+    'repo',
+    'view',
+    '--json',
+    'nameWithOwner',
+    '-q',
+    '.nameWithOwner',
+  ]).out.trim();
   if (fromGh.length > 0) return fromGh;
   const url = sh('git', ['remote', 'get-url', 'origin']).out.trim();
   const m = /[:/]([^/:]+\/[^/]+?)(?:\.git)?$/.exec(url);
@@ -439,8 +462,10 @@ function evaluate(cfg: FollowConfig): readonly PhaseResult[] {
   const ci = runStateFor(devRuns, CI_WORKFLOW, pr.mergeSha);
   const e2e = runStateFor(devRuns, E2E_WORKFLOW, pr.mergeSha);
   const gates: RunState =
-    ci === 'failed' || e2e === 'failed' ? 'failed'
-      : ci === 'success' && e2e === 'success' ? 'success'
+    ci === 'failed' || e2e === 'failed'
+      ? 'failed'
+      : ci === 'success' && e2e === 'success'
+        ? 'success'
         : 'pending';
   if (gates === 'failed') {
     lastFailures = failedWorkflowsFor(devRuns, [CI_WORKFLOW, E2E_WORKFLOW], pr.mergeSha);
@@ -467,8 +492,10 @@ function evaluate(cfg: FollowConfig): readonly PhaseResult[] {
   const all = [...listRuns(cfg.baseBranch), ...listRuns(cfg.developBranch)];
   const dep = deployRunAfter(all, gateAt);
   const depState: RunState =
-    dep === null ? 'absent'
-      : dep.status !== 'completed' ? 'pending'
+    dep === null
+      ? 'absent'
+      : dep.status !== 'completed'
+        ? 'pending'
         : runStateFromConclusion(dep.conclusion);
   out.push({ phase: 'deploy', state: depState });
   if (dep !== null) {
@@ -496,14 +523,21 @@ function main(): void {
     console.log('--- ' + new Date().toISOString() + ' ---');
     report(results);
     if (v.verdict !== 'WAITING') {
-      console.log(v.verdict === 'DEPLOYED'
-        ? 'DEPLOYED: PR #' + String(cfg.prNumber) + ' is live on Railway.'
-        : describeFailure(v.at ?? 'deploy', lastFailures, repoSlug())
-          + String.fromCharCode(10) + 'PR #' + String(cfg.prNumber) + ' did NOT reach production.');
+      console.log(
+        v.verdict === 'DEPLOYED'
+          ? 'DEPLOYED: PR #' + String(cfg.prNumber) + ' is live on Railway.'
+          : describeFailure(v.at ?? 'deploy', lastFailures, repoSlug()) +
+              String.fromCharCode(10) +
+              'PR #' +
+              String(cfg.prNumber) +
+              ' did NOT reach production.',
+      );
       process.exit(v.exitCode);
     }
     if (Date.now() >= deadline) {
-      console.error('TIMEOUT after ' + String(cfg.timeoutMinutes) + 'm, stalled at ' + String(v.at));
+      console.error(
+        'TIMEOUT after ' + String(cfg.timeoutMinutes) + 'm, stalled at ' + String(v.at),
+      );
       process.exit(3);
     }
     console.log('  waiting at ' + String(v.at) + ' ...');
@@ -512,4 +546,6 @@ function main(): void {
 }
 
 const isEntry = process.argv[1] !== undefined && import.meta.url === 'file://' + process.argv[1];
-if (isEntry) { main(); }
+if (isEntry) {
+  main();
+}

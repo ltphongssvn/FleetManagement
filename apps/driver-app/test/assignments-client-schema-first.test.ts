@@ -39,7 +39,14 @@ const ROW = {
   pickupName: 'Kho 1',
   deliveryName: 'Kho 2',
   stops: [
-    { sequence: 1, stopType: 'pickup', plannedAt: null, warehouseName: 'Kho 1', arrivedAt: null, departedAt: null },
+    {
+      sequence: 1,
+      stopType: 'pickup',
+      plannedAt: null,
+      warehouseName: 'Kho 1',
+      arrivedAt: null,
+      departedAt: null,
+    },
   ],
   canCancel: false,
   cancelBlockedReason: 'photos_received',
@@ -47,8 +54,12 @@ const ROW = {
 
 function clientReturning(payload: unknown): AssignmentsClient {
   const fetchFn = ((): Promise<Response> =>
-    Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve(payload) } as Response)
-  ) as typeof globalThis.fetch;
+    Promise.resolve({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: () => Promise.resolve(payload),
+    } as Response)) as typeof globalThis.fetch;
   return new AssignmentsClient({ apiUrl: 'http://api.invalid', bearerToken: () => 't', fetchFn });
 }
 
@@ -89,8 +100,10 @@ describe('AssignmentsClient.tripHistory is schema-first', () => {
   });
 
   it('rejects a month whose count is not a non-negative integer', async () => {
-    await expect(clientReturning({
-      months: [{ monthKey: '2026-08', label: 'x', count: -1, trips: [] }],
-    }).tripHistory()).rejects.toThrow();
+    await expect(
+      clientReturning({
+        months: [{ monthKey: '2026-08', label: 'x', count: -1, trips: [] }],
+      }).tripHistory(),
+    ).rejects.toThrow();
   });
 });

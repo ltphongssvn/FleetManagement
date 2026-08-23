@@ -30,7 +30,10 @@ describe('decideDbGenerate', () => {
     expect(verdict).toEqual({ action: 'fail', reasons: ['error-output'] });
   });
   it('fails on a non-zero exit even when the output looks clean', () => {
-    const verdict = decideDbGenerate({ exitCode: 1, output: 'No schema changes, nothing to migrate' });
+    const verdict = decideDbGenerate({
+      exitCode: 1,
+      output: 'No schema changes, nothing to migrate',
+    });
     expect(verdict).toEqual({ action: 'fail', reasons: ['nonzero-exit'] });
   });
   it('accumulates every reason rather than short-circuiting on the first', () => {
@@ -44,7 +47,10 @@ describe('decideDbGenerate', () => {
   it('passes when drizzle-kit reports no schema changes', () => {
     const verdict = decideDbGenerate({
       exitCode: 0,
-      output: 'transport_order 16 columns 4 indexes 0 fks' + String.fromCharCode(10) + 'No schema changes, nothing to migrate',
+      output:
+        'transport_order 16 columns 4 indexes 0 fks' +
+        String.fromCharCode(10) +
+        'No schema changes, nothing to migrate',
     });
     expect(verdict).toEqual({ action: 'pass', reasons: [] });
   });
@@ -56,13 +62,19 @@ describe('decideDbGenerate', () => {
     expect(verdict).toEqual({ action: 'pass', reasons: [] });
   });
   it('fails when the run produced neither a success marker nor an error (silent no-op)', () => {
-    const verdict = decideDbGenerate({ exitCode: 0, output: 'Reading config file drizzle.config.ts' });
+    const verdict = decideDbGenerate({
+      exitCode: 0,
+      output: 'Reading config file drizzle.config.ts',
+    });
     expect(verdict).toEqual({ action: 'fail', reasons: ['no-success-marker'] });
   });
   it('does not treat the word error inside a table or column name as a failure', () => {
     const verdict = decideDbGenerate({
       exitCode: 0,
-      output: 'error_log 5 columns 1 indexes 0 fks' + String.fromCharCode(10) + 'No schema changes, nothing to migrate',
+      output:
+        'error_log 5 columns 1 indexes 0 fks' +
+        String.fromCharCode(10) +
+        'No schema changes, nothing to migrate',
     });
     expect(verdict).toEqual({ action: 'pass', reasons: [] });
   });

@@ -3,7 +3,11 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { DispatchController } from '../src/dispatch/dispatch.controller.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 let ctrl: DispatchController;
@@ -11,16 +15,36 @@ const OP = createOperatorContext({ companyId: '00000000-0000-0000-0000-000000000
 function q(v: string): string {
   return String.fromCharCode(39) + v + String.fromCharCode(39);
 }
-async function insertProjection(roadRunId: string, plannedAt: string | null, opts: { companyId?: string } = {}): Promise<void> {
+async function insertProjection(
+  roadRunId: string,
+  plannedAt: string | null,
+  opts: { companyId?: string } = {},
+): Promise<void> {
   const co = opts.companyId ?? OP.companyId;
   const planned = plannedAt ? q(plannedAt) : 'NULL';
-  await testDb.db.execute(sql.raw(
-    'INSERT INTO dispatch_board_projection ' +
-    '(road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, stop_count, transport_order_refs, server_seq, planned_start_at) ' +
-    'VALUES (' +
-    q(roadRunId) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' +
-    q('planned') + ', 2, ' + q('["TO-1","TO-2"]') + '::jsonb, 1, ' + planned + ')'
-  ));
+  await testDb.db.execute(
+    sql.raw(
+      'INSERT INTO dispatch_board_projection ' +
+        '(road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, stop_count, transport_order_refs, server_seq, planned_start_at) ' +
+        'VALUES (' +
+        q(roadRunId) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q('planned') +
+        ', 2, ' +
+        q('["TO-1","TO-2"]') +
+        '::jsonb, 1, ' +
+        planned +
+        ')',
+    ),
+  );
 }
 async function seedStopChain(roadRunId: string, transportOrderId: string): Promise<void> {
   const co = OP.companyId;
@@ -29,66 +53,188 @@ async function seedStopChain(roadRunId: string, transportOrderId: string): Promi
   const cid = '33333333-aaaa-4aaa-8aaa-333333333333';
   const gaoId = '77777777-aaaa-4aaa-8aaa-777777777777';
   const gaoName = 'Gao';
-  await testDb.db.execute(sql.raw(
-    'INSERT INTO customer (customer_id, company_id, business_unit_id, depot_id, legal_entity_id, name, phone) ' +
-    'VALUES (' + q(cid) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q('Công ty Vận Tải Số 1') + ', ' + q('0901234567') + ')'
-  ));
-  await testDb.db.execute(sql.raw(
-    'INSERT INTO cargo_type (cargo_type_id, company_id, business_unit_id, depot_id, legal_entity_id, name) ' +
-    'VALUES (' + q(gaoId) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(gaoName) + ')'
-  ));
-  await testDb.db.execute(sql.raw(
-    'INSERT INTO transport_order (transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, external_ref, customer_id, cargo_type_id, created_at, updated_at) ' +
-    'VALUES (' + q(transportOrderId) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q('XTT.05-001') + ', ' + q(cid) + ', ' + q(gaoId) + ', now(), now())'
-  ));
-  await testDb.db.execute(sql.raw(
-    'INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, assigned_operator_id, assigned_asset_id) ' +
-    'VALUES (' + q(roadRunId) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q('planned') + ', ' + q(co) + ', ' + q(co) + ')'
-  ));
-  await testDb.db.execute(sql.raw(
-    'INSERT INTO road_run_transport_order (road_run_id, transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, sequence) ' +
-    'VALUES (' + q(roadRunId) + ', ' + q(transportOrderId) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', 1)'
-  ));
-  await testDb.db.execute(sql.raw(
-    'INSERT INTO warehouse (warehouse_id, company_id, business_unit_id, depot_id, legal_entity_id, name, role) ' +
-    'VALUES (' + q(wid) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q('Chơn Chính') + ', ' + q('pickup') + ')'
-  ));
-  await testDb.db.execute(sql.raw(
-    'INSERT INTO stop (stop_id, company_id, business_unit_id, depot_id, legal_entity_id, transport_order_id, sequence, stop_type, yard_id, planned_at, arrived_at, departed_at) ' +
-    'VALUES (' + q(sid) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(transportOrderId) + ', 1, ' + q('pickup') + ', ' + q(wid) + ', ' + q('2026-05-30T08:00:00.000Z') + ', ' + q('2026-05-30T09:00:00.000Z') + ', ' + q('2026-05-30T09:15:00.000Z') + ')'
-  ));
+  await testDb.db.execute(
+    sql.raw(
+      'INSERT INTO customer (customer_id, company_id, business_unit_id, depot_id, legal_entity_id, name, phone) ' +
+        'VALUES (' +
+        q(cid) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q('Công ty Vận Tải Số 1') +
+        ', ' +
+        q('0901234567') +
+        ')',
+    ),
+  );
+  await testDb.db.execute(
+    sql.raw(
+      'INSERT INTO cargo_type (cargo_type_id, company_id, business_unit_id, depot_id, legal_entity_id, name) ' +
+        'VALUES (' +
+        q(gaoId) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(gaoName) +
+        ')',
+    ),
+  );
+  await testDb.db.execute(
+    sql.raw(
+      'INSERT INTO transport_order (transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, external_ref, customer_id, cargo_type_id, created_at, updated_at) ' +
+        'VALUES (' +
+        q(transportOrderId) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q('XTT.05-001') +
+        ', ' +
+        q(cid) +
+        ', ' +
+        q(gaoId) +
+        ', now(), now())',
+    ),
+  );
+  await testDb.db.execute(
+    sql.raw(
+      'INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, assigned_operator_id, assigned_asset_id) ' +
+        'VALUES (' +
+        q(roadRunId) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q('planned') +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ')',
+    ),
+  );
+  await testDb.db.execute(
+    sql.raw(
+      'INSERT INTO road_run_transport_order (road_run_id, transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, sequence) ' +
+        'VALUES (' +
+        q(roadRunId) +
+        ', ' +
+        q(transportOrderId) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', 1)',
+    ),
+  );
+  await testDb.db.execute(
+    sql.raw(
+      'INSERT INTO warehouse (warehouse_id, company_id, business_unit_id, depot_id, legal_entity_id, name, role) ' +
+        'VALUES (' +
+        q(wid) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q('Chơn Chính') +
+        ', ' +
+        q('pickup') +
+        ')',
+    ),
+  );
+  await testDb.db.execute(
+    sql.raw(
+      'INSERT INTO stop (stop_id, company_id, business_unit_id, depot_id, legal_entity_id, transport_order_id, sequence, stop_type, yard_id, planned_at, arrived_at, departed_at) ' +
+        'VALUES (' +
+        q(sid) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(transportOrderId) +
+        ', 1, ' +
+        q('pickup') +
+        ', ' +
+        q(wid) +
+        ', ' +
+        q('2026-05-30T08:00:00.000Z') +
+        ', ' +
+        q('2026-05-30T09:00:00.000Z') +
+        ', ' +
+        q('2026-05-30T09:15:00.000Z') +
+        ')',
+    ),
+  );
 }
-  beforeAll(async () => {
-    testDb = await startPgliteTestDb();
-    ctrl = new DispatchController(testDb.db as never);
-  });
-  afterAll(async () => stopPgliteTestDb(testDb));
-  beforeEach(async () => {
-    await testDb.db.execute(sql.raw('TRUNCATE TABLE dispatch_board_projection CASCADE'));
-    await testDb.db.execute(sql.raw('TRUNCATE TABLE stop CASCADE'));
-    await testDb.db.execute(sql.raw('TRUNCATE TABLE road_run_transport_order CASCADE'));
-    await testDb.db.execute(sql.raw('TRUNCATE TABLE transport_order CASCADE'));
-    await testDb.db.execute(sql.raw('TRUNCATE TABLE warehouse CASCADE'));
-    await testDb.db.execute(sql.raw('TRUNCATE TABLE customer CASCADE'));
-    await testDb.db.execute(sql.raw('TRUNCATE TABLE cargo_type CASCADE'));
-    await testDb.db.execute(sql.raw('TRUNCATE TABLE upload_session CASCADE'));
-    await testDb.db.execute(sql.raw('TRUNCATE TABLE manifest CASCADE'));
-    await testDb.db.execute(sql.raw('TRUNCATE TABLE road_run CASCADE'));
-  });
+beforeAll(async () => {
+  testDb = await startPgliteTestDb();
+  ctrl = new DispatchController(testDb.db as never);
+});
+afterAll(async () => stopPgliteTestDb(testDb));
+beforeEach(async () => {
+  await testDb.db.execute(sql.raw('TRUNCATE TABLE dispatch_board_projection CASCADE'));
+  await testDb.db.execute(sql.raw('TRUNCATE TABLE stop CASCADE'));
+  await testDb.db.execute(sql.raw('TRUNCATE TABLE road_run_transport_order CASCADE'));
+  await testDb.db.execute(sql.raw('TRUNCATE TABLE transport_order CASCADE'));
+  await testDb.db.execute(sql.raw('TRUNCATE TABLE warehouse CASCADE'));
+  await testDb.db.execute(sql.raw('TRUNCATE TABLE customer CASCADE'));
+  await testDb.db.execute(sql.raw('TRUNCATE TABLE cargo_type CASCADE'));
+  await testDb.db.execute(sql.raw('TRUNCATE TABLE upload_session CASCADE'));
+  await testDb.db.execute(sql.raw('TRUNCATE TABLE manifest CASCADE'));
+  await testDb.db.execute(sql.raw('TRUNCATE TABLE road_run CASCADE'));
+});
 
 describe('@fleet/api - DispatchController.getBoard (integration)', () => {
   it('returns mapped rows scoped to operator companyId', async () => {
     await insertProjection('aaaaaaaa-1111-4111-8111-111111111111', '2026-04-29T12:00:00.000Z');
     const result = await ctrl.getBoard(OP);
     expect(result.rows).toHaveLength(1);
-    const r = result.rows[0]; if (r === undefined) throw new Error('expected row');
+    const r = result.rows[0];
+    if (r === undefined) throw new Error('expected row');
     expect(r.plannedStartAt).toBe('2026-04-29T12:00:00.000Z');
     expect(r.transportOrderRefs).toEqual(['TO-1', 'TO-2']);
   });
   it('serializes null plannedStartAt', async () => {
     await insertProjection('bbbbbbbb-1111-4111-8111-111111111111', null);
     const result = await ctrl.getBoard(OP);
-    const r = result.rows[0]; if (r === undefined) throw new Error('expected row');
+    const r = result.rows[0];
+    if (r === undefined) throw new Error('expected row');
     expect(r.plannedStartAt).toBeNull();
   });
   it('returns empty rows when projection has no data for operator scope', async () => {
@@ -98,10 +244,13 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
   it('isolates by company_id (no cross-tenant leak)', async () => {
     const otherCo = '00000000-0000-0000-0000-000000000bbb';
     await insertProjection('cccccccc-1111-4111-8111-111111111111', '2026-04-29T12:00:00.000Z');
-    await insertProjection('dddddddd-1111-4111-8111-111111111111', '2026-04-29T12:00:00.000Z', { companyId: otherCo });
+    await insertProjection('dddddddd-1111-4111-8111-111111111111', '2026-04-29T12:00:00.000Z', {
+      companyId: otherCo,
+    });
     const result = await ctrl.getBoard(OP);
     expect(result.rows).toHaveLength(1);
-    const r = result.rows[0]; if (r === undefined) throw new Error('expected row');
+    const r = result.rows[0];
+    if (r === undefined) throw new Error('expected row');
     expect(r.roadRunId).toBe('cccccccc-1111-4111-8111-111111111111');
   });
   // T10: the board enriches each row with its per-stop status so the Lệnh điều
@@ -175,7 +324,10 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
     // Faked proof-URL signer: deterministic, no real S3. The controller must
     // accept this port and call it with the committed manifest's S3 object.
     const PROOF_URL = 'https://s3.example/signed-proof?sig=test';
-    const fakeSigner = { presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) => Promise.resolve(PROOF_URL) };
+    const fakeSigner = {
+      presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) =>
+        Promise.resolve(PROOF_URL),
+    };
     const ctrlWithSigner = new DispatchController(testDb.db as never, fakeSigner as never);
     const result = await ctrlWithSigner.getBoard(OP);
     const row = result.rows.find((r) => r.roadRunId === RR);
@@ -192,7 +344,10 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
   it('returns proof === null for a stop with no committed manifest', async () => {
     await insertProjection(RR, '2026-06-08T08:00:00.000Z');
     await seedStopChain(RR, TO);
-    const fakeSigner = { presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) => Promise.resolve('https://s3.example/x') };
+    const fakeSigner = {
+      presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) =>
+        Promise.resolve('https://s3.example/x'),
+    };
     const ctrlWithSigner = new DispatchController(testDb.db as never, fakeSigner as never);
     const result = await ctrlWithSigner.getBoard(OP);
     const row = result.rows.find((r) => r.roadRunId === RR);
@@ -206,8 +361,13 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
     await insertProjection(RR, '2026-06-08T08:00:00.000Z');
     await seedStopChain(RR, TO);
     await seedCommittedManifestForStop(TO, SID, MID);
-    await testDb.db.execute(sql`UPDATE manifest SET extracted_net_weight_kg = 20730.000 WHERE manifest_id = ${MID}::uuid`);
-    const fakeSigner = { presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) => Promise.resolve('https://s3.example/p') };
+    await testDb.db.execute(
+      sql`UPDATE manifest SET extracted_net_weight_kg = 20730.000 WHERE manifest_id = ${MID}::uuid`,
+    );
+    const fakeSigner = {
+      presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) =>
+        Promise.resolve('https://s3.example/p'),
+    };
     const ctrlWithSigner = new DispatchController(testDb.db as never, fakeSigner as never);
     const result = await ctrlWithSigner.getBoard(OP);
     const row = result.rows.find((r) => r.roadRunId === RR);
@@ -222,7 +382,10 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
     await insertProjection(RR, '2026-06-08T08:00:00.000Z');
     await seedStopChain(RR, TO);
     await seedCommittedManifestForStop(TO, SID, MID);
-    const fakeSigner = { presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) => Promise.resolve('https://s3.example/p') };
+    const fakeSigner = {
+      presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) =>
+        Promise.resolve('https://s3.example/p'),
+    };
     const ctrlWithSigner = new DispatchController(testDb.db as never, fakeSigner as never);
     const result = await ctrlWithSigner.getBoard(OP);
     const row = result.rows.find((r) => r.roadRunId === RR);
@@ -233,12 +396,14 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
     expect(parsed.proof?.extractedNetWeightKg ?? null).toBeNull();
   });
 
-
   it('proof.extractionStatus is "pending" for a freshly committed manifest (gap 2)', async () => {
     await insertProjection(RR, '2026-06-08T08:00:00.000Z');
     await seedStopChain(RR, TO);
     await seedCommittedManifestForStop(TO, SID, MID);
-    const fakeSigner = { presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) => Promise.resolve('https://s3.example/p') };
+    const fakeSigner = {
+      presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) =>
+        Promise.resolve('https://s3.example/p'),
+    };
     const ctrlWithSigner = new DispatchController(testDb.db as never, fakeSigner as never);
     const result = await ctrlWithSigner.getBoard(OP);
     const row = result.rows.find((r) => r.roadRunId === RR);
@@ -252,8 +417,13 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
     await insertProjection(RR, '2026-06-08T08:00:00.000Z');
     await seedStopChain(RR, TO);
     await seedCommittedManifestForStop(TO, SID, MID);
-    await testDb.db.execute(sql`UPDATE manifest SET extraction_status = 'not_found' WHERE manifest_id = ${MID}::uuid`);
-    const fakeSigner = { presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) => Promise.resolve('https://s3.example/p') };
+    await testDb.db.execute(
+      sql`UPDATE manifest SET extraction_status = 'not_found' WHERE manifest_id = ${MID}::uuid`,
+    );
+    const fakeSigner = {
+      presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) =>
+        Promise.resolve('https://s3.example/p'),
+    };
     const ctrlWithSigner = new DispatchController(testDb.db as never, fakeSigner as never);
     const result = await ctrlWithSigner.getBoard(OP);
     const row = result.rows.find((r) => r.roadRunId === RR);
@@ -266,8 +436,13 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
     await insertProjection(RR, '2026-06-08T08:00:00.000Z');
     await seedStopChain(RR, TO);
     await seedCommittedManifestForStop(TO, SID, MID);
-    await testDb.db.execute(sql`UPDATE manifest SET extraction_status = 'unreadable', extraction_reason = 'unparseable' WHERE manifest_id = ${MID}::uuid`);
-    const fakeSigner = { presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) => Promise.resolve('https://s3.example/p') };
+    await testDb.db.execute(
+      sql`UPDATE manifest SET extraction_status = 'unreadable', extraction_reason = 'unparseable' WHERE manifest_id = ${MID}::uuid`,
+    );
+    const fakeSigner = {
+      presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) =>
+        Promise.resolve('https://s3.example/p'),
+    };
     const ctrlWithSigner = new DispatchController(testDb.db as never, fakeSigner as never);
     const result = await ctrlWithSigner.getBoard(OP);
     const row = result.rows.find((r) => r.roadRunId === RR);
@@ -282,8 +457,13 @@ describe('@fleet/api - DispatchController.getBoard (integration)', () => {
     await insertProjection(RR, '2026-06-08T08:00:00.000Z');
     await seedStopChain(RR, TO);
     await seedCommittedManifestForStop(TO, SID, MID);
-    await testDb.db.execute(sql`UPDATE manifest SET extraction_status = 'extracted', extracted_net_weight_kg = '20730.000', extraction_reason = NULL WHERE manifest_id = ${MID}::uuid`);
-    const fakeSigner = { presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) => Promise.resolve('https://s3.example/p') };
+    await testDb.db.execute(
+      sql`UPDATE manifest SET extraction_status = 'extracted', extracted_net_weight_kg = '20730.000', extraction_reason = NULL WHERE manifest_id = ${MID}::uuid`,
+    );
+    const fakeSigner = {
+      presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) =>
+        Promise.resolve('https://s3.example/p'),
+    };
     const ctrlWithSigner = new DispatchController(testDb.db as never, fakeSigner as never);
     const result = await ctrlWithSigner.getBoard(OP);
     const row = result.rows.find((r) => r.roadRunId === RR);
@@ -312,38 +492,148 @@ import { DispatchStopViewSchema } from '@fleet/sync-protocol';
 describe('@fleet/api - DispatchController weightDiffKg (Feature 3)', () => {
   const co = OP.companyId;
 
-  async function seedStop(toId: string, stopId: string, seq: number, stopType: string, wid: string): Promise<void> {
-    await testDb.db.execute(sql.raw(
-      'INSERT INTO warehouse (warehouse_id, company_id, business_unit_id, depot_id, legal_entity_id, name, role) ' +
-      'VALUES (' + q(wid) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q('Kho ' + stopId.slice(0, 4)) + ', ' + q(stopType) + ') ON CONFLICT DO NOTHING'
-    ));
-    await testDb.db.execute(sql.raw(
-      'INSERT INTO stop (stop_id, company_id, business_unit_id, depot_id, legal_entity_id, transport_order_id, sequence, stop_type, yard_id, planned_at) ' +
-      'VALUES (' + q(stopId) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(toId) + ', ' + String(seq) + ', ' + q(stopType) + ', ' + q(wid) + ', ' + q('2026-06-12T08:00:00.000Z') + ')'
-    ));
+  async function seedStop(
+    toId: string,
+    stopId: string,
+    seq: number,
+    stopType: string,
+    wid: string,
+  ): Promise<void> {
+    await testDb.db.execute(
+      sql.raw(
+        'INSERT INTO warehouse (warehouse_id, company_id, business_unit_id, depot_id, legal_entity_id, name, role) ' +
+          'VALUES (' +
+          q(wid) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q('Kho ' + stopId.slice(0, 4)) +
+          ', ' +
+          q(stopType) +
+          ') ON CONFLICT DO NOTHING',
+      ),
+    );
+    await testDb.db.execute(
+      sql.raw(
+        'INSERT INTO stop (stop_id, company_id, business_unit_id, depot_id, legal_entity_id, transport_order_id, sequence, stop_type, yard_id, planned_at) ' +
+          'VALUES (' +
+          q(stopId) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q(toId) +
+          ', ' +
+          String(seq) +
+          ', ' +
+          q(stopType) +
+          ', ' +
+          q(wid) +
+          ', ' +
+          q('2026-06-12T08:00:00.000Z') +
+          ')',
+      ),
+    );
   }
 
-  async function seedWeight(toId: string, stopId: string, manifestId: string, kg: number | null): Promise<void> {
+  async function seedWeight(
+    toId: string,
+    stopId: string,
+    manifestId: string,
+    kg: number | null,
+  ): Promise<void> {
     await seedCommittedManifestForStop(toId, stopId, manifestId);
     if (kg !== null) {
-      await testDb.db.execute(sql.raw('UPDATE manifest SET extracted_net_weight_kg = ' + q(kg.toFixed(3)) + ', extraction_status = ' + q('extracted') + ' WHERE manifest_id = ' + q(manifestId) + '::uuid'));
+      await testDb.db.execute(
+        sql.raw(
+          'UPDATE manifest SET extracted_net_weight_kg = ' +
+            q(kg.toFixed(3)) +
+            ', extraction_status = ' +
+            q('extracted') +
+            ' WHERE manifest_id = ' +
+            q(manifestId) +
+            '::uuid',
+        ),
+      );
     }
   }
 
-  async function seedRun(rr: string, toId: string, pickups: readonly (number | null)[], delivery: number | null): Promise<void> {
+  async function seedRun(
+    rr: string,
+    toId: string,
+    pickups: readonly (number | null)[],
+    delivery: number | null,
+  ): Promise<void> {
     await insertProjection(rr, '2026-06-12T08:00:00.000Z');
-    await testDb.db.execute(sql.raw(
-      'INSERT INTO transport_order (transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, external_ref, customer_id, created_at, updated_at) ' +
-      'VALUES (' + q(toId) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q('XTT.06-777') + ', NULL, now(), now())'
-    ));
-    await testDb.db.execute(sql.raw(
-      'INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, assigned_operator_id, assigned_asset_id) ' +
-      'VALUES (' + q(rr) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q('planned') + ', ' + q(co) + ', ' + q(co) + ')'
-    ));
-    await testDb.db.execute(sql.raw(
-      'INSERT INTO road_run_transport_order (road_run_id, transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, sequence) ' +
-      'VALUES (' + q(rr) + ', ' + q(toId) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', 1)'
-    ));
+    await testDb.db.execute(
+      sql.raw(
+        'INSERT INTO transport_order (transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, external_ref, customer_id, created_at, updated_at) ' +
+          'VALUES (' +
+          q(toId) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q('XTT.06-777') +
+          ', NULL, now(), now())',
+      ),
+    );
+    await testDb.db.execute(
+      sql.raw(
+        'INSERT INTO road_run (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, assigned_operator_id, assigned_asset_id) ' +
+          'VALUES (' +
+          q(rr) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q('planned') +
+          ', ' +
+          q(co) +
+          ', ' +
+          q(co) +
+          ')',
+      ),
+    );
+    await testDb.db.execute(
+      sql.raw(
+        'INSERT INTO road_run_transport_order (road_run_id, transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, sequence) ' +
+          'VALUES (' +
+          q(rr) +
+          ', ' +
+          q(toId) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q(co) +
+          ', ' +
+          q(co) +
+          ', 1)',
+      ),
+    );
     let n = 0;
     for (const kg of pickups) {
       n += 1;
@@ -353,11 +643,25 @@ describe('@fleet/api - DispatchController weightDiffKg (Feature 3)', () => {
       await seedStop(toId, sid, n, 'pickup', wid);
       await seedWeight(toId, sid, mid, kg);
     }
-    await seedStop(toId, 'd0000000-aaaa-4aaa-8aaa-0000000000d1', 90, 'delivery', 'c0000000-aaaa-4aaa-8aaa-0000000000d1');
-    await seedWeight(toId, 'd0000000-aaaa-4aaa-8aaa-0000000000d1', 'e0000000-aaaa-4aaa-8aaa-0000000000d1', delivery);
+    await seedStop(
+      toId,
+      'd0000000-aaaa-4aaa-8aaa-0000000000d1',
+      90,
+      'delivery',
+      'c0000000-aaaa-4aaa-8aaa-0000000000d1',
+    );
+    await seedWeight(
+      toId,
+      'd0000000-aaaa-4aaa-8aaa-0000000000d1',
+      'e0000000-aaaa-4aaa-8aaa-0000000000d1',
+      delivery,
+    );
   }
 
-  const SIGNER = { presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) => Promise.resolve('https://s3.example/p') };
+  const SIGNER = {
+    presignProofUrl: (_i: { bucket: string; key: string; ttlSeconds: number }) =>
+      Promise.resolve('https://s3.example/p'),
+  };
 
   it('computes weightDiffKg = sum(pickups) - delivery when ALL weights are known', async () => {
     const rr = 'f0000000-1111-4111-8111-000000000001';
@@ -401,15 +705,57 @@ async function seedCommittedManifestForStop(
   const suffix = manifestId.slice(-12);
   const corr = '44444444-aaaa-4aaa-8aaa-' + suffix;
   const uploadSessionId = '66666666-aaaa-4aaa-8aaa-' + suffix;
-  await testDb.db.execute(sql.raw(
-    'INSERT INTO manifest (manifest_id, company_id, business_unit_id, depot_id, legal_entity_id, transport_order_id, manifest_correlation_id, stop_id, state, captured_at, committed_at) ' +
-    'VALUES (' + q(manifestId) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' +
-    q(transportOrderId) + ', ' + q(corr) + ', ' + q(stopId) + ', ' + q('committed') + ', now(), now())'
-  ));
+  await testDb.db.execute(
+    sql.raw(
+      'INSERT INTO manifest (manifest_id, company_id, business_unit_id, depot_id, legal_entity_id, transport_order_id, manifest_correlation_id, stop_id, state, captured_at, committed_at) ' +
+        'VALUES (' +
+        q(manifestId) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(transportOrderId) +
+        ', ' +
+        q(corr) +
+        ', ' +
+        q(stopId) +
+        ', ' +
+        q('committed') +
+        ', now(), now())',
+    ),
+  );
   // upload_session holds the S3 object key the controller presigns for the proof.
-  await testDb.db.execute(sql.raw(
-    'INSERT INTO upload_session (upload_session_id, company_id, business_unit_id, depot_id, legal_entity_id, manifest_id, operator_id, s3_key, s3_bucket, content_type, state, committed_at) ' +
-    'VALUES (' + q(uploadSessionId) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' +
-    q(manifestId) + ', ' + q(co) + ', ' + q('manifests/co/' + manifestId + '/photo.jpg') + ', ' + q('fleet-pilot-artifacts') + ', ' + q('image/jpeg') + ', ' + q('committed') + ', now())'
-  ));
+  await testDb.db.execute(
+    sql.raw(
+      'INSERT INTO upload_session (upload_session_id, company_id, business_unit_id, depot_id, legal_entity_id, manifest_id, operator_id, s3_key, s3_bucket, content_type, state, committed_at) ' +
+        'VALUES (' +
+        q(uploadSessionId) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(manifestId) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q('manifests/co/' + manifestId + '/photo.jpg') +
+        ', ' +
+        q('fleet-pilot-artifacts') +
+        ', ' +
+        q('image/jpeg') +
+        ', ' +
+        q('committed') +
+        ', now())',
+    ),
+  );
 }

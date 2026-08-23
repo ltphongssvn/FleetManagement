@@ -35,7 +35,9 @@ describe('DriversSection', () => {
 
   it('shows the loading state before rows arrive', () => {
     let resolve: (rows: readonly AdminDriverRow[]) => void = () => undefined;
-    const pending = new Promise<readonly AdminDriverRow[]>((r) => { resolve = r; });
+    const pending = new Promise<readonly AdminDriverRow[]>((r) => {
+      resolve = r;
+    });
     const client: FakeClient = { list: vi.fn().mockReturnValue(pending) };
     render(<DriversSection client={client} />);
     expect(screen.getByTestId('drivers-section-loading')).toBeInTheDocument();
@@ -70,7 +72,9 @@ describe('DriversSection', () => {
     // false, exercising the unmount-race guard. No state update on an unmounted
     // component; the resolved rows are simply dropped.
     let resolve: (rows: readonly AdminDriverRow[]) => void = () => undefined;
-    const pending = new Promise<readonly AdminDriverRow[]>((r) => { resolve = r; });
+    const pending = new Promise<readonly AdminDriverRow[]>((r) => {
+      resolve = r;
+    });
     const client: FakeClient = { list: vi.fn().mockReturnValue(pending) };
     const { unmount } = render(<DriversSection client={client} />);
     expect(screen.getByTestId('drivers-section-loading')).toBeInTheDocument();
@@ -85,7 +89,9 @@ describe('DriversSection', () => {
     // callback runs with active = false -- no error state set on an unmounted
     // component. The rejection is caught here so it is not an unhandled rejection.
     let reject: (e: Error) => void = () => undefined;
-    const pending = new Promise<readonly AdminDriverRow[]>((_, r) => { reject = r; });
+    const pending = new Promise<readonly AdminDriverRow[]>((_, r) => {
+      reject = r;
+    });
     const guarded = pending.catch(() => [] as readonly AdminDriverRow[]);
     const client: FakeClient = { list: vi.fn().mockReturnValue(pending) };
     const { unmount } = render(<DriversSection client={client} />);

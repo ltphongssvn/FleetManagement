@@ -73,11 +73,14 @@ describe('loadDispatchBoard', () => {
     Object.assign(process.env, { NODE_ENV: 'development' });
     process.env['FLEET_API_URL'] = 'http://api.test';
     process.env['FLEET_API_TOKEN'] = 'tok';
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ wrong: 'shape' }),
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ wrong: 'shape' }),
+      }),
+    );
     const { loadDispatchBoard } = await import('../src/features/dispatch/load-board.js');
     const rows = await loadDispatchBoard();
     expect(rows.length).toBeGreaterThan(0);
@@ -88,11 +91,14 @@ describe('loadDispatchBoard', () => {
     Object.assign(process.env, { NODE_ENV: 'production' });
     process.env['FLEET_API_URL'] = 'http://api.test';
     process.env['FLEET_API_TOKEN'] = 'tok';
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ wrong: 'shape' }),
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ wrong: 'shape' }),
+      }),
+    );
     const { loadDispatchBoard } = await import('../src/features/dispatch/load-board.js');
     await expect(loadDispatchBoard()).rejects.toThrow(/shape invalid/);
   });
@@ -101,11 +107,14 @@ describe('loadDispatchBoard', () => {
     Object.assign(process.env, { NODE_ENV: 'production' });
     process.env['FLEET_API_URL'] = 'http://api.test';
     process.env['FLEET_API_TOKEN'] = 'tok';
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      status: 503,
-      statusText: 'Service Unavailable',
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        statusText: 'Service Unavailable',
+      }),
+    );
     const { loadDispatchBoard } = await import('../src/features/dispatch/load-board.js');
     await expect(loadDispatchBoard()).rejects.toThrow(/503/);
   });
@@ -114,7 +123,9 @@ describe('loadDispatchBoard', () => {
     Object.assign(process.env, { NODE_ENV: 'production' });
     process.env['FLEET_API_URL'] = 'http://api.test';
     cookieGet.mockReturnValueOnce(undefined as never);
-    const redirectMock = vi.fn((url: string) => { throw new Error('NEXT_REDIRECT:' + url); });
+    const redirectMock = vi.fn((url: string) => {
+      throw new Error('NEXT_REDIRECT:' + url);
+    });
     vi.doMock('next/navigation', () => ({ redirect: redirectMock }));
     const { loadDispatchBoard } = await import('../src/features/dispatch/load-board.js');
     await expect(loadDispatchBoard()).rejects.toThrow('NEXT_REDIRECT:/login');
@@ -125,12 +136,17 @@ describe('loadDispatchBoard', () => {
     process.env['FLEET_API_URL'] = 'http://api.test';
     process.env['FLEET_API_TOKEN'] = 'tok';
     cookieGet.mockReturnValueOnce({ value: 'expired-token' });
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      status: 401,
-      statusText: 'Unauthorized',
-    }));
-    const redirectMock = vi.fn((url: string) => { throw new Error('NEXT_REDIRECT:' + url); });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+      }),
+    );
+    const redirectMock = vi.fn((url: string) => {
+      throw new Error('NEXT_REDIRECT:' + url);
+    });
     vi.doMock('next/navigation', () => ({ redirect: redirectMock }));
     const { loadDispatchBoard } = await import('../src/features/dispatch/load-board.js');
     await expect(loadDispatchBoard()).rejects.toThrow('NEXT_REDIRECT:/login');
@@ -140,11 +156,14 @@ describe('loadDispatchBoard', () => {
     Object.assign(process.env, { NODE_ENV: 'development' });
     process.env['FLEET_API_URL'] = 'http://api.test';
     process.env['FLEET_API_TOKEN'] = 'tok';
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      status: 401,
-      statusText: 'Unauthorized',
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+      }),
+    );
     const { loadDispatchBoard } = await import('../src/features/dispatch/load-board.js');
     const rows = await loadDispatchBoard();
     expect(rows.length).toBeGreaterThan(0);

@@ -22,12 +22,17 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import { dockerPsql } from './helpers/docker-exec';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { type z } from 'zod';
-import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, CreateTransportOrderResponseSchema } from './helpers/contracts';
+import {
+  parseJson,
+  CreateDriverResponseSchema,
+  ReferenceItemSchema,
+  AssignmentResponseSchema,
+  CreateTransportOrderResponseSchema,
+} from './helpers/contracts';
 import { waitForBoardReady } from './helpers/create-order';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
-
 
 interface Seeded {
   driverId: string;
@@ -41,12 +46,19 @@ interface Seeded {
   token: string;
 }
 
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+async function adminPost<T>(
+  api: APIRequestContext,
+  token: string,
+  path: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
-  if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
+  if (!res.ok())
+    throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   return parseJson(res, schema);
 }
 
@@ -57,18 +69,30 @@ async function seedOrder(api: APIRequestContext): Promise<Seeded> {
   const driverLabel = 'E2E DRIVER T5-NAV ' + String(ts);
   const vehicleLabel = 'E2E-T5-NAV-' + String(ts);
   const drv = await adminPost(
-    api, token, '/admin/drivers',
+    api,
+    token,
+    '/admin/drivers',
     { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
     CreateDriverResponseSchema,
   );
-  const veh = await adminPost(api, token, '/reference/vehicles', { name: vehicleLabel }, ReferenceItemSchema);
+  const veh = await adminPost(
+    api,
+    token,
+    '/reference/vehicles',
+    { name: vehicleLabel },
+    ReferenceItemSchema,
+  );
   const asgn = await adminPost(
-    api, token, '/admin/driver-vehicle-assignments',
+    api,
+    token,
+    '/admin/driver-vehicle-assignments',
     { driverId: drv.driverId, vehicleId: veh.id },
     AssignmentResponseSchema,
   );
   const order = await adminPost(
-    api, token, '/transport-orders',
+    api,
+    token,
+    '/transport-orders',
     {
       stops: [{ sequence: 1, stopType: 'pickup' }],
       roadRun: { assignedOperatorId: drv.operatorId, assignedAssetId: veh.id },
@@ -91,16 +115,86 @@ async function seedOrder(api: APIRequestContext): Promise<Seeded> {
 function cleanupSeeded(seeded: Seeded): void {
   const sq = String.fromCharCode(39);
   const txId = seeded.transportOrderId;
-  const rrIds = dockerPsql('SELECT road_run_id FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';')
-    .stdout.trim().split(String.fromCharCode(10)).filter((line) => line.length > 0);
-  try { dockerPsql('DELETE FROM stop WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
-  try { dockerPsql('DELETE FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
-  for (const rrId of rrIds) {
-    try { dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + rrId + sq + ';'); } catch { /* tolerate */ }
+  const rrIds = dockerPsql(
+    'SELECT road_run_id FROM road_run_transport_order WHERE transport_order_id=' +
+      sq +
+      txId +
+      sq +
+      ';',
+  )
+    .stdout.trim()
+    .split(String.fromCharCode(10))
+    .filter((line) => line.length > 0);
+  try {
+    dockerPsql('DELETE FROM stop WHERE transport_order_id=' + sq + txId + sq + ';');
+  } catch {
+    /* tolerate */
   }
-  try { dockerPsql('DELETE FROM outbox WHERE company_id=' + sq + COMPANY_ID + sq + ' AND payload->>' + sq + 'externalRef' + sq + '=' + sq + seeded.externalRef + sq + ';'); } catch { /* tolerate */ }
-  try { dockerPsql('DELETE FROM dispatch_board_projection WHERE company_id=' + sq + COMPANY_ID + sq + ' AND transport_order_refs @> ' + sq + '["' + seeded.externalRef + '"]' + sq + '::jsonb;'); } catch { /* tolerate */ }
-  try { dockerPsql('DELETE FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq + ' AND external_ref=' + sq + seeded.externalRef + sq + ';'); } catch { /* tolerate */ }
+  try {
+    dockerPsql(
+      'DELETE FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';',
+    );
+  } catch {
+    /* tolerate */
+  }
+  for (const rrId of rrIds) {
+    try {
+      dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + rrId + sq + ';');
+    } catch {
+      /* tolerate */
+    }
+  }
+  try {
+    dockerPsql(
+      'DELETE FROM outbox WHERE company_id=' +
+        sq +
+        COMPANY_ID +
+        sq +
+        ' AND payload->>' +
+        sq +
+        'externalRef' +
+        sq +
+        '=' +
+        sq +
+        seeded.externalRef +
+        sq +
+        ';',
+    );
+  } catch {
+    /* tolerate */
+  }
+  try {
+    dockerPsql(
+      'DELETE FROM dispatch_board_projection WHERE company_id=' +
+        sq +
+        COMPANY_ID +
+        sq +
+        ' AND transport_order_refs @> ' +
+        sq +
+        '["' +
+        seeded.externalRef +
+        '"]' +
+        sq +
+        '::jsonb;',
+    );
+  } catch {
+    /* tolerate */
+  }
+  try {
+    dockerPsql(
+      'DELETE FROM transport_order WHERE company_id=' +
+        sq +
+        COMPANY_ID +
+        sq +
+        ' AND external_ref=' +
+        sq +
+        seeded.externalRef +
+        sq +
+        ';',
+    );
+  } catch {
+    /* tolerate */
+  }
 }
 
 async function cleanupPair(api: APIRequestContext, seeded: Seeded): Promise<void> {
@@ -109,9 +203,23 @@ async function cleanupPair(api: APIRequestContext, seeded: Seeded): Promise<void
       headers: { Authorization: 'Bearer ' + seeded.token, 'Content-Type': 'application/json' },
       data: JSON.stringify({ reason: 'e2e-cleanup' }),
     });
-  } catch { /* tolerate */ }
-  try { await api.delete(API_URL + '/reference/vehicles/' + seeded.vehicleId, { headers: { Authorization: 'Bearer ' + seeded.token } }); } catch { /* tolerate */ }
-  try { await api.delete(API_URL + '/admin/drivers/' + seeded.driverId, { headers: { Authorization: 'Bearer ' + seeded.token } }); } catch { /* tolerate */ }
+  } catch {
+    /* tolerate */
+  }
+  try {
+    await api.delete(API_URL + '/reference/vehicles/' + seeded.vehicleId, {
+      headers: { Authorization: 'Bearer ' + seeded.token },
+    });
+  } catch {
+    /* tolerate */
+  }
+  try {
+    await api.delete(API_URL + '/admin/drivers/' + seeded.driverId, {
+      headers: { Authorization: 'Bearer ' + seeded.token },
+    });
+  } catch {
+    /* tolerate */
+  }
 }
 
 // Authenticate via injected session (PKCE login has no credential form).
@@ -128,7 +236,19 @@ test.describe.serial('dispatch board row navigation (T5)', () => {
     // so the first test isn't racing the outbox processor.
     const sq = String.fromCharCode(39);
     for (let i = 0; i < 30; i++) {
-      const r = dockerPsql('SELECT 1 FROM dispatch_board_projection WHERE company_id=' + sq + COMPANY_ID + sq + ' AND transport_order_refs @> ' + sq + '["' + seeded.externalRef + '"]' + sq + '::jsonb LIMIT 1;');
+      const r = dockerPsql(
+        'SELECT 1 FROM dispatch_board_projection WHERE company_id=' +
+          sq +
+          COMPANY_ID +
+          sq +
+          ' AND transport_order_refs @> ' +
+          sq +
+          '["' +
+          seeded.externalRef +
+          '"]' +
+          sq +
+          '::jsonb LIMIT 1;',
+      );
       if (r.stdout.trim() === '1') break;
       await new Promise<void>((resolve) => setTimeout(resolve, 500));
     }
@@ -140,7 +260,9 @@ test.describe.serial('dispatch board row navigation (T5)', () => {
     await cleanupPair(request, seeded);
   });
 
-  test('the Số lệnh cell links to /dispatch/orders/{externalRef} for at least one row', async ({ page }) => {
+  test('the Số lệnh cell links to /dispatch/orders/{externalRef} for at least one row', async ({
+    page,
+  }) => {
     if (!seeded) throw new Error('seeded order missing');
     await login(page);
     await page.goto('/');
@@ -148,12 +270,16 @@ test.describe.serial('dispatch board row navigation (T5)', () => {
     // Target THIS spec's own seeded row, not any random row that a parallel
     // worker may have just cleaned up between locator resolution and click.
     const rowLink = page.getByTestId('dispatch-board-row-' + seeded.externalRef).first();
-    await expect(rowLink, 'seeded dispatch board row must be visible').toBeVisible({ timeout: 10000 });
+    await expect(rowLink, 'seeded dispatch board row must be visible').toBeVisible({
+      timeout: 10000,
+    });
     const href = await rowLink.getAttribute('href');
     expect(href).toBe('/dispatch/orders/' + seeded.externalRef);
   });
 
-  test('clicking the row opens the review page with the cancel form composed below', async ({ page }) => {
+  test('clicking the row opens the review page with the cancel form composed below', async ({
+    page,
+  }) => {
     if (!seeded) throw new Error('seeded order missing');
     await login(page);
     await page.goto('/');
@@ -162,7 +288,9 @@ test.describe.serial('dispatch board row navigation (T5)', () => {
     await expect(rowLink).toBeVisible({ timeout: 10000 });
     await rowLink.click();
     await expect(page).toHaveURL(/\/dispatch\/orders\/.+/, { timeout: 10000 });
-    await expect(page.getByRole('heading', { name: /chi tiết|order review|đơn vận chuyển/i })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /chi tiết|order review|đơn vận chuyển/i }),
+    ).toBeVisible();
     const stateEl = page.getByTestId('order-review-state');
     await expect(stateEl).toBeVisible();
     const state = (await stateEl.textContent())?.trim() ?? '';

@@ -17,17 +17,28 @@ import { describe, it, expect, vi } from 'vitest';
 import { HttpException } from '@nestjs/common';
 import { DriverDeliveryService } from '../src/dispatch/driver-delivery.service.js';
 
-interface Row { roadRunId: string; state: string; companyId: string; assignedOperatorId: string }
+interface Row {
+  roadRunId: string;
+  state: string;
+  companyId: string;
+  assignedOperatorId: string;
+}
 const OP = {
-  operatorId: 'op-1', companyId: 'co-1', businessUnitId: 'co-1',
-  depotId: 'co-1', legalEntityId: 'co-1',
+  operatorId: 'op-1',
+  companyId: 'co-1',
+  businessUnitId: 'co-1',
+  depotId: 'co-1',
+  legalEntityId: 'co-1',
 } as never;
 
 function dbReturningRow(row: Row | undefined): unknown {
   const tx = {
-    select: vi.fn(() => tx), from: vi.fn(() => tx), where: vi.fn(() => tx),
+    select: vi.fn(() => tx),
+    from: vi.fn(() => tx),
+    where: vi.fn(() => tx),
     limit: vi.fn(() => Promise.resolve(row === undefined ? [] : [row])),
-    update: vi.fn(() => tx), set: vi.fn(() => tx),
+    update: vi.fn(() => tx),
+    set: vi.fn(() => tx),
   };
   return { transaction: (fn: (t: unknown) => Promise<unknown>) => fn(tx) };
 }
@@ -44,9 +55,14 @@ async function caught(p: Promise<unknown>): Promise<HttpException> {
 
 describe('DriverDeliveryService structured rejections', () => {
   it('transition rejection is 409 INVALID_STATE_TRANSITION with FSM-derived extensions', async () => {
-    const svc = new DriverDeliveryService(dbReturningRow(
-      { roadRunId: 'rr-1', state: 'planned', companyId: 'co-1', assignedOperatorId: 'op-1' },
-    ) as never);
+    const svc = new DriverDeliveryService(
+      dbReturningRow({
+        roadRunId: 'rr-1',
+        state: 'planned',
+        companyId: 'co-1',
+        assignedOperatorId: 'op-1',
+      }) as never,
+    );
     const ex = await caught(svc.complete('rr-1', OP));
     expect(ex.getStatus()).toBe(409);
     const r = ex.getResponse() as Record<string, unknown>;
@@ -63,9 +79,14 @@ describe('DriverDeliveryService structured rejections', () => {
   });
 
   it('terminal-state rejection ships an empty allowedActions array', async () => {
-    const svc = new DriverDeliveryService(dbReturningRow(
-      { roadRunId: 'rr-1', state: 'completed', companyId: 'co-1', assignedOperatorId: 'op-1' },
-    ) as never);
+    const svc = new DriverDeliveryService(
+      dbReturningRow({
+        roadRunId: 'rr-1',
+        state: 'completed',
+        companyId: 'co-1',
+        assignedOperatorId: 'op-1',
+      }) as never,
+    );
     const ex = await caught(svc.start('rr-1', OP));
     expect(ex.getStatus()).toBe(409);
     const r = ex.getResponse() as Record<string, unknown>;

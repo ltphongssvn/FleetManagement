@@ -6,7 +6,11 @@
 // logout still completes (cookie deleted + redirect).
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('next/headers', () => ({ cookies: vi.fn() }));
-vi.mock('next/navigation', () => ({ redirect: vi.fn((to: string) => { throw new Error('REDIRECT:' + to); }) }));
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn((to: string) => {
+    throw new Error('REDIRECT:' + to);
+  }),
+}));
 import { cookies } from 'next/headers';
 import { logout } from '../src/features/auth/logout.action.js';
 describe('@fleet/ops-web - logout.action FLEET_API_URL guard', () => {
@@ -19,7 +23,9 @@ describe('@fleet/ops-web - logout.action FLEET_API_URL guard', () => {
       get: vi.fn().mockReturnValue({ value: 'jwt' }),
       delete: vi.fn(),
     } as never);
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 200 }) as never);
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('', { status: 200 }) as never);
     await expect(logout()).rejects.toThrow(/REDIRECT/);
     expect(fetchSpy).not.toHaveBeenCalled();
   });

@@ -8,10 +8,7 @@
 // row duplicate. Rows are partitioned by status for the table, never copied.
 import { describe, expect, it } from 'vitest';
 import type { AdminDriverRow, AdminDriverDevice } from '@fleet/sync-protocol';
-import {
-  toDriverStatusCell,
-  partitionDriversByStatus,
-} from '@/features/admin/co-so-du-lieu-row';
+import { toDriverStatusCell, partitionDriversByStatus } from '@/features/admin/co-so-du-lieu-row';
 
 const row = (over: Partial<AdminDriverRow>): AdminDriverRow => ({
   driverId: 'dr1',

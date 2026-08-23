@@ -49,8 +49,13 @@ describe('@fleet/api - TransportOrdersExportController', () => {
   it('GET export.xlsx streams binary with openxml content-type and attachment filename', async () => {
     const buffer = Buffer.from([0x50, 0x4b, 0x03, 0x04]); // ZIP magic
     exportAndLog.mockResolvedValue({
-      buffer, filename: 'lenh-dieu-xe_t_2026-05-24_manual_deadbeef.xlsx',
-      sha256: 'abc', rowCount: 3, exportLogId: 'log-1', trigger: 'manual', dayKey: '2026-05-24',
+      buffer,
+      filename: 'lenh-dieu-xe_t_2026-05-24_manual_deadbeef.xlsx',
+      sha256: 'abc',
+      rowCount: 3,
+      exportLogId: 'log-1',
+      trigger: 'manual',
+      dayKey: '2026-05-24',
     });
     const res = mockRes();
     await ctl.exportXlsx({}, op, res as unknown as Parameters<typeof ctl.exportXlsx>[2]);
@@ -59,58 +64,103 @@ describe('@fleet/api - TransportOrdersExportController', () => {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
     expect(res.headers['content-disposition']).toContain('attachment');
-    expect(res.headers['content-disposition']).toContain('lenh-dieu-xe_t_2026-05-24_manual_deadbeef.xlsx');
+    expect(res.headers['content-disposition']).toContain(
+      'lenh-dieu-xe_t_2026-05-24_manual_deadbeef.xlsx',
+    );
     expect(res.body).toBe(buffer);
   });
 
   it('GET export.xlsx with valid from/to threads the parsed range to the service', async () => {
     exportAndLog.mockResolvedValue({
-      buffer: Buffer.from([0x50, 0x4b]), filename: 'f.xlsx', sha256: 'a', rowCount: 1,
-      exportLogId: 'log-r', trigger: 'manual', dayKey: '2026-05-24',
+      buffer: Buffer.from([0x50, 0x4b]),
+      filename: 'f.xlsx',
+      sha256: 'a',
+      rowCount: 1,
+      exportLogId: 'log-r',
+      trigger: 'manual',
+      dayKey: '2026-05-24',
     });
     const res = mockRes();
-    await ctl.exportXlsx({ from: '2026-05-01', to: '2026-05-31' }, op, res as unknown as Parameters<typeof ctl.exportXlsx>[2]);
-    expect(exportAndLog).toHaveBeenCalledWith(op, 'manual', { from: '2026-05-01', to: '2026-05-31' });
+    await ctl.exportXlsx(
+      { from: '2026-05-01', to: '2026-05-31' },
+      op,
+      res as unknown as Parameters<typeof ctl.exportXlsx>[2],
+    );
+    expect(exportAndLog).toHaveBeenCalledWith(op, 'manual', {
+      from: '2026-05-01',
+      to: '2026-05-31',
+    });
   });
   it('GET export.xlsx rejects an inverted range (from > to)', async () => {
     const res = mockRes();
     await expect(
-      ctl.exportXlsx({ from: '2026-05-31', to: '2026-05-01' }, op, res as unknown as Parameters<typeof ctl.exportXlsx>[2]),
+      ctl.exportXlsx(
+        { from: '2026-05-31', to: '2026-05-01' },
+        op,
+        res as unknown as Parameters<typeof ctl.exportXlsx>[2],
+      ),
     ).rejects.toThrow();
     expect(exportAndLog).not.toHaveBeenCalled();
   });
   it('GET export.xlsx rejects a malformed date', async () => {
     const res = mockRes();
     await expect(
-      ctl.exportXlsx({ from: '2026-5-1', to: '2026-05-31' }, op, res as unknown as Parameters<typeof ctl.exportXlsx>[2]),
+      ctl.exportXlsx(
+        { from: '2026-5-1', to: '2026-05-31' },
+        op,
+        res as unknown as Parameters<typeof ctl.exportXlsx>[2],
+      ),
     ).rejects.toThrow();
   });
   it('GET export.xlsx with only one of from/to ignores the partial range (exports all)', async () => {
     exportAndLog.mockResolvedValue({
-      buffer: Buffer.from([0x50]), filename: 'f.xlsx', sha256: 'a', rowCount: 1,
-      exportLogId: 'log-p', trigger: 'manual', dayKey: '2026-05-24',
+      buffer: Buffer.from([0x50]),
+      filename: 'f.xlsx',
+      sha256: 'a',
+      rowCount: 1,
+      exportLogId: 'log-p',
+      trigger: 'manual',
+      dayKey: '2026-05-24',
     });
     const res = mockRes();
-    await ctl.exportXlsx({ from: '2026-05-01' }, op, res as unknown as Parameters<typeof ctl.exportXlsx>[2]);
+    await ctl.exportXlsx(
+      { from: '2026-05-01' },
+      op,
+      res as unknown as Parameters<typeof ctl.exportXlsx>[2],
+    );
     expect(exportAndLog).toHaveBeenCalledWith(op, 'manual', undefined);
   });
 
   it('POST /export/auto with trigger=login delegates and returns ledger summary', async () => {
     exportAndLog.mockResolvedValue({
-      buffer: Buffer.alloc(0), filename: 'f.xlsx', sha256: 'sha-x',
-      rowCount: 2, exportLogId: 'log-login-1', trigger: 'login', dayKey: '2026-05-24',
+      buffer: Buffer.alloc(0),
+      filename: 'f.xlsx',
+      sha256: 'sha-x',
+      rowCount: 2,
+      exportLogId: 'log-login-1',
+      trigger: 'login',
+      dayKey: '2026-05-24',
     });
     const result = await ctl.exportAuto({ trigger: 'login' }, op);
     expect(exportAndLog).toHaveBeenCalledWith(op, 'login');
     expect(result).toEqual({
-      exportLogId: 'log-login-1', trigger: 'login', dayKey: '2026-05-24',
-      rowCount: 2, sha256: 'sha-x', filename: 'f.xlsx',
+      exportLogId: 'log-login-1',
+      trigger: 'login',
+      dayKey: '2026-05-24',
+      rowCount: 2,
+      sha256: 'sha-x',
+      filename: 'f.xlsx',
     });
   });
   it('POST /export/auto with trigger=logout works', async () => {
     exportAndLog.mockResolvedValue({
-      buffer: Buffer.alloc(0), filename: 'f.xlsx', sha256: 's',
-      rowCount: 0, exportLogId: 'log-logout-1', trigger: 'logout', dayKey: '2026-05-24',
+      buffer: Buffer.alloc(0),
+      filename: 'f.xlsx',
+      sha256: 's',
+      rowCount: 0,
+      exportLogId: 'log-logout-1',
+      trigger: 'logout',
+      dayKey: '2026-05-24',
     });
     await ctl.exportAuto({ trigger: 'logout' }, op);
     expect(exportAndLog).toHaveBeenCalledWith(op, 'logout');

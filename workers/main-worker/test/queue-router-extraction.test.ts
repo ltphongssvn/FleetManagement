@@ -17,12 +17,22 @@ const GOOD = {
 
 function sink(): DeadLetterSink & { sent: unknown[] } {
   const sent: unknown[] = [];
-  return { sent, send: vi.fn().mockImplementation((e: unknown) => { sent.push(e); return Promise.resolve(); }) };
+  return {
+    sent,
+    send: vi.fn().mockImplementation((e: unknown) => {
+      sent.push(e);
+      return Promise.resolve();
+    }),
+  };
 }
 function ports(value: string | null): { store: ExtractionObjectStore; vlm: VlmExtractorPort } {
   return {
     store: { getObject: vi.fn().mockResolvedValue(new Uint8Array([1])) },
-    vlm: { extractNetWeight: vi.fn().mockResolvedValue(value === null ? null : { rawLabel: 'TL Hang', rawValues: [value] }) },
+    vlm: {
+      extractNetWeight: vi
+        .fn()
+        .mockResolvedValue(value === null ? null : { rawLabel: 'TL Hang', rawValues: [value] }),
+    },
   };
 }
 
@@ -31,8 +41,22 @@ describe('routeJob extraction branch', () => {
     const finalize = vi.fn().mockResolvedValue(undefined);
     const cb: ExtractionCallback = { finalize };
     const { store, vlm } = ports('20.730 Kg');
-    const r = await routeJob('extraction', { id: '1', data: GOOD }, sink(), undefined, undefined, undefined, cb, store, vlm);
-    expect(finalize).toHaveBeenCalledWith({ manifestId: GOOD.manifestId, status: 'extracted', extractedNetWeightKg: 20730 });
+    const r = await routeJob(
+      'extraction',
+      { id: '1', data: GOOD },
+      sink(),
+      undefined,
+      undefined,
+      undefined,
+      cb,
+      store,
+      vlm,
+    );
+    expect(finalize).toHaveBeenCalledWith({
+      manifestId: GOOD.manifestId,
+      status: 'extracted',
+      extractedNetWeightKg: 20730,
+    });
     expect(r).toMatchObject({ handled: true, deadLettered: false });
     expect(r.summary).toContain('extracted');
   });
@@ -42,7 +66,17 @@ describe('routeJob extraction branch', () => {
     const getObjectFn = vi.fn().mockResolvedValue(new Uint8Array([1]));
     const store: ExtractionObjectStore = { getObject: getObjectFn };
     const { vlm } = ports('20.730 Kg');
-    const r = await routeJob('extraction', { id: '2', data: { nope: 1 } }, s, undefined, undefined, undefined, undefined, store, vlm);
+    const r = await routeJob(
+      'extraction',
+      { id: '2', data: { nope: 1 } },
+      s,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      store,
+      vlm,
+    );
     expect(r).toMatchObject({ handled: true, deadLettered: true });
     expect(s.sent).toHaveLength(1);
     expect(getObjectFn).not.toHaveBeenCalled();
@@ -51,10 +85,24 @@ describe('routeJob extraction branch', () => {
   it('flow failed (VLM throw) -> rethrows for BullMQ retry', async () => {
     const finalizeFn = vi.fn();
     const cb: ExtractionCallback = { finalize: finalizeFn };
-    const store: ExtractionObjectStore = { getObject: vi.fn().mockResolvedValue(new Uint8Array([1])) };
-    const vlm: VlmExtractorPort = { extractNetWeight: vi.fn().mockRejectedValue(new Error('quota')) };
+    const store: ExtractionObjectStore = {
+      getObject: vi.fn().mockResolvedValue(new Uint8Array([1])),
+    };
+    const vlm: VlmExtractorPort = {
+      extractNetWeight: vi.fn().mockRejectedValue(new Error('quota')),
+    };
     await expect(
-      routeJob('extraction', { id: '3', data: GOOD }, sink(), undefined, undefined, undefined, cb, store, vlm),
+      routeJob(
+        'extraction',
+        { id: '3', data: GOOD },
+        sink(),
+        undefined,
+        undefined,
+        undefined,
+        cb,
+        store,
+        vlm,
+      ),
     ).rejects.toThrow('quota');
     expect(finalizeFn).not.toHaveBeenCalled();
   });

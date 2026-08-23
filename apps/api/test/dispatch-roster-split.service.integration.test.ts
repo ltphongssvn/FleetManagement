@@ -25,7 +25,12 @@ import { DispatchRosterSplitService } from '../src/dispatch/dispatch-roster-spli
 import { driver, vehicle } from '../src/database/schema/reference.js';
 import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
 import { dispatchBoardProjection } from '../src/database/schema/projections.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+  truncateAllTables,
+} from './helpers/migrate-test-db.js';
 
 let testDb: MigratedTestDb;
 const COMPANY = '00000000-0000-0000-0000-000000000000';
@@ -56,8 +61,10 @@ async function seedDriver(
   opts: { active?: boolean; companyId?: string; operatorId?: string | null } = {},
 ): Promise<SeededDriver> {
   const operatorId = opts.operatorId === undefined ? randomUUID() : opts.operatorId;
-  const tenancy = opts.companyId === undefined ? TENANCY : { ...TENANCY, companyId: opts.companyId };
-  const [row] = await testDb.db.insert(driver)
+  const tenancy =
+    opts.companyId === undefined ? TENANCY : { ...TENANCY, companyId: opts.companyId };
+  const [row] = await testDb.db
+    .insert(driver)
     .values({ ...tenancy, fullName: name, operatorId, active: opts.active ?? true })
     .returning({ driverId: driver.driverId });
   if (row === undefined) throw new Error('driver seed failed');
@@ -69,8 +76,10 @@ async function seedVehicleFor(
   plate: string,
   opts: { revoked?: boolean; companyId?: string } = {},
 ): Promise<string> {
-  const tenancy = opts.companyId === undefined ? TENANCY : { ...TENANCY, companyId: opts.companyId };
-  const [v] = await testDb.db.insert(vehicle)
+  const tenancy =
+    opts.companyId === undefined ? TENANCY : { ...TENANCY, companyId: opts.companyId };
+  const [v] = await testDb.db
+    .insert(vehicle)
     .values({ ...tenancy, plate })
     .returning({ vehicleId: vehicle.vehicleId });
   if (v === undefined) throw new Error('vehicle seed failed');
@@ -89,7 +98,8 @@ async function seedRun(
   opts: { state?: string; vehicleId?: string; deleted?: boolean; companyId?: string } = {},
 ): Promise<string> {
   const roadRunId = randomUUID();
-  const tenancy = opts.companyId === undefined ? TENANCY : { ...TENANCY, companyId: opts.companyId };
+  const tenancy =
+    opts.companyId === undefined ? TENANCY : { ...TENANCY, companyId: opts.companyId };
   await testDb.db.insert(dispatchBoardProjection).values({
     ...tenancy,
     roadRunId,
@@ -106,9 +116,15 @@ async function seedRun(
 }
 
 describe('@fleet/api - DispatchRosterSplitService.split', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_rostersplit'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
-  beforeEach(async () => { await truncateAllTables(testDb.db); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_test_rostersplit');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
+  beforeEach(async () => {
+    await truncateAllTables(testDb.db);
+  });
 
   function svc(): DispatchRosterSplitService {
     return new DispatchRosterSplitService(testDb.db as never, () => NOW);

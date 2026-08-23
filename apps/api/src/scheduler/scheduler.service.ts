@@ -13,7 +13,13 @@
 // Adding a tick is a new value in the SCHEDULER_TICKERS module factory and
 // touches ZERO lines here. The core ticks (outbox/projection/reconciler) and
 // the optional monitors are all assembled in scheduler.module.ts.
-import { Inject, Injectable, Logger, type OnModuleInit, type OnModuleDestroy } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  type OnModuleInit,
+  type OnModuleDestroy,
+} from '@nestjs/common';
 import * as Sentry from '@sentry/nestjs';
 import { SCHEDULER_TICKERS, type SchedulerTicker } from './scheduler-ticker.js';
 
@@ -24,9 +30,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   private readonly timers = new Map<string, NodeJS.Timeout>();
   private stopped = false;
 
-  constructor(
-    @Inject(SCHEDULER_TICKERS) private readonly tickers: readonly SchedulerTicker[],
-  ) {
+  constructor(@Inject(SCHEDULER_TICKERS) private readonly tickers: readonly SchedulerTicker[]) {
     this.byKey = new Map(this.tickers.map((t) => [t.key, t]));
   }
 
@@ -42,7 +46,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
 
   private scheduleNext(ticker: SchedulerTicker): void {
     if (this.stopped) return;
-    const timer = setTimeout(() => { void this.runDrain(ticker); }, ticker.intervalMs);
+    const timer = setTimeout(() => {
+      void this.runDrain(ticker);
+    }, ticker.intervalMs);
     this.timers.set(ticker.key, timer);
   }
 

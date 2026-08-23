@@ -16,19 +16,19 @@ import {
   DRIVER_ALERT_ANDROID_CHANNEL_ID,
   DRIVER_ALERT_SOUND,
   DRIVER_ALERT_VIBRATION_PATTERN,
-} from "@fleet/sync-protocol";
+} from '@fleet/sync-protocol';
 
 /** Android permission/channel status, normalized to the three states the
  *  policy branches on (expo-notifications reports more, but the adapter maps
  *  them onto these). */
-export type PermissionStatus = "granted" | "denied" | "undetermined";
+export type PermissionStatus = 'granted' | 'denied' | 'undetermined';
 
 /** Android importance level for the channel. MAX = heads-up + sound, required
  *  for a wake-the-driver alert. */
-export type ChannelImportance = "max";
+export type ChannelImportance = 'max';
 /** AudioAttributes usage. alarm routes the custom sound through the ALARM
  *  stream so it plays even when the ringer is silenced. */
-export type ChannelAudioUsage = "alarm";
+export type ChannelAudioUsage = 'alarm';
 
 /** The channel config the native adapter feeds to setNotificationChannelAsync.
  *  Built from the shared SSOT constants; the adapter maps these fields onto the
@@ -55,19 +55,19 @@ export interface NotificationPlatformPort {
 /** Outcome of the bring-up. ready carries the Expo token to hand to
  *  decidePushRegistration; the others explain why no token was produced. */
 export type NotificationSetupResult =
-  | { readonly outcome: "ready"; readonly token: string }
-  | { readonly outcome: "permission_denied" }
-  | { readonly outcome: "not_supported" };
+  | { readonly outcome: 'ready'; readonly token: string }
+  | { readonly outcome: 'permission_denied' }
+  | { readonly outcome: 'not_supported' };
 
 /** Build the transport-order alert channel config from the shared SSOT. */
 export function buildTransportAlertChannelConfig(): TransportAlertChannelConfig {
   return {
     channelId: DRIVER_ALERT_ANDROID_CHANNEL_ID,
-    importance: "max",
+    importance: 'max',
     sound: DRIVER_ALERT_SOUND,
     vibrationPattern: DRIVER_ALERT_VIBRATION_PATTERN,
     enableVibrate: true,
-    audioUsage: "alarm",
+    audioUsage: 'alarm',
   };
 }
 
@@ -81,15 +81,15 @@ export async function runNotificationSetup(
   // ALWAYS first -- the OS prompt + token fetch depend on the channel existing.
   await port.setChannel(config.channelId, config);
   if (!port.isPhysicalDevice()) {
-    return { outcome: "not_supported" };
+    return { outcome: 'not_supported' };
   }
   let status = await port.getPermissionStatus();
-  if (status === "undetermined") {
+  if (status === 'undetermined') {
     status = await port.requestPermission();
   }
-  if (status !== "granted") {
-    return { outcome: "permission_denied" };
+  if (status !== 'granted') {
+    return { outcome: 'permission_denied' };
   }
   const token = await port.getExpoPushToken();
-  return { outcome: "ready", token };
+  return { outcome: 'ready', token };
 }

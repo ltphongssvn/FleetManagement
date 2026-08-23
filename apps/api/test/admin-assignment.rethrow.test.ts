@@ -22,10 +22,26 @@ const TENANCY = {
 function makeThrowingDb(err: Error): unknown {
   return {
     update() {
-      return { set() { return { where() { return Promise.resolve(); } }; } };
+      return {
+        set() {
+          return {
+            where() {
+              return Promise.resolve();
+            },
+          };
+        },
+      };
     },
     insert() {
-      return { values() { return { returning() { return Promise.reject(err); } }; } };
+      return {
+        values() {
+          return {
+            returning() {
+              return Promise.reject(err);
+            },
+          };
+        },
+      };
     },
   };
 }

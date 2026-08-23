@@ -23,7 +23,6 @@ import {
   type RefreshedTokens,
 } from '@/features/auth/session-refresh';
 
-
 const UNAUTHORIZED_PROBLEM = {
   type: 'about:blank',
   title: 'Unauthorized',

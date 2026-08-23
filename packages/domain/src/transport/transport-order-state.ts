@@ -2,7 +2,10 @@
 // Transport order lifecycle state machine per Frozen Stack PDF "Domain model".
 // transport_order_state is relational truth (PDF Day-One feature 3).
 import { z } from 'zod';
-import { createStateMachine, type FiniteStateMachine } from '../state-machines/finite-state-machine.js';
+import {
+  createStateMachine,
+  type FiniteStateMachine,
+} from '../state-machines/finite-state-machine.js';
 
 /**
  * Transport order lifecycle. Drives projection_status + sync_change_feed deltas.

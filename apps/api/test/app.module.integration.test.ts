@@ -17,21 +17,21 @@
 // Performs REAL Nest DI resolution of the whole graph (including the new
 // AlertsModule) -- a value tsc cannot give: tsc proves it COMPILES, this proves
 // Nest RESOLVES it. Touches no DB (exempt in integration-tests-use-migrations).
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll } from 'vitest';
 
-describe("@fleet/api - AppModule (integration smoke)", () => {
+describe('@fleet/api - AppModule (integration smoke)', () => {
   let AppModuleRef: unknown;
   beforeAll(async () => {
-    process.env["DATABASE_URL"] = "postgres://localhost:5432/fleet_test";
-    process.env["OIDC_ISSUER"] = "https://idp.example.com/";
-    process.env["OIDC_AUDIENCE"] = "fleet-api";
-    process.env["OIDC_JWKS_URI"] = "https://idp.example.com/.well-known/jwks.json";
-    process.env["AWS_REGION"] = "us-west-2";
-    process.env["S3_ARTIFACTS_BUCKET"] = "fleet-test";
-    const mod = await import("../src/app.module.js");
+    process.env['DATABASE_URL'] = 'postgres://localhost:5432/fleet_test';
+    process.env['OIDC_ISSUER'] = 'https://idp.example.com/';
+    process.env['OIDC_AUDIENCE'] = 'fleet-api';
+    process.env['OIDC_JWKS_URI'] = 'https://idp.example.com/.well-known/jwks.json';
+    process.env['AWS_REGION'] = 'us-west-2';
+    process.env['S3_ARTIFACTS_BUCKET'] = 'fleet-test';
+    const mod = await import('../src/app.module.js');
     AppModuleRef = mod.AppModule;
   });
-  it("resolves the full Nest graph (DI wiring smoke)", () => {
+  it('resolves the full Nest graph (DI wiring smoke)', () => {
     expect(AppModuleRef).toBeDefined();
   });
 });

@@ -43,7 +43,11 @@ function vnDayOf(instant: Date): string {
 
 // [startUtc, endUtc) of the VN calendar day containing the instant.
 // VN is fixed UTC+7 (no DST), so midnight VN = day 00:00:00+07:00 exactly.
-function vnDayWindowUtc(instant: Date): { readonly day: string; readonly startUtc: Date; readonly endUtc: Date } {
+function vnDayWindowUtc(instant: Date): {
+  readonly day: string;
+  readonly startUtc: Date;
+  readonly endUtc: Date;
+} {
   const day = vnDayOf(instant);
   const startUtc = new Date(day + 'T00:00:00.000+07:00');
   const endUtc = new Date(startUtc.getTime() + DAY_MS);
@@ -68,10 +72,7 @@ export class OwnerMetricsService {
     const rosterWhere = and(eq(driver.companyId, input.companyId), eq(driver.active, true));
     const installedWhere = and(rosterWhere, ne(deviceRegistry.appVersion, ADMIN_PREENROLL_VERSION));
 
-    const [totalRow] = await this.db
-      .select({ n: count() })
-      .from(driver)
-      .where(rosterWhere);
+    const [totalRow] = await this.db.select({ n: count() }).from(driver).where(rosterWhere);
 
     const [registeredRow] = await this.db
       .select({ n: countDistinct(deviceRegistry.operatorId) })
@@ -89,12 +90,14 @@ export class OwnerMetricsService {
       .select({ n: countDistinct(deviceRegistry.operatorId) })
       .from(deviceRegistry)
       .innerJoin(driver, activeDriverJoin)
-      .where(and(
-        installedWhere,
-        isNotNull(deviceRegistry.lastSeenAt),
-        gte(deviceRegistry.lastSeenAt, startUtc),
-        lt(deviceRegistry.lastSeenAt, endUtc),
-      ));
+      .where(
+        and(
+          installedWhere,
+          isNotNull(deviceRegistry.lastSeenAt),
+          gte(deviceRegistry.lastSeenAt, startUtc),
+          lt(deviceRegistry.lastSeenAt, endUtc),
+        ),
+      );
 
     // A COUNT/COUNT(DISTINCT) with no GROUP BY always returns exactly one
     // row, so the destructured row is never undefined and the ?? 0 fallback

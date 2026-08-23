@@ -95,8 +95,7 @@ describe('exportedNames: every form, not just declarations', () => {
       'export interface I { a: string }',
       'export type T = string;',
     ].join(NL);
-    expect([...exportedNames(parse(src))].sort())
-      .toEqual(['I', 'K', 'T', 'c', 'f']);
+    expect([...exportedNames(parse(src))].sort()).toEqual(['I', 'K', 'T', 'c', 'f']);
   });
 
   // The form the substring check missed entirely.
@@ -220,7 +219,14 @@ describe('classifySource: content assertions', () => {
 
   // Removing an API while explaining the removal in a comment must PASS.
   it('PASSES when forbidden text remains only in a comment', () => {
-    const r = classifySource('a.ts', '// oldApi was removed\nconst n = 1;', [], null, [], ['oldApi']);
+    const r = classifySource(
+      'a.ts',
+      '// oldApi was removed\nconst n = 1;',
+      [],
+      null,
+      [],
+      ['oldApi'],
+    );
     expect(r.event).toBe('GATE_OK');
   });
 

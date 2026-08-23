@@ -4,7 +4,10 @@
 import { z } from 'zod';
 
 const EnvSchema = z.object({
-  NEXT_PUBLIC_APP_VERSION: z.string().regex(/^\d+\.\d+\.\d+/).default('0.0.0'),
+  NEXT_PUBLIC_APP_VERSION: z
+    .string()
+    .regex(/^\d+\.\d+\.\d+/)
+    .default('0.0.0'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   // OIDC Authorization Code + PKCE login (replaces ROPC). Optional so envs
   // that do not run the dispatcher web login (e.g. CI unit runs) need not set
@@ -21,7 +24,9 @@ const EnvSchema = z.object({
 export type Env = z.infer<typeof EnvSchema>;
 
 /** Accepts any record for testability; production callers pass process.env. */
-export function loadEnv(env: Record<string, string | undefined> = process.env as Record<string, string | undefined>): Env {
+export function loadEnv(
+  env: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
+): Env {
   const result = EnvSchema.safeParse(env);
   if (!result.success) throw new Error(`Invalid env: ${result.error.message}`);
   return result.data;

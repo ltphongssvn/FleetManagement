@@ -34,7 +34,11 @@ export function apiContainer(): string {
 const MAX_ATTEMPTS = 8;
 const BASE_BACKOFF_MS = 200;
 const MAX_BACKOFF_MS = 3200;
-export interface PsqlResult { stdout: string; stderr: string; failed: boolean }
+export interface PsqlResult {
+  stdout: string;
+  stderr: string;
+  failed: boolean;
+}
 function isTransientWslError(stderr: string): boolean {
   if (stderr.length === 0) return false;
   if (stderr.includes('UtilAcceptVsock')) return true;
@@ -49,13 +53,16 @@ function isTransientWslError(stderr: string): boolean {
 }
 function sleepSync(ms: number): void {
   const end = Date.now() + ms;
-  while (Date.now() < end) { /* busy-wait, intentional */ }
+  while (Date.now() < end) {
+    /* busy-wait, intentional */
+  }
 }
 function backoffMs(attempt: number): number {
   return Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * Math.pow(2, attempt - 1));
 }
 export function dockerPsql(sql: string): PsqlResult {
-  const cmd = 'docker exec -i ' + POSTGRES_CONTAINER + ' psql -U fleet -d fleet -tA -v ON_ERROR_STOP=1';
+  const cmd =
+    'docker exec -i ' + POSTGRES_CONTAINER + ' psql -U fleet -d fleet -tA -v ON_ERROR_STOP=1';
   let last: PsqlResult = { stdout: '', stderr: '', failed: true };
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {

@@ -48,9 +48,27 @@ describe('auditDeviceRegistry — fabrication detection', () => {
 
   it('reports a clean bill for a healthy mixed fleet', () => {
     const healthy = [
-      { deviceId: DEV(10), operatorId: OP(10), platform: 'ios', appVersion: '2.27.0', udid: 'REAL-UDID-A' },
-      { deviceId: DEV(11), operatorId: OP(11), platform: 'android', appVersion: '2.27.0', udid: null },
-      { deviceId: DEV(12), operatorId: OP(12), platform: 'android', appVersion: '2.27.0', udid: null },
+      {
+        deviceId: DEV(10),
+        operatorId: OP(10),
+        platform: 'ios',
+        appVersion: '2.27.0',
+        udid: 'REAL-UDID-A',
+      },
+      {
+        deviceId: DEV(11),
+        operatorId: OP(11),
+        platform: 'android',
+        appVersion: '2.27.0',
+        udid: null,
+      },
+      {
+        deviceId: DEV(12),
+        operatorId: OP(12),
+        platform: 'android',
+        appVersion: '2.27.0',
+        udid: null,
+      },
     ];
     const report = auditDeviceRegistry(healthy);
     expect(report.duplicateUdids).toHaveLength(0);
@@ -61,8 +79,20 @@ describe('auditDeviceRegistry — fabrication detection', () => {
 
   it('does not treat two null udids as a collision', () => {
     const twoNull = [
-      { deviceId: DEV(20), operatorId: OP(20), platform: 'android', appVersion: '2.27.0', udid: null },
-      { deviceId: DEV(21), operatorId: OP(21), platform: 'android', appVersion: '2.27.0', udid: null },
+      {
+        deviceId: DEV(20),
+        operatorId: OP(20),
+        platform: 'android',
+        appVersion: '2.27.0',
+        udid: null,
+      },
+      {
+        deviceId: DEV(21),
+        operatorId: OP(21),
+        platform: 'android',
+        appVersion: '2.27.0',
+        udid: null,
+      },
     ];
     const report = auditDeviceRegistry(twoNull);
     expect(report.duplicateUdids).toHaveLength(0);

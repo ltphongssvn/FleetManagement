@@ -42,8 +42,18 @@ describe('react native token adapter', () => {
 
   it('covers every color key both RN apps import today', () => {
     const required = [
-      'white', 'backdrop', 'slate300', 'slate400', 'slate500', 'slate600',
-      'slate900', 'slate950', 'indigo500', 'indigo600', 'indigo700', 'red200',
+      'white',
+      'backdrop',
+      'slate300',
+      'slate400',
+      'slate500',
+      'slate600',
+      'slate900',
+      'slate950',
+      'indigo500',
+      'indigo600',
+      'indigo700',
+      'red200',
     ];
     for (const key of required) {
       expect(Object.prototype.hasOwnProperty.call(colors, key)).toBe(true);

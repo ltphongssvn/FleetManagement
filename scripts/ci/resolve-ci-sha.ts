@@ -46,10 +46,7 @@ export const ciEnvSchema = z.object({
   // \${{ github.event.workflow_run.head_sha }} on non-workflow_run events.
   // Normalize '' -> undefined so dispatch and workflow_run both parse; then
   // pickCurrentSha falls back to GITHUB_SHA when the value is absent.
-  WORKFLOW_RUN_HEAD_SHA: z.preprocess(
-    (v) => (v === '' ? undefined : v),
-    fullShaSchema.optional(),
-  ),
+  WORKFLOW_RUN_HEAD_SHA: z.preprocess((v) => (v === '' ? undefined : v), fullShaSchema.optional()),
 });
 
 export type CiEnv = z.infer<typeof ciEnvSchema>;
@@ -136,20 +133,36 @@ function tryGetLastDeployedSha(currentSha: string): string | null {
   const runId = process.env['GITHUB_RUN_ID'];
   const workflowFile = process.env['DEPLOY_WORKFLOW_FILE'];
   if (!apiUrl || !repo || !token || !workflowFile) {
-    console.error('resolve-ci-sha: last-deployed lookup skipped (missing api/repo/token/workflow env)');
+    console.error(
+      'resolve-ci-sha: last-deployed lookup skipped (missing api/repo/token/workflow env)',
+    );
     return null;
   }
   // Ask for successful runs of just this workflow, newest first. curl keeps the
   // module dependency-free (no octokit); spawnSync stays off the pure exports.
-  const endpoint = apiUrl + '/repos/' + repo + '/actions/workflows/' +
-    encodeURIComponent(workflowFile) + '/runs?status=success&per_page=20';
-  const r = spawnSync('curl', [
-    '--silent', '--show-error', '--fail',
-    '-H', 'Accept: application/vnd.github+json',
-    '-H', 'Authorization: Bearer ' + token,
-    '-H', 'X-GitHub-Api-Version: 2022-11-28',
-    endpoint,
-  ], { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
+  const endpoint =
+    apiUrl +
+    '/repos/' +
+    repo +
+    '/actions/workflows/' +
+    encodeURIComponent(workflowFile) +
+    '/runs?status=success&per_page=20';
+  const r = spawnSync(
+    'curl',
+    [
+      '--silent',
+      '--show-error',
+      '--fail',
+      '-H',
+      'Accept: application/vnd.github+json',
+      '-H',
+      'Authorization: Bearer ' + token,
+      '-H',
+      'X-GitHub-Api-Version: 2022-11-28',
+      endpoint,
+    ],
+    { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 },
+  );
   if (r.status !== 0) {
     console.error('resolve-ci-sha: last-deployed API call failed: ' + (r.stderr || '').trim());
     return null;
@@ -162,11 +175,13 @@ function tryGetLastDeployedSha(currentSha: string): string | null {
     return null;
   }
   const runsSchema = z.object({
-    workflow_runs: z.array(z.object({
-      id: z.number(),
-      head_sha: z.string(),
-      conclusion: z.string().nullable(),
-    })),
+    workflow_runs: z.array(
+      z.object({
+        id: z.number(),
+        head_sha: z.string(),
+        conclusion: z.string().nullable(),
+      }),
+    ),
   });
   const parsed = runsSchema.safeParse(payload);
   if (!parsed.success) {
@@ -201,12 +216,20 @@ function main(): void {
   const lastDeployedSha = tryGetLastDeployedSha(currentSha);
   const parentSha = tryGetParentSha(currentSha);
   const resolved = resolveBaseSha(currentSha, parentSha, lastDeployedSha);
-  console.error('resolve-ci-sha: event=' + parsed.data.GITHUB_EVENT_NAME +
-    ' current=' + currentSha.slice(0, 7) +
-    ' lastDeployed=' + (lastDeployedSha ? lastDeployedSha.slice(0, 7) : 'none') +
-    ' parent=' + (parentSha ? parentSha.slice(0, 7) : 'none') +
-    ' base=' + resolved.baseSha.slice(0, 7) +
-    ' strategy=' + resolved.strategy);
+  console.error(
+    'resolve-ci-sha: event=' +
+      parsed.data.GITHUB_EVENT_NAME +
+      ' current=' +
+      currentSha.slice(0, 7) +
+      ' lastDeployed=' +
+      (lastDeployedSha ? lastDeployedSha.slice(0, 7) : 'none') +
+      ' parent=' +
+      (parentSha ? parentSha.slice(0, 7) : 'none') +
+      ' base=' +
+      resolved.baseSha.slice(0, 7) +
+      ' strategy=' +
+      resolved.strategy,
+  );
   process.stdout.write(resolved.baseSha + '\n');
 }
 

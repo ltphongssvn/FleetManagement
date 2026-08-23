@@ -105,43 +105,68 @@ function formatWeightDiff(kg: number | null): string {
 // so nothing that reads the cell text breaks; the MEANING is now attached.
 function weightDiffExplanation(kg: number | null): { title?: string; label?: string } {
   if (kg !== null) return {};
-  return { title: EMPTY_STATE_VI.awaiting_upstream.hint, label: EMPTY_STATE_VI.awaiting_upstream.title };
+  return {
+    title: EMPTY_STATE_VI.awaiting_upstream.hint,
+    label: EMPTY_STATE_VI.awaiting_upstream.title,
+  };
 }
 // Tai xe / Xe label resolution: prefer the SERVER-resolved label (authoritative,
 // independent of the pair-filtered dropdowns). Fall back to the client lookup
 // only when the server label is absent (the optimistic pre-projection row),
 // then em-dash so an opaque UUID never leaks.
-function resolveLabel(serverLabel: string | null, id: string | null, lookup: ReadonlyMap<string, string>): string {
+function resolveLabel(
+  serverLabel: string | null,
+  id: string | null,
+  lookup: ReadonlyMap<string, string>,
+): string {
   if (serverLabel !== null && serverLabel !== '') return serverLabel;
   if (id === null) return DASH;
   return lookup.get(id) ?? DASH;
 }
-function CustomerCell({ name, phone, state, primaryRef }: { name: string | null; phone: string | null; state: string; primaryRef: string }): JSX.Element {
+function CustomerCell({
+  name,
+  phone,
+  state,
+  primaryRef,
+}: {
+  name: string | null;
+  phone: string | null;
+  state: string;
+  primaryRef: string;
+}): JSX.Element {
   const hasPhone = phone !== null && phone !== '';
   return (
-    <div className='flex flex-col'>
+    <div className="flex flex-col">
       <span>
         {formatCustomer(name)}
         {state === 'cancelled' ? (
           <span
             data-testid={'dispatch-board-row-cancelled-' + primaryRef}
-            className='ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700'
-          >Đã hủy</span>
+            className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700"
+          >
+            Đã hủy
+          </span>
         ) : null}
       </span>
-      {hasPhone && <span className='text-xs text-slate-500'>{phone}</span>}
+      {hasPhone && <span className="text-xs text-slate-500">{phone}</span>}
     </div>
   );
 }
 function OrderRefCell({ refs }: { refs: readonly string[] }): JSX.Element {
   const primary = refs[0];
   if (primary === undefined) {
-    return <span className='font-mono'>{formatOrderRef(refs)}</span>;
+    return <span className="font-mono">{formatOrderRef(refs)}</span>;
   }
   const href = '/dispatch/orders/' + primary;
   const testId = 'dispatch-board-row-' + primary;
   return (
-    <a href={href} data-testid={testId} className='font-mono text-blue-700 underline-offset-2 hover:underline cursor-pointer'>{formatOrderRef(refs)}</a>
+    <a
+      href={href}
+      data-testid={testId}
+      className="font-mono text-blue-700 underline-offset-2 hover:underline cursor-pointer"
+    >
+      {formatOrderRef(refs)}
+    </a>
   );
 }
 // Status group of the board view: the SSOT @fleet/sync-protocol
@@ -173,28 +198,28 @@ function buildBoardHref(group: RoadRunStatusGroup, page: number, search: string)
 // UX-11: px-3 py-1 text-sm produced a control under the 24px floor, so the
 // minimum is applied inline from the contract constant.
 function FilterTabs({ group, search }: { group: RoadRunStatusGroup; search: string }): JSX.Element {
-  const base = 'inline-flex items-center rounded px-3 py-1 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ring focus-visible:ring-offset-2';
+  const base =
+    'inline-flex items-center rounded px-3 py-1 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ring focus-visible:ring-offset-2';
   const activeCls = base + ' bg-primary text-white';
   const idleCls = base + ' bg-border-subtle text-text-secondary hover:bg-border';
-  const tab = (
-    id: RoadRunStatusGroup,
-    testId: string,
-    label: string,
-  ): JSX.Element => {
+  const tab = (id: RoadRunStatusGroup, testId: string, label: string): JSX.Element => {
     const selected = group === id;
     return (
-      <a data-testid={testId}
+      <a
+        data-testid={testId}
         href={buildBoardHref(id, 1, search)}
-        role='tab'
+        role="tab"
         aria-selected={selected ? 'true' : 'false'}
         aria-current={selected ? 'page' : undefined}
         style={{ minHeight: MIN_TARGET, minWidth: MIN_TARGET }}
         className={selected ? activeCls : idleCls}
-      >{label}</a>
+      >
+        {label}
+      </a>
     );
   };
   return (
-    <div className='flex items-center gap-2' role='tablist' aria-label='Lọc theo trạng thái'>
+    <div className="flex items-center gap-2" role="tablist" aria-label="Lọc theo trạng thái">
       {tab('active', 'dispatch-board-filter-active', 'Đang chạy')}
       {tab('finished', 'dispatch-board-filter-finished', 'Đã hoàn tất')}
       {tab('cancelled', 'dispatch-board-filter-cancelled', 'Lệnh Hủy')}
@@ -230,36 +255,48 @@ function SearchBox({ group, search }: { group: RoadRunStatusGroup; search: strin
     }
   };
   return (
-    <div className='flex flex-col gap-0.5'>
-      <div className='flex items-center gap-1'>
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-1">
         <input
           ref={inputRef}
-          data-testid='dispatch-board-search'
-          type='search'
+          data-testid="dispatch-board-search"
+          type="search"
           defaultValue={search}
           onKeyDown={onKey}
           onChange={onChangeInput}
-          placeholder='Tìm lệnh điều xe...'
-          aria-label='Tìm kiếm lệnh điều xe theo bất kỳ thông tin nào'
+          placeholder="Tìm lệnh điều xe..."
+          aria-label="Tìm kiếm lệnh điều xe theo bất kỳ thông tin nào"
           aria-describedby={SEARCH_HINT_ID}
           style={{ minHeight: MIN_TARGET }}
-          className='w-56 rounded border border-border px-2 py-1 text-sm'
+          className="w-56 rounded border border-border px-2 py-1 text-sm"
         />
         <Button
-          tone='neutral'
-          emphasis='soft'
-          data-testid='dispatch-board-search-submit'
-          onClick={() => { submit(inputRef.current === null ? '' : inputRef.current.value); }}
-        >Tìm</Button>
+          tone="neutral"
+          emphasis="soft"
+          data-testid="dispatch-board-search-submit"
+          onClick={() => {
+            submit(inputRef.current === null ? '' : inputRef.current.value);
+          }}
+        >
+          Tìm
+        </Button>
       </div>
-      <p id={SEARCH_HINT_ID} className='text-xs text-text-muted'>Gõ từ khóa rồi bấm Tìm hoặc nhấn Enter.</p>
+      <p id={SEARCH_HINT_ID} className="text-xs text-text-muted">
+        Gõ từ khóa rồi bấm Tìm hoặc nhấn Enter.
+      </p>
     </div>
   );
 }
 // UX-08: the jump-to-page input accepted a number but committed only on Enter,
 // with no control and no hint. A visible Đi button performs the identical
 // clamped navigation.
-function PaginationBar({ pagination, search }: { pagination: DispatchBoardPagination; search: string }): JSX.Element {
+function PaginationBar({
+  pagination,
+  search,
+}: {
+  pagination: DispatchBoardPagination;
+  search: string;
+}): JSX.Element {
   const { group, page, total, totalPages } = pagination;
   const inputRef = useRef<HTMLInputElement>(null);
   const go = (raw: number): void => {
@@ -274,42 +311,60 @@ function PaginationBar({ pagination, search }: { pagination: DispatchBoardPagina
   const pages: number[] = [];
   for (let p = 1; p <= totalPages; p += 1) pages.push(p);
   return (
-    <nav data-testid='dispatch-board-pagination' className='mt-4 flex flex-wrap items-center justify-between gap-3' aria-label='Phân trang'>
-      <span data-testid='dispatch-board-total-count' className='text-sm text-text-muted'>{'Tổng: ' + String(total) + ' lệnh'}</span>
-      <div className='flex flex-wrap items-center gap-1'>
+    <nav
+      data-testid="dispatch-board-pagination"
+      className="mt-4 flex flex-wrap items-center justify-between gap-3"
+      aria-label="Phân trang"
+    >
+      <span data-testid="dispatch-board-total-count" className="text-sm text-text-muted">
+        {'Tổng: ' + String(total) + ' lệnh'}
+      </span>
+      <div className="flex flex-wrap items-center gap-1">
         {pages.map((p) => (
-          <a key={p}
+          <a
+            key={p}
             data-testid={'dispatch-board-page-link-' + String(p)}
             href={buildBoardHref(group, p, search)}
             aria-current={p === page ? 'page' : undefined}
             style={{ minHeight: MIN_TARGET, minWidth: MIN_TARGET }}
-            className={'inline-flex items-center justify-center rounded px-2 py-1 text-sm ' + (p === page ? 'bg-primary text-white' : 'bg-border-subtle text-text-secondary hover:bg-border')}
-          >{String(p)}</a>
+            className={
+              'inline-flex items-center justify-center rounded px-2 py-1 text-sm ' +
+              (p === page
+                ? 'bg-primary text-white'
+                : 'bg-border-subtle text-text-secondary hover:bg-border')
+            }
+          >
+            {String(p)}
+          </a>
         ))}
       </div>
-      <div className='flex items-center gap-1 text-sm text-text-muted'>
-        <label className='flex items-center gap-1' htmlFor='dispatch-board-page-search'>
+      <div className="flex items-center gap-1 text-sm text-text-muted">
+        <label className="flex items-center gap-1" htmlFor="dispatch-board-page-search">
           Đến trang
           <input
             ref={inputRef}
-            id='dispatch-board-page-search'
-            data-testid='dispatch-board-page-search'
-            type='number'
+            id="dispatch-board-page-search"
+            data-testid="dispatch-board-page-search"
+            type="number"
             min={1}
             max={Math.max(totalPages, 1)}
             defaultValue={String(page)}
             onKeyDown={onJump}
-            aria-label='Nhập số trang để chuyển đến'
+            aria-label="Nhập số trang để chuyển đến"
             style={{ minHeight: MIN_TARGET }}
-            className='w-16 rounded border border-border px-2 py-1'
+            className="w-16 rounded border border-border px-2 py-1"
           />
         </label>
         <Button
-          tone='neutral'
-          emphasis='soft'
-          data-testid='dispatch-board-page-go'
-          onClick={() => { go(Number(inputRef.current === null ? '' : inputRef.current.value)); }}
-        >Đi</Button>
+          tone="neutral"
+          emphasis="soft"
+          data-testid="dispatch-board-page-go"
+          onClick={() => {
+            go(Number(inputRef.current === null ? '' : inputRef.current.value));
+          }}
+        >
+          Đi
+        </Button>
       </div>
     </nav>
   );
@@ -320,12 +375,17 @@ export interface DispatchViewProps {
   // Current free-text search term (from ?search=), echoed into the search box
   // and preserved across tab/page navigation. Empty string => no active search.
   readonly searchTerm?: string;
-  readonly onMountForTest?: (push: (externalRef: string, op: { operatorId: string; assetId: string }) => void) => void;
+  readonly onMountForTest?: (
+    push: (externalRef: string, op: { operatorId: string; assetId: string }) => void,
+  ) => void;
   // When present, the board is paginated + status-partitioned (offset pagination
   // over the current page slice in initialRuns). Absent => unpaginated board.
   readonly pagination?: DispatchBoardPagination;
 }
-function makeOptimisticRow(externalRef: string, opCtx: { operatorId: string; assetId: string }): DispatchBoardRoadRun {
+function makeOptimisticRow(
+  externalRef: string,
+  opCtx: { operatorId: string; assetId: string },
+): DispatchBoardRoadRun {
   return {
     roadRunId: 'optimistic-' + externalRef,
     state: 'planned',
@@ -343,7 +403,10 @@ function makeOptimisticRow(externalRef: string, opCtx: { operatorId: string; ass
     stops: [],
   };
 }
-function mergeRuns(serverRuns: readonly DispatchBoardRoadRun[], optimistic: readonly DispatchBoardRoadRun[]): readonly DispatchBoardRoadRun[] {
+function mergeRuns(
+  serverRuns: readonly DispatchBoardRoadRun[],
+  optimistic: readonly DispatchBoardRoadRun[],
+): readonly DispatchBoardRoadRun[] {
   if (optimistic.length === 0) return serverRuns;
   // Reconcile optimistic list items by a STABLE unique id (roadRunId), never by
   // a mutable business value. Optimistic rows use synthetic optimistic-<ref>
@@ -378,8 +441,13 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
   // the PAGE, not of one conditionally-rendered child, so the signal lives here
   // on the board root and holds regardless of drawer state.
   const [hydrated, setHydrated] = useState(false);
-  useEffect(() => { setHydrated(true); }, []);
-  const pushOptimisticRow = (externalRef: string, op: { operatorId: string; assetId: string }): void => {
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+  const pushOptimisticRow = (
+    externalRef: string,
+    op: { operatorId: string; assetId: string },
+  ): void => {
     setStickyRuns((prev) => {
       for (const r of prev) {
         if (r.roadRunId === 'optimistic-' + externalRef) return prev;
@@ -414,11 +482,16 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
   // useRefetchOnFocus hook so every server-state surface behaves identically.
   // router.refresh() re-fetches the RSC payload and MERGES it, preserving
   // client state (optimistic stickyRuns + form inputs) -- unlike a reload.
-  useRefetchOnFocus(() => { router.refresh(); });
+  useRefetchOnFocus(() => {
+    router.refresh();
+  });
   const driverLookup = buildLookup(refs.drivers);
   const vehicleLookup = buildLookup(refs.vehicles ?? []);
   const merged = mergeRuns(initialRuns, stickyRuns);
-  const handleCreated = (externalRef: string, op: { operatorId: string; assetId: string }): void => {
+  const handleCreated = (
+    externalRef: string,
+    op: { operatorId: string; assetId: string },
+  ): void => {
     if (op.operatorId !== '' && op.assetId !== '') {
       pushOptimisticRow(externalRef, op);
     }
@@ -439,13 +512,20 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
       deliveryWarehouses={refs.deliveryWarehouses ?? []}
       driverVehicleAssignments={refs.driverVehicleAssignments ?? []}
       defaultOrderRef={refs.nextOrderRef ?? ''}
-      onCreated={(externalRef, op) => { handleCreated(externalRef, op); setCreateOpen(false); }}
+      onCreated={(externalRef, op) => {
+        handleCreated(externalRef, op);
+        setCreateOpen(false);
+      }}
     />
   );
   return (
     <>
-      <div data-testid='dispatch-board' data-hydrated={hydrated ? 'true' : 'false'} className='rounded-2xl bg-white/95 shadow-sm'>
-        <section className='p-6'>
+      <div
+        data-testid="dispatch-board"
+        data-hydrated={hydrated ? 'true' : 'false'}
+        className="rounded-2xl bg-white/95 shadow-sm"
+      >
+        <section className="p-6">
           {/* UX-02: the h1 previously shared a single flex row with the search
               box, the three filter pills, the create button and the export
               range, so at common widths the page title broke across three lines
@@ -454,29 +534,31 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
               toolbar holds the controls and exactly one solid primary action.
               The heading still precedes the create trigger in the DOM, which is
               the table-first ordering contract from T38. */}
-          <header className='mb-4 flex flex-col gap-3'>
-            <div className='flex items-center justify-between gap-3'>
-              <h1 className='text-2xl font-semibold'>Lệnh điều xe</h1>
-              <HelpHint topic='dispatch_board' />
+          <header className="mb-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <h1 className="text-2xl font-semibold">Lệnh điều xe</h1>
+              <HelpHint topic="dispatch_board" />
             </div>
             <div
-              data-testid='dispatch-board-toolbar'
-              role='toolbar'
-              aria-label='Thanh công cụ bảng điều phối'
-              className='flex flex-wrap items-end justify-between gap-3'
+              data-testid="dispatch-board-toolbar"
+              role="toolbar"
+              aria-label="Thanh công cụ bảng điều phối"
+              className="flex flex-wrap items-end justify-between gap-3"
             >
-              <div className='flex flex-wrap items-end gap-3'>
+              <div className="flex flex-wrap items-end gap-3">
                 {pagination ? <SearchBox group={pagination.group} search={search} /> : null}
                 {pagination ? <FilterTabs group={pagination.group} search={search} /> : null}
               </div>
-              <div className='flex flex-wrap items-center gap-2'>
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
-                  tone='primary'
-                  emphasis='solid'
-                  data-testid='open-create-order'
-                  onClick={() => { setCreateOpen(true); }}
+                  tone="primary"
+                  emphasis="solid"
+                  data-testid="open-create-order"
+                  onClick={() => {
+                    setCreateOpen(true);
+                  }}
                 >
-                  <span aria-hidden='true'>+</span> Tạo lệnh điều xe
+                  <span aria-hidden="true">+</span> Tạo lệnh điều xe
                 </Button>
                 <ExportOrdersExcelButton />
               </div>
@@ -496,22 +578,33 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
               status region, which makes a bare role query ambiguous. The
               id names the LOAD-BEARING one (the So Lenh announcement) so
               the contract survives any future status region. */}
-          <div role='status' data-testid='dispatch-board-created-ref' className={createdRef === null ? undefined : 'mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800'}>
+          <div
+            role="status"
+            data-testid="dispatch-board-created-ref"
+            className={
+              createdRef === null
+                ? undefined
+                : 'mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800'
+            }
+          >
             {createdRef === null ? null : (
-              <><span className='font-semibold'>Số Lệnh:</span> <span className='font-mono'>{createdRef}</span></>
+              <>
+                <span className="font-semibold">Số Lệnh:</span>{' '}
+                <span className="font-mono">{createdRef}</span>
+              </>
             )}
           </div>
-          <table className='w-full border-collapse text-sm'>
+          <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className='border-b text-left'>
-                <th className='px-3 py-2'>Số lệnh</th>
-                <th className='px-3 py-2'>Khách hàng</th>
-                <th className='px-3 py-2'>Tên hàng</th>
-                <th className='px-3 py-2'>Tài xế</th>
-                <th className='px-3 py-2'>Xe</th>
-                <th className='px-3 py-2'>Ngày dự kiến</th>
-                <th className='px-3 py-2'>Số điểm</th>
-                <th className='px-3 py-2'>Chênh lệch (Số giao - Số nhận)</th>
+              <tr className="border-b text-left">
+                <th className="px-3 py-2">Số lệnh</th>
+                <th className="px-3 py-2">Khách hàng</th>
+                <th className="px-3 py-2">Tên hàng</th>
+                <th className="px-3 py-2">Tài xế</th>
+                <th className="px-3 py-2">Xe</th>
+                <th className="px-3 py-2">Ngày dự kiến</th>
+                <th className="px-3 py-2">Số điểm</th>
+                <th className="px-3 py-2">Chênh lệch (Số giao - Số nhận)</th>
                 <StopSlotHeaders />
               </tr>
             </thead>
@@ -523,50 +616,96 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
                   // gave no feedback, so users never discovered that a row led
                   // anywhere. A row-level hover tint is the pattern affordance
                   // for a navigable table row.
-                  <tr key={r.roadRunId} data-testid={'dispatch-board-rr-' + r.roadRunId} className='border-b transition-colors hover:bg-border-subtle'>
-                    <td className='px-3 py-2'><OrderRefCell refs={r.transportOrderRefs} /></td>
-                    <td className='px-3 py-2'><CustomerCell name={r.customerName} phone={r.customerPhone} state={r.state} primaryRef={formatOrderRef(r.transportOrderRefs)} /></td>
-                    <td className='px-3 py-2' data-testid={'dispatch-board-cargo-' + formatOrderRef(r.transportOrderRefs)}>{formatCustomer(r.cargoName)}</td>
-                    <td className='px-3 py-2'>{resolveLabel(r.driverName, r.assignedOperatorId, driverLookup)}</td>
-                    <td className='px-3 py-2'>{resolveLabel(r.vehiclePlate, r.assignedAssetId, vehicleLookup)}</td>
-                    <td className='px-3 py-2'>{formatPlannedStart(r.plannedStartAt)}</td>
-                    <td className='px-3 py-2'>{r.stopCount}</td>
+                  <tr
+                    key={r.roadRunId}
+                    data-testid={'dispatch-board-rr-' + r.roadRunId}
+                    className="border-b transition-colors hover:bg-border-subtle"
+                  >
+                    <td className="px-3 py-2">
+                      <OrderRefCell refs={r.transportOrderRefs} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <CustomerCell
+                        name={r.customerName}
+                        phone={r.customerPhone}
+                        state={r.state}
+                        primaryRef={formatOrderRef(r.transportOrderRefs)}
+                      />
+                    </td>
                     <td
-                      className='px-3 py-2 tabular-nums'
-                      data-testid={'dispatch-board-weightdiff-' + formatOrderRef(r.transportOrderRefs)}
+                      className="px-3 py-2"
+                      data-testid={'dispatch-board-cargo-' + formatOrderRef(r.transportOrderRefs)}
+                    >
+                      {formatCustomer(r.cargoName)}
+                    </td>
+                    <td className="px-3 py-2">
+                      {resolveLabel(r.driverName, r.assignedOperatorId, driverLookup)}
+                    </td>
+                    <td className="px-3 py-2">
+                      {resolveLabel(r.vehiclePlate, r.assignedAssetId, vehicleLookup)}
+                    </td>
+                    <td className="px-3 py-2">{formatPlannedStart(r.plannedStartAt)}</td>
+                    <td className="px-3 py-2">{r.stopCount}</td>
+                    <td
+                      className="px-3 py-2 tabular-nums"
+                      data-testid={
+                        'dispatch-board-weightdiff-' + formatOrderRef(r.transportOrderRefs)
+                      }
                       title={explain.title}
                       aria-label={explain.label}
-                    >{formatWeightDiff(r.weightDiffKg)}</td>
-                    <StopSlotCells primaryRef={formatOrderRef(r.transportOrderRefs)} stops={r.stops} onEnterNetWeight={(manifestId) => { setEditingManifestId(manifestId); }} />
+                    >
+                      {formatWeightDiff(r.weightDiffKg)}
+                    </td>
+                    <StopSlotCells
+                      primaryRef={formatOrderRef(r.transportOrderRefs)}
+                      stops={r.stops}
+                      onEnterNetWeight={(manifestId) => {
+                        setEditingManifestId(manifestId);
+                      }}
+                    />
                   </tr>
                 );
               })}
               {merged.length === 0 && (
-                <tr><td colSpan={8 + STOP_SLOT_COL_COUNT} className='px-3 py-6'>
-                  <EmptyState
-                    reason={emptyReason}
-                    data-testid='dispatch-board-empty'
-                    action={emptyReason === 'no_data_yet' ? (
-                      // Soft, not solid: the toolbar keeps the single solid
-                      // primary action on the surface, so prominence still has
-                      // one unambiguous answer while the empty state still
-                      // offers the next step in place.
-                      <Button
-                        tone='primary'
-                        emphasis='soft'
-                        data-testid='dispatch-board-empty-cta'
-                        onClick={() => { setCreateOpen(true); }}
-                      >Tạo lệnh điều xe</Button>
-                    ) : undefined}
-                  />
-                </td></tr>
+                <tr>
+                  <td colSpan={8 + STOP_SLOT_COL_COUNT} className="px-3 py-6">
+                    <EmptyState
+                      reason={emptyReason}
+                      data-testid="dispatch-board-empty"
+                      action={
+                        emptyReason === 'no_data_yet' ? (
+                          // Soft, not solid: the toolbar keeps the single solid
+                          // primary action on the surface, so prominence still has
+                          // one unambiguous answer while the empty state still
+                          // offers the next step in place.
+                          <Button
+                            tone="primary"
+                            emphasis="soft"
+                            data-testid="dispatch-board-empty-cta"
+                            onClick={() => {
+                              setCreateOpen(true);
+                            }}
+                          >
+                            Tạo lệnh điều xe
+                          </Button>
+                        ) : undefined
+                      }
+                    />
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
           {pagination ? <PaginationBar pagination={pagination} search={search} /> : null}
           {editingManifestId !== null ? (
             <div className={'mt-3'} data-testid={'manual-netweight-editor'}>
-              <ManualNetWeightEditor manifestId={editingManifestId} onDone={() => { setEditingManifestId(null); router.refresh(); }} />
+              <ManualNetWeightEditor
+                manifestId={editingManifestId}
+                onDone={() => {
+                  setEditingManifestId(null);
+                  router.refresh();
+                }}
+              />
             </div>
           ) : null}
         </section>
@@ -581,18 +720,28 @@ export function DispatchView(props: DispatchViewProps): JSX.Element {
           is the vendor-sanctioned pairing: focus trap, Escape and click-outside
           close, scroll lock, correct dialog semantics, portal-compatible, and
           it unmounts when closed so nothing can intercept the board. */}
-      <Dialog open={createOpen} onClose={() => { setCreateOpen(false); }} className='relative z-40'>
-        <DialogBackdrop className='fixed inset-0 bg-slate-900/40' />
-        <div className='fixed inset-0 flex justify-end'>
-          <DialogPanel className='h-full w-full max-w-2xl overflow-y-auto bg-transparent p-4 shadow-2xl'>
-            <DialogTitle className='sr-only'>Tạo lệnh điều xe</DialogTitle>
-            <div className='mb-2 flex justify-end'>
+      <Dialog
+        open={createOpen}
+        onClose={() => {
+          setCreateOpen(false);
+        }}
+        className="relative z-40"
+      >
+        <DialogBackdrop className="fixed inset-0 bg-slate-900/40" />
+        <div className="fixed inset-0 flex justify-end">
+          <DialogPanel className="h-full w-full max-w-2xl overflow-y-auto bg-transparent p-4 shadow-2xl">
+            <DialogTitle className="sr-only">Tạo lệnh điều xe</DialogTitle>
+            <div className="mb-2 flex justify-end">
               <Button
-                tone='neutral'
-                emphasis='soft'
-                data-testid='close-create-order'
-                onClick={() => { setCreateOpen(false); }}
-              >Đóng</Button>
+                tone="neutral"
+                emphasis="soft"
+                data-testid="close-create-order"
+                onClick={() => {
+                  setCreateOpen(false);
+                }}
+              >
+                Đóng
+              </Button>
             </div>
             {createForm}
           </DialogPanel>

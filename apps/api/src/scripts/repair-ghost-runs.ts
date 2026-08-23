@@ -30,16 +30,25 @@ async function main(): Promise<void> {
   });
   try {
     const db = app.get<FleetDb>(DRIZZLE_DB);
-    const result = await repairGhostRuns(db, {
-      operatorId: REPAIR_OPERATOR_ID,
-      companyId: scope, businessUnitId: scope, depotId: scope, legalEntityId: scope,
-    }, { execute });
+    const result = await repairGhostRuns(
+      db,
+      {
+        operatorId: REPAIR_OPERATOR_ID,
+        companyId: scope,
+        businessUnitId: scope,
+        depotId: scope,
+        legalEntityId: scope,
+      },
+      { execute },
+    );
     process.stdout.write('REPAIR_GHOST_RUNS_RESULT ' + JSON.stringify(result) + '\n');
   } finally {
     await app.close();
   }
 }
 main().catch((err: unknown) => {
-  process.stderr.write('repair-ghost-runs failed: ' + (err instanceof Error ? err.message : String(err)) + '\n');
+  process.stderr.write(
+    'repair-ghost-runs failed: ' + (err instanceof Error ? err.message : String(err)) + '\n',
+  );
   process.exitCode = 1;
 });

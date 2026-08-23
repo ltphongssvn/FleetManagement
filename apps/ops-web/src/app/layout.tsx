@@ -33,7 +33,7 @@ export default async function RootLayout({
   const store = await cookies();
   const authed = store.has('fleet_session') || store.has('fleet_refresh');
   return (
-    <html lang='en'>
+    <html lang="en">
       <body>
         {children}
         <CommandPalette authed={authed} />

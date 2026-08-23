@@ -46,7 +46,9 @@ import { loadOrderReview } from '@/features/dispatch/load-order-review';
 import { AppShell } from '@/features/shell/AppShell';
 import { RefetchOnFocusMount } from '@/features/shell/RefetchOnFocusMount';
 export const dynamic = 'force-dynamic';
-interface PageProps { params: Promise<{ id: string }> }
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
 function decodeUsername(token: string | undefined): string | undefined {
   if (token === undefined) return undefined;
   try {
@@ -72,17 +74,22 @@ export default async function OrderReviewPage({ params }: PageProps): Promise<JS
           re-fetch the order (e.g. its state badge after an external cancel)
           without a manual reload. */}
       <RefetchOnFocusMount />
-      <div className='mx-auto w-full max-w-5xl p-6'>
+      <div className="mx-auto w-full max-w-5xl p-6">
         <Link
-          href='/'
-          data-testid='order-review-back'
-          className='mb-4 inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline'
+          href="/"
+          data-testid="order-review-back"
+          className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline"
         >
-          <span aria-hidden='true'>&larr;</span>
+          <span aria-hidden="true">&larr;</span>
           Quay lại bảng điều phối
         </Link>
         <OrderReview order={order} />
-        <CancelOrderForm transportOrderId={order.transportOrderId} state={order.state} canCancel={order.canCancel} cancelBlockedReason={order.cancelBlockedReason} />
+        <CancelOrderForm
+          transportOrderId={order.transportOrderId}
+          state={order.state}
+          canCancel={order.canCancel}
+          cancelBlockedReason={order.cancelBlockedReason}
+        />
       </div>
     </AppShell>
   );

@@ -26,12 +26,8 @@ export const DateOnlyFormSchema = z.object({
   driverName: z.string().max(200).optional().default(''),
   pickupAt: DateOnly,
   deliveryAt: DateOnly,
-  pickupWarehouses: z
-    .array(UuidOrEmpty)
-    .min(1, 'At least one pickup warehouse is required'),
-  deliveryWarehouses: z
-    .array(UuidOrEmpty)
-    .min(1, 'At least one delivery warehouse is required'),
+  pickupWarehouses: z.array(UuidOrEmpty).min(1, 'At least one pickup warehouse is required'),
+  deliveryWarehouses: z.array(UuidOrEmpty).min(1, 'At least one delivery warehouse is required'),
 });
 
 export type DateOnlyForm = z.infer<typeof DateOnlyFormSchema>;

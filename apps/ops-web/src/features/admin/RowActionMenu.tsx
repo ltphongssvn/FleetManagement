@@ -9,8 +9,13 @@
 'use client';
 import { useState, type JSX } from 'react';
 import {
-  Menu, MenuButton, MenuItem, MenuItems,
-  Dialog, DialogPanel, DialogTitle,
+  Menu,
+  MenuButton,
+  MenuItem,
+  MenuItems,
+  Dialog,
+  DialogPanel,
+  DialogTitle,
 } from '@headlessui/react';
 export interface RowAction {
   readonly key: string;
@@ -21,14 +26,18 @@ export interface RowAction {
   readonly disabled?: boolean;
 }
 export function RowActionMenu({
-  label, actions,
+  label,
+  actions,
 }: {
   label: string;
   actions: readonly RowAction[];
 }): JSX.Element {
   const [pending, setPending] = useState<RowAction | null>(null);
   const choose = (a: RowAction): void => {
-    if (a.destructive === true) { setPending(a); return; }
+    if (a.destructive === true) {
+      setPending(a);
+      return;
+    }
     a.onSelect();
   };
   const confirm = (): void => {
@@ -41,25 +50,29 @@ export function RowActionMenu({
       <Menu>
         <MenuButton
           aria-label={label}
-          className='inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500'
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
         >
-          <span aria-hidden='true' className='text-xl leading-none'>⋯</span>
+          <span aria-hidden="true" className="text-xl leading-none">
+            ⋯
+          </span>
         </MenuButton>
         <MenuItems
-          anchor='bottom end'
-          className='z-50 mt-1 min-w-40 rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg ring-1 ring-black/5 focus:outline-none [--anchor-gap:4px]'
+          anchor="bottom end"
+          className="z-50 mt-1 min-w-40 rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg ring-1 ring-black/5 focus:outline-none [--anchor-gap:4px]"
         >
           {actions.map((a) => (
             <MenuItem key={a.key}>
               <button
-                type='button'
+                type="button"
                 disabled={a.disabled === true}
-                onClick={() => { choose(a); }}
+                onClick={() => {
+                  choose(a);
+                }}
                 className={
                   (a.destructive === true
                     ? 'text-red-600 data-[focus]:bg-red-600 data-[focus]:text-white'
-                    : 'text-slate-900 data-[focus]:bg-indigo-600 data-[focus]:text-white')
-                  + ' block w-full min-h-11 px-3 py-2 text-left disabled:opacity-40'
+                    : 'text-slate-900 data-[focus]:bg-indigo-600 data-[focus]:text-white') +
+                  ' block w-full min-h-11 px-3 py-2 text-left disabled:opacity-40'
                 }
               >
                 {a.label}
@@ -68,26 +81,34 @@ export function RowActionMenu({
           ))}
         </MenuItems>
       </Menu>
-      <Dialog open={pending !== null} onClose={() => { setPending(null); }} className='relative z-50'>
-        <div className='fixed inset-0 bg-black/30' aria-hidden='true' />
-        <div className='fixed inset-0 flex items-center justify-center p-4'>
-          <DialogPanel className='w-full max-w-sm rounded-lg bg-white p-5 shadow-xl'>
-            <DialogTitle className='text-base font-semibold text-slate-900'>
+      <Dialog
+        open={pending !== null}
+        onClose={() => {
+          setPending(null);
+        }}
+        className="relative z-50"
+      >
+        <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+        <div className="fixed inset-0 flex items-center justify-center p-4">
+          <DialogPanel className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl">
+            <DialogTitle className="text-base font-semibold text-slate-900">
               {pending?.confirmLabel ?? pending?.label ?? ''}
             </DialogTitle>
-            <div className='mt-4 flex justify-end gap-2'>
+            <div className="mt-4 flex justify-end gap-2">
               <button
-                type='button'
-                onClick={() => { setPending(null); }}
-                className='min-h-11 rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400'
+                type="button"
+                onClick={() => {
+                  setPending(null);
+                }}
+                className="min-h-11 rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
               >
                 Hủy
               </button>
               <button
-                type='button'
-                data-testid='confirm-accept'
+                type="button"
+                data-testid="confirm-accept"
                 onClick={confirm}
-                className='min-h-11 rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500'
+                className="min-h-11 rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
               >
                 {pending?.label ?? ''}
               </button>

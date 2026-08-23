@@ -3,7 +3,9 @@
 import type { NextRequest } from 'next/server';
 import type { NextResponse } from 'next/server';
 import { forwardWrite } from '@/app/api/_forward';
-interface Ctx { params: Promise<{ id: string }> }
+interface Ctx {
+  params: Promise<{ id: string }>;
+}
 export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id } = await ctx.params;
   return forwardWrite(req, '/reference/vehicles/' + id, 'PATCH');

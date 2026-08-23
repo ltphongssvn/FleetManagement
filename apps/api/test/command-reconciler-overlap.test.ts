@@ -1,11 +1,24 @@
 // apps/api/test/command-reconciler-overlap.test.ts
 import { describe, it, expect, vi } from 'vitest';
-import { CommandsGateway, COMMAND_DELIVERY_POLICY_VERSION } from '../src/commands/commands.gateway.js';
+import {
+  CommandsGateway,
+  COMMAND_DELIVERY_POLICY_VERSION,
+} from '../src/commands/commands.gateway.js';
 import type { IPushProvider } from '../src/push/push-provider.interface.js';
 import type { Clock } from '../src/common/clock.js';
 
 interface PendingMap {
-  readonly pending: Map<string, { operatorId: string; issuedAt: Date; attempts: number; pushAttempts: number; pushInFlight: boolean; policyVersion: string }>;
+  readonly pending: Map<
+    string,
+    {
+      operatorId: string;
+      issuedAt: Date;
+      attempts: number;
+      pushAttempts: number;
+      pushInFlight: boolean;
+      policyVersion: string;
+    }
+  >;
 }
 
 function makeGw(push: IPushProvider['sendToOperator']): CommandsGateway {
@@ -18,7 +31,10 @@ describe('@fleet/api - CommandsGateway reconciler overlap protection', () => {
   it('does not invoke push provider twice for same command while previous push is in flight', () => {
     let resolveFn: ((v: { accepted: number; rejected: number }) => void) | null = null;
     const push = vi.fn().mockImplementation(
-      () => new Promise<{ accepted: number; rejected: number }>((r) => { resolveFn = r; }),
+      () =>
+        new Promise<{ accepted: number; rejected: number }>((r) => {
+          resolveFn = r;
+        }),
     ) as unknown as IPushProvider['sendToOperator'];
     const gw = makeGw(push);
     (gw as unknown as PendingMap).pending.set('cSlow', {
@@ -33,12 +49,18 @@ describe('@fleet/api - CommandsGateway reconciler overlap protection', () => {
     gw.reconcileNow(new Date());
     gw.reconcileNow(new Date());
     expect(push).toHaveBeenCalledTimes(1);
-    (resolveFn as ((v: { accepted: number; rejected: number }) => void) | null)?.({ accepted: 1, rejected: 0 });
+    (resolveFn as ((v: { accepted: number; rejected: number }) => void) | null)?.({
+      accepted: 1,
+      rejected: 0,
+    });
   });
 
   it('marks pushInFlight on entry while push pending', () => {
     const push = vi.fn().mockImplementation(
-      () => new Promise<{ accepted: number; rejected: number }>(() => { /* never resolves */ }),
+      () =>
+        new Promise<{ accepted: number; rejected: number }>(() => {
+          /* never resolves */
+        }),
     ) as unknown as IPushProvider['sendToOperator'];
     const gw = makeGw(push);
     (gw as unknown as PendingMap).pending.set('cFlight', {
@@ -70,9 +92,13 @@ describe('@fleet/api - CommandsGateway reconciler overlap protection', () => {
       policyVersion: COMMAND_DELIVERY_POLICY_VERSION,
     });
     gw.reconcileNow(new Date());
-    await new Promise((r) => { setTimeout(r, 10); });
+    await new Promise((r) => {
+      setTimeout(r, 10);
+    });
     gw.reconcileNow(new Date());
-    await new Promise((r) => { setTimeout(r, 10); });
+    await new Promise((r) => {
+      setTimeout(r, 10);
+    });
     expect(attempt).toBe(2);
     const entry = (gw as unknown as PendingMap).pending.get('cSeq');
     expect(entry?.pushInFlight).toBe(false);

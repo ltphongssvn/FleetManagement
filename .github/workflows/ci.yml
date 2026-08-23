@@ -122,7 +122,7 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: ["**"]
+    branches: ['**']
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -130,7 +130,7 @@ env:
   # Opt JavaScript actions (actions/cache, download-artifact, etc.) onto
   # Node 24 ahead of the 2026-06-02 forced cutover, clearing the Node 20
   # deprecation warnings.
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   # turbo.jsonc sets remoteCache.signature:true, so turbo HMAC-SHA256-signs
   # artifacts on upload and VERIFIES them on download; any artifact that fails
   # verification is SILENTLY treated as a cache miss. The key must therefore be
@@ -597,6 +597,23 @@ jobs:
           restore-keys: ${{ runner.os }}-pnpm-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # BUILD THE WORKSPACE PACKAGES THIS JOB'S TESTS IMPORT (2026-08-23).
+      # This was the ONLY test-running job here with no build step -- api-tests
+      # and other-tests both run the identical filter list before testing. Four
+      # guards under scripts/ import readTurboTasks from @fleet/test-fixtures,
+      # whose package exports point at ./dist/index.js, and vite resolves a
+      # workspace package through its EMITTED entry rather than its source. On a
+      # clean runner there is no dist, so all four failed with
+      # Failed-to-resolve-entry while passing locally off a warm dist.
+      #
+      # turbo.jsonc now declares //#test:scripts dependsOn
+      # @fleet/test-fixtures#build, which fixes `turbo run test:scripts`. It does
+      # NOT fix this job, because the step below runs `pnpm run test:scripts`
+      # directly -- vitest, never turbo -- so no task graph is consulted. Both
+      # changes are needed: the edge for every turbo caller, this step for the
+      # one caller that bypasses turbo.
+      - name: Build workspace package deps
+        run: pnpm exec turbo run build --filter=@fleet/test-fixtures
       # The guard is the BOUNDARY: non-zero exit fails this job, which fails the
       # PR. Runs before any deployment job could ever be reached.
       - name: Secret + production-topology guard

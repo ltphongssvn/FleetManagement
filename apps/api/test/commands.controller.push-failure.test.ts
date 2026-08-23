@@ -34,7 +34,10 @@ describe('@fleet/api - CommandsController push failure isolation', () => {
     });
     const svc = { persist } as unknown as CommandsService;
     const gw = { pushCommand } as unknown as CommandsGateway;
-    const ctrl = new CommandsController(gw, svc, { assertOperatorInTenant: () => Promise.resolve(), assertAggregateInTenant: () => Promise.resolve() } as unknown as TenantPolicy);
+    const ctrl = new CommandsController(gw, svc, {
+      assertOperatorInTenant: () => Promise.resolve(),
+      assertAggregateInTenant: () => Promise.resolve(),
+    } as unknown as TenantPolicy);
 
     const result = await ctrl.issue(validBody, OP);
 

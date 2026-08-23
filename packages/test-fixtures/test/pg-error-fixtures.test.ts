@@ -29,6 +29,6 @@ describe('@fleet/test-fixtures - pg-error fixtures', () => {
   });
   it('factories compose: createWrappedError(createPgUniqueViolation()) for nested-cause testing', () => {
     const wrapped = createWrappedError('tx failed', createPgUniqueViolation());
-    expect(((wrapped.cause as { code?: string })).code).toBe('23505');
+    expect((wrapped.cause as { code?: string }).code).toBe('23505');
   });
 });

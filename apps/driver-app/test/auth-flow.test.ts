@@ -22,26 +22,46 @@ describe('@fleet/driver-app - exchangeAuthCode', () => {
 
   it('throws on non-200', async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 400, statusText: 'bad' });
-    await expect(exchangeAuthCode({
-      tokenEndpoint: 'http://idp/token', code: 'C', clientId: 'cid', redirectUri: 'x', fetchFn: fetchFn as never,
-    })).rejects.toThrow();
+    await expect(
+      exchangeAuthCode({
+        tokenEndpoint: 'http://idp/token',
+        code: 'C',
+        clientId: 'cid',
+        redirectUri: 'x',
+        fetchFn: fetchFn as never,
+      }),
+    ).rejects.toThrow();
   });
 
   it('throws on shape mismatch', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ wrong: 1 }) });
-    await expect(exchangeAuthCode({
-      tokenEndpoint: 'http://idp/token', code: 'C', clientId: 'cid', redirectUri: 'x', fetchFn: fetchFn as never,
-    })).rejects.toThrow();
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({ wrong: 1 }) });
+    await expect(
+      exchangeAuthCode({
+        tokenEndpoint: 'http://idp/token',
+        code: 'C',
+        clientId: 'cid',
+        redirectUri: 'x',
+        fetchFn: fetchFn as never,
+      }),
+    ).rejects.toThrow();
   });
 
   it('includes code_verifier in body when provided (PKCE)', async () => {
     let capturedBody: string | undefined;
     const fetchFn = vi.fn().mockImplementation((_url: string, init: { body: string }) => {
       capturedBody = init.body;
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ access_token: 'a', expires_in: 3600 }) });
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ access_token: 'a', expires_in: 3600 }),
+      });
     });
     await exchangeAuthCode({
-      tokenEndpoint: 'http://idp/token', code: 'C', clientId: 'cid', redirectUri: 'x',
+      tokenEndpoint: 'http://idp/token',
+      code: 'C',
+      clientId: 'cid',
+      redirectUri: 'x',
       codeVerifier: 'verifier-abc',
       fetchFn: fetchFn as never,
     });
@@ -50,10 +70,14 @@ describe('@fleet/driver-app - exchangeAuthCode', () => {
 
   it('returns refreshToken=null when token response omits refresh_token', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
-      ok: true, json: () => Promise.resolve({ access_token: 'a', expires_in: 3600 }),
+      ok: true,
+      json: () => Promise.resolve({ access_token: 'a', expires_in: 3600 }),
     });
     const res = await exchangeAuthCode({
-      tokenEndpoint: 'http://idp/token', code: 'C', clientId: 'cid', redirectUri: 'x',
+      tokenEndpoint: 'http://idp/token',
+      code: 'C',
+      clientId: 'cid',
+      redirectUri: 'x',
       fetchFn: fetchFn as never,
     });
     expect(res.refreshToken).toBeNull();
@@ -62,10 +86,17 @@ describe('@fleet/driver-app - exchangeAuthCode', () => {
 
 describe('@fleet/driver-app - isTokenExpired', () => {
   it('returns true when past expiresAt', () => {
-    expect(isTokenExpired({ accessToken: 'a', expiresAt: 0 } as never, Date.now() / 1000)).toBe(true);
+    expect(isTokenExpired({ accessToken: 'a', expiresAt: 0 } as never, Date.now() / 1000)).toBe(
+      true,
+    );
   });
   it('returns false when before expiresAt', () => {
-    expect(isTokenExpired({ accessToken: 'a', expiresAt: Date.now() / 1000 + 600 } as never, Date.now() / 1000)).toBe(false);
+    expect(
+      isTokenExpired(
+        { accessToken: 'a', expiresAt: Date.now() / 1000 + 600 } as never,
+        Date.now() / 1000,
+      ),
+    ).toBe(false);
   });
 
   it('uses globalThis.fetch when fetchFn is not provided', async () => {
@@ -93,14 +124,22 @@ describe('@fleet/driver-app - isTokenExpired', () => {
 describe('@fleet/driver-app - exchangeAuthCode mutation-hardening', () => {
   it('POSTs to tokenEndpoint with method=POST, Content-Type=application/x-www-form-urlencoded, grant_type=authorization_code', async () => {
     let capturedUrl: string | undefined;
-    let capturedInit: { method?: string; headers?: Record<string, string>; body?: string } | undefined;
+    let capturedInit:
+      | { method?: string; headers?: Record<string, string>; body?: string }
+      | undefined;
     const fetchFn = vi.fn().mockImplementation((u: string, init: typeof capturedInit) => {
       capturedUrl = u;
       capturedInit = init;
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ access_token: 'a', expires_in: 3600 }) });
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ access_token: 'a', expires_in: 3600 }),
+      });
     });
     await exchangeAuthCode({
-      tokenEndpoint: 'http://idp/token', code: 'C', clientId: 'cid', redirectUri: 'fleetdriver://cb',
+      tokenEndpoint: 'http://idp/token',
+      code: 'C',
+      clientId: 'cid',
+      redirectUri: 'fleetdriver://cb',
       fetchFn: fetchFn as never,
     });
     expect(capturedUrl).toBe('http://idp/token');
@@ -112,19 +151,33 @@ describe('@fleet/driver-app - exchangeAuthCode mutation-hardening', () => {
   });
 
   it('non-200 throws an Error whose message names the OIDC token exchange and HTTP status', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 401, statusText: 'Unauthorized' });
-    await expect(exchangeAuthCode({
-      tokenEndpoint: 'http://idp/token', code: 'C', clientId: 'cid', redirectUri: 'x',
-      fetchFn: fetchFn as never,
-    })).rejects.toThrow(/OIDC token exchange HTTP 401 Unauthorized/);
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 401, statusText: 'Unauthorized' });
+    await expect(
+      exchangeAuthCode({
+        tokenEndpoint: 'http://idp/token',
+        code: 'C',
+        clientId: 'cid',
+        redirectUri: 'x',
+        fetchFn: fetchFn as never,
+      }),
+    ).rejects.toThrow(/OIDC token exchange HTTP 401 Unauthorized/);
   });
 
   it('shape-mismatch throws an Error whose message names the invalid response', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ wrong: true }) });
-    await expect(exchangeAuthCode({
-      tokenEndpoint: 'http://idp/token', code: 'C', clientId: 'cid', redirectUri: 'x',
-      fetchFn: fetchFn as never,
-    })).rejects.toThrow(/OIDC token response invalid/);
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({ wrong: true }) });
+    await expect(
+      exchangeAuthCode({
+        tokenEndpoint: 'http://idp/token',
+        code: 'C',
+        clientId: 'cid',
+        redirectUri: 'x',
+        fetchFn: fetchFn as never,
+      }),
+    ).rejects.toThrow(/OIDC token response invalid/);
   });
 
   it('expiresAt is roughly now+expires_in seconds (kills * 1000 mutant)', async () => {
@@ -134,7 +187,10 @@ describe('@fleet/driver-app - exchangeAuthCode mutation-hardening', () => {
       json: () => Promise.resolve({ access_token: 'a', expires_in: 3600 }),
     });
     const r = await exchangeAuthCode({
-      tokenEndpoint: 'http://idp/token', code: 'C', clientId: 'cid', redirectUri: 'x',
+      tokenEndpoint: 'http://idp/token',
+      code: 'C',
+      clientId: 'cid',
+      redirectUri: 'x',
       fetchFn: fetchFn as never,
     });
     const after = Math.floor(Date.now() / 1000);
@@ -160,7 +216,10 @@ describe('@fleet/driver-app - exchangeAuthCode mutation-hardening', () => {
       json: () => Promise.resolve({ access_token: 'longertok', expires_in: 3600 }),
     });
     const r = await exchangeAuthCode({
-      tokenEndpoint: 'http://idp/token', code: 'C', clientId: 'cid', redirectUri: 'x',
+      tokenEndpoint: 'http://idp/token',
+      code: 'C',
+      clientId: 'cid',
+      redirectUri: 'x',
       fetchFn: fetchFn as never,
     });
     expect(r.accessToken).toBe('longertok'); // mutated max(1) would reject, throwing
@@ -169,10 +228,14 @@ describe('@fleet/driver-app - exchangeAuthCode mutation-hardening', () => {
   it('refresh_token (when present) must be min 1 char', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ access_token: 'a', refresh_token: 'refreshtok', expires_in: 3600 }),
+      json: () =>
+        Promise.resolve({ access_token: 'a', refresh_token: 'refreshtok', expires_in: 3600 }),
     });
     const r = await exchangeAuthCode({
-      tokenEndpoint: 'http://idp/token', code: 'C', clientId: 'cid', redirectUri: 'x',
+      tokenEndpoint: 'http://idp/token',
+      code: 'C',
+      clientId: 'cid',
+      redirectUri: 'x',
       fetchFn: fetchFn as never,
     });
     expect(r.refreshToken).toBe('refreshtok');

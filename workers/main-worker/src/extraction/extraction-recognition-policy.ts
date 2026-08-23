@@ -55,7 +55,8 @@ export function recognizePhieuCan(signal: PhieuCanVisionSignal): PhieuCanRecogni
       return { ok: true, format: 'goods_only', rawValues: [signal.goodsRaw] };
     }
     case 'truck_and_goods': {
-      if (signal.grossRaw === null || signal.tareRaw === null) return { ok: false, reason: 'non_standard_format' };
+      if (signal.grossRaw === null || signal.tareRaw === null)
+        return { ok: false, reason: 'non_standard_format' };
       return { ok: true, format: 'truck_and_goods', rawValues: [signal.grossRaw, signal.tareRaw] };
     }
     case 'truck_only':

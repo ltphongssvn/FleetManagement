@@ -42,7 +42,10 @@ const LINE_COMMENT = SLASH + SLASH;
 // including this file's own header.
 const isCommentLine = (line: string): boolean => line.trimStart().startsWith(LINE_COMMENT);
 const codeOnly = (src: string): string =>
-  src.split(NL).filter((line) => !isCommentLine(line)).join(NL);
+  src
+    .split(NL)
+    .filter((line) => !isCommentLine(line))
+    .join(NL);
 
 // Configs that run a pool and therefore must bound it. Node-environment
 // configs for pure-function packages (domain, observability, sync-protocol,

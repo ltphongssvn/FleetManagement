@@ -15,7 +15,12 @@ import type { Server, Socket } from 'socket.io';
 import { z } from 'zod';
 import { COMMAND_EVENTS } from '@fleet/sync-protocol';
 import { CommandAckSchema, type CommandAck, type CommandPayload } from './command.dto.js';
-import { shouldFallbackToPush, COMMAND_PUSH_MAX_ATTEMPTS, COMMAND_MAX_ATTEMPTS_CONST, type PendingCommand } from './command-policy.js';
+import {
+  shouldFallbackToPush,
+  COMMAND_PUSH_MAX_ATTEMPTS,
+  COMMAND_MAX_ATTEMPTS_CONST,
+  type PendingCommand,
+} from './command-policy.js';
 import { PUSH_PROVIDER, type IPushProvider } from '../push/push-provider.interface.js';
 import { CLOCK, SystemClock, type Clock } from '../common/clock.js';
 import { tagActiveSpan } from '../observability/otel.js';
@@ -38,11 +43,15 @@ interface AuthenticatedSocketData {
   readonly fleetOperator: OperatorContext;
 }
 
-export function extractToken(handshake: { auth: Record<string, unknown>; headers: Record<string, string | undefined> }): string | undefined {
+export function extractToken(handshake: {
+  auth: Record<string, unknown>;
+  headers: Record<string, string | undefined>;
+}): string | undefined {
   const fromAuth = handshake.auth['token'];
   if (typeof fromAuth === 'string' && fromAuth.length > 0) return fromAuth;
   const header = handshake.headers['authorization'];
-  if (typeof header === 'string' && header.startsWith('Bearer ')) return header.slice('Bearer '.length);
+  if (typeof header === 'string' && header.startsWith('Bearer '))
+    return header.slice('Bearer '.length);
   return undefined;
 }
 
@@ -72,8 +81,18 @@ export interface ClientToServerEvents {
 
 export type FleetSocketData = SocketData;
 
-type FleetServer = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, FleetSocketData>;
-type FleetSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, FleetSocketData>;
+type FleetServer = Server<
+  ClientToServerEvents,
+  ServerToClientEvents,
+  Record<string, never>,
+  FleetSocketData
+>;
+type FleetSocket = Socket<
+  ClientToServerEvents,
+  ServerToClientEvents,
+  Record<string, never>,
+  FleetSocketData
+>;
 
 interface PendingEntry {
   readonly operatorId: string;
@@ -199,7 +218,9 @@ export class CommandsGateway implements OnGatewayConnection, OnGatewayDisconnect
     // mid-flight on SIGTERM. Pure await — settled-or-rejected both fine.
     const inflight = [...this.pushPromises.values()];
     if (inflight.length === 0) return;
-    this.logger.log(`Awaiting ${String(inflight.length)} in-flight push fallback(s) before shutdown`);
+    this.logger.log(
+      `Awaiting ${String(inflight.length)} in-flight push fallback(s) before shutdown`,
+    );
     await Promise.allSettled(inflight);
   }
 
@@ -208,7 +229,9 @@ export class CommandsGateway implements OnGatewayConnection, OnGatewayDisconnect
     const sockets = this.server.sockets.adapter.rooms.get(room);
     const recipientCount = sockets?.size ?? 0;
     if (recipientCount === 0) {
-      this.logger.warn(`No socket in room ${room} for command ${cmd.commandId}; queuing for push fallback`);
+      this.logger.warn(
+        `No socket in room ${room} for command ${cmd.commandId}; queuing for push fallback`,
+      );
       // Add to pending so reconciler picks it up and triggers push fallback.
       // attempts=COMMAND_MAX_ATTEMPTS makes shouldFallbackToPush true once timeout elapses.
       this.pending.set(cmd.commandId, {
@@ -259,7 +282,9 @@ export class CommandsGateway implements OnGatewayConnection, OnGatewayDisconnect
     // Ownership check: only the targeted operator may ack their command.
     const socketOperatorId = client.data.operatorId;
     if (socketOperatorId !== entry.operatorId) {
-      this.logger.warn(`Ack operator mismatch: socket=${socketOperatorId ?? '-'} expected=${entry.operatorId} cmd=${ack.commandId}`);
+      this.logger.warn(
+        `Ack operator mismatch: socket=${socketOperatorId ?? '-'} expected=${entry.operatorId} cmd=${ack.commandId}`,
+      );
       return { ok: false, reason: 'operator_mismatch' };
     }
     const latencyMs = this.clock.now().getTime() - entry.issuedAt.getTime();
@@ -280,7 +305,9 @@ export class CommandsGateway implements OnGatewayConnection, OnGatewayDisconnect
     if (ack.status === 'rejected') {
       // Domain distinction: rejected commands need follow-up (reassign, audit, etc.)
       // Domain handlers (reassign, audit) wire in via outbox event, not gateway.
-      this.logger.warn(`Command ${ack.commandId} REJECTED by operator: ${ack.reasonCode} latencyMs=${String(latencyMs)}`);
+      this.logger.warn(
+        `Command ${ack.commandId} REJECTED by operator: ${ack.reasonCode} latencyMs=${String(latencyMs)}`,
+      );
     } else {
       this.logger.log(`Ack ${ack.commandId} received latencyMs=${String(latencyMs)}`);
     }
@@ -298,7 +325,9 @@ export class CommandsGateway implements OnGatewayConnection, OnGatewayDisconnect
           continue;
         }
         fallbackIds.push(commandId);
-        this.logger.warn(`Command ${commandId} timed out after ${String(entry.attempts)} attempts -> push fallback`);
+        this.logger.warn(
+          `Command ${commandId} timed out after ${String(entry.attempts)} attempts -> push fallback`,
+        );
         if (this.pushProvider) {
           entry.pushInFlight = true;
           const pushP = this.pushProvider
@@ -312,7 +341,9 @@ export class CommandsGateway implements OnGatewayConnection, OnGatewayDisconnect
               if (result.accepted > 0) {
                 this.pending.delete(commandId);
                 if (result.rejected > 0) {
-                  this.logger.warn(`Push fallback partial: cmd=${commandId} accepted=${String(result.accepted)} rejected=${String(result.rejected)}`);
+                  this.logger.warn(
+                    `Push fallback partial: cmd=${commandId} accepted=${String(result.accepted)} rejected=${String(result.rejected)}`,
+                  );
                 }
                 return;
               }
@@ -329,9 +360,13 @@ export class CommandsGateway implements OnGatewayConnection, OnGatewayDisconnect
                   deadLetteredAt: this.clock.now(),
                 });
                 this.pending.delete(commandId);
-                this.logger.error(`Push fallback DLQ'd after ${String(entry.pushAttempts)} attempts; cmd=${commandId} lastError=${errMsg}`);
+                this.logger.error(
+                  `Push fallback DLQ'd after ${String(entry.pushAttempts)} attempts; cmd=${commandId} lastError=${errMsg}`,
+                );
               } else {
-                this.logger.warn(`Push fallback all-rejected (attempt ${String(entry.pushAttempts)}/${String(COMMAND_PUSH_MAX_ATTEMPTS)}); cmd=${commandId} retained`);
+                this.logger.warn(
+                  `Push fallback all-rejected (attempt ${String(entry.pushAttempts)}/${String(COMMAND_PUSH_MAX_ATTEMPTS)}); cmd=${commandId} retained`,
+                );
               }
             })
             .catch((err: unknown) => {
@@ -348,9 +383,14 @@ export class CommandsGateway implements OnGatewayConnection, OnGatewayDisconnect
                   deadLetteredAt: this.clock.now(),
                 });
                 this.pending.delete(commandId);
-                this.logger.error(`Push fallback DLQ'd after ${String(entry.pushAttempts)} attempts; cmd=${commandId} lastError=${errMsg}`);
+                this.logger.error(
+                  `Push fallback DLQ'd after ${String(entry.pushAttempts)} attempts; cmd=${commandId} lastError=${errMsg}`,
+                );
               } else {
-                this.logger.warn(`Push fallback failed (attempt ${String(entry.pushAttempts)}/${String(COMMAND_PUSH_MAX_ATTEMPTS)}); cmd=${commandId} retained`, err);
+                this.logger.warn(
+                  `Push fallback failed (attempt ${String(entry.pushAttempts)}/${String(COMMAND_PUSH_MAX_ATTEMPTS)}); cmd=${commandId} retained`,
+                  err,
+                );
               }
             })
             .finally(() => {
@@ -371,7 +411,9 @@ export class CommandsGateway implements OnGatewayConnection, OnGatewayDisconnect
     return this.pending.size;
   }
 
-  async reconcileAndSettle(now: Date = this.clock.now()): Promise<{ readonly flushed: readonly string[]; readonly settled: number }> {
+  async reconcileAndSettle(
+    now: Date = this.clock.now(),
+  ): Promise<{ readonly flushed: readonly string[]; readonly settled: number }> {
     const flushed = this.reconcileNow(now);
     const promises = flushed
       .map((id) => this.pushPromises.get(id))
@@ -399,5 +441,4 @@ export class CommandsGateway implements OnGatewayConnection, OnGatewayDisconnect
   getLatencySamples(): readonly LatencySample[] {
     return this.latencyRecorder.samples();
   }
-
 }

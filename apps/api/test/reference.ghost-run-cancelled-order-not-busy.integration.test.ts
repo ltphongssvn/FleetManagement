@@ -20,17 +20,30 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ReferenceService } from '../src/reference/reference.service.js';
 import { driver, vehicle } from '../src/database/schema/reference.js';
 import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
-import { roadRun, transportOrder, roadRunTransportOrder } from '../src/database/schema/transport.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  roadRun,
+  transportOrder,
+  roadRunTransportOrder,
+} from '../src/database/schema/transport.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { withTxIsolation } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 function tenancy(op: ReturnType<typeof createOperatorContext>): {
-  companyId: string; businessUnitId: string; depotId: string; legalEntityId: string;
+  companyId: string;
+  businessUnitId: string;
+  depotId: string;
+  legalEntityId: string;
 } {
   return {
-    companyId: op.companyId, businessUnitId: op.businessUnitId,
-    depotId: op.depotId, legalEntityId: op.legalEntityId,
+    companyId: op.companyId,
+    businessUnitId: op.businessUnitId,
+    depotId: op.depotId,
+    legalEntityId: op.legalEntityId,
   };
 }
 interface Seeded {
@@ -42,18 +55,40 @@ async function seedGhostAndLiveBusy(
   op: ReturnType<typeof createOperatorContext>,
   ids: { ghostOp: string; liveOp: string; ghostPlate: string; livePlate: string },
 ): Promise<Seeded> {
-  const [drvGhost] = await tx.insert(driver).values({
-    ...tenancy(op), fullName: 'AAA GhostDrv', active: true, operatorId: ids.ghostOp,
-  }).returning();
-  const [drvLive] = await tx.insert(driver).values({
-    ...tenancy(op), fullName: 'BBB LiveBusyDrv', active: true, operatorId: ids.liveOp,
-  }).returning();
-  const [vehGhost] = await tx.insert(vehicle).values({
-    ...tenancy(op), plate: ids.ghostPlate, active: true,
-  }).returning();
-  const [vehLive] = await tx.insert(vehicle).values({
-    ...tenancy(op), plate: ids.livePlate, active: true,
-  }).returning();
+  const [drvGhost] = await tx
+    .insert(driver)
+    .values({
+      ...tenancy(op),
+      fullName: 'AAA GhostDrv',
+      active: true,
+      operatorId: ids.ghostOp,
+    })
+    .returning();
+  const [drvLive] = await tx
+    .insert(driver)
+    .values({
+      ...tenancy(op),
+      fullName: 'BBB LiveBusyDrv',
+      active: true,
+      operatorId: ids.liveOp,
+    })
+    .returning();
+  const [vehGhost] = await tx
+    .insert(vehicle)
+    .values({
+      ...tenancy(op),
+      plate: ids.ghostPlate,
+      active: true,
+    })
+    .returning();
+  const [vehLive] = await tx
+    .insert(vehicle)
+    .values({
+      ...tenancy(op),
+      plate: ids.livePlate,
+      active: true,
+    })
+    .returning();
   if (!drvGhost || !drvLive || !vehGhost || !vehLive) throw new Error('seed failed');
   await tx.insert(driverVehicleAssignment).values([
     { ...tenancy(op), driverId: drvGhost.driverId, vehicleId: vehGhost.vehicleId },
@@ -61,36 +96,62 @@ async function seedGhostAndLiveBusy(
   ]);
   // GHOST: non-terminal (started) road_run whose ONLY linked order is cancelled
   // -- the exact prod shape of road_run dd964ecd / XTT.06-002.
-  const [rrGhost] = await tx.insert(roadRun).values({
-    ...tenancy(op), state: 'started',
-    assignedOperatorId: ids.ghostOp, assignedAssetId: vehGhost.vehicleId,
-  }).returning();
-  const [orderCancelled] = await tx.insert(transportOrder).values({
-    ...tenancy(op), state: 'cancelled', cancelledAt: new Date(),
-  }).returning();
+  const [rrGhost] = await tx
+    .insert(roadRun)
+    .values({
+      ...tenancy(op),
+      state: 'started',
+      assignedOperatorId: ids.ghostOp,
+      assignedAssetId: vehGhost.vehicleId,
+    })
+    .returning();
+  const [orderCancelled] = await tx
+    .insert(transportOrder)
+    .values({
+      ...tenancy(op),
+      state: 'cancelled',
+      cancelledAt: new Date(),
+    })
+    .returning();
   if (!rrGhost || !orderCancelled) throw new Error('ghost seed failed');
   await tx.insert(roadRunTransportOrder).values({
-    ...tenancy(op), roadRunId: rrGhost.roadRunId,
-    transportOrderId: orderCancelled.transportOrderId, sequence: 1,
+    ...tenancy(op),
+    roadRunId: rrGhost.roadRunId,
+    transportOrderId: orderCancelled.transportOrderId,
+    sequence: 1,
   });
   // LIVE BUSY control: non-terminal road_run WITH a live (non-terminal) order.
-  const [rrLive] = await tx.insert(roadRun).values({
-    ...tenancy(op), state: 'started',
-    assignedOperatorId: ids.liveOp, assignedAssetId: vehLive.vehicleId,
-  }).returning();
-  const [orderLive] = await tx.insert(transportOrder).values({
-    ...tenancy(op),
-  }).returning();
+  const [rrLive] = await tx
+    .insert(roadRun)
+    .values({
+      ...tenancy(op),
+      state: 'started',
+      assignedOperatorId: ids.liveOp,
+      assignedAssetId: vehLive.vehicleId,
+    })
+    .returning();
+  const [orderLive] = await tx
+    .insert(transportOrder)
+    .values({
+      ...tenancy(op),
+    })
+    .returning();
   if (!rrLive || !orderLive) throw new Error('live-control seed failed');
   await tx.insert(roadRunTransportOrder).values({
-    ...tenancy(op), roadRunId: rrLive.roadRunId,
-    transportOrderId: orderLive.transportOrderId, sequence: 1,
+    ...tenancy(op),
+    roadRunId: rrLive.roadRunId,
+    transportOrderId: orderLive.transportOrderId,
+    sequence: 1,
   });
   return { ghostOperatorId: ids.ghostOp, ghostVehicleId: vehGhost.vehicleId };
 }
 describe('@fleet/api - ReferenceService frees pairs bound only to GHOST runs (all linked orders terminal)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('drivers(op) includes the ghost-bound driver and still hides the live-busy driver', async () => {
     const result = await withTxIsolation(testDb, async (tx) => {
       const svc = new ReferenceService(tx as never);
@@ -98,7 +159,8 @@ describe('@fleet/api - ReferenceService frees pairs bound only to GHOST runs (al
       const seeded = await seedGhostAndLiveBusy(tx, op, {
         ghostOp: '00000000-0000-0000-0000-000000008001',
         liveOp: '00000000-0000-0000-0000-000000008002',
-        ghostPlate: 'GHST-D-01', livePlate: 'LIVE-D-01',
+        ghostPlate: 'GHST-D-01',
+        livePlate: 'LIVE-D-01',
       });
       return { items: (await svc.drivers(op)).items, seeded };
     });
@@ -113,13 +175,12 @@ describe('@fleet/api - ReferenceService frees pairs bound only to GHOST runs (al
       const seeded = await seedGhostAndLiveBusy(tx, op, {
         ghostOp: '00000000-0000-0000-0000-000000009001',
         liveOp: '00000000-0000-0000-0000-000000009002',
-        ghostPlate: 'AAA-GHST-V-01', livePlate: 'BBB-LIVE-V-01',
+        ghostPlate: 'AAA-GHST-V-01',
+        livePlate: 'BBB-LIVE-V-01',
       });
       return { items: (await svc.vehicles(op)).items, seeded };
     });
-    expect(result?.items).toEqual([
-      { id: result?.seeded.ghostVehicleId, label: 'AAA-GHST-V-01' },
-    ]);
+    expect(result?.items).toEqual([{ id: result?.seeded.ghostVehicleId, label: 'AAA-GHST-V-01' }]);
   });
   it('driverVehicleAssignments(op) includes the ghost-bound pair and still hides the live-busy pair', async () => {
     const result = await withTxIsolation(testDb, async (tx) => {
@@ -128,7 +189,8 @@ describe('@fleet/api - ReferenceService frees pairs bound only to GHOST runs (al
       const seeded = await seedGhostAndLiveBusy(tx, op, {
         ghostOp: '00000000-0000-0000-0000-000000010001',
         liveOp: '00000000-0000-0000-0000-000000010002',
-        ghostPlate: 'GHST-A-01', livePlate: 'LIVE-A-01',
+        ghostPlate: 'GHST-A-01',
+        livePlate: 'LIVE-A-01',
       });
       return { items: (await svc.driverVehicleAssignments(op)).items, seeded };
     });

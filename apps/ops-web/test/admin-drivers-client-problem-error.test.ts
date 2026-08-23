@@ -25,10 +25,10 @@ import {
 const PROBLEM_CT = 'application/problem+json';
 
 function problemResponse(status: number, code: string): Response {
-  return new Response(
-    JSON.stringify({ type: 'about:blank', title: 'x', status, code }),
-    { status, headers: { 'content-type': PROBLEM_CT } },
-  );
+  return new Response(JSON.stringify({ type: 'about:blank', title: 'x', status, code }), {
+    status,
+    headers: { 'content-type': PROBLEM_CT },
+  });
 }
 
 function makeClient(fetchFn: typeof globalThis.fetch): AdminDriversClient {
@@ -59,9 +59,7 @@ describe('AdminDriversClient throws ApiProblemError the presenter can map', () =
   });
 
   it('non-problem 500 body -> ApiProblemError status 500, code undefined, server-error copy', async () => {
-    const client = makeClient(
-      vi.fn(() => Promise.resolve(new Response('oops', { status: 500 }))),
-    );
+    const client = makeClient(vi.fn(() => Promise.resolve(new Response('oops', { status: 500 }))));
     const err: unknown = await client.list().then(
       () => null,
       (e: unknown) => e,
@@ -91,7 +89,17 @@ describe('AdminDriversClient throws ApiProblemError the presenter can map', () =
     // Full wire row: nullable is not optional, so every key must be present.
     // The old one-field fixture passed only because list() cast instead of
     // parsing -- the same gap this arc closes.
-    const rows = [{ driverId: 'd1', fullName: 'A', phone: null, operatorId: null, assignedVehicle: null, assignmentId: null, devices: [] }];
+    const rows = [
+      {
+        driverId: 'd1',
+        fullName: 'A',
+        phone: null,
+        operatorId: null,
+        assignedVehicle: null,
+        assignmentId: null,
+        devices: [],
+      },
+    ];
     const client = makeClient(
       vi.fn(() =>
         Promise.resolve(

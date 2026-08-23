@@ -32,7 +32,11 @@ import { HelpHint, HELP_TRIGGER_LABEL } from '@/features/ui/HelpHint';
 
 describe('Button - variant branches', () => {
   it('defaults type to button and is not disabled', () => {
-    render(<Button tone='primary' emphasis='solid'>Tạo lệnh</Button>);
+    render(
+      <Button tone="primary" emphasis="solid">
+        Tạo lệnh
+      </Button>,
+    );
     const btn = screen.getByRole('button', { name: 'Tạo lệnh' });
     expect(btn).toHaveAttribute('type', 'button');
     expect(btn).not.toBeDisabled();
@@ -40,14 +44,22 @@ describe('Button - variant branches', () => {
   });
 
   it('honours an explicit type and appends a custom className', () => {
-    render(<Button tone='primary' emphasis='solid' type='submit' className='w-full'>Lưu</Button>);
+    render(
+      <Button tone="primary" emphasis="solid" type="submit" className="w-full">
+        Lưu
+      </Button>,
+    );
     const btn = screen.getByRole('button', { name: 'Lưu' });
     expect(btn).toHaveAttribute('type', 'submit');
     expect(btn.className).toContain('w-full');
   });
 
   it('announces the disabled state to assistive tech, not just visually', () => {
-    render(<Button tone='danger' emphasis='solid' disabled>Xóa</Button>);
+    render(
+      <Button tone="danger" emphasis="solid" disabled>
+        Xóa
+      </Button>,
+    );
     const btn = screen.getByRole('button', { name: 'Xóa' });
     expect(btn).toBeDisabled();
     expect(btn).toHaveAttribute('aria-disabled', 'true');
@@ -56,13 +68,13 @@ describe('Button - variant branches', () => {
 
 describe('IconButton - the label is the point', () => {
   it('exposes the label to screen readers AND to hover', () => {
-    render(<IconButton tone='neutral' emphasis='ghost' label='Sửa SĐT' />);
+    render(<IconButton tone="neutral" emphasis="ghost" label="Sửa SĐT" />);
     const btn = screen.getByRole('button', { name: 'Sửa SĐT' });
     expect(btn).toHaveAttribute('title', 'Sửa SĐT');
   });
 
   it('keeps a comfortable touch target', () => {
-    render(<IconButton tone='neutral' emphasis='ghost' label='Thao tác' />);
+    render(<IconButton tone="neutral" emphasis="ghost" label="Thao tác" />);
     const btn = screen.getByRole('button', { name: 'Thao tác' });
     expect(btn.style.minHeight).toBe(String(ICON_BUTTON_SIZE_PX) + 'px');
     expect(btn.style.minWidth).toBe(String(ICON_BUTTON_SIZE_PX) + 'px');
@@ -70,7 +82,13 @@ describe('IconButton - the label is the point', () => {
 
   it('merges a custom className and a caller style without dropping the size floor', () => {
     render(
-      <IconButton tone='primary' emphasis='soft' label='Xem' className='ml-2' style={{ opacity: 0.5 }} />,
+      <IconButton
+        tone="primary"
+        emphasis="soft"
+        label="Xem"
+        className="ml-2"
+        style={{ opacity: 0.5 }}
+      />,
     );
     const btn = screen.getByRole('button', { name: 'Xem' });
     expect(btn.className).toContain('ml-2');
@@ -79,7 +97,7 @@ describe('IconButton - the label is the point', () => {
   });
 
   it('announces disabled', () => {
-    render(<IconButton tone='danger' emphasis='solid' label='Hủy' disabled />);
+    render(<IconButton tone="danger" emphasis="solid" label="Hủy" disabled />);
     const btn = screen.getByRole('button', { name: 'Hủy' });
     expect(btn).toBeDisabled();
     expect(btn).toHaveAttribute('aria-disabled', 'true');
@@ -88,7 +106,7 @@ describe('IconButton - the label is the point', () => {
 
 describe('EmptyState - a blank region that explains itself', () => {
   it('states the reason and the next step, and is announced politely', () => {
-    render(<EmptyState reason='no_data_yet' data-testid='empty-no-data' />);
+    render(<EmptyState reason="no_data_yet" data-testid="empty-no-data" />);
     const region = screen.getByRole('status');
     expect(region).toHaveAttribute('data-reason', 'no_data_yet');
     expect(region.textContent).not.toBe('');
@@ -96,13 +114,13 @@ describe('EmptyState - a blank region that explains itself', () => {
 
   it('renders a call to action when the surface supplies one', () => {
     render(
-      <EmptyState reason='no_search_results' action={<button type='button'>Xóa bộ lọc</button>} />,
+      <EmptyState reason="no_search_results" action={<button type="button">Xóa bộ lọc</button>} />,
     );
     expect(screen.getByRole('button', { name: 'Xóa bộ lọc' })).toBeInTheDocument();
   });
 
   it('renders no action wrapper when none is supplied', () => {
-    render(<EmptyState reason='no_filter_results' className='mt-4' />);
+    render(<EmptyState reason="no_filter_results" className="mt-4" />);
     expect(screen.queryByRole('button')).toBeNull();
     expect(screen.getByRole('status').className).toContain('mt-4');
   });
@@ -110,35 +128,47 @@ describe('EmptyState - a blank region that explains itself', () => {
 
 describe('FieldLabel - required and hint branches', () => {
   it('renders a bare label with no marker and no hint', () => {
-    render(<FieldLabel htmlFor='ten-hang'>Tên hàng</FieldLabel>);
+    render(<FieldLabel htmlFor="ten-hang">Tên hàng</FieldLabel>);
     expect(screen.getByText('Tên hàng')).toBeInTheDocument();
     expect(screen.queryByText(REQUIRED_MARKER_VI)).toBeNull();
   });
 
   it('marks a required field in words, not colour alone', () => {
-    render(<FieldLabel htmlFor='so-xe' required className='mb-1'>Số xe</FieldLabel>);
+    render(
+      <FieldLabel htmlFor="so-xe" required className="mb-1">
+        Số xe
+      </FieldLabel>,
+    );
     expect(screen.getByText(REQUIRED_MARKER_VI)).toBeInTheDocument();
   });
 
   it('renders the hint when supplied', () => {
-    render(<FieldLabel htmlFor='sdt' hint='Dùng số nội địa'>SĐT</FieldLabel>);
+    render(
+      <FieldLabel htmlFor="sdt" hint="Dùng số nội địa">
+        SĐT
+      </FieldLabel>,
+    );
     expect(screen.getByText('Dùng số nội địa')).toBeInTheDocument();
   });
 });
 
 describe('HelpHint - disclosure branches', () => {
   it('starts collapsed', () => {
-    render(<HelpHint topic='dispatch_board' />);
-    expect(screen.getByRole('button', { name: HELP_TRIGGER_LABEL }))
-      .toHaveAttribute('aria-expanded', 'false');
+    render(<HelpHint topic="dispatch_board" />);
+    expect(screen.getByRole('button', { name: HELP_TRIGGER_LABEL })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
   });
 
   it('expands on activation and applies a custom className to the wrapper', async () => {
     const user = userEvent.setup();
-    const { container } = render(<HelpHint topic='dispatch_board' className='inline-block' />);
+    const { container } = render(<HelpHint topic="dispatch_board" className="inline-block" />);
     expect(container.firstElementChild?.className).toContain('inline-block');
     await user.click(screen.getByRole('button', { name: HELP_TRIGGER_LABEL }));
-    expect(screen.getByRole('button', { name: HELP_TRIGGER_LABEL }))
-      .toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: HELP_TRIGGER_LABEL })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
   });
 });

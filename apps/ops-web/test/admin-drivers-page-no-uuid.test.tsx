@@ -19,14 +19,27 @@ vi.mock('@/features/admin/admin-drivers-client', () => ({
   },
 }));
 import AdminDriversPage from '@/app/admin/drivers/page';
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 const OPERATOR_UUID = 'c07f39ce-5883-4bf3-9996-dc58e763b937';
 const DRIVER_UUID = 'd59a8731-d394-42d4-aeae-0f931a1bac55';
 beforeEach(() => {
   listMock.mockResolvedValue([
-    { driverId: DRIVER_UUID, fullName: 'Driver Alpha', phone: '0900000001', operatorId: OPERATOR_UUID, assignedVehicle: null, assignmentId: null, devices: [] },
+    {
+      driverId: DRIVER_UUID,
+      fullName: 'Driver Alpha',
+      phone: '0900000001',
+      operatorId: OPERATOR_UUID,
+      assignedVehicle: null,
+      assignmentId: null,
+      devices: [],
+    },
   ]);
-  globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ items: [] }) }) as never;
+  globalThis.fetch = vi
+    .fn()
+    .mockResolvedValue({ ok: true, json: () => Promise.resolve({ items: [] }) }) as never;
 });
 describe('AdminDriversPage hides raw UUIDs', () => {
   it('does NOT render the operatorId UUID anywhere on the page', async () => {
@@ -42,7 +55,9 @@ describe('AdminDriversPage hides raw UUIDs', () => {
   it('does NOT render a device UUID; shows a friendly registered status instead', async () => {
     listMock.mockResolvedValue([
       {
-        driverId: DRIVER_UUID, fullName: 'Driver Beta', phone: '0900000002',
+        driverId: DRIVER_UUID,
+        fullName: 'Driver Beta',
+        phone: '0900000002',
         operatorId: OPERATOR_UUID,
         assignedVehicle: { vehicleId: 'v-beta', plate: '62H 09999' },
         assignmentId: 'as-beta',

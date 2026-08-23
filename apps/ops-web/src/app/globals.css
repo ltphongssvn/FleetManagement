@@ -2,7 +2,7 @@
 /* AUTO-GENERATED from @fleet/design-tokens -- do not edit by hand. */
 /* Regenerate via: pnpm exec turbo run tokens:build. */
 
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme {
   /* base ramps */

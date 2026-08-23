@@ -2,7 +2,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import { runSyncOnce, type SyncTransport, type SyncStateStore } from '../src/sync/sync-loop.js';
 import type { QueuedActionWithPayload } from '../src/sync/sync-policy.js';
-import { createActionId, createAggregateId, createSyncCursor, type SyncResponse, type SyncCursor } from '@fleet/sync-protocol';
+import {
+  createActionId,
+  createAggregateId,
+  createSyncCursor,
+  type SyncResponse,
+  type SyncCursor,
+} from '@fleet/sync-protocol';
 
 const cursor0 = createSyncCursor('0');
 const aggId = createAggregateId('11111111-1111-4111-8111-111111111111');
@@ -80,13 +86,17 @@ describe('@fleet/driver-app - runSyncOnce', () => {
     const out = await runSyncOnce(transport, f.store);
     expect(out.kind).toBe('idle');
     expect(f.applySyncCommit).toHaveBeenCalledTimes(1);
-    expect(f.applySyncCommit).toHaveBeenCalledWith(expect.objectContaining({ transitions: [], deltas: [], eventSeq: 100 }));
+    expect(f.applySyncCommit).toHaveBeenCalledWith(
+      expect.objectContaining({ transitions: [], deltas: [], eventSeq: 100 }),
+    );
   });
 
   it('applies transitions + new cursor for accepted batch', async () => {
     const id = 'aaaaaaaa-1111-4111-8111-111111111111';
     const f = makeStore({ dispatchable: [action(id, 1)] });
-    const transport: SyncTransport = { post: vi.fn().mockResolvedValue(okResponse(['applied'], '500')) };
+    const transport: SyncTransport = {
+      post: vi.fn().mockResolvedValue(okResponse(['applied'], '500')),
+    };
     const out = await runSyncOnce(transport, f.store);
     expect(out.kind).toBe('applied');
     if (out.kind !== 'applied') throw new Error('expected applied');
@@ -189,7 +199,6 @@ describe('@fleet/driver-app - runSyncOnce', () => {
     expect(out.error).toBe(dbErr);
   });
 
-
   it('returns applied (not idle) when server pushes deltas during empty heartbeat', async () => {
     const f = makeStore({});
     const responseWithDeltas: SyncResponse = {
@@ -277,7 +286,9 @@ describe('@fleet/driver-app - runSyncOnce', () => {
   it('transport non-Error rejection is wrapped into Error', async () => {
     const id = 'dddddddd-1111-4111-8111-111111111111';
     const f = makeStore({ dispatchable: [action(id, 1)] });
-    const transport: SyncTransport = { post: vi.fn().mockRejectedValueOnce('transport string failure') };
+    const transport: SyncTransport = {
+      post: vi.fn().mockRejectedValueOnce('transport string failure'),
+    };
     const out = await runSyncOnce(transport, f.store);
     expect(out.kind).toBe('transport_failure');
     if (out.kind !== 'transport_failure') throw new Error('narrow');
@@ -332,64 +343,57 @@ import fc from 'fast-check';
 describe('@fleet/driver-app - runSyncOnce property invariants', () => {
   it('never calls applyAck when transport throws', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        fc.integer({ min: 0, max: 5 }),
-        async (n) => {
-          const acts = Array.from({ length: n }, (_, i) => {
-            const hex = (i + 1).toString(16).padStart(8, '0');
-            return action(`${hex}-1111-4111-8111-111111111111`, i + 1);
-          });
-          const f = makeStore({ dispatchable: acts });
-          const transport: SyncTransport = { post: vi.fn().mockRejectedValue(new Error('boom')) };
-          const out = await runSyncOnce(transport, f.store);
-          expect(out.kind === 'transport_failure' || out.kind === 'storage_failure').toBe(true);
-          expect(f.applySyncCommit).not.toHaveBeenCalled();
-          return true;
-        },
-      ),
+      fc.asyncProperty(fc.integer({ min: 0, max: 5 }), async (n) => {
+        const acts = Array.from({ length: n }, (_, i) => {
+          const hex = (i + 1).toString(16).padStart(8, '0');
+          return action(`${hex}-1111-4111-8111-111111111111`, i + 1);
+        });
+        const f = makeStore({ dispatchable: acts });
+        const transport: SyncTransport = { post: vi.fn().mockRejectedValue(new Error('boom')) };
+        const out = await runSyncOnce(transport, f.store);
+        expect(out.kind === 'transport_failure' || out.kind === 'storage_failure').toBe(true);
+        expect(f.applySyncCommit).not.toHaveBeenCalled();
+        return true;
+      }),
     );
   });
 
   it('rolls back exactly the dispatched action count when transport throws', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        fc.integer({ min: 1, max: 10 }),
-        async (n) => {
-          const acts = Array.from({ length: n }, (_, i) => {
-            const hex = (i + 1).toString(16).padStart(8, '0');
-            return action(`${hex}-1111-4111-8111-111111111111`, i + 1);
-          });
-          const f = makeStore({ dispatchable: acts });
-          const transport: SyncTransport = { post: vi.fn().mockRejectedValue(new Error('net')) };
-          const out = await runSyncOnce(transport, f.store);
-          if (out.kind === 'transport_failure') {
-            expect(out.rolledBackCount).toBe(n);
-            expect(f.rollbackDispatched).toHaveBeenCalledTimes(1);
-          }
-          return true;
-        },
-      ),
+      fc.asyncProperty(fc.integer({ min: 1, max: 10 }), async (n) => {
+        const acts = Array.from({ length: n }, (_, i) => {
+          const hex = (i + 1).toString(16).padStart(8, '0');
+          return action(`${hex}-1111-4111-8111-111111111111`, i + 1);
+        });
+        const f = makeStore({ dispatchable: acts });
+        const transport: SyncTransport = { post: vi.fn().mockRejectedValue(new Error('net')) };
+        const out = await runSyncOnce(transport, f.store);
+        if (out.kind === 'transport_failure') {
+          expect(out.rolledBackCount).toBe(n);
+          expect(f.rollbackDispatched).toHaveBeenCalledTimes(1);
+        }
+        return true;
+      }),
     );
   });
 
   it('cursor_expired path always invokes resetForCursorExpired and never applyAck', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        fc.integer({ min: 0, max: 5 }),
-        async (n) => {
-          const acts = Array.from({ length: n }, (_, i) => {
-            const hex = (i + 1).toString(16).padStart(8, '0');
-            return action(`${hex}-1111-4111-8111-111111111111`, i + 1);
-          });
-          const f = makeStore({ dispatchable: acts });
-          const transport: SyncTransport = { post: vi.fn().mockResolvedValue(cursorExpiredResponse()) };
-          const out = await runSyncOnce(transport, f.store);
-          expect(out.kind).toBe('cursor_expired_recovered');
-          expect(f.resetForCursorExpired).toHaveBeenCalledTimes(1);
-          expect(f.applySyncCommit).not.toHaveBeenCalled();
-          return true;
-        },
-      ),
+      fc.asyncProperty(fc.integer({ min: 0, max: 5 }), async (n) => {
+        const acts = Array.from({ length: n }, (_, i) => {
+          const hex = (i + 1).toString(16).padStart(8, '0');
+          return action(`${hex}-1111-4111-8111-111111111111`, i + 1);
+        });
+        const f = makeStore({ dispatchable: acts });
+        const transport: SyncTransport = {
+          post: vi.fn().mockResolvedValue(cursorExpiredResponse()),
+        };
+        const out = await runSyncOnce(transport, f.store);
+        expect(out.kind).toBe('cursor_expired_recovered');
+        expect(f.resetForCursorExpired).toHaveBeenCalledTimes(1);
+        expect(f.applySyncCommit).not.toHaveBeenCalled();
+        return true;
+      }),
     );
   });
 });

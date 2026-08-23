@@ -39,7 +39,10 @@ describe('@fleet/api - TransportOrdersReviewController.findOne (T5 ref-or-id)', 
     const ctl = new TransportOrdersReviewController(svc as never);
     const result = await ctl.findOne('11111111-1111-4111-8111-111111111111', op);
     expect(result).toBe(sampleRow);
-    expect(svc.findByCompanyIdOrRef).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111', op);
+    expect(svc.findByCompanyIdOrRef).toHaveBeenCalledWith(
+      '11111111-1111-4111-8111-111111111111',
+      op,
+    );
   });
   it('passes an XTT.MM-NNN external_ref through to findByCompanyIdOrRef', async () => {
     const op = createOperatorContext();
@@ -53,15 +56,17 @@ describe('@fleet/api - TransportOrdersReviewController.findOne (T5 ref-or-id)', 
     const op = createOperatorContext();
     const svc = { findByCompanyIdOrRef: vi.fn() };
     const ctl = new TransportOrdersReviewController(svc as never);
-    await expect(ctl.findOne('not-an-id-and-not-a-ref', op))
-      .rejects.toBeInstanceOf(ZodError);
+    await expect(ctl.findOne('not-an-id-and-not-a-ref', op)).rejects.toBeInstanceOf(ZodError);
     expect(svc.findByCompanyIdOrRef).not.toHaveBeenCalled();
   });
   it('translates TransportOrderNotFoundError into NotFoundException', async () => {
     const op = createOperatorContext();
-    const svc = { findByCompanyIdOrRef: vi.fn().mockRejectedValue(new TransportOrderNotFoundError()) };
+    const svc = {
+      findByCompanyIdOrRef: vi.fn().mockRejectedValue(new TransportOrderNotFoundError()),
+    };
     const ctl = new TransportOrdersReviewController(svc as never);
-    await expect(ctl.findOne('11111111-1111-4111-8111-111111111111', op))
-      .rejects.toBeInstanceOf(NotFoundException);
+    await expect(ctl.findOne('11111111-1111-4111-8111-111111111111', op)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });

@@ -70,11 +70,13 @@ describe('unpushed is a loss signal, not a distance measurement', () => {
   });
 
   it('does not let RETIRED waive unpushed when the work is uncontained', () => {
-    const v = decideClose(makeCloseInput({
-      aheadOfRemote: 3,
-      containedInIntegration: false,
-      retired: true,
-    }));
+    const v = decideClose(
+      makeCloseInput({
+        aheadOfRemote: 3,
+        containedInIntegration: false,
+        retired: true,
+      }),
+    );
     expect(
       v.action,
       'retired waives ONLY unmerged; a retired branch with local-only commits ' +
@@ -86,11 +88,13 @@ describe('unpushed is a loss signal, not a distance measurement', () => {
   });
 
   it('keeps refusing a RECENT contained worktree -- liveness is independent', () => {
-    const v = decideClose(makeCloseInput({
-      aheadOfRemote: 117,
-      containedInIntegration: true,
-      idleHours: 1,
-    }));
+    const v = decideClose(
+      makeCloseInput({
+        aheadOfRemote: 117,
+        containedInIntegration: true,
+        idleHours: 1,
+      }),
+    );
     expect(
       v.action,
       'containment says nothing about whether a terminal is coding in this ' +
@@ -102,11 +106,13 @@ describe('unpushed is a loss signal, not a distance measurement', () => {
   });
 
   it('still refuses a DIRTY contained worktree', () => {
-    const v = decideClose(makeCloseInput({
-      aheadOfRemote: 117,
-      containedInIntegration: true,
-      dirtyFileCount: 2,
-    }));
+    const v = decideClose(
+      makeCloseInput({
+        aheadOfRemote: 117,
+        containedInIntegration: true,
+        dirtyFileCount: 2,
+      }),
+    );
     if (v.action !== 'refuse') expect.unreachable('narrowing');
     expect(
       v.reasons,
@@ -116,11 +122,13 @@ describe('unpushed is a loss signal, not a distance measurement', () => {
   });
 
   it('still refuses when there is NO upstream, contained or not', () => {
-    const v = decideClose(makeCloseInput({
-      aheadOfRemote: 0,
-      containedInIntegration: true,
-      hasUpstream: false,
-    }));
+    const v = decideClose(
+      makeCloseInput({
+        aheadOfRemote: 0,
+        containedInIntegration: true,
+        hasUpstream: false,
+      }),
+    );
     if (v.action !== 'refuse') expect.unreachable('narrowing');
     expect(v.reasons).toContain('no-upstream');
   });

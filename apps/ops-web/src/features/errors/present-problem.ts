@@ -23,13 +23,18 @@ export const VN_OPS_ERROR_MESSAGES: Readonly<Record<FleetErrorCode, string>> = {
   UNAUTHORIZED: 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.',
   FORBIDDEN: 'Bạn không có quyền thực hiện thao tác này.',
   NOT_FOUND: 'Không tìm thấy dữ liệu. Vui lòng tải lại danh sách.',
-  INVALID_STATE_TRANSITION: 'Không thể thực hiện: trạng thái đơn đã thay đổi. Vui lòng tải lại danh sách.',
+  INVALID_STATE_TRANSITION:
+    'Không thể thực hiện: trạng thái đơn đã thay đổi. Vui lòng tải lại danh sách.',
   MANIFESTS_INCOMPLETE: 'Chưa thể hoàn thành chuyến: chưa đủ ảnh phiếu cân tại các điểm.',
-  DEVICE_NOT_REGISTERED: 'Thiết bị của tài xế chưa được đăng ký. Vui lòng yêu cầu tài xế đăng ký thiết bị.',
-  DEVICE_PENDING_APPROVAL: 'Thiết bị của tài xế đang chờ phê duyệt. Vui lòng kích hoạt thiết bị trong trang quản lý.',
+  DEVICE_NOT_REGISTERED:
+    'Thiết bị của tài xế chưa được đăng ký. Vui lòng yêu cầu tài xế đăng ký thiết bị.',
+  DEVICE_PENDING_APPROVAL:
+    'Thiết bị của tài xế đang chờ phê duyệt. Vui lòng kích hoạt thiết bị trong trang quản lý.',
   DEVICE_REVOKED: 'Thiết bị của tài xế đã bị thu hồi quyền truy cập.',
-  DRIVER_ALREADY_ASSIGNED: 'Tài xế này đã được phân công một xe khác. Vui lòng hủy phân công cũ trước.',
-  VEHICLE_ALREADY_ASSIGNED: 'Xe này đã được phân công cho một tài xế khác. Vui lòng hủy phân công cũ trước.',
+  DRIVER_ALREADY_ASSIGNED:
+    'Tài xế này đã được phân công một xe khác. Vui lòng hủy phân công cũ trước.',
+  VEHICLE_ALREADY_ASSIGNED:
+    'Xe này đã được phân công cho một tài xế khác. Vui lòng hủy phân công cũ trước.',
   INTERNAL: 'Hệ thống đang gặp sự cố. Vui lòng thử lại sau.',
 };
 

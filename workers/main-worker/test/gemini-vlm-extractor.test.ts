@@ -10,42 +10,85 @@ import { GeminiVlmExtractor } from '../src/extraction/gemini-vlm-extractor.js';
 const BYTES = new Uint8Array([255, 216, 255]);
 
 function okResponse(payload: unknown): Response {
-  return new Response(JSON.stringify({
-    candidates: [{ content: { parts: [{ text: JSON.stringify(payload) }] } }],
-  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  return new Response(
+    JSON.stringify({
+      candidates: [{ content: { parts: [{ text: JSON.stringify(payload) }] } }],
+    }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+  );
 }
 
 describe('GeminiVlmExtractor', () => {
   it('calls generateContent with key header + inline image, parses single-pass rawValues', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: true, rawLabel: 'TL Hang', rawValues: ['20.730 Kg'] }));
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(
+        okResponse({ found: true, rawLabel: 'TL Hang', rawValues: ['20.730 Kg'] }),
+      );
     const x = new GeminiVlmExtractor({ apiKey: 'k-123', model: 'gemini-flash-test', fetchFn }); // pragma: allowlist secret
     const out = await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' });
     expect(out).toEqual({ rawLabel: 'TL Hang', rawValues: ['20.730 Kg'] });
     const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit];
     expect(url).toContain('/models/gemini-flash-test:generateContent');
     expect((init.headers as Record<string, string>)['x-goog-api-key']).toBe('k-123');
-    const body = JSON.parse(init.body as string) as { contents: { parts: { inline_data?: { mime_type: string; data: string } }[] }[] };
+    const body = JSON.parse(init.body as string) as {
+      contents: { parts: { inline_data?: { mime_type: string; data: string } }[] }[];
+    };
     const inline = body.contents[0]?.parts.find((q) => q.inline_data);
     expect(inline?.inline_data?.mime_type).toBe('image/jpeg');
     expect(inline?.inline_data?.data).toBe(Buffer.from(BYTES).toString('base64'));
   });
 
   it('parses a two-pass pair as a 2-element rawValues array', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: true, rawLabel: 'TL hang lan 1 / lan 2', rawValues: ['10.500', '9.730'] }));
+    const fetchFn = vi.fn().mockResolvedValue(
+      okResponse({
+        found: true,
+        rawLabel: 'TL hang lan 1 / lan 2',
+        rawValues: ['10.500', '9.730'],
+      }),
+    );
     const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn });
     const out = await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' });
     expect(out).toEqual({ rawLabel: 'TL hang lan 1 / lan 2', rawValues: ['10.500', '9.730'] });
   });
 
   it('parses the T33 recognition signal (slipCount, format, component raws)', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: true, rawLabel: 'xe+hang/xe', rawValues: [], slipCount: 1, format: 'truck_and_goods', grossRaw: '28.450', tareRaw: '8.720', goodsRaw: null }));
+    const fetchFn = vi.fn().mockResolvedValue(
+      okResponse({
+        found: true,
+        rawLabel: 'xe+hang/xe',
+        rawValues: [],
+        slipCount: 1,
+        format: 'truck_and_goods',
+        grossRaw: '28.450',
+        tareRaw: '8.720',
+        goodsRaw: null,
+      }),
+    );
     const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn });
     const out = await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' });
-    expect(out).toMatchObject({ slipCount: 1, format: 'truck_and_goods', grossRaw: '28.450', tareRaw: '8.720', goodsRaw: null });
+    expect(out).toMatchObject({
+      slipCount: 1,
+      format: 'truck_and_goods',
+      grossRaw: '28.450',
+      tareRaw: '8.720',
+      goodsRaw: null,
+    });
   });
 
   it('asks the model for the standard-format recognition signal in the prompt', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: true, rawLabel: 'L', rawValues: ['20.730'], slipCount: 1, format: 'goods_only', grossRaw: null, tareRaw: null, goodsRaw: '20.730' }));
+    const fetchFn = vi.fn().mockResolvedValue(
+      okResponse({
+        found: true,
+        rawLabel: 'L',
+        rawValues: ['20.730'],
+        slipCount: 1,
+        format: 'goods_only',
+        grossRaw: null,
+        tareRaw: null,
+        goodsRaw: '20.730',
+      }),
+    );
     const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn });
     await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' });
     const [, init] = fetchFn.mock.calls[0] as [string, RequestInit];
@@ -61,11 +104,21 @@ describe('GeminiVlmExtractor', () => {
     const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: true, format: 'goods_only' }));
     const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn });
     const out = await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' });
-    expect(out).toEqual({ rawLabel: '', rawValues: [], slipCount: 1, format: 'goods_only', grossRaw: null, tareRaw: null, goodsRaw: null });
+    expect(out).toEqual({
+      rawLabel: '',
+      rawValues: [],
+      slipCount: 1,
+      format: 'goods_only',
+      grossRaw: null,
+      tareRaw: null,
+      goodsRaw: null,
+    });
   });
 
   it('falls back to the global fetch and the default Gemini base URL', async () => {
-    const globalFetch = vi.fn().mockResolvedValue(okResponse({ found: true, rawLabel: 'TL Hang', rawValues: ['20.730'] }));
+    const globalFetch = vi
+      .fn()
+      .mockResolvedValue(okResponse({ found: true, rawLabel: 'TL Hang', rawValues: ['20.730'] }));
     vi.stubGlobal('fetch', globalFetch);
     try {
       const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm' });
@@ -80,15 +133,24 @@ describe('GeminiVlmExtractor', () => {
   });
 
   it('honours an injected baseUrl', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: true, rawLabel: 'L', rawValues: ['20.730'] }));
-    const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn, baseUrl: 'https://vlm.test/v1' });
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(okResponse({ found: true, rawLabel: 'L', rawValues: ['20.730'] }));
+    const x = new GeminiVlmExtractor({
+      apiKey: 'k',
+      model: 'm',
+      fetchFn,
+      baseUrl: 'https://vlm.test/v1',
+    });
     await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' });
     const [url] = fetchFn.mock.calls[0] as [string];
     expect(url).toBe('https://vlm.test/v1/models/m:generateContent');
   });
 
   it('returns null when the response carries no candidate text', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(new Response(JSON.stringify({ candidates: [] }), { status: 200 }));
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ candidates: [] }), { status: 200 }));
     const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn });
     expect(await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' })).toBeNull();
   });
@@ -99,22 +161,33 @@ describe('GeminiVlmExtractor', () => {
   });
 
   it('returns null when found=true but rawValues is empty', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(okResponse({ found: true, rawLabel: 'L', rawValues: [] }));
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(okResponse({ found: true, rawLabel: 'L', rawValues: [] }));
     const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn });
     expect(await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' })).toBeNull();
   });
 
   it('returns null on unparseable model text (defensive, not a retry)', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      candidates: [{ content: { parts: [{ text: 'not json' }] } }],
-    }), { status: 200 }));
+    const fetchFn = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: 'not json' }] } }],
+        }),
+        { status: 200 },
+      ),
+    );
     const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn });
     expect(await x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' })).toBeNull();
   });
 
   it('throws on non-2xx (quota etc) so BullMQ retries', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(new Response('quota', { status: 429, statusText: 'Too Many Requests' }));
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(new Response('quota', { status: 429, statusText: 'Too Many Requests' }));
     const x = new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn });
-    await expect(x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' })).rejects.toThrow('429');
+    await expect(x.extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' })).rejects.toThrow(
+      '429',
+    );
   });
 });

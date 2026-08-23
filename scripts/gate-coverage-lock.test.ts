@@ -150,9 +150,9 @@ describe('reclaim demands POSITIVE evidence the holder is gone', () => {
   it('falls back to age for a lock written by ANOTHER host', () => {
     const foreign = { owner: { pid: 999, host: 'other-box', startedAt: 0 }, thisHost: HOST };
     expect(decideReclaim({ ...foreign, ownerAlive: null, ageMs: 0 })).toBe(false);
-    expect(
-      decideReclaim({ ...foreign, ownerAlive: null, ageMs: FOREIGN_LOCK_STALE_MS + 1 }),
-    ).toBe(true);
+    expect(decideReclaim({ ...foreign, ownerAlive: null, ageMs: FOREIGN_LOCK_STALE_MS + 1 })).toBe(
+      true,
+    );
   });
 
   it('ignores a foreign PID even when it happens to match a live local process', () => {

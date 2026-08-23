@@ -14,7 +14,10 @@ export interface IntakeObjectHead {
 
 export interface IntakeObjectStore {
   /** HEAD the object. Returns null if it does not exist; throws on other errors. */
-  headObject(input: { readonly bucket: string; readonly key: string }): Promise<IntakeObjectHead | null>;
+  headObject(input: {
+    readonly bucket: string;
+    readonly key: string;
+  }): Promise<IntakeObjectHead | null>;
 }
 
 export interface S3IntakeObjectStoreConfig {
@@ -31,23 +34,33 @@ export class S3IntakeObjectStore implements IntakeObjectStore {
     if (config.client) {
       this.client = config.client;
     } else {
-      const cfg: Record<string, unknown> = { region: config.region, requestChecksumCalculation: 'WHEN_REQUIRED' };
+      const cfg: Record<string, unknown> = {
+        region: config.region,
+        requestChecksumCalculation: 'WHEN_REQUIRED',
+      };
       if (config.endpoint !== undefined && config.endpoint.length > 0) {
         cfg['endpoint'] = config.endpoint;
         cfg['forcePathStyle'] = true;
       }
       if (
-        config.accessKeyId !== undefined && config.accessKeyId.length > 0 &&
-        config.secretAccessKey !== undefined && config.secretAccessKey.length > 0
+        config.accessKeyId !== undefined &&
+        config.accessKeyId.length > 0 &&
+        config.secretAccessKey !== undefined &&
+        config.secretAccessKey.length > 0
       ) {
-        cfg['credentials'] = { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey };
+        cfg['credentials'] = {
+          accessKeyId: config.accessKeyId,
+          secretAccessKey: config.secretAccessKey,
+        };
       }
       this.client = new S3Client(cfg);
     }
   }
   async headObject(input: { bucket: string; key: string }): Promise<IntakeObjectHead | null> {
     try {
-      const res = await this.client.send(new HeadObjectCommand({ Bucket: input.bucket, Key: input.key }));
+      const res = await this.client.send(
+        new HeadObjectCommand({ Bucket: input.bucket, Key: input.key }),
+      );
       return {
         contentType: res.ContentType ?? null,
         sizeBytes: typeof res.ContentLength === 'number' ? res.ContentLength : 0,

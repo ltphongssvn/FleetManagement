@@ -1,11 +1,18 @@
 // packages/sync-protocol/test/outbox-routing.test.ts
 // (header + describe labels corrected: file moved from workers/main-worker)
 import { describe, it, expect } from 'vitest';
-import { routeOutboxRow, OUTBOX_ROUTING_POLICY_VERSION, OUTBOX_QUEUES } from '../src/outbox-routing.js';
+import {
+  routeOutboxRow,
+  OUTBOX_ROUTING_POLICY_VERSION,
+  OUTBOX_QUEUES,
+} from '../src/outbox-routing.js';
 
 describe('@fleet/sync-protocol - routeOutboxRow', () => {
   it('routes manifest_intake.requested to intake queue', () => {
-    const r = routeOutboxRow({ aggregateType: 'manifest_intake', eventType: 'manifest_intake.requested' });
+    const r = routeOutboxRow({
+      aggregateType: 'manifest_intake',
+      eventType: 'manifest_intake.requested',
+    });
     expect(r.accepted).toBe(true);
     if (r.accepted) {
       expect(r.queueName).toBe('intake');
@@ -26,7 +33,10 @@ describe('@fleet/sync-protocol - routeOutboxRow', () => {
   });
 
   it('routes transport_order.* to projections queue', () => {
-    const r = routeOutboxRow({ aggregateType: 'transport_order', eventType: 'transport_order.created' });
+    const r = routeOutboxRow({
+      aggregateType: 'transport_order',
+      eventType: 'transport_order.created',
+    });
     expect(r.accepted).toBe(true);
     if (r.accepted) expect(r.queueName).toBe('projections');
   });
@@ -61,7 +71,10 @@ describe('@fleet/sync-protocol - routeOutboxRow', () => {
   });
 
   it('rejects manifest_intake.<other> as unknown_event_type with policy version', () => {
-    const r = routeOutboxRow({ aggregateType: 'manifest_intake', eventType: 'manifest_intake.cancelled' });
+    const r = routeOutboxRow({
+      aggregateType: 'manifest_intake',
+      eventType: 'manifest_intake.cancelled',
+    });
     expect(r.accepted).toBe(false);
     expect(r.policyVersion).toBe(OUTBOX_ROUTING_POLICY_VERSION);
     if (!r.accepted) expect(r.rejectionCode).toBe('unknown_event_type');
@@ -104,9 +117,12 @@ describe('@fleet/sync-protocol - routeOutboxRow property invariants', () => {
         (aggregateType, suffix) => {
           const r = routeOutboxRow({
             aggregateType,
-            eventType: aggregateType === 'manifest_intake' ? 'manifest_intake.requested'
-                     : aggregateType === 'manifest' && suffix === 'committed' ? 'manifest.committed'
-                     : `${aggregateType}.${suffix}`,
+            eventType:
+              aggregateType === 'manifest_intake'
+                ? 'manifest_intake.requested'
+                : aggregateType === 'manifest' && suffix === 'committed'
+                  ? 'manifest.committed'
+                  : `${aggregateType}.${suffix}`,
           });
           if (r.accepted) {
             expect(known.has(r.queueName)).toBe(true);
@@ -120,9 +136,20 @@ describe('@fleet/sync-protocol - routeOutboxRow property invariants', () => {
   it('unknown aggregate types always reject with unknown_aggregate', () => {
     fc.assert(
       fc.property(
-        fc.string({ minLength: 1, maxLength: 32 }).filter((s) =>
-          !['manifest_intake', 'manifest_extraction', 'manifest', 'road_run', 'transport_order', 'stop', 'driver_alert'].includes(s),
-        ),
+        fc
+          .string({ minLength: 1, maxLength: 32 })
+          .filter(
+            (s) =>
+              ![
+                'manifest_intake',
+                'manifest_extraction',
+                'manifest',
+                'road_run',
+                'transport_order',
+                'stop',
+                'driver_alert',
+              ].includes(s),
+          ),
         (aggregateType) => {
           const r = routeOutboxRow({ aggregateType, eventType: `${aggregateType}.x` });
           expect(r.accepted).toBe(false);
@@ -139,7 +166,10 @@ describe('@fleet/sync-protocol - driver_alert routing (T12 order alerts)', () =>
     expect(OUTBOX_QUEUES.ALERTS).toBe('alerts');
   });
   it('routes driver_alert.requested to the alerts queue with policy version', () => {
-    const r = routeOutboxRow({ aggregateType: 'driver_alert', eventType: 'driver_alert.requested' });
+    const r = routeOutboxRow({
+      aggregateType: 'driver_alert',
+      eventType: 'driver_alert.requested',
+    });
     expect(r.accepted).toBe(true);
     if (r.accepted) {
       expect(r.queueName).toBe('alerts');
@@ -147,7 +177,10 @@ describe('@fleet/sync-protocol - driver_alert routing (T12 order alerts)', () =>
     }
   });
   it('rejects driver_alert.<other> as unknown_event_type (alert events are explicit, never wildcard)', () => {
-    const r = routeOutboxRow({ aggregateType: 'driver_alert', eventType: 'driver_alert.cancelled' });
+    const r = routeOutboxRow({
+      aggregateType: 'driver_alert',
+      eventType: 'driver_alert.cancelled',
+    });
     expect(r.accepted).toBe(false);
     if (!r.accepted) expect(r.rejectionCode).toBe('unknown_event_type');
   });
