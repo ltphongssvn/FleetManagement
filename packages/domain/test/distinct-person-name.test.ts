@@ -1,6 +1,9 @@
 // packages/domain/test/distinct-person-name.test.ts
 import { describe, it, expect } from 'vitest';
-import { suggestDistinctDriverName, DISTINCT_NAME_SUFFIXES } from '../src/identity/distinct-person-name.js';
+import {
+  suggestDistinctDriverName,
+  DISTINCT_NAME_SUFFIXES,
+} from '../src/identity/distinct-person-name.js';
 
 // Vietnamese driver names repeat rarely but they DO repeat. When a dispatcher
 // registers a genuine second person with an existing name, a bare "already
@@ -16,8 +19,9 @@ describe('suggestDistinctDriverName', () => {
   });
 
   it('suggests B when the bare name is taken', () => {
-    expect(suggestDistinctDriverName('NGUYỄN AN BÌNH ĐỨC', ['NGUYỄN AN BÌNH ĐỨC']))
-      .toBe('NGUYỄN AN BÌNH ĐỨC B');
+    expect(suggestDistinctDriverName('NGUYỄN AN BÌNH ĐỨC', ['NGUYỄN AN BÌNH ĐỨC'])).toBe(
+      'NGUYỄN AN BÌNH ĐỨC B',
+    );
   });
 
   it('suggests C when the bare name and B are taken', () => {
@@ -35,8 +39,9 @@ describe('suggestDistinctDriverName', () => {
   // The taken-list comes from lower(full_name) rows, and dispatchers key case
   // freely, so matching MUST reuse the same fold as the DB unique index.
   it('matches taken names case-insensitively', () => {
-    expect(suggestDistinctDriverName('NGUYỄN AN BÌNH ĐỨC', ['nguyễn an bình đức']))
-      .toBe('NGUYỄN AN BÌNH ĐỨC B');
+    expect(suggestDistinctDriverName('NGUYỄN AN BÌNH ĐỨC', ['nguyễn an bình đức'])).toBe(
+      'NGUYỄN AN BÌNH ĐỨC B',
+    );
   });
 
   it('matches taken names through invisible characters and spacing noise', () => {

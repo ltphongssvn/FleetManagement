@@ -93,8 +93,10 @@ export function applyManifestVersions(
     const count = out.split(needle).length - 1;
     if (count !== 1) {
       throw new Error(
-        'bump:expo refused: expected exactly one declaration of ' + row.name
-          + ', found ' + String(count),
+        'bump:expo refused: expected exactly one declaration of ' +
+          row.name +
+          ', found ' +
+          String(count),
       );
     }
     const start = out.indexOf(needle) + needle.length;
@@ -105,8 +107,12 @@ export function applyManifestVersions(
 }
 
 /* v8 ignore start -- side-effecting driver; every decision above is unit-tested */
-function line(s: string): void { process.stdout.write('[bump:expo] ' + s + NL); }
-function errline(s: string): void { process.stderr.write('[bump:expo] ' + s + NL); }
+function line(s: string): void {
+  process.stdout.write('[bump:expo] ' + s + NL);
+}
+function errline(s: string): void {
+  process.stderr.write('[bump:expo] ' + s + NL);
+}
 
 function driftFor(app: string): readonly DriftedPackage[] {
   const cwd = resolve(ROOT, app);

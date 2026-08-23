@@ -24,8 +24,14 @@ export default function ChangePassword(): JSX.Element {
   const submit = (): void => {
     setError(null);
     setSuccess(false);
-    if (currentPassword.length === 0) { setError('Vui lòng nhập mật khẩu hiện tại'); return; }
-    if (newPassword.length < 6) { setError('Mật khẩu mới phải có ít nhất 6 ký tự'); return; }
+    if (currentPassword.length === 0) {
+      setError('Vui lòng nhập mật khẩu hiện tại');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError('Mật khẩu mới phải có ít nhất 6 ký tự');
+      return;
+    }
     setBusy(true);
     void (async () => {
       try {
@@ -54,35 +60,39 @@ export default function ChangePassword(): JSX.Element {
           <TextInput
             testID="Mật khẩu hiện tại"
             style={styles.input}
-            placeholder='Nhập mật khẩu hiện tại'
+            placeholder="Nhập mật khẩu hiện tại"
             placeholderTextColor={colors.slate400}
             secureTextEntry
-            autoCapitalize='none'
+            autoCapitalize="none"
             autoCorrect={false}
             value={currentPassword}
             onChangeText={setCurrentPassword}
-            accessibilityLabel='Mật khẩu hiện tại'
+            accessibilityLabel="Mật khẩu hiện tại"
           />
           <Text style={[styles.label, { marginTop: spacing.md }]}>MẬT KHẨU MỚI</Text>
           <TextInput
             testID="Mật khẩu mới"
             style={styles.input}
-            placeholder='≥ 6 ký tự'
+            placeholder="≥ 6 ký tự"
             placeholderTextColor={colors.slate400}
             secureTextEntry
-            autoCapitalize='none'
+            autoCapitalize="none"
             autoCorrect={false}
             value={newPassword}
             onChangeText={setNewPassword}
-            accessibilityLabel='Mật khẩu mới'
+            accessibilityLabel="Mật khẩu mới"
           />
           <Pressable
             testID="Lưu mật khẩu"
-            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed, busy && styles.buttonPressed]}
+            style={({ pressed }) => [
+              styles.button,
+              pressed && styles.buttonPressed,
+              busy && styles.buttonPressed,
+            ]}
             onPress={submit}
             disabled={busy}
-            accessibilityRole='button'
-            accessibilityLabel='Lưu mật khẩu'
+            accessibilityRole="button"
+            accessibilityLabel="Lưu mật khẩu"
           >
             <Text style={styles.buttonText}>{busy ? 'Đang lưu…' : 'Lưu mật khẩu'}</Text>
           </Pressable>
@@ -129,7 +139,12 @@ const styles = StyleSheet.create({
   title: { ...typography.title, color: colors.slate900 },
   subtitle: { ...typography.caption, color: colors.slate500, marginTop: spacing.xs },
   cardBody: { paddingHorizontal: spacing.xl, paddingVertical: spacing.xl },
-  label: { ...typography.label, color: colors.slate600, textTransform: 'uppercase', marginBottom: spacing.xs },
+  label: {
+    ...typography.label,
+    color: colors.slate600,
+    textTransform: 'uppercase',
+    marginBottom: spacing.xs,
+  },
   input: {
     width: '100%',
     borderWidth: 1,

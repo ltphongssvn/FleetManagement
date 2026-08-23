@@ -1,6 +1,10 @@
 // apps/api/test/commands-gateway-typed-socket.test.ts
 import { describe, it, expect } from 'vitest';
-import type { ServerToClientEvents, ClientToServerEvents, FleetSocketData } from '../src/commands/commands.gateway.js';
+import type {
+  ServerToClientEvents,
+  ClientToServerEvents,
+  FleetSocketData,
+} from '../src/commands/commands.gateway.js';
 import type { CommandPayload } from '../src/commands/command.dto.js';
 
 describe('@fleet/api - CommandsGateway typed socket generics', () => {

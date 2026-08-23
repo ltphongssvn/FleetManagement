@@ -10,7 +10,11 @@
 import 'server-only';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { DispatchBoardPageResponseSchema, type DispatchBoardPageResponse, type RoadRunStatusGroup } from '@fleet/sync-protocol';
+import {
+  DispatchBoardPageResponseSchema,
+  type DispatchBoardPageResponse,
+  type RoadRunStatusGroup,
+} from '@fleet/sync-protocol';
 
 // Loader params (all optional; defaults mirror the API's RoadRunPageQuerySchema:
 // group=active, page=1, pageSize=20). Kept loose here because values originate
@@ -37,7 +41,9 @@ function isProduction(): boolean {
   return process.env.NODE_ENV === 'production';
 }
 
-export async function loadDispatchBoardPage(params: DispatchBoardPageParams): Promise<DispatchBoardPageResponse> {
+export async function loadDispatchBoardPage(
+  params: DispatchBoardPageParams,
+): Promise<DispatchBoardPageResponse> {
   const apiUrl = process.env['FLEET_API_URL'];
   if (!apiUrl) {
     if (isProduction()) {
@@ -75,7 +81,9 @@ export async function loadDispatchBoardPage(params: DispatchBoardPageParams): Pr
       return emptyPage(params);
     }
     if (isProduction()) {
-      throw new Error('Dispatch board page fetch failed: ' + String(res.status) + ' ' + res.statusText);
+      throw new Error(
+        'Dispatch board page fetch failed: ' + String(res.status) + ' ' + res.statusText,
+      );
     }
     return emptyPage(params);
   }

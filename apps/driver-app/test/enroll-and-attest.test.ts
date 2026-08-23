@@ -26,16 +26,29 @@ describe('enrollAndAttest', () => {
   });
 
   it('returns attestation-unavailable when the platform cannot attest', async () => {
-    const p = ports({ attest: vi.fn(() => Promise.resolve({ verified: false as const, reason: 'unavailable' as const })) });
+    const p = ports({
+      attest: vi.fn(() =>
+        Promise.resolve({ verified: false as const, reason: 'unavailable' as const }),
+      ),
+    });
     const r = await enrollAndAttest(p);
-    expect(r).toEqual({ status: 'attestation-unavailable', deviceId: '00000000-0000-0000-0000-0000000000d1' });
+    expect(r).toEqual({
+      status: 'attestation-unavailable',
+      deviceId: '00000000-0000-0000-0000-0000000000d1',
+    });
   });
 
   it('enrolls before attesting (order matters: deviceId first)', async () => {
     const calls: string[] = [];
     const p = ports({
-      enroll: vi.fn(() => { calls.push('enroll'); return Promise.resolve('00000000-0000-0000-0000-0000000000d1'); }),
-      attest: vi.fn(() => { calls.push('attest'); return Promise.resolve({ verified: true as const }); }),
+      enroll: vi.fn(() => {
+        calls.push('enroll');
+        return Promise.resolve('00000000-0000-0000-0000-0000000000d1');
+      }),
+      attest: vi.fn(() => {
+        calls.push('attest');
+        return Promise.resolve({ verified: true as const });
+      }),
     });
     await enrollAndAttest(p);
     expect(calls).toEqual(['enroll', 'attest']);

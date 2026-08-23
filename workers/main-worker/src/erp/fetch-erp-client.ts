@@ -25,7 +25,8 @@ export class FetchErpClient implements ErpClientPort {
       throw new Error(`ERP /invoices HTTP ${String(res.status)} ${res.statusText} ${detail}`);
     }
     const json = (await res.json()) as { externalInvoiceId?: unknown };
-    if (typeof json.externalInvoiceId !== 'string') throw new Error('ERP response missing externalInvoiceId');
+    if (typeof json.externalInvoiceId !== 'string')
+      throw new Error('ERP response missing externalInvoiceId');
     return { externalInvoiceId: json.externalInvoiceId };
   }
 }

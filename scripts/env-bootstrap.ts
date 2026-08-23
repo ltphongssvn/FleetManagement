@@ -103,9 +103,7 @@ export function parseRecipientEntries(content: string): readonly RecipientEntry[
     const above = (lines[i - 1] ?? '').trim();
     // A key with no comment above it is a roster defect the guard already
     // rejects, so an empty host here surfaces rather than being tolerated.
-    const host = above.startsWith(HASH)
-      ? (above.slice(1).split('(')[0] ?? '').trim()
-      : '';
+    const host = above.startsWith(HASH) ? (above.slice(1).split('(')[0] ?? '').trim() : '';
     entries.push(Object.freeze({ host, key: line }));
   }
   return Object.freeze(entries);

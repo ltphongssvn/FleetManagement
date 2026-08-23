@@ -6,7 +6,13 @@
 //
 // Frozen Stack PDF Day-One #4: 'POST /sync -> ok or cursor_expired' +
 // 'client dedup > last_seen_seq'.
-import type { SyncAction, SyncRequest, SyncResponse, SyncActionResult, SyncCursor } from '@fleet/sync-protocol';
+import type {
+  SyncAction,
+  SyncRequest,
+  SyncResponse,
+  SyncActionResult,
+  SyncCursor,
+} from '@fleet/sync-protocol';
 import type { QueueableAction, ActionStatus } from '../storage/action-queue-policy.js';
 
 export const SYNC_POLICY_VERSION = 'sync-loop-v1' as const;
@@ -55,8 +61,17 @@ export function planSyncRequest(
 
 export type AckOutcome =
   | { readonly kind: 'cursor_expired' }
-  | { readonly kind: 'protocol_violation'; readonly reason: 'results_length_mismatch'; readonly expected: number; readonly actual: number }
-  | { readonly kind: 'ok'; readonly newCursor: SyncCursor; readonly transitions: readonly ActionTransition[] };
+  | {
+      readonly kind: 'protocol_violation';
+      readonly reason: 'results_length_mismatch';
+      readonly expected: number;
+      readonly actual: number;
+    }
+  | {
+      readonly kind: 'ok';
+      readonly newCursor: SyncCursor;
+      readonly transitions: readonly ActionTransition[];
+    };
 
 export interface ActionTransition {
   readonly actionId: string;

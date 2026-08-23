@@ -14,7 +14,9 @@ export interface CommandPayloadLike {
   readonly issuedAt: string;
 }
 
-export function createCommandPayload(overrides: Partial<CommandPayloadLike> = {}): CommandPayloadLike {
+export function createCommandPayload(
+  overrides: Partial<CommandPayloadLike> = {},
+): CommandPayloadLike {
   return Object.freeze({
     commandId: randomUUID(),
     type: 'assign_run' as CommandTypeLike,
@@ -34,7 +36,9 @@ export interface NegotiateUploadInputLike {
   readonly expectedSizeBytes: number;
 }
 
-export function createNegotiateUploadInput(overrides: Partial<NegotiateUploadInputLike> = {}): NegotiateUploadInputLike {
+export function createNegotiateUploadInput(
+  overrides: Partial<NegotiateUploadInputLike> = {},
+): NegotiateUploadInputLike {
   return Object.freeze({
     manifestCorrelationId: randomUUID(),
     transportOrderId: randomUUID(),
@@ -50,7 +54,9 @@ export interface CommitUploadInputLike {
   readonly contentHash: string;
 }
 
-export function createCommitUploadInput(overrides: Partial<CommitUploadInputLike> = {}): CommitUploadInputLike {
+export function createCommitUploadInput(
+  overrides: Partial<CommitUploadInputLike> = {},
+): CommitUploadInputLike {
   return Object.freeze({
     uploadSessionId: randomUUID(),
     actualSizeBytes: 1_400_000,
@@ -67,10 +73,16 @@ export interface StopLike {
 export interface CreateTransportOrderInputLike {
   readonly externalRef?: string;
   readonly stops: readonly StopLike[];
-  readonly roadRun?: { readonly plannedStartAt?: string; readonly assignedOperatorId?: string; readonly assignedAssetId?: string };
+  readonly roadRun?: {
+    readonly plannedStartAt?: string;
+    readonly assignedOperatorId?: string;
+    readonly assignedAssetId?: string;
+  };
 }
 
-export function createCreateTransportOrderInput(overrides: Partial<CreateTransportOrderInputLike> = {}): CreateTransportOrderInputLike {
+export function createCreateTransportOrderInput(
+  overrides: Partial<CreateTransportOrderInputLike> = {},
+): CreateTransportOrderInputLike {
   return Object.freeze({
     externalRef: 'TO-DEFAULT',
     stops: [{ sequence: 1, stopType: 'pickup' }],

@@ -29,15 +29,15 @@ export default function History(): JSX.Element {
   const { data, isPending, isError, error } = useTripHistory();
   if (isPending) {
     return (
-      <View style={styles.center} testID='loading'>
-        <ActivityIndicator size='large' color={colors.indigo500} />
+      <View style={styles.center} testID="loading">
+        <ActivityIndicator size="large" color={colors.indigo500} />
         <Text style={styles.muted}>Đang tải lịch sử chuyến…</Text>
       </View>
     );
   }
   if (isError) {
     return (
-      <View style={styles.center} testID='error'>
+      <View style={styles.center} testID="error">
         <Text style={styles.errorTitle}>Lỗi tải dữ liệu</Text>
         <Text style={styles.muted}>{presentApiError(error, 'Lỗi tải dữ liệu')}</Text>
       </View>
@@ -46,7 +46,7 @@ export default function History(): JSX.Element {
   const sections = toSections(data);
   if (sections.length === 0) {
     return (
-      <View style={styles.center} testID='empty'>
+      <View style={styles.center} testID="empty">
         <Text style={styles.emptyTitle}>Chưa có chuyến hoàn thành</Text>
         <Text style={styles.muted}>Các chuyến đã giao xong sẽ hiển thị ở đây theo từng tháng.</Text>
       </View>
@@ -64,7 +64,7 @@ export default function History(): JSX.Element {
           return (
             <View
               style={styles.monthHeader}
-              accessibilityRole='header'
+              accessibilityRole="header"
               accessibilityLabel={s.title + ': ' + String(s.count) + ' chuyến'}
             >
               <Text style={styles.monthLabel}>{s.title}</Text>
@@ -77,13 +77,17 @@ export default function History(): JSX.Element {
         renderItem={({ item }) => (
           <View
             style={styles.tripRow}
-            accessibilityRole='text'
+            accessibilityRole="text"
             accessibilityLabel={'Chuyến ' + (item.orderRef ?? item.roadRunId.slice(0, 8))}
           >
             <Text style={styles.tripRef}>{item.orderRef ?? item.roadRunId.slice(0, 8)}</Text>
             <View style={styles.tripMeta}>
-              {item.customerName ? <Text style={styles.tripDetail}>Khách hàng: {item.customerName}</Text> : null}
-              {item.deliveryName ? <Text style={styles.tripDetail}>Kho giao: {item.deliveryName}</Text> : null}
+              {item.customerName ? (
+                <Text style={styles.tripDetail}>Khách hàng: {item.customerName}</Text>
+              ) : null}
+              {item.deliveryName ? (
+                <Text style={styles.tripDetail}>Kho giao: {item.deliveryName}</Text>
+              ) : null}
               {item.completedAt ? (
                 <Text style={styles.tripDetail}>Hoàn thành: {formatVnDate(item.completedAt)}</Text>
               ) : null}
@@ -104,7 +108,12 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     backgroundColor: colors.backdrop,
   },
-  muted: { ...typography.caption, color: colors.slate300, marginTop: spacing.sm, textAlign: 'center' },
+  muted: {
+    ...typography.caption,
+    color: colors.slate300,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
   errorTitle: { ...typography.heading, color: colors.red600 },
   emptyTitle: { ...typography.heading, color: colors.white },
   monthHeader: {

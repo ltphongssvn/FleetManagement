@@ -120,7 +120,10 @@ export function summarizeBillableMinutes(entries: readonly RunEntry[]): Billable
       runs: v.runs,
       jobs: v.jobs,
     }))
-    .sort((a, b) => (b.billableMinutes - a.billableMinutes) || a.workflowName.localeCompare(b.workflowName));
+    .sort(
+      (a, b) =>
+        b.billableMinutes - a.billableMinutes || a.workflowName.localeCompare(b.workflowName),
+    );
   const totalBillableMinutes = byWorkflow.reduce((sum, w) => sum + w.billableMinutes, 0);
   return { totalBillableMinutes, byWorkflow };
 }

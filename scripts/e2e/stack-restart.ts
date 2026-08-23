@@ -14,9 +14,12 @@ const Service = z.enum(['api', 'worker', 'ops-web']);
 type Service = z.infer<typeof Service>;
 
 function sh(cmd: string, args: readonly string[], opts: { quiet?: boolean } = {}): void {
-  const r = spawnSync(cmd, [...args], { encoding: 'utf-8', stdio: opts.quiet ? 'pipe' : 'inherit' });
+  const r = spawnSync(cmd, [...args], {
+    encoding: 'utf-8',
+    stdio: opts.quiet ? 'pipe' : 'inherit',
+  });
   if (r.status !== 0) {
-    const tail = r.stderr ? (':\n' + r.stderr) : '';
+    const tail = r.stderr ? ':\n' + r.stderr : '';
     console.error('X ' + cmd + ' ' + args.join(' ') + ' failed' + tail);
     process.exit(1);
   }
@@ -43,4 +46,6 @@ function main(): void {
 }
 
 const isEntry = process.argv[1] !== undefined && import.meta.url === 'file://' + process.argv[1];
-if (isEntry) { main(); }
+if (isEntry) {
+  main();
+}

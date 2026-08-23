@@ -16,11 +16,10 @@ Related: package.json (engines field), .nvmrc, .node-version, turbo.jsonc
 
 ## Context
 
-The Frozen Stack mandates explicit version pinning for Node.js and pnpm
-across local development, CI, and production to prevent "works on my
-machine" drift. The monorepo must enforce version constraints at three
-levels: `package.json` engines, CI workflow pinning, and local tool
-version files.
+The Frozen Stack mandates explicit version pinning for Node.js and pnpm across local development,
+CI, and production to prevent "works on my machine" drift. The monorepo must enforce version
+constraints at three levels: `package.json` engines, CI workflow pinning, and local tool version
+files.
 
 ## Decision
 
@@ -35,8 +34,8 @@ version files.
 
 ### pnpm
 
-- **Pinned**: `10.30.3` (exact via `packageManager` field in root
-  `package.json` — corepack-enforced)
+- **Pinned**: `10.30.3` (exact via `packageManager` field in root `package.json` —
+  corepack-enforced)
 - **Enforced via**:
   - `package.json` `packageManager` field (single source of truth)
   - `package.json` `engines.pnpm: ">=10.0.0 <11.0.0"`

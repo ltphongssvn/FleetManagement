@@ -41,24 +41,49 @@ describe('AssignmentsClient.tripHistory', () => {
       ok: true,
       json: () => Promise.resolve({ months: [] }),
     });
-    const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 'tok', fetchFn: fetchFn as never });
+    const client = new AssignmentsClient({
+      apiUrl: 'http://api',
+      bearerToken: () => 'tok',
+      fetchFn: fetchFn as never,
+    });
     await client.tripHistory();
-    expect(fetchFn).toHaveBeenCalledWith('http://api/transport-orders/trip-history', expect.objectContaining({
-      method: 'GET',
-      headers: expect.objectContaining({ Authorization: 'Bearer tok' }),
-    }));
+    expect(fetchFn).toHaveBeenCalledWith(
+      'http://api/transport-orders/trip-history',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer tok' }),
+      }),
+    );
   });
   it('returns the parsed months with key/title/count/trips', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({
-        months: [
-          { monthKey: '2026-03', label: 'Thg 3 2026', count: 2, trips: [completedRow('A', '2026-03-20T03:00:00.000Z'), completedRow('B', '2026-03-02T03:00:00.000Z')] },
-          { monthKey: '2026-02', label: 'Thg 2 2026', count: 1, trips: [completedRow('C', '2026-02-10T03:00:00.000Z')] },
-        ],
-      }),
+      json: () =>
+        Promise.resolve({
+          months: [
+            {
+              monthKey: '2026-03',
+              label: 'Thg 3 2026',
+              count: 2,
+              trips: [
+                completedRow('A', '2026-03-20T03:00:00.000Z'),
+                completedRow('B', '2026-03-02T03:00:00.000Z'),
+              ],
+            },
+            {
+              monthKey: '2026-02',
+              label: 'Thg 2 2026',
+              count: 1,
+              trips: [completedRow('C', '2026-02-10T03:00:00.000Z')],
+            },
+          ],
+        }),
     });
-    const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    const client = new AssignmentsClient({
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
+      fetchFn: fetchFn as never,
+    });
     const months = await client.tripHistory();
     expect(months).toHaveLength(2);
     expect(months[0]?.monthKey).toBe('2026-03');
@@ -70,42 +95,81 @@ describe('AssignmentsClient.tripHistory', () => {
     expect(months[1]?.count).toBe(1);
   });
   it('throws on non-ok HTTP status', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 401, statusText: 'Unauthorized' });
-    const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 401, statusText: 'Unauthorized' });
+    const client = new AssignmentsClient({
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
+      fetchFn: fetchFn as never,
+    });
     await expect(client.tripHistory()).rejects.toThrow(/401/);
   });
   it('rejects when the response is not an object', async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(null) });
-    const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    const client = new AssignmentsClient({
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
+      fetchFn: fetchFn as never,
+    });
     await expect(client.tripHistory()).rejects.toThrow();
   });
   it('rejects when months is not an array', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ months: 'nope' }) });
-    const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({ months: 'nope' }) });
+    const client = new AssignmentsClient({
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
+      fetchFn: fetchFn as never,
+    });
     await expect(client.tripHistory()).rejects.toThrow();
   });
   it('rejects when a month is missing a numeric count', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ months: [{ monthKey: '2026-03', label: 'Thg 3 2026', count: 'two', trips: [] }] }),
+      json: () =>
+        Promise.resolve({
+          months: [{ monthKey: '2026-03', label: 'Thg 3 2026', count: 'two', trips: [] }],
+        }),
     });
-    const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    const client = new AssignmentsClient({
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
+      fetchFn: fetchFn as never,
+    });
     await expect(client.tripHistory()).rejects.toThrow(/count/);
   });
   it('rejects when a month trips field is not an array', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ months: [{ monthKey: '2026-03', label: 'Thg 3 2026', count: 0, trips: 'nope' }] }),
+      json: () =>
+        Promise.resolve({
+          months: [{ monthKey: '2026-03', label: 'Thg 3 2026', count: 0, trips: 'nope' }],
+        }),
     });
-    const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    const client = new AssignmentsClient({
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
+      fetchFn: fetchFn as never,
+    });
     await expect(client.tripHistory()).rejects.toThrow();
   });
   it('awaits an async bearerToken provider', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ months: [] }) });
-    const client = new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => Promise.resolve('async-tok'), fetchFn: fetchFn as never });
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({ months: [] }) });
+    const client = new AssignmentsClient({
+      apiUrl: 'http://api',
+      bearerToken: () => Promise.resolve('async-tok'),
+      fetchFn: fetchFn as never,
+    });
     await client.tripHistory();
-    expect(fetchFn).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
-      headers: expect.objectContaining({ Authorization: 'Bearer async-tok' }),
-    }));
+    expect(fetchFn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer async-tok' }),
+      }),
+    );
   });
 });

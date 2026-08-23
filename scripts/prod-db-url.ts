@@ -66,9 +66,12 @@ export function buildRailwayArgs(env: Record<string, string | undefined> = {}): 
   return [
     'variable',
     'list',
-    '--project', env['RAILWAY_PROJECT_ID'] ?? PROD_DB_PROJECT_ID,
-    '--environment', env['RAILWAY_ENVIRONMENT'] ?? PROD_DB_ENVIRONMENT,
-    '--service', env['RAILWAY_DB_SERVICE'] ?? PROD_DB_SERVICE,
+    '--project',
+    env['RAILWAY_PROJECT_ID'] ?? PROD_DB_PROJECT_ID,
+    '--environment',
+    env['RAILWAY_ENVIRONMENT'] ?? PROD_DB_ENVIRONMENT,
+    '--service',
+    env['RAILWAY_DB_SERVICE'] ?? PROD_DB_SERVICE,
     '--kv',
   ];
 }
@@ -125,7 +128,9 @@ export function parseProdDbUrl(kvOutput: string): string {
     .find((l) => l.startsWith(prefix));
   if (line === undefined) {
     throw new Error(
-      PROD_DB_URL_VARIABLE + ' not found for Railway service ' + PROD_DB_SERVICE +
+      PROD_DB_URL_VARIABLE +
+        ' not found for Railway service ' +
+        PROD_DB_SERVICE +
         '. Is the Railway CLI linked to the right project/environment?',
     );
   }
@@ -181,15 +186,16 @@ function main(): void {
       onRetry: (attempt, message) => {
         process.stderr.write(
           'prod-db-url: transient Railway CLI error on attempt ' +
-            String(attempt) + ' (retrying): ' + message + '\n',
+            String(attempt) +
+            ' (retrying): ' +
+            message +
+            '\n',
         );
       },
     });
     process.stdout.write(url);
   } catch (e) {
-    process.stderr.write(
-      'prod-db-url: ' + (e instanceof Error ? e.message : String(e)) + '\n',
-    );
+    process.stderr.write('prod-db-url: ' + (e instanceof Error ? e.message : String(e)) + '\n');
     process.exit(1);
   }
 }

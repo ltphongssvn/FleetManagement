@@ -108,7 +108,8 @@ export async function verifyAndroidKeyAttestation(
   }
 
   const purposes = kd.teeEnforced.purpose;
-  const hasSign = purposes !== undefined && Array.from(purposes).map(Number).includes(KM_PURPOSE_SIGN);
+  const hasSign =
+    purposes !== undefined && Array.from(purposes).map(Number).includes(KM_PURPOSE_SIGN);
   if (!hasSign) return { kind: 'wrong-key-purpose' };
 
   return {

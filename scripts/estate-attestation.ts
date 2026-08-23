@@ -55,10 +55,14 @@ export const ESTATE_SUBJECT_NAME = 'fleet-worktree-estate';
  *  would be a field a verifier has to branch on for nothing. */
 export const EstateStatementSchema = z.strictObject({
   _type: z.literal(IN_TOTO_STATEMENT_TYPE),
-  subject: z.array(z.strictObject({
-    name: z.literal(ESTATE_SUBJECT_NAME),
-    digest: z.strictObject({ sha256: z.string().regex(/^[0-9a-f]{64}$/) }),
-  })).readonly(),
+  subject: z
+    .array(
+      z.strictObject({
+        name: z.literal(ESTATE_SUBJECT_NAME),
+        digest: z.strictObject({ sha256: z.string().regex(/^[0-9a-f]{64}$/) }),
+      }),
+    )
+    .readonly(),
   predicateType: z.literal(ESTATE_PREDICATE_TYPE),
   predicate: z.strictObject({
     /** What the tool recommends. ADVISORY: a statement records a claim, it does
@@ -90,19 +94,19 @@ export function estateStatement(decision: EstateDecision): EstateStatement | nul
   const { event, verdict } = decision;
   return {
     _type: IN_TOTO_STATEMENT_TYPE,
-    subject: [{
-      name: ESTATE_SUBJECT_NAME,
-      digest: { sha256: event.estate_digest },
-    }],
+    subject: [
+      {
+        name: ESTATE_SUBJECT_NAME,
+        digest: { sha256: event.estate_digest },
+      },
+    ],
     predicateType: ESTATE_PREDICATE_TYPE,
     predicate: {
       agent_action: event.agent_action,
       clean: verdict.clean,
       checked: verdict.checked,
       unclean_count: verdict.problems.length,
-      ...(event.source_digest === undefined
-        ? {}
-        : { source_digest: event.source_digest }),
+      ...(event.source_digest === undefined ? {} : { source_digest: event.source_digest }),
     },
   };
 }

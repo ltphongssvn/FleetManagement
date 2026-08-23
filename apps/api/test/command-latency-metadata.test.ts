@@ -35,7 +35,13 @@ describe('@fleet/api - LatencySample metadata', () => {
   it('still rejects non-finite ms', () => {
     const r = new RingBufferLatencyRecorder();
     expect(() => {
-      r.record({ ms: Number.NaN, commandId: 'c', operatorId: 'o', recordedAt: new Date(), status: 'ok' });
+      r.record({
+        ms: Number.NaN,
+        commandId: 'c',
+        operatorId: 'o',
+        recordedAt: new Date(),
+        status: 'ok',
+      });
     }).toThrow(/finite/i);
   });
 
@@ -49,7 +55,13 @@ describe('@fleet/api - LatencySample metadata', () => {
   it('FIFO eviction at capacity preserves last N samples', () => {
     const r = new RingBufferLatencyRecorder(2);
     for (let i = 0; i < 3; i++) {
-      r.record({ ms: i, commandId: `c${String(i)}`, operatorId: 'o', recordedAt: new Date(), status: 'ok' });
+      r.record({
+        ms: i,
+        commandId: `c${String(i)}`,
+        operatorId: 'o',
+        recordedAt: new Date(),
+        status: 'ok',
+      });
     }
     expect(r.samples().map((s) => s.ms)).toEqual([1, 2]);
   });

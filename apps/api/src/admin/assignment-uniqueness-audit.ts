@@ -21,27 +21,36 @@ export type AssignmentAuditRow = z.infer<typeof AssignmentAuditRowSchema>;
 
 export const AssignmentAuditReportSchema = z.object({
   totalActiveAssignments: z.number().int().nonnegative(),
-  duplicateDriverGroups: z.array(z.object({
-    companyId: z.uuid(),
-    driverId: z.uuid(),
-    assignmentIds: z.array(z.uuid()).min(2),
-  })),
-  duplicateVehicleGroups: z.array(z.object({
-    companyId: z.uuid(),
-    vehicleId: z.uuid(),
-    assignmentIds: z.array(z.uuid()).min(2),
-  })),
-  duplicatePairGroups: z.array(z.object({
-    companyId: z.uuid(),
-    driverId: z.uuid(),
-    vehicleId: z.uuid(),
-    assignmentIds: z.array(z.uuid()).min(2),
-  })),
+  duplicateDriverGroups: z.array(
+    z.object({
+      companyId: z.uuid(),
+      driverId: z.uuid(),
+      assignmentIds: z.array(z.uuid()).min(2),
+    }),
+  ),
+  duplicateVehicleGroups: z.array(
+    z.object({
+      companyId: z.uuid(),
+      vehicleId: z.uuid(),
+      assignmentIds: z.array(z.uuid()).min(2),
+    }),
+  ),
+  duplicatePairGroups: z.array(
+    z.object({
+      companyId: z.uuid(),
+      driverId: z.uuid(),
+      vehicleId: z.uuid(),
+      assignmentIds: z.array(z.uuid()).min(2),
+    }),
+  ),
   isClean: z.boolean(),
 });
 export type AssignmentAuditReport = z.infer<typeof AssignmentAuditReportSchema>;
 
-function groupBy(rows: readonly AssignmentAuditRow[], keyFn: (r: AssignmentAuditRow) => string): Map<string, AssignmentAuditRow[]> {
+function groupBy(
+  rows: readonly AssignmentAuditRow[],
+  keyFn: (r: AssignmentAuditRow) => string,
+): Map<string, AssignmentAuditRow[]> {
   const m = new Map<string, AssignmentAuditRow[]>();
   for (const r of rows) {
     const k = keyFn(r);
@@ -54,9 +63,7 @@ function groupBy(rows: readonly AssignmentAuditRow[], keyFn: (r: AssignmentAudit
 
 const SEP = '::';
 
-export function auditAssignmentUniqueness(
-  rowsInput: readonly unknown[],
-): AssignmentAuditReport {
+export function auditAssignmentUniqueness(rowsInput: readonly unknown[]): AssignmentAuditReport {
   const rows: AssignmentAuditRow[] = rowsInput.map((r) => AssignmentAuditRowSchema.parse(r));
 
   const byDriver = groupBy(rows, (r) => r.companyId + SEP + r.driverId);
@@ -66,7 +73,13 @@ export function auditAssignmentUniqueness(
       const first = g[0];
       /* c8 ignore next -- filtered g.length >= 2 guarantees a first element */
       if (first === undefined) return [];
-      return [{ companyId: first.companyId, driverId: first.driverId, assignmentIds: g.map((r) => r.assignmentId) }];
+      return [
+        {
+          companyId: first.companyId,
+          driverId: first.driverId,
+          assignmentIds: g.map((r) => r.assignmentId),
+        },
+      ];
     });
 
   const byVehicle = groupBy(rows, (r) => r.companyId + SEP + r.vehicleId);
@@ -76,7 +89,13 @@ export function auditAssignmentUniqueness(
       const first = g[0];
       /* c8 ignore next -- filtered g.length >= 2 guarantees a first element */
       if (first === undefined) return [];
-      return [{ companyId: first.companyId, vehicleId: first.vehicleId, assignmentIds: g.map((r) => r.assignmentId) }];
+      return [
+        {
+          companyId: first.companyId,
+          vehicleId: first.vehicleId,
+          assignmentIds: g.map((r) => r.assignmentId),
+        },
+      ];
     });
 
   const byPair = groupBy(rows, (r) => r.companyId + SEP + r.driverId + SEP + r.vehicleId);
@@ -86,10 +105,20 @@ export function auditAssignmentUniqueness(
       const first = g[0];
       /* c8 ignore next -- filtered g.length >= 2 guarantees a first element */
       if (first === undefined) return [];
-      return [{ companyId: first.companyId, driverId: first.driverId, vehicleId: first.vehicleId, assignmentIds: g.map((r) => r.assignmentId) }];
+      return [
+        {
+          companyId: first.companyId,
+          driverId: first.driverId,
+          vehicleId: first.vehicleId,
+          assignmentIds: g.map((r) => r.assignmentId),
+        },
+      ];
     });
 
-  const isClean = duplicateDriverGroups.length === 0 && duplicateVehicleGroups.length === 0 && duplicatePairGroups.length === 0;
+  const isClean =
+    duplicateDriverGroups.length === 0 &&
+    duplicateVehicleGroups.length === 0 &&
+    duplicatePairGroups.length === 0;
 
   return {
     totalActiveAssignments: rows.length,

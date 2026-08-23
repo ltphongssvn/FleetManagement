@@ -35,10 +35,12 @@ const MAX_ATTEMPTS_BEFORE_DEAD_LETTER = 5;
  * Minimum wire shape every outbox row payload must satisfy. Routing policy
  * reads aggregateType + eventType; the rest is opaque to the relay.
  */
-export const OutboxPayloadSchema = z.object({
-  aggregateType: z.string().min(1).max(64),
-  eventType: z.string().min(1).max(128),
-}).loose();
+export const OutboxPayloadSchema = z
+  .object({
+    aggregateType: z.string().min(1).max(64),
+    eventType: z.string().min(1).max(128),
+  })
+  .loose();
 
 export interface OutboxRelayResult {
   readonly polled: number;
@@ -111,7 +113,10 @@ export class OutboxRelayService implements OnModuleDestroy {
         await tx.execute(sql`
           UPDATE ${outbox}
           SET status = 'sent', attempts = attempts + 1
-          WHERE outbox_id IN (${sql.join(claimed.map((r) => sql`${r.outbox_id}`), sql`, `)})
+          WHERE outbox_id IN (${sql.join(
+            claimed.map((r) => sql`${r.outbox_id}`),
+            sql`, `,
+          )})
         `);
       }
       return claimed;
@@ -129,7 +134,9 @@ export class OutboxRelayService implements OnModuleDestroy {
           .set({ status: 'dead_letter', attempts: row.attempts + 1 })
           .where(eq(outbox.outboxId, row.outbox_id));
         /* c8 ignore next -- ?? 'unknown' fallback unreachable: zod always populates issues on failure */
-        this.logger.warn(`Dead-lettered outbox ${row.outbox_id}: invalid_payload (${parsed.error.issues[0]?.message ?? 'unknown'})`);
+        this.logger.warn(
+          `Dead-lettered outbox ${row.outbox_id}: invalid_payload (${parsed.error.issues[0]?.message ?? 'unknown'})`,
+        );
         deadLettered++;
         continue;
       }
@@ -144,7 +151,9 @@ export class OutboxRelayService implements OnModuleDestroy {
           .update(outbox)
           .set({ status: 'dead_letter', attempts: row.attempts + 1 })
           .where(eq(outbox.outboxId, row.outbox_id));
-        this.logger.warn(`Dead-lettered outbox ${row.outbox_id}: ${decision.rejectionCode} (policy=${decision.policyVersion})`);
+        this.logger.warn(
+          `Dead-lettered outbox ${row.outbox_id}: ${decision.rejectionCode} (policy=${decision.policyVersion})`,
+        );
         deadLettered++;
         continue;
       }
@@ -181,7 +190,11 @@ export class OutboxRelayService implements OnModuleDestroy {
           const backoffMs = 1000 * 2 ** nextAttempts;
           await this.db
             .update(outbox)
-            .set({ status: 'failed', attempts: nextAttempts, nextAttemptAt: new Date(Date.now() + backoffMs) })
+            .set({
+              status: 'failed',
+              attempts: nextAttempts,
+              nextAttemptAt: new Date(Date.now() + backoffMs),
+            })
             .where(eq(outbox.outboxId, row.outbox_id));
           retryScheduled++;
         }

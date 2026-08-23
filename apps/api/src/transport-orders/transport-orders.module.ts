@@ -38,5 +38,4 @@ import { OrderNumberingService } from './order-numbering.service.js';
     OrderNumberingService,
   ],
 })
-
 export class TransportOrdersModule {}

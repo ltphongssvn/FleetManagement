@@ -144,7 +144,11 @@ describe('decideMergeReady per-poll decision', () => {
 describe('decideMergeReady RERUN path (the PR #511 regression)', () => {
   const pr511: CheckRun[] = [
     { name: 'Install / Build / Lint / Typecheck', status: 'COMPLETED', conclusion: 'CANCELLED' },
-    { name: 'Security guards (secrets + prod topology)', status: 'COMPLETED', conclusion: 'CANCELLED' },
+    {
+      name: 'Security guards (secrets + prod topology)',
+      status: 'COMPLETED',
+      conclusion: 'CANCELLED',
+    },
     { name: 'API tests (shard 1/4)', status: 'COMPLETED', conclusion: 'SKIPPED' },
     { name: 'Coverage gate', status: 'COMPLETED', conclusion: 'SKIPPED' },
     { name: 'Enforce reference variables', status: 'COMPLETED', conclusion: 'SUCCESS' },

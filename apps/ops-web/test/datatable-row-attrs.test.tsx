@@ -10,18 +10,22 @@ import { render, screen, cleanup } from '@testing-library/react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/features/admin/DataTable';
 
-interface Row { id: string; label: string }
+interface Row {
+  id: string;
+  label: string;
+}
 
-const columns: ColumnDef<Row>[] = [
-  { id: 'label', header: 'Ten', accessorFn: (r) => r.label },
-];
+const columns: ColumnDef<Row>[] = [{ id: 'label', header: 'Ten', accessorFn: (r) => r.label }];
 
 const data: readonly Row[] = [
   { id: 'r1', label: 'CAM' },
   { id: 'r2', label: 'TAM' },
 ];
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe('DataTable per-row attribute seam', () => {
   it('applies testId and className to the matching row only', () => {

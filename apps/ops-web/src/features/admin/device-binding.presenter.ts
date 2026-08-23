@@ -19,25 +19,24 @@ export interface DeviceBindingPresentation {
 }
 
 // Generic presentation for codes this build does not know.
-export const DEVICE_BINDING_STATUS_FALLBACK: DeviceBindingPresentation =
-  Object.freeze({ label: 'Không rõ', tone: 'neutral' });
+export const DEVICE_BINDING_STATUS_FALLBACK: DeviceBindingPresentation = Object.freeze({
+  label: 'Không rõ',
+  tone: 'neutral',
+});
 
 // pending is the review queue an admin acts on; active is an approved device;
 // revoked is terminal (recorded, never deleted -- the row is the audit trail).
-const PRESENTATIONS: Record<DeviceBindingStatus, DeviceBindingPresentation> =
-  Object.freeze({
-    pending: Object.freeze({ label: 'Chờ duyệt', tone: 'warning' }),
-    active: Object.freeze({ label: 'Đã duyệt', tone: 'success' }),
-    revoked: Object.freeze({ label: 'Đã thu hồi', tone: 'neutral' }),
-  });
+const PRESENTATIONS: Record<DeviceBindingStatus, DeviceBindingPresentation> = Object.freeze({
+  pending: Object.freeze({ label: 'Chờ duyệt', tone: 'warning' }),
+  active: Object.freeze({ label: 'Đã duyệt', tone: 'success' }),
+  revoked: Object.freeze({ label: 'Đã thu hồi', tone: 'neutral' }),
+});
 
 function isKnownStatus(code: string): code is DeviceBindingStatus {
   return Object.prototype.hasOwnProperty.call(PRESENTATIONS, code);
 }
 
 // Loose in, immutable Vietnamese out; unknown -> generic fallback.
-export function presentDeviceBindingStatus(
-  code: string,
-): DeviceBindingPresentation {
+export function presentDeviceBindingStatus(code: string): DeviceBindingPresentation {
   return isKnownStatus(code) ? PRESENTATIONS[code] : DEVICE_BINDING_STATUS_FALLBACK;
 }

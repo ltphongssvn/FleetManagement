@@ -188,19 +188,32 @@ function mainSecretsBaseline(): number {
   // and an eight-hour stall reports nothing an operator can act on.
   if (auditNeedsTty(mode, process.stdin.isTTY)) {
     process.stderr.write(
-      '[secrets:baseline] CANNOT AUDIT: stdin is not a terminal.' + nl +
-      '[secrets:baseline] detect-secrets audit is an interactive prompt, and this' + nl +
-      '[secrets:baseline] process has no keyboard behind it -- most likely because' + nl +
-      '[secrets:baseline] turbo captures child stdio to prefix output. Running it' + nl +
-      '[secrets:baseline] anyway would block forever with no diagnostic.' + nl +
-      '[secrets:baseline]' + nl +
-      '[secrets:baseline] Run it directly, where stdio is inherited from your shell:' + nl +
-      '[secrets:baseline]   pnpm run secrets:baseline -- --audit' + nl +
-      '[secrets:baseline]' + nl +
-      '[secrets:baseline] This is NOT auto-answered on purpose: labelling a finding a' + nl +
-      '[secrets:baseline] true or false positive is a human judgement, and a task that' + nl +
-      '[secrets:baseline] answered for you would manufacture the audit trail the' + nl +
-      '[secrets:baseline] baseline exists to provide.' + nl,
+      '[secrets:baseline] CANNOT AUDIT: stdin is not a terminal.' +
+        nl +
+        '[secrets:baseline] detect-secrets audit is an interactive prompt, and this' +
+        nl +
+        '[secrets:baseline] process has no keyboard behind it -- most likely because' +
+        nl +
+        '[secrets:baseline] turbo captures child stdio to prefix output. Running it' +
+        nl +
+        '[secrets:baseline] anyway would block forever with no diagnostic.' +
+        nl +
+        '[secrets:baseline]' +
+        nl +
+        '[secrets:baseline] Run it directly, where stdio is inherited from your shell:' +
+        nl +
+        '[secrets:baseline]   pnpm run secrets:baseline -- --audit' +
+        nl +
+        '[secrets:baseline]' +
+        nl +
+        '[secrets:baseline] This is NOT auto-answered on purpose: labelling a finding a' +
+        nl +
+        '[secrets:baseline] true or false positive is a human judgement, and a task that' +
+        nl +
+        '[secrets:baseline] answered for you would manufacture the audit trail the' +
+        nl +
+        '[secrets:baseline] baseline exists to provide.' +
+        nl,
     );
     return 3;
   }
@@ -210,11 +223,16 @@ function mainSecretsBaseline(): number {
   const r = spawnSync(bin, args, { stdio: 'inherit' });
   if (r.error !== undefined) {
     process.stderr.write(
-      '[secrets:baseline] could not run detect-secrets. It normally ships with the' + nl +
-      '[secrets:baseline] pre-commit environment; run "pre-commit install-hooks" to' + nl +
-      '[secrets:baseline] provision it, or install it directly (pipx install' + nl +
-      '[secrets:baseline] detect-secrets) matching the rev pinned in' + nl +
-      '[secrets:baseline] .pre-commit-config.yaml.' + nl,
+      '[secrets:baseline] could not run detect-secrets. It normally ships with the' +
+        nl +
+        '[secrets:baseline] pre-commit environment; run "pre-commit install-hooks" to' +
+        nl +
+        '[secrets:baseline] provision it, or install it directly (pipx install' +
+        nl +
+        '[secrets:baseline] detect-secrets) matching the rev pinned in' +
+        nl +
+        '[secrets:baseline] .pre-commit-config.yaml.' +
+        nl,
     );
     return 2;
   }
@@ -226,10 +244,14 @@ function mainSecretsBaseline(): number {
   }
   if (mode === 'scan' && r.status === 0) {
     process.stderr.write(
-      '[secrets:baseline] baseline refreshed. Review the diff, then AUDIT any new' + nl +
-      '[secrets:baseline] entry before committing:' + nl +
-      '[secrets:baseline]   pnpm run secrets:baseline -- --audit' + nl +
-      '[secrets:baseline] (directly, NOT through turbo: the audit prompt needs a TTY)' + nl,
+      '[secrets:baseline] baseline refreshed. Review the diff, then AUDIT any new' +
+        nl +
+        '[secrets:baseline] entry before committing:' +
+        nl +
+        '[secrets:baseline]   pnpm run secrets:baseline -- --audit' +
+        nl +
+        '[secrets:baseline] (directly, NOT through turbo: the audit prompt needs a TTY)' +
+        nl,
     );
   }
   return r.status;

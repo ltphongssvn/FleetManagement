@@ -27,14 +27,15 @@ export default function Completed(): JSX.Element {
       const trimmed = text.trim();
       setTerm(trimmed.length === 0 ? undefined : trimmed);
     }, 300);
-    return () => { clearTimeout(t); };
+    return () => {
+      clearTimeout(t);
+    };
   }, [text]);
 
   const query = useCompletedOrders(term);
 
   // Flatten every fetched page into one row list for the FlatList.
-  const rows: readonly ListAssignedRow[] =
-    query.data?.pages.flatMap((p) => p.data) ?? [];
+  const rows: readonly ListAssignedRow[] = query.data?.pages.flatMap((p) => p.data) ?? [];
 
   const searchBox = (
     <View style={styles.searchWrap}>
@@ -67,9 +68,7 @@ export default function Completed(): JSX.Element {
         {searchBox}
         <View style={styles.center} testID={'error'}>
           <Text style={styles.errorTitle}>Lỗi tải dữ liệu</Text>
-          <Text style={styles.muted}>
-            {presentApiError(query.error, 'Lỗi tải dữ liệu')}
-          </Text>
+          <Text style={styles.muted}>{presentApiError(query.error, 'Lỗi tải dữ liệu')}</Text>
         </View>
       </View>
     );
@@ -113,8 +112,12 @@ export default function Completed(): JSX.Element {
           >
             <Text style={styles.tripRef}>{item.orderRef ?? item.roadRunId.slice(0, 8)}</Text>
             <View style={styles.tripMeta}>
-              {item.customerName ? <Text style={styles.tripDetail}>Khách hàng: {item.customerName}</Text> : null}
-              {item.deliveryName ? <Text style={styles.tripDetail}>Kho giao: {item.deliveryName}</Text> : null}
+              {item.customerName ? (
+                <Text style={styles.tripDetail}>Khách hàng: {item.customerName}</Text>
+              ) : null}
+              {item.deliveryName ? (
+                <Text style={styles.tripDetail}>Kho giao: {item.deliveryName}</Text>
+              ) : null}
               {item.completedAt ? (
                 <Text style={styles.tripDetail}>Hoàn thành: {formatVnDate(item.completedAt)}</Text>
               ) : null}
@@ -152,7 +155,12 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
   },
   footer: { paddingVertical: spacing.lg, alignItems: 'center' },
-  muted: { ...typography.caption, color: colors.slate300, marginTop: spacing.sm, textAlign: 'center' },
+  muted: {
+    ...typography.caption,
+    color: colors.slate300,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
   errorTitle: { ...typography.heading, color: colors.red600 },
   emptyTitle: { ...typography.heading, color: colors.white },
   tripRow: {

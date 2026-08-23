@@ -21,8 +21,12 @@ const src = (rel: string): string => readFileSync(resolve(here, '..', rel), 'utf
 describe('capture auto-advance wiring', () => {
   it('captureHrefForStop threads roadRunId, runState, and remaining', () => {
     const href = captureHrefForStop('to-1', {
-      stopKind: 'loading', stopIndex: 0, sequence: 1,
-      roadRunId: 'rr-9', runState: 'planned', remaining: 2,
+      stopKind: 'loading',
+      stopIndex: 0,
+      sequence: 1,
+      roadRunId: 'rr-9',
+      runState: 'planned',
+      remaining: 2,
     });
     expect(href).toContain('transportOrderId=to-1');
     expect(href).toContain('stopKind=loading');
@@ -45,7 +49,9 @@ describe('capture auto-advance wiring', () => {
     expect(s.includes('autoAdvanceAfterCapture')).toBe(true);
     expect(s.includes('makeForgivingLifecycleMutationFn')).toBe(true);
     expect(s.includes('UPLOAD_OK') && s.includes('autoAdvanceAfterCapture')).toBe(true);
-    expect(s.includes('void autoAdvanceAfterCapture') || s.includes('void runAutoAdvance')).toBe(true);
+    expect(s.includes('void autoAdvanceAfterCapture') || s.includes('void runAutoAdvance')).toBe(
+      true,
+    );
   });
 
   it('assignments card passes run context into the href builder', () => {

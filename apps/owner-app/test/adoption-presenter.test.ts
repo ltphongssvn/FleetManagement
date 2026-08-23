@@ -3,10 +3,7 @@
 // view-model (Vietnamese card labels + an adoption percentage). No native
 // deps, so unit-covered. Vietnamese UI strings are immutable contract.
 import { describe, it, expect } from 'vitest';
-import {
-  presentAdoption,
-  ADOPTION_LABELS,
-} from '../src/dashboard/adoption-presenter.js';
+import { presentAdoption, ADOPTION_LABELS } from '../src/dashboard/adoption-presenter.js';
 import type { OwnerAdoptionMetrics } from '@fleet/sync-protocol';
 
 const base: OwnerAdoptionMetrics = {
@@ -33,7 +30,14 @@ describe('presentAdoption', () => {
   });
 
   it('reports 0% adoption without dividing by zero on an empty roster', () => {
-    const vm = presentAdoption({ ...base, totalDrivers: 0, deviceRegistered: 0, appInstalled: 0, activeToday: 0, notInstalled: 0 });
+    const vm = presentAdoption({
+      ...base,
+      totalDrivers: 0,
+      deviceRegistered: 0,
+      appInstalled: 0,
+      activeToday: 0,
+      notInstalled: 0,
+    });
     expect(vm.installedPct).toBe(0);
   });
 

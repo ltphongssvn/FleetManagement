@@ -41,7 +41,10 @@ export class AdminDriversUpdateController {
     @CurrentOperator() op: OperatorContext,
     @Param('id') driverId: string,
   ): Promise<{ ok: true }> {
-    await this.service.softDelete({ driverId: UuidParamSchema.parse(driverId), companyId: op.companyId });
+    await this.service.softDelete({
+      driverId: UuidParamSchema.parse(driverId),
+      companyId: op.companyId,
+    });
     return { ok: true };
   }
 }

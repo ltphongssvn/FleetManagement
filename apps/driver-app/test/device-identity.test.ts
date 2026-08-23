@@ -7,7 +7,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 const KEY = 'fleet.driver.device.installationId';
 describe('device-identity on native', () => {
-  beforeEach(() => { vi.resetModules(); });
+  beforeEach(() => {
+    vi.resetModules();
+  });
   it('generates and persists an installation id on first call', async () => {
     const setItemAsync = vi.fn(() => Promise.resolve(undefined));
     vi.doMock('react-native', () => ({ Platform: { OS: 'android' } }));

@@ -17,7 +17,16 @@
 // VN-local day before insert. row_count + sha256 + filename are kept for
 // audit/forensics: an auditor can re-render the worksheet at any time
 // and prove the recorded sha256 matches.
-import { pgTable, uuid, varchar, integer, timestamp, index, uniqueIndex, check } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  varchar,
+  integer,
+  timestamp,
+  index,
+  uniqueIndex,
+  check,
+} from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { tenancyColumns } from './tenancy.js';
 export const transportOrderExportLog = pgTable(

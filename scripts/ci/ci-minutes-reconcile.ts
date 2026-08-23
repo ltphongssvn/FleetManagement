@@ -54,8 +54,11 @@ export function linuxMinutesForRepo(items: readonly UsageItem[], repo: string): 
   if (actions.length === 0) {
     const seen = Array.from(new Set(items.map((i) => i.product))).join(', ');
     throw new Error(
-      'no actions usage matched product=' + ACTIONS_PRODUCT +
-      ' -- products present: [' + seen + ']. Refusing to report 0.',
+      'no actions usage matched product=' +
+        ACTIONS_PRODUCT +
+        ' -- products present: [' +
+        seen +
+        ']. Refusing to report 0.',
     );
   }
   const linux = actions.filter((i) => i.sku === LINUX_SKU);
@@ -63,8 +66,13 @@ export function linuxMinutesForRepo(items: readonly UsageItem[], repo: string): 
   if (mine.length === 0) {
     const seen = Array.from(new Set(linux.map((i) => i.repositoryName))).join(', ');
     throw new Error(
-      'repo ' + repo + ' has no ' + LINUX_SKU + ' usage -- repos present: [' +
-      seen + ']. Refusing to report 0.',
+      'repo ' +
+        repo +
+        ' has no ' +
+        LINUX_SKU +
+        ' usage -- repos present: [' +
+        seen +
+        ']. Refusing to report 0.',
     );
   }
   return mine.reduce((sum, i) => sum + i.quantity, 0);

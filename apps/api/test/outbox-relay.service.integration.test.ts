@@ -2,7 +2,11 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { OutboxRelayService } from '../src/outbox/outbox-relay.service.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+} from './helpers/migrate-test-db.js';
 import { rowsOf } from './helpers/integration-rows.js';
 
 let testDb: MigratedTestDb;
@@ -35,10 +39,10 @@ function makeRelay(): RelayHarness {
     intake: fakeQueue(),
     'outbox-dead-letter': fakeQueue(),
   };
-  const svc = new (OutboxRelayService as unknown as new (db: unknown, conn: unknown) => OutboxRelayService)(
-    testDb.db,
-    { host: 'localhost', port: 6379 },
-  );
+  const svc = new (OutboxRelayService as unknown as new (
+    db: unknown,
+    conn: unknown,
+  ) => OutboxRelayService)(testDb.db, { host: 'localhost', port: 6379 });
   const getQueue = (name: string): FakeQueue => {
     let q = queues[name];
     if (!q) {
@@ -52,9 +56,15 @@ function makeRelay(): RelayHarness {
 }
 
 describe('@fleet/api - OutboxRelayService (integration)', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_outbox_relay_int'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
-  beforeEach(async () => { await testDb.db.execute(sql`TRUNCATE TABLE outbox CASCADE`); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_outbox_relay_int');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
+  beforeEach(async () => {
+    await testDb.db.execute(sql`TRUNCATE TABLE outbox CASCADE`);
+  });
 
   it('drains pending row, enqueues to projections, marks sent', async () => {
     await testDb.db.execute(sql`
@@ -66,7 +76,9 @@ describe('@fleet/api - OutboxRelayService (integration)', () => {
     const { svc, queues } = makeRelay();
     await svc.drainOnce();
     const rows = await testDb.db.execute(sql`SELECT status FROM outbox`);
-    const r = rowsOf<{ status: string }>(rows as unknown as { rows: readonly { status: string }[] });
+    const r = rowsOf<{ status: string }>(
+      rows as unknown as { rows: readonly { status: string }[] },
+    );
     expect(r[0]?.status).toBe('sent');
     const projAdd = queues['projections']?.add;
     if (!projAdd) throw new Error('projections queue missing');
@@ -77,7 +89,10 @@ describe('@fleet/api - OutboxRelayService (integration)', () => {
     // still used the envelope; the job name + jobId are unaffected.
     expect(projAdd).toHaveBeenCalledWith(
       'road_run_started',
-      expect.not.objectContaining({ aggregateType: expect.anything(), eventType: expect.anything() }),
+      expect.not.objectContaining({
+        aggregateType: expect.anything(),
+        eventType: expect.anything(),
+      }),
       expect.objectContaining({ jobId: expect.any(String) }),
     );
   });
@@ -109,7 +124,9 @@ describe('@fleet/api - OutboxRelayService (integration)', () => {
     }, 0);
     expect(totalAddCalls).toBe(1);
     const rows = await testDb.db.execute(sql`SELECT status FROM outbox`);
-    const r = rowsOf<{ status: string }>(rows as unknown as { rows: readonly { status: string }[] });
+    const r = rowsOf<{ status: string }>(
+      rows as unknown as { rows: readonly { status: string }[] },
+    );
     expect(r).toHaveLength(1);
     expect(r[0]?.status).toBe('sent');
   });
@@ -123,7 +140,9 @@ describe('@fleet/api - OutboxRelayService (integration)', () => {
     const { svc } = makeRelay();
     await svc.drainOnce();
     const rows = await testDb.db.execute(sql`SELECT status FROM outbox`);
-    const r = rowsOf<{ status: string }>(rows as unknown as { rows: readonly { status: string }[] });
+    const r = rowsOf<{ status: string }>(
+      rows as unknown as { rows: readonly { status: string }[] },
+    );
     expect(r[0]?.status).toBe('dead_letter');
   });
 });

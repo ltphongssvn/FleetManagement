@@ -127,8 +127,10 @@ describe('the estate is derived from the grants, never declared beside them', ()
 
   it('strips parenthetical detail so the host reads as a bare name', () => {
     const entries = parseRecipientEntries(
-      HASH + ' Host-One (Apple Silicon, macOS 15.7)' + NL +
-      'age1022fpw0nt5xdw5txz86cl5whgeq2u3cxhtx9anuvz0twawyh84lqwl0etj',
+      HASH +
+        ' Host-One (Apple Silicon, macOS 15.7)' +
+        NL +
+        'age1022fpw0nt5xdw5txz86cl5whgeq2u3cxhtx9anuvz0twawyh84lqwl0etj',
     );
     expect(entries[0]?.host).toBe('Host-One');
   });

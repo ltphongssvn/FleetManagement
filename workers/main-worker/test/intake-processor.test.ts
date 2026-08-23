@@ -51,7 +51,11 @@ describe('@fleet/main-worker - IntakeProcessor', () => {
 
   it('rejects when actual content missing (S3 object never landed)', () => {
     const processor = new IntakeProcessor();
-    const result = processor.process({ ...validJob, actualContentType: null, actualSizeBytes: null });
+    const result = processor.process({
+      ...validJob,
+      actualContentType: null,
+      actualSizeBytes: null,
+    });
     expect(result.accepted).toBe(false);
     if (!result.accepted) expect(result.rejectionCode).toBe('object_missing');
   });

@@ -54,9 +54,9 @@
 name: Railway guards
 on:
   push:
-    branches: ["**"]
+    branches: ['**']
   pull_request:
-    branches: ["**"]
+    branches: ['**']
 concurrency:
   group: railway-guard-${{ github.ref }}
   cancel-in-progress: true

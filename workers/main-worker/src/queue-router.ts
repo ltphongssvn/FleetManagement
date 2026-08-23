@@ -18,7 +18,11 @@ import { sendErpInvoice, type ErpClientPort } from './erp/erp-send-flow.js';
 import type { IntakeCallback } from './intake/intake-callback.js';
 import type { IntakeObjectStore } from './intake/intake-object-store.js';
 import { ExtractionJobDataWireSchema } from '@fleet/sync-protocol';
-import { runExtraction, type ExtractionObjectStore, type VlmExtractorPort } from './extraction/extraction-flow.js';
+import {
+  runExtraction,
+  type ExtractionObjectStore,
+  type VlmExtractorPort,
+} from './extraction/extraction-flow.js';
 import type { ExtractionCallback } from './extraction/extraction-callback.js';
 
 export interface RouterResult {
@@ -31,7 +35,10 @@ export interface DeadLetterEntry {
   readonly originalQueue: QueueName;
   readonly jobId: string | null;
   readonly reason: 'schema_validation_failed';
-  readonly errorIssues: readonly { readonly path: readonly (string | number)[]; readonly message: string }[];
+  readonly errorIssues: readonly {
+    readonly path: readonly (string | number)[];
+    readonly message: string;
+  }[];
   readonly originalPayload: unknown;
   readonly receivedAt: string;
 }
@@ -44,7 +51,10 @@ export interface DeadLetterSink {
 export function createBullDeadLetterSink(queue: Pick<Queue, 'add'>): DeadLetterSink {
   return {
     async send(entry: DeadLetterEntry): Promise<void> {
-      await queue.add('schema_validation_failed', entry, { removeOnComplete: false, removeOnFail: false });
+      await queue.add('schema_validation_failed', entry, {
+        removeOnComplete: false,
+        removeOnFail: false,
+      });
     },
   };
 }
@@ -74,14 +84,15 @@ export async function routeJob(
       let enriched = data;
       if (objectStore) {
         const head = await objectStore.headObject({ bucket: data.s3Bucket, key: data.s3Key });
-        enriched = head === null
-          ? { ...data, actualContentType: null, actualSizeBytes: null }
-          : {
-              ...data,
-              actualContentType: head.contentType,
-              actualSizeBytes: head.sizeBytes,
-              virusScanClean: data.virusScanClean ?? true,
-            };
+        enriched =
+          head === null
+            ? { ...data, actualContentType: null, actualSizeBytes: null }
+            : {
+                ...data,
+                actualContentType: head.contentType,
+                actualSizeBytes: head.sizeBytes,
+                virusScanClean: data.virusScanClean ?? true,
+              };
       }
       const decision = new IntakeProcessor().process(enriched);
       // Worker reports back to API so it can transition manifest+upload_session
@@ -89,7 +100,11 @@ export async function routeJob(
       if (intakeCallback) {
         const callbackInput = decision.accepted
           ? { uploadSessionId: data.uploadSessionId, accepted: true }
-          : { uploadSessionId: data.uploadSessionId, accepted: false, rejectionReasonCode: decision.rejectionCode };
+          : {
+              uploadSessionId: data.uploadSessionId,
+              accepted: false,
+              rejectionReasonCode: decision.rejectionCode,
+            };
         await intakeCallback.finalize(callbackInput);
       }
       const summary = decision.accepted
@@ -102,9 +117,10 @@ export async function routeJob(
       if (erpClient) {
         const outcome = await sendErpInvoice(data, erpClient);
         if (outcome.kind === 'failed') throw outcome.error;
-        const summary = outcome.kind === 'sent'
-          ? `sent externalInvoiceId=${outcome.externalInvoiceId}`
-          : `rejected:${outcome.rejectionCode}`;
+        const summary =
+          outcome.kind === 'sent'
+            ? `sent externalInvoiceId=${outcome.externalInvoiceId}`
+            : `rejected:${outcome.rejectionCode}`;
         return { handled: true, summary, deadLettered: false };
       }
       const decision = new ErpProcessor().process(data);
@@ -116,7 +132,11 @@ export async function routeJob(
     if (name === 'extraction') {
       const data = ExtractionJobDataWireSchema.parse(job.data);
       if (!extractionStore || !vlmExtractor) {
-        return { handled: true, summary: 'extraction skipped: ports not configured', deadLettered: false };
+        return {
+          handled: true,
+          summary: 'extraction skipped: ports not configured',
+          deadLettered: false,
+        };
       }
       const outcome = await runExtraction(data, extractionStore, vlmExtractor);
       if (outcome.kind === 'failed') throw outcome.error;
@@ -134,7 +154,10 @@ export async function routeJob(
         originalQueue: name,
         jobId: job.id ?? null,
         reason: 'schema_validation_failed',
-        errorIssues: err.issues.map((i) => ({ path: i.path.map((seg) => String(seg)), message: i.message })),
+        errorIssues: err.issues.map((i) => ({
+          path: i.path.map((seg) => String(seg)),
+          message: i.message,
+        })),
         originalPayload: job.data,
         receivedAt: new Date().toISOString(),
       });

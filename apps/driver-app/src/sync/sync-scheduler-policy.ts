@@ -46,8 +46,17 @@ export interface SyncSchedulerState {
 
 export type SyncSchedulerDecision =
   | { readonly action: 'run_now'; readonly policyVersion: typeof SYNC_SCHEDULER_POLICY_VERSION }
-  | { readonly action: 'defer'; readonly nextEarliestAtMs: number; readonly reason: 'backoff' | 'idle_interval' | 'circuit_breaker'; readonly policyVersion: typeof SYNC_SCHEDULER_POLICY_VERSION }
-  | { readonly action: 'skip'; readonly reason: 'offline' | 'app_inactive'; readonly policyVersion: typeof SYNC_SCHEDULER_POLICY_VERSION };
+  | {
+      readonly action: 'defer';
+      readonly nextEarliestAtMs: number;
+      readonly reason: 'backoff' | 'idle_interval' | 'circuit_breaker';
+      readonly policyVersion: typeof SYNC_SCHEDULER_POLICY_VERSION;
+    }
+  | {
+      readonly action: 'skip';
+      readonly reason: 'offline' | 'app_inactive';
+      readonly policyVersion: typeof SYNC_SCHEDULER_POLICY_VERSION;
+    };
 
 const FAST_TRACK_TRIGGERS: ReadonlySet<SyncTrigger> = new Set([
   'manual_retry',
@@ -87,7 +96,8 @@ export function decideSyncSchedule(
   // trigger as authoritative for its respective dimension so the policy doesn't
   // skip a sync the OS just woke us up to do.
   const triggerAssertsOnline = trigger === 'network_online';
-  const triggerAssertsActive = trigger === 'app_foreground' || trigger === 'network_online' || trigger === 'push_wake';
+  const triggerAssertsActive =
+    trigger === 'app_foreground' || trigger === 'network_online' || trigger === 'push_wake';
 
   if (!state.online && !triggerAssertsOnline) {
     return { action: 'skip', reason: 'offline', policyVersion: SYNC_SCHEDULER_POLICY_VERSION };
@@ -123,9 +133,10 @@ export function decideSyncSchedule(
   }
   {
     const sinceLastMs = nowMs - state.lastSyncAtMs;
-    const requiredBackoffMs = state.lastOutcome === TRANSPORT_FAILURE_OUTCOME
-      ? backoffDelayMs(state.consecutiveTransportFailures, deps.random)
-      : SYNC_IDLE_INTERVAL_MS;
+    const requiredBackoffMs =
+      state.lastOutcome === TRANSPORT_FAILURE_OUTCOME
+        ? backoffDelayMs(state.consecutiveTransportFailures, deps.random)
+        : SYNC_IDLE_INTERVAL_MS;
     if (sinceLastMs < requiredBackoffMs) {
       return {
         action: 'defer',

@@ -134,7 +134,9 @@ describe('filter tabs use the tab pattern (UX-07)', () => {
     // dispatch-view-search both assert aria-current=page. Adding the tab
     // semantics must not remove it.
     render(<DispatchView initialRuns={[]} refs={refs} pagination={pagination} />);
-    expect(screen.getByTestId('dispatch-board-filter-active').getAttribute('aria-current')).toBe('page');
+    expect(screen.getByTestId('dispatch-board-filter-active').getAttribute('aria-current')).toBe(
+      'page',
+    );
   });
 
   it('gives every filter tab the minimum hit area', () => {
@@ -186,8 +188,12 @@ describe('empty board explains itself and offers the next step (UX-06)', () => {
   it('distinguishes an empty SEARCH from an empty board', () => {
     // UX-03 in miniature: no results because you filtered is a different
     // situation, with a different remedy, from no data exists yet.
-    render(<DispatchView initialRuns={[]} refs={refs} pagination={pagination} searchTerm='khong-co' />);
-    expect(screen.getByTestId('dispatch-board-empty').getAttribute('data-reason')).toBe('no_search_results');
+    render(
+      <DispatchView initialRuns={[]} refs={refs} pagination={pagination} searchTerm="khong-co" />,
+    );
+    expect(screen.getByTestId('dispatch-board-empty').getAttribute('data-reason')).toBe(
+      'no_search_results',
+    );
     expect(screen.getByText(EMPTY_STATE_VI.no_search_results.hint)).toBeTruthy();
   });
 });

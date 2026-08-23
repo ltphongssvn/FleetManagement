@@ -2,7 +2,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { CommandsGateway } from '../src/commands/commands.gateway.js';
 import { OperatorContextFactory } from '../src/auth/operator-context.factory.js';
-import type { IIdentityProvider, VerifiedIdentity } from '../src/auth/identity-provider.interface.js';
+import type {
+  IIdentityProvider,
+  VerifiedIdentity,
+} from '../src/auth/identity-provider.interface.js';
 
 const validIdentity: VerifiedIdentity = {
   subject: 'user-1',
@@ -29,8 +32,12 @@ function makeSocket(auth: Record<string, unknown>): FakeSocket {
     data: {},
     joined: [],
     disconnected: false,
-    join(room) { this.joined.push(room); },
-    disconnect() { this.disconnected = true; },
+    join(room) {
+      this.joined.push(room);
+    },
+    disconnect() {
+      this.disconnected = true;
+    },
   };
 }
 

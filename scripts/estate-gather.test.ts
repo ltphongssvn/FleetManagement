@@ -24,7 +24,10 @@ const failed = { ok: false as const };
 
 /** Every reading succeeded and reported nothing: a genuinely clean worktree. */
 const ALL_CLEAN: WorktreeReadings = {
-  upstream: ran(''), ahead: ran(''), status: ran(''), stash: ran(''),
+  upstream: ran(''),
+  ahead: ran(''),
+  status: ran(''),
+  stash: ran(''),
 };
 
 describe('a failed command is never a zero', () => {
@@ -42,7 +45,10 @@ describe('a failed command is never a zero', () => {
   // The same zero wearing a different hat: a failed count became "not ahead".
   it('REFUSES when the ahead count could not run against a real upstream', () => {
     const g = gatherOneFrom(REC, {
-      upstream: ran('origin/feat/x'), ahead: failed, status: ran(''), stash: ran(''),
+      upstream: ran('origin/feat/x'),
+      ahead: failed,
+      status: ran(''),
+      stash: ran(''),
     });
     expect(g.kind).toBe('git-failed');
   });
@@ -82,20 +88,29 @@ describe('no upstream is a state, not a failure', () => {
 
 describe('counts are read from output that actually ran', () => {
   it('counts dirty files by line', () => {
-    const g = gatherOneFrom(REC, { ...ALL_CLEAN, status: ran([' M a', '?? b', ' D c'].join('\n')) });
+    const g = gatherOneFrom(REC, {
+      ...ALL_CLEAN,
+      status: ran([' M a', '?? b', ' D c'].join('\n')),
+    });
     if (g.kind !== 'state') throw new Error('expected state');
     expect(g.state.dirtyFileCount).toBe(3);
   });
 
   it('counts stashes by line', () => {
-    const g = gatherOneFrom(REC, { ...ALL_CLEAN, stash: ran(['stash@{0}: x', 'stash@{1}: y'].join('\n')) });
+    const g = gatherOneFrom(REC, {
+      ...ALL_CLEAN,
+      stash: ran(['stash@{0}: x', 'stash@{1}: y'].join('\n')),
+    });
     if (g.kind !== 'state') throw new Error('expected state');
     expect(g.state.stashCount).toBe(2);
   });
 
   it('reads the ahead count when an upstream exists', () => {
     const g = gatherOneFrom(REC, {
-      upstream: ran('origin/feat/x'), ahead: ran('7'), status: ran(''), stash: ran(''),
+      upstream: ran('origin/feat/x'),
+      ahead: ran('7'),
+      status: ran(''),
+      stash: ran(''),
     });
     if (g.kind !== 'state') throw new Error('expected state');
     expect(g.state.aheadOfRemote).toBe(7);
@@ -105,7 +120,10 @@ describe('counts are read from output that actually ran', () => {
   it('REFUSES a count that is not a whole number', () => {
     for (const out of ['not-a-number', '3.5', '-1', 'NaN']) {
       const g = gatherOneFrom(REC, {
-        upstream: ran('origin/x'), ahead: ran(out), status: ran(''), stash: ran(''),
+        upstream: ran('origin/x'),
+        ahead: ran(out),
+        status: ran(''),
+        stash: ran(''),
       });
       expect(g.kind).toBe('git-failed');
     }
@@ -155,7 +173,8 @@ describe('an outcome cannot conflate empty with failed', () => {
   });
 
   it('REJECTS a readings set missing a command', () => {
-    expect(WorktreeReadingsSchema.safeParse({ upstream: ran(''), status: ran('') }).success)
-      .toBe(false);
+    expect(WorktreeReadingsSchema.safeParse({ upstream: ran(''), status: ran('') }).success).toBe(
+      false,
+    );
   });
 });

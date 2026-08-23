@@ -6,11 +6,7 @@
 // expo-doctor printed against them. A planner tested against invented input
 // proves only that it matches the invention.
 import { describe, it, expect } from 'vitest';
-import {
-  EXPO_BUMP_EXIT,
-  applyManifestVersions,
-  planExpoBump,
-} from './bump-expo.js';
+import { EXPO_BUMP_EXIT, applyManifestVersions, planExpoBump } from './bump-expo.js';
 import type { DriftedPackage } from './expo-doctor.js';
 
 const MANIFEST = JSON.stringify(
@@ -31,8 +27,11 @@ const MANIFEST = JSON.stringify(
   2,
 );
 
-const row = (name: string, expected: string, found: string): DriftedPackage =>
-  ({ name, expected, found });
+const row = (name: string, expected: string, found: string): DriftedPackage => ({
+  name,
+  expected,
+  found,
+});
 
 const DRIFT: readonly DriftedPackage[] = [
   row('expo', '~55.0.29', '55.0.26'),
@@ -43,8 +42,11 @@ const DRIFT: readonly DriftedPackage[] = [
 
 describe('planExpoBump only touches DECLARED packages', () => {
   it('plans every package the manifest declares', () => {
-    expect(planExpoBump(MANIFEST, DRIFT).map((r) => r.name).sort())
-      .toEqual(['@expo/metro-runtime', 'expo', 'expo-router', 'react-native']);
+    expect(
+      planExpoBump(MANIFEST, DRIFT)
+        .map((r) => r.name)
+        .sort(),
+    ).toEqual(['@expo/metro-runtime', 'expo', 'expo-router', 'react-native']);
   });
 
   // expo-doctor also reports drift for TRANSITIVE packages no manifest owns.
@@ -117,8 +119,9 @@ describe('applyManifestVersions writes what Expo expects', () => {
 describe('applyManifestVersions refuses rather than guessing', () => {
   // Zero occurrences means the plan disagrees with the file it was built from.
   it('THROWS when the package is absent', () => {
-    expect(() => applyManifestVersions(MANIFEST, [row('expo-camera', '~55.0.1', '55.0.0')]))
-      .toThrow(/exactly one declaration/);
+    expect(() =>
+      applyManifestVersions(MANIFEST, [row('expo-camera', '~55.0.1', '55.0.0')]),
+    ).toThrow(/exactly one declaration/);
   });
 
   // Two occurrences means dependencies AND devDependencies both declare it,
@@ -128,12 +131,17 @@ describe('applyManifestVersions refuses rather than guessing', () => {
     // declared key with its standard '": "' separator, so a minified fixture
     // would match zero times and prove nothing about the double-declaration
     // case this test exists for.
-    const doubled = JSON.stringify({
-      dependencies: { 'expo-sqlite': '~55.0.16' },
-      devDependencies: { 'expo-sqlite': '~55.0.16' },
-    }, null, 2);
-    expect(() => applyManifestVersions(doubled, [row('expo-sqlite', '~55.0.19', '55.0.16')]))
-      .toThrow(/found 2/);
+    const doubled = JSON.stringify(
+      {
+        dependencies: { 'expo-sqlite': '~55.0.16' },
+        devDependencies: { 'expo-sqlite': '~55.0.16' },
+      },
+      null,
+      2,
+    );
+    expect(() =>
+      applyManifestVersions(doubled, [row('expo-sqlite', '~55.0.19', '55.0.16')]),
+    ).toThrow(/found 2/);
   });
 
   // A refusal must leave the input untouched: no partial write.

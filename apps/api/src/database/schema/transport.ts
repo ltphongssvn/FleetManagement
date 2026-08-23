@@ -5,7 +5,17 @@
 // makes a 'cancelled' state without cancelled_at impossible. Check
 // expressions use sql.raw(...) plain strings instead of tagged template
 // literals so the file contains zero backticks (heredoc-safe edits).
-import { pgTable, uuid, varchar, timestamp, index, integer, jsonb, pgEnum, check } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  varchar,
+  timestamp,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  check,
+} from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { TRANSPORT_ORDER_STATES, ROAD_RUN_STATES } from '@fleet/domain';
 import { tenancyColumns } from './tenancy.js';

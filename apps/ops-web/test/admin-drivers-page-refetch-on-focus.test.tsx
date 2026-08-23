@@ -37,10 +37,21 @@ vi.mock('@/features/admin/admin-drivers-client', () => ({
 }));
 import AdminDriversPage from '@/app/admin/drivers/page';
 
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 beforeEach(() => {
   listMock.mockResolvedValue([
-    { driverId: 'd1', fullName: 'Driver Alpha', phone: '0900000001', operatorId: 'op-a', assignedVehicle: null, assignmentId: null, devices: [] },
+    {
+      driverId: 'd1',
+      fullName: 'Driver Alpha',
+      phone: '0900000001',
+      operatorId: 'op-a',
+      assignedVehicle: null,
+      assignmentId: null,
+      devices: [],
+    },
   ]);
   globalThis.fetch = vi.fn().mockResolvedValue({
     ok: true,

@@ -7,4 +7,4 @@ export const COMMAND_EVENTS = {
   clientAck: 'command_ack',
 } as const;
 
-export type CommandEventName = typeof COMMAND_EVENTS[keyof typeof COMMAND_EVENTS];
+export type CommandEventName = (typeof COMMAND_EVENTS)[keyof typeof COMMAND_EVENTS];

@@ -11,7 +11,10 @@ import { createOperatorContext } from '@fleet/test-fixtures';
 const OP = createOperatorContext();
 const MID = '7b6a1c9e-2f4d-4a8b-9c0d-1e2f3a4b5c6d';
 
-function makeController(): { controller: ExtractionCallbackController; finalizeExtraction: ReturnType<typeof vi.fn> } {
+function makeController(): {
+  controller: ExtractionCallbackController;
+  finalizeExtraction: ReturnType<typeof vi.fn>;
+} {
   const finalizeExtraction = vi.fn().mockResolvedValue({ manifestId: MID, status: 'extracted' });
   const svc = { finalizeExtraction } as unknown as ManifestService;
   return { controller: new ExtractionCallbackController(svc), finalizeExtraction };
@@ -37,7 +40,10 @@ describe('@fleet/api - ExtractionCallbackController', () => {
   it('rejects unknown keys (strict)', async () => {
     const { controller, finalizeExtraction } = makeController();
     await expect(
-      controller.finalize({ manifestId: MID, status: 'not_found', extractedNetWeightKg: null, extra: 1 }, OP),
+      controller.finalize(
+        { manifestId: MID, status: 'not_found', extractedNetWeightKg: null, extra: 1 },
+        OP,
+      ),
     ).rejects.toBeInstanceOf(ZodError);
     expect(finalizeExtraction).not.toHaveBeenCalled();
   });

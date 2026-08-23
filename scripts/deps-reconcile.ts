@@ -125,10 +125,7 @@ function findRecord(lines: readonly string[]): PnpmNdjsonRecord | null {
 // FAILS CLOSED, mirroring gate:agent and interpretDepsProbe: only an explicit
 // exit 0 is a pass. A null status (timeout SIGTERM) and unparseable output both
 // resolve to failed, never to reconciled.
-export function interpretHealResult(
-  exitCode: number | null,
-  output: string,
-): HealResult {
+export function interpretHealResult(exitCode: number | null, output: string): HealResult {
   // Exit 0 means the install ATTEMPT completed, NOT that the tree converged.
   // The caller must re-probe and pass the result to verifyHeal; this branch
   // deliberately no longer returns a reconciled verdict of its own.

@@ -17,7 +17,10 @@ import { sql } from 'drizzle-orm';
 import { Pool } from 'pg';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TestPgConnectionSchema, TEST_PG_INJECT_KEY } from './helpers/test-pg-connection-contract.js';
+import {
+  TestPgConnectionSchema,
+  TEST_PG_INJECT_KEY,
+} from './helpers/test-pg-connection-contract.js';
 import { EXTRACTION_FAILURE_REASONS } from '@fleet/sync-protocol';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -32,7 +35,9 @@ function quoteIdent(name: string): string {
 
 function uriFor(database: string): string {
   const c = TestPgConnectionSchema.parse(inject(TEST_PG_INJECT_KEY));
-  return 'postgres://' + c.user + ':' + c.password + '@' + c.host + ':' + String(c.port) + '/' + database;
+  return (
+    'postgres://' + c.user + ':' + c.password + '@' + c.host + ':' + String(c.port) + '/' + database
+  );
 }
 
 let pool: Pool | undefined;
@@ -43,7 +48,10 @@ describe('@fleet/api - drizzle migrations apply to fresh Postgres', () => {
     const injected = TestPgConnectionSchema.parse(inject(TEST_PG_INJECT_KEY));
     // Create a pristine empty database on the shared container (no TEMPLATE =>
     // empty). Drop any leftover from a prior reused-container run first.
-    const admin = new Pool({ connectionString: uriFor(injected.database), connectionTimeoutMillis: 10_000 });
+    const admin = new Pool({
+      connectionString: uriFor(injected.database),
+      connectionTimeoutMillis: 10_000,
+    });
     try {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -61,7 +69,10 @@ describe('@fleet/api - drizzle migrations apply to fresh Postgres', () => {
   afterAll(async () => {
     if (pool !== undefined) await pool.end();
     const injected = TestPgConnectionSchema.parse(inject(TEST_PG_INJECT_KEY));
-    const admin = new Pool({ connectionString: uriFor(injected.database), connectionTimeoutMillis: 10_000 });
+    const admin = new Pool({
+      connectionString: uriFor(injected.database),
+      connectionTimeoutMillis: 10_000,
+    });
     try {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',

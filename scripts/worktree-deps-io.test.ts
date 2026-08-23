@@ -11,10 +11,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-  readValidationTimestampMs,
-  newestManifestMtimeMs,
-} from './sync-worktrees.js';
+import { readValidationTimestampMs, newestManifestMtimeMs } from './sync-worktrees.js';
 let root = '';
 const setMtime = (p: string, ms: number): void => {
   const secs = ms / 1000;
@@ -49,10 +46,7 @@ describe('readValidationTimestampMs', () => {
   });
   it('treats unparseable JSON as absent, never as validated', () => {
     mkdirSync(join(root, 'node_modules'), { recursive: true });
-    writeFileSync(
-      join(root, 'node_modules', '.pnpm-workspace-state-v1.json'),
-      'not json',
-    );
+    writeFileSync(join(root, 'node_modules', '.pnpm-workspace-state-v1.json'), 'not json');
     expect(readValidationTimestampMs(root).present).toBe(false);
   });
 });

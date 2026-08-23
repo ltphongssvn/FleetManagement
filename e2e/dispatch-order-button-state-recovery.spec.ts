@@ -35,7 +35,12 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import { dockerPsql } from './helpers/docker-exec';
 import { loginAs, mintToken } from './helpers/auth';
 import { type z } from 'zod';
-import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
+import {
+  parseJson,
+  CreateDriverResponseSchema,
+  ReferenceItemSchema,
+  AssignmentResponseSchema,
+} from './helpers/contracts';
 import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
@@ -45,7 +50,6 @@ const RECOVERY_BUDGET_MS = 15_000;
 // Unanchored variant for extracting the ref from banner text like
 // 'Số Lệnh: XTT.05-052' where the anchored regex would not match.
 const ORDER_NUMBER_EXTRACT_RE = /XTT\.(0[1-9]|1[0-2])-\d{3,}/;
-
 
 interface SeededPair {
   driverId: string;
@@ -57,12 +61,19 @@ interface SeededPair {
   token: string;
 }
 
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+async function adminPost<T>(
+  api: APIRequestContext,
+  token: string,
+  path: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
-  if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
+  if (!res.ok())
+    throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   return parseJson(res, schema);
 }
 
@@ -73,13 +84,23 @@ async function setupPair(api: APIRequestContext, suffix: string): Promise<Seeded
   const driverLabel = 'E2E DRIVER ' + suffix + ' ' + String(ts);
   const vehicleLabel = 'E2E-' + suffix + '-' + String(ts);
   const drv = await adminPost(
-    api, token, '/admin/drivers',
+    api,
+    token,
+    '/admin/drivers',
     { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
     CreateDriverResponseSchema,
   );
-  const veh = await adminPost(api, token, '/reference/vehicles', { name: vehicleLabel }, ReferenceItemSchema);
+  const veh = await adminPost(
+    api,
+    token,
+    '/reference/vehicles',
+    { name: vehicleLabel },
+    ReferenceItemSchema,
+  );
   const asgn = await adminPost(
-    api, token, '/admin/driver-vehicle-assignments',
+    api,
+    token,
+    '/admin/driver-vehicle-assignments',
     { driverId: drv.driverId, vehicleId: veh.id },
     AssignmentResponseSchema,
   );
@@ -100,17 +121,23 @@ async function cleanupPair(api: APIRequestContext, pair: SeededPair): Promise<vo
       headers: { Authorization: 'Bearer ' + pair.token, 'Content-Type': 'application/json' },
       data: JSON.stringify({ reason: 'e2e-cleanup' }),
     });
-  } catch { /* tolerate */ }
+  } catch {
+    /* tolerate */
+  }
   try {
     await api.delete(API_URL + '/reference/vehicles/' + pair.vehicleId, {
       headers: { Authorization: 'Bearer ' + pair.token },
     });
-  } catch { /* tolerate */ }
+  } catch {
+    /* tolerate */
+  }
   try {
     await api.delete(API_URL + '/admin/drivers/' + pair.driverId, {
       headers: { Authorization: 'Bearer ' + pair.token },
     });
-  } catch { /* tolerate */ }
+  } catch {
+    /* tolerate */
+  }
 }
 
 // Authenticate via injected session (PKCE login has no credential form).
@@ -137,28 +164,95 @@ test.describe('create-order button state recovery + no-leak (T3 follow-up)', () 
       // Delete transport_order + its road_run + outbox rows so the
       // dispatch_board projection does not replay stale state on the
       // next parallel worker's render of /.
-      const txIdSql = 'SELECT transport_order_id FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq +
-        ' AND external_ref=' + sq + ref + sq + ';';
+      const txIdSql =
+        'SELECT transport_order_id FROM transport_order WHERE company_id=' +
+        sq +
+        COMPANY_ID +
+        sq +
+        ' AND external_ref=' +
+        sq +
+        ref +
+        sq +
+        ';';
       const txId = dockerPsql(txIdSql).stdout.trim();
       if (txId.length > 0) {
-        const rrIds = dockerPsql('SELECT road_run_id FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';')
-          .stdout.trim().split(String.fromCharCode(10)).filter((line) => line.length > 0);
-        try { dockerPsql('DELETE FROM stop WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
-        try { dockerPsql('DELETE FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
+        const rrIds = dockerPsql(
+          'SELECT road_run_id FROM road_run_transport_order WHERE transport_order_id=' +
+            sq +
+            txId +
+            sq +
+            ';',
+        )
+          .stdout.trim()
+          .split(String.fromCharCode(10))
+          .filter((line) => line.length > 0);
+        try {
+          dockerPsql('DELETE FROM stop WHERE transport_order_id=' + sq + txId + sq + ';');
+        } catch {
+          /* tolerate */
+        }
+        try {
+          dockerPsql(
+            'DELETE FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';',
+          );
+        } catch {
+          /* tolerate */
+        }
         for (const rrId of rrIds) {
-          try { dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + rrId + sq + ';'); } catch { /* tolerate */ }
+          try {
+            dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + rrId + sq + ';');
+          } catch {
+            /* tolerate */
+          }
         }
       }
-      try { dockerPsql('DELETE FROM outbox WHERE company_id=' + sq + COMPANY_ID + sq +
-        " AND payload->>'externalRef'=" + sq + ref + sq + ';'); } catch { /* tolerate */ }
+      try {
+        dockerPsql(
+          'DELETE FROM outbox WHERE company_id=' +
+            sq +
+            COMPANY_ID +
+            sq +
+            " AND payload->>'externalRef'=" +
+            sq +
+            ref +
+            sq +
+            ';',
+        );
+      } catch {
+        /* tolerate */
+      }
       // Also clear the dispatch_board_projection so the read model on /
       // does not show duplicate stale rows for this ref on next render.
-      try { dockerPsql('DELETE FROM dispatch_board_projection WHERE company_id=' + sq + COMPANY_ID + sq +
-        " AND external_ref=" + sq + ref + sq + ';'); } catch { /* tolerate */ }
+      try {
+        dockerPsql(
+          'DELETE FROM dispatch_board_projection WHERE company_id=' +
+            sq +
+            COMPANY_ID +
+            sq +
+            ' AND external_ref=' +
+            sq +
+            ref +
+            sq +
+            ';',
+        );
+      } catch {
+        /* tolerate */
+      }
       const sql =
-        'DELETE FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq +
-        ' AND external_ref=' + sq + ref + sq + ';';
-      try { dockerPsql(sql); } catch { /* tolerate */ }
+        'DELETE FROM transport_order WHERE company_id=' +
+        sq +
+        COMPANY_ID +
+        sq +
+        ' AND external_ref=' +
+        sq +
+        ref +
+        sq +
+        ';';
+      try {
+        dockerPsql(sql);
+      } catch {
+        /* tolerate */
+      }
     }
   });
 
@@ -168,20 +262,33 @@ test.describe('create-order button state recovery + no-leak (T3 follow-up)', () 
     const sq = String.fromCharCode(39);
     const inList = seededOrderRefs.map((r) => sq + r + sq).join(',');
     const sql =
-      'SELECT external_ref FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq +
-      ' AND external_ref IN (' + inList + ');';
+      'SELECT external_ref FROM transport_order WHERE company_id=' +
+      sq +
+      COMPANY_ID +
+      sq +
+      ' AND external_ref IN (' +
+      inList +
+      ');';
     const r = dockerPsql(sql);
-    const leaked = r.stdout.trim().split('\n').filter((s) => s.length > 0);
+    const leaked = r.stdout
+      .trim()
+      .split('\n')
+      .filter((s) => s.length > 0);
     expect(leaked).toEqual([]);
   });
 
-  test('after submit the button returns from Đang tạo… to Tạo lệnh within the recovery budget, and the order is cleaned up', async ({ page, request }) => {
+  test('after submit the button returns from Đang tạo… to Tạo lệnh within the recovery budget, and the order is cleaned up', async ({
+    page,
+    request,
+  }) => {
     const pair = await setupPair(request, 'T3-BTN');
     try {
       await loginAsDispatcher(page);
       await page.goto('/');
       await openCreateOrderDrawer(page);
-      await plannedStartAtField(page.locator('[data-testid=nl-create-order-form]')).fill('2026-07-01');
+      await plannedStartAtField(page.locator('[data-testid=nl-create-order-form]')).fill(
+        '2026-07-01',
+      );
       const vehicleInput = page.locator('input#vehiclePlate');
       await vehicleInput.click();
       await vehicleInput.fill(pair.vehicleLabel);

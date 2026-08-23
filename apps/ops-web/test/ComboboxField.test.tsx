@@ -20,49 +20,57 @@ const opts = [
 ] as const;
 describe('ComboboxField', () => {
   it('renders a hidden input with the given name', () => {
-    const { container } = render(<ComboboxField name='customer' options={opts} placeholder='pick' />);
+    const { container } = render(
+      <ComboboxField name="customer" options={opts} placeholder="pick" />,
+    );
     const hidden = container.querySelector('input[type="hidden"][name="customer"]');
     expect(hidden).toBeTruthy();
   });
   it('renders a visible combobox input with placeholder', () => {
-    const { container } = render(<ComboboxField name='x' options={opts} placeholder='— pick —' />);
+    const { container } = render(<ComboboxField name="x" options={opts} placeholder="— pick —" />);
     const input = qsInput(container, 'input[role="combobox"]');
     expect(input.getAttribute('placeholder')).toBe('— pick —');
   });
   it('hidden input default value is empty when nothing selected', () => {
-    const { container } = render(<ComboboxField name='x' options={opts} placeholder='p' />);
+    const { container } = render(<ComboboxField name="x" options={opts} placeholder="p" />);
     const hidden = qsInput(container, 'input[type="hidden"][name="x"]');
     expect(hidden.value).toBe('');
   });
   it('hidden input value reflects defaultValue by label (default submitValue)', () => {
     const { container } = render(
-      <ComboboxField name='x' options={opts} placeholder='p' defaultValue='Alpha' />,
+      <ComboboxField name="x" options={opts} placeholder="p" defaultValue="Alpha" />,
     );
     const hidden = qsInput(container, 'input[type="hidden"][name="x"]');
     expect(hidden.value).toBe('Alpha');
   });
   it('hidden input value reflects defaultValue by id when submitValue="id"', () => {
     const { container } = render(
-      <ComboboxField name='x' options={opts} placeholder='p' submitValue='id' defaultValue='id-2' />,
+      <ComboboxField
+        name="x"
+        options={opts}
+        placeholder="p"
+        submitValue="id"
+        defaultValue="id-2"
+      />,
     );
     const hidden = qsInput(container, 'input[type="hidden"][name="x"]');
     expect(hidden.value).toBe('id-2');
   });
   it('typing into the input does not crash and updates value', () => {
-    const { container } = render(<ComboboxField name='x' options={opts} placeholder='p' />);
+    const { container } = render(<ComboboxField name="x" options={opts} placeholder="p" />);
     const input = qsInput(container, 'input[role="combobox"]');
     fireEvent.change(input, { target: { value: 'Al' } });
     expect(input.value).toBe('Al');
   });
   it('handles empty options array without crashing', () => {
-    const { container } = render(<ComboboxField name='x' options={[]} placeholder='p' />);
+    const { container } = render(<ComboboxField name="x" options={[]} placeholder="p" />);
     expect(container.querySelector('input[name="x"]')).toBeTruthy();
   });
   it('renders two instances independently with same options reference', () => {
     const { container } = render(
       <div>
-        <ComboboxField name='a' options={opts} placeholder='A' />
-        <ComboboxField name='b' options={opts} placeholder='B' submitValue='id' />
+        <ComboboxField name="a" options={opts} placeholder="A" />
+        <ComboboxField name="b" options={opts} placeholder="B" submitValue="id" />
       </div>,
     );
     expect(container.querySelector('input[type="hidden"][name="a"]')).toBeTruthy();
@@ -73,7 +81,7 @@ describe('ComboboxField', () => {
     // No value/onChange props -> uncontrolled mode -> handleChange invokes
     // setInternalSelected, which is the only branch not exercised by any
     // other test in this file.
-    const { container } = render(<ComboboxField name='x' options={opts} placeholder='p' />);
+    const { container } = render(<ComboboxField name="x" options={opts} placeholder="p" />);
     const input = qsInput(container, 'input[role="combobox"]');
     fireEvent.change(input, { target: { value: 'Alpha' } });
     await screen.findByRole('option', { name: 'Alpha' });
@@ -84,7 +92,7 @@ describe('ComboboxField', () => {
   it('controlled mode: external non-empty value drives the hidden input (label)', () => {
     const onChange = vi.fn();
     const { container } = render(
-      <ComboboxField name='x' options={opts} placeholder='p' value='Beta' onChange={onChange} />,
+      <ComboboxField name="x" options={opts} placeholder="p" value="Beta" onChange={onChange} />,
     );
     const hidden = qsInput(container, 'input[type="hidden"][name="x"]');
     expect(hidden.value).toBe('Beta');
@@ -92,7 +100,14 @@ describe('ComboboxField', () => {
   it('controlled mode: external non-empty value drives the hidden input (id, submitValue="id")', () => {
     const onChange = vi.fn();
     const { container } = render(
-      <ComboboxField name='x' options={opts} placeholder='p' submitValue='id' value='id-1' onChange={onChange} />,
+      <ComboboxField
+        name="x"
+        options={opts}
+        placeholder="p"
+        submitValue="id"
+        value="id-1"
+        onChange={onChange}
+      />,
     );
     const hidden = qsInput(container, 'input[type="hidden"][name="x"]');
     expect(hidden.value).toBe('id-1');
@@ -100,7 +115,7 @@ describe('ComboboxField', () => {
   it('controlled mode: empty external value yields empty hidden input', () => {
     const onChange = vi.fn();
     const { container } = render(
-      <ComboboxField name='x' options={opts} placeholder='p' value='' onChange={onChange} />,
+      <ComboboxField name="x" options={opts} placeholder="p" value="" onChange={onChange} />,
     );
     const hidden = qsInput(container, 'input[type="hidden"][name="x"]');
     expect(hidden.value).toBe('');
@@ -110,8 +125,8 @@ describe('ComboboxField', () => {
       const [v, setV] = useState('');
       return (
         <>
-          <ComboboxField name='x' options={opts} placeholder='p' value={v} onChange={setV} />
-          <span data-testid='captured'>{v}</span>
+          <ComboboxField name="x" options={opts} placeholder="p" value={v} onChange={setV} />
+          <span data-testid="captured">{v}</span>
         </>
       );
     }
@@ -125,10 +140,12 @@ describe('ComboboxField', () => {
   it('controlled mode: clearing via rerender from value=Alpha to value= yields empty hidden input', () => {
     const onChange = vi.fn();
     const { container, rerender } = render(
-      <ComboboxField name='x' options={opts} placeholder='p' value='Alpha' onChange={onChange} />,
+      <ComboboxField name="x" options={opts} placeholder="p" value="Alpha" onChange={onChange} />,
     );
     expect(qsInput(container, 'input[type="hidden"][name="x"]').value).toBe('Alpha');
-    rerender(<ComboboxField name='x' options={opts} placeholder='p' value='' onChange={onChange} />);
+    rerender(
+      <ComboboxField name="x" options={opts} placeholder="p" value="" onChange={onChange} />,
+    );
     expect(qsInput(container, 'input[type="hidden"][name="x"]').value).toBe('');
   });
 });

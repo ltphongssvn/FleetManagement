@@ -1,10 +1,24 @@
 // apps/api/src/database/schema/erp.ts
 // ERP mapping tables per Frozen Stack PDF "ERP" + Day-One feature 8.
-import { pgTable, uuid, varchar, timestamp, index, jsonb, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  varchar,
+  timestamp,
+  index,
+  jsonb,
+  pgEnum,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { tenancyColumns } from './tenancy.js';
 
 export const erpSyncDirectionEnum = pgEnum('erp_sync_direction', ['outbound', 'inbound']);
-export const erpSyncStatusEnum = pgEnum('erp_sync_status', ['pending', 'sent', 'acknowledged', 'failed']);
+export const erpSyncStatusEnum = pgEnum('erp_sync_status', [
+  'pending',
+  'sent',
+  'acknowledged',
+  'failed',
+]);
 
 export const erpCustomerMap = pgTable(
   'erp_customer_map',

@@ -4,11 +4,19 @@
 // logic (same split as sync-status-presenter / commands-screen-state).
 import { describe, it, expect } from 'vitest';
 import { presentCapture } from '../src/manifest/capture-screen-presenter.js';
-import { initialCaptureState, reduceCapture, type CaptureState } from '../src/manifest/capture-screen-state.js';
+import {
+  initialCaptureState,
+  reduceCapture,
+  type CaptureState,
+} from '../src/manifest/capture-screen-state.js';
 
 const ok = { mimeType: 'image/jpeg', sizeBytes: 50_000 };
 function spooled(): CaptureState {
-  return reduceCapture(initialCaptureState(), { type: 'PICKED', file: ok, localUri: 'file:///m.jpg' });
+  return reduceCapture(initialCaptureState(), {
+    type: 'PICKED',
+    file: ok,
+    localUri: 'file:///m.jpg',
+  });
 }
 
 describe('capture-screen-presenter', () => {
@@ -56,7 +64,11 @@ describe('capture-screen-presenter', () => {
   });
 
   it('error (validation): shows rejection message + reset', () => {
-    const s = reduceCapture(initialCaptureState(), { type: 'PICKED', file: { mimeType: 'text/plain', sizeBytes: 9 }, localUri: 'file:///x' });
+    const s = reduceCapture(initialCaptureState(), {
+      type: 'PICKED',
+      file: { mimeType: 'text/plain', sizeBytes: 9 },
+      localUri: 'file:///x',
+    });
     const v = presentCapture(s);
     expect(v.testID).toBe('capture-error');
     expect(v.statusText).toMatch(/không hợp lệ|invalid_mime/i);

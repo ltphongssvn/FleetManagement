@@ -15,7 +15,17 @@ import type { Clock } from '../src/common/clock.js';
 
 interface PushPromiseMap {
   readonly pushPromises: Map<string, Promise<void>>;
-  readonly pending: Map<string, { operatorId: string; issuedAt: Date; attempts: number; pushAttempts: number; pushInFlight: boolean; policyVersion: string }>;
+  readonly pending: Map<
+    string,
+    {
+      operatorId: string;
+      issuedAt: Date;
+      attempts: number;
+      pushAttempts: number;
+      pushInFlight: boolean;
+      policyVersion: string;
+    }
+  >;
 }
 
 describe('@fleet/api - CommandsGateway pushCommand pins', () => {
@@ -86,7 +96,12 @@ describe('@fleet/api - CommandsGateway pushCommand pins', () => {
     const fakeClock: Clock = { now: () => new Date('2026-05-02T10:00:00.000Z') };
     const gw = new CommandsGateway(undefined, fakeClock);
     const warnSpy = vi.fn();
-    (gw as unknown as { logger: unknown }).logger = { warn: warnSpy, log: vi.fn(), error: vi.fn(), debug: vi.fn() };
+    (gw as unknown as { logger: unknown }).logger = {
+      warn: warnSpy,
+      log: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    };
     (gw as unknown as { server: unknown }).server = {
       sockets: { adapter: { rooms: new Map() } },
       to: () => ({ emit: (): void => undefined }),
@@ -109,10 +124,17 @@ describe('@fleet/api - CommandsGateway pushCommand pins', () => {
     const fakeClock: Clock = { now: () => new Date('2026-05-02T10:00:00.000Z') };
     const gw = new CommandsGateway(undefined, fakeClock);
     const logSpy = vi.fn();
-    (gw as unknown as { logger: unknown }).logger = { warn: vi.fn(), log: logSpy, error: vi.fn(), debug: vi.fn() };
+    (gw as unknown as { logger: unknown }).logger = {
+      warn: vi.fn(),
+      log: logSpy,
+      error: vi.fn(),
+      debug: vi.fn(),
+    };
     // Seed pushPromises so inflight.length === 1
     let resolveIt: () => void = () => undefined;
-    const p = new Promise<void>((res) => { resolveIt = res; });
+    const p = new Promise<void>((res) => {
+      resolveIt = res;
+    });
     (gw as unknown as PushPromiseMap).pushPromises.set('c-await', p);
     const destroyPromise = gw.onModuleDestroy();
     resolveIt();
@@ -131,7 +153,10 @@ describe('@fleet/api - CommandsGateway pushCommand pins', () => {
     let resolved = false;
     let resolveIt: () => void = () => undefined;
     const p = new Promise<void>((res) => {
-      resolveIt = () => { resolved = true; res(); };
+      resolveIt = () => {
+        resolved = true;
+        res();
+      };
     });
     (gw as unknown as PushPromiseMap).pushPromises.set('c-pending', p);
     // If mutant flips guard to "if (false) return", destroy still proceeds; but
@@ -139,7 +164,9 @@ describe('@fleet/api - CommandsGateway pushCommand pins', () => {
     // The strict pin: when inflight is non-empty, destroy must NOT resolve until
     // the inflight promise resolves.
     let destroyResolved = false;
-    const destroyPromise = gw.onModuleDestroy().then(() => { destroyResolved = true; });
+    const destroyPromise = gw.onModuleDestroy().then(() => {
+      destroyResolved = true;
+    });
     // Give the event loop a tick — destroyPromise must still be pending
     await Promise.resolve();
     await Promise.resolve();
@@ -154,7 +181,12 @@ describe('@fleet/api - CommandsGateway pushCommand pins', () => {
     const fakeClock: Clock = { now: () => new Date('2026-05-02T10:00:00.000Z') };
     const gw = new CommandsGateway(undefined, fakeClock);
     const logSpy = vi.fn();
-    (gw as unknown as { logger: unknown }).logger = { warn: vi.fn(), log: logSpy, error: vi.fn(), debug: vi.fn() };
+    (gw as unknown as { logger: unknown }).logger = {
+      warn: vi.fn(),
+      log: logSpy,
+      error: vi.fn(),
+      debug: vi.fn(),
+    };
     // No pushPromises seeded; inflight.length === 0
     await gw.onModuleDestroy();
     // Mutant "if (false) return" would proceed to log + allSettled even with empty array.

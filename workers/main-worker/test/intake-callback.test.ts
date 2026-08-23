@@ -9,16 +9,22 @@ describe('@fleet/main-worker - FetchIntakeCallback', () => {
       headers?: Record<string, string>;
       body?: string;
     } = {};
-    const fetchFn = vi.fn().mockImplementation(
-      (url: string, init: { method: string; headers: Record<string, string>; body: string }) => {
-        captured.url = url;
-        captured.method = init.method;
-        captured.headers = init.headers;
-        captured.body = init.body;
-        return Promise.resolve({ ok: true });
-      },
-    );
-    const cb = new FetchIntakeCallback({ apiUrl: 'http://api', bearerToken: () => 'tok-1', fetchFn: fetchFn as never });
+    const fetchFn = vi
+      .fn()
+      .mockImplementation(
+        (url: string, init: { method: string; headers: Record<string, string>; body: string }) => {
+          captured.url = url;
+          captured.method = init.method;
+          captured.headers = init.headers;
+          captured.body = init.body;
+          return Promise.resolve({ ok: true });
+        },
+      );
+    const cb = new FetchIntakeCallback({
+      apiUrl: 'http://api',
+      bearerToken: () => 'tok-1',
+      fetchFn: fetchFn as never,
+    });
     await cb.finalize({ uploadSessionId: 'us-1', accepted: true });
     expect(captured.url).toBe('http://api/upload/intake-result');
     expect(captured.method).toBe('POST');
@@ -32,27 +38,57 @@ describe('@fleet/main-worker - FetchIntakeCallback', () => {
       body = init.body;
       return Promise.resolve({ ok: true });
     });
-    const cb = new FetchIntakeCallback({ apiUrl: 'http://api', bearerToken: () => Promise.resolve('tok-2'), fetchFn: fetchFn as never });
-    await cb.finalize({ uploadSessionId: 'us-2', accepted: false, rejectionReasonCode: 'virus_detected' });
+    const cb = new FetchIntakeCallback({
+      apiUrl: 'http://api',
+      bearerToken: () => Promise.resolve('tok-2'),
+      fetchFn: fetchFn as never,
+    });
+    await cb.finalize({
+      uploadSessionId: 'us-2',
+      accepted: false,
+      rejectionReasonCode: 'virus_detected',
+    });
     expect(body).toContain('virus_detected');
   });
   it('throws on non-2xx so BullMQ retries', async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 503, statusText: 'unavail' });
-    const cb = new FetchIntakeCallback({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
-    await expect(cb.finalize({ uploadSessionId: 'us-3', accepted: true })).rejects.toThrow(/HTTP 503/);
+    const cb = new FetchIntakeCallback({
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
+      fetchFn: fetchFn as never,
+    });
+    await expect(cb.finalize({ uploadSessionId: 'us-3', accepted: true })).rejects.toThrow(
+      /HTTP 503/,
+    );
   });
   it('invokes onUnauthorized exactly once on 401, then still throws (BullMQ outer retry)', async () => {
     const onUnauthorized = vi.fn();
-    const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 401, statusText: 'Unauthorized' });
-    const cb = new FetchIntakeCallback({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never, onUnauthorized });
-    await expect(cb.finalize({ uploadSessionId: 'us-5', accepted: true })).rejects.toThrow(/HTTP 401/);
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 401, statusText: 'Unauthorized' });
+    const cb = new FetchIntakeCallback({
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
+      fetchFn: fetchFn as never,
+      onUnauthorized,
+    });
+    await expect(cb.finalize({ uploadSessionId: 'us-5', accepted: true })).rejects.toThrow(
+      /HTTP 401/,
+    );
     expect(onUnauthorized).toHaveBeenCalledTimes(1);
   });
   it('does NOT invoke onUnauthorized on other non-2xx statuses', async () => {
     const onUnauthorized = vi.fn();
     const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 503, statusText: 'unavail' });
-    const cb = new FetchIntakeCallback({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never, onUnauthorized });
-    await expect(cb.finalize({ uploadSessionId: 'us-6', accepted: true })).rejects.toThrow(/HTTP 503/);
+    const cb = new FetchIntakeCallback({
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
+      fetchFn: fetchFn as never,
+      onUnauthorized,
+    });
+    await expect(cb.finalize({ uploadSessionId: 'us-6', accepted: true })).rejects.toThrow(
+      /HTTP 503/,
+    );
     expect(onUnauthorized).not.toHaveBeenCalled();
   });
   it('falls back to globalThis.fetch when fetchFn omitted', async () => {

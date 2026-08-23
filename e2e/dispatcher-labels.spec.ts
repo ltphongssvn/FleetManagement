@@ -6,7 +6,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { loginAs } from './helpers/auth';
 
-
 // Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
   await loginAs(page);
@@ -32,10 +31,15 @@ test.describe.serial('dispatcher recognizes orders by human-readable labels', ()
     const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
     for (let i = 0; i < rowCount; i++) {
       const rowText = (await rows.nth(i).innerText()).trim();
-      expect(rowText, 'row ' + String(i) + ' should not contain a raw UUID: ' + rowText).not.toMatch(uuidPattern);
+      expect(
+        rowText,
+        'row ' + String(i) + ' should not contain a raw UUID: ' + rowText,
+      ).not.toMatch(uuidPattern);
     }
   });
-  test('Số lệnh column shows the dispatcher-entered ref like XTT.MM-NNN, not a hash slice', async ({ page }) => {
+  test('Số lệnh column shows the dispatcher-entered ref like XTT.MM-NNN, not a hash slice', async ({
+    page,
+  }) => {
     await login(page);
     const board = page.getByRole('table').filter({ hasText: /Lệnh điều xe|Mã lệnh|Số lệnh/i });
     await expect(board).toBeVisible({ timeout: 15_000 });

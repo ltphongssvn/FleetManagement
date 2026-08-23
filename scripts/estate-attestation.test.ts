@@ -40,9 +40,7 @@ const CLEAN = createWorktreeState({ path: '/c/a', branch: 'x' });
 const DIRTY = createWorktreeState({ path: '/c/b', dirtyFileCount: 3 });
 const SRC = digestOf('worktree /c/a');
 
-function verified(
-  states: readonly ReturnType<typeof createWorktreeState>[],
-): EstateDecision {
+function verified(states: readonly ReturnType<typeof createWorktreeState>[]): EstateDecision {
   return decideEstate(observedFixture(states, SRC));
 }
 
@@ -101,8 +99,9 @@ describe('the subject binds the claim to a specific snapshot', () => {
 
 describe('the predicate records the claim, not permission', () => {
   it('carries the recommended action', () => {
-    expect(estateStatement(verified([DIRTY]))?.predicate.agent_action)
-      .toBe('HALT_WORK_IN_PROGRESS');
+    expect(estateStatement(verified([DIRTY]))?.predicate.agent_action).toBe(
+      'HALT_WORK_IN_PROGRESS',
+    );
   });
 
   it('carries the verdict and the counts', () => {
@@ -138,9 +137,7 @@ describe('only a verified decision yields a statement', () => {
   });
 
   it('produces none for a stale estate, which is a refusal rather than a claim', () => {
-    const stale = decideEstate(
-      observedFixture([CLEAN], SRC), null, digestOf('planned'),
-    );
+    const stale = decideEstate(observedFixture([CLEAN], SRC), null, digestOf('planned'));
     expect(stale.kind).toBe('stale');
     expect(estateStatement(stale)).toBeNull();
   });

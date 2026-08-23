@@ -73,10 +73,7 @@ export interface RecipientDrift {
   readonly staleGrants: readonly string[];
 }
 
-export function recipientDrift(
-  rosterText: string,
-  ciphertextText: string,
-): RecipientDrift {
+export function recipientDrift(rosterText: string, ciphertextText: string): RecipientDrift {
   const roster = recipientsInRoster(rosterText);
   const cipher = recipientsInCiphertext(ciphertextText);
   const inCipher = new Set(cipher);
@@ -95,17 +92,21 @@ export function describeRecipientDrift(drift: RecipientDrift): string {
   const parts: string[] = [];
   if (drift.lockedOut.length > 0) {
     parts.push(
-      'LOCKED OUT (' + String(drift.lockedOut.length) + '): granted in '
-      + '.age-recipients but CANNOT decrypt .env.sops.yaml. Re-encrypt from a '
-      + 'machine holding the plaintext: pnpm exec turbo run env:encrypt, then '
-      + 'commit .env.sops.yaml with the roster.',
+      'LOCKED OUT (' +
+        String(drift.lockedOut.length) +
+        '): granted in ' +
+        '.age-recipients but CANNOT decrypt .env.sops.yaml. Re-encrypt from a ' +
+        'machine holding the plaintext: pnpm exec turbo run env:encrypt, then ' +
+        'commit .env.sops.yaml with the roster.',
     );
   }
   if (drift.staleGrants.length > 0) {
     parts.push(
-      'STALE GRANT (' + String(drift.staleGrants.length) + '): CAN decrypt '
-      + '.env.sops.yaml but is absent from .age-recipients. Revocation is not '
-      + 'retroactive -- re-encrypt AND rotate the underlying credentials.',
+      'STALE GRANT (' +
+        String(drift.staleGrants.length) +
+        '): CAN decrypt ' +
+        '.env.sops.yaml but is absent from .age-recipients. Revocation is not ' +
+        'retroactive -- re-encrypt AND rotate the underlying credentials.',
     );
   }
   return parts.length === 0 ? 'roster and ciphertext agree.' : parts.join(nl);

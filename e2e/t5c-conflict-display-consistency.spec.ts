@@ -18,7 +18,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { loginAs } from './helpers/auth';
 
-
 // Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
   await loginAs(page);
@@ -32,27 +31,59 @@ interface SectionCase {
 }
 
 const CASES: readonly SectionCase[] = [
-  { heading: /^Khách hàng$/, placeholder: /Thêm khách hàng/i, addButton: /^Thêm khách hàng$/, seedName: 'ĐA NẴNG' },
-  { heading: /^Tên hàng$/,   placeholder: /Thêm tên hàng/i,   addButton: /^Thêm tên hàng$/,   seedName: 'TẤM' },
-  { heading: /^Số xe$/,      placeholder: /Thêm số xe/i,      addButton: /^Thêm số xe$/,      seedName: '62H 05194' },
-  { heading: /^Kho nhận hàng$/, placeholder: /Thêm kho nhận hàng/i, addButton: /^Thêm kho nhận hàng$/, seedName: 'Chơn Chính' },
-  { heading: /^Kho giao hàng$/, placeholder: /Thêm kho giao hàng/i, addButton: /^Thêm kho giao hàng$/, seedName: '3 ĐỰC' },
+  {
+    heading: /^Khách hàng$/,
+    placeholder: /Thêm khách hàng/i,
+    addButton: /^Thêm khách hàng$/,
+    seedName: 'ĐA NẴNG',
+  },
+  {
+    heading: /^Tên hàng$/,
+    placeholder: /Thêm tên hàng/i,
+    addButton: /^Thêm tên hàng$/,
+    seedName: 'TẤM',
+  },
+  {
+    heading: /^Số xe$/,
+    placeholder: /Thêm số xe/i,
+    addButton: /^Thêm số xe$/,
+    seedName: '62H 05194',
+  },
+  {
+    heading: /^Kho nhận hàng$/,
+    placeholder: /Thêm kho nhận hàng/i,
+    addButton: /^Thêm kho nhận hàng$/,
+    seedName: 'Chơn Chính',
+  },
+  {
+    heading: /^Kho giao hàng$/,
+    placeholder: /Thêm kho giao hàng/i,
+    addButton: /^Thêm kho giao hàng$/,
+    seedName: '3 ĐỰC',
+  },
 ];
 
 for (const c of CASES) {
-  test('re-adding existing ' + c.seedName + ' makes it visible in the listing (no inconsistent state)', async ({ page }) => {
-    await login(page);
-    await page.goto('/admin/reference');
-    await expect(page.getByRole('heading', { name: /Quản lý dữ liệu điều phối/i })).toBeVisible({ timeout: 15_000 });
-    const section = page.locator('section').filter({ has: page.getByRole('heading', { name: c.heading }) });
-    await expect(section).toBeVisible({ timeout: 15_000 });
-    await section.getByPlaceholder(c.placeholder).fill(c.seedName);
-    await section.getByRole('button', { name: c.addButton }).click();
-    // Wait for the request to complete. The item must now appear in the
-    // listing -- either because the server reactivated it (success) or
-    // because the server returned 409 and the UI highlighted the
-    // already-active row. Either way the consistency invariant holds.
-    const nameCell = section.getByRole('rowheader', { name: c.seedName, exact: true });
-    await expect(nameCell.first()).toBeVisible({ timeout: 10_000 });
-  });
+  test(
+    're-adding existing ' + c.seedName + ' makes it visible in the listing (no inconsistent state)',
+    async ({ page }) => {
+      await login(page);
+      await page.goto('/admin/reference');
+      await expect(page.getByRole('heading', { name: /Quản lý dữ liệu điều phối/i })).toBeVisible({
+        timeout: 15_000,
+      });
+      const section = page
+        .locator('section')
+        .filter({ has: page.getByRole('heading', { name: c.heading }) });
+      await expect(section).toBeVisible({ timeout: 15_000 });
+      await section.getByPlaceholder(c.placeholder).fill(c.seedName);
+      await section.getByRole('button', { name: c.addButton }).click();
+      // Wait for the request to complete. The item must now appear in the
+      // listing -- either because the server reactivated it (success) or
+      // because the server returned 409 and the UI highlighted the
+      // already-active row. Either way the consistency invariant holds.
+      const nameCell = section.getByRole('rowheader', { name: c.seedName, exact: true });
+      await expect(nameCell.first()).toBeVisible({ timeout: 10_000 });
+    },
+  );
 }

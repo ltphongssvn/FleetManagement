@@ -62,7 +62,9 @@ function makeSeams(sendResult: PushSendResult): {
 }
 
 describe('@fleet/api - AlertsConsumerService', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('starts one worker on the alerts queue at module init', () => {
     const { captured, factory, push } = makeSeams({ accepted: 1, rejected: 0 });
@@ -97,7 +99,9 @@ describe('@fleet/api - AlertsConsumerService', () => {
     svc.onModuleInit();
     if (captured.processor === null) throw new Error('processor not captured');
     const poisoned = { ...VALID_JOB, aggregateType: 'driver_alert' };
-    await expect(captured.processor({ id: 'ob-2', data: poisoned })).rejects.toBeInstanceOf(UnrecoverableError);
+    await expect(captured.processor({ id: 'ob-2', data: poisoned })).rejects.toBeInstanceOf(
+      UnrecoverableError,
+    );
     expect(push.sendToOperator).not.toHaveBeenCalled();
   });
 
@@ -119,69 +123,82 @@ describe('@fleet/api - AlertsConsumerService', () => {
   });
 });
 
-describe("@fleet/api - toProcessorJob", () => {
-  it("passes a present id through unchanged", () => {
-    expect(toProcessorJob({ id: "ob-9", data: { a: 1 } })).toEqual({ id: "ob-9", data: { a: 1 } });
+describe('@fleet/api - toProcessorJob', () => {
+  it('passes a present id through unchanged', () => {
+    expect(toProcessorJob({ id: 'ob-9', data: { a: 1 } })).toEqual({ id: 'ob-9', data: { a: 1 } });
   });
-  it("coalesces a null id to null", () => {
+  it('coalesces a null id to null', () => {
     expect(toProcessorJob({ id: null, data: 7 })).toEqual({ id: null, data: 7 });
   });
-  it("coalesces an undefined id to null", () => {
+  it('coalesces an undefined id to null', () => {
     expect(toProcessorJob({ data: 7 })).toEqual({ id: null, data: 7 });
   });
 });
 
-describe("@fleet/api - defaultAlertsWorkerFactory", () => {
-  it("constructs a real BullMQ Worker on the given queue (closed immediately; no job processed)", async () => {
-    const factory = defaultAlertsWorkerFactory({ host: "127.0.0.1", port: 6399 });
-    const noop: AlertsJobProcessor = async () => { /* not invoked: worker never runs a job here */ };
-    const worker = factory("alerts", noop) as unknown as { name: string; close: () => Promise<void> };
-    expect(worker.name).toBe("alerts");
+describe('@fleet/api - defaultAlertsWorkerFactory', () => {
+  it('constructs a real BullMQ Worker on the given queue (closed immediately; no job processed)', async () => {
+    const factory = defaultAlertsWorkerFactory({ host: '127.0.0.1', port: 6399 });
+    const noop: AlertsJobProcessor = async () => {
+      /* not invoked: worker never runs a job here */
+    };
+    const worker = factory('alerts', noop) as unknown as {
+      name: string;
+      close: () => Promise<void>;
+    };
+    expect(worker.name).toBe('alerts');
     await worker.close();
   });
 });
 
-describe("@fleet/api - runAlertsJob", () => {
-  it("normalizes the raw job and forwards it to the processor", async () => {
+describe('@fleet/api - runAlertsJob', () => {
+  it('normalizes the raw job and forwards it to the processor', async () => {
     const seen: { id: string | null; data: unknown }[] = [];
-    const processor: AlertsJobProcessor = (job) => { seen.push({ id: job.id ?? null, data: job.data }); return Promise.resolve(); };
-    await runAlertsJob(processor, { id: "ob-42", data: { k: 1 } });
-    expect(seen).toEqual([{ id: "ob-42", data: { k: 1 } }]);
+    const processor: AlertsJobProcessor = (job) => {
+      seen.push({ id: job.id ?? null, data: job.data });
+      return Promise.resolve();
+    };
+    await runAlertsJob(processor, { id: 'ob-42', data: { k: 1 } });
+    expect(seen).toEqual([{ id: 'ob-42', data: { k: 1 } }]);
   });
-  it("coalesces a nullish job id to null before forwarding", async () => {
+  it('coalesces a nullish job id to null before forwarding', async () => {
     const seen: { id: string | null; data: unknown }[] = [];
-    const processor: AlertsJobProcessor = (job) => { seen.push({ id: job.id ?? null, data: job.data }); return Promise.resolve(); };
+    const processor: AlertsJobProcessor = (job) => {
+      seen.push({ id: job.id ?? null, data: job.data });
+      return Promise.resolve();
+    };
     await runAlertsJob(processor, { data: 5 });
     expect(seen).toEqual([{ id: null, data: 5 }]);
   });
 });
 
-describe("@fleet/api - jobLabel", () => {
-  it("returns the id when present", () => {
-    expect(jobLabel("ob-7")).toBe("ob-7");
+describe('@fleet/api - jobLabel', () => {
+  it('returns the id when present', () => {
+    expect(jobLabel('ob-7')).toBe('ob-7');
   });
-  it("returns unknown for null", () => {
-    expect(jobLabel(null)).toBe("unknown");
+  it('returns unknown for null', () => {
+    expect(jobLabel(null)).toBe('unknown');
   });
-  it("returns unknown for undefined", () => {
-    expect(jobLabel(undefined)).toBe("unknown");
+  it('returns unknown for undefined', () => {
+    expect(jobLabel(undefined)).toBe('unknown');
   });
 });
 
-describe("@fleet/api - AlertsConsumerService null-id throw paths", () => {
-  it("poison job with null id still throws UnrecoverableError", async () => {
+describe('@fleet/api - AlertsConsumerService null-id throw paths', () => {
+  it('poison job with null id still throws UnrecoverableError', async () => {
     const { captured, factory, push } = makeSeams({ accepted: 1, rejected: 0 });
     const svc = new AlertsConsumerService(factory, push);
     svc.onModuleInit();
-    if (captured.processor === null) throw new Error("processor not captured");
-    const poisoned = { ...VALID_JOB, aggregateType: "driver_alert" };
-    await expect(captured.processor({ id: null, data: poisoned })).rejects.toBeInstanceOf(UnrecoverableError);
+    if (captured.processor === null) throw new Error('processor not captured');
+    const poisoned = { ...VALID_JOB, aggregateType: 'driver_alert' };
+    await expect(captured.processor({ id: null, data: poisoned })).rejects.toBeInstanceOf(
+      UnrecoverableError,
+    );
   });
-  it("accepted 0 with null id still throws", async () => {
+  it('accepted 0 with null id still throws', async () => {
     const { captured, factory, push } = makeSeams({ accepted: 0, rejected: 2 });
     const svc = new AlertsConsumerService(factory, push);
     svc.onModuleInit();
-    if (captured.processor === null) throw new Error("processor not captured");
+    if (captured.processor === null) throw new Error('processor not captured');
     await expect(captured.processor({ id: null, data: VALID_JOB })).rejects.toThrow(/accepted 0/);
   });
 });

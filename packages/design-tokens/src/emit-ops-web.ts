@@ -45,5 +45,14 @@ export function emitOpsWebThemeCss(): string {
     lines.push('  --color-' + kebab(role) + ': ' + semanticColors[role] + ';');
   }
   const theme = '@theme {\n' + lines.join('\n') + '\n}';
-  return BANNER + '\n\n@import ' + String.fromCharCode(34) + 'tailwindcss' + String.fromCharCode(34) + ';\n\n' + theme + '\n';
+  return (
+    BANNER +
+    '\n\n@import ' +
+    String.fromCharCode(34) +
+    'tailwindcss' +
+    String.fromCharCode(34) +
+    ';\n\n' +
+    theme +
+    '\n'
+  );
 }

@@ -50,8 +50,9 @@ test.describe('driver roster DataTable affordances', () => {
 
     const target = seeded[0];
     if (target === undefined) throw new Error('seeding produced no drivers');
-    await expect(page.getByRole('rowheader').filter({ hasText: target.fullName }))
-      .toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('rowheader').filter({ hasText: target.fullName })).toBeVisible({
+      timeout: 15_000,
+    });
 
     // Searching a single driver name narrows the roster to that row.
     await search.fill(target.fullName);

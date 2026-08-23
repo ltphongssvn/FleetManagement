@@ -40,35 +40,74 @@
 // (surface-root, text-on-dark, border-subtle) and never carry a numeric stop, so
 // no allow-list is needed and none can drift.
 const RAMPS = [
-  'slate', 'gray', 'zinc', 'neutral', 'stone',
-  'red', 'orange', 'amber', 'yellow', 'lime',
-  'green', 'emerald', 'teal', 'cyan', 'sky',
-  'blue', 'indigo', 'violet', 'purple', 'fuchsia',
-  'pink', 'rose',
+  'slate',
+  'gray',
+  'zinc',
+  'neutral',
+  'stone',
+  'red',
+  'orange',
+  'amber',
+  'yellow',
+  'lime',
+  'green',
+  'emerald',
+  'teal',
+  'cyan',
+  'sky',
+  'blue',
+  'indigo',
+  'violet',
+  'purple',
+  'fuchsia',
+  'pink',
+  'rose',
 ] as const;
 
 // Utility prefixes that take a colour. Gradient stops (from/via/to) are included
 // because AppShell layers its backdrop entirely through them.
 const PREFIXES = [
-  'bg', 'text', 'border', 'ring', 'divide', 'outline',
-  'shadow', 'decoration', 'accent', 'caret', 'fill', 'stroke',
-  'from', 'via', 'to', 'placeholder',
+  'bg',
+  'text',
+  'border',
+  'ring',
+  'divide',
+  'outline',
+  'shadow',
+  'decoration',
+  'accent',
+  'caret',
+  'fill',
+  'stroke',
+  'from',
+  'via',
+  'to',
+  'placeholder',
 ] as const;
 
-const LITERAL_SOURCE =
-  '(?:' + PREFIXES.join('|') + ')-(?:' + RAMPS.join('|') + ')-[0-9]+';
+const LITERAL_SOURCE = '(?:' + PREFIXES.join('|') + ')-(?:' + RAMPS.join('|') + ')-[0-9]+';
 
 // className attributes only. Prose, comments and ordinary strings are not styling
 // and must not be counted -- a comment that documents the prohibition would
 // otherwise register as a violation of it (a false flag this project has hit
 // before). Both quote styles are accepted; the repo uses single quotes in JSX.
 const CLASSNAME_ATTR = new RegExp(
-  'className=' + String.fromCharCode(91) + String.fromCharCode(39) +
-  String.fromCharCode(34) + String.fromCharCode(93) +
-  '(' + String.fromCharCode(91) + '^' + String.fromCharCode(39) +
-  String.fromCharCode(34) + String.fromCharCode(93) + '*)' +
-  String.fromCharCode(91) + String.fromCharCode(39) +
-  String.fromCharCode(34) + String.fromCharCode(93),
+  'className=' +
+    String.fromCharCode(91) +
+    String.fromCharCode(39) +
+    String.fromCharCode(34) +
+    String.fromCharCode(93) +
+    '(' +
+    String.fromCharCode(91) +
+    '^' +
+    String.fromCharCode(39) +
+    String.fromCharCode(34) +
+    String.fromCharCode(93) +
+    '*)' +
+    String.fromCharCode(91) +
+    String.fromCharCode(39) +
+    String.fromCharCode(34) +
+    String.fromCharCode(93),
   'g',
 );
 
@@ -163,8 +202,7 @@ export function compareRatchet(
     if (found > allowed) regressions.push({ file, baseline: allowed, current: found });
     else if (found < allowed) improvements.push({ file, baseline: allowed, current: found });
   }
-  const sum = (m: RatchetBaseline): number =>
-    Array.from(m.values()).reduce((acc, n) => acc + n, 0);
+  const sum = (m: RatchetBaseline): number => Array.from(m.values()).reduce((acc, n) => acc + n, 0);
   return {
     ok: regressions.length === 0,
     regressions,

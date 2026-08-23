@@ -34,10 +34,18 @@ export class CommandsService {
         aggregateId: cmd.aggregateId,
         delta: { type: cmd.type, payload: cmd.payload, targetOperatorId: cmd.targetOperatorId },
         eventType: commandIssuedEventType(cmd.aggregateType),
-        auditPayload: { commandId: cmd.commandId, type: cmd.type, targetOperatorId: cmd.targetOperatorId },
+        auditPayload: {
+          commandId: cmd.commandId,
+          type: cmd.type,
+          targetOperatorId: cmd.targetOperatorId,
+        },
         operatorId: op.operatorId,
         queueName: OUTBOX_QUEUES.PROJECTIONS,
-        outboxPayload: { aggregateType: cmd.aggregateType, eventType: commandIssuedEventType(cmd.aggregateType), commandId: cmd.commandId },
+        outboxPayload: {
+          aggregateType: cmd.aggregateType,
+          eventType: commandIssuedEventType(cmd.aggregateType),
+          commandId: cmd.commandId,
+        },
         op,
         idempotent: true,
       });

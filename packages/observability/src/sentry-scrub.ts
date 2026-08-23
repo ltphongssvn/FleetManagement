@@ -99,7 +99,9 @@ export interface ScrubberOptions {
  * Factory: returns a scrub function bound to the given options.
  * Use when callers need a non-default depth limit.
  */
-export function createScrubber(options: ScrubberOptions = {}): (value: unknown, depth?: number) => unknown {
+export function createScrubber(
+  options: ScrubberOptions = {},
+): (value: unknown, depth?: number) => unknown {
   const depthLimit = options.depthLimit ?? DEFAULT_DEPTH_LIMIT;
   const keyPattern = options.piiKeyPattern ?? PII_KEY_RE;
   const valuePatterns = options.piiValuePatterns ?? PII_VALUE_PATTERNS;

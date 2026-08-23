@@ -13,24 +13,41 @@ const { mockWithIsolationScope, mockCaptureException, capturedTags } = vi.hoiste
   return {
     capturedTags,
     mockCaptureException: vi.fn(),
-    mockWithIsolationScope: vi.fn(async (fn: (s: { setTag: (k: string, v: unknown) => void }) => Promise<void>) => {
-      await fn({ setTag: (k, v) => { capturedTags.push({ key: k, value: v }); } });
-    }),
+    mockWithIsolationScope: vi.fn(
+      async (fn: (s: { setTag: (k: string, v: unknown) => void }) => Promise<void>) => {
+        await fn({
+          setTag: (k, v) => {
+            capturedTags.push({ key: k, value: v });
+          },
+        });
+      },
+    ),
   };
 });
-vi.mock('@sentry/nestjs', () => ({ withIsolationScope: mockWithIsolationScope, captureException: mockCaptureException }));
+vi.mock('@sentry/nestjs', () => ({
+  withIsolationScope: mockWithIsolationScope,
+  captureException: mockCaptureException,
+}));
 import { SchedulerService } from '../src/scheduler/scheduler.service.js';
 import { monitorTicker, coreTickers, INTERVALS } from './helpers/scheduler-ticker-factory.js';
 import type { SchedulerTicker } from '../src/scheduler/scheduler-ticker.js';
 
 // Core ticks are inert no-ops here; we only exercise the alert-lag ticker.
-const cores = (): SchedulerTicker[] => coreTickers({
-  outbox: () => undefined, projection: () => undefined, reconciler: () => undefined,
-});
+const cores = (): SchedulerTicker[] =>
+  coreTickers({
+    outbox: () => undefined,
+    projection: () => undefined,
+    reconciler: () => undefined,
+  });
 
 describe('@fleet/api - SchedulerService alert-lag tick (registry)', () => {
-  beforeEach(() => { vi.useFakeTimers(); capturedTags.length = 0; });
-  afterEach(() => { vi.useRealTimers(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    capturedTags.length = 0;
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it('drainByKey(alertLag) tags job=driver-alert-lag-check and calls monitor.checkOnce', async () => {
     const checkOnce = vi.fn().mockResolvedValue(undefined);

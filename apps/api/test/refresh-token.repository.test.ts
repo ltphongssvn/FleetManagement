@@ -28,7 +28,7 @@ const DDL = [
     'operator_id uuid,' +
     'active boolean NOT NULL DEFAULT true,' +
     'created_at timestamptz NOT NULL DEFAULT now()' +
-  ')',
+    ')',
   'CREATE TABLE driver_refresh_token (' +
     'driver_refresh_token_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),' +
     'company_id uuid NOT NULL,' +
@@ -44,7 +44,7 @@ const DDL = [
     'revoked_at timestamptz,' +
     'revoked_reason varchar(64),' +
     'replaced_by_token_hash varchar(64)' +
-  ')',
+    ')',
   'CREATE UNIQUE INDEX driver_refresh_token_hash_uq ON driver_refresh_token (token_hash)',
 ];
 
@@ -96,8 +96,15 @@ describe('RefreshTokenRepositoryImpl (pglite)', () => {
     await pg.exec('TRUNCATE driver_refresh_token, driver');
     const r = await pg.query(
       'INSERT INTO driver (company_id, business_unit_id, depot_id, legal_entity_id, full_name, operator_id, active) ' +
-      'VALUES ($1,$2,$3,$4,$5,$6,true) RETURNING driver_id',
-      [TENANCY.companyId, TENANCY.businessUnitId, TENANCY.depotId, TENANCY.legalEntityId, 'TAI XE PGLITE', OPERATOR_ID],
+        'VALUES ($1,$2,$3,$4,$5,$6,true) RETURNING driver_id',
+      [
+        TENANCY.companyId,
+        TENANCY.businessUnitId,
+        TENANCY.depotId,
+        TENANCY.legalEntityId,
+        'TAI XE PGLITE',
+        OPERATOR_ID,
+      ],
     );
     const row = (r.rows as { driver_id: string }[])[0];
     if (row === undefined) throw new Error('driver insert returned no row');
@@ -106,7 +113,9 @@ describe('RefreshTokenRepositoryImpl (pglite)', () => {
 
   it('insert persists the record without the driverActive projection', async () => {
     await repo.insert(record(driverId, 'a'.repeat(64), future()));
-    const rows = await db.select().from(driverRefreshToken)
+    const rows = await db
+      .select()
+      .from(driverRefreshToken)
       .where(eq(driverRefreshToken.tokenHash, 'a'.repeat(64)));
     const row = rows[0];
     if (row === undefined) throw new Error('expected inserted row');
@@ -122,7 +131,9 @@ describe('RefreshTokenRepositoryImpl (pglite)', () => {
     expect(claimed).not.toBeNull();
     expect(claimed?.driverActive).toBe(true);
     expect(claimed?.familyId).toBe(FAMILY_A);
-    const rows = await db.select().from(driverRefreshToken)
+    const rows = await db
+      .select()
+      .from(driverRefreshToken)
       .where(eq(driverRefreshToken.tokenHash, 'b'.repeat(64)));
     const row = rows[0];
     if (row === undefined) throw new Error('expected claimed row');
@@ -143,8 +154,12 @@ describe('RefreshTokenRepositoryImpl (pglite)', () => {
     await repo.insert(record(driverId, 'g'.repeat(64), past()));
     const claimed = await repo.claimForRotation('g'.repeat(64), 'h'.repeat(64), Date.now());
     expect(claimed).toBeNull();
-    const rows = await db.select().from(driverRefreshToken)
-      .where(and(eq(driverRefreshToken.tokenHash, 'g'.repeat(64)), isNull(driverRefreshToken.revokedAt)));
+    const rows = await db
+      .select()
+      .from(driverRefreshToken)
+      .where(
+        and(eq(driverRefreshToken.tokenHash, 'g'.repeat(64)), isNull(driverRefreshToken.revokedAt)),
+      );
     expect(rows).toHaveLength(1);
   });
 

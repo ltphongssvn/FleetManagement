@@ -31,9 +31,13 @@ test.describe.serial('Khách hàng: Số điện thoại CRUD', () => {
     // Authenticate via injected session (PKCE login has no credential form).
     await loginAs(page);
     await page.goto('/admin/reference');
-    await expect(page.getByRole('heading', { name: 'Quản lý dữ liệu điều phối' })).toBeVisible({ timeout: BUDGET_MS });
+    await expect(page.getByRole('heading', { name: 'Quản lý dữ liệu điều phối' })).toBeVisible({
+      timeout: BUDGET_MS,
+    });
     // Scope to the Khách hàng section (first section with that heading).
-    const customerSection = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Khách hàng' }) });
+    const customerSection = page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Khách hàng' }) });
     // INVARIANT 1: a Số điện thoại input exists in the Khách hàng section.
     const nameInput = customerSection.getByPlaceholder('Thêm khách hàng');
     const phoneInput = customerSection.getByPlaceholder('Số điện thoại');
@@ -65,7 +69,9 @@ test.describe.serial('Khách hàng: Số điện thoại CRUD', () => {
     await expect(row).toContainText(newPhone, { timeout: BUDGET_MS });
     // INVARIANT 3: the new phone persists after a reload (server round-trip).
     await page.reload();
-    const customerSection2 = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Khách hàng' }) });
+    const customerSection2 = page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Khách hàng' }) });
     const row2 = customerSection2.getByRole('row').filter({ hasText: customerName });
     await expect(row2).toContainText(newPhone, { timeout: BUDGET_MS });
     // The OLD value must be gone. Without this a stale render still showing

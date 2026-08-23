@@ -139,7 +139,9 @@ function report(findings: readonly Finding[]): void {
   const broken = findings.filter((f) => f.status === 'broken').length;
   const blocked = findings.filter((f) => f.status === 'blocked').length;
   if (broken > 0) {
-    out(String(broken) + ' capability(ies) BROKEN -- fixable on this machine, see fix lines above.');
+    out(
+      String(broken) + ' capability(ies) BROKEN -- fixable on this machine, see fix lines above.',
+    );
   }
   if (blocked > 0) {
     out(

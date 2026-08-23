@@ -39,7 +39,12 @@
 
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
-import { decideClose, closePlan, type CloseVerdict, type WorktreeCloseInput } from './close-worktree.js';
+import {
+  decideClose,
+  closePlan,
+  type CloseVerdict,
+  type WorktreeCloseInput,
+} from './close-worktree.js';
 import {
   parseWorktreePorcelain,
   parseAheadBehind,
@@ -135,8 +140,14 @@ export function selectTarget(
   const want = resolve(cwd, path);
   const hit = entries.find((e) => resolve(e.path) === want);
   if (hit === undefined) {
-    throw new Error('not a worktree root: ' + path + NL + 'known roots:' + NL +
-      entries.map((e) => '  ' + e.path).join(NL));
+    throw new Error(
+      'not a worktree root: ' +
+        path +
+        NL +
+        'known roots:' +
+        NL +
+        entries.map((e) => '  ' + e.path).join(NL),
+    );
   }
   return hit;
 }
@@ -162,10 +173,7 @@ export function selectTarget(
  *  The last resort is the target's PARENT: a directory that outlives the
  *  removal even when the entry list is unexpectedly empty. It is deliberately
  *  not the process cwd, which is the value that caused the bug. */
-export function planCwd(
-  entries: readonly WorktreeEntry[],
-  targetPath: string,
-): string {
+export function planCwd(entries: readonly WorktreeEntry[], targetPath: string): string {
   const primary = entries[0]?.path ?? '';
   return primary.length > 0 ? primary : resolve(targetPath, '..');
 }
@@ -184,13 +192,22 @@ export function formatCloseReport(verdict: CloseVerdict, input: WorktreeCloseInp
   // retired close must visibly state why it was allowed (retired=true with
   // contained=false), so the operator can audit the decision. idleH is floored
   // to whole hours for a readable state line.
-  lines.push('state: ahead=' + String(input.aheadOfRemote) +
-    ' dirty=' + String(input.dirtyFileCount) +
-    ' upstream=' + String(input.hasUpstream) +
-    ' contained=' + String(input.containedInIntegration) +
-    ' retired=' + String(input.retired) +
-    ' done=' + String(input.done) +
-    ' idleH=' + String(Math.floor(input.idleHours)));
+  lines.push(
+    'state: ahead=' +
+      String(input.aheadOfRemote) +
+      ' dirty=' +
+      String(input.dirtyFileCount) +
+      ' upstream=' +
+      String(input.hasUpstream) +
+      ' contained=' +
+      String(input.containedInIntegration) +
+      ' retired=' +
+      String(input.retired) +
+      ' done=' +
+      String(input.done) +
+      ' idleH=' +
+      String(Math.floor(input.idleHours)),
+  );
   return lines.join(NL);
 }
 
@@ -211,15 +228,16 @@ function mainWorktreeClose(): number {
   const argv = parseCloseArgv(process.argv.slice(2));
   const target = argv.path;
   if (target === null) {
-    process.stderr.write('usage: turbo run worktree:close -- <worktree-path> [--retired] [--done]' + NL);
+    process.stderr.write(
+      'usage: turbo run worktree:close -- <worktree-path> [--retired] [--done]' + NL,
+    );
     return 2;
   }
   const entries = parseWorktreePorcelain(git(listWorktreesArgs()));
   const entry = selectTarget(entries, target);
   const upstream = gitAllowFail(upstreamArgs(), entry.path);
-  const ahead = upstream.length > 0
-    ? parseAheadBehind(git(aheadBehindArgs(upstream), entry.path)).ahead
-    : 0;
+  const ahead =
+    upstream.length > 0 ? parseAheadBehind(git(aheadBehindArgs(upstream), entry.path)).ahead : 0;
   const idleHours = parseReflogIdleHours(
     gitAllowFail(reflogArgs(), entry.path),
     Math.floor(Date.now() / 1000),

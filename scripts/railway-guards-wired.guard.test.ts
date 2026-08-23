@@ -69,9 +69,9 @@ describe('the Railway guards are wired into the workflow', () => {
 });
 
 describe('the guard scripts the workflow invokes actually exist', () => {
-  const pkg = JSON.parse(
-    readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
-  ) as { scripts: Record<string, string> };
+  const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as {
+    scripts: Record<string, string>;
+  };
 
   it.each(['guard:railway-references', 'guard:keycloak-memory'])(
     'package.json registers %s',

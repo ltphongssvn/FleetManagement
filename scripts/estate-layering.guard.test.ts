@@ -34,11 +34,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { ACTION_EXIT, ESTATE_ACTIONS } from './estate-action.js';
 import { ESTATE_REASONS, REASON_KIND, REASON_KINDS } from './estate-vocabulary.js';
-import {
-  SEVERITY_NUMBERS,
-  SEVERITY_TEXTS,
-  UNREADABLE_REASONS,
-} from './estate-verify.js';
+import { SEVERITY_NUMBERS, SEVERITY_TEXTS, UNREADABLE_REASONS } from './estate-verify.js';
 import { UNOBSERVABLE_REASONS } from './estate-events.js';
 import { join } from 'node:path';
 
@@ -93,7 +89,10 @@ describe('the estate arc is a DAG', () => {
   // known pairs, so a cycle introduced through a NEW module is caught too.
   it('has no module in the estate arc importing itself, however indirectly', () => {
     for (const module of ARC) {
-      expect([module, [...reachableFrom(module)]]).toEqual([module, expect.not.arrayContaining([module])]);
+      expect([module, [...reachableFrom(module)]]).toEqual([
+        module,
+        expect.not.arrayContaining([module]),
+      ]);
     }
   });
 
@@ -174,8 +173,10 @@ describe('the shared kernel is a leaf', () => {
       'export const ESTATE_SCHEMA_VERSION',
       'export const ESTATE_PRODUCER',
     ]) {
-      expect([declaration, sourceOf('estate-verify').includes(declaration)])
-        .toEqual([declaration, false]);
+      expect([declaration, sourceOf('estate-verify').includes(declaration)]).toEqual([
+        declaration,
+        false,
+      ]);
     }
   });
 
@@ -189,8 +190,10 @@ describe('the shared kernel is a leaf', () => {
       'export const EstateUnobservableSchema',
       'export const UNOBSERVABLE_REASONS',
     ]) {
-      expect([declaration, sourceOf('estate-gather').includes(declaration)])
-        .toEqual([declaration, false]);
+      expect([declaration, sourceOf('estate-gather').includes(declaration)]).toEqual([
+        declaration,
+        false,
+      ]);
     }
   });
 });
@@ -286,9 +289,15 @@ describe('every exported vocabulary is frozen at RUNTIME, not only as const', ()
   // the moment it joins this list rather than needing its own test.
   it('freezes every vocabulary the arc exports', () => {
     const vocabularies = [
-      ESTATE_REASONS, REASON_KINDS, REASON_KIND, ESTATE_ACTIONS,
-      ACTION_EXIT, UNREADABLE_REASONS, UNOBSERVABLE_REASONS,
-      SEVERITY_TEXTS, SEVERITY_NUMBERS,
+      ESTATE_REASONS,
+      REASON_KINDS,
+      REASON_KIND,
+      ESTATE_ACTIONS,
+      ACTION_EXIT,
+      UNREADABLE_REASONS,
+      UNOBSERVABLE_REASONS,
+      SEVERITY_TEXTS,
+      SEVERITY_NUMBERS,
     ];
     for (const v of vocabularies) {
       expect(Object.isFrozen(v)).toBe(true);

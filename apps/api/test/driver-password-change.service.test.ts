@@ -10,8 +10,18 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { UnauthorizedException } from '@nestjs/common';
 import { DriverPasswordChangeService } from '../src/driver/driver-password-change.service.js';
 import type { FleetDb } from '../src/database/database.module.js';
-interface Row { driverId: string; operatorId: string; companyId: string; passwordHash: string }
-function makeDb(row: Row | null): { db: FleetDb; update: ReturnType<typeof vi.fn>; setFn: ReturnType<typeof vi.fn>; setWhere: { where: ReturnType<typeof vi.fn> } } {
+interface Row {
+  driverId: string;
+  operatorId: string;
+  companyId: string;
+  passwordHash: string;
+}
+function makeDb(row: Row | null): {
+  db: FleetDb;
+  update: ReturnType<typeof vi.fn>;
+  setFn: ReturnType<typeof vi.fn>;
+  setWhere: { where: ReturnType<typeof vi.fn> };
+} {
   const update = vi.fn();
   const setWhere = { where: vi.fn().mockResolvedValue(undefined) };
   const setFn = vi.fn().mockReturnValue(setWhere);
@@ -42,7 +52,12 @@ describe('DriverPasswordChangeService', () => {
     hashFn.mockResolvedValue('HASH_OF_NEW');
     const { db, setFn } = makeDb(ROW);
     const svc = new DriverPasswordChangeService(db, hashFn as never, compareFn as never);
-    await svc.changePassword({ operatorId: OP, companyId: CO, currentPassword: 'oldpass1', newPassword: 'newpass2' }); // pragma: allowlist secret
+    await svc.changePassword({
+      operatorId: OP,
+      companyId: CO,
+      currentPassword: 'oldpass1',
+      newPassword: 'newpass2',
+    }); // pragma: allowlist secret
     expect(compareFn).toHaveBeenCalledWith('oldpass1', 'HASH_OF_OLD');
     expect(hashFn).toHaveBeenCalledWith('newpass2', 10);
     expect(setFn).toHaveBeenCalledWith({ passwordHash: 'HASH_OF_NEW' }); // pragma: allowlist secret
@@ -52,16 +67,31 @@ describe('DriverPasswordChangeService', () => {
     const { db, update } = makeDb(ROW);
     const svc = new DriverPasswordChangeService(db, hashFn as never, compareFn as never);
     await expect(
-      svc.changePassword({ operatorId: OP, companyId: CO, currentPassword: 'wrong', newPassword: 'newpass2' }), // pragma: allowlist secret
+      svc.changePassword({
+        operatorId: OP,
+        companyId: CO,
+        currentPassword: 'wrong',
+        newPassword: 'newpass2',
+      }), // pragma: allowlist secret
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(hashFn).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
   });
   it('throws UnauthorizedException and does NOT write when driver has a null passwordHash', async () => {
-    const { db, update } = makeDb({ driverId: 'd1', operatorId: OP, companyId: CO, passwordHash: null as unknown as string });
+    const { db, update } = makeDb({
+      driverId: 'd1',
+      operatorId: OP,
+      companyId: CO,
+      passwordHash: null as unknown as string,
+    });
     const svc = new DriverPasswordChangeService(db, hashFn as never, compareFn as never);
     await expect(
-      svc.changePassword({ operatorId: OP, companyId: CO, currentPassword: 'oldpass1', newPassword: 'newpass2' }), // pragma: allowlist secret
+      svc.changePassword({
+        operatorId: OP,
+        companyId: CO,
+        currentPassword: 'oldpass1',
+        newPassword: 'newpass2',
+      }), // pragma: allowlist secret
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(compareFn).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
@@ -70,7 +100,12 @@ describe('DriverPasswordChangeService', () => {
     const { db, update } = makeDb(null);
     const svc = new DriverPasswordChangeService(db, hashFn as never, compareFn as never);
     await expect(
-      svc.changePassword({ operatorId: OP, companyId: CO, currentPassword: 'oldpass1', newPassword: 'newpass2' }), // pragma: allowlist secret
+      svc.changePassword({
+        operatorId: OP,
+        companyId: CO,
+        currentPassword: 'oldpass1',
+        newPassword: 'newpass2',
+      }), // pragma: allowlist secret
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(compareFn).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();

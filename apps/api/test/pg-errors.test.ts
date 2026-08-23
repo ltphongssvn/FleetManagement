@@ -3,15 +3,24 @@
 // classification cases; fast-check property test covers MAX_DEPTH boundary.
 import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
-import { isPgUniqueViolation, isPgUniqueViolationOnConstraint, isPgUniqueViolationOnConstraintInChain } from '../src/common/pg-errors.js';
+import {
+  isPgUniqueViolation,
+  isPgUniqueViolationOnConstraint,
+  isPgUniqueViolationOnConstraintInChain,
+} from '../src/common/pg-errors.js';
 import { createPgUniqueViolation, createWrappedError } from '@fleet/test-fixtures';
 
 describe('@fleet/api - pg-errors', () => {
   describe('isPgUniqueViolation truth table', () => {
     const cases: readonly (readonly [string, unknown, boolean])[] = [
       ['direct 23505 error', createPgUniqueViolation({ message: 'x' }), true],
-      ['23505 in cause chain (1 level)', createWrappedError('outer', createPgUniqueViolation({ message: 'inner' })), true],
-      ['23505 nested 3 levels deep',
+      [
+        '23505 in cause chain (1 level)',
+        createWrappedError('outer', createPgUniqueViolation({ message: 'inner' })),
+        true,
+      ],
+      [
+        '23505 nested 3 levels deep',
         Object.assign(new Error('l1'), {
           cause: Object.assign(new Error('l2'), {
             cause: Object.assign(new Error('l3'), { code: '23505' }),
@@ -61,9 +70,19 @@ describe('@fleet/api - pg-errors', () => {
   });
 
   describe('isPgUniqueViolationOnConstraint truth table', () => {
-    const cases: readonly (readonly [string, { code?: string; constraint?: string }, string, boolean])[] = [
+    const cases: readonly (readonly [
+      string,
+      { code?: string; constraint?: string },
+      string,
+      boolean,
+    ])[] = [
       ['code+constraint match', { code: '23505', constraint: 'my_uq' }, 'my_uq', true],
-      ['code matches, constraint differs', { code: '23505', constraint: 'other_uq' }, 'my_uq', false],
+      [
+        'code matches, constraint differs',
+        { code: '23505', constraint: 'other_uq' },
+        'my_uq',
+        false,
+      ],
       ['no constraint property', { code: '23505' }, 'my_uq', false],
     ];
     it.each(cases)('%s -> %s', (_label, errProps, target, expected) => {
@@ -74,7 +93,10 @@ describe('@fleet/api - pg-errors', () => {
 
   describe('isPgUniqueViolationOnConstraintInChain truth table', () => {
     const topLevelMatch = createPgUniqueViolation({ message: 'x', constraint: 'my_uq' });
-    const deepMatch = createWrappedError('outer', createPgUniqueViolation({ message: 'inner', constraint: 'my_uq' }));
+    const deepMatch = createWrappedError(
+      'outer',
+      createPgUniqueViolation({ message: 'inner', constraint: 'my_uq' }),
+    );
     const wrongConstraint = createPgUniqueViolation({ message: 'x', constraint: 'other' });
     const cases: readonly (readonly [string, unknown, string, boolean])[] = [
       ['constraint matches at top level', topLevelMatch, 'my_uq', true],

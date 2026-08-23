@@ -9,5 +9,4 @@ import { ProjectionRebuildService } from './projection-rebuild.service.js';
   providers: [ProjectionRunnerService, ProjectionRebuildService],
   exports: [ProjectionRunnerService, ProjectionRebuildService],
 })
-
 export class ProjectionsModule {}

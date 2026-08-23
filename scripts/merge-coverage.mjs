@@ -49,10 +49,7 @@ for (const dir of shardDirs) {
 }
 
 mkdirSync('coverage/merged', { recursive: true });
-writeFileSync(
-  'coverage/merged/coverage-final.json',
-  JSON.stringify(merged) + '\n',
-);
+writeFileSync('coverage/merged/coverage-final.json', JSON.stringify(merged) + '\n');
 
 // --- per-file metrics ----------------------------------------------------
 function pct(covered, total) {
@@ -94,9 +91,7 @@ for (const [path, cov] of Object.entries(merged)) {
   rows.push({ path, metrics });
   for (const [name, value] of Object.entries(metrics)) {
     if (value < THRESHOLD) {
-      failures.push(
-        path + ': ' + name + ' ' + value.toFixed(2) + '% < ' + THRESHOLD + '%',
-      );
+      failures.push(path + ': ' + name + ' ' + value.toFixed(2) + '% < ' + THRESHOLD + '%');
     }
   }
 }
@@ -119,4 +114,6 @@ if (failures.length > 0) {
   for (const f of failures) console.error('  ' + f);
   process.exit(1);
 }
-console.log('\nCoverage gate passed: ' + rows.length + ' files >= ' + THRESHOLD + '% on all metrics.');
+console.log(
+  '\nCoverage gate passed: ' + rows.length + ' files >= ' + THRESHOLD + '% on all metrics.',
+);

@@ -11,7 +11,10 @@ import { ConfigModule } from '@nestjs/config';
 import { validateEnv } from '../src/config/env.config.js';
 import { DatabaseModule } from '../src/database/database.module.js';
 import { AlertsModule } from '../src/alerts/alerts.module.js';
-import { AlertsConsumerService, ALERTS_WORKER_FACTORY } from '../src/alerts/alerts-consumer.service.js';
+import {
+  AlertsConsumerService,
+  ALERTS_WORKER_FACTORY,
+} from '../src/alerts/alerts-consumer.service.js';
 
 describe('AlertsModule wires AlertsConsumerService', () => {
   const saved: Record<string, string | undefined> = {};

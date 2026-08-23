@@ -40,10 +40,7 @@ export interface EstateStreams {
  *  caller asking for quiet wants less commentary, not less data -- and a run
  *  that emitted nothing at all would be indistinguishable from one that never
  *  happened, which is the confident-zero hazard this task exists to refuse. */
-export function estateStreams(
-  result: EstateRunResult,
-  quiet = false,
-): EstateStreams {
+export function estateStreams(result: EstateRunResult, quiet = false): EstateStreams {
   return {
     // JSON.stringify, never a hand-built string: a serialiser that escapes
     // nothing is how a path containing a quote breaks the line contract.

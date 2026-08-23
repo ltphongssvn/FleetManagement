@@ -13,8 +13,11 @@ import { driverColumns } from '@/features/admin/co-so-du-lieu-driver-columns';
 
 const vehicle = { vehicleId: 'v1', plate: '62H 05194' };
 const liveDevice = {
-  deviceId: 'd1', platform: 'android', appVersion: '1.4.0',
-  lastSeenAt: null, udid: null,
+  deviceId: 'd1',
+  platform: 'android',
+  appVersion: '1.4.0',
+  lastSeenAt: null,
+  udid: null,
 };
 
 const driver = (over: Partial<AdminDriverRow>): AdminDriverRow => ({
@@ -53,8 +56,19 @@ describe('driverColumns', () => {
 
   it('filters driver rows by plate via global search (exercises accessorFns)', () => {
     const rows = [
-      driver({ driverId: 'a', fullName: 'ALPHA', phone: '0900000001', assignedVehicle: vehicle, devices: [liveDevice] }),
-      driver({ driverId: 'b', fullName: 'BETA', phone: '0900000002', assignedVehicle: { vehicleId: 'v2', plate: '99Z 00000' } }),
+      driver({
+        driverId: 'a',
+        fullName: 'ALPHA',
+        phone: '0900000001',
+        assignedVehicle: vehicle,
+        devices: [liveDevice],
+      }),
+      driver({
+        driverId: 'b',
+        fullName: 'BETA',
+        phone: '0900000002',
+        assignedVehicle: { vehicleId: 'v2', plate: '99Z 00000' },
+      }),
       driver({ driverId: 'c', fullName: 'GAMMA', phone: null, assignedVehicle: null }),
     ];
     render(<DataTable columns={driverColumns} data={rows} />);

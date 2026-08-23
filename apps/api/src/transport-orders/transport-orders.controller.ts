@@ -18,8 +18,16 @@ import { Body, Controller, ForbiddenException, Get, Post, Query, UseGuards } fro
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
-import { CreateTransportOrderSchema, type CreateTransportOrderResponse, type ListAssignedResponse, type TripHistoryResponse } from './transport-orders.dto.js';
-import { DriverCompletedPageQuerySchema, type DriverCompletedPageResponse } from '@fleet/sync-protocol';
+import {
+  CreateTransportOrderSchema,
+  type CreateTransportOrderResponse,
+  type ListAssignedResponse,
+  type TripHistoryResponse,
+} from './transport-orders.dto.js';
+import {
+  DriverCompletedPageQuerySchema,
+  type DriverCompletedPageResponse,
+} from '@fleet/sync-protocol';
 import { TransportOrdersService } from './transport-orders.service.js';
 import { ProjectionRunnerService } from '../projections/projection-runner.service.js';
 import { ConfigService } from '@nestjs/config';
@@ -32,7 +40,10 @@ export class TransportOrdersController {
     private readonly config: ConfigService,
   ) {}
   @Post()
-  async create(@Body() body: unknown, @CurrentOperator() op: OperatorContext): Promise<CreateTransportOrderResponse> {
+  async create(
+    @Body() body: unknown,
+    @CurrentOperator() op: OperatorContext,
+  ): Promise<CreateTransportOrderResponse> {
     // Factor III: read the coerced boolean flag from the validated boundary.
     if (!this.config.get<boolean>('FLEET_PILOT_SEED_ENABLED')) {
       throw new ForbiddenException('seed endpoint disabled');

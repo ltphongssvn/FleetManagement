@@ -19,8 +19,7 @@ export function evaluateStepUp(
 
   // 1) Assurance gate on acr, ordered by the configured strength ladder.
   const requiredIdx = requirement.acrLadder.indexOf(requirement.requiredAcr);
-  const presentedIdx =
-    presentedAcr === null ? -1 : requirement.acrLadder.indexOf(presentedAcr);
+  const presentedIdx = presentedAcr === null ? -1 : requirement.acrLadder.indexOf(presentedAcr);
   if (presentedIdx < 0 || presentedIdx < requiredIdx) {
     return {
       outcome: 'insufficient_assurance',

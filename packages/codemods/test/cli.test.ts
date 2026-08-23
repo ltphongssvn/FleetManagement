@@ -56,7 +56,6 @@ describe('runCodemodCli dispatch', () => {
   });
 });
 
-
 describe('hasDrift (--check drift detection)', () => {
   it('per-file: drift when any file changed', () => {
     expect(hasDrift({ dryRun: true, scanned: 2, changed: 1, errored: 0, results: [] })).toBe(true);
@@ -71,7 +70,9 @@ describe('hasDrift (--check drift detection)', () => {
   });
 
   it('project: drift when there are changes', () => {
-    expect(hasDrift({ dryRun: true, changes: [{ filePath: '/x.ts', change: 'modified' }] })).toBe(true);
+    expect(hasDrift({ dryRun: true, changes: [{ filePath: '/x.ts', change: 'modified' }] })).toBe(
+      true,
+    );
   });
 
   it('project: no drift when changes is empty', () => {

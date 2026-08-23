@@ -14,13 +14,22 @@ const reactMock = (state: unknown, pending = false): void => {
     const actual = await vi.importActual<typeof ReactNS>('react');
     return {
       ...actual,
-      useActionState: (): unknown => [state, function noopAction(): void { /* noop */ }, pending],
+      useActionState: (): unknown => [
+        state,
+        function noopAction(): void {
+          /* noop */
+        },
+        pending,
+      ],
     };
   });
 };
 
 describe('LoginForm (Đăng nhập / PKCE redirect)', () => {
-  beforeEach(() => { vi.resetModules(); cleanup(); });
+  beforeEach(() => {
+    vi.resetModules();
+    cleanup();
+  });
 
   it('renders a single sign-in button and no password field', async () => {
     reactMock(undefined);
@@ -48,7 +57,10 @@ describe('LoginForm (Đăng nhập / PKCE redirect)', () => {
 });
 
 describe('LoginForm action wiring', () => {
-  beforeEach(() => { vi.resetModules(); cleanup(); });
+  beforeEach(() => {
+    vi.resetModules();
+    cleanup();
+  });
 
   it('submitAction delegates to startLogin (ignoring prior state + formData)', async () => {
     const mod = await import('@/features/auth/login.action');
@@ -62,19 +74,22 @@ describe('LoginForm action wiring', () => {
 });
 
 describe('LoginForm initialError prop', () => {
-  beforeEach(() => { vi.resetModules(); cleanup(); });
+  beforeEach(() => {
+    vi.resetModules();
+    cleanup();
+  });
 
   it('renders an initialError banner when no live action error is present', async () => {
     reactMock(undefined);
     const { LoginForm } = await import('@/features/auth/LoginForm');
-    render(<LoginForm initialError='Your sign-in session expired. Please try again.' />);
+    render(<LoginForm initialError="Your sign-in session expired. Please try again." />);
     expect(screen.getByRole('alert').textContent).toMatch(/session expired/i);
   });
 
   it('prefers a live server_error over initialError', async () => {
     reactMock({ status: 'server_error', message: 'Live action error' });
     const { LoginForm } = await import('@/features/auth/LoginForm');
-    render(<LoginForm initialError='Stale callback error' />);
+    render(<LoginForm initialError="Stale callback error" />);
     expect(screen.getByRole('alert').textContent).toMatch(/Live action error/i);
   });
 

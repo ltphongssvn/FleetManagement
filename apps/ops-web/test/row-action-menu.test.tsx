@@ -9,7 +9,9 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RowActionMenu } from '@/features/admin/RowActionMenu';
-afterEach(() => { cleanup(); });
+afterEach(() => {
+  cleanup();
+});
 describe('RowActionMenu', () => {
   it('renders an accessible 44px trigger button', () => {
     render(<RowActionMenu label={'Thao tác cho Acme'} actions={[]} />);
@@ -47,7 +49,9 @@ describe('RowActionMenu', () => {
     render(
       <RowActionMenu
         label={'Thao tác cho Acme'}
-        actions={[{ key: 'del', label: 'Xóa', onSelect, destructive: true, confirmLabel: 'Xóa Acme?' }]}
+        actions={[
+          { key: 'del', label: 'Xóa', onSelect, destructive: true, confirmLabel: 'Xóa Acme?' },
+        ]}
       />,
     );
     await user.click(screen.getByRole('button', { name: 'Thao tác cho Acme' }));
@@ -66,7 +70,9 @@ describe('RowActionMenu', () => {
     render(
       <RowActionMenu
         label={'Thao tác cho Acme'}
-        actions={[{ key: 'del', label: 'Xóa', onSelect, destructive: true, confirmLabel: 'Xóa Acme?' }]}
+        actions={[
+          { key: 'del', label: 'Xóa', onSelect, destructive: true, confirmLabel: 'Xóa Acme?' },
+        ]}
       />,
     );
     await user.click(screen.getByRole('button', { name: 'Thao tác cho Acme' }));
@@ -81,14 +87,18 @@ describe('RowActionMenu', () => {
     render(
       <RowActionMenu
         label={'Thao tác cho Acme'}
-        actions={[{ key: 'del', label: 'Xóa', onSelect, destructive: true, confirmLabel: 'Xóa Acme?' }]}
+        actions={[
+          { key: 'del', label: 'Xóa', onSelect, destructive: true, confirmLabel: 'Xóa Acme?' },
+        ]}
       />,
     );
     await user.click(screen.getByRole('button', { name: 'Thao tác cho Acme' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Xóa' }));
     await screen.findByRole('dialog');
     await user.keyboard('{Escape}');
-    await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull(); });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
     expect(onSelect).not.toHaveBeenCalled();
   });
 });

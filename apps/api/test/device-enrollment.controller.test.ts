@@ -18,7 +18,9 @@ describe('DeviceEnrollmentController', () => {
 
   beforeEach(() => {
     enrollFn = vi.fn();
-    controller = new DeviceEnrollmentController({ enroll: enrollFn } as unknown as DeviceEnrollmentService);
+    controller = new DeviceEnrollmentController({
+      enroll: enrollFn,
+    } as unknown as DeviceEnrollmentService);
   });
 
   it('POST /devices/enroll returns deviceId from service', async () => {
@@ -33,12 +35,18 @@ describe('DeviceEnrollmentController', () => {
       businessUnitId: op.businessUnitId,
       depotId: op.depotId,
       legalEntityId: op.legalEntityId,
-      });
+    });
   });
 
   it('passes optional expoPushToken through', async () => {
     enrollFn.mockResolvedValue({ deviceId: 'dev-xyz' });
-    await controller.enroll(op, { platform: 'android', appVersion: '0.1.0', expoPushToken: 'ExponentPushToken[abc]' });
-    expect(enrollFn).toHaveBeenCalledWith(expect.objectContaining({ expoPushToken: 'ExponentPushToken[abc]' }));
+    await controller.enroll(op, {
+      platform: 'android',
+      appVersion: '0.1.0',
+      expoPushToken: 'ExponentPushToken[abc]',
+    });
+    expect(enrollFn).toHaveBeenCalledWith(
+      expect.objectContaining({ expoPushToken: 'ExponentPushToken[abc]' }),
+    );
   });
 });

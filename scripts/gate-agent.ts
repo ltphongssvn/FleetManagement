@@ -56,11 +56,7 @@ function main(): void {
   // pnpm forwards a literal -- as argv[0]; leaving it in place would make turbo
   // hand --filter to the underlying package script instead of consuming it.
   const passthrough = argv.filter(
-    (a, i) =>
-      a !== '--no-wait' &&
-      a !== '--' &&
-      a !== '--events' &&
-      i !== eventsFlag + 1,
+    (a, i) => a !== '--no-wait' && a !== '--' && a !== '--events' && i !== eventsFlag + 1,
   );
 
   const ctx = newTraceContext();
@@ -98,9 +94,16 @@ function main(): void {
   advance('preflight.passed');
 
   const turbo = [
-    'pnpm', 'exec', 'turbo', 'run',
-    'typecheck', 'lint', 'test:unit', 'test:integration',
-    '--concurrency=1', '--summarize',
+    'pnpm',
+    'exec',
+    'turbo',
+    'run',
+    'typecheck',
+    'lint',
+    'test:unit',
+    'test:integration',
+    '--concurrency=1',
+    '--summarize',
     ...passthrough,
   ];
   const wrapped = backend.wrap(turbo, noWait ? 1 : WAIT_SECONDS);
@@ -152,7 +155,8 @@ function main(): void {
       attempted: outcome.attempted,
       cached: outcome.cached,
       failedTasks: outcome.failed,
-      slowestTaskId: [...outcome.tasks].sort((a, b) => b.durationMs - a.durationMs)[0]?.taskId ?? null,
+      slowestTaskId:
+        [...outcome.tasks].sort((a, b) => b.durationMs - a.durationMs)[0]?.taskId ?? null,
     });
     for (const t of outcome.tasks) {
       emit('gate.finished', {

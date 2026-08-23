@@ -60,7 +60,9 @@ describe('countRawColorLiterals', () => {
   });
 
   it('counts across all utility prefixes', () => {
-    const src = cn('bg-red-500 text-gray-100 border-zinc-200 ring-sky-400 divide-teal-300 shadow-amber-500');
+    const src = cn(
+      'bg-red-500 text-gray-100 border-zinc-200 ring-sky-400 divide-teal-300 shadow-amber-500',
+    );
     expect(countRawColorLiterals(src)).toBe(6);
   });
 
@@ -78,7 +80,8 @@ describe('countRawColorLiterals', () => {
   });
 
   it('ignores literals outside a className attribute', () => {
-    const src = '// never a raw slate-900 literal' + NL + 'const doc = ' + SQ + 'use bg-slate-950' + SQ + ';';
+    const src =
+      '// never a raw slate-900 literal' + NL + 'const doc = ' + SQ + 'use bg-slate-950' + SQ + ';';
     expect(countRawColorLiterals(src)).toBe(0);
   });
 

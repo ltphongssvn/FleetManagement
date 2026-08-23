@@ -13,10 +13,7 @@ import { DRIZZLE_DB } from '../src/database/database.tokens.js';
 describe('AdminDriversCreateService DI', () => {
   it('is resolvable by the Nest container with only DRIZZLE_DB provided', async () => {
     const moduleRef = await Test.createTestingModule({
-      providers: [
-        AdminDriversCreateService,
-        { provide: DRIZZLE_DB, useValue: {} },
-      ],
+      providers: [AdminDriversCreateService, { provide: DRIZZLE_DB, useValue: {} }],
     }).compile();
     const svc = moduleRef.get(AdminDriversCreateService);
     expect(svc).toBeInstanceOf(AdminDriversCreateService);

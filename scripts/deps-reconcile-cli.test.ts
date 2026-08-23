@@ -32,11 +32,7 @@
 // covered by deps-reconcile-runner.test.ts with an injected spawn. What remains
 // in main() is wiring too small to hide a defect.
 import { describe, it, expect } from 'vitest';
-import {
-  buildTargets,
-  parseReconcileArgv,
-  type WorktreeListEntry,
-} from './deps-reconcile-cli.js';
+import { buildTargets, parseReconcileArgv, type WorktreeListEntry } from './deps-reconcile-cli.js';
 describe('parseReconcileArgv (consent is explicit and unforgeable)', () => {
   it('defaults to a dry run with no filter', () => {
     expect(parseReconcileArgv([])).toEqual({ execute: false, only: null, verbose: false });
@@ -86,9 +82,7 @@ const entries: WorktreeListEntry[] = [
 // A stub probe: buildTargets must not care HOW a probe is obtained, only that
 // each surviving worktree carries one. Injection mirrors the runner, so the
 // expensive real probe is never needed to test the selection logic.
-const stubProbe = (
-  path: string,
-): { kind: 'deps-ok' } | { kind: 'deps-stale'; reason: string } =>
+const stubProbe = (path: string): { kind: 'deps-ok' } | { kind: 'deps-stale'; reason: string } =>
   path === '/wt/a' ? { kind: 'deps-stale', reason: 'overrides changed' } : { kind: 'deps-ok' };
 describe('buildTargets (which worktrees enter the sweep)', () => {
   it('pairs every worktree with its probe', () => {

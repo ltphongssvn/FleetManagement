@@ -1,7 +1,18 @@
 // apps/api/src/database/schema/reference.ts
 // Reference master tables for dispatch form dropdowns: drivers, vehicles,
 // customers, cargo types, warehouses. Seeded from VẬN CHUYỂN Xe Thùng PDFs.
-import { pgTable, uuid, varchar, timestamp, index, integer, boolean, unique, uniqueIndex, check } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  varchar,
+  timestamp,
+  index,
+  integer,
+  boolean,
+  unique,
+  uniqueIndex,
+  check,
+} from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { tenancyColumns } from './tenancy.js';
 
@@ -14,7 +25,7 @@ import { tenancyColumns } from './tenancy.js';
 // accents are meaning in Vietnamese and case folding belongs in the index.
 // normalize/regexp_replace/btrim are all IMMUTABLE, so this is indexable.
 const canonicalName = (col: string): string =>
-  "btrim(regexp_replace(normalize(" + col + ", NFC), '\\s+', ' ', 'g'))";
+  'btrim(regexp_replace(normalize(' + col + ", NFC), '\\s+', ' ', 'g'))";
 
 export const driver = pgTable(
   'driver',
@@ -156,9 +167,7 @@ export const orderSequence = pgTable(
     padWidth: integer('pad_width').notNull().default(3),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
-  (t) => [
-    unique('order_sequence_company_prefix_uq').on(t.companyId, t.prefix),
-  ],
+  (t) => [unique('order_sequence_company_prefix_uq').on(t.companyId, t.prefix)],
 );
 export type OrderSequence = typeof orderSequence.$inferSelect;
 export type NewOrderSequence = typeof orderSequence.$inferInsert;

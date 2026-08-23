@@ -19,37 +19,57 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql, eq, and } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { TransportOrdersService } from '../src/transport-orders/transport-orders.service.js';
-import { OrderNumberingService, DEFAULT_ORDER_PREFIX } from '../src/transport-orders/order-numbering.service.js';
+import {
+  OrderNumberingService,
+  DEFAULT_ORDER_PREFIX,
+} from '../src/transport-orders/order-numbering.service.js';
 import { driver, vehicle, orderSequence } from '../src/database/schema/reference.js';
 import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
 import { transportOrder } from '../src/database/schema/transport.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 const OP = createOperatorContext();
 const MONTHLY_REGEX = /^XTT\.(0[1-9]|1[0-2])-\d{3,}$/;
 function tenancyOf(op = OP): {
-  companyId: string; businessUnitId: string; depotId: string; legalEntityId: string;
+  companyId: string;
+  businessUnitId: string;
+  depotId: string;
+  legalEntityId: string;
 } {
   return {
-    companyId: op.companyId, businessUnitId: op.businessUnitId,
-    depotId: op.depotId, legalEntityId: op.legalEntityId,
+    companyId: op.companyId,
+    businessUnitId: op.businessUnitId,
+    depotId: op.depotId,
+    legalEntityId: op.legalEntityId,
   };
 }
-async function seedActivePair(tx: TestTx, op = OP, suffix = 'A'): Promise<{
-  operatorId: string; vehicleId: string;
+async function seedActivePair(
+  tx: TestTx,
+  op = OP,
+  suffix = 'A',
+): Promise<{
+  operatorId: string;
+  vehicleId: string;
 }> {
   const operatorId = randomUUID();
   const tn = tenancyOf(op);
-  const [d] = await tx.insert(driver)
+  const [d] = await tx
+    .insert(driver)
     .values({ ...tn, fullName: 'NUM-' + suffix, operatorId })
     .returning({ driverId: driver.driverId });
-  const [v] = await tx.insert(vehicle)
+  const [v] = await tx
+    .insert(vehicle)
     .values({ ...tn, plate: 'NUM-' + suffix + '-' + operatorId.slice(0, 4) })
     .returning({ vehicleId: vehicle.vehicleId });
   if (!d || !v) throw new Error('seed failed');
-  await tx.insert(driverVehicleAssignment)
+  await tx
+    .insert(driverVehicleAssignment)
     .values({ ...tn, driverId: d.driverId, vehicleId: v.vehicleId });
   return { operatorId, vehicleId: v.vehicleId };
 }
@@ -59,17 +79,24 @@ function parseMonthlyNumber(ref: string): number {
   return parseInt(m[1], 10);
 }
 describe('@fleet/api - TransportOrdersService auto-numbering (T3, XTT.MM-NNN)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('returns externalRef matching XTT.MM-NNN on the response', async () => {
     const externalRef = await withTxIsolation(testDb, async (tx) => {
       const numbering = new OrderNumberingService();
       const svc = new TransportOrdersService(tx as never, numbering);
       const pair = await seedActivePair(tx);
-      const result = await svc.create({
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: { assignedOperatorId: pair.operatorId, assignedAssetId: pair.vehicleId },
-      }, OP);
+      const result = await svc.create(
+        {
+          stops: [{ sequence: 1, stopType: 'pickup' }],
+          roadRun: { assignedOperatorId: pair.operatorId, assignedAssetId: pair.vehicleId },
+        },
+        OP,
+      );
       return result.externalRef;
     });
     expect(externalRef).toMatch(MONTHLY_REGEX);
@@ -80,12 +107,16 @@ describe('@fleet/api - TransportOrdersService auto-numbering (T3, XTT.MM-NNN)', 
       const svc = new TransportOrdersService(tx as never, numbering);
       const pair = await seedActivePair(tx);
       const clientGarbage = 'CLIENT-GARBAGE-XYZ';
-      const result = await svc.create({
-        externalRef: clientGarbage,
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: { assignedOperatorId: pair.operatorId, assignedAssetId: pair.vehicleId },
-      }, OP);
-      const [row] = await tx.select({ externalRef: transportOrder.externalRef })
+      const result = await svc.create(
+        {
+          externalRef: clientGarbage,
+          stops: [{ sequence: 1, stopType: 'pickup' }],
+          roadRun: { assignedOperatorId: pair.operatorId, assignedAssetId: pair.vehicleId },
+        },
+        OP,
+      );
+      const [row] = await tx
+        .select({ externalRef: transportOrder.externalRef })
         .from(transportOrder)
         .where(eq(transportOrder.transportOrderId, result.transportOrderId));
       return { resultRef: result.externalRef, dbRef: row?.externalRef, clientGarbage };
@@ -100,15 +131,21 @@ describe('@fleet/api - TransportOrdersService auto-numbering (T3, XTT.MM-NNN)', 
       const numbering = new OrderNumberingService();
       const svc = new TransportOrdersService(tx as never, numbering);
       const a = await seedActivePair(tx, OP, 'SEQ1');
-      const r1 = await svc.create({
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: { assignedOperatorId: a.operatorId, assignedAssetId: a.vehicleId },
-      }, OP);
+      const r1 = await svc.create(
+        {
+          stops: [{ sequence: 1, stopType: 'pickup' }],
+          roadRun: { assignedOperatorId: a.operatorId, assignedAssetId: a.vehicleId },
+        },
+        OP,
+      );
       const b = await seedActivePair(tx, OP, 'SEQ2');
-      const r2 = await svc.create({
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: { assignedOperatorId: b.operatorId, assignedAssetId: b.vehicleId },
-      }, OP);
+      const r2 = await svc.create(
+        {
+          stops: [{ sequence: 1, stopType: 'pickup' }],
+          roadRun: { assignedOperatorId: b.operatorId, assignedAssetId: b.vehicleId },
+        },
+        OP,
+      );
       return { r1: r1.externalRef, r2: r2.externalRef };
     });
     expect(captured?.r1).toMatch(MONTHLY_REGEX);
@@ -123,15 +160,32 @@ describe('@fleet/api - TransportOrdersService auto-numbering (T3, XTT.MM-NNN)', 
       const numbering = new OrderNumberingService();
       const svc = new TransportOrdersService(tx as never, numbering);
       const pair = await seedActivePair(tx, OP, 'ADV');
-      const before = await tx.select({ next: orderSequence.nextValue }).from(orderSequence)
-        .where(and(eq(orderSequence.companyId, OP.companyId), eq(orderSequence.prefix, DEFAULT_ORDER_PREFIX)));
+      const before = await tx
+        .select({ next: orderSequence.nextValue })
+        .from(orderSequence)
+        .where(
+          and(
+            eq(orderSequence.companyId, OP.companyId),
+            eq(orderSequence.prefix, DEFAULT_ORDER_PREFIX),
+          ),
+        );
       const beforeNext = before[0]?.next ?? 1;
-      await svc.create({
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: { assignedOperatorId: pair.operatorId, assignedAssetId: pair.vehicleId },
-      }, OP);
-      const after = await tx.select({ next: orderSequence.nextValue }).from(orderSequence)
-        .where(and(eq(orderSequence.companyId, OP.companyId), eq(orderSequence.prefix, DEFAULT_ORDER_PREFIX)));
+      await svc.create(
+        {
+          stops: [{ sequence: 1, stopType: 'pickup' }],
+          roadRun: { assignedOperatorId: pair.operatorId, assignedAssetId: pair.vehicleId },
+        },
+        OP,
+      );
+      const after = await tx
+        .select({ next: orderSequence.nextValue })
+        .from(orderSequence)
+        .where(
+          and(
+            eq(orderSequence.companyId, OP.companyId),
+            eq(orderSequence.prefix, DEFAULT_ORDER_PREFIX),
+          ),
+        );
       return { beforeNext, afterNext: after[0]?.next };
     });
     if (captured?.afterNext === undefined) throw new Error('no order_sequence row');
@@ -142,13 +196,21 @@ describe('@fleet/api - TransportOrdersService auto-numbering (T3, XTT.MM-NNN)', 
       const numbering = new OrderNumberingService();
       const svc = new TransportOrdersService(tx as never, numbering);
       const pair = await seedActivePair(tx, OP, 'OBX');
-      const result = await svc.create({
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: { assignedOperatorId: pair.operatorId, assignedAssetId: pair.vehicleId },
-      }, OP);
-      const feedRows = await tx.execute<{ delta: unknown }>(sql.raw(
-        'SELECT delta FROM sync_change_feed WHERE aggregate_type = ' + String.fromCharCode(39) + 'road_run' + String.fromCharCode(39),
-      ));
+      const result = await svc.create(
+        {
+          stops: [{ sequence: 1, stopType: 'pickup' }],
+          roadRun: { assignedOperatorId: pair.operatorId, assignedAssetId: pair.vehicleId },
+        },
+        OP,
+      );
+      const feedRows = await tx.execute<{ delta: unknown }>(
+        sql.raw(
+          'SELECT delta FROM sync_change_feed WHERE aggregate_type = ' +
+            String.fromCharCode(39) +
+            'road_run' +
+            String.fromCharCode(39),
+        ),
+      );
       const ref = result.externalRef;
       const found = feedRows.rows.some((r) => JSON.stringify(r.delta).includes(ref));
       return { ref, found };

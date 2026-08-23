@@ -47,7 +47,10 @@ describe('@fleet/driver-app - decidePushRegistration', () => {
   });
 
   it('returns deregister when permission revoked but previous token exists (#404)', () => {
-    const previous: RegisteredPushToken = { token: VALID_TOKEN, registeredAtMs: baseInput.nowMs - 1000 };
+    const previous: RegisteredPushToken = {
+      token: VALID_TOKEN,
+      registeredAtMs: baseInput.nowMs - 1000,
+    };
     const r = decidePushRegistration({ ...baseInput, permissionGranted: false }, previous);
     expect(r.action).toBe('deregister');
     if (r.action === 'deregister') {
@@ -63,7 +66,10 @@ describe('@fleet/driver-app - decidePushRegistration', () => {
   });
 
   it('skips re-register when previous token matches the trimmed value (#400)', () => {
-    const previous: RegisteredPushToken = { token: VALID_TOKEN, registeredAtMs: baseInput.nowMs - 60_000 };
+    const previous: RegisteredPushToken = {
+      token: VALID_TOKEN,
+      registeredAtMs: baseInput.nowMs - 60_000,
+    };
     const r = decidePushRegistration({ ...baseInput, token: `  ${VALID_TOKEN}  ` }, previous);
     expect(r.action).toBe('skip');
   });
@@ -90,39 +96,57 @@ describe('@fleet/driver-app - decidePushRegistration', () => {
   });
 
   it('registers when token has rotated (different from previous)', () => {
-    const previous: RegisteredPushToken = { token: VALID_TOKEN_SHORT, registeredAtMs: baseInput.nowMs - 1000 };
+    const previous: RegisteredPushToken = {
+      token: VALID_TOKEN_SHORT,
+      registeredAtMs: baseInput.nowMs - 1000,
+    };
     const r = decidePushRegistration(baseInput, previous);
     expect(r.action).toBe('register');
   });
 
   it('skips when same token and within TTL', () => {
-    const previous: RegisteredPushToken = { token: VALID_TOKEN, registeredAtMs: baseInput.nowMs - 60_000 };
+    const previous: RegisteredPushToken = {
+      token: VALID_TOKEN,
+      registeredAtMs: baseInput.nowMs - 60_000,
+    };
     const r = decidePushRegistration(baseInput, previous);
     expect(r.action).toBe('skip');
     if (r.action === 'skip') expect(r.reason).toBe('token_fresh');
   });
 
   it('re-registers when same token but past TTL (rotation refresh)', () => {
-    const previous: RegisteredPushToken = { token: VALID_TOKEN, registeredAtMs: baseInput.nowMs - PUSH_TOKEN_TTL_MS - 1 };
+    const previous: RegisteredPushToken = {
+      token: VALID_TOKEN,
+      registeredAtMs: baseInput.nowMs - PUSH_TOKEN_TTL_MS - 1,
+    };
     const r = decidePushRegistration(baseInput, previous);
     expect(r.action).toBe('register');
   });
 
-
   it('re-registers at exact TTL boundary (#433)', () => {
-    const previous: RegisteredPushToken = { token: VALID_TOKEN, registeredAtMs: baseInput.nowMs - PUSH_TOKEN_TTL_MS };
+    const previous: RegisteredPushToken = {
+      token: VALID_TOKEN,
+      registeredAtMs: baseInput.nowMs - PUSH_TOKEN_TTL_MS,
+    };
     const r = decidePushRegistration(baseInput, previous);
     expect(r.action).toBe('register');
   });
   it('skips at exact TTL minus 1ms boundary', () => {
-    const previous: RegisteredPushToken = { token: VALID_TOKEN, registeredAtMs: baseInput.nowMs - PUSH_TOKEN_TTL_MS + 1 };
+    const previous: RegisteredPushToken = {
+      token: VALID_TOKEN,
+      registeredAtMs: baseInput.nowMs - PUSH_TOKEN_TTL_MS + 1,
+    };
     const r = decidePushRegistration(baseInput, previous);
     expect(r.action).toBe('skip');
   });
 
   it('every decision carries policyVersion', () => {
-    expect(decidePushRegistration(baseInput, null).policyVersion).toBe(PUSH_REGISTRATION_POLICY_VERSION);
-    expect(decidePushRegistration({ ...baseInput, permissionGranted: false }, null).policyVersion).toBe(PUSH_REGISTRATION_POLICY_VERSION);
+    expect(decidePushRegistration(baseInput, null).policyVersion).toBe(
+      PUSH_REGISTRATION_POLICY_VERSION,
+    );
+    expect(
+      decidePushRegistration({ ...baseInput, permissionGranted: false }, null).policyVersion,
+    ).toBe(PUSH_REGISTRATION_POLICY_VERSION);
   });
 });
 
@@ -144,10 +168,12 @@ describe('@fleet/driver-app - push-registration-policy property invariants', () 
           permissionGranted: fc.boolean(),
           nowMs: fc.integer({ min: 0, max: 10_000_000_000_000 }),
         }),
-        fc.option(fc.record({
-          token: fc.string({ minLength: 1, maxLength: 100 }),
-          registeredAtMs: fc.integer({ min: 0, max: 10_000_000_000_000 }),
-        })),
+        fc.option(
+          fc.record({
+            token: fc.string({ minLength: 1, maxLength: 100 }),
+            registeredAtMs: fc.integer({ min: 0, max: 10_000_000_000_000 }),
+          }),
+        ),
         (input, previous) => {
           const r = decidePushRegistration(input, previous);
           expect(['register', 'skip', 'deregister', 'reject']).toContain(r.action);
@@ -170,23 +196,21 @@ describe('@fleet/driver-app - push-registration-policy property invariants', () 
 
   it('permission denied + no previous always rejects with permission_denied', () => {
     fc.assert(
-      fc.property(
-        fc.string(),
-        fc.integer({ min: 0, max: 10_000_000_000_000 }),
-        (token, nowMs) => {
-          const r = decidePushRegistration({ token, permissionGranted: false, nowMs }, null);
-          expect(r.action).toBe('reject');
-          if (r.action === 'reject') expect(r.rejectionCode).toBe('permission_denied');
-          return true;
-        },
-      ),
+      fc.property(fc.string(), fc.integer({ min: 0, max: 10_000_000_000_000 }), (token, nowMs) => {
+        const r = decidePushRegistration({ token, permissionGranted: false, nowMs }, null);
+        expect(r.action).toBe('reject');
+        if (r.action === 'reject') expect(r.rejectionCode).toBe('permission_denied');
+        return true;
+      }),
     );
   });
 
   it('valid token + no previous always registers with trimmed token', () => {
     fc.assert(
       fc.property(
-        fc.string({ minLength: 1, maxLength: 50 }).map((s) => `ExponentPushToken[${s.replace(/[^A-Za-z0-9_-]/g, 'a')}]`),
+        fc
+          .string({ minLength: 1, maxLength: 50 })
+          .map((s) => `ExponentPushToken[${s.replace(/[^A-Za-z0-9_-]/g, 'a')}]`),
         fc.integer({ min: 0, max: 10_000_000_000_000 }),
         (token, nowMs) => {
           const r = decidePushRegistration({ token, permissionGranted: true, nowMs }, null);

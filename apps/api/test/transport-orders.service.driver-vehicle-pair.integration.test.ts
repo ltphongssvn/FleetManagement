@@ -26,13 +26,20 @@ import { TransportOrdersService } from '../src/transport-orders/transport-orders
 import { DriverVehicleAssignmentRequiredError } from '../src/transport-orders/transport-orders.errors.js';
 import { driver, vehicle } from '../src/database/schema/reference.js';
 import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 const OP = createOperatorContext();
 function tenancyOf(op = OP): {
-  companyId: string; businessUnitId: string; depotId: string; legalEntityId: string;
+  companyId: string;
+  businessUnitId: string;
+  depotId: string;
+  legalEntityId: string;
 } {
   return {
     companyId: op.companyId,
@@ -44,44 +51,57 @@ function tenancyOf(op = OP): {
 async function seedActivePair(tx: TestTx): Promise<{ operatorId: string; vehicleId: string }> {
   const operatorId = randomUUID();
   const tn = tenancyOf();
-  const [d] = await tx.insert(driver)
+  const [d] = await tx
+    .insert(driver)
     .values({ ...tn, fullName: 'PAIRED', operatorId })
     .returning({ driverId: driver.driverId });
-  const [v] = await tx.insert(vehicle)
+  const [v] = await tx
+    .insert(vehicle)
     .values({ ...tn, plate: 'PAIR-001' })
     .returning({ vehicleId: vehicle.vehicleId });
   if (!d || !v) throw new Error('seed failed');
-  await tx.insert(driverVehicleAssignment)
+  await tx
+    .insert(driverVehicleAssignment)
     .values({ ...tn, driverId: d.driverId, vehicleId: v.vehicleId });
   return { operatorId, vehicleId: v.vehicleId };
 }
 async function seedActivePairAndUnpairedVehicle(tx: TestTx): Promise<{
-  operatorId: string; vehicleId: string; otherVehicleId: string;
+  operatorId: string;
+  vehicleId: string;
+  otherVehicleId: string;
 }> {
   const base = await seedActivePair(tx);
   const tn = tenancyOf();
-  const [v2] = await tx.insert(vehicle)
+  const [v2] = await tx
+    .insert(vehicle)
     .values({ ...tn, plate: 'PAIR-002' })
     .returning({ vehicleId: vehicle.vehicleId });
   if (!v2) throw new Error('seed failed');
   return { ...base, otherVehicleId: v2.vehicleId };
 }
 describe('@fleet/api - TransportOrdersService driver-vehicle pair guard', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('accepts roadRun whose operator+asset pair has an active assignment', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const svc = new TransportOrdersService(tx as never);
       const { operatorId, vehicleId } = await seedActivePair(tx);
-      const result = await svc.create({
-        externalRef: 'TO-PAIR-OK',
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: {
-          plannedStartAt: '2026-04-30T08:00:00.000Z',
-          assignedOperatorId: operatorId,
-          assignedAssetId: vehicleId,
+      const result = await svc.create(
+        {
+          externalRef: 'TO-PAIR-OK',
+          stops: [{ sequence: 1, stopType: 'pickup' }],
+          roadRun: {
+            plannedStartAt: '2026-04-30T08:00:00.000Z',
+            assignedOperatorId: operatorId,
+            assignedAssetId: vehicleId,
+          },
         },
-      }, OP);
+        OP,
+      );
       expect(result.roadRunId).toMatch(/^[0-9a-f-]{36}$/i);
     });
   });
@@ -90,34 +110,45 @@ describe('@fleet/api - TransportOrdersService driver-vehicle pair guard', () => 
       const svc = new TransportOrdersService(tx as never);
       const unpairedOperatorId = randomUUID();
       const tn = tenancyOf();
-      const [v] = await tx.insert(vehicle)
+      const [v] = await tx
+        .insert(vehicle)
         .values({ ...tn, plate: 'ORPHAN' })
         .returning({ vehicleId: vehicle.vehicleId });
       if (!v) throw new Error('seed failed');
-      await expect(svc.create({
-        externalRef: 'TO-PAIR-MISS-OP',
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: {
-          plannedStartAt: '2026-04-30T08:00:00.000Z',
-          assignedOperatorId: unpairedOperatorId,
-          assignedAssetId: v.vehicleId,
-        },
-      }, OP)).rejects.toThrow(DriverVehicleAssignmentRequiredError);
+      await expect(
+        svc.create(
+          {
+            externalRef: 'TO-PAIR-MISS-OP',
+            stops: [{ sequence: 1, stopType: 'pickup' }],
+            roadRun: {
+              plannedStartAt: '2026-04-30T08:00:00.000Z',
+              assignedOperatorId: unpairedOperatorId,
+              assignedAssetId: v.vehicleId,
+            },
+          },
+          OP,
+        ),
+      ).rejects.toThrow(DriverVehicleAssignmentRequiredError);
     });
   });
   it('rejects roadRun whose operator is paired with a DIFFERENT vehicle', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const svc = new TransportOrdersService(tx as never);
       const { operatorId, otherVehicleId } = await seedActivePairAndUnpairedVehicle(tx);
-      await expect(svc.create({
-        externalRef: 'TO-PAIR-MISMATCH',
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: {
-          plannedStartAt: '2026-04-30T08:00:00.000Z',
-          assignedOperatorId: operatorId,
-          assignedAssetId: otherVehicleId,
-        },
-      }, OP)).rejects.toThrow(DriverVehicleAssignmentRequiredError);
+      await expect(
+        svc.create(
+          {
+            externalRef: 'TO-PAIR-MISMATCH',
+            stops: [{ sequence: 1, stopType: 'pickup' }],
+            roadRun: {
+              plannedStartAt: '2026-04-30T08:00:00.000Z',
+              assignedOperatorId: operatorId,
+              assignedAssetId: otherVehicleId,
+            },
+          },
+          OP,
+        ),
+      ).rejects.toThrow(DriverVehicleAssignmentRequiredError);
     });
   });
   it('rejects roadRun whose only assignment row has been revoked', async () => {
@@ -128,15 +159,20 @@ describe('@fleet/api - TransportOrdersService driver-vehicle pair guard', () => 
         .update(driverVehicleAssignment)
         .set({ revokedAt: new Date(), revocationReason: 'test' })
         .where(eq(driverVehicleAssignment.companyId, OP.companyId));
-      await expect(svc.create({
-        externalRef: 'TO-PAIR-REVOKED',
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: {
-          plannedStartAt: '2026-04-30T08:00:00.000Z',
-          assignedOperatorId: operatorId,
-          assignedAssetId: vehicleId,
-        },
-      }, OP)).rejects.toThrow(DriverVehicleAssignmentRequiredError);
+      await expect(
+        svc.create(
+          {
+            externalRef: 'TO-PAIR-REVOKED',
+            stops: [{ sequence: 1, stopType: 'pickup' }],
+            roadRun: {
+              plannedStartAt: '2026-04-30T08:00:00.000Z',
+              assignedOperatorId: operatorId,
+              assignedAssetId: vehicleId,
+            },
+          },
+          OP,
+        ),
+      ).rejects.toThrow(DriverVehicleAssignmentRequiredError);
     });
   });
   it('rejects roadRun when the active assignment lives in a DIFFERENT company', async () => {
@@ -145,24 +181,32 @@ describe('@fleet/api - TransportOrdersService driver-vehicle pair guard', () => 
       const otherOp = createOperatorContext();
       const operatorId = randomUUID();
       const tn = tenancyOf(otherOp);
-      const [d] = await tx.insert(driver)
+      const [d] = await tx
+        .insert(driver)
         .values({ ...tn, fullName: 'OTHER CO', operatorId })
         .returning({ driverId: driver.driverId });
-      const [v] = await tx.insert(vehicle)
+      const [v] = await tx
+        .insert(vehicle)
         .values({ ...tn, plate: 'OTHER-CO-001' })
         .returning({ vehicleId: vehicle.vehicleId });
       if (!d || !v) throw new Error('seed failed');
-      await tx.insert(driverVehicleAssignment)
+      await tx
+        .insert(driverVehicleAssignment)
         .values({ ...tn, driverId: d.driverId, vehicleId: v.vehicleId });
-      await expect(svc.create({
-        externalRef: 'TO-PAIR-TENANT',
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: {
-          plannedStartAt: '2026-04-30T08:00:00.000Z',
-          assignedOperatorId: operatorId,
-          assignedAssetId: v.vehicleId,
-        },
-      }, OP)).rejects.toThrow(DriverVehicleAssignmentRequiredError);
+      await expect(
+        svc.create(
+          {
+            externalRef: 'TO-PAIR-TENANT',
+            stops: [{ sequence: 1, stopType: 'pickup' }],
+            roadRun: {
+              plannedStartAt: '2026-04-30T08:00:00.000Z',
+              assignedOperatorId: operatorId,
+              assignedAssetId: v.vehicleId,
+            },
+          },
+          OP,
+        ),
+      ).rejects.toThrow(DriverVehicleAssignmentRequiredError);
     });
   });
 });

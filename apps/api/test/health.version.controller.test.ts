@@ -30,8 +30,12 @@ function makeCtl(): HealthController {
 }
 
 describe('@fleet/api - HealthController.version', () => {
-  beforeEach(() => { process.env = { ...ORIG }; });
-  afterEach(() => { process.env = ORIG; });
+  beforeEach(() => {
+    process.env = { ...ORIG };
+  });
+  afterEach(() => {
+    process.env = ORIG;
+  });
 
   it('returns sha/shortSha/branch/buildTime from RAILWAY_GIT_COMMIT_SHA env', () => {
     process.env['RAILWAY_GIT_COMMIT_SHA'] = PLATFORM_SHA;
@@ -68,8 +72,12 @@ describe('@fleet/api - HealthController.version', () => {
 // and /health/version reported an empty sha in production forever -- the deploy
 // gate could never confirm which commit was live.
 describe('@fleet/api - HealthController.version blank env', () => {
-  beforeEach(() => { process.env = { ...ORIG }; });
-  afterEach(() => { process.env = ORIG; });
+  beforeEach(() => {
+    process.env = { ...ORIG };
+  });
+  afterEach(() => {
+    process.env = ORIG;
+  });
 
   it('treats an EMPTY GIT_SHA as absent, falling through to the platform var', () => {
     process.env['GIT_SHA'] = INVALID_SHA_FIXTURES.blank;
@@ -116,8 +124,12 @@ describe('@fleet/api - HealthController.version blank env', () => {
 // being served as provenance and failing later in CI as an opaque mismatch
 // that blames the deploy for what is really a stamping bug.
 describe('@fleet/api - HealthController.version rejects a malformed stamp', () => {
-  beforeEach(() => { process.env = { ...ORIG }; });
-  afterEach(() => { process.env = ORIG; });
+  beforeEach(() => {
+    process.env = { ...ORIG };
+  });
+  afterEach(() => {
+    process.env = ORIG;
+  });
 
   it('throws when a release TAG was stamped instead of a sha', () => {
     process.env['GIT_SHA'] = INVALID_SHA_FIXTURES.releaseTag;

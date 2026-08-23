@@ -20,12 +20,42 @@ const src = (rel: string): string => readFileSync(resolve(here, '..', rel), 'utf
 
 describe('roadRunStateLabelVi', () => {
   it('maps each state to its immutable Vietnamese label (case-insensitive)', () => {
-    expect(roadRunStateLabelVi('planned')).toBe('Ch' + String.fromCharCode(7901) + ' ' + String.fromCharCode(273) + 'i' + String.fromCharCode(7873) + 'u xe');
-    expect(roadRunStateLabelVi('dispatched')).toBe(String.fromCharCode(272) + String.fromCharCode(227) + ' ' + String.fromCharCode(273) + 'i' + String.fromCharCode(7873) + 'u xe');
-    expect(roadRunStateLabelVi('started')).toBe(String.fromCharCode(272) + 'ang giao h' + String.fromCharCode(224) + 'ng');
-    expect(roadRunStateLabelVi('completed')).toBe(String.fromCharCode(272) + String.fromCharCode(227) + ' ho' + String.fromCharCode(224) + 'n th' + String.fromCharCode(224) + 'nh');
-    expect(roadRunStateLabelVi('cancelled')).toBe(String.fromCharCode(272) + String.fromCharCode(227) + ' h' + String.fromCharCode(7911) + 'y');
-    expect(roadRunStateLabelVi('STARTED')).toBe(String.fromCharCode(272) + 'ang giao h' + String.fromCharCode(224) + 'ng');
+    expect(roadRunStateLabelVi('planned')).toBe(
+      'Ch' +
+        String.fromCharCode(7901) +
+        ' ' +
+        String.fromCharCode(273) +
+        'i' +
+        String.fromCharCode(7873) +
+        'u xe',
+    );
+    expect(roadRunStateLabelVi('dispatched')).toBe(
+      String.fromCharCode(272) +
+        String.fromCharCode(227) +
+        ' ' +
+        String.fromCharCode(273) +
+        'i' +
+        String.fromCharCode(7873) +
+        'u xe',
+    );
+    expect(roadRunStateLabelVi('started')).toBe(
+      String.fromCharCode(272) + 'ang giao h' + String.fromCharCode(224) + 'ng',
+    );
+    expect(roadRunStateLabelVi('completed')).toBe(
+      String.fromCharCode(272) +
+        String.fromCharCode(227) +
+        ' ho' +
+        String.fromCharCode(224) +
+        'n th' +
+        String.fromCharCode(224) +
+        'nh',
+    );
+    expect(roadRunStateLabelVi('cancelled')).toBe(
+      String.fromCharCode(272) + String.fromCharCode(227) + ' h' + String.fromCharCode(7911) + 'y',
+    );
+    expect(roadRunStateLabelVi('STARTED')).toBe(
+      String.fromCharCode(272) + 'ang giao h' + String.fromCharCode(224) + 'ng',
+    );
   });
   it('falls back to the raw state for an unknown value (never crashes)', () => {
     expect(roadRunStateLabelVi('weird')).toBe('weird');
@@ -57,6 +87,9 @@ describe('driver app is reduced to the bare minimum', () => {
     expect(layout.includes('Fleet Driver')).toBe(false);
     expect(home.includes('Fleet Driver')).toBe(false);
     const combined = layout + home;
-    expect(combined.includes('Ung dung Tai xe') || combined.includes('T' + String.fromCharCode(224) + 'i x')).toBe(true);
+    expect(
+      combined.includes('Ung dung Tai xe') ||
+        combined.includes('T' + String.fromCharCode(224) + 'i x'),
+    ).toBe(true);
   });
 });

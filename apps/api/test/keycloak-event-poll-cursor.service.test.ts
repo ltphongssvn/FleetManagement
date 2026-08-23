@@ -11,7 +11,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { KeycloakEventPollCursorService } from '../src/security/keycloak-event-poll-cursor.service.js';
 import type { FleetDb } from '../src/database/database.module.js';
 
-interface CursorRow { lastEventTimeMs: number; lastEventId: string | null }
+interface CursorRow {
+  lastEventTimeMs: number;
+  lastEventId: string | null;
+}
 
 interface DbMocks {
   selectLimit: ReturnType<typeof vi.fn>;

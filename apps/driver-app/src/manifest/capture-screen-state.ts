@@ -23,10 +23,28 @@ import type {
 
 export type CaptureState =
   | { readonly phase: 'idle'; readonly stop: CaptureStop }
-  | { readonly phase: 'spooled'; readonly stop: CaptureStop; readonly localUri: string; readonly mimeType: string; readonly sizeBytes: number }
-  | { readonly phase: 'uploading'; readonly stop: CaptureStop; readonly localUri: string; readonly mimeType: string; readonly sizeBytes: number }
+  | {
+      readonly phase: 'spooled';
+      readonly stop: CaptureStop;
+      readonly localUri: string;
+      readonly mimeType: string;
+      readonly sizeBytes: number;
+    }
+  | {
+      readonly phase: 'uploading';
+      readonly stop: CaptureStop;
+      readonly localUri: string;
+      readonly mimeType: string;
+      readonly sizeBytes: number;
+    }
   | { readonly phase: 'done'; readonly stop: CaptureStop; readonly manifestId: string }
-  | { readonly phase: 'error'; readonly stop: CaptureStop; readonly message: string; readonly retryable: boolean; readonly rejectionCode?: ManifestRejectionCode }
+  | {
+      readonly phase: 'error';
+      readonly stop: CaptureStop;
+      readonly message: string;
+      readonly retryable: boolean;
+      readonly rejectionCode?: ManifestRejectionCode;
+    }
   | { readonly phase: 'invalid_stop'; readonly rejectionCode: CaptureStopRejectionCode };
 
 export type CaptureEvent =

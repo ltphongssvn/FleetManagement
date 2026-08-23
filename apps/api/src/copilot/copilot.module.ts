@@ -101,5 +101,4 @@ import {
     },
   ],
 })
-
 export class CopilotModule {}

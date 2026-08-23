@@ -10,7 +10,9 @@ import { getApiUrl } from '@/lib/api-url';
 
 describe('ops-web getApiUrl (Factor III)', () => {
   it('returns FLEET_API_URL when set', () => {
-    expect(getApiUrl({ FLEET_API_URL: 'https://api.example.com', NODE_ENV: 'production' })).toBe('https://api.example.com');
+    expect(getApiUrl({ FLEET_API_URL: 'https://api.example.com', NODE_ENV: 'production' })).toBe(
+      'https://api.example.com',
+    );
   });
 
   it('throws in production when FLEET_API_URL is unset', () => {

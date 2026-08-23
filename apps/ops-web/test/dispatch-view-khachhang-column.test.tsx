@@ -15,7 +15,10 @@ const RUN_ID = '33333333-3333-4333-8333-333333333333';
 const refs = {
   drivers: [{ id: DRIVER_ID, label: 'Nguyễn Văn A' }],
   vehicles: [{ id: VEHICLE_ID, label: '51C-12345' }],
-  customers: [], cargoTypes: [], pickupWarehouses: [], deliveryWarehouses: [],
+  customers: [],
+  cargoTypes: [],
+  pickupWarehouses: [],
+  deliveryWarehouses: [],
   driverVehicleAssignments: [],
 };
 function dataRow(): HTMLElement {
@@ -57,7 +60,11 @@ describe('DispatchView - Khách hàng column replaces Trạng thái', () => {
     expect(within(row).getByText('Công ty Vận Tải Số 1')).toBeInTheDocument();
   });
   it('renders em-dash when customerName is null (no leak)', () => {
-    const r2: DispatchBoardRoadRun = { ...run, customerName: null, transportOrderRefs: ['XT.0099'] };
+    const r2: DispatchBoardRoadRun = {
+      ...run,
+      customerName: null,
+      transportOrderRefs: ['XT.0099'],
+    };
     render(<DispatchView initialRuns={[r2]} refs={refs} />);
     const cells = within(dataRow()).getAllByRole('cell');
     const customerCell = cells[1];

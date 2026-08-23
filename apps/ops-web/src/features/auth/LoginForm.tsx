@@ -23,28 +23,30 @@ export interface LoginFormProps {
   readonly initialError?: string;
 }
 export function LoginForm({ initialError }: LoginFormProps = {}): JSX.Element {
-  const [state, formAction, pending] = useActionState<LoginState, FormData>(submitAction, undefined);
+  const [state, formAction, pending] = useActionState<LoginState, FormData>(
+    submitAction,
+    undefined,
+  );
   // A live action error (this submit) wins over a stale callback error from the URL.
-  const topError =
-    state?.status === 'server_error' ? state.message : initialError;
+  const topError = state?.status === 'server_error' ? state.message : initialError;
   return (
     <form
       action={formAction}
-      className='flex w-full max-w-sm flex-col gap-4 rounded border border-slate-200 bg-white p-6 shadow'
+      className="flex w-full max-w-sm flex-col gap-4 rounded border border-slate-200 bg-white p-6 shadow"
     >
-      <h1 className='text-xl font-semibold'>Đăng nhập</h1>
-      <p className='text-sm text-slate-600'>
+      <h1 className="text-xl font-semibold">Đăng nhập</h1>
+      <p className="text-sm text-slate-600">
         Nhấn vào nút bên dưới để đăng nhập an toàn vào hệ thống.
       </p>
       {topError ? (
-        <p role='alert' className='rounded bg-red-50 px-3 py-2 text-sm text-red-700'>
+        <p role="alert" className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
           {topError}
         </p>
       ) : null}
       <button
-        type='submit'
+        type="submit"
         disabled={pending}
-        className='rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50'
+        className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
       >
         {pending ? 'Đang chuyển hướng…' : 'Đăng nhập'}
       </button>

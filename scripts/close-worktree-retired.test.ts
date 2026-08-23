@@ -113,7 +113,11 @@ describe('closePlan: retired branches keep their ref', () => {
     }
   });
   it('a normal merged close still deletes the branch (unchanged)', () => {
-    const input: WorktreeCloseInput = { ...RETIRED_BASE, retired: false, containedInIntegration: true };
+    const input: WorktreeCloseInput = {
+      ...RETIRED_BASE,
+      retired: false,
+      containedInIntegration: true,
+    };
     const plan = closePlan(decideClose(input), input);
     expect(plan).toEqual([
       ['git', 'worktree', 'remove', input.path],

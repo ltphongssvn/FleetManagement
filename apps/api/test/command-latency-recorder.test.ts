@@ -19,13 +19,18 @@ describe('@fleet/api - RingBufferLatencyRecorder', () => {
 
   it('preserves insertion order', () => {
     const r = new RingBufferLatencyRecorder();
-    r.record(s(1)); r.record(s(2)); r.record(s(3));
+    r.record(s(1));
+    r.record(s(2));
+    r.record(s(3));
     expect(r.samples().map((x) => x.ms)).toEqual([1, 2, 3]);
   });
 
   it('caps at configured capacity (default 100) using FIFO eviction', () => {
     const r = new RingBufferLatencyRecorder(3);
-    r.record(s(1)); r.record(s(2)); r.record(s(3)); r.record(s(4));
+    r.record(s(1));
+    r.record(s(2));
+    r.record(s(3));
+    r.record(s(4));
     expect(r.samples().map((x) => x.ms)).toEqual([2, 3, 4]);
   });
 
@@ -49,13 +54,19 @@ describe('@fleet/api - RingBufferLatencyRecorder', () => {
 
   it('rejects non-finite values (NaN/Infinity guard)', () => {
     const r = new RingBufferLatencyRecorder();
-    expect(() => { r.record(s(Number.NaN)); }).toThrow(/finite/i);
-    expect(() => { r.record(s(Number.POSITIVE_INFINITY)); }).toThrow(/finite/i);
+    expect(() => {
+      r.record(s(Number.NaN));
+    }).toThrow(/finite/i);
+    expect(() => {
+      r.record(s(Number.POSITIVE_INFINITY));
+    }).toThrow(/finite/i);
     expect(r.samples()).toEqual([]);
   });
 
   it('rejects negative values (latency cannot be negative)', () => {
     const r = new RingBufferLatencyRecorder();
-    expect(() => { r.record(s(-1)); }).toThrow(/non-negative/i);
+    expect(() => {
+      r.record(s(-1));
+    }).toThrow(/non-negative/i);
   });
 });

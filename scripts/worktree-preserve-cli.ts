@@ -85,7 +85,11 @@ export function buildPreserveTargets(
   const selected = only === null ? entries : entries.filter((e) => e.path === only);
   if (only !== null && selected.length === 0) {
     throw new Error(
-      'not a worktree root: ' + only + NL + 'known roots:' + NL +
+      'not a worktree root: ' +
+        only +
+        NL +
+        'known roots:' +
+        NL +
         entries.map((e) => '  ' + e.path).join(NL),
     );
   }
@@ -162,10 +166,20 @@ function mainPreserve(): number {
   for (const line of report.lines) process.stdout.write(line + NL);
   const s = report.summary;
   process.stdout.write(
-    NL + 'Summary: ' + String(s.preserved) + ' preserved, ' + String(s.refused) + ' refused, ' +
-      String(s.failed) + ' failed, ' + String(s.shortfall) + ' shortfall, ' +
-      String(s.skipped) + ' skipped' +
-      (argv.execute ? '' : '  [DRY RUN -- pass --execute to apply]') + NL,
+    NL +
+      'Summary: ' +
+      String(s.preserved) +
+      ' preserved, ' +
+      String(s.refused) +
+      ' refused, ' +
+      String(s.failed) +
+      ' failed, ' +
+      String(s.shortfall) +
+      ' shortfall, ' +
+      String(s.skipped) +
+      ' skipped' +
+      (argv.execute ? '' : '  [DRY RUN -- pass --execute to apply]') +
+      NL,
   );
   return report.exitCode;
 }

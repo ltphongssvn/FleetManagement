@@ -12,7 +12,9 @@ export const SessionSurfaceSchema = z.enum(['road', 'yard', 'depot', 'dispatch']
 export type SessionSurface = z.infer<typeof SessionSurfaceSchema>;
 
 /** Frozen runtime list of session surfaces (immutable for defense in depth). */
-export const SESSION_SURFACES: readonly SessionSurface[] = Object.freeze(SessionSurfaceSchema.options);
+export const SESSION_SURFACES: readonly SessionSurface[] = Object.freeze(
+  SessionSurfaceSchema.options,
+);
 
 /**
  * Session mode — only one mutating session per (operator_id, surface);

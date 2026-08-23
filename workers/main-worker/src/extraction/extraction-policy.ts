@@ -17,13 +17,16 @@
 // Sanity bounds: a truck-scale NET goods weight for this pilot fleet is
 // 100..60000 kg; outside that we refuse rather than persist nonsense.
 
-import { parseOneNumber } from "@fleet/domain";
+import { parseOneNumber } from '@fleet/domain';
 
 export const NET_WEIGHT_SANITY = { minKg: 100, maxKg: 60000 } as const;
 
 export type NetWeightParse =
   | { readonly ok: true; readonly kg: number }
-  | { readonly ok: false; readonly reason: 'unparseable' | 'below_sanity_min' | 'above_sanity_max' };
+  | {
+      readonly ok: false;
+      readonly reason: 'unparseable' | 'below_sanity_min' | 'above_sanity_max';
+    };
 
 export interface NetWeightRaw {
   readonly rawLabel: string;

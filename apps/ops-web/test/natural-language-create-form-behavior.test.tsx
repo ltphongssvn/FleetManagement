@@ -21,8 +21,12 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
 }));
 vi.mock('@/features/dispatch/create-order.action', () => ({ createOrder: vi.fn() }));
-afterEach(() => { cleanup(); });
-beforeEach(() => { mockUseActionState.mockReturnValue([undefined, vi.fn(), false]); });
+afterEach(() => {
+  cleanup();
+});
+beforeEach(() => {
+  mockUseActionState.mockReturnValue([undefined, vi.fn(), false]);
+});
 const OP_ALPHA = '00000000-0000-0000-0000-0000000000a1';
 const OP_BETA = '00000000-0000-0000-0000-0000000000b2';
 const VEH_AA = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
@@ -66,7 +70,14 @@ async function load(): Promise<{ NaturalLanguageCreateForm: typeof NLForm }> {
 describe('NaturalLanguageCreateForm - pair auto-fill', () => {
   it('auto-fills driver + assignedAssetId when a paired vehicle is picked', async () => {
     const { NaturalLanguageCreateForm } = await load();
-    render(<NaturalLanguageCreateForm drivers={drivers} vehicles={vehicles} driverVehicleAssignments={driverVehicleAssignments} locale={'en'} />);
+    render(
+      <NaturalLanguageCreateForm
+        drivers={drivers}
+        vehicles={vehicles}
+        driverVehicleAssignments={driverVehicleAssignments}
+        locale={'en'}
+      />,
+    );
     await pickVehicle('AA-01');
     expect(vehicleHidden()?.value).toBe('AA-01');
     expect(assetIdHidden()?.value).toBe(VEH_AA);
@@ -74,7 +85,14 @@ describe('NaturalLanguageCreateForm - pair auto-fill', () => {
   });
   it('auto-fills vehicle + assignedAssetId when a paired driver is picked', async () => {
     const { NaturalLanguageCreateForm } = await load();
-    render(<NaturalLanguageCreateForm drivers={drivers} vehicles={vehicles} driverVehicleAssignments={driverVehicleAssignments} locale={'en'} />);
+    render(
+      <NaturalLanguageCreateForm
+        drivers={drivers}
+        vehicles={vehicles}
+        driverVehicleAssignments={driverVehicleAssignments}
+        locale={'en'}
+      />,
+    );
     await pickDriver('Driver Beta');
     expect(driverHidden()?.value).toBe(OP_BETA);
     expect(vehicleHidden()?.value).toBe('BB-02');
@@ -82,7 +100,14 @@ describe('NaturalLanguageCreateForm - pair auto-fill', () => {
   });
   it('clearing the vehicle field resets assignedAssetId', async () => {
     const { NaturalLanguageCreateForm } = await load();
-    render(<NaturalLanguageCreateForm drivers={drivers} vehicles={vehicles} driverVehicleAssignments={driverVehicleAssignments} locale={'en'} />);
+    render(
+      <NaturalLanguageCreateForm
+        drivers={drivers}
+        vehicles={vehicles}
+        driverVehicleAssignments={driverVehicleAssignments}
+        locale={'en'}
+      />,
+    );
     await pickVehicle('AA-01');
     expect(assetIdHidden()?.value).toBe(VEH_AA);
     const input = document.getElementById('vehiclePlate') as HTMLInputElement;
@@ -92,7 +117,14 @@ describe('NaturalLanguageCreateForm - pair auto-fill', () => {
   });
   it('clearing the driver field takes the empty-input early exit', async () => {
     const { NaturalLanguageCreateForm } = await load();
-    render(<NaturalLanguageCreateForm drivers={drivers} vehicles={vehicles} driverVehicleAssignments={driverVehicleAssignments} locale={'en'} />);
+    render(
+      <NaturalLanguageCreateForm
+        drivers={drivers}
+        vehicles={vehicles}
+        driverVehicleAssignments={driverVehicleAssignments}
+        locale={'en'}
+      />,
+    );
     await pickDriver('Driver Alpha');
     expect(driverHidden()?.value).toBe(OP_ALPHA);
     const input = document.getElementById('assignedOperatorId') as HTMLInputElement;
@@ -104,12 +136,23 @@ describe('NaturalLanguageCreateForm - useActionState branches', () => {
   it('created: fires onCreated once and renders NO banner here', async () => {
     mockUseActionState.mockReturnValue([
       { status: 'created', externalRef: 'XTT.07-900', transportOrderId: 't-900' },
-      vi.fn(), false,
+      vi.fn(),
+      false,
     ]);
     const onCreated = vi.fn();
     const { NaturalLanguageCreateForm } = await load();
-    render(<NaturalLanguageCreateForm drivers={drivers} vehicles={vehicles} driverVehicleAssignments={driverVehicleAssignments} onCreated={onCreated} locale={'vi'} />);
-    await waitFor(() => { expect(onCreated).toHaveBeenCalledTimes(1); });
+    render(
+      <NaturalLanguageCreateForm
+        drivers={drivers}
+        vehicles={vehicles}
+        driverVehicleAssignments={driverVehicleAssignments}
+        onCreated={onCreated}
+        locale={'vi'}
+      />,
+    );
+    await waitFor(() => {
+      expect(onCreated).toHaveBeenCalledTimes(1);
+    });
     // The So Lenh confirmation belongs to DispatchView, not to this form:
     // onCreated closes the drawer, so a banner rendered here would be
     // unmounted in the same commit that assigned the number. See
@@ -119,7 +162,8 @@ describe('NaturalLanguageCreateForm - useActionState branches', () => {
   it('created without an onCreated prop does not throw', async () => {
     mockUseActionState.mockReturnValue([
       { status: 'created', externalRef: 'XTT.07-901', transportOrderId: 't-901' },
-      vi.fn(), false,
+      vi.fn(),
+      false,
     ]);
     const { NaturalLanguageCreateForm } = await load();
     expect(() => {
@@ -129,7 +173,9 @@ describe('NaturalLanguageCreateForm - useActionState branches', () => {
   });
   it('api_error renders the alert banner', async () => {
     mockUseActionState.mockReturnValue([
-      { status: 'api_error', message: 'Loi API' }, vi.fn(), false,
+      { status: 'api_error', message: 'Loi API' },
+      vi.fn(),
+      false,
     ]);
     const { NaturalLanguageCreateForm } = await load();
     render(<NaturalLanguageCreateForm drivers={drivers} locale={'vi'} />);
@@ -137,7 +183,9 @@ describe('NaturalLanguageCreateForm - useActionState branches', () => {
   });
   it('server_error renders the alert banner', async () => {
     mockUseActionState.mockReturnValue([
-      { status: 'server_error', message: 'Loi he thong' }, vi.fn(), false,
+      { status: 'server_error', message: 'Loi he thong' },
+      vi.fn(),
+      false,
     ]);
     const { NaturalLanguageCreateForm } = await load();
     render(<NaturalLanguageCreateForm drivers={drivers} locale={'vi'} />);
@@ -145,8 +193,12 @@ describe('NaturalLanguageCreateForm - useActionState branches', () => {
   });
   it('invalid renders the per-field errors', async () => {
     mockUseActionState.mockReturnValue([
-      { status: 'invalid', errors: { pickupWarehouses: 'Thieu kho nhan', assignedOperatorId: 'Thieu tai xe' } },
-      vi.fn(), false,
+      {
+        status: 'invalid',
+        errors: { pickupWarehouses: 'Thieu kho nhan', assignedOperatorId: 'Thieu tai xe' },
+      },
+      vi.fn(),
+      false,
     ]);
     const { NaturalLanguageCreateForm } = await load();
     render(<NaturalLanguageCreateForm drivers={drivers} locale={'vi'} />);

@@ -74,7 +74,9 @@ describe('estate:verify is wired to a gate, not merely defined', () => {
   // The whole point: the gate is the pair. If a future edit drops the pre-push
   // stage or the task name, THIS test fails rather than the gate going quiet.
   it('keeps the other pre-push gates it stands beside', () => {
-    const prePush = hooks().filter((h) => h.stages?.includes('pre-push')).map((h) => h.id);
+    const prePush = hooks()
+      .filter((h) => h.stages?.includes('pre-push'))
+      .map((h) => h.id);
     expect(prePush).toContain('pnpm-build-push');
     expect(prePush).toContain('pnpm-test-coverage-push');
     expect(prePush).toContain(HOOK_ID);

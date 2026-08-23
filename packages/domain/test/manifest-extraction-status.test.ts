@@ -25,9 +25,13 @@ describe('manifestExtractionStatusSchema', () => {
   });
 
   it('covers exactly pending/extracted/not_found/unreadable/manual', () => {
-    expect([...MANIFEST_EXTRACTION_STATUSES].sort()).toEqual(
-      ['extracted', 'manual', 'not_found', 'pending', 'unreadable'],
-    );
+    expect([...MANIFEST_EXTRACTION_STATUSES].sort()).toEqual([
+      'extracted',
+      'manual',
+      'not_found',
+      'pending',
+      'unreadable',
+    ]);
   });
 
   it('rejects an unknown status', () => {

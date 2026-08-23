@@ -89,9 +89,10 @@ describe('driver-app release-build E2E contract', () => {
     expect(base, 'base-config must forbid cleartext in production').toMatch(
       /cleartextTrafficPermitted\s*=\s*["']false["']/,
     );
-    expect(base, 'base-config must keep the system CA trust-anchor so HTTPS still validates').toMatch(
-      /<certificates\s+src\s*=\s*["']system["']/,
-    );
+    expect(
+      base,
+      'base-config must keep the system CA trust-anchor so HTTPS still validates',
+    ).toMatch(/<certificates\s+src\s*=\s*["']system["']/);
   });
   it('the network security config scopes cleartext to the E2E hosts ONLY', () => {
     const nsc = readFileSync(nscPath, 'utf8');
@@ -105,7 +106,9 @@ describe('driver-app release-build E2E contract', () => {
     expect(dom).toMatch(/<domain[^>]*>\s*localhost\s*<\/domain>/);
     expect(dom).toMatch(/<domain[^>]*>\s*127\.0\.0\.1\s*<\/domain>/);
     // Production host must NOT appear as a cleartext domain.
-    expect(dom, 'the production host must never be a cleartext domain').not.toMatch(/xe\.vominhchau\.com/);
+    expect(dom, 'the production host must never be a cleartext domain').not.toMatch(
+      /xe\.vominhchau\.com/,
+    );
   });
   // WAS: asserted the STATIC app.json flag `updates.enabled === false`. That
   // flag is gone -- app.config.ts now decides per APP_ENV, because the drivers'
@@ -149,15 +152,23 @@ describe('driver-app release-build E2E contract', () => {
     const subtitleWaited = ewuBlocks.some((b) =>
       /visible:\s*["']?Đăng nhập để xem lệnh điều xe/.test(b),
     );
-    expect(subtitleWaited, 'subtitle must be guarded by extendedWaitUntil, not a bare assertVisible').toBe(true);
+    expect(
+      subtitleWaited,
+      'subtitle must be guarded by extendedWaitUntil, not a bare assertVisible',
+    ).toBe(true);
   });
   it('flow hides the keyboard before submitting login', () => {
-    expect(maestroFlow, 'flow must hideKeyboard so the keyboard does not occlude submit / post-login screen').toMatch(/hideKeyboard/);
+    expect(
+      maestroFlow,
+      'flow must hideKeyboard so the keyboard does not occlude submit / post-login screen',
+    ).toMatch(/hideKeyboard/);
   });
   it('post-login marker is awaited via extendedWaitUntil (not a bare assert)', () => {
     const ewuBlocks = maestroFlow.match(/extendedWaitUntil:[\s\S]*?(?=\n- |\n*$)/g) ?? [];
     const syncWaited = ewuBlocks.some((b) => /visible:\s*["']?Trạng thái đồng bộ/.test(b));
-    expect(syncWaited, 'post-login Trạng thái đồng bộ must be awaited via extendedWaitUntil').toBe(true);
+    expect(syncWaited, 'post-login Trạng thái đồng bộ must be awaited via extendedWaitUntil').toBe(
+      true,
+    );
   });
   it('EXPO_PUBLIC_API_URL on driver-app is LAN-reachable (not localhost / 127.0.0.1)', () => {
     const block = extractDriverAppBlock(compose);

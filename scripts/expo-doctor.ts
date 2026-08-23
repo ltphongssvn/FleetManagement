@@ -49,10 +49,7 @@
 /** The workspaces that are Expo apps. Derived from which packages declare the
  *  expo dependency, not from intuition; ops-web is Next.js and has no business
  *  here. */
-export const EXPO_APPS: readonly string[] = Object.freeze([
-  'apps/driver-app',
-  'apps/owner-app',
-]);
+export const EXPO_APPS: readonly string[] = Object.freeze(['apps/driver-app', 'apps/owner-app']);
 
 /** The exact expo-doctor version each Expo app pins.
  *
@@ -139,7 +136,10 @@ export interface DriftedPackage {
 export function parseDriftTable(stdout: string): readonly DriftedPackage[] {
   const rows: DriftedPackage[] = [];
   for (const line of stdout.split('\n')) {
-    const m = /^\s*(@?[a-z0-9@/-]+)\s+([~^]?[0-9]+\.[0-9]+\.[0-9]+)\s+([0-9]+\.[0-9]+\.[0-9]+)\s*$/.exec(line);
+    const m =
+      /^\s*(@?[a-z0-9@/-]+)\s+([~^]?[0-9]+\.[0-9]+\.[0-9]+)\s+([0-9]+\.[0-9]+\.[0-9]+)\s*$/.exec(
+        line,
+      );
     if (m?.[1] === undefined || m[2] === undefined || m[3] === undefined) continue;
     rows.push({ name: m[1], expected: m[2], found: m[3] });
   }
@@ -177,12 +177,19 @@ export function doctorVerdict(summaries: readonly DoctorSummary[]): number {
 export function describeDoctor(app: string, s: DoctorSummary): string {
   if (s.total === 0) return app + ': UNREADABLE -- expo-doctor output could not be parsed';
   if (s.missingPeers.length > 0) {
-    return app + ': MISSING NATIVE PEER (' + s.missingPeers.join(', ')
-      + ') -- Expo documents this as a crash outside Expo Go. Install it with'
-      + ' expo install, not pnpm add: native peers must be declared directly.';
+    return (
+      app +
+      ': MISSING NATIVE PEER (' +
+      s.missingPeers.join(', ') +
+      ') -- Expo documents this as a crash outside Expo Go. Install it with' +
+      ' expo install, not pnpm add: native peers must be declared directly.'
+    );
   }
-  const drift = s.outdated > 0
-    ? ' -- ' + String(s.outdated) + ' package(s) drifted from the SDK pins (reported, not blocking)'
-    : '';
+  const drift =
+    s.outdated > 0
+      ? ' -- ' +
+        String(s.outdated) +
+        ' package(s) drifted from the SDK pins (reported, not blocking)'
+      : '';
   return app + ': ' + String(s.passed) + '/' + String(s.total) + ' checks passed' + drift;
 }

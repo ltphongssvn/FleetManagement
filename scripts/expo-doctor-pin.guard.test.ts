@@ -88,7 +88,9 @@ describe('expo-doctor is pinned, not floating', () => {
     const lock = lockfile();
     expect(lock).toContain('expo-doctor@' + EXPO_DOCTOR_VERSION);
     const entry = new RegExp(
-      'expo-doctor@' + EXPO_DOCTOR_VERSION.replace(/[.]/g, '[.]') + ':[\\s\\S]{0,200}?integrity: sha512-',
+      'expo-doctor@' +
+        EXPO_DOCTOR_VERSION.replace(/[.]/g, '[.]') +
+        ':[\\s\\S]{0,200}?integrity: sha512-',
     );
     expect(entry.test(lock)).toBe(true);
   });

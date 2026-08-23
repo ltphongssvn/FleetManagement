@@ -48,7 +48,15 @@ describe('stackUpConfigSchema', () => {
 describe('composeServices', () => {
   it('lists the core stack in dependency-safe order, infra before api', () => {
     const svc = composeServices(stackUpConfigSchema.parse(base));
-    for (const s of ['postgres', 'redis', 'mock-oauth2', 'localstack', 'api', 'worker', 'ops-web']) {
+    for (const s of [
+      'postgres',
+      'redis',
+      'mock-oauth2',
+      'localstack',
+      'api',
+      'worker',
+      'ops-web',
+    ]) {
       expect(svc).toContain(s);
     }
     expect(svc.indexOf('postgres')).toBeLessThan(svc.indexOf('api'));

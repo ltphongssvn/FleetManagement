@@ -81,15 +81,25 @@ export function evaluateHostReadiness(snapshot: HostSnapshot): HostReadiness {
   const loadPerCore = snapshot.cores > 0 ? snapshot.load1 / snapshot.cores : snapshot.load1;
   if (loadPerCore > MAX_LOAD_PER_CORE) {
     problems.push(
-      'load ' + snapshot.load1.toFixed(2) + ' over ' + String(snapshot.cores) +
-      ' cores (' + loadPerCore.toFixed(2) + ' per core, ceiling ' + MAX_LOAD_PER_CORE.toFixed(1) + ')',
+      'load ' +
+        snapshot.load1.toFixed(2) +
+        ' over ' +
+        String(snapshot.cores) +
+        ' cores (' +
+        loadPerCore.toFixed(2) +
+        ' per core, ceiling ' +
+        MAX_LOAD_PER_CORE.toFixed(1) +
+        ')',
     );
   }
 
   if (snapshot.availableGiB < MIN_AVAILABLE_GIB) {
     problems.push(
-      'only ' + snapshot.availableGiB.toFixed(1) + 'GiB available (floor ' +
-      MIN_AVAILABLE_GIB.toFixed(1) + 'GiB)',
+      'only ' +
+        snapshot.availableGiB.toFixed(1) +
+        'GiB available (floor ' +
+        MIN_AVAILABLE_GIB.toFixed(1) +
+        'GiB)',
     );
   }
 
@@ -102,14 +112,15 @@ export function evaluateHostReadiness(snapshot: HostSnapshot): HostReadiness {
   const diskKnown = Number.isFinite(snapshot.availableDiskGiB) && snapshot.availableDiskGiB >= 0;
   if (diskKnown && snapshot.availableDiskGiB < MIN_DISK_GIB) {
     problems.push(
-      'only ' + snapshot.availableDiskGiB.toFixed(1) + 'GiB free disk (floor ' +
-        MIN_DISK_GIB.toFixed(1) + 'GiB)',
+      'only ' +
+        snapshot.availableDiskGiB.toFixed(1) +
+        'GiB free disk (floor ' +
+        MIN_DISK_GIB.toFixed(1) +
+        'GiB)',
     );
   }
 
-  const foreign = snapshot.testContainerNames.filter(
-    (name) => name !== snapshot.ownContainerName,
-  );
+  const foreign = snapshot.testContainerNames.filter((name) => name !== snapshot.ownContainerName);
   if (foreign.length > 0) {
     problems.push('another worktree is mid-run: ' + foreign.join(', '));
   }
@@ -139,9 +150,7 @@ export function resolveGateLockPath(
 ): string {
   // XDG basedir spec: a relative XDG_CACHE_HOME is invalid and must be ignored.
   const xdg = env['XDG_CACHE_HOME'];
-  const base = typeof xdg === 'string' && xdg.startsWith('/')
-    ? xdg
-    : homeDir + '/.cache';
+  const base = typeof xdg === 'string' && xdg.startsWith('/') ? xdg : homeDir + '/.cache';
   return base + '/fleetmanagement/gate.lock';
 }
 
@@ -158,7 +167,9 @@ export function buildFlockArgs(
     throw new Error('buildFlockArgs: refusing to lock around an empty command');
   }
   if (!Number.isFinite(waitSeconds) || waitSeconds <= 0) {
-    throw new Error('buildFlockArgs: waitSeconds must be positive (a gate must never hang forever)');
+    throw new Error(
+      'buildFlockArgs: waitSeconds must be positive (a gate must never hang forever)',
+    );
   }
   // util-linux flock(1) file-then-command mode takes the command DIRECTLY after
   // the lock path. Passing a literal -- separator makes flock try to EXECUTE it:

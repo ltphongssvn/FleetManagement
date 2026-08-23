@@ -25,11 +25,7 @@ export const driverColumns: ColumnDef<AdminDriverRow>[] = [
     accessorFn: (row) => row.phone,
     cell: (ctx) => {
       const row = ctx.row.original;
-      return (
-        <span data-testid={'driver-phone-' + row.driverId}>
-          {row.phone ?? EM_DASH}
-        </span>
-      );
+      return <span data-testid={'driver-phone-' + row.driverId}>{row.phone ?? EM_DASH}</span>;
     },
   },
   {

@@ -8,12 +8,20 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { orderSequence } from '../src/database/schema/reference.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 let testDb: PgliteTestDb;
 describe('@fleet/api - order_sequence schema-level pad_width default', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('inserts a row WITHOUT pad_width and the column default lands on 4', async () => {
     await testDb.db.insert(orderSequence).values({
       companyId: COMPANY_ID,

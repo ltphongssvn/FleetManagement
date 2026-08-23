@@ -66,7 +66,10 @@ describe('@fleet/api - local pre-push hooks mirror remote CI coverage gate', () 
     const pkgPath = resolve(here, '../../../package.json');
     const pkg: unknown = JSON.parse(readFileSync(pkgPath, 'utf8'));
     const scripts = (pkg as { scripts?: Record<string, string> }).scripts ?? {};
-    expect(scripts['gate:coverage'], 'gate:coverage must be a registered root script').toBeDefined();
+    expect(
+      scripts['gate:coverage'],
+      'gate:coverage must be a registered root script',
+    ).toBeDefined();
     expect(scripts['gate:coverage']).toContain('scripts/gate-coverage.ts');
   });
   it('the gate script still bounds workspace concurrency (the invariant itself)', () => {

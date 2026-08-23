@@ -37,7 +37,12 @@ async function main(): Promise<void> {
   }
   const pool = new Pool({ connectionString: url });
   const db = drizzle(pool, { schema });
-  console.log('intake-redrive (' + (execute ? 'EXECUTE' : 'dry-run') + ') against ' + url.replace(/:[^:@/]+@/, ':***@'));
+  console.log(
+    'intake-redrive (' +
+      (execute ? 'EXECUTE' : 'dry-run') +
+      ') against ' +
+      url.replace(/:[^:@/]+@/, ':***@'),
+  );
   try {
     const candidates = await db
       .select({
@@ -62,11 +67,18 @@ async function main(): Promise<void> {
     console.log('candidates: ' + String(candidates.length));
     for (const c of candidates) {
       console.log(
-        '  ' + c.manifestId + '  ' + c.manifestCreatedAt.toISOString() + '  ' + c.s3Key.slice(0, 60),
+        '  ' +
+          c.manifestId +
+          '  ' +
+          c.manifestCreatedAt.toISOString() +
+          '  ' +
+          c.s3Key.slice(0, 60),
       );
     }
     if (!execute) {
-      console.log('dry-run complete; re-run with --execute (+ FLEET_ALLOW_INTAKE_REDRIVE=true) to emit events');
+      console.log(
+        'dry-run complete; re-run with --execute (+ FLEET_ALLOW_INTAKE_REDRIVE=true) to emit events',
+      );
       return;
     }
     let emitted = 0;
@@ -80,11 +92,16 @@ async function main(): Promise<void> {
           emitted += 1;
         } catch (err: unknown) {
           skipped += 1;
-          console.error('  SKIP ' + c.manifestId + ': ' + (err instanceof Error ? err.message : String(err)));
+          console.error(
+            '  SKIP ' + c.manifestId + ': ' + (err instanceof Error ? err.message : String(err)),
+          );
         }
       }
     });
-    console.log('INTAKE_REDRIVE_RESULT ' + JSON.stringify({ candidates: candidates.length, emitted, skipped }));
+    console.log(
+      'INTAKE_REDRIVE_RESULT ' +
+        JSON.stringify({ candidates: candidates.length, emitted, skipped }),
+    );
   } finally {
     await pool.end();
   }

@@ -133,18 +133,37 @@ describe('@fleet/api - transport schema', () => {
 describe('@fleet/api - projections schema', () => {
   it('dispatch_board_projection mirrors road_run shape with monotonic serverSeq', () => {
     const cols = Object.keys(dispatchBoardProjection);
-    expect(cols).toEqual(expect.arrayContaining([
-      'roadRunId', 'state', 'assignedOperatorId', 'assignedAssetId',
-      'plannedStartAt', 'stopCount', 'transportOrderRefs', 'serverSeq', 'updatedAt',
-      'companyId', 'businessUnitId', 'depotId', 'legalEntityId',
-    ]));
+    expect(cols).toEqual(
+      expect.arrayContaining([
+        'roadRunId',
+        'state',
+        'assignedOperatorId',
+        'assignedAssetId',
+        'plannedStartAt',
+        'stopCount',
+        'transportOrderRefs',
+        'serverSeq',
+        'updatedAt',
+        'companyId',
+        'businessUnitId',
+        'depotId',
+        'legalEntityId',
+      ]),
+    );
   });
 
   it('projection_status keyed by (projection_name, scope) per PDF', () => {
     const cols = Object.keys(projectionStatus);
-    expect(cols).toEqual(expect.arrayContaining([
-      'projectionName', 'scope', 'watermark', 'lagMs', 'lastRebuiltAt', 'updatedAt',
-    ]));
+    expect(cols).toEqual(
+      expect.arrayContaining([
+        'projectionName',
+        'scope',
+        'watermark',
+        'lagMs',
+        'lastRebuiltAt',
+        'updatedAt',
+      ]),
+    );
     expect(cols).not.toContain('projectionStatusId');
   });
 });

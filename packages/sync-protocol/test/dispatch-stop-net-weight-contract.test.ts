@@ -29,8 +29,12 @@ describe('StopProofSchema extractedNetWeightKg (additive)', () => {
   });
 
   it('rejects non-positive kg', () => {
-    expect(StopProofSchema.safeParse({ ...proofBase, extractedNetWeightKg: 0 }).success).toBe(false);
-    expect(StopProofSchema.safeParse({ ...proofBase, extractedNetWeightKg: -12 }).success).toBe(false);
+    expect(StopProofSchema.safeParse({ ...proofBase, extractedNetWeightKg: 0 }).success).toBe(
+      false,
+    );
+    expect(StopProofSchema.safeParse({ ...proofBase, extractedNetWeightKg: -12 }).success).toBe(
+      false,
+    );
   });
 
   it('round-trips inside DispatchStopViewSchema', () => {
@@ -46,7 +50,6 @@ describe('StopProofSchema extractedNetWeightKg (additive)', () => {
     expect(DispatchStopViewSchema.safeParse(stop).success).toBe(true);
   });
 });
-
 
 describe('netWeightKgSchema (SSOT for a Phiếu Cân net-weight value, kg)', () => {
   it('accepts a positive kg — the one type StopProofSchema + ExtractionResultWire reuse', () => {

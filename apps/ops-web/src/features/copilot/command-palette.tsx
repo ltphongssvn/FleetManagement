@@ -207,12 +207,12 @@ export function CommandPalette({
   if (!authed) return null;
   if (!open) return null;
   return (
-    <div style={OVERLAY_STYLE} onClick={closeAll} data-testid='copilot-overlay'>
+    <div style={OVERLAY_STYLE} onClick={closeAll} data-testid="copilot-overlay">
       <div
-        role='dialog'
-        aria-label='Copilot'
-        aria-modal='true'
-        className='copilot-palette'
+        role="dialog"
+        aria-label="Copilot"
+        aria-modal="true"
+        className="copilot-palette"
         style={PANEL_STYLE}
         onClick={(e): void => {
           e.stopPropagation();
@@ -220,14 +220,14 @@ export function CommandPalette({
       >
         <h2 style={{ margin: '0 0 10px', fontSize: 17 }}>Trợ lý điều phối (Ctrl+K)</h2>
         <form
-          aria-label='copilot'
+          aria-label="copilot"
           onSubmit={(e): void => {
             e.preventDefault();
             void requestPlan();
           }}
         >
           <input
-            placeholder='Nhập lệnh...'
+            placeholder="Nhập lệnh..."
             value={text}
             disabled={busy}
             autoFocus
@@ -252,7 +252,7 @@ export function CommandPalette({
           <div>
             <p style={{ fontSize: 16, fontWeight: 600 }}>{plan.summaryVi}</p>
             <button
-              type='button'
+              type="button"
               disabled={busy}
               style={CONFIRM_STYLE}
               onClick={(): void => {
@@ -266,7 +266,9 @@ export function CommandPalette({
         {result !== null ? (
           <div>
             <p style={{ fontSize: 16, fontWeight: 600 }}>
-              {result.status === 'completed' ? 'Hoàn tất' : 'Không thể thực hiện. Vui lòng thử lại.'}
+              {result.status === 'completed'
+                ? 'Hoàn tất'
+                : 'Không thể thực hiện. Vui lòng thử lại.'}
             </p>
             {result.results.map((r) => {
               const cred = r.generatedPassword;

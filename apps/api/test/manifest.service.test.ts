@@ -54,30 +54,54 @@ describe('@fleet/api - ManifestService defensive guards (unit, no DB)', () => {
     // resolves to a session that has manifestId=null. This is unreachable through normal
     // schema (FK constraint) but the runtime guard is real defense-in-depth.
     const tx = {
-      update: (): { set: (s: unknown) => { where: (w: unknown) => { returning: () => Promise<unknown[]> } } } => ({
+      update: (): {
+        set: (s: unknown) => { where: (w: unknown) => { returning: () => Promise<unknown[]> } };
+      } => ({
         set: () => ({
-          where: () => ({ returning: (): Promise<unknown[]> => Promise.resolve([{ uploadSessionId: 's-1', manifestId: null, state: 'verifying' }]) }),
+          where: () => ({
+            returning: (): Promise<unknown[]> =>
+              Promise.resolve([{ uploadSessionId: 's-1', manifestId: null, state: 'verifying' }]),
+          }),
         }),
       }),
     };
     const db = { transaction: <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn(tx) };
     const config = { getOrThrow: () => 900 };
     const svc = new ManifestService(db as never, {} as never, config as never);
-    await expect(svc.commitUpload({ uploadSessionId: 's-1', actualSizeBytes: 100 }, { companyId: 'c', operatorId: 'o', businessUnitId: 'b', depotId: 'd', legalEntityId: 'l' } as never))
-      .rejects.toThrow(/has no associated manifest/);
+    await expect(
+      svc.commitUpload({ uploadSessionId: 's-1', actualSizeBytes: 100 }, {
+        companyId: 'c',
+        operatorId: 'o',
+        businessUnitId: 'b',
+        depotId: 'd',
+        legalEntityId: 'l',
+      } as never),
+    ).rejects.toThrow(/has no associated manifest/);
   });
   it('finalizeIntake throws UploadSessionMissingManifestError when updated session has null manifestId (line 229 branch)', async () => {
     const tx = {
-      update: (): { set: (s: unknown) => { where: (w: unknown) => { returning: () => Promise<unknown[]> } } } => ({
+      update: (): {
+        set: (s: unknown) => { where: (w: unknown) => { returning: () => Promise<unknown[]> } };
+      } => ({
         set: () => ({
-          where: () => ({ returning: (): Promise<unknown[]> => Promise.resolve([{ uploadSessionId: 's-1', manifestId: null, state: 'committed' }]) }),
+          where: () => ({
+            returning: (): Promise<unknown[]> =>
+              Promise.resolve([{ uploadSessionId: 's-1', manifestId: null, state: 'committed' }]),
+          }),
         }),
       }),
     };
     const db = { transaction: <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn(tx) };
     const config = { getOrThrow: () => 900 };
     const svc = new ManifestService(db as never, {} as never, config as never);
-    await expect(svc.finalizeIntake({ uploadSessionId: 's-1', accepted: true }, { companyId: 'c', operatorId: 'o', businessUnitId: 'b', depotId: 'd', legalEntityId: 'l' } as never))
-      .rejects.toThrow(/has no associated manifest/);
+    await expect(
+      svc.finalizeIntake({ uploadSessionId: 's-1', accepted: true }, {
+        companyId: 'c',
+        operatorId: 'o',
+        businessUnitId: 'b',
+        depotId: 'd',
+        legalEntityId: 'l',
+      } as never),
+    ).rejects.toThrow(/has no associated manifest/);
   });
 });

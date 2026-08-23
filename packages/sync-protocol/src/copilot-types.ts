@@ -164,10 +164,10 @@ export const CopilotPlanSchema = z
     summaryVi: z.string().min(1).describe('Vietnamese summary shown for confirmation'),
     commands: z.array(CopilotCommandSchema).min(1).describe('Ordered commands'),
   })
-  .refine(
-    (plan) => new Set(plan.commands.map((c) => c.commandId)).size === plan.commands.length,
-    { message: 'commandId values must be unique within a plan', path: ['commands'] },
-  )
+  .refine((plan) => new Set(plan.commands.map((c) => c.commandId)).size === plan.commands.length, {
+    message: 'commandId values must be unique within a plan',
+    path: ['commands'],
+  })
   .describe(
     'Copilot plan: ordered dispatcher commands plus a Vietnamese summary; ' +
       'executed only after explicit human confirmation',

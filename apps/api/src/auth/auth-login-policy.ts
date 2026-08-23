@@ -26,7 +26,10 @@ export type LoginOutcome =
   | { readonly kind: 'missing-operator' }
   | { readonly kind: 'ok'; readonly claims: LoginClaims };
 
-export function decideLoginOutcome(candidate: LoginCandidate | null, passwordMatches: boolean): LoginOutcome {
+export function decideLoginOutcome(
+  candidate: LoginCandidate | null,
+  passwordMatches: boolean,
+): LoginOutcome {
   if (candidate === null) return { kind: 'not-found' };
   if (!passwordMatches) return { kind: 'invalid-password' };
   if (!candidate.active) return { kind: 'disabled' };

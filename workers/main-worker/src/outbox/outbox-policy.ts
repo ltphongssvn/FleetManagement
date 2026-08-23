@@ -54,21 +54,37 @@ export function nextStatusAfterAttempt(
 ): AttemptDecision {
   const attempts = current.attempts + 1;
   if (outcome === 'success') {
-    return { status: 'succeeded', nextAttempts: attempts, nextAttemptAt: null, policyVersion: POLICY_VERSION };
+    return {
+      status: 'succeeded',
+      nextAttempts: attempts,
+      nextAttemptAt: null,
+      policyVersion: POLICY_VERSION,
+    };
   }
   if (attempts >= policy.maxAttempts) {
-    return { status: 'dead_letter', nextAttempts: attempts, nextAttemptAt: null, policyVersion: POLICY_VERSION };
+    return {
+      status: 'dead_letter',
+      nextAttempts: attempts,
+      nextAttemptAt: null,
+      policyVersion: POLICY_VERSION,
+    };
   }
   const baseSeconds = policy.baseSeconds * 2 ** attempts;
   const jitter = baseSeconds * (deps.random() * 2 * policy.jitterRatio - policy.jitterRatio);
   const nextMs = deps.now() + (baseSeconds + jitter) * MS_PER_SECOND;
-  return { status: 'failed', nextAttempts: attempts, nextAttemptAt: new Date(nextMs), policyVersion: POLICY_VERSION };
+  return {
+    status: 'failed',
+    nextAttempts: attempts,
+    nextAttemptAt: new Date(nextMs),
+    policyVersion: POLICY_VERSION,
+  };
 }
 
 /** Eligible-for-pickup filter: pending OR (failed AND nextAttemptAt <= now). */
 export function isEligibleForPickup(row: OutboxRow, now: Date = new Date()): boolean {
   if (row.status === 'pending') return true;
-  if (row.status === 'failed' && row.nextAttemptAt !== null && row.nextAttemptAt <= now) return true;
+  if (row.status === 'failed' && row.nextAttemptAt !== null && row.nextAttemptAt <= now)
+    return true;
   return false;
 }
 

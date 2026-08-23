@@ -24,18 +24,18 @@
 // audit history stay attached to the same identity). The DB constraints remain
 // the race guard for concurrent ACTIVE inserts; the name pre-check + reactivate
 // is idempotent because the partial index blocks a second racer's activation.
-import { ConflictException, Inject, Injectable, Optional } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
-import * as bcrypt from "bcryptjs";
-import { and, eq, sql } from "drizzle-orm";
-import { DRIZZLE_DB } from "../database/database.tokens.js";
-import type { FleetDb } from "../database/database.module.js";
-import { driver, type Driver } from "../database/schema/reference.js";
-import { normalizeDisplayName, personNameMatchKey, suggestDistinctDriverName } from "@fleet/domain";
+import { ConflictException, Inject, Injectable, Optional } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import * as bcrypt from 'bcryptjs';
+import { and, eq, sql } from 'drizzle-orm';
+import { DRIZZLE_DB } from '../database/database.tokens.js';
+import type { FleetDb } from '../database/database.module.js';
+import { driver, type Driver } from '../database/schema/reference.js';
+import { normalizeDisplayName, personNameMatchKey, suggestDistinctDriverName } from '@fleet/domain';
 import {
   isPgUniqueViolation,
   isPgUniqueViolationOnConstraintInChain,
-} from "../common/pg-errors.js";
+} from '../common/pg-errors.js';
 export interface CreateDriverInput {
   readonly fullName: string;
   readonly phone: string;
@@ -46,9 +46,9 @@ export interface CreateDriverInput {
   readonly legalEntityId: string;
 }
 export type BcryptHashFn = (plain: string, rounds: number) => Promise<string>;
-export const BCRYPT_HASH = Symbol("BCRYPT_HASH");
+export const BCRYPT_HASH = Symbol('BCRYPT_HASH');
 const DEFAULT_BCRYPT_ROUNDS = 10;
-const NAME_UQ = "driver_company_active_name_ci_uq";
+const NAME_UQ = 'driver_company_active_name_ci_uq';
 const defaultBcryptHash: BcryptHashFn = (plain, rounds) => bcrypt.hash(plain, rounds);
 @Injectable()
 export class AdminDriversCreateService {
@@ -76,15 +76,20 @@ export class AdminDriversCreateService {
     // (driverId + operatorId preserved: passkeys, JWT binding, audit continuity).
     // Only ACTIVE conflicts ride the 23505 catch below; both soft-deleted
     // paths are pre-checks, since neither partial index sees inactive rows.
-    const softDeletedByName = await this.db.select().from(driver)
-      .where(and(
-        eq(driver.companyId, input.companyId),
-        eq(sql`lower(${driver.fullName})`, matchKey),
-        eq(driver.active, false),
-      ))
+    const softDeletedByName = await this.db
+      .select()
+      .from(driver)
+      .where(
+        and(
+          eq(driver.companyId, input.companyId),
+          eq(sql`lower(${driver.fullName})`, matchKey),
+          eq(driver.active, false),
+        ),
+      )
       .limit(1);
     if (softDeletedByName[0]) {
-      const [reborn] = await this.db.update(driver)
+      const [reborn] = await this.db
+        .update(driver)
         .set({ active: true, fullName, phone: input.phone, passwordHash })
         .where(eq(driver.driverId, softDeletedByName[0].driverId))
         .returning();
@@ -103,15 +108,20 @@ export class AdminDriversCreateService {
     // failure this arc exists to eliminate. The index went partial because a
     // full one reserved a phone forever after a soft delete, locking four real
     // numbers out of re-registration in production.
-    const softDeletedByPhone = await this.db.select().from(driver)
-      .where(and(
-        eq(driver.companyId, input.companyId),
-        eq(driver.phone, input.phone),
-        eq(driver.active, false),
-      ))
+    const softDeletedByPhone = await this.db
+      .select()
+      .from(driver)
+      .where(
+        and(
+          eq(driver.companyId, input.companyId),
+          eq(driver.phone, input.phone),
+          eq(driver.active, false),
+        ),
+      )
       .limit(1);
     if (softDeletedByPhone[0]) {
-      const [rebornByPhone] = await this.db.update(driver)
+      const [rebornByPhone] = await this.db
+        .update(driver)
         .set({ active: true, fullName, phone: input.phone, passwordHash })
         .where(eq(driver.driverId, softDeletedByPhone[0].driverId))
         .returning();
@@ -122,19 +132,22 @@ export class AdminDriversCreateService {
     try {
       return await this.db.transaction(async (tx) => {
         const operatorId = randomUUID();
-        const [row] = await tx.insert(driver).values({
-          fullName,
-          phone: input.phone,
-          passwordHash,
-          operatorId,
-          active: true,
-          companyId: input.companyId,
-          businessUnitId: input.businessUnitId,
-          depotId: input.depotId,
-          legalEntityId: input.legalEntityId,
-        }).returning();
+        const [row] = await tx
+          .insert(driver)
+          .values({
+            fullName,
+            phone: input.phone,
+            passwordHash,
+            operatorId,
+            active: true,
+            companyId: input.companyId,
+            businessUnitId: input.businessUnitId,
+            depotId: input.depotId,
+            legalEntityId: input.legalEntityId,
+          })
+          .returning();
         /* v8 ignore next -- defensive: a successful .returning() always yields a row */
-        if (!row) throw new Error("Driver insert failed");
+        if (!row) throw new Error('Driver insert failed');
         return row;
       });
     } catch (e) {
@@ -154,13 +167,21 @@ export class AdminDriversCreateService {
       // are what create a SECOND IDENTITY for the FIRST human. So name the
       // exact spelling to use. Suffixes already taken are read from the ACTIVE
       // rows sharing this base, matched with the same fold as the unique index.
-      const activeNames = await this.db.select({ fullName: driver.fullName }).from(driver)
+      const activeNames = await this.db
+        .select({ fullName: driver.fullName })
+        .from(driver)
         .where(and(eq(driver.companyId, input.companyId), eq(driver.active, true)));
-      const suggestion = suggestDistinctDriverName(fullName, activeNames.map((r) => r.fullName));
+      const suggestion = suggestDistinctDriverName(
+        fullName,
+        activeNames.map((r) => r.fullName),
+      );
       throw new ConflictException(
         suggestion === null
           ? 'Tài xế ' + JSON.stringify(fullName) + ' đã tồn tại'
-          : 'Tài xế ' + JSON.stringify(fullName) + ' đã tồn tại. Nếu là người khác, hãy đăng ký tên ' + JSON.stringify(suggestion),
+          : 'Tài xế ' +
+              JSON.stringify(fullName) +
+              ' đã tồn tại. Nếu là người khác, hãy đăng ký tên ' +
+              JSON.stringify(suggestion),
       );
     }
   }

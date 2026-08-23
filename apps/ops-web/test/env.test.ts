@@ -41,11 +41,15 @@ describe('@fleet/ops-web - loadEnv (OIDC Authorization Code + PKCE knobs)', () =
 
   it('OIDC_DISPATCH_ACR_VALUES is optional and passed through when set', () => {
     expect(loadEnv({ ...oidc }).OIDC_DISPATCH_ACR_VALUES).toBeUndefined();
-    expect(loadEnv({ ...oidc, OIDC_DISPATCH_ACR_VALUES: 'aal2' }).OIDC_DISPATCH_ACR_VALUES).toBe('aal2');
+    expect(loadEnv({ ...oidc, OIDC_DISPATCH_ACR_VALUES: 'aal2' }).OIDC_DISPATCH_ACR_VALUES).toBe(
+      'aal2',
+    );
   });
 
   it('rejects a malformed authorization endpoint (must be a URL)', () => {
-    expect(() => loadEnv({ ...oidc, OIDC_AUTHORIZATION_ENDPOINT: 'not-a-url' })).toThrow(/Invalid env/);
+    expect(() => loadEnv({ ...oidc, OIDC_AUTHORIZATION_ENDPOINT: 'not-a-url' })).toThrow(
+      /Invalid env/,
+    );
   });
 
   it('rejects a malformed redirect URI (must be a URL)', () => {

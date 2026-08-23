@@ -25,9 +25,15 @@ afterEach(() => {
 configure({ asyncUtilTimeout: 10_000 });
 if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = class {
-    observe(): void { /* noop */ }
-    unobserve(): void { /* noop */ }
-    disconnect(): void { /* noop */ }
+    observe(): void {
+      /* noop */
+    }
+    unobserve(): void {
+      /* noop */
+    }
+    disconnect(): void {
+      /* noop */
+    }
   };
 }
 vi.mock('next/navigation', () => ({

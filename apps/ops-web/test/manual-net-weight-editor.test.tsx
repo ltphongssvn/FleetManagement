@@ -14,7 +14,9 @@ vi.mock('@/features/dispatch/set-manual-net-weight.action', () => ({ setManualNe
 import { ManualNetWeightEditor } from '@/features/dispatch/ManualNetWeightEditor';
 
 afterEach(cleanup);
-beforeEach(() => { setManualNetWeight.mockReset(); });
+beforeEach(() => {
+  setManualNetWeight.mockReset();
+});
 
 const MANIFEST_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
@@ -24,7 +26,9 @@ function renderEditor(onDone = vi.fn()): { onDone: ReturnType<typeof vi.fn> } {
 }
 
 function enterAndConfirm(kg: string): void {
-  fireEvent.change(screen.getByTestId('manual-netweight-input-' + MANIFEST_ID), { target: { value: kg } });
+  fireEvent.change(screen.getByTestId('manual-netweight-input-' + MANIFEST_ID), {
+    target: { value: kg },
+  });
   fireEvent.click(screen.getByTestId('manual-netweight-confirm-' + MANIFEST_ID));
 }
 
@@ -33,8 +37,13 @@ describe('@fleet/ops-web - ManualNetWeightEditor', () => {
     setManualNetWeight.mockResolvedValue({ status: 'ok' as const });
     const { onDone } = renderEditor();
     enterAndConfirm('20730');
-    await waitFor(() => { expect(onDone).toHaveBeenCalledTimes(1); });
-    expect(setManualNetWeight).toHaveBeenCalledWith({ manifestId: MANIFEST_ID, extractedNetWeightKg: 20730 });
+    await waitFor(() => {
+      expect(onDone).toHaveBeenCalledTimes(1);
+    });
+    expect(setManualNetWeight).toHaveBeenCalledWith({
+      manifestId: MANIFEST_ID,
+      extractedNetWeightKg: 20730,
+    });
   });
 
   it('re-enables the confirm button when the action rejects (dispatcher can retry)', async () => {
@@ -45,7 +54,9 @@ describe('@fleet/ops-web - ManualNetWeightEditor', () => {
     enterAndConfirm('20730');
     // Rejection path: onDone never fires and the button returns to enabled so a
     // second attempt is possible (setBusy(false) ran in the catch).
-    await waitFor(() => { expect(button).toBeEnabled(); });
+    await waitFor(() => {
+      expect(button).toBeEnabled();
+    });
     expect(onDone).not.toHaveBeenCalled();
   });
 
@@ -53,7 +64,9 @@ describe('@fleet/ops-web - ManualNetWeightEditor', () => {
     setManualNetWeight.mockResolvedValue({ status: 'ok' as const });
     renderEditor();
     for (const bad of ['', '0', '-5']) {
-      fireEvent.change(screen.getByTestId('manual-netweight-input-' + MANIFEST_ID), { target: { value: bad } });
+      fireEvent.change(screen.getByTestId('manual-netweight-input-' + MANIFEST_ID), {
+        target: { value: bad },
+      });
       fireEvent.click(screen.getByTestId('manual-netweight-confirm-' + MANIFEST_ID));
     }
     expect(setManualNetWeight).not.toHaveBeenCalled();

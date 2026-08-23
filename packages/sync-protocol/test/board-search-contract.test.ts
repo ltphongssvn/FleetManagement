@@ -47,19 +47,32 @@ describe('board-search contract: registry shape', () => {
     }
   });
   it('rejects a searchable column with no predicate', () => {
-    expect(() => BoardSearchColumnSchema.parse({
-      id: 'bogus', labels: ['X'], kind: 'searchable',
-    })).toThrow();
+    expect(() =>
+      BoardSearchColumnSchema.parse({
+        id: 'bogus',
+        labels: ['X'],
+        kind: 'searchable',
+      }),
+    ).toThrow();
   });
   it('rejects a derived column with no reason', () => {
-    expect(() => BoardSearchColumnSchema.parse({
-      id: 'bogus', labels: ['X'], kind: 'derived',
-    })).toThrow();
+    expect(() =>
+      BoardSearchColumnSchema.parse({
+        id: 'bogus',
+        labels: ['X'],
+        kind: 'derived',
+      }),
+    ).toThrow();
   });
   it('rejects a facet column with no filteredBy', () => {
-    expect(() => BoardSearchColumnSchema.parse({
-      id: 'bogus', labels: ['X'], kind: 'facet', reason: 'r',
-    })).toThrow();
+    expect(() =>
+      BoardSearchColumnSchema.parse({
+        id: 'bogus',
+        labels: ['X'],
+        kind: 'facet',
+        reason: 'r',
+      }),
+    ).toThrow();
   });
 });
 describe('board-search contract: derived from the export header SSOT', () => {

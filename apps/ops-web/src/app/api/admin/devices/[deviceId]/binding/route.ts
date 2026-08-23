@@ -9,7 +9,9 @@
 import { type NextRequest, type NextResponse } from 'next/server';
 import { forwardWrite } from '@/app/api/_forward';
 
-interface Ctx { params: Promise<{ deviceId: string }> }
+interface Ctx {
+  params: Promise<{ deviceId: string }>;
+}
 
 export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { deviceId } = await ctx.params;

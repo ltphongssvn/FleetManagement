@@ -29,7 +29,12 @@ import { DRIZZLE_DB } from '../database/database.tokens.js';
 import { eq, and, asc, desc, isNull, inArray, ilike, count, type SQL } from 'drizzle-orm';
 import type { FleetDb } from '../database/database.module.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
-import { transportOrder, stop, roadRun, roadRunTransportOrder } from '../database/schema/transport.js';
+import {
+  transportOrder,
+  stop,
+  roadRun,
+  roadRunTransportOrder,
+} from '../database/schema/transport.js';
 import { vehicle, customer, cargoType, warehouse, driver } from '../database/schema/reference.js';
 import { driverVehicleAssignment } from '../database/schema/driver-vehicle-assignment.js';
 import { manifest, uploadSession } from '../database/schema/manifest.js';
@@ -40,12 +45,27 @@ import { STOP_PROOF_URL_SIGNER, type StopProofUrlSigner } from '../dispatch/stop
 import { appendTriWrite } from '../database/append-tri-write.js';
 import { outbox } from '../database/schema/index.js';
 import type { OperatorContext } from '../auth/operator-context.js';
-import type { CreateTransportOrderInput, CreateTransportOrderResponse, ListAssignedResponse, ListAssignedRow, TripHistoryResponse } from './transport-orders.dto.js';
-import { DriverVehicleAssignmentRequiredError, TransportOrderNotFoundError } from './transport-orders.errors.js';
+import type {
+  CreateTransportOrderInput,
+  CreateTransportOrderResponse,
+  ListAssignedResponse,
+  ListAssignedRow,
+  TripHistoryResponse,
+} from './transport-orders.dto.js';
+import {
+  DriverVehicleAssignmentRequiredError,
+  TransportOrderNotFoundError,
+} from './transport-orders.errors.js';
 import { OrderNumberingService } from './order-numbering.service.js';
 import { groupCompletedTripsByMonth, MANIFEST_PHOTO_RECEIVED_STATES } from '@fleet/domain';
 import { OUTBOX_QUEUES, statesForStatusGroup } from '@fleet/sync-protocol';
-import type { DriverAlertJob, DriverCompletedPageQuery, DriverCompletedPageResponse, RoadRunStateName, StopProof } from '@fleet/sync-protocol';
+import type {
+  DriverAlertJob,
+  DriverCompletedPageQuery,
+  DriverCompletedPageResponse,
+  RoadRunStateName,
+  StopProof,
+} from '@fleet/sync-protocol';
 
 // The active (non-terminal) road-run states, from the SSOT partition. Used to
 // filter listAssigned so completed/cancelled runs never appear in the live list.
@@ -91,7 +111,10 @@ export class TransportOrdersService {
   ) {
     this.numbering = numbering ?? new OrderNumberingService();
   }
-  async create(input: CreateTransportOrderInput, op: OperatorContext): Promise<CreateTransportOrderResponse> {
+  async create(
+    input: CreateTransportOrderInput,
+    op: OperatorContext,
+  ): Promise<CreateTransportOrderResponse> {
     return this.db.transaction(async (tx) => {
       const tenancy = {
         companyId: op.companyId,
@@ -99,27 +122,33 @@ export class TransportOrdersService {
         depotId: op.depotId,
         legalEntityId: op.legalEntityId,
       };
-      const [pair] = await tx.select({ assignmentId: driverVehicleAssignment.assignmentId })
+      const [pair] = await tx
+        .select({ assignmentId: driverVehicleAssignment.assignmentId })
         .from(driverVehicleAssignment)
         .innerJoin(driver, eq(driverVehicleAssignment.driverId, driver.driverId))
-        .where(and(
-          eq(driverVehicleAssignment.companyId, op.companyId),
-          eq(driver.companyId, op.companyId),
-          eq(driver.operatorId, input.roadRun.assignedOperatorId),
-          eq(driverVehicleAssignment.vehicleId, input.roadRun.assignedAssetId),
-          isNull(driverVehicleAssignment.revokedAt),
-        ))
+        .where(
+          and(
+            eq(driverVehicleAssignment.companyId, op.companyId),
+            eq(driver.companyId, op.companyId),
+            eq(driver.operatorId, input.roadRun.assignedOperatorId),
+            eq(driverVehicleAssignment.vehicleId, input.roadRun.assignedAssetId),
+            isNull(driverVehicleAssignment.revokedAt),
+          ),
+        )
         .limit(1);
       if (!pair) throw new DriverVehicleAssignmentRequiredError();
       // Server-assigned external_ref (So Lenh). Client input is ignored.
       const externalRef = await this.numbering.allocate(tx, op);
-      const [created] = await tx.insert(transportOrder).values({
-        ...tenancy,
-        externalRef,
-        ...(input.customerId !== undefined ? { customerId: input.customerId } : {}),
-        ...(input.cargoTypeId !== undefined ? { cargoTypeId: input.cargoTypeId } : {}),
-        ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
-      }).returning();
+      const [created] = await tx
+        .insert(transportOrder)
+        .values({
+          ...tenancy,
+          externalRef,
+          ...(input.customerId !== undefined ? { customerId: input.customerId } : {}),
+          ...(input.cargoTypeId !== undefined ? { cargoTypeId: input.cargoTypeId } : {}),
+          ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
+        })
+        .returning();
       if (!created) throw new Error('transport_order insert failed');
       const transportOrderId = created.transportOrderId;
       for (const s of input.stops) {
@@ -132,12 +161,17 @@ export class TransportOrdersService {
           ...(s.plannedAt !== undefined ? { plannedAt: new Date(s.plannedAt) } : {}),
         });
       }
-      const [rr] = await tx.insert(roadRun).values({
-        ...tenancy,
-        assignedOperatorId: input.roadRun.assignedOperatorId,
-        assignedAssetId: input.roadRun.assignedAssetId,
-        ...(input.roadRun.plannedStartAt !== undefined ? { plannedStartAt: new Date(input.roadRun.plannedStartAt) } : {}),
-      }).returning();
+      const [rr] = await tx
+        .insert(roadRun)
+        .values({
+          ...tenancy,
+          assignedOperatorId: input.roadRun.assignedOperatorId,
+          assignedAssetId: input.roadRun.assignedAssetId,
+          ...(input.roadRun.plannedStartAt !== undefined
+            ? { plannedStartAt: new Date(input.roadRun.plannedStartAt) }
+            : {}),
+        })
+        .returning();
       if (!rr) throw new Error('road_run insert failed');
       const roadRunId = rr.roadRunId;
       await tx.insert(roadRunTransportOrder).values({
@@ -164,7 +198,12 @@ export class TransportOrdersService {
         auditPayload: { transportOrderId, externalRef },
         operatorId: op.operatorId,
         queueName: OUTBOX_QUEUES.PROJECTIONS,
-        outboxPayload: { aggregateType: 'road_run', eventType: 'road_run.created', roadRunId, externalRef },
+        outboxPayload: {
+          aggregateType: 'road_run',
+          eventType: 'road_run.created',
+          roadRunId,
+          externalRef,
+        },
         op,
       });
       // T12 driver order alert: enqueue the wake-up signal ATOMICALLY with the
@@ -184,7 +223,11 @@ export class TransportOrdersService {
       await tx.insert(outbox).values({
         ...tenancy,
         queueName: OUTBOX_QUEUES.ALERTS,
-        payload: { aggregateType: 'driver_alert', eventType: 'driver_alert.requested', ...alertJob },
+        payload: {
+          aggregateType: 'driver_alert',
+          eventType: 'driver_alert.requested',
+          ...alertJob,
+        },
       });
       return { transportOrderId, roadRunId, externalRef };
     });
@@ -194,10 +237,9 @@ export class TransportOrdersService {
     const [orderRow] = await this.db
       .select({ transportOrderId: transportOrder.transportOrderId })
       .from(transportOrder)
-      .where(and(
-        eq(transportOrder.transportOrderId, id),
-        eq(transportOrder.companyId, op.companyId),
-      ))
+      .where(
+        and(eq(transportOrder.transportOrderId, id), eq(transportOrder.companyId, op.companyId)),
+      )
       .limit(1);
     if (orderRow === undefined) throw new TransportOrderNotFoundError();
     // Resolve the row across ALL states (a completed order must still be
@@ -215,7 +257,9 @@ export class TransportOrdersService {
   // Single-company deployment assumption per Frozen Stack: companyId is
   // the only tenancy boundary.
   async findByCompanyIdOrRef(idOrRef: string, op: OperatorContext): Promise<ListAssignedRow> {
-    const looksLikeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrRef);
+    const looksLikeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      idOrRef,
+    );
     const matchCondition = looksLikeUuid
       ? eq(transportOrder.transportOrderId, idOrRef)
       : eq(transportOrder.externalRef, idOrRef);
@@ -236,15 +280,18 @@ export class TransportOrdersService {
       })
       .from(roadRun)
       .innerJoin(roadRunTransportOrder, eq(roadRunTransportOrder.roadRunId, roadRun.roadRunId))
-      .innerJoin(transportOrder, eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId))
+      .innerJoin(
+        transportOrder,
+        eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId),
+      )
       .leftJoin(vehicle, eq(vehicle.vehicleId, roadRun.assignedAssetId))
       .leftJoin(customer, eq(customer.customerId, transportOrder.customerId))
       .leftJoin(cargoType, eq(cargoType.cargoTypeId, transportOrder.cargoTypeId))
-      .leftJoin(driver, and(eq(driver.operatorId, roadRun.assignedOperatorId), eq(driver.companyId, op.companyId)))
-      .where(and(
-        eq(roadRun.companyId, op.companyId),
-        matchCondition,
-      ))
+      .leftJoin(
+        driver,
+        and(eq(driver.operatorId, roadRun.assignedOperatorId), eq(driver.companyId, op.companyId)),
+      )
+      .where(and(eq(roadRun.companyId, op.companyId), matchCondition))
       .limit(1);
     const head = rows[0];
     if (head === undefined) throw new TransportOrderNotFoundError();
@@ -261,12 +308,14 @@ export class TransportOrdersService {
       })
       .from(stop)
       .leftJoin(warehouse, eq(warehouse.warehouseId, stop.yardId))
-      .where(and(
-        eq(stop.companyId, op.companyId),
-        eq(stop.transportOrderId, head.transportOrderId),
-      ))
+      .where(
+        and(eq(stop.companyId, op.companyId), eq(stop.transportOrderId, head.transportOrderId)),
+      )
       .orderBy(asc(stop.sequence));
-    const proofByStopId = await this.resolveStopProofs(op, stopRows.map((s) => s.stopId));
+    const proofByStopId = await this.resolveStopProofs(
+      op,
+      stopRows.map((s) => s.stopId),
+    );
     const stops = stopRows.map((s) => ({
       sequence: s.sequence,
       stopType: s.stopType,
@@ -279,14 +328,18 @@ export class TransportOrdersService {
       // row never resolved proof at all. It now resolves as the board does.
       proof: proofByStopId.get(s.stopId) ?? null,
     }));
-    const pickupName = stops.find((x) => x.stopType.toLowerCase() === 'pickup')?.warehouseName ?? null;
+    const pickupName =
+      stops.find((x) => x.stopType.toLowerCase() === 'pickup')?.warehouseName ?? null;
     const drops = stops.filter((x) => {
       const t = x.stopType.toLowerCase();
       return t === 'delivery' || t === 'dropoff';
     });
     const deliveryName = drops[drops.length - 1]?.warehouseName ?? null;
     const cancelMap = await this.computeCancelEligibility(op, [head.transportOrderId]);
-    const cancelInfo = cancelMap.get(head.transportOrderId) ?? { canCancel: true, cancelBlockedReason: null };
+    const cancelInfo = cancelMap.get(head.transportOrderId) ?? {
+      canCancel: true,
+      cancelBlockedReason: null,
+    };
     return {
       transportOrderId: head.transportOrderId,
       externalRef: head.externalRef,
@@ -344,11 +397,13 @@ export class TransportOrdersService {
       })
       .from(manifest)
       .innerJoin(uploadSession, eq(uploadSession.manifestId, manifest.manifestId))
-      .where(and(
-        eq(manifest.companyId, op.companyId),
-        eq(manifest.state, 'committed'),
-        inArray(manifest.stopId, [...stopIds]),
-      ));
+      .where(
+        and(
+          eq(manifest.companyId, op.companyId),
+          eq(manifest.state, 'committed'),
+          inArray(manifest.stopId, [...stopIds]),
+        ),
+      );
     for (const pr of proofRows) {
       // First committed manifest per stop wins: a stop may accumulate more than
       // one committed photo (re-upload), and the review view shows one proof.
@@ -362,7 +417,8 @@ export class TransportOrdersService {
         manifestId: pr.manifestId,
         photoUrl,
         capturedAt: (pr.committedAt ?? new Date()).toISOString(),
-        extractedNetWeightKg: pr.extractedNetWeightKg === null ? null : Number(pr.extractedNetWeightKg),
+        extractedNetWeightKg:
+          pr.extractedNetWeightKg === null ? null : Number(pr.extractedNetWeightKg),
         extractionStatus: pr.extractionStatus,
         extractionReason: pr.extractionReason,
       });
@@ -385,11 +441,13 @@ export class TransportOrdersService {
     const rows = await this.db
       .select({ transportOrderId: manifest.transportOrderId, n: count() })
       .from(manifest)
-      .where(and(
-        eq(manifest.companyId, op.companyId),
-        inArray(manifest.transportOrderId, [...transportOrderIds]),
-        inArray(manifest.state, [...MANIFEST_PHOTO_RECEIVED_STATES]),
-      ))
+      .where(
+        and(
+          eq(manifest.companyId, op.companyId),
+          inArray(manifest.transportOrderId, [...transportOrderIds]),
+          inArray(manifest.state, [...MANIFEST_PHOTO_RECEIVED_STATES]),
+        ),
+      )
       .groupBy(manifest.transportOrderId);
     // Every returned row is a group that MATCHED the received-state filter, so
     // its count is >= 1 by construction (no defensive n > 0 branch needed --
@@ -403,15 +461,20 @@ export class TransportOrdersService {
   // listCompleted, findById and tripHistory. Always operator-scoped +
   // company-scoped; the caller narrows by state / single-id / search, chooses
   // ordering, and optionally pages. Returns fully-enriched ListAssignedRow[].
-  private async buildDriverRows(op: OperatorContext, opts: DriverRowsOptions): Promise<ListAssignedRow[]> {
+  private async buildDriverRows(
+    op: OperatorContext,
+    opts: DriverRowsOptions,
+  ): Promise<ListAssignedRow[]> {
     const conditions: SQL[] = [
       eq(roadRun.companyId, op.companyId),
       eq(roadRun.assignedOperatorId, op.operatorId),
     ];
     if (opts.states !== undefined) conditions.push(inArray(roadRun.state, [...opts.states]));
-    if (opts.transportOrderId !== undefined) conditions.push(eq(transportOrder.transportOrderId, opts.transportOrderId));
+    if (opts.transportOrderId !== undefined)
+      conditions.push(eq(transportOrder.transportOrderId, opts.transportOrderId));
     if (opts.search !== undefined) conditions.push(ilike(customer.name, '%' + opts.search + '%'));
-    const orderByClause = opts.orderByCompletedDesc === true ? desc(roadRun.completedAt) : asc(roadRun.plannedStartAt);
+    const orderByClause =
+      opts.orderByCompletedDesc === true ? desc(roadRun.completedAt) : asc(roadRun.plannedStartAt);
     const base = this.db
       .select({
         transportOrderId: transportOrder.transportOrderId,
@@ -427,34 +490,39 @@ export class TransportOrdersService {
       })
       .from(roadRun)
       .innerJoin(roadRunTransportOrder, eq(roadRunTransportOrder.roadRunId, roadRun.roadRunId))
-      .innerJoin(transportOrder, eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId))
+      .innerJoin(
+        transportOrder,
+        eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId),
+      )
       .leftJoin(vehicle, eq(vehicle.vehicleId, roadRun.assignedAssetId))
       .leftJoin(customer, eq(customer.customerId, transportOrder.customerId))
       .where(and(...conditions))
       .orderBy(orderByClause);
-    const rows = opts.limit !== undefined
-      ? await base.limit(opts.limit).offset(opts.offset ?? 0)
-      : await base;
+    const rows =
+      opts.limit !== undefined ? await base.limit(opts.limit).offset(opts.offset ?? 0) : await base;
     const transportOrderIds = rows.map((r) => r.transportOrderId);
-    const stopRows = transportOrderIds.length === 0
-      ? []
-      : await this.db
-          .select({
-            transportOrderId: stop.transportOrderId,
-            sequence: stop.sequence,
-            stopType: stop.stopType,
-            plannedAt: stop.plannedAt,
-            warehouseName: warehouse.name,
-            arrivedAt: stop.arrivedAt,
-            departedAt: stop.departedAt,
-          })
-          .from(stop)
-          .leftJoin(warehouse, eq(warehouse.warehouseId, stop.yardId))
-          .where(and(
-            eq(stop.companyId, op.companyId),
-            inArray(stop.transportOrderId, transportOrderIds),
-          ))
-          .orderBy(asc(stop.sequence));
+    const stopRows =
+      transportOrderIds.length === 0
+        ? []
+        : await this.db
+            .select({
+              transportOrderId: stop.transportOrderId,
+              sequence: stop.sequence,
+              stopType: stop.stopType,
+              plannedAt: stop.plannedAt,
+              warehouseName: warehouse.name,
+              arrivedAt: stop.arrivedAt,
+              departedAt: stop.departedAt,
+            })
+            .from(stop)
+            .leftJoin(warehouse, eq(warehouse.warehouseId, stop.yardId))
+            .where(
+              and(
+                eq(stop.companyId, op.companyId),
+                inArray(stop.transportOrderId, transportOrderIds),
+              ),
+            )
+            .orderBy(asc(stop.sequence));
     interface StopRow {
       sequence: number;
       stopType: string;
@@ -508,7 +576,8 @@ export class TransportOrdersService {
         pickupName: pickupNameOf(stops),
         deliveryName: deliveryNameOf(stops),
         canCancel: (cancelMap.get(r.transportOrderId) ?? { canCancel: true }).canCancel,
-        cancelBlockedReason: (cancelMap.get(r.transportOrderId) ?? { cancelBlockedReason: null }).cancelBlockedReason,
+        cancelBlockedReason: (cancelMap.get(r.transportOrderId) ?? { cancelBlockedReason: null })
+          .cancelBlockedReason,
         stops: stops.map((s) => ({
           sequence: s.sequence,
           stopType: s.stopType,
@@ -538,7 +607,10 @@ export class TransportOrdersService {
   // (data + page/pageSize/total/totalPages/hasMore); never paginated without a
   // total (2026 UX rule). Mirrors the ops-web board's offset pagination so the
   // wire contract is shared across the two surfaces.
-  async listCompleted(op: OperatorContext, query: DriverCompletedPageQuery): Promise<DriverCompletedPageResponse> {
+  async listCompleted(
+    op: OperatorContext,
+    query: DriverCompletedPageQuery,
+  ): Promise<DriverCompletedPageResponse> {
     const { page, pageSize, search } = query;
     const countConditions: SQL[] = [
       eq(roadRun.companyId, op.companyId),
@@ -550,7 +622,10 @@ export class TransportOrdersService {
       .select({ value: count() })
       .from(roadRun)
       .innerJoin(roadRunTransportOrder, eq(roadRunTransportOrder.roadRunId, roadRun.roadRunId))
-      .innerJoin(transportOrder, eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId))
+      .innerJoin(
+        transportOrder,
+        eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId),
+      )
       .leftJoin(customer, eq(customer.customerId, transportOrder.customerId))
       .where(and(...countConditions));
     const total = totalRows[0]?.value ?? 0;

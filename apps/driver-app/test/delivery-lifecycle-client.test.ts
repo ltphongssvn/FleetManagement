@@ -32,9 +32,16 @@ describe('DeliveryLifecycleClient', () => {
       ok: true,
       json: () => Promise.resolve({ roadRunId: 'rr2', state: 'started' }),
     });
-    const client = new DeliveryLifecycleClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    const client = new DeliveryLifecycleClient({
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
+      fetchFn: fetchFn as never,
+    });
     const result = await client.start('rr2');
-    expect(fetchFn).toHaveBeenCalledWith('http://api/driver/assignments/rr2/start', expect.objectContaining({ method: 'POST' }));
+    expect(fetchFn).toHaveBeenCalledWith(
+      'http://api/driver/assignments/rr2/start',
+      expect.objectContaining({ method: 'POST' }),
+    );
     expect(result.state).toBe('started');
   });
 
@@ -43,9 +50,16 @@ describe('DeliveryLifecycleClient', () => {
       ok: true,
       json: () => Promise.resolve({ roadRunId: 'rr3', state: 'completed' }),
     });
-    const client = new DeliveryLifecycleClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    const client = new DeliveryLifecycleClient({
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
+      fetchFn: fetchFn as never,
+    });
     const result = await client.complete('rr3');
-    expect(fetchFn).toHaveBeenCalledWith('http://api/driver/assignments/rr3/complete', expect.objectContaining({ method: 'POST' }));
+    expect(fetchFn).toHaveBeenCalledWith(
+      'http://api/driver/assignments/rr3/complete',
+      expect.objectContaining({ method: 'POST' }),
+    );
     expect(result.state).toBe('completed');
   });
 
@@ -53,14 +67,19 @@ describe('DeliveryLifecycleClient', () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: false,
       status: 409,
-      json: () => Promise.resolve({
-        title: 'Conflict',
-        status: 409,
-        detail: 'Cannot complete a run that has not been started.',
-        code: 'INVALID_STATE_TRANSITION',
-      }),
+      json: () =>
+        Promise.resolve({
+          title: 'Conflict',
+          status: 409,
+          detail: 'Cannot complete a run that has not been started.',
+          code: 'INVALID_STATE_TRANSITION',
+        }),
     });
-    const client = new DeliveryLifecycleClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    const client = new DeliveryLifecycleClient({
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
+      fetchFn: fetchFn as never,
+    });
     let caught: unknown = null;
     try {
       await client.complete('rr');
@@ -80,7 +99,11 @@ describe('DeliveryLifecycleClient', () => {
       status: 400,
       json: () => Promise.resolve({ error: 'Bad Request', statusCode: 400 }),
     });
-    const client = new DeliveryLifecycleClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    const client = new DeliveryLifecycleClient({
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
+      fetchFn: fetchFn as never,
+    });
     let caught: unknown = null;
     try {
       await client.accept('rr');
@@ -99,7 +122,11 @@ describe('DeliveryLifecycleClient', () => {
       status: 502,
       json: () => Promise.reject(new Error('invalid json')),
     });
-    const client = new DeliveryLifecycleClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    const client = new DeliveryLifecycleClient({
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
+      fetchFn: fetchFn as never,
+    });
     let caught: unknown = null;
     try {
       await client.start('rr');
@@ -115,17 +142,33 @@ describe('DeliveryLifecycleClient', () => {
 
   it('throws when the response body is not an object', async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve('nope') });
-    const client = new DeliveryLifecycleClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    const client = new DeliveryLifecycleClient({
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
+      fetchFn: fetchFn as never,
+    });
     await expect(client.accept('rr')).rejects.toThrow(/not an object/);
   });
   it('throws when roadRunId is missing from the response', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ state: 'dispatched' }) });
-    const client = new DeliveryLifecycleClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({ state: 'dispatched' }) });
+    const client = new DeliveryLifecycleClient({
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
+      fetchFn: fetchFn as never,
+    });
     await expect(client.accept('rr')).rejects.toThrow(/roadRunId/);
   });
   it('throws when the response shape is invalid', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ roadRunId: 'rr' }) });
-    const client = new DeliveryLifecycleClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({ roadRunId: 'rr' }) });
+    const client = new DeliveryLifecycleClient({
+      apiUrl: 'http://api',
+      bearerToken: () => 't',
+      fetchFn: fetchFn as never,
+    });
     await expect(client.accept('rr')).rejects.toThrow(/state/);
   });
 });

@@ -75,24 +75,86 @@ function main(): void {
   const cfg = promoteConfigSchema.parse({});
   run('git', ['fetch', 'origin', '--prune', '--tags', '--quiet'], { allowFail: true });
 
-  const ahead = run('git', ['log', '--oneline', 'origin/' + cfg.baseBranch + '..origin/' + cfg.developBranch]).trim();
-  if (ahead === '') { console.log('\u2705 ' + cfg.developBranch + ' has nothing to promote to ' + cfg.baseBranch + '.'); return; }
-  console.log('\ud83d\udce6 promoting ' + cfg.developBranch + ' -> ' + cfg.baseBranch + ':\n' + ahead);
+  const ahead = run('git', [
+    'log',
+    '--oneline',
+    'origin/' + cfg.baseBranch + '..origin/' + cfg.developBranch,
+  ]).trim();
+  if (ahead === '') {
+    console.log(
+      '\u2705 ' + cfg.developBranch + ' has nothing to promote to ' + cfg.baseBranch + '.',
+    );
+    return;
+  }
+  console.log(
+    '\ud83d\udce6 promoting ' + cfg.developBranch + ' -> ' + cfg.baseBranch + ':\n' + ahead,
+  );
 
   // create_pr (reuse an existing open one if present)
-  let pr = run('gh', ['pr', 'list', '--base', cfg.baseBranch, '--head', cfg.developBranch, '--state', 'open', '--json', 'number', '--jq', '.[0].number'], { allowFail: true }).trim();
+  let pr = run(
+    'gh',
+    [
+      'pr',
+      'list',
+      '--base',
+      cfg.baseBranch,
+      '--head',
+      cfg.developBranch,
+      '--state',
+      'open',
+      '--json',
+      'number',
+      '--jq',
+      '.[0].number',
+    ],
+    { allowFail: true },
+  ).trim();
   if (pr === '') {
-    run('gh', ['pr', 'create', '--base', cfg.baseBranch, '--head', cfg.developBranch, '--title', cfg.title, '--body', 'Automated GitFlow promote (release:promote). See commits above.']);
-    pr = run('gh', ['pr', 'list', '--base', cfg.baseBranch, '--head', cfg.developBranch, '--state', 'open', '--json', 'number', '--jq', '.[0].number']).trim();
+    run('gh', [
+      'pr',
+      'create',
+      '--base',
+      cfg.baseBranch,
+      '--head',
+      cfg.developBranch,
+      '--title',
+      cfg.title,
+      '--body',
+      'Automated GitFlow promote (release:promote). See commits above.',
+    ]);
+    pr = run('gh', [
+      'pr',
+      'list',
+      '--base',
+      cfg.baseBranch,
+      '--head',
+      cfg.developBranch,
+      '--state',
+      'open',
+      '--json',
+      'number',
+      '--jq',
+      '.[0].number',
+    ]).trim();
   }
-  if (!/^\d+$/.test(pr)) { console.error('\u274c could not resolve release PR number'); process.exit(1); }
+  if (!/^\d+$/.test(pr)) {
+    console.error('\u274c could not resolve release PR number');
+    process.exit(1);
+  }
   console.log('\ud83d\udd17 release PR #' + pr);
 
   // watch_ci
   console.log('\u23f3 watching CI ...');
   run('gh', ['pr', 'checks', pr, '--watch'], { allowFail: true });
-  const failing = run('gh', ['pr', 'checks', pr, '--json', 'bucket', '--jq', '[.[]|select(.bucket=="fail")]|length'], { allowFail: true }).trim();
-  if (failing !== '0' && failing !== '') { console.error('\u274c CI not green on PR #' + pr + ' (failing=' + failing + ')'); process.exit(1); }
+  const failing = run(
+    'gh',
+    ['pr', 'checks', pr, '--json', 'bucket', '--jq', '[.[]|select(.bucket=="fail")]|length'],
+    { allowFail: true },
+  ).trim();
+  if (failing !== '0' && failing !== '') {
+    console.error('\u274c CI not green on PR #' + pr + ' (failing=' + failing + ')');
+    process.exit(1);
+  }
 
   // admin_merge (merge commit, no delete)
   console.log('\ud83d\udd00 admin-merge develop -> main ...');
@@ -107,18 +169,52 @@ function main(): void {
   const mergeSha = run('git', ['rev-parse', 'origin/' + cfg.baseBranch]).trim();
   let chosen: ReleaseRun | null = null;
   for (let i = 0; i < 60; i += 1) {
-    const raw = run('gh', ['run', 'list', '--workflow=Release', '--branch', cfg.baseBranch, '--limit', '20', '--json', 'databaseId,headSha,status,conclusion'], { allowFail: true });
+    const raw = run(
+      'gh',
+      [
+        'run',
+        'list',
+        '--workflow=Release',
+        '--branch',
+        cfg.baseBranch,
+        '--limit',
+        '20',
+        '--json',
+        'databaseId,headSha,status,conclusion',
+      ],
+      { allowFail: true },
+    );
     let parsed: unknown;
-    try { parsed = JSON.parse(raw) as unknown; } catch { parsed = []; }
+    try {
+      parsed = JSON.parse(raw) as unknown;
+    } catch {
+      parsed = [];
+    }
     const res = releaseRunArraySchema.safeParse(parsed);
     const runs = res.success ? res.data : [];
     const match = selectReleaseRunForSha(runs, mergeSha);
-    if (match !== null && match.status === 'completed') { chosen = match; break; }
-    if (match !== null) { run('gh', ['run', 'watch', String(match.databaseId), '--exit-status'], { allowFail: true }); }
-    else { run('sleep', ['10'], { allowFail: true }); }
+    if (match !== null && match.status === 'completed') {
+      chosen = match;
+      break;
+    }
+    if (match !== null) {
+      run('gh', ['run', 'watch', String(match.databaseId), '--exit-status'], { allowFail: true });
+    } else {
+      run('sleep', ['10'], { allowFail: true });
+    }
   }
-  if (chosen === null) { console.error('\u274c timed out waiting for Release run on ' + cfg.baseBranch + ' @ ' + mergeSha); process.exit(1); }
-  if (chosen.conclusion !== 'success') { console.error('\u274c Release run ' + String(chosen.databaseId) + ' concluded: ' + chosen.conclusion); process.exit(1); }
+  if (chosen === null) {
+    console.error(
+      '\u274c timed out waiting for Release run on ' + cfg.baseBranch + ' @ ' + mergeSha,
+    );
+    process.exit(1);
+  }
+  if (chosen.conclusion !== 'success') {
+    console.error(
+      '\u274c Release run ' + String(chosen.databaseId) + ' concluded: ' + chosen.conclusion,
+    );
+    process.exit(1);
+  }
   run('git', ['fetch', 'origin', '--tags', '--quiet'], { allowFail: true });
 
   // closeout (authoritative decision + correct back-merge subject)
@@ -128,4 +224,6 @@ function main(): void {
 }
 
 const isEntry = process.argv[1] !== undefined && import.meta.url === 'file://' + process.argv[1];
-if (isEntry) { main(); }
+if (isEntry) {
+  main();
+}

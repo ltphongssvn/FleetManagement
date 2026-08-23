@@ -15,7 +15,11 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { ProjectionRebuildService } from '../src/projections/projection-rebuild.service.js';
 import { ProjectionRunnerService } from '../src/projections/projection-runner.service.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+} from './helpers/migrate-test-db.js';
 import { rowsOf } from './helpers/integration-rows.js';
 
 let testDb: MigratedTestDb;
@@ -28,7 +32,13 @@ const RR2 = '00000000-0000-0000-0000-000000000011';
 const A1 = '00000000-0000-0000-0000-0000000000a1';
 const A2 = '00000000-0000-0000-0000-0000000000a2';
 
-async function feed(seq: number, rr: string, action: string, state: string, stops: number): Promise<void> {
+async function feed(
+  seq: number,
+  rr: string,
+  action: string,
+  state: string,
+  stops: number,
+): Promise<void> {
   await testDb.db.execute(sql`
     INSERT INTO sync_change_feed (feed_id, company_id, business_unit_id, depot_id, legal_entity_id, server_seq, action_id, aggregate_type, aggregate_id, delta, created_at)
     VALUES (gen_random_uuid(), ${COMPANY}, ${BU}, ${DEPOT}, ${LE}, ${seq}, ${action}, 'road_run', ${rr},
@@ -37,10 +47,16 @@ async function feed(seq: number, rr: string, action: string, state: string, stop
 }
 
 describe('@fleet/api - ProjectionRebuildService (integration)', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_proj_rebuild_int'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_proj_rebuild_int');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
   beforeEach(async () => {
-    await testDb.db.execute(sql`TRUNCATE TABLE sync_change_feed, dispatch_board_projection, projection_status CASCADE`);
+    await testDb.db.execute(
+      sql`TRUNCATE TABLE sync_change_feed, dispatch_board_projection, projection_status CASCADE`,
+    );
   });
 
   it('rebuilds a corrupted projection back to event-derived truth', async () => {
@@ -48,12 +64,18 @@ describe('@fleet/api - ProjectionRebuildService (integration)', () => {
     const runner = new ProjectionRunnerService(testDb.db);
     await runner.drainOnce(COMPANY);
     // Corrupt the read model directly (simulating drift a manual patch caused).
-    await testDb.db.execute(sql`UPDATE dispatch_board_projection SET state = 'planned', stop_count = 99 WHERE road_run_id = ${RR1}`);
+    await testDb.db.execute(
+      sql`UPDATE dispatch_board_projection SET state = 'planned', stop_count = 99 WHERE road_run_id = ${RR1}`,
+    );
     const rebuild = new ProjectionRebuildService(testDb.db, runner);
     const res = await rebuild.rebuild(COMPANY);
     expect(res.scope).toBe(COMPANY);
     expect(res.rebuilt).toBe(true);
-    const r = rowsOf<{ state: string; stop_count: number }>(await testDb.db.execute(sql`SELECT state, stop_count FROM dispatch_board_projection WHERE road_run_id = ${RR1} AND deleted_at IS NULL`) as unknown as { rows: readonly { state: string; stop_count: number }[] });
+    const r = rowsOf<{ state: string; stop_count: number }>(
+      (await testDb.db.execute(
+        sql`SELECT state, stop_count FROM dispatch_board_projection WHERE road_run_id = ${RR1} AND deleted_at IS NULL`,
+      )) as unknown as { rows: readonly { state: string; stop_count: number }[] },
+    );
     expect(r[0]?.state).toBe('started');
     expect(Number(r[0]?.stop_count)).toBe(2);
   });
@@ -63,7 +85,11 @@ describe('@fleet/api - ProjectionRebuildService (integration)', () => {
     const runner = new ProjectionRunnerService(testDb.db);
     const rebuild = new ProjectionRebuildService(testDb.db, runner);
     await rebuild.rebuild(COMPANY);
-    const r = rowsOf<{ watermark: string }>(await testDb.db.execute(sql`SELECT watermark FROM projection_status WHERE projection_name = 'dispatch_board' AND scope = ${COMPANY}`) as unknown as { rows: readonly { watermark: string }[] });
+    const r = rowsOf<{ watermark: string }>(
+      (await testDb.db.execute(
+        sql`SELECT watermark FROM projection_status WHERE projection_name = 'dispatch_board' AND scope = ${COMPANY}`,
+      )) as unknown as { rows: readonly { watermark: string }[] },
+    );
     expect(String(r[0]?.watermark)).toBe('7');
   });
 
@@ -73,9 +99,15 @@ describe('@fleet/api - ProjectionRebuildService (integration)', () => {
     const rebuild = new ProjectionRebuildService(testDb.db, runner);
     const before = new Date();
     await rebuild.rebuild(COMPANY);
-    const r = rowsOf<{ last_rebuilt_at: string | null }>(await testDb.db.execute(sql`SELECT last_rebuilt_at FROM projection_status WHERE projection_name = 'dispatch_board' AND scope = ${COMPANY}`) as unknown as { rows: readonly { last_rebuilt_at: string | null }[] });
+    const r = rowsOf<{ last_rebuilt_at: string | null }>(
+      (await testDb.db.execute(
+        sql`SELECT last_rebuilt_at FROM projection_status WHERE projection_name = 'dispatch_board' AND scope = ${COMPANY}`,
+      )) as unknown as { rows: readonly { last_rebuilt_at: string | null }[] },
+    );
     expect(r[0]?.last_rebuilt_at).not.toBeNull();
-    expect(new Date(String(r[0]?.last_rebuilt_at)).getTime()).toBeGreaterThanOrEqual(before.getTime() - 1000);
+    expect(new Date(String(r[0]?.last_rebuilt_at)).getTime()).toBeGreaterThanOrEqual(
+      before.getTime() - 1000,
+    );
   });
 
   it('drops a projection row that the replayed feed no longer produces (stale row hidden)', async () => {
@@ -87,7 +119,11 @@ describe('@fleet/api - ProjectionRebuildService (integration)', () => {
     await testDb.db.execute(sql`DELETE FROM sync_change_feed WHERE aggregate_id = ${RR2}`);
     const rebuild = new ProjectionRebuildService(testDb.db, runner);
     await rebuild.rebuild(COMPANY);
-    const active = rowsOf<{ road_run_id: string }>(await testDb.db.execute(sql`SELECT road_run_id FROM dispatch_board_projection WHERE deleted_at IS NULL ORDER BY road_run_id`) as unknown as { rows: readonly { road_run_id: string }[] });
+    const active = rowsOf<{ road_run_id: string }>(
+      (await testDb.db.execute(
+        sql`SELECT road_run_id FROM dispatch_board_projection WHERE deleted_at IS NULL ORDER BY road_run_id`,
+      )) as unknown as { rows: readonly { road_run_id: string }[] },
+    );
     expect(active.map((x) => x.road_run_id)).toEqual([RR1]);
   });
 
@@ -98,7 +134,11 @@ describe('@fleet/api - ProjectionRebuildService (integration)', () => {
     const rebuild = new ProjectionRebuildService(testDb.db, runner);
     await rebuild.rebuild(COMPANY);
     await rebuild.rebuild(COMPANY);
-    const active = rowsOf<{ road_run_id: string }>(await testDb.db.execute(sql`SELECT road_run_id FROM dispatch_board_projection WHERE deleted_at IS NULL ORDER BY road_run_id`) as unknown as { rows: readonly { road_run_id: string }[] });
+    const active = rowsOf<{ road_run_id: string }>(
+      (await testDb.db.execute(
+        sql`SELECT road_run_id FROM dispatch_board_projection WHERE deleted_at IS NULL ORDER BY road_run_id`,
+      )) as unknown as { rows: readonly { road_run_id: string }[] },
+    );
     expect(active.map((x) => x.road_run_id)).toEqual([RR1, RR2]);
   });
 
@@ -113,7 +153,11 @@ describe('@fleet/api - ProjectionRebuildService (integration)', () => {
     const runner = new ProjectionRunnerService(testDb.db);
     const rebuild = new ProjectionRebuildService(testDb.db, runner);
     await rebuild.rebuild(COMPANY);
-    const cnt = rowsOf<{ n: string }>(await testDb.db.execute(sql`SELECT count(*)::text AS n FROM dispatch_board_projection WHERE deleted_at IS NULL`) as unknown as { rows: readonly { n: string }[] });
+    const cnt = rowsOf<{ n: string }>(
+      (await testDb.db.execute(
+        sql`SELECT count(*)::text AS n FROM dispatch_board_projection WHERE deleted_at IS NULL`,
+      )) as unknown as { rows: readonly { n: string }[] },
+    );
     expect(Number(cnt[0]?.n)).toBe(250);
   });
 });

@@ -8,10 +8,10 @@ services:
     image: postgis/postgis:18-3.6-alpine
     environment:
       POSTGRES_USER: fleet
-      POSTGRES_PASSWORD: fleet  # pragma: allowlist secret
+      POSTGRES_PASSWORD: fleet # pragma: allowlist secret
       POSTGRES_DB: fleet
     ports:
-      - "${FLEET_PORT_POSTGRES:-5432}:5432"
+      - '${FLEET_PORT_POSTGRES:-5432}:5432'
     volumes:
       - pgdata:/var/lib/postgresql
     # -h 127.0.0.1 is load-bearing, not cosmetic. The docker-entrypoint
@@ -35,9 +35,9 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "${FLEET_PORT_REDIS:-6379}:6379"
+      - '${FLEET_PORT_REDIS:-6379}:6379'
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 20
@@ -48,16 +48,16 @@ services:
       SERVER_HOSTNAME: mock-oauth2
       JSON_CONFIG: '{"tokenProvider":{"keyProvider":{"algorithm":"ES256"}},"interactiveLogin":false,"tokenCallbacks":[{"issuerId":"fleet","tokenExpiry":86400,"requestMappings":[{"requestParam":"username","match":"dispatcher","claims":{"sub":"00000000-0000-0000-0000-0000000000aa","operator_id":"00000000-0000-0000-0000-0000000000aa","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"dispatcher","acr":"aal2","amr":["pwd","hwk"]}},{"requestParam":"username","match":"dieuxe","claims":{"sub":"00000000-0000-0000-0000-0000000000bb","operator_id":"00000000-0000-0000-0000-0000000000bb","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"dieuxe"}},{"requestParam":"username","match":"driver1","claims":{"sub":"00000000-0000-0000-0000-000000000001","operator_id":"00000000-0000-0000-0000-000000000001","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver1"}},{"requestParam":"username","match":"driver2","claims":{"sub":"00000000-0000-0000-0000-000000000002","operator_id":"00000000-0000-0000-0000-000000000002","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver2"}},{"requestParam":"username","match":"driver3","claims":{"sub":"00000000-0000-0000-0000-000000000003","operator_id":"00000000-0000-0000-0000-000000000003","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver3"}},{"requestParam":"username","match":"driver4","claims":{"sub":"00000000-0000-0000-0000-000000000004","operator_id":"00000000-0000-0000-0000-000000000004","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver4"}},{"requestParam":"username","match":"driver5","claims":{"sub":"00000000-0000-0000-0000-000000000005","operator_id":"00000000-0000-0000-0000-000000000005","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"driver5"}},{"requestParam":"client_id","match":"fleet-worker","claims":{"sub":"00000000-0000-0000-0000-0000000000cc","operator_id":"00000000-0000-0000-0000-0000000000cc","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"fleet-worker"}},{"requestParam":"client_id","match":"ops-web","claims":{"sub":"00000000-0000-0000-0000-0000000000aa","operator_id":"00000000-0000-0000-0000-0000000000aa","company_id":"00000000-0000-0000-0000-000000000000","aud":"fleet-pilot","preferred_username":"dispatcher","acr":"aal3","idp":"google","amr":["hwk"]}}]},{"issuerId":"wrong-aud","tokenExpiry":86400,"requestMappings":[{"requestParam":"scope","match":"*","claims":{"sub":"00000000-0000-0000-0000-0000000000aa","operator_id":"00000000-0000-0000-0000-0000000000aa","company_id":"00000000-0000-0000-0000-000000000000","aud":"some-other-app"}}]}]}'
     ports:
-      - "${FLEET_PORT_OAUTH:-8080}:8080"
+      - '${FLEET_PORT_OAUTH:-8080}:8080'
   localstack:
     image: localstack/localstack:3.8
     environment:
       SERVICES: s3
-      DEBUG: "0"
+      DEBUG: '0'
     ports:
-      - "${FLEET_PORT_S3:-4566}:4566"
+      - '${FLEET_PORT_S3:-4566}:4566'
     healthcheck:
-      test: ["CMD-SHELL", "awslocal s3 ls || exit 1"]
+      test: ['CMD-SHELL', 'awslocal s3 ls || exit 1']
       interval: 5s
       timeout: 5s
       retries: 30
@@ -86,10 +86,10 @@ services:
       - .env
     environment:
       NODE_ENV: development
-      PORT: "3000"
-      DATABASE_URL: postgres://fleet:fleet@postgres:5432/fleet  # pragma: allowlist secret
+      PORT: '3000'
+      DATABASE_URL: postgres://fleet:fleet@postgres:5432/fleet # pragma: allowlist secret
       REDIS_URL: redis://redis:6379
-      DB_AUTO_MIGRATE: "true"
+      DB_AUTO_MIGRATE: 'true'
       OIDC_ISSUER: http://mock-oauth2:8080/fleet
       OIDC_AUDIENCE: fleet-pilot
       OIDC_JWKS_URI: http://mock-oauth2:8080/fleet/jwks
@@ -102,14 +102,20 @@ services:
       # bundle runs in the host browser and cannot resolve the internal
       # "localstack" hostname, so presigned URLs are rewritten to this origin.
       S3_PUBLIC_URL: http://localhost:${FLEET_PORT_S3:-4566}
-      AWS_ACCESS_KEY_ID: test  # pragma: allowlist secret
-      AWS_SECRET_ACCESS_KEY: test  # pragma: allowlist secret
-      OTEL_ENABLED: "false"
-      FLEET_PILOT_SCOPE: "00000000-0000-0000-0000-000000000000"
+      AWS_ACCESS_KEY_ID: test # pragma: allowlist secret
+      AWS_SECRET_ACCESS_KEY: test # pragma: allowlist secret
+      OTEL_ENABLED: 'false'
+      FLEET_PILOT_SCOPE: '00000000-0000-0000-0000-000000000000'
     ports:
-      - "${FLEET_PORT_API:-3000}:3000"
+      - '${FLEET_PORT_API:-3000}:3000'
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3000/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -130,7 +136,7 @@ services:
         condition: service_started
     environment:
       NODE_ENV: development
-      DATABASE_URL: postgres://fleet:fleet@postgres:5432/fleet  # pragma: allowlist secret
+      DATABASE_URL: postgres://fleet:fleet@postgres:5432/fleet # pragma: allowlist secret
       REDIS_URL: redis://redis:6379
       # S3 intake enrichment (worker HEADs the uploaded object): without these
       # the object store is never constructed and intake fail-closes with
@@ -140,8 +146,8 @@ services:
       AWS_REGION: us-west-2
       S3_ARTIFACTS_BUCKET: fleet-pilot-artifacts
       S3_ENDPOINT: http://localstack:4566
-      AWS_ACCESS_KEY_ID: test  # pragma: allowlist secret
-      AWS_SECRET_ACCESS_KEY: test  # pragma: allowlist secret
+      AWS_ACCESS_KEY_ID: test # pragma: allowlist secret
+      AWS_SECRET_ACCESS_KEY: test # pragma: allowlist secret
       # Intake finalize callback (worker -> POST /upload/intake-result). Without
       # FLEET_API_URL + the WORKER_OIDC_* trio, main.ts never constructs the
       # callback: intake computes a verdict but the manifest stays verifying
@@ -181,9 +187,9 @@ services:
       # app (including the login screen) never mounts.
       REACT_NATIVE_PACKAGER_HOSTNAME: ${HOST_LAN_IP}
     ports:
-      - "${FLEET_PORT_EXPO_METRO:-8081}:8081"
-      - "${FLEET_PORT_EXPO_DEV:-19000}:19000"
-      - "${FLEET_PORT_EXPO_DEV2:-19001}:19001"
+      - '${FLEET_PORT_EXPO_METRO:-8081}:8081'
+      - '${FLEET_PORT_EXPO_DEV:-19000}:19000'
+      - '${FLEET_PORT_EXPO_DEV2:-19001}:19001'
   ops-web:
     build:
       context: .
@@ -194,8 +200,8 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      PORT: "3001"
-      HOSTNAME: "0.0.0.0"
+      PORT: '3001'
+      HOSTNAME: '0.0.0.0'
       FLEET_API_URL: http://api:3000
       OIDC_TOKEN_ENDPOINT: http://mock-oauth2:8080/fleet/token
       OIDC_AUTHORIZATION_ENDPOINT: http://localhost:${FLEET_PORT_OAUTH:-8080}/fleet/authorize
@@ -209,6 +215,6 @@ services:
       # context/proof-pipeline-env-and-url-horizons.md).
       FLEET_API_TOKEN: ${OPS_WEB_FLEET_API_TOKEN}
     ports:
-      - "${FLEET_PORT_OPS_WEB:-3001}:3001"
+      - '${FLEET_PORT_OPS_WEB:-3001}:3001'
 volumes:
   pgdata:

@@ -13,12 +13,12 @@
 // Factor III (Config): CORS origins arrive as the ALREADY-VALIDATED Env from
 // bootstrap, never re-read from raw process.env here -- one validated
 // boundary per process, no second parse path that could drift.
-import type { INestApplication } from "@nestjs/common";
-import { ZodExceptionFilter } from "./common/zod-exception.filter.js";
-import { ProblemDetailsExceptionFilter } from "./common/problem-details-exception.filter.js";
-import type { Env } from "./config/env.config.js";
+import type { INestApplication } from '@nestjs/common';
+import { ZodExceptionFilter } from './common/zod-exception.filter.js';
+import { ProblemDetailsExceptionFilter } from './common/problem-details-exception.filter.js';
+import type { Env } from './config/env.config.js';
 
-export type AppConfig = Pick<Env, "CORS_ORIGINS">;
+export type AppConfig = Pick<Env, 'CORS_ORIGINS'>;
 
 export function configureApp(app: INestApplication, config: AppConfig): void {
   app.enableCors({

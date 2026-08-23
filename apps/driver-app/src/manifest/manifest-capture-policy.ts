@@ -39,8 +39,16 @@ export interface CapturedFile {
 }
 
 export type CapturedFileDecision =
-  | { readonly accepted: true; readonly mimeType: ManifestMimeType; readonly policyVersion: typeof MANIFEST_CAPTURE_POLICY_VERSION }
-  | { readonly accepted: false; readonly rejectionCode: ManifestRejectionCode; readonly policyVersion: typeof MANIFEST_CAPTURE_POLICY_VERSION };
+  | {
+      readonly accepted: true;
+      readonly mimeType: ManifestMimeType;
+      readonly policyVersion: typeof MANIFEST_CAPTURE_POLICY_VERSION;
+    }
+  | {
+      readonly accepted: false;
+      readonly rejectionCode: ManifestRejectionCode;
+      readonly policyVersion: typeof MANIFEST_CAPTURE_POLICY_VERSION;
+    };
 
 const ALLOWED_MIME_SET: ReadonlySet<string> = new Set(ALLOWED_MANIFEST_MIME_TYPES);
 
@@ -81,8 +89,16 @@ export interface SignaturePath {
 }
 
 export type SignatureDecision =
-  | { readonly accepted: true; readonly normalizedD: string; readonly policyVersion: typeof MANIFEST_CAPTURE_POLICY_VERSION }
-  | { readonly accepted: false; readonly rejectionCode: ManifestRejectionCode; readonly policyVersion: typeof MANIFEST_CAPTURE_POLICY_VERSION };
+  | {
+      readonly accepted: true;
+      readonly normalizedD: string;
+      readonly policyVersion: typeof MANIFEST_CAPTURE_POLICY_VERSION;
+    }
+  | {
+      readonly accepted: false;
+      readonly rejectionCode: ManifestRejectionCode;
+      readonly policyVersion: typeof MANIFEST_CAPTURE_POLICY_VERSION;
+    };
 
 /** Validate a signature SVG path. Pilot: lightweight liveness via point count. */
 export function validateSignaturePath(sig: SignaturePath): SignatureDecision {

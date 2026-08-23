@@ -11,7 +11,12 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { loginAs, mintToken } from './helpers/auth';
 import { type z } from 'zod';
-import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
+import {
+  parseJson,
+  CreateDriverResponseSchema,
+  ReferenceItemSchema,
+  AssignmentResponseSchema,
+} from './helpers/contracts';
 import { execSync } from 'node:child_process';
 import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 
@@ -19,37 +24,100 @@ const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 
 function opsWebRenderCount(): number {
   const out = execSync(
-    'docker logs fleet-pilot-ops-web-1 2>&1 | grep -c ' + JSON.stringify('/reference/drivers ->') + ' || true',
+    'docker logs fleet-pilot-ops-web-1 2>&1 | grep -c ' +
+      JSON.stringify('/reference/drivers ->') +
+      ' || true',
     { encoding: 'utf8' },
   );
   return parseInt(out.trim(), 10) || 0;
 }
 
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+async function adminPost<T>(
+  api: APIRequestContext,
+  token: string,
+  path: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
-  if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
+  if (!res.ok())
+    throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   return parseJson(res, schema);
 }
 
-interface Pair { driverId: string; vehicleId: string; vehicleLabel: string; assignmentId: string; token: string }
+interface Pair {
+  driverId: string;
+  vehicleId: string;
+  vehicleLabel: string;
+  assignmentId: string;
+  token: string;
+}
 
 async function seedPair(api: APIRequestContext): Promise<Pair> {
   const token = mintToken();
   const rand = Math.floor(Math.random() * 1e9).toString(36);
-  const phone = '09' + String(Date.now()).slice(-6) + Math.floor(Math.random() * 100).toString().padStart(2, '0');
-  const drv = await adminPost(api, token, '/admin/drivers', { fullName: 'E2E DRIVER NOLOOP ' + rand, phone, password: 'e2e-pass-1234' }, CreateDriverResponseSchema); // pragma: allowlist secret
-  const veh = await adminPost(api, token, '/reference/vehicles', { name: 'E2E-NL-' + rand }, ReferenceItemSchema);
-  const asgn = await adminPost(api, token, '/admin/driver-vehicle-assignments', { driverId: drv.driverId, vehicleId: veh.id }, AssignmentResponseSchema);
-  return { driverId: drv.driverId, vehicleId: veh.id, vehicleLabel: 'E2E-NL-' + rand, assignmentId: asgn.assignmentId, token };
+  const phone =
+    '09' +
+    String(Date.now()).slice(-6) +
+    Math.floor(Math.random() * 100)
+      .toString()
+      .padStart(2, '0');
+  const drv = await adminPost(
+    api,
+    token,
+    '/admin/drivers',
+    { fullName: 'E2E DRIVER NOLOOP ' + rand, phone, password: 'e2e-pass-1234' },
+    CreateDriverResponseSchema,
+  ); // pragma: allowlist secret
+  const veh = await adminPost(
+    api,
+    token,
+    '/reference/vehicles',
+    { name: 'E2E-NL-' + rand },
+    ReferenceItemSchema,
+  );
+  const asgn = await adminPost(
+    api,
+    token,
+    '/admin/driver-vehicle-assignments',
+    { driverId: drv.driverId, vehicleId: veh.id },
+    AssignmentResponseSchema,
+  );
+  return {
+    driverId: drv.driverId,
+    vehicleId: veh.id,
+    vehicleLabel: 'E2E-NL-' + rand,
+    assignmentId: asgn.assignmentId,
+    token,
+  };
 }
 
 async function cleanupPair(api: APIRequestContext, p: Pair): Promise<void> {
-  try { await api.delete(API_URL + '/admin/driver-vehicle-assignments/' + p.assignmentId, { headers: { Authorization: 'Bearer ' + p.token, 'Content-Type': 'application/json' }, data: JSON.stringify({ reason: 'e2e' }) }); } catch { /* tolerate */ }
-  try { await api.delete(API_URL + '/reference/vehicles/' + p.vehicleId, { headers: { Authorization: 'Bearer ' + p.token } }); } catch { /* tolerate */ }
-  try { await api.delete(API_URL + '/admin/drivers/' + p.driverId, { headers: { Authorization: 'Bearer ' + p.token } }); } catch { /* tolerate */ }
+  try {
+    await api.delete(API_URL + '/admin/driver-vehicle-assignments/' + p.assignmentId, {
+      headers: { Authorization: 'Bearer ' + p.token, 'Content-Type': 'application/json' },
+      data: JSON.stringify({ reason: 'e2e' }),
+    });
+  } catch {
+    /* tolerate */
+  }
+  try {
+    await api.delete(API_URL + '/reference/vehicles/' + p.vehicleId, {
+      headers: { Authorization: 'Bearer ' + p.token },
+    });
+  } catch {
+    /* tolerate */
+  }
+  try {
+    await api.delete(API_URL + '/admin/drivers/' + p.driverId, {
+      headers: { Authorization: 'Bearer ' + p.token },
+    });
+  } catch {
+    /* tolerate */
+  }
 }
 
 // Authenticate via injected session (PKCE login has no credential form).
@@ -59,8 +127,12 @@ async function login(page: Page): Promise<void> {
 
 test.describe('dispatch board does not enter an RSC re-render loop after create', () => {
   let pair: Pair | null = null;
-  test.beforeAll(async ({ request }) => { pair = await seedPair(request); });
-  test.afterAll(async ({ request }) => { if (pair) await cleanupPair(request, pair); });
+  test.beforeAll(async ({ request }) => {
+    pair = await seedPair(request);
+  });
+  test.afterAll(async ({ request }) => {
+    if (pair) await cleanupPair(request, pair);
+  });
 
   test('board converges with bounded re-renders after Tạo lệnh', async ({ page }) => {
     if (pair === null) throw new Error('pair not seeded');
@@ -72,7 +144,8 @@ test.describe('dispatch board does not enter an RSC re-render loop after create'
     const now = new Date(Date.now() + 3600_000).toISOString().slice(0, 10);
     await plannedStartAtField(page.locator('[data-testid=nl-create-order-form]')).fill(now);
     const v = page.locator('input#vehiclePlate');
-    await v.click(); await v.fill(pair.vehicleLabel);
+    await v.click();
+    await v.fill(pair.vehicleLabel);
     await page.getByRole('option', { name: pair.vehicleLabel }).click();
     await page.locator('#pickupAt').fill(now);
     await page.locator('#deliveryAt').fill(now);
@@ -90,6 +163,9 @@ test.describe('dispatch board does not enter an RSC re-render loop after create'
     await page.waitForTimeout(4000);
     const after = opsWebRenderCount();
     const delta = after - before;
-    expect(delta, 'board kept re-rendering / (RSC loop) during a quiet 4s window; delta=' + String(delta)).toBeLessThanOrEqual(5);
+    expect(
+      delta,
+      'board kept re-rendering / (RSC loop) during a quiet 4s window; delta=' + String(delta),
+    ).toBeLessThanOrEqual(5);
   });
 });

@@ -11,5 +11,4 @@ import { MetricsService } from './metrics.service.js';
   providers: [MetricsService],
   exports: [MetricsService],
 })
-
 export class MetricsModule {}

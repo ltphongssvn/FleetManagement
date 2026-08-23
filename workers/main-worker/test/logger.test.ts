@@ -21,7 +21,10 @@ describe('@fleet/main-worker - structured logger (Factor XI)', () => {
     const sink = vi.fn();
     logEvent('error', 'job failed', { queue: 'intake', jobId: 'j1' }, sink);
     const call2 = sink.mock.calls[0];
-    const parsed = JSON.parse(String(call2 === undefined ? '' : call2[0])) as Record<string, unknown>;
+    const parsed = JSON.parse(String(call2 === undefined ? '' : call2[0])) as Record<
+      string,
+      unknown
+    >;
     expect(parsed['level']).toBe('error');
     expect(parsed['msg']).toBe('job failed');
     expect(parsed['queue']).toBe('intake');
@@ -31,9 +34,7 @@ describe('@fleet/main-worker - structured logger (Factor XI)', () => {
   });
 
   it('defaults to writing to process.stdout when no sink is given', () => {
-    const writeSpy = vi
-      .spyOn(process.stdout, 'write')
-      .mockImplementation(() => true);
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
       logEvent('info', 'default sink line');
       expect(writeSpy).toHaveBeenCalledTimes(1);

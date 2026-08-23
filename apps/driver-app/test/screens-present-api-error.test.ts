@@ -13,8 +13,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const app = (rel: string): string =>
-  readFileSync(resolve(here, '../app/(app)', rel), 'utf8');
+const app = (rel: string): string => readFileSync(resolve(here, '../app/(app)', rel), 'utf8');
 
 const SCREENS = ['assignments.tsx', 'history.tsx', 'completed.tsx', 'commands.tsx'] as const;
 

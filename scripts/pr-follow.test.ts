@@ -40,9 +40,13 @@ const run = (over: Record<string, unknown> = {}): unknown => ({
 describe('CheckRunSchema / RunRecordSchema (trust boundary)', () => {
   it('parses the gh JSON shape', () => {
     expect(() => RunRecordSchema.parse(run())).not.toThrow();
-    expect(() => CheckRunSchema.parse({
-      name: 'CI/Build', status: 'COMPLETED', conclusion: 'SUCCESS',
-    })).not.toThrow();
+    expect(() =>
+      CheckRunSchema.parse({
+        name: 'CI/Build',
+        status: 'COMPLETED',
+        conclusion: 'SUCCESS',
+      }),
+    ).not.toThrow();
   });
 
   it('rejects a malformed record rather than guessing', () => {
@@ -50,9 +54,13 @@ describe('CheckRunSchema / RunRecordSchema (trust boundary)', () => {
   });
 
   it('rejects an unknown check conclusion rather than guessing a verdict', () => {
-    expect(() => CheckRunSchema.parse({
-      name: 'CI/Build', status: 'COMPLETED', conclusion: 'BANANA',
-    })).toThrow();
+    expect(() =>
+      CheckRunSchema.parse({
+        name: 'CI/Build',
+        status: 'COMPLETED',
+        conclusion: 'BANANA',
+      }),
+    ).toThrow();
   });
 
   it('accepts a null conclusion for an in-flight run', () => {
@@ -157,11 +165,17 @@ describe('runStateFor', () => {
   const sha = 'b'.repeat(40);
   const runs = [
     RunRecordSchema.parse(run({ workflowName: 'CI', headSha: sha })),
-    RunRecordSchema.parse(run({
-      workflowName: 'E2E (Playwright)', headSha: sha,
-      status: 'in_progress', conclusion: null,
-    })),
-    RunRecordSchema.parse(run({ workflowName: 'CI', headSha: 'c'.repeat(40), conclusion: 'failure' })),
+    RunRecordSchema.parse(
+      run({
+        workflowName: 'E2E (Playwright)',
+        headSha: sha,
+        status: 'in_progress',
+        conclusion: null,
+      }),
+    ),
+    RunRecordSchema.parse(
+      run({ workflowName: 'CI', headSha: 'c'.repeat(40), conclusion: 'failure' }),
+    ),
   ];
 
   it('matches on workflow AND head sha, never on recency', () => {
@@ -185,21 +199,33 @@ describe('runStateFor', () => {
   // The develop-gates false alarm: a run superseded by cancel-in-progress must
   // not be reported as a failed phase.
   it('reports pending, not failed, for a run cancelled by concurrency', () => {
-    const cancelled = RunRecordSchema.parse(run({
-      workflowName: 'CI', headSha: 'd'.repeat(40), conclusion: 'cancelled',
-    }));
+    const cancelled = RunRecordSchema.parse(
+      run({
+        workflowName: 'CI',
+        headSha: 'd'.repeat(40),
+        conclusion: 'cancelled',
+      }),
+    );
     expect(runStateFor([cancelled], 'CI', 'd'.repeat(40))).toBe('pending');
   });
 
   it('prefers the newest run when a workflow was re-run for the same sha', () => {
-    const older = RunRecordSchema.parse(run({
-      workflowName: 'CI', headSha: sha, conclusion: 'failure',
-      createdAt: '2026-07-27T09:00:00Z',
-    }));
-    const newer = RunRecordSchema.parse(run({
-      workflowName: 'CI', headSha: sha, conclusion: 'success',
-      createdAt: '2026-07-27T11:00:00Z',
-    }));
+    const older = RunRecordSchema.parse(
+      run({
+        workflowName: 'CI',
+        headSha: sha,
+        conclusion: 'failure',
+        createdAt: '2026-07-27T09:00:00Z',
+      }),
+    );
+    const newer = RunRecordSchema.parse(
+      run({
+        workflowName: 'CI',
+        headSha: sha,
+        conclusion: 'success',
+        createdAt: '2026-07-27T11:00:00Z',
+      }),
+    );
     expect(runStateFor([older, newer], 'CI', sha)).toBe('success');
     expect(runStateFor([newer, older], 'CI', sha)).toBe('success');
   });
@@ -213,38 +239,61 @@ describe('deployRunAfter', () => {
   const gateFinished = '2026-07-27T16:50:00Z';
 
   it('ignores deploy runs that predate the gating run', () => {
-    const runs = [RunRecordSchema.parse(run({
-      workflowName: DEPLOY_WORKFLOW, event: 'workflow_run',
-      createdAt: '2026-07-27T14:41:00Z',
-    }))];
+    const runs = [
+      RunRecordSchema.parse(
+        run({
+          workflowName: DEPLOY_WORKFLOW,
+          event: 'workflow_run',
+          createdAt: '2026-07-27T14:41:00Z',
+        }),
+      ),
+    ];
     expect(deployRunAfter(runs, gateFinished)).toBeNull();
   });
 
   it('selects the earliest qualifying run, not the newest', () => {
-    const first = RunRecordSchema.parse(run({
-      databaseId: 10, workflowName: DEPLOY_WORKFLOW, event: 'workflow_run',
-      createdAt: '2026-07-27T17:06:00Z',
-    }));
-    const later = RunRecordSchema.parse(run({
-      databaseId: 11, workflowName: DEPLOY_WORKFLOW, event: 'workflow_run',
-      createdAt: '2026-07-27T18:00:00Z',
-    }));
+    const first = RunRecordSchema.parse(
+      run({
+        databaseId: 10,
+        workflowName: DEPLOY_WORKFLOW,
+        event: 'workflow_run',
+        createdAt: '2026-07-27T17:06:00Z',
+      }),
+    );
+    const later = RunRecordSchema.parse(
+      run({
+        databaseId: 11,
+        workflowName: DEPLOY_WORKFLOW,
+        event: 'workflow_run',
+        createdAt: '2026-07-27T18:00:00Z',
+      }),
+    );
     expect(deployRunAfter([later, first], gateFinished)?.databaseId).toBe(10);
   });
 
   it('ignores a manual workflow_dispatch deploy', () => {
-    const runs = [RunRecordSchema.parse(run({
-      workflowName: DEPLOY_WORKFLOW, event: 'workflow_dispatch',
-      createdAt: '2026-07-27T17:06:00Z',
-    }))];
+    const runs = [
+      RunRecordSchema.parse(
+        run({
+          workflowName: DEPLOY_WORKFLOW,
+          event: 'workflow_dispatch',
+          createdAt: '2026-07-27T17:06:00Z',
+        }),
+      ),
+    ];
     expect(deployRunAfter(runs, gateFinished)).toBeNull();
   });
 
   it('ignores a different workflow that ran in the same window', () => {
-    const runs = [RunRecordSchema.parse(run({
-      workflowName: 'Release', event: 'workflow_run',
-      createdAt: '2026-07-27T17:06:00Z',
-    }))];
+    const runs = [
+      RunRecordSchema.parse(
+        run({
+          workflowName: 'Release',
+          event: 'workflow_run',
+          createdAt: '2026-07-27T17:06:00Z',
+        }),
+      ),
+    ];
     expect(deployRunAfter(runs, gateFinished)).toBeNull();
   });
 });
@@ -254,8 +303,13 @@ describe('computeVerdict', () => {
 
   it('is DEPLOYED with exit 0 only when every phase succeeded', () => {
     const v = computeVerdict([
-      ok('pr-checks'), ok('pr-merged'), ok('develop-gates'),
-      ok('promoted'), ok('release'), ok('main-e2e'), ok('deploy'),
+      ok('pr-checks'),
+      ok('pr-merged'),
+      ok('develop-gates'),
+      ok('promoted'),
+      ok('release'),
+      ok('main-e2e'),
+      ok('deploy'),
     ]);
     expect(v.verdict).toBe('DEPLOYED');
     expect(v.exitCode).toBe(0);
@@ -264,7 +318,8 @@ describe('computeVerdict', () => {
 
   it('reports FAILED at the first failing phase and exits non-zero', () => {
     const v = computeVerdict([
-      ok('pr-checks'), ok('pr-merged'),
+      ok('pr-checks'),
+      ok('pr-merged'),
       { phase: 'develop-gates', state: 'failed' },
       { phase: 'promoted', state: 'absent' },
     ]);

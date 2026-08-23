@@ -10,5 +10,4 @@ import { PUSH_PROVIDER } from './push-provider.interface.js';
   ],
   exports: [PUSH_PROVIDER],
 })
-
 export class PushModule {}

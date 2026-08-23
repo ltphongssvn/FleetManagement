@@ -14,6 +14,6 @@ export const MANIFEST_REJECTION_REASONS = [
   'virus_detected',
   'other',
 ] as const;
-export type ManifestRejectionReason = typeof MANIFEST_REJECTION_REASONS[number];
+export type ManifestRejectionReason = (typeof MANIFEST_REJECTION_REASONS)[number];
 
 export const ManifestRejectionReasonSchema = z.enum(MANIFEST_REJECTION_REASONS);

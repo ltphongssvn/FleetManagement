@@ -22,7 +22,9 @@ import { DispatchView } from '@/features/dispatch/DispatchView';
 import type { DispatchBoardRoadRun, DispatchBoardStop } from '@/features/dispatch/types';
 
 afterEach(cleanup);
-beforeEach(() => { setManualNetWeight.mockClear(); });
+beforeEach(() => {
+  setManualNetWeight.mockClear();
+});
 
 const refs = {
   drivers: [{ id: 'op-1', label: 'NGUYEN THANH PHONG' }],
@@ -94,7 +96,10 @@ describe('@fleet/ops-web - DispatchView manual net-weight entry (T33)', () => {
     fireEvent.change(input, { target: { value: '19730' } });
     fireEvent.click(screen.getByTestId('manual-netweight-confirm-' + MANIFEST_ID));
     expect(setManualNetWeight).toHaveBeenCalledTimes(1);
-    expect(setManualNetWeight).toHaveBeenCalledWith({ manifestId: MANIFEST_ID, extractedNetWeightKg: 19730 });
+    expect(setManualNetWeight).toHaveBeenCalledWith({
+      manifestId: MANIFEST_ID,
+      extractedNetWeightKg: 19730,
+    });
   });
 
   it('does not call the action when the input is empty or non-positive', () => {

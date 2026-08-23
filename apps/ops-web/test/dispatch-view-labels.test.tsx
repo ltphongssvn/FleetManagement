@@ -15,7 +15,10 @@ const RUN_ID = '33333333-3333-4333-8333-333333333333';
 const refs = {
   drivers: [{ id: DRIVER_ID, label: 'Nguyễn Văn A' }],
   vehicles: [{ id: VEHICLE_ID, label: '51C-12345' }],
-  customers: [], cargoTypes: [], pickupWarehouses: [], deliveryWarehouses: [],
+  customers: [],
+  cargoTypes: [],
+  pickupWarehouses: [],
+  deliveryWarehouses: [],
   driverVehicleAssignments: [],
 };
 function dataRow(): HTMLElement {
@@ -68,12 +71,24 @@ describe('DispatchView - human-readable labels (T4)', () => {
   });
   it('falls back to em-dash for an unknown operator id (no UUID leak)', () => {
     const UNKNOWN = '99999999-9999-4999-8999-999999999999';
-    const r2: DispatchBoardRoadRun = { ...run, assignedOperatorId: UNKNOWN, assignedAssetId: null, plannedStartAt: null, transportOrderRefs: ['XT.0099'], stops: [] };
+    const r2: DispatchBoardRoadRun = {
+      ...run,
+      assignedOperatorId: UNKNOWN,
+      assignedAssetId: null,
+      plannedStartAt: null,
+      transportOrderRefs: ['XT.0099'],
+      stops: [],
+    };
     render(<DispatchView initialRuns={[r2]} refs={{ ...refs, drivers: [], vehicles: [] }} />);
     expect(dataRow().textContent).not.toContain(UNKNOWN);
   });
   it('renders em-dash for an unparseable plannedStartAt', () => {
-    const r3: DispatchBoardRoadRun = { ...run, plannedStartAt: 'not-a-real-date', transportOrderRefs: ['XT.0001'], stops: [] };
+    const r3: DispatchBoardRoadRun = {
+      ...run,
+      plannedStartAt: 'not-a-real-date',
+      transportOrderRefs: ['XT.0001'],
+      stops: [],
+    };
     render(<DispatchView initialRuns={[r3]} refs={refs} />);
     const cells = within(dataRow()).getAllByRole('cell');
     const plannedCell = cells[5];

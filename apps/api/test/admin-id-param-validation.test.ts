@@ -18,12 +18,22 @@ const OP = createOperatorContext();
 const GOOD = '11111111-2222-4333-8444-555555555555';
 const BAD = 'not-a-uuid';
 
-interface Calls { n: number }
+interface Calls {
+  n: number;
+}
 function counted(result: unknown): { svc: unknown; calls: Calls } {
   const calls: Calls = { n: 0 };
-  const svc = new Proxy({}, {
-    get: () => (..._a: unknown[]) => { calls.n += 1; return Promise.resolve(result); },
-  });
+  const svc = new Proxy(
+    {},
+    {
+      get:
+        () =>
+        (..._a: unknown[]) => {
+          calls.n += 1;
+          return Promise.resolve(result);
+        },
+    },
+  );
   return { svc, calls };
 }
 
@@ -51,9 +61,7 @@ describe('admin :id param validation (UuidParamSchema at controller boundary)', 
   it('update: non-uuid id rejects with ZodError, service untouched', async () => {
     const { svc, calls } = counted(undefined);
     const ctrl = new AdminDriversUpdateController(svc as never);
-    await expect(
-      ctrl.update(OP, BAD, { fullName: 'X' } as never),
-    ).rejects.toBeInstanceOf(ZodError);
+    await expect(ctrl.update(OP, BAD, { fullName: 'X' } as never)).rejects.toBeInstanceOf(ZodError);
     expect(calls.n).toBe(0);
   });
   it('softDelete: non-uuid id rejects with ZodError, service untouched', async () => {

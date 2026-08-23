@@ -7,10 +7,5 @@
     "rootDir": ".",
     "tsBuildInfoFile": "./tsconfig.tsbuildinfo"
   },
-  "include": [
-    "src/**/*",
-    "test/**/*",
-    "vitest.config.ts",
-    "package.json"
-  ]
+  "include": ["src/**/*", "test/**/*", "vitest.config.ts", "package.json"]
 }

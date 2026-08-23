@@ -26,9 +26,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 vi.mock('@/features/dispatch/create-order.action', () => ({ createOrder: vi.fn() }));
-afterEach(() => { cleanup(); });
+afterEach(() => {
+  cleanup();
+});
 const OP_ALPHA = '00000000-0000-0000-0000-0000000000a1';
-const OP_BETA  = '00000000-0000-0000-0000-0000000000b2';
+const OP_BETA = '00000000-0000-0000-0000-0000000000b2';
 const OP_GAMMA = '00000000-0000-0000-0000-0000000000c3';
 const VEH_AA = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const VEH_BB = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
@@ -37,7 +39,7 @@ const VEH_CC = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
 // form filters by driverVehicleAssignments so only the paired ones render.
 const drivers = [
   { id: OP_ALPHA, label: 'Driver Alpha' },
-  { id: OP_BETA,  label: 'Driver Beta'  },
+  { id: OP_BETA, label: 'Driver Beta' },
   { id: OP_GAMMA, label: 'Driver Gamma (unpaired)' },
 ];
 const vehicles = [
@@ -47,7 +49,7 @@ const vehicles = [
 ];
 const driverVehicleAssignments = [
   { operatorId: OP_ALPHA, vehicleId: VEH_AA },
-  { operatorId: OP_BETA,  vehicleId: VEH_BB },
+  { operatorId: OP_BETA, vehicleId: VEH_BB },
 ];
 function vehicleHidden(): HTMLInputElement | null {
   return document.querySelector('input[type=hidden][name=vehiclePlate]');
@@ -84,9 +86,14 @@ function typeDriver(label: string): void {
 describe('CreateOrderForm - bidirectional driver vehicle auto-fill', () => {
   it('auto-fills the driver and assignedAssetId when a paired vehicle is selected', async () => {
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
-    render(<CreateOrderForm
-      drivers={drivers} vehicles={vehicles}
-      driverVehicleAssignments={driverVehicleAssignments} locale='en' />);
+    render(
+      <CreateOrderForm
+        drivers={drivers}
+        vehicles={vehicles}
+        driverVehicleAssignments={driverVehicleAssignments}
+        locale="en"
+      />,
+    );
     await pickVehicle('AA-01');
     expect(vehicleHidden()?.value).toBe('AA-01');
     expect(assetIdHidden()?.value).toBe(VEH_AA);
@@ -94,9 +101,14 @@ describe('CreateOrderForm - bidirectional driver vehicle auto-fill', () => {
   });
   it('auto-fills the vehicle and assignedAssetId when a paired driver is selected', async () => {
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
-    render(<CreateOrderForm
-      drivers={drivers} vehicles={vehicles}
-      driverVehicleAssignments={driverVehicleAssignments} locale='en' />);
+    render(
+      <CreateOrderForm
+        drivers={drivers}
+        vehicles={vehicles}
+        driverVehicleAssignments={driverVehicleAssignments}
+        locale="en"
+      />,
+    );
     await pickDriver('Driver Beta');
     expect(driverHidden()?.value).toBe(OP_BETA);
     expect(vehicleHidden()?.value).toBe('BB-02');
@@ -104,9 +116,14 @@ describe('CreateOrderForm - bidirectional driver vehicle auto-fill', () => {
   });
   it('does not surface unpaired vehicles in the dropdown options', async () => {
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
-    render(<CreateOrderForm
-      drivers={drivers} vehicles={vehicles}
-      driverVehicleAssignments={driverVehicleAssignments} locale='en' />);
+    render(
+      <CreateOrderForm
+        drivers={drivers}
+        vehicles={vehicles}
+        driverVehicleAssignments={driverVehicleAssignments}
+        locale="en"
+      />,
+    );
     // Typing the unpaired plate filters the listbox; no matching option
     // should appear because the form filtered it out of pairedVehicles.
     typeVehicle('CC-03 (unpaired)');
@@ -116,9 +133,14 @@ describe('CreateOrderForm - bidirectional driver vehicle auto-fill', () => {
   });
   it('does not surface unpaired drivers in the dropdown options', async () => {
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
-    render(<CreateOrderForm
-      drivers={drivers} vehicles={vehicles}
-      driverVehicleAssignments={driverVehicleAssignments} locale='en' />);
+    render(
+      <CreateOrderForm
+        drivers={drivers}
+        vehicles={vehicles}
+        driverVehicleAssignments={driverVehicleAssignments}
+        locale="en"
+      />,
+    );
     typeDriver('Driver Gamma (unpaired)');
     expect(screen.queryByRole('option', { name: 'Driver Gamma (unpaired)' })).toBeNull();
     expect(driverHidden()?.value).toBe('');
@@ -130,9 +152,14 @@ describe('CreateOrderForm - bidirectional driver vehicle auto-fill', () => {
     // called with '' and must blank the hidden assignedAssetId so the form
     // doesn't submit a stale uuid bound to a now-empty vehicle plate.
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
-    render(<CreateOrderForm
-      drivers={drivers} vehicles={vehicles}
-      driverVehicleAssignments={driverVehicleAssignments} locale='en' />);
+    render(
+      <CreateOrderForm
+        drivers={drivers}
+        vehicles={vehicles}
+        driverVehicleAssignments={driverVehicleAssignments}
+        locale="en"
+      />,
+    );
     await pickVehicle('AA-01');
     expect(assetIdHidden()?.value).toBe(VEH_AA);
     // Clear by typing empty into the input directly. ComboboxField forwards
@@ -150,9 +177,14 @@ describe('CreateOrderForm - bidirectional driver vehicle auto-fill', () => {
     // dispatcher may want to keep the vehicle pre-selected and pick a
     // different driver — but the driver hidden input must reflect ''.
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
-    render(<CreateOrderForm
-      drivers={drivers} vehicles={vehicles}
-      driverVehicleAssignments={driverVehicleAssignments} locale='en' />);
+    render(
+      <CreateOrderForm
+        drivers={drivers}
+        vehicles={vehicles}
+        driverVehicleAssignments={driverVehicleAssignments}
+        locale="en"
+      />,
+    );
     await pickDriver('Driver Alpha');
     expect(driverHidden()?.value).toBe(OP_ALPHA);
     const input = document.getElementById('assignedOperatorId') as HTMLInputElement;
@@ -165,9 +197,14 @@ describe('CreateOrderForm - bidirectional driver vehicle auto-fill', () => {
     // must rewrite the vehicle plate AND the assignedAssetId, not leave
     // a stale vehicle uuid attached to a new driver.
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
-    render(<CreateOrderForm
-      drivers={drivers} vehicles={vehicles}
-      driverVehicleAssignments={driverVehicleAssignments} locale='en' />);
+    render(
+      <CreateOrderForm
+        drivers={drivers}
+        vehicles={vehicles}
+        driverVehicleAssignments={driverVehicleAssignments}
+        locale="en"
+      />,
+    );
     await pickDriver('Driver Alpha');
     expect(driverHidden()?.value).toBe(OP_ALPHA);
     expect(vehicleHidden()?.value).toBe('AA-01');

@@ -1,10 +1,7 @@
 // apps/api/test/upload-session-invalid-state-error.test.ts
 // RED test for renamed error class with currentState + expectedStates context.
 import { describe, it, expect } from 'vitest';
-import {
-  UploadSessionInvalidStateError,
-  ManifestError,
-} from '../src/manifest/manifest.errors.js';
+import { UploadSessionInvalidStateError, ManifestError } from '../src/manifest/manifest.errors.js';
 
 describe('@fleet/api - UploadSessionInvalidStateError', () => {
   it('extends ManifestError', () => {

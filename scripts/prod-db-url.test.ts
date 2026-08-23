@@ -34,8 +34,7 @@ import {
 
 // Synthetic, per-run credential: never a literal, never a real value.
 const FAKE_PASSWORD = 'pw-' + randomBytes(8).toString('hex');
-const DSN =
-  'postgresql://appuser:' + FAKE_PASSWORD + '@db.example.invalid:5432/appdb';
+const DSN = 'postgresql://appuser:' + FAKE_PASSWORD + '@db.example.invalid:5432/appdb';
 
 function kv(lines: readonly string[]): string {
   return lines.join('\n') + '\n';
@@ -99,7 +98,9 @@ describe('isTransientCliError', () => {
     // These must surface immediately: retrying a bad login is pure latency.
     expect(isTransientCliError('Project not linked')).toBe(false);
     expect(isTransientCliError('Unauthorized')).toBe(false);
-    expect(isTransientCliError(PROD_DB_URL_VARIABLE + ' not found for Railway service Postgres')).toBe(false);
+    expect(
+      isTransientCliError(PROD_DB_URL_VARIABLE + ' not found for Railway service Postgres'),
+    ).toBe(false);
   });
 });
 

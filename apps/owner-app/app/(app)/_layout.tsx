@@ -12,15 +12,26 @@ function HeaderLogout(): JSX.Element {
   const { logout } = useAuth();
   return (
     <Pressable
-      onPress={() => { void logout(); }}
+      onPress={() => {
+        void logout();
+      }}
       accessibilityRole="button"
       accessibilityLabel="Đăng xuất"
       style={({ pressed }) => [
-        { borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, marginRight: spacing.sm },
+        {
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.25)',
+          borderRadius: radius.md,
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.xs,
+          marginRight: spacing.sm,
+        },
         pressed && { backgroundColor: 'rgba(255,255,255,0.1)' },
       ]}
     >
-      <Text style={{ color: colors.white, fontSize: fontSize.sm, fontWeight: '600' }}>Đăng xuất</Text>
+      <Text style={{ color: colors.white, fontSize: fontSize.sm, fontWeight: '600' }}>
+        Đăng xuất
+      </Text>
     </Pressable>
   );
 }
@@ -31,7 +42,14 @@ export default function AppLayout(): JSX.Element {
 
   if (decision === 'show-loading') {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backdrop }}>
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.backdrop,
+        }}
+      >
         <ActivityIndicator size="large" color={colors.indigo500} />
       </View>
     );

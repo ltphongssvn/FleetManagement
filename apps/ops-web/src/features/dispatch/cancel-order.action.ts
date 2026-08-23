@@ -64,7 +64,10 @@ export type CancelOrderState =
   | { status: 'not_found'; message: string }
   | { status: 'conflict'; message: string }
   | { status: 'cancelled'; transportOrderId: string; idempotent: boolean };
-export async function cancelOrder(_prev: CancelOrderState, formData: FormData): Promise<CancelOrderState> {
+export async function cancelOrder(
+  _prev: CancelOrderState,
+  formData: FormData,
+): Promise<CancelOrderState> {
   const rawNote = formData.get('note');
   const noteValue = typeof rawNote === 'string' && rawNote.trim() !== '' ? rawNote : undefined;
   const errors: Partial<Record<ErrorKey, string>> = {};
@@ -87,7 +90,11 @@ export async function cancelOrder(_prev: CancelOrderState, formData: FormData): 
   }
   const parsed = { data: { transportOrderId: idResult.data, ...cancelResult.data } };
   const apiUrl = process.env['FLEET_API_URL'];
-  if (!apiUrl) return { status: 'server_error', message: 'Hệ thống chưa được cấu hình. Vui lòng liên hệ quản trị.' };
+  if (!apiUrl)
+    return {
+      status: 'server_error',
+      message: 'Hệ thống chưa được cấu hình. Vui lòng liên hệ quản trị.',
+    };
   const cookieStore = await cookies();
   const token = cookieStore.get('fleet_session')?.value;
   // Missing/expired session: the proxy passed this Server Action through (it
@@ -97,17 +104,23 @@ export async function cancelOrder(_prev: CancelOrderState, formData: FormData): 
   if (!token) redirect('/login');
   const body: { reason: string; note?: string } = { reason: parsed.data.reason };
   if (parsed.data.note !== undefined) body.note = parsed.data.note;
-  const res = await fetch(apiUrl + '/transport-orders/' + parsed.data.transportOrderId + '/cancel', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-    body: JSON.stringify(body),
-    cache: 'no-store',
-  });
+  const res = await fetch(
+    apiUrl + '/transport-orders/' + parsed.data.transportOrderId + '/cancel',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    },
+  );
   if (res.status === 404) {
     return { status: 'not_found', message: 'Transport order not found' };
   }
   if (res.status === 409) {
-    return { status: 'conflict', message: 'Transport order cannot be cancelled in its current state' };
+    return {
+      status: 'conflict',
+      message: 'Transport order cannot be cancelled in its current state',
+    };
   }
   if (!res.ok) {
     // Read the RFC 9457 body and present dispatcher Vietnamese; raw

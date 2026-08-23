@@ -24,13 +24,21 @@ import { sql } from 'drizzle-orm';
 import { readdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '../src/database/migrations');
 let testDb: PgliteTestDb;
 describe('@fleet/api - transport_order_cancellation_audit migration (T5)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('ships a timestamp-named transport_order_cancellation_audit migration', () => {
     const files = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql'));
     const match = files.filter((f) => f.endsWith('transport_order_cancellation_audit.sql'));
@@ -41,17 +49,39 @@ describe('@fleet/api - transport_order_cancellation_audit migration (T5)', () =>
     const q = String.fromCharCode(39);
     const stmt =
       'SELECT column_name, data_type, is_nullable FROM information_schema.columns ' +
-      'WHERE table_name = ' + q + 'transport_order' + q +
+      'WHERE table_name = ' +
+      q +
+      'transport_order' +
+      q +
       ' AND column_name IN (' +
-      q + 'cancelled_at' + q + ', ' +
-      q + 'cancelled_by' + q + ', ' +
-      q + 'cancellation_reason' + q + ', ' +
-      q + 'cancellation_note' + q + ') ORDER BY column_name';
-    const r = await testDb.db.execute<{ column_name: string; data_type: string; is_nullable: string }>(
-      sql.raw(stmt),
-    );
+      q +
+      'cancelled_at' +
+      q +
+      ', ' +
+      q +
+      'cancelled_by' +
+      q +
+      ', ' +
+      q +
+      'cancellation_reason' +
+      q +
+      ', ' +
+      q +
+      'cancellation_note' +
+      q +
+      ') ORDER BY column_name';
+    const r = await testDb.db.execute<{
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+    }>(sql.raw(stmt));
     const names = r.rows.map((row) => row.column_name).sort();
-    expect(names).toEqual(['cancellation_note', 'cancellation_reason', 'cancelled_at', 'cancelled_by']);
+    expect(names).toEqual([
+      'cancellation_note',
+      'cancellation_reason',
+      'cancelled_at',
+      'cancelled_by',
+    ]);
     for (const row of r.rows) {
       expect(row.is_nullable).toBe('YES');
     }
@@ -61,7 +91,19 @@ describe('@fleet/api - transport_order_cancellation_audit migration (T5)', () =>
     const zero = q + '00000000-0000-0000-0000-000000000000' + q;
     const insertNoAudit =
       'INSERT INTO transport_order (company_id, business_unit_id, depot_id, legal_entity_id, state) ' +
-      'VALUES (' + zero + ',' + zero + ',' + zero + ',' + zero + ',' + q + 'cancelled' + q + ')';
+      'VALUES (' +
+      zero +
+      ',' +
+      zero +
+      ',' +
+      zero +
+      ',' +
+      zero +
+      ',' +
+      q +
+      'cancelled' +
+      q +
+      ')';
     await expect(testDb.db.execute(sql.raw(insertNoAudit))).rejects.toThrow();
   });
   it('permits a non-cancelled order to be inserted without any audit fields (constraint only fires on cancelled state)', async () => {
@@ -69,7 +111,19 @@ describe('@fleet/api - transport_order_cancellation_audit migration (T5)', () =>
     const zero = q + '00000000-0000-0000-0000-000000000000' + q;
     const insertDraft =
       'INSERT INTO transport_order (company_id, business_unit_id, depot_id, legal_entity_id, state) ' +
-      'VALUES (' + zero + ',' + zero + ',' + zero + ',' + zero + ',' + q + 'draft' + q + ') RETURNING transport_order_id';
+      'VALUES (' +
+      zero +
+      ',' +
+      zero +
+      ',' +
+      zero +
+      ',' +
+      zero +
+      ',' +
+      q +
+      'draft' +
+      q +
+      ') RETURNING transport_order_id';
     const r = await testDb.db.execute<{ transport_order_id: string }>(sql.raw(insertDraft));
     expect(r.rows.length).toBe(1);
   });

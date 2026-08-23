@@ -11,11 +11,7 @@
     "jsx": "preserve",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": [
-      "ES2022",
-      "DOM",
-      "DOM.Iterable"
-    ],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "allowJs": false,
     "incremental": true,
     "resolveJsonModule": true,
@@ -25,9 +21,7 @@
       }
     ],
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     }
   },
   "include": [
@@ -40,9 +34,5 @@
     "instrumentation.ts",
     "instrumentation-client.ts"
   ],
-  "exclude": [
-    "node_modules",
-    ".next",
-    "dist"
-  ]
+  "exclude": ["node_modules", ".next", "dist"]
 }

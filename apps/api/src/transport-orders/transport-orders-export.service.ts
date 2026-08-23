@@ -56,7 +56,15 @@ import { cargoType, customer, driver, vehicle } from '../database/schema/referen
 import { roadRunTransportOrder, stop, transportOrder } from '../database/schema/transport.js';
 import { manifest, uploadSession } from '../database/schema/manifest.js';
 import { warehouse } from '../database/schema/reference.js';
-import { netWeightKgSchema, computeWeightDiffKg, LENH_DIEU_XE_EXPORT_HEADERS, EXPORT_PICKUP_SLOTS, EXPORT_DELIVERY_SLOTS, type ExportDateRange, type WeightDiffStop } from '@fleet/sync-protocol';
+import {
+  netWeightKgSchema,
+  computeWeightDiffKg,
+  LENH_DIEU_XE_EXPORT_HEADERS,
+  EXPORT_PICKUP_SLOTS,
+  EXPORT_DELIVERY_SLOTS,
+  type ExportDateRange,
+  type WeightDiffStop,
+} from '@fleet/sync-protocol';
 import { transportOrderExportLog } from '../database/schema/transport-order-export-log.js';
 import type { OperatorContext } from '../auth/operator-context.js';
 export type ExportTrigger = 'manual' | 'login' | 'logout';
@@ -102,7 +110,11 @@ const PLANNED_FORMATTER = new Intl.DateTimeFormat('en-GB', {
   timeStyle: 'short',
 });
 // Mirrors board-stops.tsx stopForSlot: nth stop of a type, 1-based slot index.
-function stopForSlot(stops: readonly ExportStop[], stopType: 'pickup' | 'delivery', slotIndex: number): ExportStop | undefined {
+function stopForSlot(
+  stops: readonly ExportStop[],
+  stopType: 'pickup' | 'delivery',
+  slotIndex: number,
+): ExportStop | undefined {
   const ofType = stops
     .filter((s) => {
       const t = s.stopType.toLowerCase();
@@ -114,7 +126,11 @@ function stopForSlot(stops: readonly ExportStop[], stopType: 'pickup' | 'deliver
 }
 // Warehouse-name cell for a slot: the stop's warehouse name, or null (true blank)
 // when the slot has no stop / no name. Never em-dash filler in a data export.
-function slotNameCell(stops: readonly ExportStop[], stopType: 'pickup' | 'delivery', slotIndex: number): string | null {
+function slotNameCell(
+  stops: readonly ExportStop[],
+  stopType: 'pickup' | 'delivery',
+  slotIndex: number,
+): string | null {
   const s = stopForSlot(stops, stopType, slotIndex);
   if (s === undefined) return null;
   return s.warehouseName === null || s.warehouseName === '' ? null : s.warehouseName;
@@ -122,7 +138,11 @@ function slotNameCell(stops: readonly ExportStop[], stopType: 'pickup' | 'delive
 // Weight cell for a slot: the extracted Phiếu Cân net weight as a NUMBER, or null
 // (true blank) when the slot has no stop or no extracted weight yet. NEVER 0 and
 // NEVER a status string, so SUM/AVERAGE over the kg column stay correct.
-function slotWeightCell(stops: readonly ExportStop[], stopType: 'pickup' | 'delivery', slotIndex: number): number | null {
+function slotWeightCell(
+  stops: readonly ExportStop[],
+  stopType: 'pickup' | 'delivery',
+  slotIndex: number,
+): number | null {
   const s = stopForSlot(stops, stopType, slotIndex);
   if (s === undefined) return null;
   return s.extractedNetWeightKg;
@@ -163,18 +183,24 @@ function tenantSlug(companyId: string): string {
 @Injectable()
 export class TransportOrdersExportService {
   constructor(@Inject(DRIZZLE_DB) private readonly db: FleetDb) {}
-  async exportAndLog(op: OperatorContext, trigger: ExportTrigger, range?: ExportDateRange): Promise<ExportResult> {
+  async exportAndLog(
+    op: OperatorContext,
+    trigger: ExportTrigger,
+    range?: ExportDateRange,
+  ): Promise<ExportResult> {
     const dayKey = vnDayKey();
     if (trigger === 'login' || trigger === 'logout') {
       const existing = await this.db
         .select()
         .from(transportOrderExportLog)
-        .where(and(
-          eq(transportOrderExportLog.companyId, op.companyId),
-          eq(transportOrderExportLog.operatorId, op.operatorId),
-          eq(transportOrderExportLog.dayKey, dayKey),
-          eq(transportOrderExportLog.trigger, trigger),
-        ))
+        .where(
+          and(
+            eq(transportOrderExportLog.companyId, op.companyId),
+            eq(transportOrderExportLog.operatorId, op.operatorId),
+            eq(transportOrderExportLog.dayKey, dayKey),
+            eq(transportOrderExportLog.trigger, trigger),
+          ),
+        )
         .limit(1);
       const head = existing[0];
       if (head !== undefined) {
@@ -194,7 +220,15 @@ export class TransportOrdersExportService {
     const buffer = await this.buildXlsxBufferFromRows(rows);
     const sha256 = createHash('sha256').update(buffer).digest('hex');
     const filename =
-      'lenh-dieu-xe_' + tenantSlug(op.companyId) + '_' + dayKey + '_' + trigger + '_' + sha256.slice(0, 8) + '.xlsx';
+      'lenh-dieu-xe_' +
+      tenantSlug(op.companyId) +
+      '_' +
+      dayKey +
+      '_' +
+      trigger +
+      '_' +
+      sha256.slice(0, 8) +
+      '.xlsx';
     const [inserted] = await this.db
       .insert(transportOrderExportLog)
       .values({
@@ -224,7 +258,10 @@ export class TransportOrdersExportService {
   // Same scope + joins as DispatchController.getBoard: driver/vehicle labels via
   // company-scoped LEFT JOINs on the projection; customer name/phone, per-stop
   // warehouse name + extracted weight enriched at read time, grouped by road run.
-  private async fetchRows(op: OperatorContext, range?: ExportDateRange): Promise<readonly ExportRow[]> {
+  private async fetchRows(
+    op: OperatorContext,
+    range?: ExportDateRange,
+  ): Promise<readonly ExportRow[]> {
     const base = await this.db
       .select({
         roadRunId: dispatchBoardProjection.roadRunId,
@@ -236,30 +273,38 @@ export class TransportOrdersExportService {
         vehiclePlate: vehicle.plate,
       })
       .from(dispatchBoardProjection)
-      .leftJoin(driver, and(
-        eq(driver.operatorId, dispatchBoardProjection.assignedOperatorId),
-        eq(driver.companyId, op.companyId),
-      ))
-      .leftJoin(vehicle, and(
-        eq(vehicle.vehicleId, dispatchBoardProjection.assignedAssetId),
-        eq(vehicle.companyId, op.companyId),
-      ))
-      .where(and(
-        eq(dispatchBoardProjection.companyId, op.companyId),
-        // Hide soft-deleted (tombstoned) road runs from the export, matching the board.
-        isNull(dispatchBoardProjection.deletedAt),
-        // Feature 4: inclusive VN-local calendar-date window. Convert the stored
-        // UTC instant to Asia/Ho_Chi_Minh wall-clock, take its date, and bound it
-        // by [from, to]. A null planned_start_at yields NULL here and is excluded
-        // when a range is applied (an order with no planned date cannot fall in a
-        // date window).
-        range === undefined
-          ? undefined
-          : sql`(${dispatchBoardProjection.plannedStartAt} AT TIME ZONE 'Asia/Ho_Chi_Minh')::date >= ${range.from}::date`,
-        range === undefined
-          ? undefined
-          : sql`(${dispatchBoardProjection.plannedStartAt} AT TIME ZONE 'Asia/Ho_Chi_Minh')::date <= ${range.to}::date`,
-      ))
+      .leftJoin(
+        driver,
+        and(
+          eq(driver.operatorId, dispatchBoardProjection.assignedOperatorId),
+          eq(driver.companyId, op.companyId),
+        ),
+      )
+      .leftJoin(
+        vehicle,
+        and(
+          eq(vehicle.vehicleId, dispatchBoardProjection.assignedAssetId),
+          eq(vehicle.companyId, op.companyId),
+        ),
+      )
+      .where(
+        and(
+          eq(dispatchBoardProjection.companyId, op.companyId),
+          // Hide soft-deleted (tombstoned) road runs from the export, matching the board.
+          isNull(dispatchBoardProjection.deletedAt),
+          // Feature 4: inclusive VN-local calendar-date window. Convert the stored
+          // UTC instant to Asia/Ho_Chi_Minh wall-clock, take its date, and bound it
+          // by [from, to]. A null planned_start_at yields NULL here and is excluded
+          // when a range is applied (an order with no planned date cannot fall in a
+          // date window).
+          range === undefined
+            ? undefined
+            : sql`(${dispatchBoardProjection.plannedStartAt} AT TIME ZONE 'Asia/Ho_Chi_Minh')::date >= ${range.from}::date`,
+          range === undefined
+            ? undefined
+            : sql`(${dispatchBoardProjection.plannedStartAt} AT TIME ZONE 'Asia/Ho_Chi_Minh')::date <= ${range.to}::date`,
+        ),
+      )
       .orderBy(asc(dispatchBoardProjection.plannedStartAt));
     const roadRunIds = base.map((r) => r.roadRunId);
     const stopsByRoadRun = new Map<string, ExportStop[]>();
@@ -278,10 +323,12 @@ export class TransportOrdersExportService {
         .from(roadRunTransportOrder)
         .innerJoin(stop, eq(stop.transportOrderId, roadRunTransportOrder.transportOrderId))
         .leftJoin(warehouse, eq(warehouse.warehouseId, stop.yardId))
-        .where(and(
-          eq(roadRunTransportOrder.companyId, op.companyId),
-          inArray(roadRunTransportOrder.roadRunId, roadRunIds),
-        ))
+        .where(
+          and(
+            eq(roadRunTransportOrder.companyId, op.companyId),
+            inArray(roadRunTransportOrder.roadRunId, roadRunIds),
+          ),
+        )
         .orderBy(asc(stop.sequence));
       // Phiếu Cân net weight per stop: committed manifests joined to upload_session;
       // coerce the pg numeric(12,3) string and VALIDATE via the netWeightKgSchema SSOT.
@@ -292,7 +339,13 @@ export class TransportOrdersExportService {
           .select({ stopId: manifest.stopId, extractedNetWeightKg: manifest.extractedNetWeightKg })
           .from(manifest)
           .innerJoin(uploadSession, eq(uploadSession.manifestId, manifest.manifestId))
-          .where(and(eq(manifest.companyId, op.companyId), eq(manifest.state, 'committed'), inArray(manifest.stopId, allStopIds)));
+          .where(
+            and(
+              eq(manifest.companyId, op.companyId),
+              eq(manifest.state, 'committed'),
+              inArray(manifest.stopId, allStopIds),
+            ),
+          );
         for (const pr of proofRows) {
           if (pr.stopId === null) continue;
           if (weightByStopId.has(pr.stopId)) continue;
@@ -306,7 +359,13 @@ export class TransportOrdersExportService {
       }
       for (const sr of stopRows) {
         const list = stopsByRoadRun.get(sr.roadRunId) ?? [];
-        list.push({ stopId: sr.stopId, sequence: sr.sequence, stopType: sr.stopType, warehouseName: sr.warehouseName, extractedNetWeightKg: weightByStopId.get(sr.stopId) ?? null });
+        list.push({
+          stopId: sr.stopId,
+          sequence: sr.sequence,
+          stopType: sr.stopType,
+          warehouseName: sr.warehouseName,
+          extractedNetWeightKg: weightByStopId.get(sr.stopId) ?? null,
+        });
         stopsByRoadRun.set(sr.roadRunId, list);
       }
       const customerRows = await this.db
@@ -317,19 +376,27 @@ export class TransportOrdersExportService {
           cargoName: cargoType.name,
         })
         .from(roadRunTransportOrder)
-        .innerJoin(transportOrder, eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId))
+        .innerJoin(
+          transportOrder,
+          eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId),
+        )
         .innerJoin(customer, eq(customer.customerId, transportOrder.customerId))
         // cargo_type is nullable on transport_order -> LEFT JOIN so an order with
         // no cargo type still yields its row (cargoName null). Company-scoped to
         // keep tenant isolation on the cargo label, matching the board's join.
-        .leftJoin(cargoType, and(
-          eq(cargoType.cargoTypeId, transportOrder.cargoTypeId),
-          eq(cargoType.companyId, op.companyId),
-        ))
-        .where(and(
-          eq(roadRunTransportOrder.companyId, op.companyId),
-          inArray(roadRunTransportOrder.roadRunId, roadRunIds),
-        ))
+        .leftJoin(
+          cargoType,
+          and(
+            eq(cargoType.cargoTypeId, transportOrder.cargoTypeId),
+            eq(cargoType.companyId, op.companyId),
+          ),
+        )
+        .where(
+          and(
+            eq(roadRunTransportOrder.companyId, op.companyId),
+            inArray(roadRunTransportOrder.roadRunId, roadRunIds),
+          ),
+        )
         .orderBy(asc(roadRunTransportOrder.sequence));
       for (const cr of customerRows) {
         if (!customerByRoadRun.has(cr.roadRunId)) {
@@ -383,12 +450,27 @@ export class TransportOrdersExportService {
         // @fleet/sync-protocol SSOT, so this column matches the dispatch board
         // exactly. null (true blank) when any contributing weight is unknown —
         // never 0 — consistent with the kg columns missing-data rule.
-        computeWeightDiffKg(r.stops.map((st): WeightDiffStop => ({ stopType: st.stopType as WeightDiffStop['stopType'], extractedNetWeightKg: st.extractedNetWeightKg }))),
-        ...PICKUP_SLOTS.flatMap((n) => [slotNameCell(r.stops, 'pickup', n), slotWeightCell(r.stops, 'pickup', n)]),
-        ...DELIVERY_SLOTS.flatMap((n) => [slotNameCell(r.stops, 'delivery', n), slotWeightCell(r.stops, 'delivery', n)]),
+        computeWeightDiffKg(
+          r.stops.map(
+            (st): WeightDiffStop => ({
+              stopType: st.stopType as WeightDiffStop['stopType'],
+              extractedNetWeightKg: st.extractedNetWeightKg,
+            }),
+          ),
+        ),
+        ...PICKUP_SLOTS.flatMap((n) => [
+          slotNameCell(r.stops, 'pickup', n),
+          slotWeightCell(r.stops, 'pickup', n),
+        ]),
+        ...DELIVERY_SLOTS.flatMap((n) => [
+          slotNameCell(r.stops, 'delivery', n),
+          slotWeightCell(r.stops, 'delivery', n),
+        ]),
       ]);
     }
-    ws.columns.forEach((c) => { c.width = 22; });
+    ws.columns.forEach((c) => {
+      c.width = 22;
+    });
     const ab = await wb.xlsx.writeBuffer();
     return Buffer.from(ab as ArrayBuffer);
   }

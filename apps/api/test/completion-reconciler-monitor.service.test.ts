@@ -16,14 +16,22 @@ const { mockCaptureEvent, capturedEvents } = vi.hoisted(() => {
   const capturedEvents: unknown[] = [];
   return {
     capturedEvents,
-    mockCaptureEvent: vi.fn((e: unknown) => { capturedEvents.push(e); return 'evt-id'; }),
+    mockCaptureEvent: vi.fn((e: unknown) => {
+      capturedEvents.push(e);
+      return 'evt-id';
+    }),
   };
 });
 vi.mock('@sentry/nestjs', () => ({ captureEvent: mockCaptureEvent }));
-import { CompletionReconcilerMonitorService, type CompletionStrandedRepo } from '../src/maintenance/completion-reconciler-monitor.service.js';
+import {
+  CompletionReconcilerMonitorService,
+  type CompletionStrandedRepo,
+} from '../src/maintenance/completion-reconciler-monitor.service.js';
 const T0 = 1_800_000_000_000;
 const MIN = 60_000;
-function repoWith(row: { roadRunId: string; startedAt: Date; strandedCount: number } | null): CompletionStrandedRepo {
+function repoWith(
+  row: { roadRunId: string; startedAt: Date; strandedCount: number } | null,
+): CompletionStrandedRepo {
   return { oldestStrandedDeliveredRun: vi.fn().mockResolvedValue(row) };
 }
 describe('@fleet/api - CompletionReconcilerMonitorService', () => {
@@ -37,13 +45,21 @@ describe('@fleet/api - CompletionReconcilerMonitorService', () => {
     expect(mockCaptureEvent).not.toHaveBeenCalled();
   });
   it('does nothing while the oldest stranded run is younger than the threshold', async () => {
-    const repo = repoWith({ roadRunId: 'rr-1', startedAt: new Date(T0 - 29 * MIN), strandedCount: 2 });
+    const repo = repoWith({
+      roadRunId: 'rr-1',
+      startedAt: new Date(T0 - 29 * MIN),
+      strandedCount: 2,
+    });
     const svc = new CompletionReconcilerMonitorService(repo, 30, () => T0);
     await svc.checkOnce();
     expect(mockCaptureEvent).not.toHaveBeenCalled();
   });
   it('emits ONE Sentry fatal with fingerprint + diagnostics when the threshold is crossed', async () => {
-    const repo = repoWith({ roadRunId: 'rr-old', startedAt: new Date(T0 - 45 * MIN), strandedCount: 2 });
+    const repo = repoWith({
+      roadRunId: 'rr-old',
+      startedAt: new Date(T0 - 45 * MIN),
+      strandedCount: 2,
+    });
     const svc = new CompletionReconcilerMonitorService(repo, 30, () => T0);
     await svc.checkOnce();
     expect(mockCaptureEvent).toHaveBeenCalledTimes(1);
@@ -62,7 +78,11 @@ describe('@fleet/api - CompletionReconcilerMonitorService', () => {
     expect(emitted.extra?.['thresholdMinutes']).toBe(30);
   });
   it('pages only once per stranded episode (no re-alert while still stranded)', async () => {
-    const repo = repoWith({ roadRunId: 'rr-old', startedAt: new Date(T0 - 45 * MIN), strandedCount: 1 });
+    const repo = repoWith({
+      roadRunId: 'rr-old',
+      startedAt: new Date(T0 - 45 * MIN),
+      strandedCount: 1,
+    });
     const svc = new CompletionReconcilerMonitorService(repo, 30, () => T0);
     await svc.checkOnce();
     await svc.checkOnce();
@@ -71,9 +91,13 @@ describe('@fleet/api - CompletionReconcilerMonitorService', () => {
   });
   it('re-arms after recovery: stranded -> healthy -> stranded pages twice total', async () => {
     let row: { roadRunId: string; startedAt: Date; strandedCount: number } | null = {
-      roadRunId: 'rr-1', startedAt: new Date(T0 - 45 * MIN), strandedCount: 2,
+      roadRunId: 'rr-1',
+      startedAt: new Date(T0 - 45 * MIN),
+      strandedCount: 2,
     };
-    const repo: CompletionStrandedRepo = { oldestStrandedDeliveredRun: vi.fn().mockImplementation(() => Promise.resolve(row)) };
+    const repo: CompletionStrandedRepo = {
+      oldestStrandedDeliveredRun: vi.fn().mockImplementation(() => Promise.resolve(row)),
+    };
     const svc = new CompletionReconcilerMonitorService(repo, 30, () => T0);
     await svc.checkOnce();
     row = null;
@@ -83,7 +107,11 @@ describe('@fleet/api - CompletionReconcilerMonitorService', () => {
     expect(mockCaptureEvent).toHaveBeenCalledTimes(2);
   });
   it('exactly at the threshold does not page (strictly greater crosses)', async () => {
-    const repo = repoWith({ roadRunId: 'rr-1', startedAt: new Date(T0 - 30 * MIN), strandedCount: 1 });
+    const repo = repoWith({
+      roadRunId: 'rr-1',
+      startedAt: new Date(T0 - 30 * MIN),
+      strandedCount: 1,
+    });
     const svc = new CompletionReconcilerMonitorService(repo, 30, () => T0);
     await svc.checkOnce();
     expect(mockCaptureEvent).not.toHaveBeenCalled();

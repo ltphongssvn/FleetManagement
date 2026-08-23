@@ -42,7 +42,20 @@ describe('@fleet/observability PII-leak invariants', () => {
   });
 
   it('every PII_KEY_RE-matching key is redacted by scrub', () => {
-    const piiKeys = ['password', 'authToken', 'api_secret', 'cookie', 'pushToken', 'gps', 'latitude', 'longitude', 'phone', 'email', 'ssn', 'driver_name'];
+    const piiKeys = [
+      'password',
+      'authToken',
+      'api_secret',
+      'cookie',
+      'pushToken',
+      'gps',
+      'latitude',
+      'longitude',
+      'phone',
+      'email',
+      'ssn',
+      'driver_name',
+    ];
     for (const key of piiKeys) {
       const out = pkg.scrub({ [key]: 'leaked-value' }) as Record<string, unknown>;
       expect(out[key], `key ${key} must be redacted`).toBe(pkg.REDACTED);
@@ -50,7 +63,12 @@ describe('@fleet/observability PII-leak invariants', () => {
   });
 
   it('every PII_VALUE_PATTERNS regex redacts via scrubString', () => {
-    const samples = ['Bearer abc.def-ghi', 'eyJhbGc.eyJzdWI.SflKxw', 'jane@example.com', '+1 (415) 555-0123'];
+    const samples = [
+      'Bearer abc.def-ghi',
+      'eyJhbGc.eyJzdWI.SflKxw',
+      'jane@example.com',
+      '+1 (415) 555-0123',
+    ];
     for (const sample of samples) {
       expect(pkg.scrubString(sample), `pattern in "${sample}" must be redacted`).not.toBe(sample);
     }

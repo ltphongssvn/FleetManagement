@@ -32,7 +32,10 @@ const IdOrRefSchema = z.union([UuidSchema, ExternalRefSchema]);
 export class TransportOrdersReviewController {
   constructor(private readonly svc: TransportOrdersService) {}
   @Get(':id')
-  async findOne(@Param('id') id: string, @CurrentOperator() op: OperatorContext): Promise<ListAssignedRow> {
+  async findOne(
+    @Param('id') id: string,
+    @CurrentOperator() op: OperatorContext,
+  ): Promise<ListAssignedRow> {
     const parsed = IdOrRefSchema.parse(id);
     try {
       return await this.svc.findByCompanyIdOrRef(parsed, op);

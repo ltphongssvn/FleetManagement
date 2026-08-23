@@ -116,13 +116,7 @@ export function runEstateVerify(request: EstateRunRequest): EstateRunResult {
   const policy = request.policy ?? ESTATE_POLICY;
   let decision: EstateDecision;
   try {
-    decision = decideEstate(
-      request.gather(),
-      trace,
-      request.expectDigest ?? null,
-      at,
-      policy,
-    );
+    decision = decideEstate(request.gather(), trace, request.expectDigest ?? null, at, policy);
   } catch {
     // FAIL CLOSED. Anything that escapes gather or decide is a defect, and a
     // defect means the estate is UNKNOWN -- never clean. Without this the throw
@@ -178,9 +172,12 @@ export function estateLineFor(decision: EstateDecision): string {
       // Named separately because the remediation differs: nothing is broken and
       // no worktree needs attention -- the caller's view is out of date, and the
       // fix is to re-read, exactly as a 412 tells a client to re-fetch.
-      return 'estate STALE: expected '
-        + decision.event.attributes.expected_digest.slice(0, 12)
-        + ', found ' + decision.event.attributes.estate_digest.slice(0, 12);
+      return (
+        'estate STALE: expected ' +
+        decision.event.attributes.expected_digest.slice(0, 12) +
+        ', found ' +
+        decision.event.attributes.estate_digest.slice(0, 12)
+      );
     case 'unreadable':
       return 'estate UNREADABLE: ' + decision.event.attributes.reason;
     case 'verified':

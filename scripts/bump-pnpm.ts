@@ -23,8 +23,12 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
 const nl = String.fromCharCode(10);
-function out(s: string): void { process.stdout.write('[bump:pnpm] ' + s + nl); }
-function err(s: string): void { process.stderr.write('[bump:pnpm] ' + s + nl); }
+function out(s: string): void {
+  process.stdout.write('[bump:pnpm] ' + s + nl);
+}
+function err(s: string): void {
+  process.stderr.write('[bump:pnpm] ' + s + nl);
+}
 
 function run(cmd: string, args: string[]): string {
   return execFileSync(cmd, args, {

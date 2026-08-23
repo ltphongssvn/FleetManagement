@@ -7,19 +7,33 @@ vi.mock('next/headers', () => ({
 }));
 vi.mock('server-only', () => ({}));
 describe('loadDispatchBoard with cookie session', () => {
-  beforeEach(() => { cookieGet.mockReset(); vi.unstubAllGlobals(); vi.resetModules(); });
+  beforeEach(() => {
+    cookieGet.mockReset();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
   it('uses fleet_session cookie value as bearer token', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     vi.stubEnv('NODE_ENV', 'production');
     cookieGet.mockReturnValue({ value: 'cookie-jwt-xyz' });
-    const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ rows: [] }), { status: 200, headers: { 'content-type': 'application/json' } })));
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ rows: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const { loadDispatchBoard } = await import('@/features/dispatch/load-board');
     const rows = await loadDispatchBoard();
     expect(rows).toEqual([]);
-    expect(fetchMock).toHaveBeenCalledWith('http://api:3000/dispatch/board', expect.objectContaining({
-      headers: expect.objectContaining({ Authorization: 'Bearer cookie-jwt-xyz' }),
-    }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://api:3000/dispatch/board',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer cookie-jwt-xyz' }),
+      }),
+    );
   });
   it('redirects to /login in production when no cookie present', async () => {
     // Behavior change: previously threw on missing session, which surfaced
@@ -29,7 +43,9 @@ describe('loadDispatchBoard with cookie session', () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     vi.stubEnv('NODE_ENV', 'production');
     cookieGet.mockReturnValue(undefined);
-    const redirectMock = vi.fn((url: string) => { throw new Error('NEXT_REDIRECT:' + url); });
+    const redirectMock = vi.fn((url: string) => {
+      throw new Error('NEXT_REDIRECT:' + url);
+    });
     vi.doMock('next/navigation', () => ({ redirect: redirectMock }));
     const { loadDispatchBoard } = await import('@/features/dispatch/load-board');
     await expect(loadDispatchBoard()).rejects.toThrow('NEXT_REDIRECT:/login');
@@ -50,7 +66,10 @@ describe('loadDispatchBoard with cookie session', () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     vi.stubEnv('NODE_ENV', 'development');
     cookieGet.mockReturnValue({ value: 'tok' });
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('', { status: 503, statusText: 'down' }))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response('', { status: 503, statusText: 'down' }))),
+    );
     const { loadDispatchBoard } = await import('@/features/dispatch/load-board');
     const rows = await loadDispatchBoard();
     expect(rows.length).toBeGreaterThan(0);

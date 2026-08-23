@@ -18,9 +18,13 @@ export const FLEET_ERROR_CODES = [
   'UNAUTHORIZED',
   'FORBIDDEN',
   'NOT_FOUND',
-  'INVALID_STATE_TRANSITION', 'MANIFESTS_INCOMPLETE',
-  'DEVICE_NOT_REGISTERED', 'DEVICE_PENDING_APPROVAL', 'DEVICE_REVOKED',
-  'DRIVER_ALREADY_ASSIGNED', 'VEHICLE_ALREADY_ASSIGNED',
+  'INVALID_STATE_TRANSITION',
+  'MANIFESTS_INCOMPLETE',
+  'DEVICE_NOT_REGISTERED',
+  'DEVICE_PENDING_APPROVAL',
+  'DEVICE_REVOKED',
+  'DRIVER_ALREADY_ASSIGNED',
+  'VEHICLE_ALREADY_ASSIGNED',
   'INTERNAL',
 ] as const;
 
@@ -62,9 +66,13 @@ export const InvalidStateTransitionExtensionsSchema = z.object({
   currentState: z.string().min(1),
   allowedActions: z.array(z.string().min(1)),
 });
-export type InvalidStateTransitionExtensions = z.infer<typeof InvalidStateTransitionExtensionsSchema>;
+export type InvalidStateTransitionExtensions = z.infer<
+  typeof InvalidStateTransitionExtensionsSchema
+>;
 
-export function parseInvalidStateTransitionExtensions(envelope: unknown): InvalidStateTransitionExtensions | null {
+export function parseInvalidStateTransitionExtensions(
+  envelope: unknown,
+): InvalidStateTransitionExtensions | null {
   const r = InvalidStateTransitionExtensionsSchema.safeParse(envelope);
   return r.success ? r.data : null;
 }
@@ -75,7 +83,9 @@ export const ManifestsIncompleteExtensionsSchema = z.object({
 });
 export type ManifestsIncompleteExtensions = z.infer<typeof ManifestsIncompleteExtensionsSchema>;
 
-export function parseManifestsIncompleteExtensions(envelope: unknown): ManifestsIncompleteExtensions | null {
+export function parseManifestsIncompleteExtensions(
+  envelope: unknown,
+): ManifestsIncompleteExtensions | null {
   const r = ManifestsIncompleteExtensionsSchema.safeParse(envelope);
   return r.success ? r.data : null;
 }

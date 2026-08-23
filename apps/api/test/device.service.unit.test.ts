@@ -29,10 +29,18 @@ vi.mock('../src/common/pg-errors.js', () => ({
 import { DeviceService } from '../src/device/device.service.js';
 import { SESSION_MODES } from '@fleet/domain';
 
-interface InsertCall { values: Record<string, unknown> }
-interface UpdateSetCall { values: Record<string, unknown> }
-interface SelectCall { shape?: Record<string, unknown> | undefined }
-interface WhereCall { predicate: unknown }
+interface InsertCall {
+  values: Record<string, unknown>;
+}
+interface UpdateSetCall {
+  values: Record<string, unknown>;
+}
+interface SelectCall {
+  shape?: Record<string, unknown> | undefined;
+}
+interface WhereCall {
+  predicate: unknown;
+}
 interface FakeDb {
   insertCalls: InsertCall[];
   updateSetCalls: UpdateSetCall[];

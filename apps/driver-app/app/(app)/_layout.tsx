@@ -16,7 +16,9 @@ function HeaderLogout(): JSX.Element {
   const { logout } = useAuth();
   return (
     <Pressable
-      onPress={() => { void logout(); }}
+      onPress={() => {
+        void logout();
+      }}
       accessibilityRole="button"
       accessibilityLabel="Đăng xuất"
       style={({ pressed }) => [
@@ -47,14 +49,27 @@ export default function AppLayout(): JSX.Element {
       apiUrl: apiUrlRaw,
       dbName: DB_NAME,
       bearerToken: getAccessToken,
-    }).then((stop) => { cleanup = stop; }).catch((err: unknown) => {
-      Sentry.captureException(err);
-    });
-    return (): void => { if (cleanup) cleanup(); };
+    })
+      .then((stop) => {
+        cleanup = stop;
+      })
+      .catch((err: unknown) => {
+        Sentry.captureException(err);
+      });
+    return (): void => {
+      if (cleanup) cleanup();
+    };
   }, [decision, getAccessToken]);
   if (decision === 'show-loading') {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backdrop }}>
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.backdrop,
+        }}
+      >
         <ActivityIndicator size="large" color={colors.indigo500} />
       </View>
     );

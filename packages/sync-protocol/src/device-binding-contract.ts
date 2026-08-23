@@ -37,20 +37,14 @@ export type DeviceBindingStatus = z.infer<typeof DeviceBindingStatusSchema>;
 // has no equivalent tier (Secure Enclave is implied), so the API stores null
 // for iOS. This vocabulary crosses API -> persistence (device_registry) and
 // API -> admin/audit responses, so it is a shared contract, derived once here.
-export const ATTESTATION_SECURITY_LEVELS = [
-  'trusted-environment',
-  'strongbox',
-] as const;
+export const ATTESTATION_SECURITY_LEVELS = ['trusted-environment', 'strongbox'] as const;
 export const AttestationSecurityLevelSchema = z.enum(ATTESTATION_SECURITY_LEVELS);
 export type AttestationSecurityLevel = z.infer<typeof AttestationSecurityLevelSchema>;
 
 // Attestation environment: production keys vs the App Attest development
 // sandbox / Android debug-provisioned keys. Persisted on the device row and
 // surfaced to admins so a dev-build device is never mistaken for production.
-export const ATTESTATION_ENVIRONMENTS = [
-  'production',
-  'development',
-] as const;
+export const ATTESTATION_ENVIRONMENTS = ['production', 'development'] as const;
 export const AttestationEnvironmentSchema = z.enum(ATTESTATION_ENVIRONMENTS);
 export type AttestationEnvironment = z.infer<typeof AttestationEnvironmentSchema>;
 
@@ -76,18 +70,13 @@ export const DEVICE_BINDING_PROBLEM_CODES = [
 ] as const;
 export type DeviceBindingProblemCode = (typeof DEVICE_BINDING_PROBLEM_CODES)[number];
 
-
 // Admin binding lifecycle actions (ops-web devices approval UI -> API).
 // Cross-boundary vocabulary (admin client + API + audit), derived once here
 // via the canonical frozen-array pattern. activate: pending -> active;
 // revoke: active|pending -> revoked (terminal, recorded not deleted).
-export const DEVICE_BINDING_ACTIONS = [
-  'activate',
-  'revoke',
-] as const;
+export const DEVICE_BINDING_ACTIONS = ['activate', 'revoke'] as const;
 export const DeviceBindingActionSchema = z.enum(DEVICE_BINDING_ACTIONS);
 export type DeviceBindingAction = (typeof DEVICE_BINDING_ACTIONS)[number];
-
 
 // Guard enforcement mode (safe-rollout). Sourced from the
 // DEVICE_BINDING_ENFORCEMENT env var (a trust boundary, validated where env
@@ -99,11 +88,7 @@ export type DeviceBindingAction = (typeof DEVICE_BINDING_ACTIONS)[number];
 // off -> monitor -> enforce makes a production driver lockout impossible by
 // construction: enforcement only turns on after monitor logs prove the real
 // blast radius is empty.
-export const DEVICE_BINDING_ENFORCEMENT_MODES = [
-  'off',
-  'monitor',
-  'enforce',
-] as const;
+export const DEVICE_BINDING_ENFORCEMENT_MODES = ['off', 'monitor', 'enforce'] as const;
 export const DeviceBindingEnforcementModeSchema = z.enum(DEVICE_BINDING_ENFORCEMENT_MODES);
 export type DeviceBindingEnforcementMode = (typeof DEVICE_BINDING_ENFORCEMENT_MODES)[number];
 // PATCH /admin/devices/:deviceId/binding request body. revokedReason is

@@ -72,24 +72,23 @@ export const REASON_KIND: Readonly<Record<EstateReason, ReasonKind>> = Object.fr
  *
  *  .readonly() so the inferred arrays match how the core builds them; without
  *  it z.infer yields a mutable array and a readonly source will not assign. */
-export const EstateProblemSchema = z.strictObject({
-  path: z.string(),
-  // Same control-character refusal as WorktreeStateSchema.branch, and this is
-  // the shape actually PUBLISHED in body.problems and interpolated into the
-  // operator sentence. Validating only the input shape would leave the emitted
-  // one unguarded, which is where the bytes actually reach a terminal.
-  branch: z.string().refine(
-    (v) => {
+export const EstateProblemSchema = z
+  .strictObject({
+    path: z.string(),
+    // Same control-character refusal as WorktreeStateSchema.branch, and this is
+    // the shape actually PUBLISHED in body.problems and interpolated into the
+    // operator sentence. Validating only the input shape would leave the emitted
+    // one unguarded, which is where the bytes actually reach a terminal.
+    branch: z.string().refine((v) => {
       for (let i = 0; i < v.length; i += 1) {
         const code = v.charCodeAt(i);
         if (code < 0x20 || code === 0x7f) return false;
       }
       return true;
-    },
-    'branch must not contain control characters',
-  ),
-  reasons: z.array(z.enum(ESTATE_REASONS)).readonly(),
-}).readonly();
+    }, 'branch must not contain control characters'),
+    reasons: z.array(z.enum(ESTATE_REASONS)).readonly(),
+  })
+  .readonly();
 export type EstateProblem = z.infer<typeof EstateProblemSchema>;
 
 /** The kinds present across an estate, in declaration order and de-duplicated,
@@ -102,9 +101,7 @@ export function kindsFor(reasons: readonly EstateReason[]): readonly ReasonKind[
 /** Every reason present anywhere in the estate, de-duplicated, in DECLARATION
  *  order -- never discovery order, so a consumer diffing two runs does not see
  *  a change because git happened to walk the estate differently. */
-export function reasonsAcross(
-  problems: readonly EstateProblem[],
-): readonly EstateReason[] {
+export function reasonsAcross(problems: readonly EstateProblem[]): readonly EstateReason[] {
   const seen = new Set<EstateReason>();
   for (const p of problems) {
     for (const r of p.reasons) seen.add(r);

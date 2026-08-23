@@ -23,12 +23,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  worktreeKey,
-  composeProject,
-  portBlock,
-  injectEnv,
-} from './compose-identity.js';
+import { worktreeKey, composeProject, portBlock, injectEnv } from './compose-identity.js';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const NL = String.fromCharCode(10);
@@ -104,7 +99,15 @@ describe('compose.yaml: no hardcoded singleton identity', () => {
     expect(compose).toContain('name: ' + String.fromCharCode(36) + '{FLEET_COMPOSE_PROJECT');
   });
   it('every published host port is interpolated from FLEET_PORT_*', () => {
-    const published = compose.match(/- "[^"]+:[0-9]+"/g) ?? [];
+    // QUOTE-AGNOSTIC (2026-08-23). This matched only DOUBLE-quoted mappings,
+    // so formatting the repo -- Prettier emits single quotes in YAML under the
+    // committed singleQuote:true -- dropped the count to ZERO and the guard
+    // failed while all nine ports were still correctly interpolated. Worse than
+    // the false alarm: a zero match makes the hardcoded filter below trivially
+    // empty, so had the length floor been absent this would have PASSED on a
+    // file it could no longer read. The floor is why it failed loudly instead.
+    // Either quote character is the same mapping to a YAML parser.
+    const published = compose.match(/- ['"][^'"]+:[0-9]+['"]/g) ?? [];
     expect(published.length).toBeGreaterThanOrEqual(9);
     const hardcoded = published.filter((p) => !p.includes('FLEET_PORT_'));
     expect(hardcoded).toEqual([]);

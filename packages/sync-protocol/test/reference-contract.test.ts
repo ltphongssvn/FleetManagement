@@ -21,8 +21,15 @@ import {
 
 describe('reference wire contract', () => {
   it('parses a minimal item (id + label) and one with the meta bag', () => {
-    expect(ReferenceItemSchema.parse({ id: 'c1', label: 'Acme' })).toEqual({ id: 'c1', label: 'Acme' });
-    const withMeta = ReferenceItemSchema.parse({ id: 'c2', label: 'Kho A', meta: { phone: '0901', note: null } });
+    expect(ReferenceItemSchema.parse({ id: 'c1', label: 'Acme' })).toEqual({
+      id: 'c1',
+      label: 'Acme',
+    });
+    const withMeta = ReferenceItemSchema.parse({
+      id: 'c2',
+      label: 'Kho A',
+      meta: { phone: '0901', note: null },
+    });
     expect(withMeta.meta).toEqual({ phone: '0901', note: null });
   });
 
@@ -46,11 +53,17 @@ describe('reference wire contract', () => {
   });
 
   it('parses the driver-vehicle assignment envelope', () => {
-    expect(DriverVehicleAssignmentItemSchema.parse({ operatorId: 'o1', vehicleId: 'v1' }))
-      .toEqual({ operatorId: 'o1', vehicleId: 'v1' });
-    const ok = DriverVehicleAssignmentsResponseSchema.parse({ items: [{ operatorId: 'o1', vehicleId: 'v1' }] });
+    expect(DriverVehicleAssignmentItemSchema.parse({ operatorId: 'o1', vehicleId: 'v1' })).toEqual({
+      operatorId: 'o1',
+      vehicleId: 'v1',
+    });
+    const ok = DriverVehicleAssignmentsResponseSchema.parse({
+      items: [{ operatorId: 'o1', vehicleId: 'v1' }],
+    });
     expect(ok.items).toHaveLength(1);
-    expect(DriverVehicleAssignmentsResponseSchema.safeParse({ items: [{ operatorId: 'o1' }] }).success).toBe(false);
+    expect(
+      DriverVehicleAssignmentsResponseSchema.safeParse({ items: [{ operatorId: 'o1' }] }).success,
+    ).toBe(false);
   });
 
   it('parses the peek-order-ref envelope', () => {

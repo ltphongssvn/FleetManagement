@@ -30,7 +30,8 @@ export class AttestationRepositoryImpl implements AttestationRepository {
     environment: AttestationEnvironment;
     keyId: string | null;
   }): Promise<void> {
-    await this.db.update(deviceRegistry)
+    await this.db
+      .update(deviceRegistry)
       .set({
         attestationPlatform: input.platform,
         attestationTokenHash: input.tokenHashHex,

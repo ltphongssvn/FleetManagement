@@ -5,7 +5,12 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type * as schema from '../src/database/schema/index.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+  truncateAllTables,
+} from './helpers/migrate-test-db.js';
 
 let testDb: MigratedTestDb;
 
@@ -67,8 +72,12 @@ describe('@fleet/api - transport schema (integration)', () => {
         INSERT INTO stop (company_id, business_unit_id, depot_id, legal_entity_id, transport_order_id, sequence, stop_type)
         VALUES (${TENANT.company_id}::uuid, ${TENANT.business_unit_id}::uuid, ${TENANT.depot_id}::uuid, ${TENANT.legal_entity_id}::uuid, ${toId}::uuid, 1, 'pickup')
       `);
-      await testDb.db.execute(sql`DELETE FROM transport_order WHERE transport_order_id = ${toId}::uuid`);
-      const remaining = await testDb.db.execute<{ count: string }>(sql`SELECT COUNT(*)::text as count FROM stop`);
+      await testDb.db.execute(
+        sql`DELETE FROM transport_order WHERE transport_order_id = ${toId}::uuid`,
+      );
+      const remaining = await testDb.db.execute<{ count: string }>(
+        sql`SELECT COUNT(*)::text as count FROM stop`,
+      );
       expect(remaining.rows[0]?.count).toBe('0');
     });
 
@@ -145,7 +154,9 @@ describe('@fleet/api - transport schema (integration)', () => {
         VALUES (${TENANT.company_id}::uuid, ${TENANT.business_unit_id}::uuid, ${TENANT.depot_id}::uuid, ${TENANT.legal_entity_id}::uuid, ${rrId}::uuid, ${toId}::uuid, 1)
       `);
       await testDb.db.execute(sql`DELETE FROM road_run WHERE road_run_id = ${rrId}::uuid`);
-      const count = await testDb.db.execute<{ count: string }>(sql`SELECT COUNT(*)::text as count FROM road_run_transport_order`);
+      const count = await testDb.db.execute<{ count: string }>(
+        sql`SELECT COUNT(*)::text as count FROM road_run_transport_order`,
+      );
       expect(count.rows[0]?.count).toBe('0');
     });
   });

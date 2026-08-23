@@ -116,17 +116,22 @@ async function main(): Promise<void> {
       WHERE d.company_id = ${scope}
       ORDER BY d.full_name, d.created_at
     `);
-    const rows: DriverRosterAuditRow[] = rowsRes.rows.map((r) => DriverRosterAuditRowSchema.parse(r));
+    const rows: DriverRosterAuditRow[] = rowsRes.rows.map((r) =>
+      DriverRosterAuditRowSchema.parse(r),
+    );
     const report = auditDriverRoster(rows);
     if (!forensics) {
-      process.stdout.write('DRIVER_ROSTER_RESULT ' + JSON.stringify({ scope, ...report }, null, 2) + '\n');
+      process.stdout.write(
+        'DRIVER_ROSTER_RESULT ' + JSON.stringify({ scope, ...report }, null, 2) + '\n',
+      );
       return;
     }
     // Forensics mode: explain every row the classifier reported as colliding.
     // The classifier is not re-run; its groups ARE the question being answered.
     const colliding = new Set(
-      [...report.exactNameCollisionGroups, ...report.foldedNameCollisionGroups]
-        .flatMap((g) => g.driverIds),
+      [...report.exactNameCollisionGroups, ...report.foldedNameCollisionGroups].flatMap(
+        (g) => g.driverIds,
+      ),
     );
     const detail = rows
       .filter((r) => colliding.has(r.driverId))
@@ -140,7 +145,9 @@ async function main(): Promise<void> {
         codePoints: escapeCodePoints(r.fullName),
         forensics: nameForensics(r.fullName),
       }));
-    process.stdout.write('DRIVER_NAME_FORENSICS ' + JSON.stringify({ scope, detail }, null, 2) + '\n');
+    process.stdout.write(
+      'DRIVER_NAME_FORENSICS ' + JSON.stringify({ scope, detail }, null, 2) + '\n',
+    );
   } finally {
     await app.close();
   }

@@ -20,10 +20,12 @@ export class ErpInboundService {
     const updated = await this.db
       .update(erpInvoiceMap)
       .set(updateBase)
-      .where(and(
-        eq(erpInvoiceMap.manifestCorrelationId, input.manifestCorrelationId),
-        eq(erpInvoiceMap.erpSystem, input.erpSystem),
-      ))
+      .where(
+        and(
+          eq(erpInvoiceMap.manifestCorrelationId, input.manifestCorrelationId),
+          eq(erpInvoiceMap.erpSystem, input.erpSystem),
+        ),
+      )
       .returning();
     return { updated: updated.length > 0 };
   }

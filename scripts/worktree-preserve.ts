@@ -98,12 +98,23 @@ export interface CommitMessageInput {
 }
 export function commitMessageFor(input: CommitMessageInput): string {
   return (
-    'wip: preserve ' + String(input.fileCount) + ' uncommitted file(s) on ' + input.branch + NL + NL +
-    'Preservation commit -- NOT an integration candidate.' + NL + NL +
-    'This worktree held uncommitted work that worktree:close correctly refused' + NL +
-    'to discard. Committing it to its own unmerged branch makes it pushable and' + NL +
-    'verifiable by file count, which git stash is not: stashes never reach the' + NL +
-    'remote, and a stash of untracked files can report success while silently' + NL +
+    'wip: preserve ' +
+    String(input.fileCount) +
+    ' uncommitted file(s) on ' +
+    input.branch +
+    NL +
+    NL +
+    'Preservation commit -- NOT an integration candidate.' +
+    NL +
+    NL +
+    'This worktree held uncommitted work that worktree:close correctly refused' +
+    NL +
+    'to discard. Committing it to its own unmerged branch makes it pushable and' +
+    NL +
+    'verifiable by file count, which git stash is not: stashes never reach the' +
+    NL +
+    'remote, and a stash of untracked files can report success while silently' +
+    NL +
     'omitting them.'
   );
 }

@@ -65,7 +65,11 @@ async function setupDb(): Promise<ReturnType<typeof drizzle<typeof schema>>> {
     await db.execute(sql.raw(stmt));
   }
   await db.insert(schema.driver).values({
-    driverId: DRIVER_ID, ...TENANCY, fullName: 'Test', operatorId: OPERATOR_ID, active: true,
+    driverId: DRIVER_ID,
+    ...TENANCY,
+    fullName: 'Test',
+    operatorId: OPERATOR_ID,
+    active: true,
   });
   return db;
 }
@@ -107,9 +111,14 @@ describe('PasskeyCredentialRepository', () => {
     const credId = Buffer.from('cred-id-2');
     expect(await repo.credentialIdExists(credId)).toBe(false);
     await repo.insert({
-      ...TENANCY, driverId: DRIVER_ID, deviceId: null,
-      credentialId: credId, publicKey: Buffer.from('pk'), signCount: 0,
-      aaguid: null, transports: null,
+      ...TENANCY,
+      driverId: DRIVER_ID,
+      deviceId: null,
+      credentialId: credId,
+      publicKey: Buffer.from('pk'),
+      signCount: 0,
+      aaguid: null,
+      transports: null,
     });
     expect(await repo.credentialIdExists(credId)).toBe(true);
   });
@@ -117,14 +126,24 @@ describe('PasskeyCredentialRepository', () => {
   it('countByDriverId reflects rows for that driver only', async () => {
     expect(await repo.countByDriverId(DRIVER_ID)).toBe(0);
     await repo.insert({
-      ...TENANCY, driverId: DRIVER_ID, deviceId: null,
-      credentialId: Buffer.from('a'), publicKey: Buffer.from('pk'), signCount: 0,
-      aaguid: null, transports: null,
+      ...TENANCY,
+      driverId: DRIVER_ID,
+      deviceId: null,
+      credentialId: Buffer.from('a'),
+      publicKey: Buffer.from('pk'),
+      signCount: 0,
+      aaguid: null,
+      transports: null,
     });
     await repo.insert({
-      ...TENANCY, driverId: DRIVER_ID, deviceId: null,
-      credentialId: Buffer.from('b'), publicKey: Buffer.from('pk'), signCount: 0,
-      aaguid: null, transports: null,
+      ...TENANCY,
+      driverId: DRIVER_ID,
+      deviceId: null,
+      credentialId: Buffer.from('b'),
+      publicKey: Buffer.from('pk'),
+      signCount: 0,
+      aaguid: null,
+      transports: null,
     });
     expect(await repo.countByDriverId(DRIVER_ID)).toBe(2);
   });
@@ -132,9 +151,14 @@ describe('PasskeyCredentialRepository', () => {
   it('updateSignCountAndLastUsed bumps sign_count and stamps last_used_at', async () => {
     const credId = Buffer.from('cred-id-3');
     await repo.insert({
-      ...TENANCY, driverId: DRIVER_ID, deviceId: null,
-      credentialId: credId, publicKey: Buffer.from('pk'), signCount: 5,
-      aaguid: null, transports: null,
+      ...TENANCY,
+      driverId: DRIVER_ID,
+      deviceId: null,
+      credentialId: credId,
+      publicKey: Buffer.from('pk'),
+      signCount: 5,
+      aaguid: null,
+      transports: null,
     });
     await repo.updateSignCountAndLastUsed(credId, 6);
     const after = await repo.findByCredentialId(credId);
@@ -145,15 +169,25 @@ describe('PasskeyCredentialRepository', () => {
   it('global unique on credential_id is enforced (insert duplicate rejected)', async () => {
     const credId = Buffer.from('dup');
     await repo.insert({
-      ...TENANCY, driverId: DRIVER_ID, deviceId: null,
-      credentialId: credId, publicKey: Buffer.from('pk'), signCount: 0,
-      aaguid: null, transports: null,
+      ...TENANCY,
+      driverId: DRIVER_ID,
+      deviceId: null,
+      credentialId: credId,
+      publicKey: Buffer.from('pk'),
+      signCount: 0,
+      aaguid: null,
+      transports: null,
     });
     await expect(
       repo.insert({
-        ...TENANCY, driverId: DRIVER_ID, deviceId: null,
-        credentialId: credId, publicKey: Buffer.from('pk2'), signCount: 0,
-        aaguid: null, transports: null,
+        ...TENANCY,
+        driverId: DRIVER_ID,
+        deviceId: null,
+        credentialId: credId,
+        publicKey: Buffer.from('pk2'),
+        signCount: 0,
+        aaguid: null,
+        transports: null,
       }),
     ).rejects.toThrow();
   });

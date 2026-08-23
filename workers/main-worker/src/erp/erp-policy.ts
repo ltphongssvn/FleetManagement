@@ -36,8 +36,17 @@ export interface ErpRejectionDetails {
 }
 
 export type ErpDecision =
-  | { readonly accepted: true; readonly mappedPayload: MappedErpPayload; readonly policyVersion: typeof ERP_POLICY_VERSION }
-  | { readonly accepted: false; readonly rejectionCode: ErpRejectionCode; readonly details: ErpRejectionDetails; readonly policyVersion: typeof ERP_POLICY_VERSION };
+  | {
+      readonly accepted: true;
+      readonly mappedPayload: MappedErpPayload;
+      readonly policyVersion: typeof ERP_POLICY_VERSION;
+    }
+  | {
+      readonly accepted: false;
+      readonly rejectionCode: ErpRejectionCode;
+      readonly details: ErpRejectionDetails;
+      readonly policyVersion: typeof ERP_POLICY_VERSION;
+    };
 
 export interface MappedErpPayload {
   readonly manifestCorrelationId: string;
@@ -50,18 +59,45 @@ export interface MappedErpPayload {
 }
 
 /** Validate + map internal IDs to external ERP IDs. Pure given mapping context. */
-export function buildErpInvoice(payload: ErpInvoicePayload, mapping: ErpMappingContext): ErpDecision {
+export function buildErpInvoice(
+  payload: ErpInvoicePayload,
+  mapping: ErpMappingContext,
+): ErpDecision {
   if (mapping.customerExternalId === null) {
-    return { accepted: false, rejectionCode: 'unknown_customer', details: { missingField: 'customerExternalId', internalId: payload.internalCustomerId }, policyVersion: ERP_POLICY_VERSION };
+    return {
+      accepted: false,
+      rejectionCode: 'unknown_customer',
+      details: { missingField: 'customerExternalId', internalId: payload.internalCustomerId },
+      policyVersion: ERP_POLICY_VERSION,
+    };
   }
   if (mapping.jobCodeExternalId === null) {
-    return { accepted: false, rejectionCode: 'unknown_job_code', details: { missingField: 'jobCodeExternalId', internalId: payload.internalJobCode }, policyVersion: ERP_POLICY_VERSION };
+    return {
+      accepted: false,
+      rejectionCode: 'unknown_job_code',
+      details: { missingField: 'jobCodeExternalId', internalId: payload.internalJobCode },
+      policyVersion: ERP_POLICY_VERSION,
+    };
   }
-  if (!Number.isSafeInteger(payload.amountCents) || payload.amountCents <= 0 || payload.amountCents > ERP_AMOUNT_CENTS_MAX) {
-    return { accepted: false, rejectionCode: 'invalid_payload', details: { missingField: 'amountCents', invalidValue: payload.amountCents }, policyVersion: ERP_POLICY_VERSION };
+  if (
+    !Number.isSafeInteger(payload.amountCents) ||
+    payload.amountCents <= 0 ||
+    payload.amountCents > ERP_AMOUNT_CENTS_MAX
+  ) {
+    return {
+      accepted: false,
+      rejectionCode: 'invalid_payload',
+      details: { missingField: 'amountCents', invalidValue: payload.amountCents },
+      policyVersion: ERP_POLICY_VERSION,
+    };
   }
   if (!PILOT_CURRENCY_SET.has(payload.currency)) {
-    return { accepted: false, rejectionCode: 'invalid_payload', details: { missingField: 'currency', invalidValue: payload.currency }, policyVersion: ERP_POLICY_VERSION };
+    return {
+      accepted: false,
+      rejectionCode: 'invalid_payload',
+      details: { missingField: 'currency', invalidValue: payload.currency },
+      policyVersion: ERP_POLICY_VERSION,
+    };
   }
   return {
     accepted: true,
@@ -79,7 +115,10 @@ export function buildErpInvoice(payload: ErpInvoicePayload, mapping: ErpMappingC
 }
 
 /** Decide next status after an ERP send attempt. */
-export function nextErpStatus(current: ErpSyncStatus, outcome: 'sent' | 'acknowledged' | 'failed'): ErpSyncStatus {
+export function nextErpStatus(
+  current: ErpSyncStatus,
+  outcome: 'sent' | 'acknowledged' | 'failed',
+): ErpSyncStatus {
   if (current === 'acknowledged') return 'acknowledged'; // terminal
   if (outcome === 'acknowledged') return 'acknowledged'; // webhook may beat local 'sent' write
   if (outcome === 'sent') return 'sent'; // pending->sent or failed->sent (retry)

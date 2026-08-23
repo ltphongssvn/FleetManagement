@@ -42,21 +42,60 @@ test('admin pair surfaces in dispatch Section 3 Số xe and Tài xế dropdowns'
   const sq = String.fromCharCode(39);
   const q = (v: string): string => sq + v + sq;
   // Clean any pre-existing E2E-T5E rows.
-  dockerPsql('DELETE FROM driver_vehicle_assignment WHERE company_id=' + q(COMPANY_ID) +
-    ' AND (vehicle_id IN (SELECT vehicle_id FROM vehicle WHERE plate LIKE ' + q('E2E-T5E-%') + ')' +
-    ' OR driver_id IN (SELECT driver_id FROM driver WHERE full_name LIKE ' + q('E2E T5E %') + '));');
-  dockerPsql('DELETE FROM vehicle WHERE company_id=' + q(COMPANY_ID) + ' AND plate LIKE ' + q('E2E-T5E-%') + ';');
-  dockerPsql('DELETE FROM driver WHERE company_id=' + q(COMPANY_ID) + ' AND full_name LIKE ' + q('E2E T5E %') + ';');
+  dockerPsql(
+    'DELETE FROM driver_vehicle_assignment WHERE company_id=' +
+      q(COMPANY_ID) +
+      ' AND (vehicle_id IN (SELECT vehicle_id FROM vehicle WHERE plate LIKE ' +
+      q('E2E-T5E-%') +
+      ')' +
+      ' OR driver_id IN (SELECT driver_id FROM driver WHERE full_name LIKE ' +
+      q('E2E T5E %') +
+      '));',
+  );
+  dockerPsql(
+    'DELETE FROM vehicle WHERE company_id=' +
+      q(COMPANY_ID) +
+      ' AND plate LIKE ' +
+      q('E2E-T5E-%') +
+      ';',
+  );
+  dockerPsql(
+    'DELETE FROM driver WHERE company_id=' +
+      q(COMPANY_ID) +
+      ' AND full_name LIKE ' +
+      q('E2E T5E %') +
+      ';',
+  );
   // Seed a driver (fixed id, no operator_id) + a vehicle.
   dockerPsql(
     'INSERT INTO driver (driver_id, company_id, business_unit_id, depot_id, legal_entity_id, full_name) VALUES ' +
-    '(' + q(DRIVER_ID) + ', ' + q(COMPANY_ID) + ', ' + q(COMPANY_ID) + ', ' + q(COMPANY_ID) + ', ' +
-    q(COMPANY_ID) + ', ' + q(DRIVER_NAME) + ');',
+      '(' +
+      q(DRIVER_ID) +
+      ', ' +
+      q(COMPANY_ID) +
+      ', ' +
+      q(COMPANY_ID) +
+      ', ' +
+      q(COMPANY_ID) +
+      ', ' +
+      q(COMPANY_ID) +
+      ', ' +
+      q(DRIVER_NAME) +
+      ');',
   );
   dockerPsql(
     'INSERT INTO vehicle (vehicle_id, company_id, business_unit_id, depot_id, legal_entity_id, plate) VALUES ' +
-    '(gen_random_uuid(), ' + q(COMPANY_ID) + ', ' + q(COMPANY_ID) + ', ' + q(COMPANY_ID) + ', ' +
-    q(COMPANY_ID) + ', ' + q(PLATE) + ');',
+      '(gen_random_uuid(), ' +
+      q(COMPANY_ID) +
+      ', ' +
+      q(COMPANY_ID) +
+      ', ' +
+      q(COMPANY_ID) +
+      ', ' +
+      q(COMPANY_ID) +
+      ', ' +
+      q(PLATE) +
+      ');',
   );
   await login(page);
   await page.goto('/admin/drivers');
@@ -66,7 +105,9 @@ test('admin pair surfaces in dispatch Section 3 Số xe and Tài xế dropdowns'
   await vehicleSelect.selectOption({ label: PLATE });
   await page.getByTestId('driver-assign-submit-' + DRIVER_ID).click();
   // Wait until the row reflects the paired plate (server confirmed).
-  await expect(page.getByTestId('driver-assigned-plate-' + DRIVER_ID)).toHaveText(PLATE, { timeout: 15_000 });
+  await expect(page.getByTestId('driver-assigned-plate-' + DRIVER_ID)).toHaveText(PLATE, {
+    timeout: 15_000,
+  });
   // Now go to dispatch home and check Section 3 dropdowns.
   await page.goto('/');
   await openCreateOrderDrawer(page);
@@ -75,8 +116,17 @@ test('admin pair surfaces in dispatch Section 3 Số xe and Tài xế dropdowns'
   await vehicleField.click();
   await expect(page.getByRole('option', { name: PLATE })).toBeVisible({ timeout: 5_000 });
   // Cleanup.
-  dockerPsql('DELETE FROM driver_vehicle_assignment WHERE company_id=' + q(COMPANY_ID) +
-    ' AND driver_id=' + q(DRIVER_ID) + ';');
-  dockerPsql('DELETE FROM vehicle WHERE company_id=' + q(COMPANY_ID) + ' AND plate=' + q(PLATE) + ';');
-  dockerPsql('DELETE FROM driver WHERE company_id=' + q(COMPANY_ID) + ' AND driver_id=' + q(DRIVER_ID) + ';');
+  dockerPsql(
+    'DELETE FROM driver_vehicle_assignment WHERE company_id=' +
+      q(COMPANY_ID) +
+      ' AND driver_id=' +
+      q(DRIVER_ID) +
+      ';',
+  );
+  dockerPsql(
+    'DELETE FROM vehicle WHERE company_id=' + q(COMPANY_ID) + ' AND plate=' + q(PLATE) + ';',
+  );
+  dockerPsql(
+    'DELETE FROM driver WHERE company_id=' + q(COMPANY_ID) + ' AND driver_id=' + q(DRIVER_ID) + ';',
+  );
 });

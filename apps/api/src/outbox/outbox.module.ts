@@ -22,5 +22,4 @@ const bullmqConnectionProvider: Provider = {
   // never a redefined provider (DI-config duplication is the Axis-2 analog).
   exports: [OutboxRelayService, BULLMQ_CONNECTION],
 })
-
 export class OutboxModule {}

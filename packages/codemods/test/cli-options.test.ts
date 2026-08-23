@@ -21,8 +21,13 @@ describe('parseCliArgs', () => {
   });
 
   it('accepts --tsconfig and --project with a path value', () => {
-    expect(parseCliArgs(['parse-one-number', '--tsconfig', 'apps/api/tsconfig.json']).tsConfigFilePath).toBe('apps/api/tsconfig.json');
-    expect(parseCliArgs(['parse-one-number', '--project', 'packages/domain/tsconfig.json']).tsConfigFilePath).toBe('packages/domain/tsconfig.json');
+    expect(
+      parseCliArgs(['parse-one-number', '--tsconfig', 'apps/api/tsconfig.json']).tsConfigFilePath,
+    ).toBe('apps/api/tsconfig.json');
+    expect(
+      parseCliArgs(['parse-one-number', '--project', 'packages/domain/tsconfig.json'])
+        .tsConfigFilePath,
+    ).toBe('packages/domain/tsconfig.json');
   });
 
   it('rejects an unknown transform name', () => {
@@ -63,6 +68,15 @@ describe('parseCliArgs', () => {
   });
 
   it('exposes a strict schema that rejects unknown keys', () => {
-    expect(() => CliOptionsSchema.parse({ transform: 'parse-one-number', tsConfigFilePath: 'tsconfig.json', dryRun: false, include: [], check: false, extra: 1 })).toThrow();
+    expect(() =>
+      CliOptionsSchema.parse({
+        transform: 'parse-one-number',
+        tsConfigFilePath: 'tsconfig.json',
+        dryRun: false,
+        include: [],
+        check: false,
+        extra: 1,
+      }),
+    ).toThrow();
   });
 });

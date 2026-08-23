@@ -4,17 +4,9 @@
   "vitest": {
     "configFile": "vitest.config.ts"
   },
-  "checkers": [
-    "typescript"
-  ],
+  "checkers": ["typescript"],
   "tsconfigFile": "tsconfig.json",
-  "mutate": [
-    "src/**/*.ts",
-    "!src/index.ts",
-    "!src/cli.ts",
-    "!**/test/**",
-    "!**/dist/**"
-  ],
+  "mutate": ["src/**/*.ts", "!src/index.ts", "!src/cli.ts", "!**/test/**", "!**/dist/**"],
   "thresholds": {
     "high": 95,
     "low": 60,
@@ -22,16 +14,9 @@
   },
   "incremental": true,
   "incrementalFile": ".stryker-tmp/incremental.json",
-  "reporters": [
-    "progress",
-    "clear-text",
-    "html"
-  ],
+  "reporters": ["progress", "clear-text", "html"],
   "concurrency": 4,
   "timeoutMS": 30000,
   "coverageAnalysis": "perTest",
-  "plugins": [
-    "@stryker-mutator/vitest-runner",
-    "@stryker-mutator/typescript-checker"
-  ]
+  "plugins": ["@stryker-mutator/vitest-runner", "@stryker-mutator/typescript-checker"]
 }

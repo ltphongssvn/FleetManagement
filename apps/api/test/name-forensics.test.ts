@@ -66,8 +66,9 @@ describe('nameForensics', () => {
 
   it('reports byte length so two visually identical names can be compared', () => {
     const nfc = 'NGUY\u1ec4N';
-    expect(nameForensics(nfc.normalize('NFD')).byteLength)
-      .toBeGreaterThan(nameForensics(nfc).byteLength);
+    expect(nameForensics(nfc.normalize('NFD')).byteLength).toBeGreaterThan(
+      nameForensics(nfc).byteLength,
+    );
   });
 
   it('is independent per dimension -- an NFD name with a double space flags both', () => {

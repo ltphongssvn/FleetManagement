@@ -50,8 +50,9 @@ async function maybeSeed(): Promise<void> {
     // 2026 best practice: environment-gate test fixtures. The login-capable
     // test driver must never seed into production. Railway sets
     // RAILWAY_ENVIRONMENT_NAME=production; dev/test/CI leave it unset.
-    const isProduction = process.env['RAILWAY_ENVIRONMENT_NAME'] === 'production'
-      || process.env['NODE_ENV'] === 'production';
+    const isProduction =
+      process.env['RAILWAY_ENVIRONMENT_NAME'] === 'production' ||
+      process.env['NODE_ENV'] === 'production';
     await seedReference(drizzle(pool, { schema, casing: 'snake_case' }), { isProduction });
   } finally {
     await pool.end();
@@ -93,10 +94,11 @@ async function bootstrap(): Promise<void> {
   const SHUTDOWN_DEADLINE_MS = Number(process.env['SHUTDOWN_DEADLINE_MS'] ?? 10000);
   const shutdown = async (signal: string): Promise<void> => {
     const deadline = new Promise<never>((_, reject) => {
-      const t = setTimeout(
-        () => { reject(new Error('shutdown exceeded ' + String(SHUTDOWN_DEADLINE_MS) + 'ms after ' + signal)); },
-        SHUTDOWN_DEADLINE_MS,
-      );
+      const t = setTimeout(() => {
+        reject(
+          new Error('shutdown exceeded ' + String(SHUTDOWN_DEADLINE_MS) + 'ms after ' + signal),
+        );
+      }, SHUTDOWN_DEADLINE_MS);
       if (typeof t.unref === 'function') t.unref();
     });
     try {
@@ -113,8 +115,12 @@ async function bootstrap(): Promise<void> {
       process.exit(1);
     }
   };
-  process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
-  process.once('SIGINT', () => { void shutdown('SIGINT'); });
+  process.once('SIGTERM', () => {
+    void shutdown('SIGTERM');
+  });
+  process.once('SIGINT', () => {
+    void shutdown('SIGINT');
+  });
 }
 
 void bootstrap();

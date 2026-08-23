@@ -31,9 +31,7 @@ import { FLEET_OWNER_ROLE } from '@fleet/domain';
 
 export { FLEET_OWNER_ROLE };
 
-export type OwnerAccessDecision =
-  | { readonly outcome: 'granted' }
-  | { readonly outcome: 'denied' };
+export type OwnerAccessDecision = { readonly outcome: 'granted' } | { readonly outcome: 'denied' };
 
 export function decideOwnerAccess(roles: readonly string[] | undefined): OwnerAccessDecision {
   if (roles?.includes(FLEET_OWNER_ROLE) === true) {

@@ -109,14 +109,19 @@ describe('parseDoctorSummary reads real output', () => {
 
   it('reads a fully clean run', () => {
     const s = parseDoctorSummary(CLEAN);
-    expect({ passed: s.passed, total: s.total, peers: s.missingPeers.length })
-      .toEqual({ passed: 20, total: 20, peers: 0 });
+    expect({ passed: s.passed, total: s.total, peers: s.missingPeers.length }).toEqual({
+      passed: 20,
+      total: 20,
+      peers: 0,
+    });
   });
 
   it('collects SEVERAL missing peers, not just the first', () => {
     const two = MISSING_PEER + NL + 'Missing peer dependency: react-native-worklets';
-    expect(parseDoctorSummary(two).missingPeers)
-      .toEqual(['expo-constants', 'react-native-worklets']);
+    expect(parseDoctorSummary(two).missingPeers).toEqual([
+      'expo-constants',
+      'react-native-worklets',
+    ]);
   });
 
   // A parse that silently yields zero from real output is the confident zero
@@ -234,8 +239,9 @@ describe('doctorVerdict: a broken instrument is never a pass', () => {
 
   // ORDERING: a run that could not be read cannot honestly name a peer either.
   it('UNREADABLE dominates a missing peer', () => {
-    expect(doctorVerdict([unreadable, parseDoctorSummary(MISSING_PEER)]))
-      .toBe(DOCTOR_EXIT.unreadable);
+    expect(doctorVerdict([unreadable, parseDoctorSummary(MISSING_PEER)])).toBe(
+      DOCTOR_EXIT.unreadable,
+    );
   });
 
   it('keeps every exit code distinct so a caller can branch', () => {
@@ -250,8 +256,7 @@ describe('doctorVerdict: a broken instrument is never a pass', () => {
 
 describe('describeDoctor names the app and the remedy', () => {
   it('reports a clean app with its ratio as evidence', () => {
-    expect(describeDoctor('apps/owner-app', parseDoctorSummary(CLEAN)))
-      .toContain('20/20');
+    expect(describeDoctor('apps/owner-app', parseDoctorSummary(CLEAN))).toContain('20/20');
   });
 
   // The remedy matters: pnpm add would declare it without Expo's version

@@ -11,9 +11,7 @@ import { test, expect } from '@playwright/test';
 test.describe('ops-web /login (Authorization Code + PKCE)', () => {
   test('renders the Keycloak sign-in button and no credential fields', async ({ page }) => {
     await page.goto('/login');
-    await expect(
-      page.getByRole('button', { name: /keycloak|sign in|đăng nhập/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /keycloak|sign in|đăng nhập/i })).toBeVisible();
     // The ROPC form is gone — no username/password inputs remain.
     await expect(page.locator('input[type="password"]')).toHaveCount(0);
     await expect(page.locator('input[name="username"]')).toHaveCount(0);
@@ -93,7 +91,8 @@ test.describe('ops-web /login (Authorization Code + PKCE)', () => {
         },
         {
           timeout: 10000,
-          message: 'startLogin must set the three transient PKCE cookies (oidc_code_verifier, oidc_state, oidc_nonce)',
+          message:
+            'startLogin must set the three transient PKCE cookies (oidc_code_verifier, oidc_state, oidc_nonce)',
         },
       )
       .toBe(true);

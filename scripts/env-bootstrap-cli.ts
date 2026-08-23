@@ -71,8 +71,6 @@ export const IDENTITY_ENV_VAR = 'SOPS_AGE_KEY_FILE';
 /** Conventional identity location; overridable via IDENTITY_ENV_VAR. */
 export const DEFAULT_IDENTITY_PATH = join(homedir(), '.config', 'sops', 'age', 'keys.txt');
 
-
-
 export interface Preconditions {
   readonly sopsPresent: boolean;
   readonly agePresent: boolean;
@@ -291,7 +289,10 @@ function encrypt(): number {
     if (!existedBefore) unlinkSync(ENCRYPTED_ENV_FILE);
     process.stderr.write(
       '[env] wrote ciphertext that could NOT be decrypted back -- refusing to leave it. ' +
-        'Do not commit; check ' + PLAINTEXT_ENV_FILE + ' for content sops cannot round-trip.' + NL,
+        'Do not commit; check ' +
+        PLAINTEXT_ENV_FILE +
+        ' for content sops cannot round-trip.' +
+        NL,
     );
     return 1;
   }

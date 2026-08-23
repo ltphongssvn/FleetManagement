@@ -10,7 +10,12 @@ import type { OperatorContext } from '../src/auth/operator-context.js';
 import type { IBlobStore, PresignedUpload } from '../src/storage/storage-provider.interface.js';
 import type { ConfigService } from '@nestjs/config';
 import type { Env } from '../src/config/env.config.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+  truncateAllTables,
+} from './helpers/migrate-test-db.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 
 let testDb: MigratedTestDb;
@@ -20,12 +25,14 @@ const PARALLELISM = 5;
 
 function fakeBlobStore(): IBlobStore {
   return {
-    presignUpload: vi.fn().mockImplementation(() => Promise.resolve({
-      url: 'https://s3.example/presigned',
-      key: `manifests/co/${randomUUID()}/x.jpg`,
-      bucket: 'fleet-test',
-      expiresAt: new Date('2026-04-27T20:00:00Z'),
-    } satisfies PresignedUpload)),
+    presignUpload: vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        url: 'https://s3.example/presigned',
+        key: `manifests/co/${randomUUID()}/x.jpg`,
+        bucket: 'fleet-test',
+        expiresAt: new Date('2026-04-27T20:00:00Z'),
+      } satisfies PresignedUpload),
+    ),
   };
 }
 function fakeConfig(): ConfigService<Env, true> {
@@ -55,23 +62,29 @@ describe('@fleet/api - ManifestService concurrent finalizeIntake (RED)', () => {
         INSERT INTO transport_order (transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, state)
         VALUES (${transportOrderId}::uuid, ${OP.companyId}::uuid, ${OP.businessUnitId}::uuid, ${OP.depotId}::uuid, ${OP.legalEntityId}::uuid, 'assigned')
       `);
-      const negotiated = await service.negotiateUpload({
-        manifestCorrelationId: correlationId,
-        transportOrderId,
-        contentType: 'image/jpeg',
-        expectedSizeBytes: 1_000_000,
-      }, OP);
-      await service.commitUpload({
-        uploadSessionId: negotiated.uploadSessionId,
-        actualSizeBytes: 900_000,
-      }, OP);
+      const negotiated = await service.negotiateUpload(
+        {
+          manifestCorrelationId: correlationId,
+          transportOrderId,
+          contentType: 'image/jpeg',
+          expectedSizeBytes: 1_000_000,
+        },
+        OP,
+      );
+      await service.commitUpload(
+        {
+          uploadSessionId: negotiated.uploadSessionId,
+          actualSizeBytes: 900_000,
+        },
+        OP,
+      );
       sessionIds.push(negotiated.uploadSessionId);
     }
 
     // Concurrent finalize — this is where the race happens.
-    await Promise.all(sessionIds.map((id) =>
-      service.finalizeIntake({ uploadSessionId: id, accepted: true }, OP),
-    ));
+    await Promise.all(
+      sessionIds.map((id) => service.finalizeIntake({ uploadSessionId: id, accepted: true }, OP)),
+    );
 
     const result = await testDb.db.execute<{ total: string; distinct: string }>(sql`
       SELECT COUNT(*)::text AS total, COUNT(DISTINCT server_seq)::text AS distinct

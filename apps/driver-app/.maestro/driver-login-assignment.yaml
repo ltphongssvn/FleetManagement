@@ -45,34 +45,34 @@ appId: com.fleetmanagement.driver
 # Software-rendered emulator can throw a transient System UI ANR during cold
 # boot; dismiss it (tap Wait) if present. Harmless no-op when absent.
 - tapOn:
-    text: "Wait"
+    text: 'Wait'
     optional: true
 # Mount signal: wait for the login SUBTITLE (not "Fleet Driver", which can show
 # during the brief cold-boot splash). The subtitle renders once the real login
 # screen mounts.
 - extendedWaitUntil:
-    visible: "Đăng nhập để xem lệnh điều xe"
+    visible: 'Đăng nhập để xem lệnh điều xe'
     timeout: 120000
-- assertVisible: "Fleet Driver"
-- assertVisible: "Đăng nhập để xem lệnh điều xe"
+- assertVisible: 'Fleet Driver'
+- assertVisible: 'Đăng nhập để xem lệnh điều xe'
 - tapOn:
-    text: "Số điện thoại"
+    text: 'Số điện thoại'
 - inputText: "${MAESTRO_DRIVER_PHONE ?? '0900000001'}"
 - tapOn:
-    text: "Mật khẩu"
+    text: 'Mật khẩu'
 - inputText: "${MAESTRO_DRIVER_PASSWORD ?? 'driver1pass'}"
 # Hide the soft keyboard: after typing the password the keyboard covers the
 # submit button and the post-login screen, so the next assert would run against
 # an occluded view. hideKeyboard restores the full layout before submitting.
 - hideKeyboard
 - tapOn:
-    text: "Đăng nhập"
+    text: 'Đăng nhập'
 # Post-login: login does a network round-trip to /auth/login then navigates to
 # the home screen, so the sync-status marker is not instantly present. Poll for
 # it via extendedWaitUntil instead of a bare assertVisible.
 - extendedWaitUntil:
-    visible: "Trạng thái đồng bộ"
+    visible: 'Trạng thái đồng bộ'
     timeout: 60000
-- assertVisible: "Xem lệnh điều xe"
+- assertVisible: 'Xem lệnh điều xe'
 - tapOn:
-    text: "Xem lệnh điều xe"
+    text: 'Xem lệnh điều xe'

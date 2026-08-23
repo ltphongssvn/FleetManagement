@@ -5,15 +5,24 @@ import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { appendTriWrite } from '../src/database/append-tri-write.js';
 import { allocateServerSeq } from '../src/database/server-seq.repository.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+  truncateAllTables,
+} from './helpers/migrate-test-db.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 
 let testDb: MigratedTestDb;
 const OP = createOperatorContext();
 
 describe('@fleet/api - appendTriWrite', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_atw'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_test_atw');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
   beforeEach(async () => {
     await truncateAllTables(testDb.db);
   });
@@ -51,11 +60,17 @@ describe('@fleet/api - appendTriWrite', () => {
     const aggregateId = randomUUID();
     const actionId = randomUUID();
     const params = {
-      actionId, aggregateType: 'command', aggregateId,
-      delta: { type: 'x' }, eventType: 'command.issued',
-      auditPayload: { commandId: actionId }, operatorId: OP.operatorId,
-      queueName: 'projections', outboxPayload: { aggregateType: 'command' },
-      op: OP, idempotent: true,
+      actionId,
+      aggregateType: 'command',
+      aggregateId,
+      delta: { type: 'x' },
+      eventType: 'command.issued',
+      auditPayload: { commandId: actionId },
+      operatorId: OP.operatorId,
+      queueName: 'projections',
+      outboxPayload: { aggregateType: 'command' },
+      op: OP,
+      idempotent: true,
     } as const;
 
     const r1 = await testDb.db.transaction(async (tx) => {

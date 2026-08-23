@@ -24,7 +24,6 @@ import { test, expect, type Page } from '@playwright/test';
 import { loginAs } from './helpers/auth';
 import { openCreateOrderDrawer } from './helpers/create-order';
 
-
 // Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
   await loginAs(page);
@@ -49,13 +48,17 @@ test.describe.serial('T5: redundant UI elements are absent from dispatcher exper
   test('Quản lý tài xế & xe page does not render per-row Sửa buttons', async ({ page }) => {
     await login(page);
     await page.goto('/admin/drivers');
-    await expect(page.getByRole('heading', { name: /Quản lý tài xế/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: /Quản lý tài xế/i })).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(page.getByRole('button', { name: /^Sửa$/ })).toHaveCount(0);
   });
   test('Quản lý dữ liệu điều phối page does not render per-row Sửa buttons', async ({ page }) => {
     await login(page);
     await page.goto('/admin/reference');
-    await expect(page.getByRole('heading', { name: /Quản lý dữ liệu điều phối/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: /Quản lý dữ liệu điều phối/i })).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(page.getByRole('button', { name: /^Sửa$/ })).toHaveCount(0);
   });
 });

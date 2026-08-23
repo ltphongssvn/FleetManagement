@@ -8,8 +8,10 @@ describe('@fleet/driver-app - PII scrubber', () => {
   });
 
   it('redacts pushToken + apiKey', () => {
-    expect(scrub({ expoPushToken: 'X', apiKey: 'Y' }))
-      .toEqual({ expoPushToken: '[redacted]', apiKey: '[redacted]' });
+    expect(scrub({ expoPushToken: 'X', apiKey: 'Y' })).toEqual({
+      expoPushToken: '[redacted]',
+      apiKey: '[redacted]',
+    });
   });
 
   it('redacts JWT in error string', () => {
@@ -47,7 +49,12 @@ describe('@fleet/driver-app - PII scrubber', () => {
   });
 
   it('handles mixed arrays (primitives + objects + nulls)', () => {
-    expect(scrub([1, null, { token: 'x' }, 'plain string'])).toEqual([1, null, { token: '[redacted]' }, 'plain string']);
+    expect(scrub([1, null, { token: 'x' }, 'plain string'])).toEqual([
+      1,
+      null,
+      { token: '[redacted]' },
+      'plain string',
+    ]);
   });
 
   it('redacts strings inside nested arrays', () => {

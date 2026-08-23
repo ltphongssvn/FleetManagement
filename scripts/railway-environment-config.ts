@@ -101,10 +101,7 @@ export const isTransientCliError = (message: string): boolean =>
   TRANSIENT_CLI_SIGNATURES.some((re) => re.test(message));
 
 /** Read a variable's raw value, tolerating both payload forms. */
-export const readVariable = (
-  service: RailwayService,
-  name: string,
-): string | null => {
+export const readVariable = (service: RailwayService, name: string): string | null => {
   const entry = service.variables?.[name];
   if (typeof entry === 'string') return entry;
   if (entry && typeof entry.value === 'string') return entry.value;
@@ -118,7 +115,8 @@ export const parseEnvironmentConfig = (env: unknown): RailwayEnvironmentConfig =
   if (!parsed.success) {
     throw new RailwayConfigShapeError(
       'railway environment config did not match the expected shape; the guard ' +
-        'cannot verify anything and refuses a vacuous pass: ' + parsed.error.message,
+        'cannot verify anything and refuses a vacuous pass: ' +
+        parsed.error.message,
     );
   }
   return parsed.data;

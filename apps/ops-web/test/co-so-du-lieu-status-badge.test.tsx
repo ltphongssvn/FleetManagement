@@ -19,7 +19,16 @@ const CASES = [
   { tone: 'neutral', label: 'Không rõ', role: 'surface' },
 ] as const;
 
-const RAW_PALETTE_FAMILIES = ['slate', 'amber', 'sky', 'emerald', 'indigo', 'red', 'green', 'violet'];
+const RAW_PALETTE_FAMILIES = [
+  'slate',
+  'amber',
+  'sky',
+  'emerald',
+  'indigo',
+  'red',
+  'green',
+  'violet',
+];
 
 describe('StatusBadge', () => {
   it.each(CASES)(

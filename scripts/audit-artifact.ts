@@ -128,14 +128,10 @@ export const MIN_PLAUSIBLE_PACKAGES = 10;
 export function artifactVerdict(outcomes: readonly ArtifactOutcome[]): number {
   if (outcomes.length === 0) return ARTIFACT_EXIT.unverifiable;
   const unverifiable = outcomes.some(
-    (o) => !o.built
-      || o.packageCount < MIN_PLAUSIBLE_PACKAGES
-      || o.auditStatus === null,
+    (o) => !o.built || o.packageCount < MIN_PLAUSIBLE_PACKAGES || o.auditStatus === null,
   );
   if (unverifiable) return ARTIFACT_EXIT.unverifiable;
-  return outcomes.some((o) => o.auditStatus !== 0)
-    ? ARTIFACT_EXIT.vulnerable
-    : ARTIFACT_EXIT.ok;
+  return outcomes.some((o) => o.auditStatus !== 0) ? ARTIFACT_EXIT.vulnerable : ARTIFACT_EXIT.ok;
 }
 
 /** The operator line. Names the package and the reason, because "the artifact
@@ -143,8 +139,12 @@ export function artifactVerdict(outcomes: readonly ArtifactOutcome[]): number {
 export function describeArtifact(o: ArtifactOutcome): string {
   if (!o.built) return o.pkg + ': NOT BUILT -- pnpm deploy produced no tree';
   if (o.packageCount < MIN_PLAUSIBLE_PACKAGES) {
-    return o.pkg + ': EMPTY TREE (' + String(o.packageCount)
-      + ' packages) -- the probe is broken, not the artifact clean';
+    return (
+      o.pkg +
+      ': EMPTY TREE (' +
+      String(o.packageCount) +
+      ' packages) -- the probe is broken, not the artifact clean'
+    );
   }
   if (o.auditStatus === null) return o.pkg + ': AUDIT DID NOT RUN';
   return o.auditStatus === 0

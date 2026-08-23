@@ -51,29 +51,35 @@ describe('fetchAdoptionMetrics', () => {
 
   it('throws on a non-ok HTTP response', async () => {
     const fetchFn = vi.fn().mockResolvedValue(jsonResponse({}, false, 403));
-    await expect(fetchAdoptionMetrics({
-      apiUrl: 'https://api.example.com',
-      bearerToken: () => 'tok',
-      fetchFn,
-    })).rejects.toThrow(/403/);
+    await expect(
+      fetchAdoptionMetrics({
+        apiUrl: 'https://api.example.com',
+        bearerToken: () => 'tok',
+        fetchFn,
+      }),
+    ).rejects.toThrow(/403/);
   });
 
   it('throws when the response shape does not match the SSOT', async () => {
     const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ totalDrivers: 'five' }));
-    await expect(fetchAdoptionMetrics({
-      apiUrl: 'https://api.example.com',
-      bearerToken: () => 'tok',
-      fetchFn,
-    })).rejects.toThrow(/invalid/i);
+    await expect(
+      fetchAdoptionMetrics({
+        apiUrl: 'https://api.example.com',
+        bearerToken: () => 'tok',
+        fetchFn,
+      }),
+    ).rejects.toThrow(/invalid/i);
   });
 
   it('rejects a negative count from the server (SSOT guard)', async () => {
     const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ ...valid, appInstalled: -1 }));
-    await expect(fetchAdoptionMetrics({
-      apiUrl: 'https://api.example.com',
-      bearerToken: () => 'tok',
-      fetchFn,
-    })).rejects.toThrow(/invalid/i);
+    await expect(
+      fetchAdoptionMetrics({
+        apiUrl: 'https://api.example.com',
+        bearerToken: () => 'tok',
+        fetchFn,
+      }),
+    ).rejects.toThrow(/invalid/i);
   });
 
   it('falls back to globalThis.fetch when no fetchFn is injected', async () => {

@@ -56,7 +56,9 @@ describe('@fleet/api - validateEnv', () => {
     });
 
     it('reports DATABASE_URL path when malformed', () => {
-      expect(() => validateEnv({ ...validBase, DATABASE_URL: 'not-a-url' })).toThrow(/DATABASE_URL/);
+      expect(() => validateEnv({ ...validBase, DATABASE_URL: 'not-a-url' })).toThrow(
+        /DATABASE_URL/,
+      );
     });
   });
 
@@ -93,7 +95,9 @@ describe('@fleet/api - validateEnv', () => {
     });
 
     it('rejects malformed OIDC_JWKS_URI', () => {
-      expect(() => validateEnv({ ...validBase, OIDC_JWKS_URI: 'not-a-url' })).toThrow(/OIDC_JWKS_URI/);
+      expect(() => validateEnv({ ...validBase, OIDC_JWKS_URI: 'not-a-url' })).toThrow(
+        /OIDC_JWKS_URI/,
+      );
     });
 
     it('rejects empty OIDC_AUDIENCE', () => {
@@ -101,7 +105,6 @@ describe('@fleet/api - validateEnv', () => {
     });
   });
 });
-
 
 describe('@fleet/api - validateEnv (step-up requirement knobs)', () => {
   const base = {
@@ -116,10 +119,9 @@ describe('@fleet/api - validateEnv (step-up requirement knobs)', () => {
   });
 
   it('STEP_UP_ACR_LADDER parses a comma-separated override and trims', () => {
-    expect(validateEnv({ ...base, STEP_UP_ACR_LADDER: ' low , high ' }).STEP_UP_ACR_LADDER).toEqual([
-      'low',
-      'high',
-    ]);
+    expect(validateEnv({ ...base, STEP_UP_ACR_LADDER: ' low , high ' }).STEP_UP_ACR_LADDER).toEqual(
+      ['low', 'high'],
+    );
   });
 
   it('STEP_UP_DISPATCH_REQUIRED_ACR defaults to aal2', () => {
@@ -143,11 +145,11 @@ describe('@fleet/api - validateEnv (step-up requirement knobs)', () => {
 
   it('STEP_UP_PHISHING_RESISTANT_AMR parses a comma-separated override', () => {
     expect(
-      validateEnv({ ...base, STEP_UP_PHISHING_RESISTANT_AMR: 'hwk, fido2' }).STEP_UP_PHISHING_RESISTANT_AMR,
+      validateEnv({ ...base, STEP_UP_PHISHING_RESISTANT_AMR: 'hwk, fido2' })
+        .STEP_UP_PHISHING_RESISTANT_AMR,
     ).toEqual(['hwk', 'fido2']);
   });
 });
-
 
 describe('@fleet/api - validateEnv (break-glass monitor knobs)', () => {
   const base = {
@@ -158,17 +160,21 @@ describe('@fleet/api - validateEnv (break-glass monitor knobs)', () => {
   };
 
   it('KEYCLOAK_BASE_URL defaults to the production Keycloak host', () => {
-    expect(validateEnv(base).KEYCLOAK_BASE_URL).toBe('https://keycloak-production-7959.up.railway.app');
-  });
-
-  it('KEYCLOAK_BASE_URL accepts an override URL', () => {
-    expect(validateEnv({ ...base, KEYCLOAK_BASE_URL: 'https://kc.example.com' }).KEYCLOAK_BASE_URL).toBe(
-      'https://kc.example.com',
+    expect(validateEnv(base).KEYCLOAK_BASE_URL).toBe(
+      'https://keycloak-production-7959.up.railway.app',
     );
   });
 
+  it('KEYCLOAK_BASE_URL accepts an override URL', () => {
+    expect(
+      validateEnv({ ...base, KEYCLOAK_BASE_URL: 'https://kc.example.com' }).KEYCLOAK_BASE_URL,
+    ).toBe('https://kc.example.com');
+  });
+
   it('KEYCLOAK_BASE_URL rejects a malformed URL', () => {
-    expect(() => validateEnv({ ...base, KEYCLOAK_BASE_URL: 'not-a-url' })).toThrow(/KEYCLOAK_BASE_URL/);
+    expect(() => validateEnv({ ...base, KEYCLOAK_BASE_URL: 'not-a-url' })).toThrow(
+      /KEYCLOAK_BASE_URL/,
+    );
   });
 
   it('KEYCLOAK_MONITOR_CLIENT_ID defaults to fleet-breakglass-monitor', () => {
@@ -183,7 +189,8 @@ describe('@fleet/api - validateEnv (break-glass monitor knobs)', () => {
     // Runtime-generated to avoid a credential-shaped literal (secret-scanner clean).
     const monitorSecret = `mon_${randomBytes(12).toString('hex')}`;
     expect(
-      validateEnv({ ...base, KEYCLOAK_MONITOR_CLIENT_SECRET: monitorSecret }).KEYCLOAK_MONITOR_CLIENT_SECRET,
+      validateEnv({ ...base, KEYCLOAK_MONITOR_CLIENT_SECRET: monitorSecret })
+        .KEYCLOAK_MONITOR_CLIENT_SECRET,
     ).toBe(monitorSecret);
   });
 
@@ -192,9 +199,10 @@ describe('@fleet/api - validateEnv (break-glass monitor knobs)', () => {
   });
 
   it('BREAKGLASS_USERNAME_PREFIX accepts an override', () => {
-    expect(validateEnv({ ...base, BREAKGLASS_USERNAME_PREFIX: 'emergency-admin' }).BREAKGLASS_USERNAME_PREFIX).toBe(
-      'emergency-admin',
-    );
+    expect(
+      validateEnv({ ...base, BREAKGLASS_USERNAME_PREFIX: 'emergency-admin' })
+        .BREAKGLASS_USERNAME_PREFIX,
+    ).toBe('emergency-admin');
   });
 
   it('BREAKGLASS_POLL_INTERVAL_MS defaults to 60_000', () => {
@@ -202,11 +210,15 @@ describe('@fleet/api - validateEnv (break-glass monitor knobs)', () => {
   });
 
   it('BREAKGLASS_POLL_INTERVAL_MS coerces from string', () => {
-    expect(validateEnv({ ...base, BREAKGLASS_POLL_INTERVAL_MS: '30000' }).BREAKGLASS_POLL_INTERVAL_MS).toBe(30_000);
+    expect(
+      validateEnv({ ...base, BREAKGLASS_POLL_INTERVAL_MS: '30000' }).BREAKGLASS_POLL_INTERVAL_MS,
+    ).toBe(30_000);
   });
 
   it('BREAKGLASS_POLL_INTERVAL_MS rejects a non-positive value', () => {
-    expect(() => validateEnv({ ...base, BREAKGLASS_POLL_INTERVAL_MS: '0' })).toThrow(/BREAKGLASS_POLL_INTERVAL_MS/);
+    expect(() => validateEnv({ ...base, BREAKGLASS_POLL_INTERVAL_MS: '0' })).toThrow(
+      /BREAKGLASS_POLL_INTERVAL_MS/,
+    );
   });
 });
 
@@ -242,18 +254,23 @@ describe('@fleet/api - validateEnv (Factor III: webhook secrets + integration co
     expect(() => validateEnv({ ...base, ERP_WEBHOOK_SECRET: '' })).toThrow(/ERP_WEBHOOK_SECRET/);
   });
   it('CORS_ORIGINS defaults to the local ops-web + driver-app origins', () => {
-    expect(validateEnv(base).CORS_ORIGINS).toEqual(['http://localhost:8081', 'http://localhost:3001']);
+    expect(validateEnv(base).CORS_ORIGINS).toEqual([
+      'http://localhost:8081',
+      'http://localhost:3001',
+    ]);
   });
   it('CORS_ORIGINS parses a comma-separated override and trims', () => {
-    expect(validateEnv({ ...base, CORS_ORIGINS: ' https://a.example.com , https://b.example.com ' }).CORS_ORIGINS).toEqual([
-      'https://a.example.com',
-      'https://b.example.com',
-    ]);
+    expect(
+      validateEnv({ ...base, CORS_ORIGINS: ' https://a.example.com , https://b.example.com ' })
+        .CORS_ORIGINS,
+    ).toEqual(['https://a.example.com', 'https://b.example.com']);
   });
   it('FLEET_PILOT_SEED_ENABLED defaults to true', () => {
     expect(validateEnv(base).FLEET_PILOT_SEED_ENABLED).toBe(true);
   });
   it('FLEET_PILOT_SEED_ENABLED coerces the string false to boolean false', () => {
-    expect(validateEnv({ ...base, FLEET_PILOT_SEED_ENABLED: 'false' }).FLEET_PILOT_SEED_ENABLED).toBe(false);
+    expect(
+      validateEnv({ ...base, FLEET_PILOT_SEED_ENABLED: 'false' }).FLEET_PILOT_SEED_ENABLED,
+    ).toBe(false);
   });
 });

@@ -13,12 +13,21 @@ const { mockWithIsolationScope, mockCaptureException, capturedTags } = vi.hoiste
   return {
     capturedTags,
     mockCaptureException: vi.fn(),
-    mockWithIsolationScope: vi.fn(async (fn: (scope: { setTag: (k: string, v: unknown) => void }) => Promise<void>) => {
-      await fn({ setTag: (k: string, v: unknown) => { capturedTags.push({ key: k, value: v }); } });
-    }),
+    mockWithIsolationScope: vi.fn(
+      async (fn: (scope: { setTag: (k: string, v: unknown) => void }) => Promise<void>) => {
+        await fn({
+          setTag: (k: string, v: unknown) => {
+            capturedTags.push({ key: k, value: v });
+          },
+        });
+      },
+    ),
   };
 });
-vi.mock('@sentry/nestjs', () => ({ withIsolationScope: mockWithIsolationScope, captureException: mockCaptureException }));
+vi.mock('@sentry/nestjs', () => ({
+  withIsolationScope: mockWithIsolationScope,
+  captureException: mockCaptureException,
+}));
 import { SchedulerService } from '../src/scheduler/scheduler.service.js';
 import { coreTickers, INTERVALS } from './helpers/scheduler-ticker-factory.js';
 import type { OutboxRelayService } from '../src/outbox/outbox-relay.service.js';
@@ -26,17 +35,26 @@ import type { ProjectionRunnerService } from '../src/projections/projection-runn
 import type { CommandsGateway } from '../src/commands/commands.gateway.js';
 
 function makeSvc(deps: {
-  outbox?: OutboxRelayService; proj?: ProjectionRunnerService; gw?: CommandsGateway; scope?: string;
+  outbox?: OutboxRelayService;
+  proj?: ProjectionRunnerService;
+  gw?: CommandsGateway;
+  scope?: string;
 }): SchedulerService {
-  const outbox = deps.outbox ?? ({ drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as OutboxRelayService);
-  const proj = deps.proj ?? ({ drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as ProjectionRunnerService);
+  const outbox =
+    deps.outbox ??
+    ({ drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as OutboxRelayService);
+  const proj =
+    deps.proj ??
+    ({ drainOnce: vi.fn().mockResolvedValue(undefined) } as unknown as ProjectionRunnerService);
   const gw = deps.gw ?? ({ reconcileNow: () => [] } as unknown as CommandsGateway);
   const scope = deps.scope ?? 'pilot-scope-uuid';
-  return new SchedulerService(coreTickers({
-    outbox: () => outbox.drainOnce(),
-    projection: () => proj.drainOnce(scope),
-    reconciler: () => gw.reconcileNow(),
-  }));
+  return new SchedulerService(
+    coreTickers({
+      outbox: () => outbox.drainOnce(),
+      projection: () => proj.drainOnce(scope),
+      reconciler: () => gw.reconcileNow(),
+    }),
+  );
 }
 
 describe('@fleet/api - SchedulerService tags & labels (registry)', () => {
@@ -48,7 +66,10 @@ describe('@fleet/api - SchedulerService tags & labels (registry)', () => {
     mockWithIsolationScope.mockClear();
     logErr = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
   });
-  afterEach(() => { vi.useRealTimers(); logErr.mockRestore(); });
+  afterEach(() => {
+    vi.useRealTimers();
+    logErr.mockRestore();
+  });
 
   it('outbox tick tags job=outbox-drain', async () => {
     const svc = makeSvc({});
@@ -80,37 +101,63 @@ describe('@fleet/api - SchedulerService tags & labels (registry)', () => {
 
   it('projection tick passes the pilot scope through to drainOnce', async () => {
     const drainProjFn = vi.fn().mockResolvedValue(undefined);
-    const svc = makeSvc({ proj: { drainOnce: drainProjFn } as unknown as ProjectionRunnerService, scope: 'scope-y' });
+    const svc = makeSvc({
+      proj: { drainOnce: drainProjFn } as unknown as ProjectionRunnerService,
+      scope: 'scope-y',
+    });
     await svc.drainByKey('projection');
     expect(drainProjFn).toHaveBeenCalledWith('scope-y');
     svc.onModuleDestroy();
   });
 
   it('outbox error log uses Outbox drain failed prefix', async () => {
-    const svc = makeSvc({ outbox: { drainOnce: vi.fn().mockRejectedValue(new Error('boom')) } as unknown as OutboxRelayService });
+    const svc = makeSvc({
+      outbox: {
+        drainOnce: vi.fn().mockRejectedValue(new Error('boom')),
+      } as unknown as OutboxRelayService,
+    });
     await svc.drainByKey('outbox');
-    expect(logErr).toHaveBeenCalledWith(expect.stringMatching(/^Outbox drain failed: /), expect.any(String));
+    expect(logErr).toHaveBeenCalledWith(
+      expect.stringMatching(/^Outbox drain failed: /),
+      expect.any(String),
+    );
     svc.onModuleDestroy();
   });
 
   it('projection error log uses Projection drain failed prefix', async () => {
-    const svc = makeSvc({ proj: { drainOnce: vi.fn().mockRejectedValue(new Error('db locked')) } as unknown as ProjectionRunnerService });
+    const svc = makeSvc({
+      proj: {
+        drainOnce: vi.fn().mockRejectedValue(new Error('db locked')),
+      } as unknown as ProjectionRunnerService,
+    });
     await svc.drainByKey('projection');
-    expect(logErr).toHaveBeenCalledWith(expect.stringMatching(/^Projection drain failed: /), expect.any(String));
+    expect(logErr).toHaveBeenCalledWith(
+      expect.stringMatching(/^Projection drain failed: /),
+      expect.any(String),
+    );
     svc.onModuleDestroy();
   });
 
   it('reconciler error log uses Reconciler tick failed prefix', async () => {
-    const gw = { reconcileNow: vi.fn().mockImplementation(() => { throw new Error('rec boom'); }) } as unknown as CommandsGateway;
+    const gw = {
+      reconcileNow: vi.fn().mockImplementation(() => {
+        throw new Error('rec boom');
+      }),
+    } as unknown as CommandsGateway;
     const svc = makeSvc({ gw });
     await svc.drainByKey('reconciler');
-    expect(logErr).toHaveBeenCalledWith(expect.stringMatching(/^Reconciler tick failed: /), expect.any(String));
+    expect(logErr).toHaveBeenCalledWith(
+      expect.stringMatching(/^Reconciler tick failed: /),
+      expect.any(String),
+    );
     svc.onModuleDestroy();
   });
 
   it('calls Sentry.captureException on error', async () => {
     const err = new Error('captured');
-    const svc = makeSvc({ outbox: { drainOnce: vi.fn().mockRejectedValue(err) } as unknown as OutboxRelayService });
+    const svc = makeSvc({
+      outbox: { drainOnce: vi.fn().mockRejectedValue(err) } as unknown as OutboxRelayService,
+    });
     await svc.drainByKey('outbox');
     expect(mockCaptureException).toHaveBeenCalledWith(err);
     svc.onModuleDestroy();
@@ -149,7 +196,9 @@ describe('@fleet/api - SchedulerService tags & labels (registry)', () => {
 
   it('onModuleDestroy with no scheduled timers does not throw', () => {
     const svc = makeSvc({});
-    expect(() => { svc.onModuleDestroy(); }).not.toThrow();
+    expect(() => {
+      svc.onModuleDestroy();
+    }).not.toThrow();
   });
 
   it('onModuleDestroy stops re-arming: after destroy no tick fires', async () => {
@@ -173,7 +222,9 @@ describe('@fleet/api - SchedulerService tags & labels (registry)', () => {
   });
 
   it('reconciler keeps re-scheduling after a thrown tick', async () => {
-    const recFn = vi.fn().mockImplementation(() => { throw new Error('rec boom'); });
+    const recFn = vi.fn().mockImplementation(() => {
+      throw new Error('rec boom');
+    });
     const svc = makeSvc({ gw: { reconcileNow: recFn } as unknown as CommandsGateway });
     svc.onModuleInit();
     await vi.advanceTimersByTimeAsync(INTERVALS.reconciler);
@@ -198,7 +249,9 @@ describe('@fleet/api - SchedulerService tags & labels (registry)', () => {
   it('onModuleInit does not throw and arms one timer per ticker', () => {
     const setSpy = vi.spyOn(globalThis, 'setTimeout');
     const svc = makeSvc({});
-    expect(() => { svc.onModuleInit(); }).not.toThrow();
+    expect(() => {
+      svc.onModuleInit();
+    }).not.toThrow();
     expect(setSpy).toHaveBeenCalledTimes(3);
     setSpy.mockRestore();
     svc.onModuleDestroy();

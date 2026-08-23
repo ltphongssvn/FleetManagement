@@ -31,7 +31,6 @@ import {
   interpretHealResult,
   reconcileExitCode,
   verifyHeal,
-
   type ReconcileSummary,
 } from './deps-reconcile.js';
 import {
@@ -66,11 +65,7 @@ interface SpawnOptions {
 // The seam. Production passes a spawnSync wrapper; tests pass a recorder, so
 // "never spawn in dry run" is asserted as an empty call list rather than as the
 // absence of a substring.
-export type SpawnFn = (
-  cwd: string,
-  args: readonly string[],
-  opts: SpawnOptions,
-) => SpawnOutcome;
+export type SpawnFn = (cwd: string, args: readonly string[], opts: SpawnOptions) => SpawnOutcome;
 export interface ReconcileTarget {
   path: string;
   probe: DepsProbe;

@@ -6,11 +6,17 @@
 // AttestationService verifies the proof and persists the attested key material
 // + flips binding_status to pending for admin activation.
 import { sql } from 'drizzle-orm';
-import { pgTable, uuid, varchar, timestamp, index, uniqueIndex, text, integer } from 'drizzle-orm/pg-core';
 import {
-  ATTESTATION_ENVIRONMENTS,
-  ATTESTATION_SECURITY_LEVELS,
-} from '@fleet/sync-protocol';
+  pgTable,
+  uuid,
+  varchar,
+  timestamp,
+  index,
+  uniqueIndex,
+  text,
+  integer,
+} from 'drizzle-orm/pg-core';
+import { ATTESTATION_ENVIRONMENTS, ATTESTATION_SECURITY_LEVELS } from '@fleet/sync-protocol';
 
 // The vocabularies these varchar columns actually hold. Drizzle's { enum } config
 // infers the select/insert TYPE without checking runtime values, so it removes
@@ -33,10 +39,15 @@ export const deviceRegistry = pgTable(
     appVersion: varchar('app_version', { length: 32 }).notNull(),
     expoPushToken: varchar('expo_push_token', { length: 256 }),
     udid: varchar('udid', { length: 128 }),
-    enrolledAt: timestamp('enrolled_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    enrolledAt: timestamp('enrolled_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' }),
     attestationPlatform: varchar('attestation_platform', { length: 16 }),
-    attestationVerifiedAt: timestamp('attestation_verified_at', { withTimezone: true, mode: 'date' }),
+    attestationVerifiedAt: timestamp('attestation_verified_at', {
+      withTimezone: true,
+      mode: 'date',
+    }),
     attestationTokenHash: varchar('attestation_token_hash', { length: 64 }),
     // Hardware device binding (device-binding arc, Phase 3). installation_id is
     // the per-platform stable installation identity (Android SSAID / iOS IDFV);
@@ -44,7 +55,9 @@ export const deviceRegistry = pgTable(
     // hardware key below. binding_status is the TOFU lifecycle:
     // pending -> active (ops-web admin) -> revoked (recorded, never deleted).
     installationId: varchar('installation_id', { length: 128 }),
-    bindingStatus: varchar('binding_status', { length: 16, enum: BINDING_STATUSES }).notNull().default('pending'),
+    bindingStatus: varchar('binding_status', { length: 16, enum: BINDING_STATUSES })
+      .notNull()
+      .default('pending'),
     bindingRevokedAt: timestamp('binding_revoked_at', { withTimezone: true, mode: 'date' }),
     bindingRevokedReason: varchar('binding_revoked_reason', { length: 64 }),
     // Attested hardware key material (public only; the private key never
@@ -53,8 +66,14 @@ export const deviceRegistry = pgTable(
     // (App Attest sandbox aaguid on Ad Hoc builds).
     attestationKeyId: varchar('attestation_key_id', { length: 128 }),
     attestationPublicKeySpki: text('attestation_public_key_spki'),
-    attestationSecurityLevel: varchar('attestation_security_level', { length: 32, enum: ATTESTATION_SECURITY_LEVELS }),
-    attestationEnvironment: varchar('attestation_environment', { length: 32, enum: ATTESTATION_ENVIRONMENTS }),
+    attestationSecurityLevel: varchar('attestation_security_level', {
+      length: 32,
+      enum: ATTESTATION_SECURITY_LEVELS,
+    }),
+    attestationEnvironment: varchar('attestation_environment', {
+      length: 32,
+      enum: ATTESTATION_ENVIRONMENTS,
+    }),
     attestationCounter: integer('attestation_counter'),
   },
   (t) => [
@@ -64,7 +83,11 @@ export const deviceRegistry = pgTable(
     // One binding per hardware identity per platform per company. Partial-free:
     // Postgres treats NULL installation_id rows as distinct, so legacy rows
     // enrolled before the binding arc coexist until first identity-bearing enroll.
-    uniqueIndex('device_registry_company_platform_installation_uq').on(t.companyId, t.platform, t.installationId),
+    uniqueIndex('device_registry_company_platform_installation_uq').on(
+      t.companyId,
+      t.platform,
+      t.installationId,
+    ),
   ],
 );
 export const deviceSession = pgTable(
@@ -72,7 +95,9 @@ export const deviceSession = pgTable(
   {
     deviceSessionId: uuid('device_session_id').primaryKey().defaultRandom(),
     ...tenancyColumns,
-    deviceId: uuid('device_id').notNull().references(() => deviceRegistry.deviceId),
+    deviceId: uuid('device_id')
+      .notNull()
+      .references(() => deviceRegistry.deviceId),
     operatorId: uuid('operator_id').notNull(),
     surface: varchar('surface', { length: 16 }).notNull(),
     sessionMode: varchar('session_mode', { length: 16 }).notNull(),

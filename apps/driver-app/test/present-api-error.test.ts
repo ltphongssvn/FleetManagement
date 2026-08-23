@@ -38,7 +38,72 @@ function conflict(): ApiError {
 describe('driver-app presentApiError', () => {
   it('maps INVALID_STATE_TRANSITION to the immutable transition message', () => {
     const msg = presentApiError(conflict(), FALLBACK);
-    expect(msg).toBe(String.fromCharCode(75,104,244,110,103,32,116,104,7875,32,104,111,224,110,32,116,104,224,110,104,32,99,104,117,121,7871,110,46,32,86,117,105,32,108,242,110,103,32,107,105,7875,109,32,116,114,97,32,116,114,7841,110,103,32,116,104,225,105,32,273,417,110,46));
+    expect(msg).toBe(
+      String.fromCharCode(
+        75,
+        104,
+        244,
+        110,
+        103,
+        32,
+        116,
+        104,
+        7875,
+        32,
+        104,
+        111,
+        224,
+        110,
+        32,
+        116,
+        104,
+        224,
+        110,
+        104,
+        32,
+        99,
+        104,
+        117,
+        121,
+        7871,
+        110,
+        46,
+        32,
+        86,
+        117,
+        105,
+        32,
+        108,
+        242,
+        110,
+        103,
+        32,
+        107,
+        105,
+        7875,
+        109,
+        32,
+        116,
+        114,
+        97,
+        32,
+        116,
+        114,
+        7841,
+        110,
+        103,
+        32,
+        116,
+        104,
+        225,
+        105,
+        32,
+        273,
+        417,
+        110,
+        46,
+      ),
+    );
     expect(msg).toBe(VN_ERROR_MESSAGES.INVALID_STATE_TRANSITION);
   });
 
@@ -47,7 +112,11 @@ describe('driver-app presentApiError', () => {
     const fb = ApiError.fromBody(403, { status: 403, code: 'FORBIDDEN' });
     expect(presentApiError(un, FALLBACK)).toBe(VN_ERROR_MESSAGES.UNAUTHORIZED);
     expect(presentApiError(fb, FALLBACK)).toBe(VN_ERROR_MESSAGES.FORBIDDEN);
-    expect(VN_ERROR_MESSAGES.UNAUTHORIZED.includes(String.fromCharCode(273,259,110,103,32,110,104,7853,112))).toBe(true);
+    expect(
+      VN_ERROR_MESSAGES.UNAUTHORIZED.includes(
+        String.fromCharCode(273, 259, 110, 103, 32, 110, 104, 7853, 112),
+      ),
+    ).toBe(true);
   });
 
   it('falls back by status class for an ApiError without a mapped code', () => {

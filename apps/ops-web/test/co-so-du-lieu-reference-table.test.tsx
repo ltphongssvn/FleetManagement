@@ -12,11 +12,16 @@ beforeEach(() => {
   globalThis.fetch = vi.fn().mockResolvedValue({
     ok: true,
     status: 200,
-    json: () => Promise.resolve({ items: [{ id: 'c1', label: 'ACME', meta: { phone: '0900000000' } }] }),
+    json: () =>
+      Promise.resolve({ items: [{ id: 'c1', label: 'ACME', meta: { phone: '0900000000' } }] }),
   }) as never;
 });
 describe('master-data section renders as a DataTable', () => {
-  const customers = { segment: 'customers' as const, title: 'Khách hàng', addLabel: 'Thêm khách hàng' };
+  const customers = {
+    segment: 'customers' as const,
+    title: 'Khách hàng',
+    addLabel: 'Thêm khách hàng',
+  };
   it('renders the shared datatable search input', async () => {
     render(<ReferenceSection def={customers} />);
     expect(await screen.findByTestId('datatable-search')).toBeInTheDocument();

@@ -22,7 +22,11 @@ export async function startNativeSyncLoop(cfg: NativeBootstrapConfig): Promise<(
   const transport = new FetchSyncTransport({ apiUrl: cfg.apiUrl, bearerToken: cfg.bearerToken });
 
   const state: SyncSchedulerState = {
-    online: true, appActive: true, lastSyncAtMs: null, lastOutcome: null, consecutiveTransportFailures: 0,
+    online: true,
+    appActive: true,
+    lastSyncAtMs: null,
+    lastOutcome: null,
+    consecutiveTransportFailures: 0,
   };
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -33,17 +37,29 @@ export async function startNativeSyncLoop(cfg: NativeBootstrapConfig): Promise<(
       const outcome = await runSyncOnce(transport, store);
       (state as { lastSyncAtMs: number }).lastSyncAtMs = Date.now();
       (state as { lastOutcome: SyncSchedulerOutcome }).lastOutcome =
-        outcome.kind === 'transport_failure' ? 'last_transport_failure' :
-        outcome.kind === 'applied' ? 'last_applied' :
-        outcome.kind === 'idle' ? 'last_idle' :
-        outcome.kind === 'cursor_expired_recovered' ? 'last_cursor_expired_recovered' :
-        outcome.kind === 'protocol_violation' ? 'last_protocol_violation' :
-        'last_storage_failure';
+        outcome.kind === 'transport_failure'
+          ? 'last_transport_failure'
+          : outcome.kind === 'applied'
+            ? 'last_applied'
+            : outcome.kind === 'idle'
+              ? 'last_idle'
+              : outcome.kind === 'cursor_expired_recovered'
+                ? 'last_cursor_expired_recovered'
+                : outcome.kind === 'protocol_violation'
+                  ? 'last_protocol_violation'
+                  : 'last_storage_failure';
       (state as { consecutiveTransportFailures: number }).consecutiveTransportFailures =
         outcome.kind === 'transport_failure' ? state.consecutiveTransportFailures + 1 : 0;
     }
-    timer = setTimeout(() => { void tick(); }, SYNC_IDLE_INTERVAL_MS);
+    timer = setTimeout(() => {
+      void tick();
+    }, SYNC_IDLE_INTERVAL_MS);
   };
-  timer = setTimeout(() => { void tick(); }, SYNC_IDLE_INTERVAL_MS);
-  return () => { stopped = true; if (timer) clearTimeout(timer); };
+  timer = setTimeout(() => {
+    void tick();
+  }, SYNC_IDLE_INTERVAL_MS);
+  return () => {
+    stopped = true;
+    if (timer) clearTimeout(timer);
+  };
 }

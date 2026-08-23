@@ -12,19 +12,33 @@
 // transport_order.external_ref matching prefix.MM- in the same company.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { eq, and } from 'drizzle-orm';
-import { OrderNumberingService, DEFAULT_ORDER_PREFIX } from '../src/transport-orders/order-numbering.service.js';
+import {
+  OrderNumberingService,
+  DEFAULT_ORDER_PREFIX,
+} from '../src/transport-orders/order-numbering.service.js';
 import { transportOrder } from '../src/database/schema/transport.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 const OP = createOperatorContext();
 const MONTHLY_REGEX = /^XTT\.(0[1-9]|1[0-2])-(\d+)$/;
 const FIXED_NOW = new Date('2026-06-15T10:00:00Z');
-function tenancyOf(): { companyId: string; businessUnitId: string; depotId: string; legalEntityId: string } {
+function tenancyOf(): {
+  companyId: string;
+  businessUnitId: string;
+  depotId: string;
+  legalEntityId: string;
+} {
   return {
-    companyId: OP.companyId, businessUnitId: OP.businessUnitId,
-    depotId: OP.depotId, legalEntityId: OP.legalEntityId,
+    companyId: OP.companyId,
+    businessUnitId: OP.businessUnitId,
+    depotId: OP.depotId,
+    legalEntityId: OP.legalEntityId,
   };
 }
 function parseMonthlyNumber(ref: string): number {
@@ -45,8 +59,12 @@ function requireDefined<T>(v: T | undefined | null, label: string): T {
   return v;
 }
 describe('@fleet/api - OrderNumberingService legacy-data collision (T3 hardening)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('legacy XT.NNNN rows live in a different namespace and do not affect XTT.MM-NNN allocation', async () => {
     let allocated: string | undefined;
     await withTxIsolation(testDb, async (tx) => {
@@ -55,7 +73,9 @@ describe('@fleet/api - OrderNumberingService legacy-data collision (T3 hardening
       // the regex shape with XTT.MM-NNN, so the rebase MAX query must not
       // see them and the new allocator must return XTT.06-001.
       for (let i = 1; i <= 67; i++) {
-        await tx.insert(transportOrder).values({ ...tn, externalRef: 'XT.' + String(i).padStart(4, '0') });
+        await tx
+          .insert(transportOrder)
+          .values({ ...tn, externalRef: 'XT.' + String(i).padStart(4, '0') });
       }
       const numbering = new OrderNumberingService();
       allocated = await numbering.allocate(tx as never, OP, DEFAULT_ORDER_PREFIX, FIXED_NOW);
@@ -83,12 +103,21 @@ describe('@fleet/api - OrderNumberingService legacy-data collision (T3 hardening
       const numbering = new OrderNumberingService();
       const ref = await numbering.allocate(tx as never, OP, DEFAULT_ORDER_PREFIX, FIXED_NOW);
       resolvedRef = ref;
-      const [created] = await tx.insert(transportOrder).values({ ...tn, externalRef: ref }).returning();
+      const [created] = await tx
+        .insert(transportOrder)
+        .values({ ...tn, externalRef: ref })
+        .returning();
       if (created !== undefined) {
         inserted = true;
-        const [verify] = await tx.select({ externalRef: transportOrder.externalRef })
+        const [verify] = await tx
+          .select({ externalRef: transportOrder.externalRef })
           .from(transportOrder)
-          .where(and(eq(transportOrder.transportOrderId, created.transportOrderId), eq(transportOrder.companyId, OP.companyId)));
+          .where(
+            and(
+              eq(transportOrder.transportOrderId, created.transportOrderId),
+              eq(transportOrder.companyId, OP.companyId),
+            ),
+          );
         const dbRef = verify?.externalRef;
         if (typeof dbRef === 'string') verifyRef = dbRef;
       }

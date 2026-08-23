@@ -7,8 +7,14 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Text, View, StyleSheet } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 import { useAuth } from '../../src/auth/use-auth.js';
-import { createCommandsSocket, type CommandsSocketHandle } from '../../src/commands/commands-socket-factory.js';
-import { presentCommands, type CommandsViewModel } from '../../src/commands/commands-screen-state.js';
+import {
+  createCommandsSocket,
+  type CommandsSocketHandle,
+} from '../../src/commands/commands-socket-factory.js';
+import {
+  presentCommands,
+  type CommandsViewModel,
+} from '../../src/commands/commands-screen-state.js';
 import type { CommandPayload } from '../../src/commands/command-receiver-policy.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
 import { getApiUrl } from '../../src/config/api-url.js';
@@ -16,7 +22,9 @@ import { presentApiError } from '../../src/errors/present-api-error.js';
 export default function CommandsScreen(): JSX.Element {
   const { getAccessToken, status } = useAuth();
   const [inbox, setInbox] = useState<readonly CommandPayload[]>([]);
-  const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'error'>('connecting');
+  const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'error'>(
+    'connecting',
+  );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   useEffect(() => {
     if (status !== 'authenticated') return;
@@ -104,7 +112,12 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     backgroundColor: colors.backdrop,
   },
-  muted: { ...typography.caption, color: colors.slate300, marginTop: spacing.sm, textAlign: 'center' },
+  muted: {
+    ...typography.caption,
+    color: colors.slate300,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
   errorTitle: { ...typography.heading, color: colors.red600 },
   emptyTitle: { ...typography.heading, color: colors.white },
   card: {
@@ -119,5 +132,10 @@ const styles = StyleSheet.create({
   },
   rowTitle: { ...typography.heading, color: colors.indigo700 },
   detail: { ...typography.caption, color: colors.slate600, marginTop: 2 },
-  commandId: { fontSize: 11, color: colors.slate400, marginTop: spacing.xs, fontFamily: 'monospace' },
+  commandId: {
+    fontSize: 11,
+    color: colors.slate400,
+    marginTop: spacing.xs,
+    fontFamily: 'monospace',
+  },
 });

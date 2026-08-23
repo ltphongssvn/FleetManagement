@@ -167,13 +167,17 @@ describe('RosterSplitPanel', () => {
 
   it('renders a dash for an idle driver with no assigned truck', () => {
     render(<RosterSplitPanel split={SPLIT} />);
-    const noTruckRow = screen.getByTestId('roster-split-idle-row-33333333-3333-4333-8333-333333333333');
+    const noTruckRow = screen.getByTestId(
+      'roster-split-idle-row-33333333-3333-4333-8333-333333333333',
+    );
     expect(within(noTruckRow).getByText('-')).toBeTruthy();
   });
 
   it('renders a dash for a dispatched driver with no truck and no order refs', () => {
     render(<RosterSplitPanel split={SPLIT} />);
-    const row = screen.getByTestId('roster-split-dispatched-row-55555555-5555-4555-8555-555555555555');
+    const row = screen.getByTestId(
+      'roster-split-dispatched-row-55555555-5555-4555-8555-555555555555',
+    );
     // Two dashes: the plate cell and the order-ref cell. A blank cell would
     // read as a rendering fault; a dash reads as known-empty.
     expect(within(row).getAllByText('-')).toHaveLength(2);
@@ -226,7 +230,13 @@ describe('RosterSplitPanel pagination', () => {
     render(<RosterSplitPanel split={BIG} />);
     const rows = within(screen.getByTestId('roster-split-idle')).getAllByRole('rowheader');
     expect(rows).toHaveLength(5);
-    expect(rows.map((el) => el.textContent)).toEqual(['IDLE-1', 'IDLE-2', 'IDLE-3', 'IDLE-4', 'IDLE-5']);
+    expect(rows.map((el) => el.textContent)).toEqual([
+      'IDLE-1',
+      'IDLE-2',
+      'IDLE-3',
+      'IDLE-4',
+      'IDLE-5',
+    ]);
   });
 
   // THE COUNT IS THE WHOLE POINT OF THE PANEL. It must keep reporting the FULL
@@ -298,7 +308,9 @@ describe('RosterSplitPanel pagination', () => {
     render(<RosterSplitPanel split={both} />);
     const idleNav = within(screen.getByTestId('roster-split-idle-pagination'));
     await user.click(idleNav.getByRole('button', { name: 'Trang 2' }));
-    const dispatchedRows = within(screen.getByTestId('roster-split-dispatched')).getAllByRole('rowheader');
+    const dispatchedRows = within(screen.getByTestId('roster-split-dispatched')).getAllByRole(
+      'rowheader',
+    );
     expect(dispatchedRows[0]?.textContent).toBe('RUN-1');
   });
 

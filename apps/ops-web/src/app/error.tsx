@@ -7,8 +7,16 @@
 'use client';
 import { useEffect, type JSX } from 'react';
 import * as Sentry from '@sentry/nextjs';
-export default function ErrorPage({ error, reset }: { error: Error; reset: () => void }): JSX.Element {
-  useEffect(() => { Sentry.captureException(error); }, [error]);
+export default function ErrorPage({
+  error,
+  reset,
+}: {
+  error: Error;
+  reset: () => void;
+}): JSX.Element {
+  useEffect(() => {
+    Sentry.captureException(error);
+  }, [error]);
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-4">
       <h2 className="text-lg font-semibold">Đã xảy ra lỗi</h2>

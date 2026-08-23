@@ -10,13 +10,6 @@ import type { SyncCursor } from './sync-contract.js';
 // Branded ID types — compile-time safety against ID mix-ups
 // ---------------------------------------------------------------------------
 
-
-
-
-
-
-
-
 // ---------------------------------------------------------------------------
 // Sync status — single source of truth (type derived from array)
 // ---------------------------------------------------------------------------
@@ -33,7 +26,7 @@ export const SYNC_STATUSES = [
   'bootstrap_format_deprecated',
 ] as const;
 
-export type SyncStatus = typeof SYNC_STATUSES[number];
+export type SyncStatus = (typeof SYNC_STATUSES)[number];
 
 // ---------------------------------------------------------------------------
 // Action result — single source of truth
@@ -49,13 +42,11 @@ export const SYNC_ACTION_RESULTS = [
   'hint_conflict',
 ] as const;
 
-export type SyncActionResult = typeof SYNC_ACTION_RESULTS[number];
+export type SyncActionResult = (typeof SYNC_ACTION_RESULTS)[number];
 
 // ---------------------------------------------------------------------------
 // Request / Response interfaces
 // ---------------------------------------------------------------------------
-
-
 
 /** Sync response from POST /sync per PDF wire protocol. */
 export interface SyncResponse {

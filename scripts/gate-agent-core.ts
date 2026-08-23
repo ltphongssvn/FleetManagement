@@ -78,7 +78,9 @@ export function flockBackend(lockPath: string): LockBackend {
         throw new Error('flockBackend.wrap: refusing to lock around an empty command');
       }
       if (!Number.isFinite(waitSeconds) || waitSeconds <= 0) {
-        throw new Error('flockBackend.wrap: waitSeconds must be positive (a gate must never hang forever)');
+        throw new Error(
+          'flockBackend.wrap: waitSeconds must be positive (a gate must never hang forever)',
+        );
       }
       // util-linux flock(1) file-then-command mode takes the command DIRECTLY
       // after the lock path. A literal -- separator is not a separator there;

@@ -70,9 +70,7 @@ describe('SearchBox - the visible submit control (UX-09)', () => {
 
   it('returns to the unfiltered board when the native clear empties an active search', async () => {
     const user = userEvent.setup();
-    render(
-      <DispatchView initialRuns={[]} refs={REFS} pagination={PAGINATION} searchTerm='CHAU' />,
-    );
+    render(<DispatchView initialRuns={[]} refs={REFS} pagination={PAGINATION} searchTerm="CHAU" />);
     await user.clear(screen.getByTestId('dispatch-board-search'));
     expect(assign).toHaveBeenCalledTimes(1);
     expect(String(assign.mock.calls[0]?.[0])).not.toContain('search=');
@@ -139,7 +137,7 @@ describe('Empty board - the in-place next step (UX-06)', () => {
   });
 
   it('offers no CTA when the board is empty because nothing MATCHED', () => {
-    render(<DispatchView initialRuns={[]} refs={REFS} pagination={PAGINATION} searchTerm='zzz' />);
+    render(<DispatchView initialRuns={[]} refs={REFS} pagination={PAGINATION} searchTerm="zzz" />);
     expect(screen.queryByTestId('dispatch-board-empty-cta')).toBeNull();
   });
 });

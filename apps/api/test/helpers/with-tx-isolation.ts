@@ -57,7 +57,11 @@ export async function withTxIsolation<T>(
   }
   if (bodyError !== null) {
     if (bodyError instanceof Error) throw bodyError;
-    throw new Error(typeof bodyError === 'string' ? bodyError : 'unknown body error: ' + JSON.stringify(bodyError));
+    throw new Error(
+      typeof bodyError === 'string'
+        ? bodyError
+        : 'unknown body error: ' + JSON.stringify(bodyError),
+    );
   }
   return captured;
 }

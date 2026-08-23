@@ -13,7 +13,9 @@ import { render, screen, cleanup } from '@testing-library/react';
 import { OrderReview } from '@/features/dispatch/OrderReview';
 import type { ListAssignedRow } from '@/features/dispatch/types';
 
-afterEach(() => { cleanup(); });
+afterEach(() => {
+  cleanup();
+});
 
 // A completed order exactly as reported: photos uploaded at the stops, road run
 // moved to Da hoan tat, but arrival timestamps never written by the driver app.

@@ -77,8 +77,13 @@ describe('@fleet/sync-protocol - dispatch roster split contract', () => {
   });
 
   it('allows a null vehicle plate on both sides (driver with no active assignment)', () => {
-    expect(DispatchedDriverRowSchema.safeParse(dispatchedRow({ vehiclePlate: null })).success).toBe(true);
-    expect(IdleDriverRowSchema.safeParse(idleRow({ vehiclePlate: null, reason: 'no_vehicle_assigned' })).success).toBe(true);
+    expect(DispatchedDriverRowSchema.safeParse(dispatchedRow({ vehiclePlate: null })).success).toBe(
+      true,
+    );
+    expect(
+      IdleDriverRowSchema.safeParse(idleRow({ vehiclePlate: null, reason: 'no_vehicle_assigned' }))
+        .success,
+    ).toBe(true);
   });
 
   it('rejects a road-run state outside the SSOT lifecycle vocabulary', () => {

@@ -37,7 +37,11 @@ export class DeviceEnrollmentService {
       })
       .onConflictDoUpdate({
         target: [deviceRegistry.operatorId, deviceRegistry.platform],
-        set: { appVersion: input.appVersion, lastSeenAt: new Date(), expoPushToken: input.expoPushToken },
+        set: {
+          appVersion: input.appVersion,
+          lastSeenAt: new Date(),
+          expoPushToken: input.expoPushToken,
+        },
       })
       .returning();
     /* v8 ignore next -- .returning() after an upsert always yields a row */

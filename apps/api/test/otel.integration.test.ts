@@ -1,6 +1,10 @@
 // apps/api/test/otel.integration.test.ts
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base';
 import { trace, context, SpanStatusCode } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { tagActiveSpan, recordSpanFailure } from '../src/observability/otel.js';

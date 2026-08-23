@@ -26,21 +26,27 @@ export class AuthLoginService {
   ) {}
 
   async login(phone: string, password: string): Promise<LoginResult> {
-    const rows = await this.db.select().from(driver)
+    const rows = await this.db
+      .select()
+      .from(driver)
       .where(and(eq(driver.phone, phone), eq(driver.companyId, this.companyId)))
       .limit(1);
     const row = rows[0];
-    const candidate: LoginCandidate | null = row && row.passwordHash !== null ? {
-      driverId: row.driverId,
-      companyId: row.companyId,
-      businessUnitId: row.businessUnitId,
-      depotId: row.depotId,
-      legalEntityId: row.legalEntityId,
-      operatorId: row.operatorId,
-      passwordHash: row.passwordHash,
-      active: row.active,
-    } : null;
-    const passwordMatches = candidate !== null ? await this.bcryptCompare(password, candidate.passwordHash) : false;
+    const candidate: LoginCandidate | null =
+      row && row.passwordHash !== null
+        ? {
+            driverId: row.driverId,
+            companyId: row.companyId,
+            businessUnitId: row.businessUnitId,
+            depotId: row.depotId,
+            legalEntityId: row.legalEntityId,
+            operatorId: row.operatorId,
+            passwordHash: row.passwordHash,
+            active: row.active,
+          }
+        : null;
+    const passwordMatches =
+      candidate !== null ? await this.bcryptCompare(password, candidate.passwordHash) : false;
     const outcome = decideLoginOutcome(candidate, passwordMatches);
     switch (outcome.kind) {
       case 'not-found':

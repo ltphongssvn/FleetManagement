@@ -24,7 +24,21 @@ describe('@fleet/api - TransportOrdersReviewController', () => {
   });
   it('delegates to svc.findByCompanyIdOrRef with the operator context for a valid uuid', async () => {
     const id = '11111111-1111-4111-8111-111111111111';
-    const row = { transportOrderId: id, externalRef: 'TO-1', roadRunId: 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa', state: 'planned', plannedStartAt: null, startedAt: null, completedAt: null, orderRef: 'TO-1', plate: '51A-123', customerName: 'Acme', pickupName: 'WH1', deliveryName: 'WH2', stops: [] };
+    const row = {
+      transportOrderId: id,
+      externalRef: 'TO-1',
+      roadRunId: 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',
+      state: 'planned',
+      plannedStartAt: null,
+      startedAt: null,
+      completedAt: null,
+      orderRef: 'TO-1',
+      plate: '51A-123',
+      customerName: 'Acme',
+      pickupName: 'WH1',
+      deliveryName: 'WH2',
+      stops: [],
+    };
     findByCompanyIdOrRef.mockResolvedValue(row);
     const result = await ctl.findOne(id, op);
     expect(result).toEqual(row);
@@ -35,8 +49,8 @@ describe('@fleet/api - TransportOrdersReviewController', () => {
   });
   it('translates TransportOrderNotFoundError into NotFoundException', async () => {
     findByCompanyIdOrRef.mockRejectedValue(new TransportOrderNotFoundError());
-    await expect(
-      ctl.findOne('22222222-2222-4222-8222-222222222222', op),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(ctl.findOne('22222222-2222-4222-8222-222222222222', op)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });

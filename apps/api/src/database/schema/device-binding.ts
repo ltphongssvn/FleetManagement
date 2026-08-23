@@ -14,7 +14,9 @@ export const deviceAttestationEvent = pgTable(
   {
     attestationEventId: uuid('attestation_event_id').primaryKey().defaultRandom(),
     ...tenancyColumns,
-    deviceId: uuid('device_id').notNull().references(() => deviceRegistry.deviceId),
+    deviceId: uuid('device_id')
+      .notNull()
+      .references(() => deviceRegistry.deviceId),
     operatorId: uuid('operator_id').notNull(),
     platform: varchar('platform', { length: 16 }).notNull(),
     outcome: varchar('outcome', { length: 32 }).notNull(),

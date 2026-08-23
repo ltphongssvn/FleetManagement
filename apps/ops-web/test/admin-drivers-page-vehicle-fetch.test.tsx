@@ -16,18 +16,24 @@ vi.mock('@/features/admin/admin-drivers-client', () => ({
 }));
 const fetchMock = vi.fn();
 function jsonRes(body: unknown): Response {
-  return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 beforeEach(() => {
   fetchMock.mockClear();
   listMock.mockImplementation(() => Promise.resolve([]));
   vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = typeof input === 'string' ? input : (input instanceof URL ? input.href : input.url);
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     fetchMock(url, init);
     return Promise.resolve(jsonRes({ items: [] }));
   });
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 import AdminDriversPage from '@/app/admin/drivers/page';
 describe('AdminDriversPage vehicle fetch scope (T5d)', () => {
   it('fetches /api/reference/vehicles?scope=admin', async () => {

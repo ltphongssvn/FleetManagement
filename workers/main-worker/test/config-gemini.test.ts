@@ -18,11 +18,14 @@ describe('config: Gemini extraction keys', () => {
   });
 
   it('accepts an explicit key + model override (cost A/B downgrade path)', () => {
-    const c = loadConfig({ ...BASE, GEMINI_API_KEY: 'k-abc', GEMINI_MODEL: 'gemini-2.5-flash' } as NodeJS.ProcessEnv);
+    const c = loadConfig({
+      ...BASE,
+      GEMINI_API_KEY: 'k-abc',
+      GEMINI_MODEL: 'gemini-2.5-flash',
+    } as NodeJS.ProcessEnv);
     expect(c.GEMINI_API_KEY).toBe('k-abc');
     expect(c.GEMINI_MODEL).toBe('gemini-2.5-flash');
   });
-
 
   it('treats empty GEMINI_API_KEY as absent (compose ${VAR:-} interpolation)', () => {
     const c = loadConfig({ ...BASE, GEMINI_API_KEY: '' } as NodeJS.ProcessEnv);

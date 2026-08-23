@@ -18,11 +18,7 @@
 // parent -> self-fallback.
 
 import { describe, it, expect } from 'vitest';
-import {
-  ciEnvSchema,
-  pickCurrentSha,
-  resolveBaseSha,
-} from './resolve-ci-sha.ts';
+import { ciEnvSchema, pickCurrentSha, resolveBaseSha } from './resolve-ci-sha.ts';
 
 const VALID_SHA = 'a'.repeat(40);
 const OTHER_SHA = 'b'.repeat(40);

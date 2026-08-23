@@ -25,7 +25,10 @@ describe('ReferenceAdminClient session-expired seam', () => {
   it('list() on the forwarder 401 -> ApiProblemError{401, UNAUTHORIZED}, session-expired display copy', async () => {
     const fetchFn = vi.fn(() =>
       Promise.resolve(
-        problemRes({ type: 'about:blank', title: 'Unauthorized', status: 401, code: 'UNAUTHORIZED' }, 401),
+        problemRes(
+          { type: 'about:blank', title: 'Unauthorized', status: 401, code: 'UNAUTHORIZED' },
+          401,
+        ),
       ),
     );
     const client = new ReferenceAdminClient('customers', fetchFn);
@@ -45,7 +48,12 @@ describe('ReferenceAdminClient session-expired seam', () => {
     const fetchFn = vi.fn(() =>
       Promise.resolve(
         problemRes(
-          { title: 'Conflict', status: 409, code: 'VALIDATION_FAILED', detail: 'Khách hàng "X" đã tồn tại' },
+          {
+            title: 'Conflict',
+            status: 409,
+            code: 'VALIDATION_FAILED',
+            detail: 'Khách hàng "X" đã tồn tại',
+          },
           409,
         ),
       ),

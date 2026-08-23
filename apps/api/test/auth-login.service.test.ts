@@ -8,8 +8,15 @@ import { DriverLoginResponseSchema } from '@fleet/sync-protocol';
 import { AuthLoginService } from '../src/auth/auth-login.service.js';
 import type { RefreshTokenService } from '../src/auth/refresh-token.service.js';
 interface DriverRow {
-  driverId: string; companyId: string; businessUnitId: string; depotId: string; legalEntityId: string;
-  operatorId: string | null; passwordHash: string | null; active: boolean; phone: string | null;
+  driverId: string;
+  companyId: string;
+  businessUnitId: string;
+  depotId: string;
+  legalEntityId: string;
+  operatorId: string | null;
+  passwordHash: string | null;
+  active: boolean;
+  phone: string | null;
 }
 function makeDb(rows: DriverRow[]): unknown {
   return {
@@ -53,21 +60,42 @@ describe('AuthLoginService', () => {
   });
   it('returns 401 unauthorized for wrong password', async () => {
     bcryptCompare.mockResolvedValue(false);
-    const row: DriverRow = { driverId: D1, ...TENANCY, operatorId: OP1, passwordHash: 'h', active: true, phone: '0900000001' };
+    const row: DriverRow = {
+      driverId: D1,
+      ...TENANCY,
+      operatorId: OP1,
+      passwordHash: 'h',
+      active: true,
+      phone: '0900000001',
+    };
     const svc = makeSvc([row]);
     await expect(svc.login('0900000001', 'wrong')).rejects.toThrow(/unauthorized/i);
     expect(issueForLogin).not.toHaveBeenCalled();
   });
   it('returns 403 forbidden when driver inactive', async () => {
     bcryptCompare.mockResolvedValue(true);
-    const row: DriverRow = { driverId: D1, ...TENANCY, operatorId: OP1, passwordHash: 'h', active: false, phone: '0900000001' };
+    const row: DriverRow = {
+      driverId: D1,
+      ...TENANCY,
+      operatorId: OP1,
+      passwordHash: 'h',
+      active: false,
+      phone: '0900000001',
+    };
     const svc = makeSvc([row]);
     await expect(svc.login('0900000001', 'pw')).rejects.toThrow(/disabled/i);
     expect(issueForLogin).not.toHaveBeenCalled();
   });
   it('returns the rotated pair + driver context on success, satisfying the SSOT', async () => {
     bcryptCompare.mockResolvedValue(true);
-    const row: DriverRow = { driverId: D1, ...TENANCY, operatorId: OP1, passwordHash: 'h', active: true, phone: '0900000001' };
+    const row: DriverRow = {
+      driverId: D1,
+      ...TENANCY,
+      operatorId: OP1,
+      passwordHash: 'h',
+      active: true,
+      phone: '0900000001',
+    };
     const svc = makeSvc([row]);
     const r = await svc.login('0900000001', 'pw');
     expect(r.accessToken).toBe('signed.jwt.token');

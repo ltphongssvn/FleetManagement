@@ -37,31 +37,56 @@ describe('@fleet/api - OTel enabled path', () => {
   });
 
   it('startOtel enabled is idempotent — second call with sdk already set is a no-op (kills line 30 sdk !== null cond mutants)', () => {
-    startOtel({ serviceName: 'svc', serviceVersion: '1.0.0', enabled: true, endpoint: 'http://127.0.0.1:14318/v1/traces' });
+    startOtel({
+      serviceName: 'svc',
+      serviceVersion: '1.0.0',
+      enabled: true,
+      endpoint: 'http://127.0.0.1:14318/v1/traces',
+    });
     // Mutants on `if (sdk !== null) return`:
     //   `if (true) return`     : ALWAYS returns -> first call would not init sdk (caught by test above via shutdownOtel needing to await real SDK shutdown).
     //   `if (false) return`    : NEVER returns -> second call would re-init sdk; SDK throws on double start.
     //   `if (sdk === null) return`: inverted; same effect as the false/true variants depending on first call.
     expect(() => {
-      startOtel({ serviceName: 'svc', serviceVersion: '1.0.0', enabled: true, endpoint: 'http://127.0.0.1:14318/v1/traces' });
+      startOtel({
+        serviceName: 'svc',
+        serviceVersion: '1.0.0',
+        enabled: true,
+        endpoint: 'http://127.0.0.1:14318/v1/traces',
+      });
     }).not.toThrow();
   });
 
   it('shutdownOtel resolves after startOtel(enabled=true) and resets sdk so a later start works again (kills line 61 BlockStatement, line 62 sdk === null cond mutants)', async () => {
-    startOtel({ serviceName: 'svc', serviceVersion: '1.0.0', enabled: true, endpoint: 'http://127.0.0.1:14318/v1/traces' });
+    startOtel({
+      serviceName: 'svc',
+      serviceVersion: '1.0.0',
+      enabled: true,
+      endpoint: 'http://127.0.0.1:14318/v1/traces',
+    });
     await expect(shutdownOtel()).resolves.toBeUndefined();
     // After shutdown, sdk should be null again so startOtel can re-init.
     // Mutants on line 61 BlockStatement -> {}: shutdownOtel never awaits sdk.shutdown(), never nulls sdk -> next start would be no-op.
     // Mutant on line 62 `if (true) return`: early-returns even when sdk set -> sdk never shut down or nulled.
     expect(() => {
-      startOtel({ serviceName: 'svc', serviceVersion: '1.0.0', enabled: true, endpoint: 'http://127.0.0.1:14318/v1/traces' });
+      startOtel({
+        serviceName: 'svc',
+        serviceVersion: '1.0.0',
+        enabled: true,
+        endpoint: 'http://127.0.0.1:14318/v1/traces',
+      });
     }).not.toThrow();
   });
 
   it('startOtel works with default sampleRatio (kills line 41 LogicalOperator ?? -> && fallback)', () => {
     // sampleRatio omitted -> falls back to 1.0 via ?? mutant `opts.sampleRatio && 1.0` would yield undefined, ParentBasedSampler would throw.
     expect(() => {
-      startOtel({ serviceName: 'svc', serviceVersion: '1.0.0', enabled: true, endpoint: 'http://127.0.0.1:14318/v1/traces' });
+      startOtel({
+        serviceName: 'svc',
+        serviceVersion: '1.0.0',
+        enabled: true,
+        endpoint: 'http://127.0.0.1:14318/v1/traces',
+      });
     }).not.toThrow();
   });
 
@@ -75,7 +100,9 @@ describe('@fleet/api - OTel enabled path', () => {
 
 describe('@fleet/api - OTel config builders (pure)', () => {
   it('resolveEndpoint returns the provided endpoint verbatim when set (kills ?? LogicalOperator)', () => {
-    expect(resolveEndpoint('http://collector:4318/v1/traces')).toBe('http://collector:4318/v1/traces');
+    expect(resolveEndpoint('http://collector:4318/v1/traces')).toBe(
+      'http://collector:4318/v1/traces',
+    );
   });
 
   it('resolveEndpoint falls back to DEFAULT_OTLP_ENDPOINT when undefined (kills ?? -> && + StringLiteral mutants)', () => {
@@ -168,8 +195,13 @@ describe('@fleet/api - OTel buildSdkConfig (pure SDK config)', () => {
 
   it('samplerRatio reflects the resolved sample ratio, preserving 0 (kills resolveSampleRatio + literal mutants)', () => {
     expect(buildSdkConfig(opts).samplerRatio).toBe(0.25);
-    expect(buildSdkConfig({ serviceName: 's', serviceVersion: 'v', enabled: true, sampleRatio: 0 }).samplerRatio).toBe(0);
-    expect(buildSdkConfig({ serviceName: 's', serviceVersion: 'v', enabled: true }).samplerRatio).toBe(DEFAULT_SAMPLE_RATIO);
+    expect(
+      buildSdkConfig({ serviceName: 's', serviceVersion: 'v', enabled: true, sampleRatio: 0 })
+        .samplerRatio,
+    ).toBe(0);
+    expect(
+      buildSdkConfig({ serviceName: 's', serviceVersion: 'v', enabled: true }).samplerRatio,
+    ).toBe(DEFAULT_SAMPLE_RATIO);
   });
 
   it('instrumentations is a non-empty array (kills instrumentations: [] ArrayDeclaration mutant)', () => {
@@ -235,7 +267,6 @@ describe('@fleet/api - OTel startOtel/shutdownOtel lifecycle (NodeSDK spies)', (
     expect(isOtelStarted()).toBe(true);
   });
 });
-
 
 // --- Constructor-wiring spies: kill OTLPTraceExporter({}) and ParentBasedSampler({}) survivors ---
 // vi.mock is hoisted; it intercepts the modules before otel.ts imports them, so we

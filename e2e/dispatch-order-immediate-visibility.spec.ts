@@ -17,7 +17,12 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import { dockerPsql } from './helpers/docker-exec';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { type z } from 'zod';
-import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
+import {
+  parseJson,
+  CreateDriverResponseSchema,
+  ReferenceItemSchema,
+  AssignmentResponseSchema,
+} from './helpers/contracts';
 import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 import { OPTIMISTIC_RENDER_BUDGET_MS } from './helpers/budgets';
 
@@ -32,18 +37,29 @@ const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 // Keeping the two separate means a future raise of the board budget cannot
 // silently let the optimistic row take fifteen seconds and still pass here.
 
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+async function adminPost<T>(
+  api: APIRequestContext,
+  token: string,
+  path: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
-  if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
+  if (!res.ok())
+    throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   return parseJson(res, schema);
 }
 
 interface Pair {
-  driverId: string; operatorId: string; vehicleId: string;
-  vehicleLabel: string; driverLabel: string; assignmentId: string;
+  driverId: string;
+  operatorId: string;
+  vehicleId: string;
+  vehicleLabel: string;
+  driverLabel: string;
+  assignmentId: string;
   token: string;
 }
 
@@ -53,23 +69,43 @@ async function seedPair(api: APIRequestContext): Promise<Pair> {
   // on the (company_id, full_name) unique constraint.
   const ts = Date.now();
   const rand = Math.floor(Math.random() * 1e9).toString(36);
-  const phone = '09' + String(ts).slice(-6) + Math.floor(Math.random() * 100).toString().padStart(2, '0');
+  const phone =
+    '09' +
+    String(ts).slice(-6) +
+    Math.floor(Math.random() * 100)
+      .toString()
+      .padStart(2, '0');
   const driverLabel = 'E2E DRIVER T3-VIZ ' + String(ts) + '-' + rand;
   const vehicleLabel = 'E2E-T3-VIZ-' + String(ts) + '-' + rand;
   const drv = await adminPost(
-    api, token, '/admin/drivers',
+    api,
+    token,
+    '/admin/drivers',
     { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
     CreateDriverResponseSchema,
   );
-  const veh = await adminPost(api, token, '/reference/vehicles', { name: vehicleLabel }, ReferenceItemSchema);
+  const veh = await adminPost(
+    api,
+    token,
+    '/reference/vehicles',
+    { name: vehicleLabel },
+    ReferenceItemSchema,
+  );
   const asgn = await adminPost(
-    api, token, '/admin/driver-vehicle-assignments',
+    api,
+    token,
+    '/admin/driver-vehicle-assignments',
     { driverId: drv.driverId, vehicleId: veh.id },
     AssignmentResponseSchema,
   );
   return {
-    driverId: drv.driverId, operatorId: drv.operatorId, vehicleId: veh.id,
-    vehicleLabel, driverLabel, assignmentId: asgn.assignmentId, token,
+    driverId: drv.driverId,
+    operatorId: drv.operatorId,
+    vehicleId: veh.id,
+    vehicleLabel,
+    driverLabel,
+    assignmentId: asgn.assignmentId,
+    token,
   };
 }
 
@@ -79,9 +115,23 @@ async function cleanupPair(api: APIRequestContext, p: Pair): Promise<void> {
       headers: { Authorization: 'Bearer ' + p.token, 'Content-Type': 'application/json' },
       data: JSON.stringify({ reason: 'e2e-cleanup' }),
     });
-  } catch { /* tolerate */ }
-  try { await api.delete(API_URL + '/reference/vehicles/' + p.vehicleId, { headers: { Authorization: 'Bearer ' + p.token } }); } catch { /* tolerate */ }
-  try { await api.delete(API_URL + '/admin/drivers/' + p.driverId, { headers: { Authorization: 'Bearer ' + p.token } }); } catch { /* tolerate */ }
+  } catch {
+    /* tolerate */
+  }
+  try {
+    await api.delete(API_URL + '/reference/vehicles/' + p.vehicleId, {
+      headers: { Authorization: 'Bearer ' + p.token },
+    });
+  } catch {
+    /* tolerate */
+  }
+  try {
+    await api.delete(API_URL + '/admin/drivers/' + p.driverId, {
+      headers: { Authorization: 'Bearer ' + p.token },
+    });
+  } catch {
+    /* tolerate */
+  }
 }
 
 // Authenticate via injected session (PKCE login has no credential form).
@@ -93,31 +143,106 @@ test.describe('created order immediate visibility on dispatch board (T3)', () =>
   let pair: Pair | null = null;
   const seededOrderRefs: string[] = [];
 
-  test.beforeAll(async ({ request }) => { pair = await seedPair(request); });
+  test.beforeAll(async ({ request }) => {
+    pair = await seedPair(request);
+  });
 
   test.afterEach(() => {
     const sq = String.fromCharCode(39);
     while (seededOrderRefs.length > 0) {
       const ref = seededOrderRefs.pop();
       if (!ref) continue;
-      const txId = dockerPsql('SELECT transport_order_id FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq + ' AND external_ref=' + sq + ref + sq + ';').stdout.trim();
+      const txId = dockerPsql(
+        'SELECT transport_order_id FROM transport_order WHERE company_id=' +
+          sq +
+          COMPANY_ID +
+          sq +
+          ' AND external_ref=' +
+          sq +
+          ref +
+          sq +
+          ';',
+      ).stdout.trim();
       if (txId.length > 0) {
-        const rrIds = dockerPsql('SELECT road_run_id FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';').stdout.trim().split(String.fromCharCode(10)).filter((line) => line.length > 0);
-        try { dockerPsql('DELETE FROM stop WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
-        try { dockerPsql('DELETE FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
+        const rrIds = dockerPsql(
+          'SELECT road_run_id FROM road_run_transport_order WHERE transport_order_id=' +
+            sq +
+            txId +
+            sq +
+            ';',
+        )
+          .stdout.trim()
+          .split(String.fromCharCode(10))
+          .filter((line) => line.length > 0);
+        try {
+          dockerPsql('DELETE FROM stop WHERE transport_order_id=' + sq + txId + sq + ';');
+        } catch {
+          /* tolerate */
+        }
+        try {
+          dockerPsql(
+            'DELETE FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';',
+          );
+        } catch {
+          /* tolerate */
+        }
         for (const rrId of rrIds) {
-          try { dockerPsql('DELETE FROM dispatch_board_projection WHERE road_run_id=' + sq + rrId + sq + ';'); } catch { /* tolerate */ }
-          try { dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + rrId + sq + ';'); } catch { /* tolerate */ }
+          try {
+            dockerPsql(
+              'DELETE FROM dispatch_board_projection WHERE road_run_id=' + sq + rrId + sq + ';',
+            );
+          } catch {
+            /* tolerate */
+          }
+          try {
+            dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + rrId + sq + ';');
+          } catch {
+            /* tolerate */
+          }
         }
       }
-      try { dockerPsql('DELETE FROM outbox WHERE company_id=' + sq + COMPANY_ID + sq + ' AND payload::text LIKE ' + sq + '%' + ref + '%' + sq + ';'); } catch { /* tolerate */ }
-      try { dockerPsql('DELETE FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq + ' AND external_ref=' + sq + ref + sq + ';'); } catch { /* tolerate */ }
+      try {
+        dockerPsql(
+          'DELETE FROM outbox WHERE company_id=' +
+            sq +
+            COMPANY_ID +
+            sq +
+            ' AND payload::text LIKE ' +
+            sq +
+            '%' +
+            ref +
+            '%' +
+            sq +
+            ';',
+        );
+      } catch {
+        /* tolerate */
+      }
+      try {
+        dockerPsql(
+          'DELETE FROM transport_order WHERE company_id=' +
+            sq +
+            COMPANY_ID +
+            sq +
+            ' AND external_ref=' +
+            sq +
+            ref +
+            sq +
+            ';',
+        );
+      } catch {
+        /* tolerate */
+      }
     }
   });
 
-  test.afterAll(async ({ request }) => { if (pair) await cleanupPair(request, pair); });
+  test.afterAll(async ({ request }) => {
+    if (pair) await cleanupPair(request, pair);
+  });
 
-  test('new row appears in Lệnh điều xe within 1000ms of the success banner, no manual refresh', async ({ page }) => {
+  test('new row appears in Lệnh điều xe within 1000ms of the success banner, no manual refresh', async ({
+    page,
+  }) => {
     if (!pair) throw new Error('pair not seeded');
     await login(page);
     await page.goto('/');
@@ -150,7 +275,9 @@ test.describe('created order immediate visibility on dispatch board (T3)', () =>
 
     const t0 = Date.now();
     const row = page.getByTestId('dispatch-board-row-' + externalRef).first();
-    await expect(row, 'new row must appear without manual refresh').toBeVisible({ timeout: OPTIMISTIC_RENDER_BUDGET_MS });
+    await expect(row, 'new row must appear without manual refresh').toBeVisible({
+      timeout: OPTIMISTIC_RENDER_BUDGET_MS,
+    });
     const elapsedMs = Date.now() - t0;
     expect(elapsedMs).toBeLessThanOrEqual(OPTIMISTIC_RENDER_BUDGET_MS);
   });

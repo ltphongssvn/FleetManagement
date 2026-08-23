@@ -32,20 +32,61 @@ const run: DispatchBoardRoadRun = {
   cargoName: null,
   weightDiffKg: null,
   stops: [
-    { sequence: 1, stopType: 'pickup', warehouseName: 'Chơn Chính', arrivedAt: '2026-05-30T09:00:00.000Z', departedAt: '2026-05-30T09:15:00.000Z', proof: null },
-    { sequence: 2, stopType: 'pickup', warehouseName: 'Cần Thơ', arrivedAt: null, departedAt: null, proof: null },
-    { sequence: 3, stopType: 'pickup', warehouseName: 'Thốt Nốt', arrivedAt: null, departedAt: null, proof: null },
-    { sequence: 4, stopType: 'pickup', warehouseName: 'Trí Mai', arrivedAt: null, departedAt: null, proof: null },
-    { sequence: 5, stopType: 'delivery', warehouseName: 'ĐA NĂNG', arrivedAt: null, departedAt: null, proof: null },
+    {
+      sequence: 1,
+      stopType: 'pickup',
+      warehouseName: 'Chơn Chính',
+      arrivedAt: '2026-05-30T09:00:00.000Z',
+      departedAt: '2026-05-30T09:15:00.000Z',
+      proof: null,
+    },
+    {
+      sequence: 2,
+      stopType: 'pickup',
+      warehouseName: 'Cần Thơ',
+      arrivedAt: null,
+      departedAt: null,
+      proof: null,
+    },
+    {
+      sequence: 3,
+      stopType: 'pickup',
+      warehouseName: 'Thốt Nốt',
+      arrivedAt: null,
+      departedAt: null,
+      proof: null,
+    },
+    {
+      sequence: 4,
+      stopType: 'pickup',
+      warehouseName: 'Trí Mai',
+      arrivedAt: null,
+      departedAt: null,
+      proof: null,
+    },
+    {
+      sequence: 5,
+      stopType: 'delivery',
+      warehouseName: 'ĐA NĂNG',
+      arrivedAt: null,
+      departedAt: null,
+      proof: null,
+    },
   ],
 };
 describe('@fleet/ops-web - DispatchView per-stop status columns (T10)', () => {
   it('renders a column header for each fixed slot', () => {
     render(<DispatchView initialRuns={[run]} refs={refs} />);
     const headers = screen.getAllByRole('columnheader').map((h) => h.textContent);
-    expect(headers).toEqual(expect.arrayContaining([
-      'Điểm nhận hàng 1', 'Điểm nhận hàng 2', 'Điểm nhận hàng 3', 'Điểm nhận hàng 4', 'Kho giao hàng',
-    ]));
+    expect(headers).toEqual(
+      expect.arrayContaining([
+        'Điểm nhận hàng 1',
+        'Điểm nhận hàng 2',
+        'Điểm nhận hàng 3',
+        'Điểm nhận hàng 4',
+        'Kho giao hàng',
+      ]),
+    );
   });
   it('shows a completed time for an arrived stop and Chưa tới for the rest', () => {
     render(<DispatchView initialRuns={[run]} refs={refs} />);

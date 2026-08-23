@@ -37,27 +37,27 @@ appId: com.fleetmanagement.driver
 - launchApp:
     clearState: true
 - tapOn:
-    text: "Wait"
+    text: 'Wait'
     optional: true
 - extendedWaitUntil:
-    visible: "Đăng nhập để xem lệnh điều xe"
+    visible: 'Đăng nhập để xem lệnh điều xe'
     timeout: 120000
 # --- Log in as the seeded driver (env from the handoff via the harness) ---
 - tapOn:
-    text: "Số điện thoại"
+    text: 'Số điện thoại'
 - inputText: "${MAESTRO_DRIVER_PHONE ?? '0900000001'}"
 - tapOn:
-    text: "Mật khẩu"
+    text: 'Mật khẩu'
 - inputText: "${MAESTRO_DRIVER_PASSWORD ?? 'driver1pass'}"
 - hideKeyboard
 - tapOn:
-    text: "Đăng nhập"
+    text: 'Đăng nhập'
 - extendedWaitUntil:
-    visible: "Trạng thái đồng bộ"
+    visible: 'Trạng thái đồng bộ'
     timeout: 60000
 # --- Open the assignments list ---
 - tapOn:
-    text: "Xem lệnh điều xe"
+    text: 'Xem lệnh điều xe'
 # The seeded order (orderRef from the handoff) loads from
 # /transport-orders/assigned. The row title is the order ref.
 - extendedWaitUntil:
@@ -65,6 +65,6 @@ appId: com.fleetmanagement.driver
     timeout: 60000
 - assertVisible: "${MAESTRO_ORDER_REF ?? 'XTT'}"
 # Run state: the dispatcher-created order starts planned.
-- assertVisible: "planned"
+- assertVisible: 'planned'
 # The seeded vehicle is bound to the road run (Số xe: <seeded label>).
 - assertVisible: "Số xe: ${MAESTRO_VEHICLE_LABEL ?? '62H'}"

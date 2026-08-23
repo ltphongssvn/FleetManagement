@@ -5,7 +5,7 @@
 // resolveCloseInput imported verbatim), so a sweep close cannot bypass the
 // per-candidate guards. main() runs ONLY as entrypoint. Precedent: slice 3 of
 // worktree-close-cli.ts.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from 'vitest';
 import {
   parseSweepArgv,
   formatSweepSummary,
@@ -13,16 +13,16 @@ import {
   PROTECTED_INTEGRATION_BRANCHES,
   withBranch,
   type SweepOutcome,
-} from "./sweep-worktrees-cli.js";
-import { planSweep } from "./sweep-worktrees.js";
+} from './sweep-worktrees-cli.js';
+import { planSweep } from './sweep-worktrees.js';
 
-describe("parseSweepArgv: pure flag parsing", () => {
-  it("defaults every flag to false with no arguments", () => {
+describe('parseSweepArgv: pure flag parsing', () => {
+  it('defaults every flag to false with no arguments', () => {
     expect(parseSweepArgv([])).toEqual({ dryRun: false, done: false });
   });
 
-  it("reads --dry-run", () => {
-    expect(parseSweepArgv(["--dry-run"])).toEqual({ dryRun: true, done: false });
+  it('reads --dry-run', () => {
+    expect(parseSweepArgv(['--dry-run'])).toEqual({ dryRun: true, done: false });
   });
 
   // The third case here USED to assert `ignores unknown -- flags`. It was
@@ -32,59 +32,59 @@ describe("parseSweepArgv: pure flag parsing", () => {
   // silently discarded across eight worktrees. Strictness is asserted below.
 });
 
-describe("protectedIntegrationPaths: never sweep the integration mirrors", () => {
+describe('protectedIntegrationPaths: never sweep the integration mirrors', () => {
   const ENTRIES = [
-    { path: "/c/FleetManagement", branch: "develop" },
-    { path: "/c/FleetManagement-WT3", branch: "develop" },
-    { path: "/c/FM-main-mirror", branch: "main" },
-    { path: "/c/t7-device-binding", branch: "feature/device-binding" },
+    { path: '/c/FleetManagement', branch: 'develop' },
+    { path: '/c/FleetManagement-WT3', branch: 'develop' },
+    { path: '/c/FM-main-mirror', branch: 'main' },
+    { path: '/c/t7-device-binding', branch: 'feature/device-binding' },
   ];
 
-  it("protects every develop/main worktree by branch identity", () => {
+  it('protects every develop/main worktree by branch identity', () => {
     expect(protectedIntegrationPaths(ENTRIES)).toEqual([
-      "/c/FleetManagement",
-      "/c/FleetManagement-WT3",
-      "/c/FM-main-mirror",
+      '/c/FleetManagement',
+      '/c/FleetManagement-WT3',
+      '/c/FM-main-mirror',
     ]);
   });
 
-  it("never protects a feature-branch worktree", () => {
-    expect(protectedIntegrationPaths(ENTRIES)).not.toContain("/c/t7-device-binding");
+  it('never protects a feature-branch worktree', () => {
+    expect(protectedIntegrationPaths(ENTRIES)).not.toContain('/c/t7-device-binding');
   });
 
-  it("covers the 2026 protected-branch convention set", () => {
-    for (const b of ["main", "master", "develop", "staging", "production"]) {
+  it('covers the 2026 protected-branch convention set', () => {
+    for (const b of ['main', 'master', 'develop', 'staging', 'production']) {
       expect(PROTECTED_INTEGRATION_BRANCHES.has(b)).toBe(true);
     }
   });
 });
 
-describe("formatSweepSummary: auditable operator report", () => {
+describe('formatSweepSummary: auditable operator report', () => {
   const OUTCOMES: SweepOutcome[] = [
-    { path: "/c/t7", action: "remove", reasons: [] },
-    { path: "/c/t18", action: "remove", reasons: [] },
-    { path: "/c/t6", action: "refuse", reasons: ["unpushed"] },
-    { path: "/c/t4", action: "remove-keep-branch", reasons: [] },
+    { path: '/c/t7', action: 'remove', reasons: [] },
+    { path: '/c/t18', action: 'remove', reasons: [] },
+    { path: '/c/t6', action: 'refuse', reasons: ['unpushed'] },
+    { path: '/c/t4', action: 'remove-keep-branch', reasons: [] },
   ];
 
-  it("counts removed, refused, and kept in the footer", () => {
+  it('counts removed, refused, and kept in the footer', () => {
     const out = formatSweepSummary(OUTCOMES);
-    expect(out).toContain("removed=2");
-    expect(out).toContain("refused=1");
-    expect(out).toContain("kept=1");
+    expect(out).toContain('removed=2');
+    expect(out).toContain('refused=1');
+    expect(out).toContain('kept=1');
   });
 
-  it("shows the refusal reason next to the refused worktree", () => {
+  it('shows the refusal reason next to the refused worktree', () => {
     const out = formatSweepSummary(OUTCOMES);
-    expect(out).toContain("t6");
-    expect(out).toContain("unpushed");
+    expect(out).toContain('t6');
+    expect(out).toContain('unpushed');
   });
 
-  it("an empty run reports all-zero totals", () => {
+  it('an empty run reports all-zero totals', () => {
     const out = formatSweepSummary([]);
-    expect(out).toContain("removed=0");
-    expect(out).toContain("refused=0");
-    expect(out).toContain("kept=0");
+    expect(out).toContain('removed=0');
+    expect(out).toContain('refused=0');
+    expect(out).toContain('kept=0');
   });
 });
 
@@ -110,43 +110,42 @@ describe("formatSweepSummary: auditable operator report", () => {
 // close guard that reasons about a branch is meaningless for it. Today it is
 // caught downstream by the no-upstream refusal, which is defence in depth
 // working by accident. This makes the exclusion deliberate.
-describe("withBranch: detached worktrees never enter the sweep", () => {
+describe('withBranch: detached worktrees never enter the sweep', () => {
   const MIXED = [
-    { path: "/c/FleetManagement", branch: "develop" },
-    { path: "/c/t7-device-binding", branch: "feature/device-binding" },
-    { path: "/c/detached-bisect", branch: null },
+    { path: '/c/FleetManagement', branch: 'develop' },
+    { path: '/c/t7-device-binding', branch: 'feature/device-binding' },
+    { path: '/c/detached-bisect', branch: null },
   ];
 
-  it("drops the detached entry and keeps the rest", () => {
+  it('drops the detached entry and keeps the rest', () => {
     expect(withBranch(MIXED)).toEqual([
-      { path: "/c/FleetManagement", branch: "develop" },
-      { path: "/c/t7-device-binding", branch: "feature/device-binding" },
+      { path: '/c/FleetManagement', branch: 'develop' },
+      { path: '/c/t7-device-binding', branch: 'feature/device-binding' },
     ]);
   });
 
-  it("returns an empty list when every worktree is detached", () => {
-    expect(withBranch([{ path: "/c/a", branch: null }])).toEqual([]);
+  it('returns an empty list when every worktree is detached', () => {
+    expect(withBranch([{ path: '/c/a', branch: null }])).toEqual([]);
   });
 
-  it("is a pass-through when nothing is detached", () => {
-    const all = [{ path: "/c/a", branch: "x" }];
+  it('is a pass-through when nothing is detached', () => {
+    const all = [{ path: '/c/a', branch: 'x' }];
     expect(withBranch(all)).toEqual(all);
   });
 
-  it("protectedIntegrationPaths accepts its output without a cast", () => {
-    expect(protectedIntegrationPaths(withBranch(MIXED))).toEqual([
-      "/c/FleetManagement",
+  it('protectedIntegrationPaths accepts its output without a cast', () => {
+    expect(protectedIntegrationPaths(withBranch(MIXED))).toEqual(['/c/FleetManagement']);
+  });
+
+  it('planSweep parses the filtered entries instead of throwing', () => {
+    // entries[0] is the primary clone and is always excluded by planSweep.
+    expect(() => planSweep({ entries: withBranch(MIXED), protectedPaths: [] })).not.toThrow();
+    expect(planSweep({ entries: withBranch(MIXED), protectedPaths: [] }).candidates).toEqual([
+      '/c/t7-device-binding',
     ]);
   });
 
-  it("planSweep parses the filtered entries instead of throwing", () => {
-    // entries[0] is the primary clone and is always excluded by planSweep.
-    expect(() => planSweep({ entries: withBranch(MIXED), protectedPaths: [] })).not.toThrow();
-    expect(planSweep({ entries: withBranch(MIXED), protectedPaths: [] }).candidates)
-      .toEqual(["/c/t7-device-binding"]);
-  });
-
-  it("planSweep THROWS on an unfiltered detached entry -- the bug this prevents", () => {
+  it('planSweep THROWS on an unfiltered detached entry -- the bug this prevents', () => {
     const unfiltered = MIXED as unknown as { path: string; branch: string }[];
     expect(() => planSweep({ entries: unfiltered, protectedPaths: [] })).toThrow();
   });

@@ -80,8 +80,9 @@ describe('failedWorkflowsFor - names the workflow, not just the phase', () => {
       run({ conclusion: 'failure' }),
       run({ workflowName: E2E_WORKFLOW, databaseId: 222 }),
     ];
-    expect(failedWorkflowsFor(runs, [CI_WORKFLOW, E2E_WORKFLOW], SHA).map((f) => f.workflowName))
-      .toEqual([CI_WORKFLOW]);
+    expect(
+      failedWorkflowsFor(runs, [CI_WORKFLOW, E2E_WORKFLOW], SHA).map((f) => f.workflowName),
+    ).toEqual([CI_WORKFLOW]);
   });
 
   it('names both when both failed', () => {
@@ -131,19 +132,25 @@ describe('describeFailure - the message carries the next action', () => {
   });
 
   it('names the failing workflow and links its run', () => {
-    const msg = describeFailure('develop-gates', [
-      { workflowName: E2E_WORKFLOW, databaseId: 31454708107 },
-    ], REPO);
+    const msg = describeFailure(
+      'develop-gates',
+      [{ workflowName: E2E_WORKFLOW, databaseId: 31454708107 }],
+      REPO,
+    );
     expect(msg).toContain('develop-gates');
     expect(msg).toContain(E2E_WORKFLOW);
     expect(msg).toContain('https://github.com/' + REPO + '/actions/runs/31454708107');
   });
 
   it('lists both workflows when both failed', () => {
-    const msg = describeFailure('develop-gates', [
-      { workflowName: CI_WORKFLOW, databaseId: 1 },
-      { workflowName: E2E_WORKFLOW, databaseId: 2 },
-    ], REPO);
+    const msg = describeFailure(
+      'develop-gates',
+      [
+        { workflowName: CI_WORKFLOW, databaseId: 1 },
+        { workflowName: E2E_WORKFLOW, databaseId: 2 },
+      ],
+      REPO,
+    );
     expect(msg).toContain(CI_WORKFLOW);
     expect(msg).toContain(E2E_WORKFLOW);
   });

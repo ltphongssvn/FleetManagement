@@ -42,7 +42,11 @@ const NUMERIC_TO_LOA: Record<string, string> = { '1': 'aal1', '2': 'aal2', '3': 
 const API_CONTAINER = process.env['E2E_API_CONTAINER'] ?? 'fleet-pilot-api-1';
 const TOKEN_URL = process.env['E2E_OIDC_TOKEN_URL'] ?? 'http://mock-oauth2:8080/fleet/token';
 
-interface DecodedClaims { acr: string; idp: string | undefined; exp: number | undefined }
+interface DecodedClaims {
+  acr: string;
+  idp: string | undefined;
+  exp: number | undefined;
+}
 
 // Decode (not verify) a JWT payload — mirrors decodeAccessTokenClaims, normalizing
 // a numeric acr to the canonical aalN symbol.
@@ -50,7 +54,10 @@ function decodeClaims(accessToken: string): DecodedClaims {
   const segments = accessToken.split('.');
   expect(segments.length, 'access token must be a 3-segment JWT').toBe(3);
   const payloadSegment = segments[1] ?? '';
-  const json = JSON.parse(Buffer.from(payloadSegment, 'base64url').toString('utf8')) as Record<string, unknown>;
+  const json = JSON.parse(Buffer.from(payloadSegment, 'base64url').toString('utf8')) as Record<
+    string,
+    unknown
+  >;
   const rawAcr = typeof json['acr'] === 'string' ? json['acr'] : '';
   const acr = NUMERIC_TO_LOA[rawAcr] ?? rawAcr;
   const idp = typeof json['idp'] === 'string' ? json['idp'] : undefined;
@@ -71,10 +78,18 @@ function mintOpsWebClientToken(): string {
     'grant_type=authorization_code&code=dummy&redirect_uri=http%3A%2F%2Flocalhost%2Fcb' +
     '&client_id=ops-web&client_secret=ops-web-secret';
   const script =
-    'fetch(' + JSON.stringify(TOKEN_URL) +
-    ',{method:' + JSON.stringify('POST') +
-    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-    ',body:' + JSON.stringify(body) + '})' +
+    'fetch(' +
+    JSON.stringify(TOKEN_URL) +
+    ',{method:' +
+    JSON.stringify('POST') +
+    ',headers:{' +
+    JSON.stringify('content-type') +
+    ':' +
+    JSON.stringify('application/x-www-form-urlencoded') +
+    '}' +
+    ',body:' +
+    JSON.stringify(body) +
+    '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(JSON.stringify(j)))';
   const out = dockerExecNode(API_CONTAINER, script);
   let parsed: unknown;
@@ -92,7 +107,9 @@ test.describe('claim parity: mock IdP token satisfies the ops-web callback polic
     const claims = decodeClaims(token);
     // These are the EXACT two conditions evaluatePasswordlessLogin enforces.
     expect(claims.acr, 'mock ops-web mapping must emit acr=aal3 (callback floor)').toBe(FLOOR_ACR);
-    expect(claims.idp, 'mock ops-web mapping must emit idp=google (brokered guarantee)').toBe(REQUIRE_IDP);
+    expect(claims.idp, 'mock ops-web mapping must emit idp=google (brokered guarantee)').toBe(
+      REQUIRE_IDP,
+    );
   });
 
   test('the callback-path token clears the DISPATCHER_PASSWORDLESS_POLICY gate', () => {
@@ -103,7 +120,10 @@ test.describe('claim parity: mock IdP token satisfies the ops-web callback polic
     const brokered = claims.idp === REQUIRE_IDP;
     expect(clearsAcr, 'acr must meet the aal3 floor').toBe(true);
     expect(brokered, 'idp must be google').toBe(true);
-    expect(clearsAcr && brokered, 'token must satisfy the full passwordless policy the callback applies').toBe(true);
+    expect(
+      clearsAcr && brokered,
+      'token must satisfy the full passwordless policy the callback applies',
+    ).toBe(true);
   });
 
   test('the API step-up path (username=dispatcher) is DISTINCT: acr=aal2, no idp', () => {
@@ -115,10 +135,18 @@ test.describe('claim parity: mock IdP token satisfies the ops-web callback polic
       'grant_type=password&username=dispatcher&password=x&scope=fleet' +
       '&client_id=ops-web&client_secret=ops-web-secret';
     const script =
-      'fetch(' + JSON.stringify(TOKEN_URL) +
-      ',{method:' + JSON.stringify('POST') +
-      ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-      ',body:' + JSON.stringify(body) + '})' +
+      'fetch(' +
+      JSON.stringify(TOKEN_URL) +
+      ',{method:' +
+      JSON.stringify('POST') +
+      ',headers:{' +
+      JSON.stringify('content-type') +
+      ':' +
+      JSON.stringify('application/x-www-form-urlencoded') +
+      '}' +
+      ',body:' +
+      JSON.stringify(body) +
+      '})' +
       '.then(r=>r.json()).then(j=>process.stdout.write(JSON.stringify(j)))';
     const out = dockerExecNode(API_CONTAINER, script);
     const token = TokenResponseSchema.parse(JSON.parse(out)).access_token;

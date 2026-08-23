@@ -15,14 +15,22 @@ import { sql } from 'drizzle-orm';
 import { readdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '../src/database/migrations');
 const PILOT_COMPANY = '00000000-0000-0000-0000-000000000000';
 let testDb: PgliteTestDb;
 describe('@fleet/api - order_number_seq migration (T3, XTT.MM-NNN)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('ships a timestamp-named XTT-monthly migration', () => {
     const files = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql'));
     const match = files.filter((f) => f.endsWith('order_seq_xtt_monthly.sql'));
@@ -33,7 +41,13 @@ describe('@fleet/api - order_number_seq migration (T3, XTT.MM-NNN)', () => {
     const q = String.fromCharCode(39);
     const stmt =
       'SELECT prefix, next_value, pad_width FROM order_sequence WHERE company_id = ' +
-      q + PILOT_COMPANY + q + ' AND prefix = ' + q + 'XTT' + q;
+      q +
+      PILOT_COMPANY +
+      q +
+      ' AND prefix = ' +
+      q +
+      'XTT' +
+      q;
     const r = await testDb.db.execute<{ prefix: string; next_value: number; pad_width: number }>(
       sql.raw(stmt),
     );

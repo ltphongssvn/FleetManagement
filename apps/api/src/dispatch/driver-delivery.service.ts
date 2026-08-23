@@ -52,10 +52,12 @@ export class DriverDeliveryService {
     const orderRows = await tx
       .select({ id: roadRunTransportOrder.transportOrderId })
       .from(roadRunTransportOrder)
-      .where(and(
-        eq(roadRunTransportOrder.roadRunId, roadRunId),
-        eq(roadRunTransportOrder.companyId, op.companyId),
-      ));
+      .where(
+        and(
+          eq(roadRunTransportOrder.roadRunId, roadRunId),
+          eq(roadRunTransportOrder.companyId, op.companyId),
+        ),
+      );
     const orderIds = orderRows.map((r) => r.id);
     // A road_run with no linked orders has nothing to photograph; treat as
     // trivially complete (no stops to satisfy). This cannot arise from the
@@ -65,18 +67,17 @@ export class DriverDeliveryService {
     const stopCountRows = await tx
       .select({ n: count() })
       .from(stop)
-      .where(and(
-        eq(stop.companyId, op.companyId),
-        inArray(stop.transportOrderId, orderIds),
-      ));
+      .where(and(eq(stop.companyId, op.companyId), inArray(stop.transportOrderId, orderIds)));
     const committedCountRows = await tx
       .select({ n: count() })
       .from(manifest)
-      .where(and(
-        eq(manifest.companyId, op.companyId),
-        inArray(manifest.transportOrderId, orderIds),
-        eq(manifest.state, 'committed'),
-      ));
+      .where(
+        and(
+          eq(manifest.companyId, op.companyId),
+          inArray(manifest.transportOrderId, orderIds),
+          eq(manifest.state, 'committed'),
+        ),
+      );
     /* v8 ignore next 2 -- defensive: a SQL count() aggregate always returns exactly one row, so [0] is never undefined and the ?? 0 fallback is unreachable */
     const stopCount = stopCountRows[0]?.n ?? 0;
     const committed = committedCountRows[0]?.n ?? 0;
@@ -89,8 +90,11 @@ export class DriverDeliveryService {
       // + { committed, required } extensions.
       throw new ConflictException({
         message:
-          'Chưa thể hoàn thành lệnh điều xe: mới có ' + String(committed) + '/' +
-          String(stopCount) + ' phiếu cân được ghi nhận. Vui lòng chụp đủ ảnh tại các điểm lấy và giao hàng.',
+          'Chưa thể hoàn thành lệnh điều xe: mới có ' +
+          String(committed) +
+          '/' +
+          String(stopCount) +
+          ' phiếu cân được ghi nhận. Vui lòng chụp đủ ảnh tại các điểm lấy và giao hàng.',
         code: 'MANIFESTS_INCOMPLETE',
         extensions: { committed, required: stopCount },
       });
@@ -111,15 +115,19 @@ export class DriverDeliveryService {
           assignedOperatorId: roadRun.assignedOperatorId,
         })
         .from(roadRun)
-        .where(and(
-          eq(roadRun.roadRunId, roadRunId),
-          eq(roadRun.companyId, op.companyId),
-          eq(roadRun.assignedOperatorId, op.operatorId),
-        ))
+        .where(
+          and(
+            eq(roadRun.roadRunId, roadRunId),
+            eq(roadRun.companyId, op.companyId),
+            eq(roadRun.assignedOperatorId, op.operatorId),
+          ),
+        )
         .limit(1);
       const rr = found[0];
       if (rr === undefined) {
-        throw new NotFoundException('road_run ' + roadRunId + ' not found or not owned by operator');
+        throw new NotFoundException(
+          'road_run ' + roadRunId + ' not found or not owned by operator',
+        );
       }
       const current: RoadRunState = rr.state;
       const result = transitionRoadRun(current, next);
@@ -129,7 +137,9 @@ export class DriverDeliveryService {
         // this shields the wire itself). Machines key off the code extension;
         // the forgiving driver flow keys off currentState + allowedActions,
         // DERIVED from the domain FSM table (terminal states -> []).
-        const allowedActions = ROAD_RUN_STATES.filter((target) => roadRunFsm.canTransition(current, target));
+        const allowedActions = ROAD_RUN_STATES.filter((target) =>
+          roadRunFsm.canTransition(current, target),
+        );
         throw new ConflictException({
           message: 'Không thể thực hiện thao tác: trạng thái chuyến đã thay đổi. Vui lòng tải lại.',
           code: 'INVALID_STATE_TRANSITION',

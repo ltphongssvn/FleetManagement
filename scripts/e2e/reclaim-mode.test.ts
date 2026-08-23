@@ -19,15 +19,10 @@
 // READING is the opt-in because the existing default already acts and changing
 // that would be the danger.
 import { describe, expect, it } from 'vitest';
-import {
-  formatAgeReport,
-  parseReclaimArgv,
-  summarizeStackAges,
-} from './reclaim-mode.js';
+import { formatAgeReport, parseReclaimArgv, summarizeStackAges } from './reclaim-mode.js';
 import { classifyStackAge, STACK_AGE_EXIT, type StackAge } from './stack-age.js';
 const NOW = new Date('2026-08-05T12:00:00.000Z');
-const hoursAgo = (h: number): string =>
-  new Date(NOW.getTime() - h * 3_600_000).toISOString();
+const hoursAgo = (h: number): string => new Date(NOW.getTime() - h * 3_600_000).toISOString();
 const age = (project: string, h: number | null, ttlHours = 2): StackAge =>
   classifyStackAge({
     project,
@@ -99,7 +94,9 @@ describe('formatAgeReport (the report must be actionable, not a count)', () => {
     expect(text).toContain('docker:reclaim');
   });
   it('says plainly when nothing is idle', () => {
-    const text = formatAgeReport([age('fleet-a', 0.5)]).join(' ').toLowerCase();
+    const text = formatAgeReport([age('fleet-a', 0.5)])
+      .join(' ')
+      .toLowerCase();
     expect(text).toContain('fresh');
   });
   it('produces one line per project plus no hidden state', () => {

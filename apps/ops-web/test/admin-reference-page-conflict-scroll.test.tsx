@@ -17,7 +17,10 @@ vi.mock('@/features/admin/reference-admin-client', () => ({
   },
 }));
 import ReferenceAdminPage from '@/app/admin/reference/page';
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 beforeEach(() => {
   listMock.mockResolvedValue([
     { id: 'r0', label: 'CÁM' },
@@ -38,7 +41,9 @@ describe('ReferenceAdminPage conflict scroll + highlight (T5c)', () => {
     const addBtn = cargoSection.querySelector('button');
     if (!(addBtn instanceof HTMLButtonElement)) throw new Error('Tên hàng add button not found');
     fireEvent.click(addBtn);
-    await waitFor(() => { expect(createMock).toHaveBeenCalled(); });
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalled();
+    });
     await waitFor(() => {
       const marked = cargoSection.querySelector('[data-testid=reference-row-conflict]');
       expect(marked).not.toBeNull();
@@ -62,7 +67,11 @@ describe('ReferenceAdminPage conflict scroll + highlight (T5c)', () => {
     const addBtn = cargoSection.querySelector('button');
     if (!(addBtn instanceof HTMLButtonElement)) throw new Error('Tên hàng add button not found');
     fireEvent.click(addBtn);
-    await waitFor(() => { expect(createMock).toHaveBeenCalled(); });
-    await waitFor(() => { expect(scrollSpy).toHaveBeenCalled(); });
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(scrollSpy).toHaveBeenCalled();
+    });
   });
 });

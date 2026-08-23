@@ -18,7 +18,11 @@ import { ConflictException } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { AdminDriversCreateService } from '../src/admin/admin-drivers-create.service.js';
 import { driver } from '../src/database/schema/reference.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { withTxIsolation } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 
@@ -26,21 +30,38 @@ let testDb: PgliteTestDb;
 const fakeHash = (plain: string): Promise<string> => Promise.resolve('hashed:' + plain);
 
 interface CreateInput {
-  readonly fullName: string; readonly phone: string; readonly password: string;
-  readonly companyId: string; readonly businessUnitId: string;
-  readonly depotId: string; readonly legalEntityId: string;
+  readonly fullName: string;
+  readonly phone: string;
+  readonly password: string;
+  readonly companyId: string;
+  readonly businessUnitId: string;
+  readonly depotId: string;
+  readonly legalEntityId: string;
 }
-function inputFor(op: ReturnType<typeof createOperatorContext>, fullName: string, phone: string, password: string): CreateInput {
+function inputFor(
+  op: ReturnType<typeof createOperatorContext>,
+  fullName: string,
+  phone: string,
+  password: string,
+): CreateInput {
   return {
-    fullName, phone, password,
-    companyId: op.companyId, businessUnitId: op.businessUnitId,
-    depotId: op.depotId, legalEntityId: op.legalEntityId,
+    fullName,
+    phone,
+    password,
+    companyId: op.companyId,
+    businessUnitId: op.businessUnitId,
+    depotId: op.depotId,
+    legalEntityId: op.legalEntityId,
   };
 }
 
 describe('@fleet/api - AdminDriversCreateService conflict + reactivate', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
 
   it('ACTIVE duplicate full name throws Vietnamese ConflictException naming the driver', async () => {
     await withTxIsolation(testDb, async (tx) => {
@@ -69,13 +90,14 @@ describe('@fleet/api - AdminDriversCreateService conflict + reactivate', () => {
       const svc = new AdminDriversCreateService(tx as never, fakeHash);
       const op = createOperatorContext();
       const original = await svc.create(inputFor(op, 'LE VAN CHAU', '0913998879', 'old-pass'));
-      await tx.update(driver).set({ active: false })
+      await tx
+        .update(driver)
+        .set({ active: false })
         .where(and(eq(driver.companyId, op.companyId), eq(driver.driverId, original.driverId)));
       const reborn = await svc.create(inputFor(op, 'LE VAN CHAU', '0854148878', 'new-pass'));
       expect(reborn.driverId).toBe(original.driverId);
       expect(reborn.operatorId).toBe(original.operatorId);
-      const [row] = await tx.select().from(driver)
-        .where(eq(driver.driverId, original.driverId));
+      const [row] = await tx.select().from(driver).where(eq(driver.driverId, original.driverId));
       expect(row?.active).toBe(true);
       expect(row?.phone).toBe('0854148878');
       expect(row?.passwordHash).toBe('hashed:new-pass');
@@ -87,13 +109,14 @@ describe('@fleet/api - AdminDriversCreateService conflict + reactivate', () => {
       const svc = new AdminDriversCreateService(tx as never, fakeHash);
       const op = createOperatorContext();
       const original = await svc.create(inputFor(op, 'Le Van Chau', '0913830700', 'old-pass'));
-      await tx.update(driver).set({ active: false })
+      await tx
+        .update(driver)
+        .set({ active: false })
         .where(and(eq(driver.companyId, op.companyId), eq(driver.driverId, original.driverId)));
       const reborn = await svc.create(inputFor(op, 'LE VAN CHAU 2', '0913830700', 'new-pass'));
       expect(reborn.driverId).toBe(original.driverId);
       expect(reborn.operatorId).toBe(original.operatorId);
-      const [row] = await tx.select().from(driver)
-        .where(eq(driver.driverId, original.driverId));
+      const [row] = await tx.select().from(driver).where(eq(driver.driverId, original.driverId));
       expect(row?.active).toBe(true);
       expect(row?.fullName).toBe('LE VAN CHAU 2');
     });
@@ -118,7 +141,9 @@ describe('@fleet/api - AdminDriversCreateService conflict + reactivate', () => {
       const svc = new AdminDriversCreateService(tx as never, fakeHash);
       const op = createOperatorContext();
       const original = await svc.create(inputFor(op, 'Lê Văn Châu', '0913998879', 'old-pass'));
-      await tx.update(driver).set({ active: false })
+      await tx
+        .update(driver)
+        .set({ active: false })
         .where(and(eq(driver.companyId, op.companyId), eq(driver.driverId, original.driverId)));
       const reborn = await svc.create(inputFor(op, 'LÊ VĂN CHÂU', '0854148878', 'new-pass'));
       expect(reborn.driverId).toBe(original.driverId);
@@ -215,10 +240,11 @@ describe('@fleet/api - AdminDriversCreateService conflict + reactivate', () => {
       const svc = new AdminDriversCreateService(tx as never, fakeHash);
       const op = createOperatorContext();
       const original = await svc.create(inputFor(op, 'SINGLE ROW', '0911111111', 'old-pass'));
-      await tx.update(driver).set({ active: false })
-        .where(eq(driver.driverId, original.driverId));
+      await tx.update(driver).set({ active: false }).where(eq(driver.driverId, original.driverId));
       await svc.create(inputFor(op, 'SINGLE ROW', '0911111111', 'new-pass'));
-      const rows = await tx.select().from(driver)
+      const rows = await tx
+        .select()
+        .from(driver)
         .where(and(eq(driver.companyId, op.companyId), eq(driver.fullName, 'SINGLE ROW')));
       expect(rows.length).toBe(1);
     });

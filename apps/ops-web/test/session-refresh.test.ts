@@ -27,9 +27,7 @@ function tokenRes(body: unknown, status = 200): Response {
 describe('refreshSession', () => {
   it('exchanges the refresh token and returns rotated tokens', async () => {
     const fetchFn = vi.fn(() =>
-      Promise.resolve(
-        tokenRes({ access_token: 'newA', refresh_token: 'newR', expires_in: 300 }),
-      ),
+      Promise.resolve(tokenRes({ access_token: 'newA', refresh_token: 'newR', expires_in: 300 })),
     );
     const out = await refreshSession('oldR', ENV, fetchFn as never);
     expect(out).toEqual({ accessToken: 'newA', refreshToken: 'newR', expiresIn: 300 });

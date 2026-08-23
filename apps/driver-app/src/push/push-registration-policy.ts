@@ -12,10 +12,7 @@ export const PUSH_REGISTRATION_POLICY_VERSION = 'push-registration-v1' as const;
 /** Re-register if last sync older than 7 days (Expo rotates tokens periodically). */
 export const PUSH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-export type PushTokenRejectionCode =
-  | 'invalid_format'
-  | 'permission_denied'
-  | 'token_empty';
+export type PushTokenRejectionCode = 'invalid_format' | 'permission_denied' | 'token_empty';
 
 export interface PushTokenInput {
   readonly token: string;
@@ -29,10 +26,27 @@ export interface RegisteredPushToken {
 }
 
 export type PushRegistrationDecision =
-  | { readonly action: 'register'; readonly token: string; readonly policyVersion: typeof PUSH_REGISTRATION_POLICY_VERSION }
-  | { readonly action: 'skip'; readonly reason: 'token_fresh'; readonly policyVersion: typeof PUSH_REGISTRATION_POLICY_VERSION }
-  | { readonly action: 'deregister'; readonly previousToken: string; readonly reason: 'permission_revoked'; readonly policyVersion: typeof PUSH_REGISTRATION_POLICY_VERSION }
-  | { readonly action: 'reject'; readonly rejectionCode: PushTokenRejectionCode; readonly policyVersion: typeof PUSH_REGISTRATION_POLICY_VERSION };
+  | {
+      readonly action: 'register';
+      readonly token: string;
+      readonly policyVersion: typeof PUSH_REGISTRATION_POLICY_VERSION;
+    }
+  | {
+      readonly action: 'skip';
+      readonly reason: 'token_fresh';
+      readonly policyVersion: typeof PUSH_REGISTRATION_POLICY_VERSION;
+    }
+  | {
+      readonly action: 'deregister';
+      readonly previousToken: string;
+      readonly reason: 'permission_revoked';
+      readonly policyVersion: typeof PUSH_REGISTRATION_POLICY_VERSION;
+    }
+  | {
+      readonly action: 'reject';
+      readonly rejectionCode: PushTokenRejectionCode;
+      readonly policyVersion: typeof PUSH_REGISTRATION_POLICY_VERSION;
+    };
 
 // Expo push token format: 'ExponentPushToken[xxxxxxxxxxxx]' or 'ExpoPushToken[xxxxxxxxxxxx]'
 // Server uses Expo SDK isExpoPushToken; client mirrors the format check.
@@ -54,22 +68,43 @@ export function decidePushRegistration(
   // token (server's expo-push-provider would otherwise dead-letter sends).
   if (!input.permissionGranted) {
     if (previous !== null) {
-      return { action: 'deregister', previousToken: previous.token, reason: 'permission_revoked', policyVersion: PUSH_REGISTRATION_POLICY_VERSION };
+      return {
+        action: 'deregister',
+        previousToken: previous.token,
+        reason: 'permission_revoked',
+        policyVersion: PUSH_REGISTRATION_POLICY_VERSION,
+      };
     }
-    return { action: 'reject', rejectionCode: 'permission_denied', policyVersion: PUSH_REGISTRATION_POLICY_VERSION };
+    return {
+      action: 'reject',
+      rejectionCode: 'permission_denied',
+      policyVersion: PUSH_REGISTRATION_POLICY_VERSION,
+    };
   }
   // Trim once: format check + comparison + payload all use the cleaned value.
   const cleanToken = input.token.trim();
   if (cleanToken.length === 0) {
-    return { action: 'reject', rejectionCode: 'token_empty', policyVersion: PUSH_REGISTRATION_POLICY_VERSION };
+    return {
+      action: 'reject',
+      rejectionCode: 'token_empty',
+      policyVersion: PUSH_REGISTRATION_POLICY_VERSION,
+    };
   }
   if (!isValidExpoPushToken(cleanToken)) {
-    return { action: 'reject', rejectionCode: 'invalid_format', policyVersion: PUSH_REGISTRATION_POLICY_VERSION };
+    return {
+      action: 'reject',
+      rejectionCode: 'invalid_format',
+      policyVersion: PUSH_REGISTRATION_POLICY_VERSION,
+    };
   }
   if (previous !== null && previous.token === cleanToken) {
     const ageMs = input.nowMs - previous.registeredAtMs;
     if (ageMs < PUSH_TOKEN_TTL_MS) {
-      return { action: 'skip', reason: 'token_fresh', policyVersion: PUSH_REGISTRATION_POLICY_VERSION };
+      return {
+        action: 'skip',
+        reason: 'token_fresh',
+        policyVersion: PUSH_REGISTRATION_POLICY_VERSION,
+      };
     }
   }
   return { action: 'register', token: cleanToken, policyVersion: PUSH_REGISTRATION_POLICY_VERSION };

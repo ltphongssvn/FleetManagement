@@ -33,13 +33,13 @@ describe('@fleet/domain barrel: fleet role SSOT', () => {
   });
 
   it('re-exports the exact-match membership helper', () => {
-    expect(domain.hasFleetRole(['offline_access', 'fleet-owner'], domain.FLEET_OWNER_ROLE))
-      .toBe(true);
+    expect(domain.hasFleetRole(['offline_access', 'fleet-owner'], domain.FLEET_OWNER_ROLE)).toBe(
+      true,
+    );
   });
 
   it('re-exports a helper that still denies a lookalike through the barrel', () => {
-    expect(domain.hasFleetRole(['fleet-owner-readonly'], domain.FLEET_OWNER_ROLE))
-      .toBe(false);
+    expect(domain.hasFleetRole(['fleet-owner-readonly'], domain.FLEET_OWNER_ROLE)).toBe(false);
   });
 
   it('re-exports a frozen vocabulary -- a consumer cannot grant itself a role', () => {

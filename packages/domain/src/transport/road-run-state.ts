@@ -1,7 +1,10 @@
 // packages/domain/src/transport/road-run-state.ts
 // Road-run execution state per PDF "execution split road_run + rail_run".
 import { z } from 'zod';
-import { createStateMachine, type FiniteStateMachine } from '../state-machines/finite-state-machine.js';
+import {
+  createStateMachine,
+  type FiniteStateMachine,
+} from '../state-machines/finite-state-machine.js';
 
 /**
  * Road run lifecycle. Decoupled from transport_order_state to allow a single

@@ -66,16 +66,19 @@ export class AdminDeviceBindingService {
     // Parsing ROW BY ROW rather than leaning on the envelope parse below means a
     // malformed row names itself instead of collapsing the admin page into one
     // opaque 500.
-    const data: AdminDeviceRow[] = rows.map((r) => AdminDeviceRowSchema.parse({
-      deviceId: r.deviceId,
-      operatorId: r.operatorId,
-      platform: r.platform,
-      bindingStatus: r.bindingStatus,
-      attestationSecurityLevel: r.attestationSecurityLevel,
-      attestationEnvironment: r.attestationEnvironment,
-      attestationVerifiedAt: r.attestationVerifiedAt === null ? null : r.attestationVerifiedAt.toISOString(),
-      bindingRevokedReason: r.bindingRevokedReason,
-    }));
+    const data: AdminDeviceRow[] = rows.map((r) =>
+      AdminDeviceRowSchema.parse({
+        deviceId: r.deviceId,
+        operatorId: r.operatorId,
+        platform: r.platform,
+        bindingStatus: r.bindingStatus,
+        attestationSecurityLevel: r.attestationSecurityLevel,
+        attestationEnvironment: r.attestationEnvironment,
+        attestationVerifiedAt:
+          r.attestationVerifiedAt === null ? null : r.attestationVerifiedAt.toISOString(),
+        bindingRevokedReason: r.bindingRevokedReason,
+      }),
+    );
     const totalPages = total === 0 ? 0 : Math.ceil(total / query.pageSize);
     // Validate our OWN response: parse the envelope through the SSOT schema so a
     // server-side shape drift surfaces here as a 500 at emit time, not silently.
@@ -89,7 +92,11 @@ export class AdminDeviceBindingService {
     });
   }
 
-  async setBinding(companyId: string, deviceId: string, req: DeviceBindingPatchRequest): Promise<void> {
+  async setBinding(
+    companyId: string,
+    deviceId: string,
+    req: DeviceBindingPatchRequest,
+  ): Promise<void> {
     const existing = await this.db
       .select({ deviceId: deviceRegistry.deviceId })
       .from(deviceRegistry)
@@ -99,13 +106,19 @@ export class AdminDeviceBindingService {
       throw new NotFoundException('Device not found');
     }
     if (req.action === 'activate') {
-      await this.db.update(deviceRegistry)
+      await this.db
+        .update(deviceRegistry)
         .set({ bindingStatus: 'active', bindingRevokedAt: null, bindingRevokedReason: null })
         .where(eq(deviceRegistry.deviceId, deviceId));
       return;
     }
-    await this.db.update(deviceRegistry)
-      .set({ bindingStatus: 'revoked', bindingRevokedAt: new Date(), bindingRevokedReason: req.revokedReason ?? null })
+    await this.db
+      .update(deviceRegistry)
+      .set({
+        bindingStatus: 'revoked',
+        bindingRevokedAt: new Date(),
+        bindingRevokedReason: req.revokedReason ?? null,
+      })
       .where(eq(deviceRegistry.deviceId, deviceId));
   }
 }

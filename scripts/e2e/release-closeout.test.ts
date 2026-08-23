@@ -29,7 +29,9 @@ describe('releaseCloseoutConfigSchema', () => {
     expect(releaseCloseoutConfigSchema.safeParse({ ...base, prNumber: 0 }).success).toBe(false);
   });
   it('rejects an empty develop branch', () => {
-    expect(releaseCloseoutConfigSchema.safeParse({ ...base, developBranch: '' }).success).toBe(false);
+    expect(releaseCloseoutConfigSchema.safeParse({ ...base, developBranch: '' }).success).toBe(
+      false,
+    );
   });
 });
 

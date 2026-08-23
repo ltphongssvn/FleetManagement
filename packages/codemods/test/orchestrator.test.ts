@@ -23,7 +23,11 @@ function projectWith(files: Record<string, string>): Project {
 
 describe('runCodemod orchestrator', () => {
   it('applies the transform across files and returns a schema-valid summary', () => {
-    const project = projectWith({ 'a.ts': PRIVATE, 'b.ts': PRIVATE, 'c.ts': 'export const x = 1;\n' });
+    const project = projectWith({
+      'a.ts': PRIVATE,
+      'b.ts': PRIVATE,
+      'c.ts': 'export const x = 1;\n',
+    });
     const result = runCodemod({ project, transform: transformParseOneNumber, dryRun: true });
     expect(() => OrchestratorResultSchema.parse(result)).not.toThrow();
     expect(result.scanned).toBe(3);

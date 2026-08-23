@@ -64,7 +64,9 @@ export function StopSlotHeaders(): JSX.Element {
   return (
     <>
       {PICKUP_SLOTS.map((n) => (
-        <th key={'ph-' + String(n)} className='px-3 py-2'>{'Điểm nhận hàng ' + String(n)}</th>
+        <th key={'ph-' + String(n)} className="px-3 py-2">
+          {'Điểm nhận hàng ' + String(n)}
+        </th>
       ))}
       {DELIVERY_SLOTS.map((n) => (
         // 2026: render the bare label because there is exactly one delivery
@@ -73,7 +75,9 @@ export function StopSlotHeaders(): JSX.Element {
         // change adds multiple delivery slots, the DELIVERY_SLOTS constant
         // must be expanded AND this label must become 'Kho giao hàng N' so
         // the dispatcher can still distinguish them.
-        <th key={'dh-' + String(n)} className='px-3 py-2'>{'Kho giao hàng'}</th>
+        <th key={'dh-' + String(n)} className="px-3 py-2">
+          {'Kho giao hàng'}
+        </th>
       ))}
     </>
   );
@@ -130,11 +134,11 @@ function StopCellContent({
   }
   const warehouseName = stop.warehouseName;
   return (
-    <span className='inline-flex flex-col items-start gap-0.5'>
+    <span className="inline-flex flex-col items-start gap-0.5">
       {warehouseName !== null && warehouseName !== '' ? (
         <span
           data-testid={testId.replace('board-stop-status-', 'board-stop-warehouse-')}
-          className='font-medium text-gray-900'
+          className="font-medium text-gray-900"
         >
           {warehouseName}
         </span>
@@ -158,16 +162,24 @@ export function StopSlotCells({
       {PICKUP_SLOTS.map((n) => {
         const s = stopForSlot(stops, 'pickup', n);
         return (
-          <td key={'pc-' + String(n)} className='px-3 py-2 text-xs'>
-            <StopCellContent stop={s} testId={'board-stop-status-' + primaryRef + '-pickup-' + String(n)} onEnterNetWeight={onEnterNetWeight} />
+          <td key={'pc-' + String(n)} className="px-3 py-2 text-xs">
+            <StopCellContent
+              stop={s}
+              testId={'board-stop-status-' + primaryRef + '-pickup-' + String(n)}
+              onEnterNetWeight={onEnterNetWeight}
+            />
           </td>
         );
       })}
       {DELIVERY_SLOTS.map((n) => {
         const s = stopForSlot(stops, 'delivery', n);
         return (
-          <td key={'dc-' + String(n)} className='px-3 py-2 text-xs'>
-            <StopCellContent stop={s} testId={'board-stop-status-' + primaryRef + '-delivery-' + String(n)} onEnterNetWeight={onEnterNetWeight} />
+          <td key={'dc-' + String(n)} className="px-3 py-2 text-xs">
+            <StopCellContent
+              stop={s}
+              testId={'board-stop-status-' + primaryRef + '-delivery-' + String(n)}
+              onEnterNetWeight={onEnterNetWeight}
+            />
           </td>
         );
       })}

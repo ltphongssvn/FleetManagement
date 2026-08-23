@@ -15,7 +15,12 @@ import type { ConfigService } from '@nestjs/config';
 import type { Env } from '../src/config/env.config.js';
 import type { Clock } from '../src/common/clock.js';
 import type { IdGenerator } from '../src/common/id-generator.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+  truncateAllTables,
+} from './helpers/migrate-test-db.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 
 let testDb: MigratedTestDb;
@@ -28,12 +33,16 @@ const fixedClock: Clock = { now: () => FIXED_AT };
 const fixedIds: IdGenerator = { uuid: () => FIXED_ID };
 
 function fakeBlobStore(): IBlobStore {
-  return { presignUpload: vi.fn().mockImplementation(() => Promise.resolve({
-    url: 'https://s3.example/presigned',
-    key: 'manifests/co/' + randomUUID() + '/x.jpg',
-    bucket: 'fleet-test',
-    expiresAt: new Date('2031-05-06T07:00:00Z'),
-  } satisfies PresignedUpload)) };
+  return {
+    presignUpload: vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        url: 'https://s3.example/presigned',
+        key: 'manifests/co/' + randomUUID() + '/x.jpg',
+        bucket: 'fleet-test',
+        expiresAt: new Date('2031-05-06T07:00:00Z'),
+      } satisfies PresignedUpload),
+    ),
+  };
 }
 function fakeConfig(): ConfigService<Env, true> {
   return { getOrThrow: vi.fn().mockReturnValue(900) } as unknown as ConfigService<Env, true>;
@@ -46,17 +55,29 @@ async function negotiateCommitFinalize(): Promise<void> {
     INSERT INTO transport_order (transport_order_id, company_id, business_unit_id, depot_id, legal_entity_id, state)
     VALUES (${transportOrderId}::uuid, ${OP.companyId}::uuid, ${OP.businessUnitId}::uuid, ${OP.depotId}::uuid, ${OP.legalEntityId}::uuid, 'assigned')
   `);
-  const negotiated = await service.negotiateUpload({
-    manifestCorrelationId: correlationId, transportOrderId,
-    contentType: 'image/jpeg', expectedSizeBytes: 1000,
-  }, OP);
-  await service.commitUpload({ uploadSessionId: negotiated.uploadSessionId, actualSizeBytes: 900 }, OP);
+  const negotiated = await service.negotiateUpload(
+    {
+      manifestCorrelationId: correlationId,
+      transportOrderId,
+      contentType: 'image/jpeg',
+      expectedSizeBytes: 1000,
+    },
+    OP,
+  );
+  await service.commitUpload(
+    { uploadSessionId: negotiated.uploadSessionId, actualSizeBytes: 900 },
+    OP,
+  );
   await service.finalizeIntake({ uploadSessionId: negotiated.uploadSessionId, accepted: true }, OP);
 }
 
 describe('@fleet/api - ManifestService determinism seam (integration)', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_determinism_seam'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_test_determinism_seam');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
   beforeEach(async () => {
     // 4th/5th args = the injected ports; 3-arg callers elsewhere still default to System*.
     service = new ManifestService(testDb.db, fakeBlobStore(), fakeConfig(), fixedClock, fixedIds);

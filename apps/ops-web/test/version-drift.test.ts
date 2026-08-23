@@ -9,7 +9,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 describe('@fleet/ops-web - version drift contract', () => {
   it('package.json version is well-formed semver', () => {
-    const pkg = JSON.parse(readFileSync(resolve(__dirname, '../package.json'), 'utf8')) as { version: string };
+    const pkg = JSON.parse(readFileSync(resolve(__dirname, '../package.json'), 'utf8')) as {
+      version: string;
+    };
     expect(pkg.version).toMatch(/^\d+\.\d+\.\d+/);
   });
 });

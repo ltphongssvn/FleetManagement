@@ -12,7 +12,7 @@
 // (index 0) and any caller-supplied protected paths (e.g. the WT3 mirror).
 // Mirrors the close-worktree.ts precedent: Zod at the boundary, pure verdict.
 
-import { z } from "zod";
+import { z } from 'zod';
 
 export const SweepEntrySchema = z.object({
   path: z.string().min(1),
@@ -37,8 +37,6 @@ export function planSweep(raw: SweepInput): SweepPlan {
   const primary = input.entries[0]?.path;
   const blocked = new Set(input.protectedPaths);
   if (primary !== undefined) blocked.add(primary);
-  const candidates = input.entries
-    .map((e) => e.path)
-    .filter((p) => !blocked.has(p));
+  const candidates = input.entries.map((e) => e.path).filter((p) => !blocked.has(p));
   return { candidates };
 }

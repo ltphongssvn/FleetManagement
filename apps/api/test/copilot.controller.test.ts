@@ -40,9 +40,7 @@ function build(): {
   plan: ReturnType<typeof vi.fn>;
 } {
   const execute = vi.fn(() => Promise.resolve(RESULT));
-  const plan = vi.fn(() =>
-    Promise.resolve({ kind: 'clarify', questionVi: 'Xe nào?' }),
-  );
+  const plan = vi.fn(() => Promise.resolve({ kind: 'clarify', questionVi: 'Xe nào?' }));
   const ctrl = new CopilotController(
     { execute } as never,
     { plan } as unknown as CopilotPlannerService,
@@ -56,10 +54,7 @@ describe('@fleet/api CopilotController', () => {
     const out = await ctrl.execute(VALID_BODY, OP);
     expect(out).toBe(RESULT);
     expect(execute).toHaveBeenCalledTimes(1);
-    expect(execute).toHaveBeenCalledWith(
-      expect.objectContaining({ planId: GUID_PLAN }),
-      OP,
-    );
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ planId: GUID_PLAN }), OP);
   });
 
   it('rejects an invalid body with ZodError before touching the executor', async () => {

@@ -51,11 +51,31 @@ vi.mock('../src/database/schema/index.js', () => ({
 
 import { ProjectionRunnerService } from '../src/projections/projection-runner.service.js';
 
-interface InsertCall { table: unknown; values?: Record<string, unknown> | undefined; onConflictDoNothing?: boolean; onConflictDoUpdate?: { target?: unknown; set?: Record<string, unknown> } | undefined }
-interface ExecuteCall { sqlArg: unknown }
-interface SelectCall { shape?: Record<string, unknown> | undefined; from?: unknown; where?: unknown; limit?: number; orderBy?: unknown }
-interface UpdateCall { table: unknown; set?: Record<string, unknown> | undefined; where?: unknown }
-interface DeleteCall { table: unknown; where?: unknown }
+interface InsertCall {
+  table: unknown;
+  values?: Record<string, unknown> | undefined;
+  onConflictDoNothing?: boolean;
+  onConflictDoUpdate?: { target?: unknown; set?: Record<string, unknown> } | undefined;
+}
+interface ExecuteCall {
+  sqlArg: unknown;
+}
+interface SelectCall {
+  shape?: Record<string, unknown> | undefined;
+  from?: unknown;
+  where?: unknown;
+  limit?: number;
+  orderBy?: unknown;
+}
+interface UpdateCall {
+  table: unknown;
+  set?: Record<string, unknown> | undefined;
+  where?: unknown;
+}
+interface DeleteCall {
+  table: unknown;
+  where?: unknown;
+}
 
 interface FakeTx {
   insertCalls: InsertCall[];
@@ -240,7 +260,13 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
 
   it('applies upsert decisions and counts applied++', async () => {
     const events = [
-      { serverSeq: 10n, aggregateType: 'road_run', aggregateId: 'rr-1', delta: {}, createdAt: new Date(Date.now() - 1000) },
+      {
+        serverSeq: 10n,
+        aggregateType: 'road_run',
+        aggregateId: 'rr-1',
+        delta: {},
+        createdAt: new Date(Date.now() - 1000),
+      },
     ];
     mockApplyDispatchBoardEvent.mockReturnValueOnce({
       kind: 'upsert',
@@ -281,9 +307,19 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
 
   it('applies soft_delete decisions as an UPDATE setting deleted_at and counts softDeletes++', async () => {
     const events = [
-      { serverSeq: 5n, aggregateType: 'road_run', aggregateId: 'rr-9', delta: {}, createdAt: new Date() },
+      {
+        serverSeq: 5n,
+        aggregateType: 'road_run',
+        aggregateId: 'rr-9',
+        delta: {},
+        createdAt: new Date(),
+      },
     ];
-    mockApplyDispatchBoardEvent.mockReturnValueOnce({ kind: 'soft_delete', roadRunId: 'rr-9', serverSeq: 5n });
+    mockApplyDispatchBoardEvent.mockReturnValueOnce({
+      kind: 'soft_delete',
+      roadRunId: 'rr-9',
+      serverSeq: 5n,
+    });
     const { db, tx } = makeFakeDb({ eventsReturn: events, currentRowsReturns: [[]] });
     const svc = new ProjectionRunnerService(db as never);
     const res = await svc.drainOnce('co-1');
@@ -310,7 +346,13 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
 
   it('handles noop decisions and counts noops++', async () => {
     const events = [
-      { serverSeq: 3n, aggregateType: 'road_run', aggregateId: 'rr-2', delta: {}, createdAt: new Date() },
+      {
+        serverSeq: 3n,
+        aggregateType: 'road_run',
+        aggregateId: 'rr-2',
+        delta: {},
+        createdAt: new Date(),
+      },
     ];
     mockApplyDispatchBoardEvent.mockReturnValueOnce({ kind: 'noop' });
     const { db, tx } = makeFakeDb({ eventsReturn: events, currentRowsReturns: [[]] });
@@ -327,8 +369,20 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
 
   it('catches policy throw, counts as noop, advances watermark, continues loop', async () => {
     const events = [
-      { serverSeq: 1n, aggregateType: 'road_run', aggregateId: 'rr-a', delta: {}, createdAt: new Date() },
-      { serverSeq: 2n, aggregateType: 'road_run', aggregateId: 'rr-b', delta: {}, createdAt: new Date() },
+      {
+        serverSeq: 1n,
+        aggregateType: 'road_run',
+        aggregateId: 'rr-a',
+        delta: {},
+        createdAt: new Date(),
+      },
+      {
+        serverSeq: 2n,
+        aggregateType: 'road_run',
+        aggregateId: 'rr-b',
+        delta: {},
+        createdAt: new Date(),
+      },
     ];
     mockApplyDispatchBoardEvent.mockImplementationOnce(() => {
       throw new Error('policy boom');
@@ -346,7 +400,13 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
   });
   it('catches non-Error policy throw via String(err) fallback (line 126 branch)', async () => {
     const events = [
-      { serverSeq: 1n, aggregateType: 'road_run', aggregateId: 'rr-a', delta: {}, createdAt: new Date() },
+      {
+        serverSeq: 1n,
+        aggregateType: 'road_run',
+        aggregateId: 'rr-a',
+        delta: {},
+        createdAt: new Date(),
+      },
     ];
     mockApplyDispatchBoardEvent.mockImplementationOnce(() => {
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentional non-Error to cover String(err) branch
@@ -361,9 +421,27 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
 
   it('processes ALL events in the batch (kills for-loop BlockStatement)', async () => {
     const events = [
-      { serverSeq: 1n, aggregateType: 'road_run', aggregateId: 'rr-1', delta: {}, createdAt: new Date() },
-      { serverSeq: 2n, aggregateType: 'road_run', aggregateId: 'rr-2', delta: {}, createdAt: new Date() },
-      { serverSeq: 3n, aggregateType: 'road_run', aggregateId: 'rr-3', delta: {}, createdAt: new Date() },
+      {
+        serverSeq: 1n,
+        aggregateType: 'road_run',
+        aggregateId: 'rr-1',
+        delta: {},
+        createdAt: new Date(),
+      },
+      {
+        serverSeq: 2n,
+        aggregateType: 'road_run',
+        aggregateId: 'rr-2',
+        delta: {},
+        createdAt: new Date(),
+      },
+      {
+        serverSeq: 3n,
+        aggregateType: 'road_run',
+        aggregateId: 'rr-3',
+        delta: {},
+        createdAt: new Date(),
+      },
     ];
     mockApplyDispatchBoardEvent.mockReturnValue({ kind: 'noop' });
     const { db } = makeFakeDb({
@@ -379,9 +457,27 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
 
   it('advances watermark to the highest event serverSeq processed', async () => {
     const events = [
-      { serverSeq: 5n, aggregateType: 'road_run', aggregateId: 'rr-1', delta: {}, createdAt: new Date() },
-      { serverSeq: 7n, aggregateType: 'road_run', aggregateId: 'rr-2', delta: {}, createdAt: new Date() },
-      { serverSeq: 9n, aggregateType: 'road_run', aggregateId: 'rr-3', delta: {}, createdAt: new Date() },
+      {
+        serverSeq: 5n,
+        aggregateType: 'road_run',
+        aggregateId: 'rr-1',
+        delta: {},
+        createdAt: new Date(),
+      },
+      {
+        serverSeq: 7n,
+        aggregateType: 'road_run',
+        aggregateId: 'rr-2',
+        delta: {},
+        createdAt: new Date(),
+      },
+      {
+        serverSeq: 9n,
+        aggregateType: 'road_run',
+        aggregateId: 'rr-3',
+        delta: {},
+        createdAt: new Date(),
+      },
     ];
     mockApplyDispatchBoardEvent.mockReturnValue({ kind: 'noop' });
     const { db } = makeFakeDb({
@@ -395,7 +491,13 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
 
   it('builds current RoadRunProjectionRow from existing currentRow (non-null path)', async () => {
     const events = [
-      { serverSeq: 4n, aggregateType: 'road_run', aggregateId: 'rr-1', delta: {}, createdAt: new Date() },
+      {
+        serverSeq: 4n,
+        aggregateType: 'road_run',
+        aggregateId: 'rr-1',
+        delta: {},
+        createdAt: new Date(),
+      },
     ];
     const existingRow = {
       roadRunId: 'rr-1',
@@ -428,7 +530,13 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
 
   it('current-row load filters out soft-deleted rows (deleted_at IS NULL predicate)', async () => {
     const events = [
-      { serverSeq: 4n, aggregateType: 'road_run', aggregateId: 'rr-1', delta: {}, createdAt: new Date() },
+      {
+        serverSeq: 4n,
+        aggregateType: 'road_run',
+        aggregateId: 'rr-1',
+        delta: {},
+        createdAt: new Date(),
+      },
     ];
     mockApplyDispatchBoardEvent.mockReturnValueOnce({ kind: 'noop' });
     const { db, tx } = makeFakeDb({ eventsReturn: events, currentRowsReturns: [[]] });
@@ -449,7 +557,13 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
 
   it('passes null current when no currentRow exists', async () => {
     const events = [
-      { serverSeq: 1n, aggregateType: 'road_run', aggregateId: 'rr-1', delta: {}, createdAt: new Date() },
+      {
+        serverSeq: 1n,
+        aggregateType: 'road_run',
+        aggregateId: 'rr-1',
+        delta: {},
+        createdAt: new Date(),
+      },
     ];
     mockApplyDispatchBoardEvent.mockReturnValueOnce({ kind: 'noop' });
     const { db } = makeFakeDb({
@@ -467,7 +581,13 @@ describe('@fleet/api - ProjectionRunnerService.drainOnce (unit)', () => {
   it('updates projection_status with new watermark + lagMs > 0 when events present', async () => {
     const oldCreatedAt = new Date(Date.now() - 5000);
     const events = [
-      { serverSeq: 8n, aggregateType: 'road_run', aggregateId: 'rr-1', delta: {}, createdAt: oldCreatedAt },
+      {
+        serverSeq: 8n,
+        aggregateType: 'road_run',
+        aggregateId: 'rr-1',
+        delta: {},
+        createdAt: oldCreatedAt,
+      },
     ];
     mockApplyDispatchBoardEvent.mockReturnValueOnce({ kind: 'noop' });
     const { db, tx } = makeFakeDb({

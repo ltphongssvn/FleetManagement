@@ -11,7 +11,10 @@ import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { roadRun } from '../database/schema/transport.js';
 import { findDeliveredIncompleteRuns } from './repair-complete-delivered-runs.js';
-import type { CompletionStrandedRepo, StrandedDeliveredRunRow } from './completion-reconciler-monitor.service.js';
+import type {
+  CompletionStrandedRepo,
+  StrandedDeliveredRunRow,
+} from './completion-reconciler-monitor.service.js';
 export const COMPLETION_STRANDED_PILOT_SCOPE = 'COMPLETION_STRANDED_PILOT_SCOPE' as const;
 @Injectable()
 export class DrizzleCompletionStrandedRepo implements CompletionStrandedRepo {
@@ -32,11 +35,13 @@ export class DrizzleCompletionStrandedRepo implements CompletionStrandedRepo {
     const [oldest] = await this.db
       .select({ roadRunId: roadRun.roadRunId, startedAt: roadRun.startedAt })
       .from(roadRun)
-      .where(and(
-        eq(roadRun.companyId, this.companyId),
-        inArray(roadRun.roadRunId, ids),
-        isNotNull(roadRun.startedAt),
-      ))
+      .where(
+        and(
+          eq(roadRun.companyId, this.companyId),
+          inArray(roadRun.roadRunId, ids),
+          isNotNull(roadRun.startedAt),
+        ),
+      )
       .orderBy(asc(roadRun.startedAt))
       .limit(1);
     /* v8 ignore start -- unreachable defensive guard: the isNotNull predicate

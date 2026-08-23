@@ -8,30 +8,64 @@
 // with tx works without any inner-savepoint concerns.
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { ExpoPushProvider, defaultExpoClient, DRIVER_ALERT_ANDROID_CHANNEL_ID, DRIVER_ALERT_SOUND, DRIVER_ALERT_VIBRATION_PATTERN, type ExpoLike } from '../src/push/expo-push-provider.js';
+import {
+  ExpoPushProvider,
+  defaultExpoClient,
+  DRIVER_ALERT_ANDROID_CHANNEL_ID,
+  DRIVER_ALERT_SOUND,
+  DRIVER_ALERT_VIBRATION_PATTERN,
+  type ExpoLike,
+} from '../src/push/expo-push-provider.js';
 import { Expo } from 'expo-server-sdk';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
 let testDb: PgliteTestDb;
 const qt = String.fromCharCode(39);
 const TENANCY_VALS =
-  qt + '00000000-0000-0000-0000-000000000001' + qt + '::uuid, ' +
-  qt + '00000000-0000-0000-0000-000000000002' + qt + '::uuid, ' +
-  qt + '00000000-0000-0000-0000-000000000003' + qt + '::uuid, ' +
-  qt + '00000000-0000-0000-0000-000000000004' + qt + '::uuid';
+  qt +
+  '00000000-0000-0000-0000-000000000001' +
+  qt +
+  '::uuid, ' +
+  qt +
+  '00000000-0000-0000-0000-000000000002' +
+  qt +
+  '::uuid, ' +
+  qt +
+  '00000000-0000-0000-0000-000000000003' +
+  qt +
+  '::uuid, ' +
+  qt +
+  '00000000-0000-0000-0000-000000000004' +
+  qt +
+  '::uuid';
 const OPERATOR_ID = '00000000-0000-0000-0000-0000000000aa';
 async function seedTokens(tx: TestTx, tokens: (string | null)[]): Promise<void> {
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
-    const tokenLit = (token === null || token === undefined)
-      ? 'NULL'
-      : qt + token + qt;
-    const stmt = 'INSERT INTO device_registry (company_id, business_unit_id, depot_id, legal_entity_id, operator_id, platform, app_version, expo_push_token) VALUES ('
-      + TENANCY_VALS + ', '
-      + qt + OPERATOR_ID + qt + '::uuid, '
-      + qt + 'platform-' + String(i) + qt + ', '
-      + qt + '1.0.0' + qt + ', '
-      + tokenLit + ')';
+    const tokenLit = token === null || token === undefined ? 'NULL' : qt + token + qt;
+    const stmt =
+      'INSERT INTO device_registry (company_id, business_unit_id, depot_id, legal_entity_id, operator_id, platform, app_version, expo_push_token) VALUES (' +
+      TENANCY_VALS +
+      ', ' +
+      qt +
+      OPERATOR_ID +
+      qt +
+      '::uuid, ' +
+      qt +
+      'platform-' +
+      String(i) +
+      qt +
+      ', ' +
+      qt +
+      '1.0.0' +
+      qt +
+      ', ' +
+      tokenLit +
+      ')';
     await tx.execute(sql.raw(stmt));
   }
 }
@@ -41,7 +75,8 @@ function fakeExpo(opts: {
   throws?: boolean;
 }): ExpoLike {
   return {
-    isExpoPushToken: opts.isValid ?? ((t) => typeof t === 'string' && t.startsWith('ExponentPushToken[')),
+    isExpoPushToken:
+      opts.isValid ?? ((t) => typeof t === 'string' && t.startsWith('ExponentPushToken[')),
     chunkPushNotifications: (m) => [m],
     sendPushNotificationsAsync: vi.fn(() => {
       if (opts.throws) return Promise.reject(new Error('network'));
@@ -51,12 +86,19 @@ function fakeExpo(opts: {
 }
 const VALID_TOKEN = 'ExponentPushToken[abc123]';
 describe('@fleet/api - ExpoPushProvider (integration)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('returns rejected=1 when operator has no tokens', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const p = new ExpoPushProvider(tx as never, fakeExpo({}));
-      expect(await p.sendToOperator(OPERATOR_ID, { title: 't', body: 'b' })).toEqual({ accepted: 0, rejected: 1 });
+      expect(await p.sendToOperator(OPERATOR_ID, { title: 't', body: 'b' })).toEqual({
+        accepted: 0,
+        rejected: 1,
+      });
     });
   });
   it('returns rejected when operator has only invalid tokens', async () => {
@@ -72,14 +114,20 @@ describe('@fleet/api - ExpoPushProvider (integration)', () => {
     await withTxIsolation(testDb, async (tx) => {
       await seedTokens(tx, [VALID_TOKEN]);
       const p = new ExpoPushProvider(tx as never, fakeExpo({ ticketStatuses: ['ok'] }));
-      expect(await p.sendToOperator(OPERATOR_ID, { title: 't', body: 'b' })).toEqual({ accepted: 1, rejected: 0 });
+      expect(await p.sendToOperator(OPERATOR_ID, { title: 't', body: 'b' })).toEqual({
+        accepted: 1,
+        rejected: 0,
+      });
     });
   });
   it('counts error tickets as rejected', async () => {
     await withTxIsolation(testDb, async (tx) => {
       await seedTokens(tx, [VALID_TOKEN]);
       const p = new ExpoPushProvider(tx as never, fakeExpo({ ticketStatuses: ['error'] }));
-      expect(await p.sendToOperator(OPERATOR_ID, { title: 't', body: 'b' })).toEqual({ accepted: 0, rejected: 1 });
+      expect(await p.sendToOperator(OPERATOR_ID, { title: 't', body: 'b' })).toEqual({
+        accepted: 0,
+        rejected: 1,
+      });
     });
   });
   it('counts entire chunk as rejected when send throws', async () => {
@@ -99,28 +147,34 @@ describe('@fleet/api - ExpoPushProvider (integration)', () => {
       expect(r.accepted).toBe(1);
     });
   });
-  it("sets critical-delivery fields on every message: high priority, transport-orders channel, time-sensitive iOS level, custom sound (4AM wake reliability)", async () => {
+  it('sets critical-delivery fields on every message: high priority, transport-orders channel, time-sensitive iOS level, custom sound (4AM wake reliability)', async () => {
     await withTxIsolation(testDb, async (tx) => {
       await seedTokens(tx, [VALID_TOKEN]);
-      const expo = fakeExpo({ ticketStatuses: ["ok"] });
-      const calls = (expo.sendPushNotificationsAsync as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+      const expo = fakeExpo({ ticketStatuses: ['ok'] });
+      const calls = (expo.sendPushNotificationsAsync as unknown as { mock: { calls: unknown[][] } })
+        .mock.calls;
       const p = new ExpoPushProvider(tx as never, expo);
-      await p.sendToOperator(OPERATOR_ID, { title: "t", body: "b" });
+      await p.sendToOperator(OPERATOR_ID, { title: 't', body: 'b' });
       const sent = calls[0]?.[0] as Record<string, unknown>[];
       const msg = sent[0] ?? {};
-      expect(msg['priority']).toBe("high");
-      expect(msg['channelId']).toBe("transport-orders-v1");
-      expect(msg['interruptionLevel']).toBe("time-sensitive");
-      expect(msg['sound']).toBe("transport_alert.wav");
+      expect(msg['priority']).toBe('high');
+      expect(msg['channelId']).toBe('transport-orders-v1');
+      expect(msg['interruptionLevel']).toBe('time-sensitive');
+      expect(msg['sound']).toBe('transport_alert.wav');
     });
   });
   it('attaches body.data to the Expo message when provided (covers line 55 branch)', async () => {
     await withTxIsolation(testDb, async (tx) => {
       await seedTokens(tx, [VALID_TOKEN]);
       const expo = fakeExpo({ ticketStatuses: ['ok'] });
-      const calls = (expo.sendPushNotificationsAsync as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+      const calls = (expo.sendPushNotificationsAsync as unknown as { mock: { calls: unknown[][] } })
+        .mock.calls;
       const p = new ExpoPushProvider(tx as never, expo);
-      const r = await p.sendToOperator(OPERATOR_ID, { title: 't', body: 'b', data: { kind: 'cmd', id: '7' } });
+      const r = await p.sendToOperator(OPERATOR_ID, {
+        title: 't',
+        body: 'b',
+        data: { kind: 'cmd', id: '7' },
+      });
       expect(r).toEqual({ accepted: 1, rejected: 0 });
       const sent = calls[0]?.[0];
       expect(Array.isArray(sent)).toBe(true);
@@ -180,14 +234,14 @@ describe('@fleet/api - defaultExpoClient', () => {
   });
 });
 
-describe("@fleet/api - driver alert channel contract constants", () => {
-  it("exports the versioned Android channel id", () => {
-    expect(DRIVER_ALERT_ANDROID_CHANNEL_ID).toBe("transport-orders-v1");
+describe('@fleet/api - driver alert channel contract constants', () => {
+  it('exports the versioned Android channel id', () => {
+    expect(DRIVER_ALERT_ANDROID_CHANNEL_ID).toBe('transport-orders-v1');
   });
-  it("exports the custom alarm sound filename", () => {
-    expect(DRIVER_ALERT_SOUND).toBe("transport_alert.wav");
+  it('exports the custom alarm sound filename', () => {
+    expect(DRIVER_ALERT_SOUND).toBe('transport_alert.wav');
   });
-  it("exports a strong vibration pattern as [wait, buzz, ...] ms pairs, distinct from ordinary notifications", () => {
+  it('exports a strong vibration pattern as [wait, buzz, ...] ms pairs, distinct from ordinary notifications', () => {
     expect(Array.isArray(DRIVER_ALERT_VIBRATION_PATTERN)).toBe(true);
     expect(DRIVER_ALERT_VIBRATION_PATTERN.length).toBeGreaterThanOrEqual(4);
     expect(DRIVER_ALERT_VIBRATION_PATTERN.every((n) => Number.isInteger(n) && n >= 0)).toBe(true);

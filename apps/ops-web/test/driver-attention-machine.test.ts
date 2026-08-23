@@ -49,7 +49,11 @@ describe('driverAttentionMachine', () => {
     actor.send({ type: 'LOADED', rows: [COMPLETE, NO_VEHICLE, NO_DEVICE, NEITHER] });
     const snap = actor.getSnapshot();
     expect(snap.matches({ ready: 'attention' })).toBe(true);
-    expect(snap.context.attention.map((e) => e.row.driverId)).toEqual(['drv-nv', 'drv-nd', 'drv-nn']);
+    expect(snap.context.attention.map((e) => e.row.driverId)).toEqual([
+      'drv-nv',
+      'drv-nd',
+      'drv-nn',
+    ]);
     expect(snap.context.configured.map((r) => r.driverId)).toEqual(['drv-ok']);
   });
 

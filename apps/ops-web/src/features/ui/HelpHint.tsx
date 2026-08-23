@@ -41,24 +41,26 @@ export function HelpHint({ topic, className }: HelpHintProps): JSX.Element {
   return (
     <div className={className === undefined ? 'relative' : 'relative ' + className}>
       <Button
-        tone='neutral'
-        emphasis='ghost'
-        onClick={() => { setOpen((v) => !v); }}
+        tone="neutral"
+        emphasis="ghost"
+        onClick={() => {
+          setOpen((v) => !v);
+        }}
         aria-expanded={open ? 'true' : 'false'}
         aria-controls={panelId}
         data-testid={'help-trigger-' + topic}
       >
-        <span aria-hidden='true'>?</span>
+        <span aria-hidden="true">?</span>
         {HELP_TRIGGER_LABEL}
       </Button>
       {open ? (
         <div
           id={panelId}
           data-testid={'help-panel-' + topic}
-          className='absolute right-0 z-30 mt-2 w-80 rounded-lg border border-border bg-white p-4 text-left shadow-lg'
+          className="absolute right-0 z-30 mt-2 w-80 rounded-lg border border-border bg-white p-4 text-left shadow-lg"
         >
-          <p className='mb-2 text-sm font-semibold text-text-primary'>{copy.title}</p>
-          <ol className='list-decimal space-y-1 pl-5 text-sm text-text-secondary'>
+          <p className="mb-2 text-sm font-semibold text-text-primary">{copy.title}</p>
+          <ol className="list-decimal space-y-1 pl-5 text-sm text-text-secondary">
             {copy.steps.map((step) => (
               <li key={step}>{step}</li>
             ))}

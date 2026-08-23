@@ -41,15 +41,16 @@ export class AdminDriversResetPasswordService {
   async resetPassword(input: ResetPasswordInput): Promise<void> {
     const newHash = await this.bcryptHash(input.newPassword, DEFAULT_BCRYPT_ROUNDS);
     await this.db.transaction(async (tx) => {
-      const [d] = await tx.select({ driverId: driver.driverId })
+      const [d] = await tx
+        .select({ driverId: driver.driverId })
         .from(driver)
         .where(and(eq(driver.driverId, input.driverId), eq(driver.companyId, input.companyId)))
         .limit(1);
       if (!d) throw new NotFoundException('Driver not found in tenant scope');
-      await tx.update(driver).set({ passwordHash: newHash }).where(and(
-        eq(driver.driverId, input.driverId),
-        eq(driver.companyId, input.companyId),
-      ));
+      await tx
+        .update(driver)
+        .set({ passwordHash: newHash })
+        .where(and(eq(driver.driverId, input.driverId), eq(driver.companyId, input.companyId)));
       await tx.insert(driverPasswordResetLog).values({
         companyId: input.companyId,
         businessUnitId: input.businessUnitId,
