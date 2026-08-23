@@ -36,5 +36,5 @@ const EAS_BUILD_SEEN_TTL_SECONDS = 24 * 60 * 60;
     },
   ],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
+
 export class EasInboundModule {}

@@ -55,5 +55,5 @@ const bcryptHashProvider = {
     AdminDriversResetPasswordService,
   ],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
+
 export class AdminModule {}

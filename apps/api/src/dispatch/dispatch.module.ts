@@ -39,5 +39,5 @@ import { DriverDeliveryService } from './driver-delivery.service.js';
   ],
   exports: [StopProofModule],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
+
 export class DispatchModule {}

@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER } from '@nestjs/core';
 import { SentryModule } from '@sentry/nestjs/setup';
+import { LoggingModule } from './observability/logging.module.js';
 import { SentryGlobalFilter } from '@sentry/nestjs/setup';
 import { AuthModule } from './auth/auth.module.js';
 import { CommandsModule } from './commands/commands.module.js';
@@ -32,6 +33,10 @@ import { AlertsModule } from './alerts/alerts.module.js';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv, cache: true }),
+    // Immediately after ConfigModule (global, so ConfigService is injectable
+    // into LoggingModule's forRootAsync factory) and BEFORE every feature
+    // module, so pino is registered by the time any of them logs.
+    LoggingModule,
     SentryModule.forRoot(),
     DatabaseModule,
     AuthModule,
@@ -59,5 +64,4 @@ import { AlertsModule } from './alerts/alerts.module.js';
   ],
   providers: [{ provide: APP_FILTER, useClass: SentryGlobalFilter }],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class AppModule {}
