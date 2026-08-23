@@ -12,7 +12,12 @@ import type { OperatorContext } from '../src/auth/operator-context.js';
 import type { IBlobStore, PresignedUpload } from '../src/storage/storage-provider.interface.js';
 import type { ConfigService } from '@nestjs/config';
 import type { Env } from '../src/config/env.config.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+  truncateAllTables,
+} from './helpers/migrate-test-db.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 
 let testDb: MigratedTestDb;
@@ -83,45 +88,59 @@ describe('@fleet/api - negotiateUpload persists manifest.stop_id from stop ref',
   });
 
   it('resolves stop: {stopSequence: 2} to the stop PK and persists manifest.stop_id', async () => {
-    const negotiated = await service.negotiateUpload({
-      manifestCorrelationId: randomUUID(),
-      transportOrderId: TRANSPORT_ORDER_ID,
-      contentType: 'image/jpeg',
-      expectedSizeBytes: 1000,
-      stop: { stopId: null, stopSequence: 2 },
-    }, OP);
+    const negotiated = await service.negotiateUpload(
+      {
+        manifestCorrelationId: randomUUID(),
+        transportOrderId: TRANSPORT_ORDER_ID,
+        contentType: 'image/jpeg',
+        expectedSizeBytes: 1000,
+        stop: { stopId: null, stopSequence: 2 },
+      },
+      OP,
+    );
     expect(await manifestStopIdFor(negotiated.uploadSessionId)).toBe(STOP_ID_SEQ2);
   });
 
   it('persists manifest.stop_id directly when stop: {stopId} is supplied', async () => {
-    const negotiated = await service.negotiateUpload({
-      manifestCorrelationId: randomUUID(),
-      transportOrderId: TRANSPORT_ORDER_ID,
-      contentType: 'image/jpeg',
-      expectedSizeBytes: 1000,
-      stop: { stopId: STOP_ID_SEQ1, stopSequence: null },
-    }, OP);
+    const negotiated = await service.negotiateUpload(
+      {
+        manifestCorrelationId: randomUUID(),
+        transportOrderId: TRANSPORT_ORDER_ID,
+        contentType: 'image/jpeg',
+        expectedSizeBytes: 1000,
+        stop: { stopId: STOP_ID_SEQ1, stopSequence: null },
+      },
+      OP,
+    );
     expect(await manifestStopIdFor(negotiated.uploadSessionId)).toBe(STOP_ID_SEQ1);
   });
 
   it('leaves manifest.stop_id null when no stop ref is supplied (EXPAND-only back-compat)', async () => {
-    const negotiated = await service.negotiateUpload({
-      manifestCorrelationId: randomUUID(),
-      transportOrderId: TRANSPORT_ORDER_ID,
-      contentType: 'image/jpeg',
-      expectedSizeBytes: 1000,
-    }, OP);
+    const negotiated = await service.negotiateUpload(
+      {
+        manifestCorrelationId: randomUUID(),
+        transportOrderId: TRANSPORT_ORDER_ID,
+        contentType: 'image/jpeg',
+        expectedSizeBytes: 1000,
+      },
+      OP,
+    );
     expect(await manifestStopIdFor(negotiated.uploadSessionId)).toBe(null);
   });
 
   it('rejects a stopSequence that does not exist on the transport order', async () => {
-    await expect(service.negotiateUpload({
-      manifestCorrelationId: randomUUID(),
-      transportOrderId: TRANSPORT_ORDER_ID,
-      contentType: 'image/jpeg',
-      expectedSizeBytes: 1000,
-      stop: { stopId: null, stopSequence: 99 },
-    }, OP)).rejects.toThrow();
+    await expect(
+      service.negotiateUpload(
+        {
+          manifestCorrelationId: randomUUID(),
+          transportOrderId: TRANSPORT_ORDER_ID,
+          contentType: 'image/jpeg',
+          expectedSizeBytes: 1000,
+          stop: { stopId: null, stopSequence: 99 },
+        },
+        OP,
+      ),
+    ).rejects.toThrow();
   });
 
   it('rejects a stopId belonging to a different transport order (cross-order guard)', async () => {
@@ -135,12 +154,17 @@ describe('@fleet/api - negotiateUpload persists manifest.stop_id from stop ref',
       INSERT INTO stop (stop_id, company_id, business_unit_id, depot_id, legal_entity_id, transport_order_id, sequence, stop_type)
       VALUES (${foreignStopId}::uuid, ${OP.companyId}::uuid, ${OP.businessUnitId}::uuid, ${OP.depotId}::uuid, ${OP.legalEntityId}::uuid, ${otherOrderId}::uuid, 1, 'pickup')
     `);
-    await expect(service.negotiateUpload({
-      manifestCorrelationId: randomUUID(),
-      transportOrderId: TRANSPORT_ORDER_ID,
-      contentType: 'image/jpeg',
-      expectedSizeBytes: 1000,
-      stop: { stopId: foreignStopId, stopSequence: null },
-    }, OP)).rejects.toThrow();
+    await expect(
+      service.negotiateUpload(
+        {
+          manifestCorrelationId: randomUUID(),
+          transportOrderId: TRANSPORT_ORDER_ID,
+          contentType: 'image/jpeg',
+          expectedSizeBytes: 1000,
+          stop: { stopId: foreignStopId, stopSequence: null },
+        },
+        OP,
+      ),
+    ).rejects.toThrow();
   });
 });

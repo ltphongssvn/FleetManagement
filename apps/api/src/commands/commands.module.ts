@@ -14,5 +14,4 @@ import { PushModule } from '../push/push.module.js';
   providers: [CommandsGateway, CommandsService, TenantPolicy],
   exports: [CommandsGateway],
 })
-
 export class CommandsModule {}

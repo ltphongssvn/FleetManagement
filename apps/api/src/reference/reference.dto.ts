@@ -16,7 +16,4 @@ export type ReferenceWriteDto = z.infer<typeof ReferenceWriteSchema>;
 // (reference-contract.ts) instead of a hand-written local twin -- one of the
 // four duplicated definitions consolidated by the schema-first arc. Re-export
 // keeps the api-local names stable for the controller/service signatures.
-export type {
-  ReferenceItem,
-  ReferenceListResponse,
-} from '@fleet/sync-protocol';
+export type { ReferenceItem, ReferenceListResponse } from '@fleet/sync-protocol';

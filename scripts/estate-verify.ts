@@ -112,13 +112,7 @@ export {
   type UnobservableReason,
   type WorktreeState,
 };
-export {
-  ESTATE_POLICY,
-  actionUnder,
-  policyDigestOf,
-  reasonsUnder,
-  type EstatePolicy,
-};
+export { ESTATE_POLICY, actionUnder, policyDigestOf, reasonsUnder, type EstatePolicy };
 
 /** A DISCRIMINATED verdict, so an invalid combination cannot be built.
  *
@@ -140,9 +134,7 @@ export type EstateVerdict =
 /** Test-fixture factory. Overrides are applied BEFORE parsing, so an override
  *  that violates the contract throws instead of producing a state no git output
  *  could ever yield. */
-export function createWorktreeState(
-  overrides: Partial<WorktreeState> = {},
-): WorktreeState {
+export function createWorktreeState(overrides: Partial<WorktreeState> = {}): WorktreeState {
   return WorktreeStateSchema.parse({
     path: '/c/t1-wt1-fixture',
     branch: 'feat/fixture',
@@ -204,14 +196,25 @@ export function classifyEstate(
 export function describeEstate(v: EstateVerdict): string {
   const nl = String.fromCharCode(10);
   if (v.clean) {
-    return 'estate clean: ' + String(v.checked) + ' worktree(s) checked, ' +
-      'no dirty tree, no unpushed commits, no stash, none stale or locked';
+    return (
+      'estate clean: ' +
+      String(v.checked) +
+      ' worktree(s) checked, ' +
+      'no dirty tree, no unpushed commits, no stash, none stale or locked'
+    );
   }
   const lines = v.problems.map(
     (p) => '  ' + p.path + ' [' + p.branch + '] (' + p.reasons.join(',') + ')',
   );
-  return 'estate NOT clean: ' + String(v.problems.length) + ' of ' +
-    String(v.checked) + ' worktree(s)' + nl + lines.join(nl);
+  return (
+    'estate NOT clean: ' +
+    String(v.problems.length) +
+    ' of ' +
+    String(v.checked) +
+    ' worktree(s)' +
+    nl +
+    lines.join(nl)
+  );
 }
 
 /** Machine-readable verdict. STRUCTURED TRUTH, emitted alongside the prose and
@@ -235,7 +238,7 @@ export function estateTelemetry(
 ): EstateTelemetry {
   const reasons = reasonsAcross(v.problems);
   return {
-    "event.name": "fleet.estate.verified",
+    'event.name': 'fleet.estate.verified',
     schema_version: ESTATE_SCHEMA_VERSION,
     timestamp,
     producer: ESTATE_PRODUCER,
@@ -286,10 +289,10 @@ export function severityFor(v: EstateVerdict, readable = true): EstateSeverity {
   // failure, while a dirty worktree is a normal working state.
   if (readable) {
     return v.clean
-      ? { severity_text: "INFO", severity_number: 9 }
-      : { severity_text: "WARN", severity_number: 13 };
+      ? { severity_text: 'INFO', severity_number: 9 }
+      : { severity_text: 'WARN', severity_number: 13 };
   }
-  return { severity_text: "ERROR", severity_number: 17 };
+  return { severity_text: 'ERROR', severity_number: 17 };
 }
 
 /** W3C trace context, INHERITED not invented. A trace_id this process generates
@@ -331,11 +334,18 @@ export function traceContextFrom(raw: string | undefined): TraceContext | null {
 export function estateDigest(states: readonly WorktreeState[]): Digest {
   const lines = [...states]
     .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
-    .map((s) => [
-      s.path, s.branch, String(s.dirtyFileCount), String(s.aheadOfRemote),
-      String(s.stashCount), String(s.prunable), String(s.locked),
-    ].join('\u0000'));
-  return digestOf(lines.join("\u0001"));
+    .map((s) =>
+      [
+        s.path,
+        s.branch,
+        String(s.dirtyFileCount),
+        String(s.aheadOfRemote),
+        String(s.stashCount),
+        String(s.prunable),
+        String(s.locked),
+      ].join('\u0000'),
+    );
+  return digestOf(lines.join('\u0001'));
 }
 
 /** Why the estate could not be read. The EMITTED vocabulary, a superset of the
@@ -350,10 +360,7 @@ export const UNREADABLE_REASONS = Object.freeze([
 ] as const);
 export type UnreadableReason = (typeof UNREADABLE_REASONS)[number];
 
-export type EstateEvent =
-  | EstateTelemetry
-  | EstateUnreadableEvent
-  | EstateStaleEvent;
+export type EstateEvent = EstateTelemetry | EstateUnreadableEvent | EstateStaleEvent;
 
 export function unreadableEstateEvent(
   reason: UnreadableReason,
@@ -453,7 +460,12 @@ export function decideEstate(
       return {
         kind: 'verified',
         event: estateTelemetry(
-          verdict, trace, actual, timestamp, observation.source_digest, policy,
+          verdict,
+          trace,
+          actual,
+          timestamp,
+          observation.source_digest,
+          policy,
         ),
         exitCode: exitCodeFor(actionUnder(reasonsAcross(verdict.problems), policy)),
         verdict,

@@ -17,11 +17,22 @@ const CARGO_ID = '22222222-2222-4222-8222-222222222222';
 const PICKUP_WH_ID = '33333333-3333-4333-8333-333333333333';
 const DELIVERY_WH_ID = '44444444-4444-4444-8444-444444444444';
 describe('createOrder VN fields', () => {
-  beforeEach(() => { cookieGet.mockReset(); vi.unstubAllGlobals(); vi.resetModules(); });
+  beforeEach(() => {
+    cookieGet.mockReset();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
   it('forwards FK ids at the body root and keeps VN plate/driver in metadata', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'tok' });
-    const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ transportOrderId: 't1', roadRunId: 'r1', externalRef: 'XTT.04-001' }), { status: 201 })));
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ transportOrderId: 't1', roadRunId: 'r1', externalRef: 'XTT.04-001' }),
+          { status: 201 },
+        ),
+      ),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = new FormData();

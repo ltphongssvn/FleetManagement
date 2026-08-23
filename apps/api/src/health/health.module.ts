@@ -36,5 +36,4 @@ import type { WorkerProvenanceReader } from './health.controller.js';
     },
   ],
 })
-
 export class HealthModule {}

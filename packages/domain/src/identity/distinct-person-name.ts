@@ -22,8 +22,31 @@ import { personNameMatchKey, normalizeDisplayName } from './person-name.js';
 // so the suffix itself can never smuggle in a unicode variant of the very
 // problem this module exists to prevent.
 export const DISTINCT_NAME_SUFFIXES = Object.freeze([
-  'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-  'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+  'B',
+  'C',
+  'D',
+  'E',
+  'F',
+  'G',
+  'H',
+  'I',
+  'J',
+  'K',
+  'L',
+  'M',
+  'N',
+  'O',
+  'P',
+  'Q',
+  'R',
+  'S',
+  'T',
+  'U',
+  'V',
+  'W',
+  'X',
+  'Y',
+  'Z',
 ] as const);
 export type DistinctNameSuffix = (typeof DISTINCT_NAME_SUFFIXES)[number];
 

@@ -76,6 +76,8 @@ describe('guard self-test (the guard must actually detect the pattern)', () => {
   });
 
   it('does not flag the sanctioned endpoint', () => {
-    expect(offendingLines("sh('gh', ['pr', 'view', String(n), '--json', 'statusCheckRollup']);")).toEqual([]);
+    expect(
+      offendingLines("sh('gh', ['pr', 'view', String(n), '--json', 'statusCheckRollup']);"),
+    ).toEqual([]);
   });
 });

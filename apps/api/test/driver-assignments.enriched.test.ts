@@ -12,7 +12,16 @@ const op: OperatorContext = Object.freeze({
   legalEntityId: '00000000-0000-0000-0000-000000000000',
 });
 
-function makeDb(rows: readonly Record<string, unknown>[]): { select: ReturnType<typeof vi.fn>; _chain: { from: ReturnType<typeof vi.fn>; leftJoin: ReturnType<typeof vi.fn>; where: ReturnType<typeof vi.fn>; orderBy: ReturnType<typeof vi.fn>; limit: ReturnType<typeof vi.fn> } } {
+function makeDb(rows: readonly Record<string, unknown>[]): {
+  select: ReturnType<typeof vi.fn>;
+  _chain: {
+    from: ReturnType<typeof vi.fn>;
+    leftJoin: ReturnType<typeof vi.fn>;
+    where: ReturnType<typeof vi.fn>;
+    orderBy: ReturnType<typeof vi.fn>;
+    limit: ReturnType<typeof vi.fn>;
+  };
+} {
   const chain = {
     from: vi.fn().mockReturnThis(),
     leftJoin: vi.fn().mockReturnThis(),
@@ -27,9 +36,11 @@ describe('DriverAssignmentsController (enriched)', () => {
   it('returns enriched fields: orderRef, customerName, plate, pickup, delivery', async () => {
     const db = makeDb([
       {
-        roadRunId: 'r1', state: 'dispatched',
+        roadRunId: 'r1',
+        state: 'dispatched',
         plannedStartAt: new Date('2026-05-10T08:00:00Z'),
-        startedAt: null, completedAt: null,
+        startedAt: null,
+        completedAt: null,
         plate: '62H-12345',
         orderRef: 'XT.001',
         customerName: 'ABC Logistics',
@@ -40,7 +51,8 @@ describe('DriverAssignmentsController (enriched)', () => {
     const controller = new DriverAssignmentsController(db as never);
     const res = await controller.getAssignments(op);
     expect(res.rows[0]).toMatchObject({
-      roadRunId: 'r1', state: 'dispatched',
+      roadRunId: 'r1',
+      state: 'dispatched',
       plate: '62H-12345',
       orderRef: 'XT.001',
       customerName: 'ABC Logistics',
@@ -51,8 +63,18 @@ describe('DriverAssignmentsController (enriched)', () => {
 
   it('handles missing optional fields as null', async () => {
     const db = makeDb([
-      { roadRunId: 'r2', state: 'planned', plannedStartAt: null, startedAt: null, completedAt: null,
-        plate: null, orderRef: null, customerName: null, pickupName: null, deliveryName: null },
+      {
+        roadRunId: 'r2',
+        state: 'planned',
+        plannedStartAt: null,
+        startedAt: null,
+        completedAt: null,
+        plate: null,
+        orderRef: null,
+        customerName: null,
+        pickupName: null,
+        deliveryName: null,
+      },
     ]);
     const controller = new DriverAssignmentsController(db as never);
     const res = await controller.getAssignments(op);

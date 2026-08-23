@@ -41,12 +41,7 @@ import { z } from 'zod';
  *  new profile cannot be added to one and forgotten in the other. The strings
  *  also appear in eas.json as APP_ENV values, and eas-config.test.ts asserts
  *  the two agree rather than restating the list a third time. */
-export const APP_ENVS = Object.freeze([
-  'development',
-  'preview',
-  'production',
-  'e2e',
-] as const);
+export const APP_ENVS = Object.freeze(['development', 'preview', 'production', 'e2e'] as const);
 export type AppEnv = (typeof APP_ENVS)[number];
 export const AppEnvSchema = z.enum(APP_ENVS);
 

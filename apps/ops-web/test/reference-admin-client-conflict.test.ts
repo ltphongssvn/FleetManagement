@@ -16,49 +16,83 @@ import { describe, it, expect, vi } from 'vitest';
 import { ReferenceAdminClient } from '@/features/admin/reference-admin-client';
 
 function jsonRes(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 function problemRes(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/problem+json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/problem+json' },
+  });
 }
 
 describe('ReferenceAdminClient — conflict + error-shape surfacing', () => {
   it('create() surfaces detail from the RFC 9457 envelope (current api wire shape)', async () => {
-    const fetchFn = vi.fn(() => Promise.resolve(problemRes({
-      title: 'Conflict',
-      status: 409,
-      detail: 'Khách hàng "ĐÀ NẴNG" đã tồn tại',
-    }, 409)));
+    const fetchFn = vi.fn(() =>
+      Promise.resolve(
+        problemRes(
+          {
+            title: 'Conflict',
+            status: 409,
+            detail: 'Khách hàng "ĐÀ NẴNG" đã tồn tại',
+          },
+          409,
+        ),
+      ),
+    );
     const client = new ReferenceAdminClient('customers', fetchFn);
     await expect(client.create('ĐÀ NẴNG')).rejects.toThrow(/đã tồn tại/);
   });
 
   it('update() surfaces detail from the RFC 9457 envelope', async () => {
-    const fetchFn = vi.fn(() => Promise.resolve(problemRes({
-      title: 'Conflict',
-      status: 409,
-      detail: 'Số xe "62H 05194" đã tồn tại',
-    }, 409)));
+    const fetchFn = vi.fn(() =>
+      Promise.resolve(
+        problemRes(
+          {
+            title: 'Conflict',
+            status: 409,
+            detail: 'Số xe "62H 05194" đã tồn tại',
+          },
+          409,
+        ),
+      ),
+    );
     const client = new ReferenceAdminClient('vehicles', fetchFn);
     await expect(client.update('v1', '62H 05194')).rejects.toThrow(/đã tồn tại/);
   });
 
   it('create() still surfaces the legacy Nest message shape (compat)', async () => {
-    const fetchFn = vi.fn(() => Promise.resolve(jsonRes({
-      statusCode: 409,
-      message: 'Khách hàng "ĐA NẴNG" đã tồn tại',
-      error: 'Conflict',
-    }, 409)));
+    const fetchFn = vi.fn(() =>
+      Promise.resolve(
+        jsonRes(
+          {
+            statusCode: 409,
+            message: 'Khách hàng "ĐA NẴNG" đã tồn tại',
+            error: 'Conflict',
+          },
+          409,
+        ),
+      ),
+    );
     const client = new ReferenceAdminClient('customers', fetchFn);
     await expect(client.create('ĐA NẴNG')).rejects.toThrow(/đã tồn tại/);
   });
 
   it('update() still surfaces the legacy Nest message shape (compat)', async () => {
-    const fetchFn = vi.fn(() => Promise.resolve(jsonRes({
-      statusCode: 409,
-      message: 'Số xe "62H 05194" đã tồn tại',
-      error: 'Conflict',
-    }, 409)));
+    const fetchFn = vi.fn(() =>
+      Promise.resolve(
+        jsonRes(
+          {
+            statusCode: 409,
+            message: 'Số xe "62H 05194" đã tồn tại',
+            error: 'Conflict',
+          },
+          409,
+        ),
+      ),
+    );
     const client = new ReferenceAdminClient('vehicles', fetchFn);
     await expect(client.update('v1', '62H 05194')).rejects.toThrow(/đã tồn tại/);
   });

@@ -62,16 +62,24 @@ describe('assertNotTruncated', () => {
   // same class of failure as a confident zero: a plausible number that is not
   // the truth. total_count is the wire telling us how many really exist.
   it('passes when the fetched count matches total_count', () => {
-    expect(() => { assertNotTruncated(37, 37); }).not.toThrow();
+    expect(() => {
+      assertNotTruncated(37, 37);
+    }).not.toThrow();
   });
   it('THROWS when total_count exceeds what pagination could return', () => {
-    expect(() => { assertNotTruncated(1000, 2431); }).toThrow(/truncat/i);
+    expect(() => {
+      assertNotTruncated(1000, 2431);
+    }).toThrow(/truncat/i);
   });
   it('names the API ceiling in the error so the window can be narrowed', () => {
-    expect(() => { assertNotTruncated(1000, 2431); }).toThrow(/1000/);
+    expect(() => {
+      assertNotTruncated(1000, 2431);
+    }).toThrow(/1000/);
   });
   it('does not throw when fewer than the ceiling came back', () => {
-    expect(() => { assertNotTruncated(950, 950); }).not.toThrow();
+    expect(() => {
+      assertNotTruncated(950, 950);
+    }).not.toThrow();
   });
 });
 
@@ -99,7 +107,15 @@ describe('JobsPageSchema', () => {
   it('parses the jobs wire shape with nullable completion', () => {
     const parsed = JobsPageSchema.parse({
       total_count: 1,
-      jobs: [{ id: 9, name: 'build', conclusion: null, started_at: '2026-07-16T10:00:00Z', completed_at: null }],
+      jobs: [
+        {
+          id: 9,
+          name: 'build',
+          conclusion: null,
+          started_at: '2026-07-16T10:00:00Z',
+          completed_at: null,
+        },
+      ],
     });
     expect(parsed.jobs[0]?.completed_at).toBeNull();
   });
@@ -109,7 +125,13 @@ describe('JobsPageSchema', () => {
 });
 
 describe('toRunEntries', () => {
-  const JOB = { id: 9, name: 'build', conclusion: 'success', started_at: '2026-07-16T10:00:00Z', completed_at: '2026-07-16T10:09:00Z' };
+  const JOB = {
+    id: 9,
+    name: 'build',
+    conclusion: 'success',
+    started_at: '2026-07-16T10:00:00Z',
+    completed_at: '2026-07-16T10:09:00Z',
+  };
   it('joins runs to their jobs, carrying the workflow name', () => {
     const entries = toRunEntries(
       [{ id: 1, name: 'CI', run_started_at: '2026-07-16T10:00:00Z' }],
@@ -120,10 +142,9 @@ describe('toRunEntries', () => {
     expect(entries[0]?.jobs).toHaveLength(1);
   });
   it('THROWS when a run has no jobs entry -- a run that billed minutes must not vanish silently', () => {
-    expect(() => toRunEntries(
-      [{ id: 1, name: 'CI', run_started_at: '2026-07-16T10:00:00Z' }],
-      new Map(),
-    )).toThrow(/1/);
+    expect(() =>
+      toRunEntries([{ id: 1, name: 'CI', run_started_at: '2026-07-16T10:00:00Z' }], new Map()),
+    ).toThrow(/1/);
   });
   it('names an unnamed workflow explicitly rather than dropping it from attribution', () => {
     const entries = toRunEntries(

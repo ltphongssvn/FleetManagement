@@ -59,7 +59,8 @@ class InMemoryAttestationNonceStore implements AttestationNonceStore {
         new AttestationService({
           verifyAndroid: verifyAndroidKeyAttestation,
           verifyIos: verifyIosAppAttest,
-          isTrustedRoot: (der) => isTrustedAttestationRoot(der, 'android') || isTrustedAttestationRoot(der, 'ios'),
+          isTrustedRoot: (der) =>
+            isTrustedAttestationRoot(der, 'android') || isTrustedAttestationRoot(der, 'ios'),
           appleTeamId: config.get<string>('ATTESTATION_APPLE_TEAM_ID') ?? '',
           androidPackages: config.get<readonly string[]>('ATTESTATION_ANDROID_PACKAGE_NAMES') ?? [],
           iosBundles: config.get<readonly string[]>('ATTESTATION_IOS_BUNDLE_IDS') ?? [],
@@ -74,5 +75,4 @@ class InMemoryAttestationNonceStore implements AttestationNonceStore {
   ],
   exports: [DeviceService, DeviceEnrollmentService, DeviceBindingGuard],
 })
-
 export class DeviceModule {}

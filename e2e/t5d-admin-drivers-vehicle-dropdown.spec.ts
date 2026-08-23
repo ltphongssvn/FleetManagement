@@ -4,16 +4,19 @@
 import { test, expect, type Page } from '@playwright/test';
 import { loginAs } from './helpers/auth';
 
-
 // Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
   await loginAs(page);
 }
 
-test('Chọn số xe dropdown on /admin/drivers matches Số xe section on /admin/reference', async ({ page }) => {
+test('Chọn số xe dropdown on /admin/drivers matches Số xe section on /admin/reference', async ({
+  page,
+}) => {
   await login(page);
   await page.goto('/admin/reference');
-  const vehiclesSection = page.locator('section').filter({ has: page.getByRole('heading', { name: /^Số xe$/ }) });
+  const vehiclesSection = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: /^Số xe$/ }) });
   await expect(vehiclesSection).toBeVisible({ timeout: 15_000 });
   // The section now renders through the shared DataTable (TanStack v8): each
   // vehicle is a <tr> whose FIRST cell is the plate (Tên column). Iterate body
@@ -32,10 +35,15 @@ test('Chọn số xe dropdown on /admin/drivers matches Số xe section on /admi
   }
   expect(referencePlates.length).toBeGreaterThan(0);
   await page.goto('/admin/drivers');
-  const firstDropdown = page.locator('select').filter({ hasText: /Chọn số xe/ }).first();
+  const firstDropdown = page
+    .locator('select')
+    .filter({ hasText: /Chọn số xe/ })
+    .first();
   await expect(firstDropdown).toBeVisible({ timeout: 15_000 });
   const dropdownOptions = await firstDropdown.locator('option').allTextContents();
-  const dropdownPlates = dropdownOptions.map((t) => t.trim()).filter((t) => !t.includes('Chọn số xe'));
+  const dropdownPlates = dropdownOptions
+    .map((t) => t.trim())
+    .filter((t) => !t.includes('Chọn số xe'));
   for (const plate of referencePlates) {
     expect(dropdownPlates).toContain(plate);
   }

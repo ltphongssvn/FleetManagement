@@ -16,5 +16,4 @@ import { ProjectionsModule } from './projections.module.js';
     ProjectionsModule,
   ],
 })
-
 export class ProjectionRebuildModule {}

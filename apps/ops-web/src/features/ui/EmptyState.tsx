@@ -39,14 +39,17 @@ export function EmptyState({
   const copy = EMPTY_STATE_VI[reason];
   return (
     <div
-      role='status'
+      role="status"
       data-reason={reason}
       data-testid={testId}
-      className={'flex flex-col items-center gap-2 px-6 py-10 text-center' + (className === undefined ? '' : ' ' + className)}
+      className={
+        'flex flex-col items-center gap-2 px-6 py-10 text-center' +
+        (className === undefined ? '' : ' ' + className)
+      }
     >
-      <p className='text-sm font-semibold text-text-primary'>{copy.title}</p>
-      <p className='max-w-md text-sm text-text-muted'>{copy.hint}</p>
-      {action === undefined ? null : <div className='mt-2'>{action}</div>}
+      <p className="text-sm font-semibold text-text-primary">{copy.title}</p>
+      <p className="max-w-md text-sm text-text-muted">{copy.hint}</p>
+      {action === undefined ? null : <div className="mt-2">{action}</div>}
     </div>
   );
 }

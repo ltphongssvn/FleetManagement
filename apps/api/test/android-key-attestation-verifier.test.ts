@@ -43,7 +43,11 @@ let rootCert: x509.X509Certificate;
 let otherRootKeys: WebCryptoNs.CryptoKeyPair;
 let otherRootCert: x509.X509Certificate;
 
-function keyDescriptionExtension(challenge: string, level: SecurityLevel, purposes: number[]): x509.Extension {
+function keyDescriptionExtension(
+  challenge: string,
+  level: SecurityLevel,
+  purposes: number[],
+): x509.Extension {
   const teeEnforced = new AuthorizationList();
   if (purposes.length > 0) {
     teeEnforced.purpose = new IntegerSet(purposes);
@@ -61,7 +65,10 @@ function keyDescriptionExtension(challenge: string, level: SecurityLevel, purpos
   return new x509.Extension(KEY_DESCRIPTION_OID, false, AsnConvert.serialize(kd));
 }
 
-async function makeRoot(name: string, keys: WebCryptoNs.CryptoKeyPair): Promise<x509.X509Certificate> {
+async function makeRoot(
+  name: string,
+  keys: WebCryptoNs.CryptoKeyPair,
+): Promise<x509.X509Certificate> {
   return x509.X509CertificateGenerator.createSelfSigned({
     serialNumber: '01',
     name,
@@ -75,7 +82,9 @@ async function makeRoot(name: string, keys: WebCryptoNs.CryptoKeyPair): Promise<
 
 async function makeChain(opts: ChainOptions): Promise<Uint8Array[]> {
   const leafKeys = await webcrypto.subtle.generateKey(ALG, true, ['sign', 'verify']);
-  const notAfter = opts.leafExpired ? new Date('2025-01-01T00:00:00Z') : new Date('2035-01-01T00:00:00Z');
+  const notAfter = opts.leafExpired
+    ? new Date('2025-01-01T00:00:00Z')
+    : new Date('2035-01-01T00:00:00Z');
   const extensions: x509.Extension[] = [];
   if (opts.includeKeyDescription) {
     extensions.push(keyDescriptionExtension(opts.challenge, opts.securityLevel, opts.purposes));
@@ -101,7 +110,11 @@ function trustOnly(root: x509.X509Certificate): (der: Uint8Array) => boolean {
 
 const NOW = new Date('2026-07-09T00:00:00Z');
 
-function run(chain: Uint8Array[], challenge: string, trusted: (der: Uint8Array) => boolean): Promise<AndroidKeyAttestationOutcome> {
+function run(
+  chain: Uint8Array[],
+  challenge: string,
+  trusted: (der: Uint8Array) => boolean,
+): Promise<AndroidKeyAttestationOutcome> {
   return verifyAndroidKeyAttestation(chain, {
     expectedChallenge: challenge,
     now: NOW,
@@ -118,7 +131,13 @@ beforeAll(async () => {
 
 describe('verifyAndroidKeyAttestation', () => {
   it('accepts a valid TEE chain and reports level + leaf public key', async () => {
-    const chain = await makeChain({ challenge: 'nonce-1', securityLevel: SecurityLevel.trustedEnvironment, purposes: [KM_PURPOSE_SIGN], includeKeyDescription: true, leafExpired: false });
+    const chain = await makeChain({
+      challenge: 'nonce-1',
+      securityLevel: SecurityLevel.trustedEnvironment,
+      purposes: [KM_PURPOSE_SIGN],
+      includeKeyDescription: true,
+      leafExpired: false,
+    });
     const out = await run(chain, 'nonce-1', trustOnly(rootCert));
     expect(out.kind).toBe('ok');
     if (out.kind === 'ok') {
@@ -128,32 +147,62 @@ describe('verifyAndroidKeyAttestation', () => {
   });
 
   it('accepts StrongBox and reports strongbox level', async () => {
-    const chain = await makeChain({ challenge: 'nonce-sb', securityLevel: SecurityLevel.strongBox, purposes: [KM_PURPOSE_SIGN], includeKeyDescription: true, leafExpired: false });
+    const chain = await makeChain({
+      challenge: 'nonce-sb',
+      securityLevel: SecurityLevel.strongBox,
+      purposes: [KM_PURPOSE_SIGN],
+      includeKeyDescription: true,
+      leafExpired: false,
+    });
     const out = await run(chain, 'nonce-sb', trustOnly(rootCert));
     expect(out.kind).toBe('ok');
     if (out.kind === 'ok') expect(out.securityLevel).toBe('strongbox');
   });
 
   it('rejects a software-level attestation', async () => {
-    const chain = await makeChain({ challenge: 'n', securityLevel: SecurityLevel.software, purposes: [KM_PURPOSE_SIGN], includeKeyDescription: true, leafExpired: false });
+    const chain = await makeChain({
+      challenge: 'n',
+      securityLevel: SecurityLevel.software,
+      purposes: [KM_PURPOSE_SIGN],
+      includeKeyDescription: true,
+      leafExpired: false,
+    });
     const out = await run(chain, 'n', trustOnly(rootCert));
     expect(out.kind).toBe('weak-security-level');
   });
 
   it('rejects a challenge mismatch', async () => {
-    const chain = await makeChain({ challenge: 'expected', securityLevel: SecurityLevel.trustedEnvironment, purposes: [KM_PURPOSE_SIGN], includeKeyDescription: true, leafExpired: false });
+    const chain = await makeChain({
+      challenge: 'expected',
+      securityLevel: SecurityLevel.trustedEnvironment,
+      purposes: [KM_PURPOSE_SIGN],
+      includeKeyDescription: true,
+      leafExpired: false,
+    });
     const out = await run(chain, 'different', trustOnly(rootCert));
     expect(out.kind).toBe('challenge-mismatch');
   });
 
   it('rejects a chain whose root is not trusted', async () => {
-    const chain = await makeChain({ challenge: 'n', securityLevel: SecurityLevel.trustedEnvironment, purposes: [KM_PURPOSE_SIGN], includeKeyDescription: true, leafExpired: false });
+    const chain = await makeChain({
+      challenge: 'n',
+      securityLevel: SecurityLevel.trustedEnvironment,
+      purposes: [KM_PURPOSE_SIGN],
+      includeKeyDescription: true,
+      leafExpired: false,
+    });
     const out = await run(chain, 'n', trustOnly(otherRootCert));
     expect(out.kind).toBe('untrusted-root');
   });
 
   it('rejects a broken signature link', async () => {
-    const chain = await makeChain({ challenge: 'n', securityLevel: SecurityLevel.trustedEnvironment, purposes: [KM_PURPOSE_SIGN], includeKeyDescription: true, leafExpired: false });
+    const chain = await makeChain({
+      challenge: 'n',
+      securityLevel: SecurityLevel.trustedEnvironment,
+      purposes: [KM_PURPOSE_SIGN],
+      includeKeyDescription: true,
+      leafExpired: false,
+    });
     const leafDer = chain[0];
     if (leafDer === undefined) throw new Error('expected a leaf cert');
     const forged = [leafDer, new Uint8Array(otherRootCert.rawData)];
@@ -162,26 +211,54 @@ describe('verifyAndroidKeyAttestation', () => {
   });
 
   it('rejects an expired leaf', async () => {
-    const chain = await makeChain({ challenge: 'n', securityLevel: SecurityLevel.trustedEnvironment, purposes: [KM_PURPOSE_SIGN], includeKeyDescription: true, leafExpired: true });
+    const chain = await makeChain({
+      challenge: 'n',
+      securityLevel: SecurityLevel.trustedEnvironment,
+      purposes: [KM_PURPOSE_SIGN],
+      includeKeyDescription: true,
+      leafExpired: true,
+    });
     const out = await run(chain, 'n', trustOnly(rootCert));
     expect(out.kind).toBe('certificate-expired');
   });
 
   it('rejects a leaf without the KeyDescription extension', async () => {
-    const chain = await makeChain({ challenge: 'n', securityLevel: SecurityLevel.trustedEnvironment, purposes: [KM_PURPOSE_SIGN], includeKeyDescription: false, leafExpired: false });
+    const chain = await makeChain({
+      challenge: 'n',
+      securityLevel: SecurityLevel.trustedEnvironment,
+      purposes: [KM_PURPOSE_SIGN],
+      includeKeyDescription: false,
+      leafExpired: false,
+    });
     const out = await run(chain, 'n', trustOnly(rootCert));
     expect(out.kind).toBe('key-description-missing');
   });
 
   it('rejects a key whose purposes exclude SIGN', async () => {
-    const chain = await makeChain({ challenge: 'n', securityLevel: SecurityLevel.trustedEnvironment, purposes: [1], includeKeyDescription: true, leafExpired: false });
+    const chain = await makeChain({
+      challenge: 'n',
+      securityLevel: SecurityLevel.trustedEnvironment,
+      purposes: [1],
+      includeKeyDescription: true,
+      leafExpired: false,
+    });
     const out = await run(chain, 'n', trustOnly(rootCert));
     expect(out.kind).toBe('wrong-key-purpose');
   });
 
   it('rejects a leaf whose KeyDescription extension is not valid ASN.1', async () => {
     const leafKeys = await webcrypto.subtle.generateKey(ALG, true, ['sign', 'verify']);
-    const leaf = await x509.X509CertificateGenerator.create({ serialNumber: '02', subject: 'CN=Bad KD', issuer: rootCert.subject, notBefore: new Date('2024-06-01T00:00:00Z'), notAfter: new Date('2035-01-01T00:00:00Z'), signingAlgorithm: ALG, publicKey: leafKeys.publicKey, signingKey: rootKeys.privateKey, extensions: [new x509.Extension(KEY_DESCRIPTION_OID, false, new Uint8Array([1, 2, 3, 4]))] });
+    const leaf = await x509.X509CertificateGenerator.create({
+      serialNumber: '02',
+      subject: 'CN=Bad KD',
+      issuer: rootCert.subject,
+      notBefore: new Date('2024-06-01T00:00:00Z'),
+      notAfter: new Date('2035-01-01T00:00:00Z'),
+      signingAlgorithm: ALG,
+      publicKey: leafKeys.publicKey,
+      signingKey: rootKeys.privateKey,
+      extensions: [new x509.Extension(KEY_DESCRIPTION_OID, false, new Uint8Array([1, 2, 3, 4]))],
+    });
     const chain = [new Uint8Array(leaf.rawData), new Uint8Array(rootCert.rawData)];
     const out = await run(chain, 'n', trustOnly(rootCert));
     expect(out.kind).toBe('key-description-missing');

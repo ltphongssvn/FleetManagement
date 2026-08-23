@@ -10,7 +10,9 @@ import { StopProofView, formatNetWeightKg, REASON_VI } from '@/features/dispatch
 import { EXTRACTION_FAILURE_REASONS } from '@fleet/sync-protocol';
 import type { StopProof } from '@fleet/sync-protocol';
 
-afterEach(() => { cleanup(); });
+afterEach(() => {
+  cleanup();
+});
 
 const testIds = {
   root: 'proof-root',
@@ -43,7 +45,12 @@ describe('formatNetWeightKg', () => {
 
 describe('StopProofView', () => {
   it('renders the extracted weight when one was parsed', () => {
-    render(<StopProofView proof={proofWith({ extractedNetWeightKg: 20730, extractionStatus: 'extracted' })} testIds={testIds} />);
+    render(
+      <StopProofView
+        proof={proofWith({ extractedNetWeightKg: 20730, extractionStatus: 'extracted' })}
+        testIds={testIds}
+      />,
+    );
     expect(screen.getByTestId('proof-netweight').textContent).toBe('20.730 kg');
     expect(screen.queryByTestId('proof-needsentry')).toBeNull();
     expect(screen.queryByTestId('proof-pending')).toBeNull();
@@ -70,7 +77,12 @@ describe('StopProofView', () => {
   });
 
   it('offers manual entry when the weight could not be read, and explains why', () => {
-    render(<StopProofView proof={proofWith({ extractionStatus: 'unreadable', extractionReason: 'unparseable' })} testIds={testIds} />);
+    render(
+      <StopProofView
+        proof={proofWith({ extractionStatus: 'unreadable', extractionReason: 'unparseable' })}
+        testIds={testIds}
+      />,
+    );
     expect(screen.getByTestId('proof-needsentry').textContent).toBe('Nhập KL');
     const reason = screen.getByTestId('proof-reason');
     expect(reason.textContent).toBe(REASON_VI.unparseable);
@@ -78,27 +90,47 @@ describe('StopProofView', () => {
   });
 
   it('offers manual entry for a not_found outcome too', () => {
-    render(<StopProofView proof={proofWith({ extractionStatus: 'not_found', extractionReason: 'no_field' })} testIds={testIds} />);
+    render(
+      <StopProofView
+        proof={proofWith({ extractionStatus: 'not_found', extractionReason: 'no_field' })}
+        testIds={testIds}
+      />,
+    );
     expect(screen.getByTestId('proof-needsentry')).toBeTruthy();
     expect(screen.getByTestId('proof-reason').textContent).toBe(REASON_VI.no_field);
   });
 
   it('omits the reason line when the failure carries no reason', () => {
-    render(<StopProofView proof={proofWith({ extractionStatus: 'unreadable', extractionReason: null })} testIds={testIds} />);
+    render(
+      <StopProofView
+        proof={proofWith({ extractionStatus: 'unreadable', extractionReason: null })}
+        testIds={testIds}
+      />,
+    );
     expect(screen.getByTestId('proof-needsentry')).toBeTruthy();
     expect(screen.queryByTestId('proof-reason')).toBeNull();
   });
 
   it('invokes the manual-entry callback with the manifest id', () => {
     const onEnter = vi.fn();
-    render(<StopProofView proof={proofWith({ extractionStatus: 'unreadable' })} testIds={testIds} onEnterNetWeight={onEnter} />);
+    render(
+      <StopProofView
+        proof={proofWith({ extractionStatus: 'unreadable' })}
+        testIds={testIds}
+        onEnterNetWeight={onEnter}
+      />,
+    );
     fireEvent.click(screen.getByTestId('proof-needsentry'));
     expect(onEnter).toHaveBeenCalledWith('3f2504e0-4f89-11d3-9a0c-0305e82c3301');
   });
 
   it('does not throw when manual entry is clicked with no callback wired', () => {
-    render(<StopProofView proof={proofWith({ extractionStatus: 'unreadable' })} testIds={testIds} />);
-    expect(() => { fireEvent.click(screen.getByTestId('proof-needsentry')); }).not.toThrow();
+    render(
+      <StopProofView proof={proofWith({ extractionStatus: 'unreadable' })} testIds={testIds} />,
+    );
+    expect(() => {
+      fireEvent.click(screen.getByTestId('proof-needsentry'));
+    }).not.toThrow();
   });
 
   it('renders the link alone for a manual status with no value yet', () => {
@@ -109,10 +141,23 @@ describe('StopProofView', () => {
   });
 
   it('labels the recognition-policy refusals develop added to the SSOT vocabulary', () => {
-    render(<StopProofView proof={proofWith({ extractionStatus: 'unreadable', extractionReason: 'multiple_slips' })} testIds={testIds} />);
+    render(
+      <StopProofView
+        proof={proofWith({ extractionStatus: 'unreadable', extractionReason: 'multiple_slips' })}
+        testIds={testIds}
+      />,
+    );
     expect(screen.getByTestId('proof-reason').textContent).toBe(REASON_VI.multiple_slips);
     cleanup();
-    render(<StopProofView proof={proofWith({ extractionStatus: 'unreadable', extractionReason: 'non_standard_format' })} testIds={testIds} />);
+    render(
+      <StopProofView
+        proof={proofWith({
+          extractionStatus: 'unreadable',
+          extractionReason: 'non_standard_format',
+        })}
+        testIds={testIds}
+      />,
+    );
     expect(screen.getByTestId('proof-reason').textContent).toBe(REASON_VI.non_standard_format);
   });
 

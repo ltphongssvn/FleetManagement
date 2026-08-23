@@ -28,15 +28,23 @@ describe('ExportDateRangeSchema', () => {
     });
   });
   it('accepts a single-day range (from === to)', () => {
-    expect(ExportDateRangeSchema.parse({ from: '2026-05-24', to: '2026-05-24' }).from).toBe('2026-05-24');
+    expect(ExportDateRangeSchema.parse({ from: '2026-05-24', to: '2026-05-24' }).from).toBe(
+      '2026-05-24',
+    );
   });
   it('rejects an inverted range (from > to) — kills .refine() removal', () => {
-    expect(ExportDateRangeSchema.safeParse({ from: '2026-05-31', to: '2026-05-01' }).success).toBe(false);
+    expect(ExportDateRangeSchema.safeParse({ from: '2026-05-31', to: '2026-05-01' }).success).toBe(
+      false,
+    );
   });
   it('rejects a malformed date in the range', () => {
-    expect(ExportDateRangeSchema.safeParse({ from: '2026-5-1', to: '2026-05-31' }).success).toBe(false);
+    expect(ExportDateRangeSchema.safeParse({ from: '2026-5-1', to: '2026-05-31' }).success).toBe(
+      false,
+    );
   });
   it('rejects stray keys (.strict())', () => {
-    expect(ExportDateRangeSchema.safeParse({ from: '2026-05-01', to: '2026-05-31', extra: 1 }).success).toBe(false);
+    expect(
+      ExportDateRangeSchema.safeParse({ from: '2026-05-01', to: '2026-05-31', extra: 1 }).success,
+    ).toBe(false);
   });
 });

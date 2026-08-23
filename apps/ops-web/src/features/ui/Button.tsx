@@ -97,7 +97,12 @@ export function Button({
       // aria-disabled mirrors the native state for assistive technology that
       // reads the attribute rather than the property.
       aria-disabled={isDisabled ? 'true' : undefined}
-      className={BASE_CLASSES + ' ' + TONE_EMPHASIS_CLASSES[tone][emphasis] + (className === undefined ? '' : ' ' + className)}
+      className={
+        BASE_CLASSES +
+        ' ' +
+        TONE_EMPHASIS_CLASSES[tone][emphasis] +
+        (className === undefined ? '' : ' ' + className)
+      }
       style={{ minHeight: size, minWidth: size, ...style }}
       {...rest}
     >

@@ -46,25 +46,29 @@ describe('decideClose - --done waives recency for contained work', () => {
   });
 
   it('reproduces the exact t106 state: ahead=3, contained, clean, idleH=0', () => {
-    const v = decideClose(makeCloseInput({
-      aheadOfRemote: 3,
-      containedInIntegration: true,
-      dirtyFileCount: 0,
-      hasUpstream: true,
-      idleHours: 0,
-      done: true,
-    }));
+    const v = decideClose(
+      makeCloseInput({
+        aheadOfRemote: 3,
+        containedInIntegration: true,
+        dirtyFileCount: 0,
+        hasUpstream: true,
+        idleHours: 0,
+        done: true,
+      }),
+    );
     expect(v.action).toBe('remove');
   });
 
   it('does NOT waive recency when the work is NOT contained', () => {
     // Without containment there is no direct evidence the work is finished, so
     // the proxy is all we have and it must hold.
-    const v = decideClose(makeCloseInput({
-      idleHours: 0,
-      containedInIntegration: false,
-      done: true,
-    }));
+    const v = decideClose(
+      makeCloseInput({
+        idleHours: 0,
+        containedInIntegration: false,
+        done: true,
+      }),
+    );
     expect(v.action).toBe('refuse');
     expect(v.reasons).toContain('recent');
     expect(v.reasons).toContain('unmerged');
@@ -77,12 +81,14 @@ describe('decideClose - --done waives recency for contained work', () => {
   });
 
   it('does NOT waive unpushed', () => {
-    const v = decideClose(makeCloseInput({
-      idleHours: 0,
-      aheadOfRemote: 5,
-      containedInIntegration: false,
-      done: true,
-    }));
+    const v = decideClose(
+      makeCloseInput({
+        idleHours: 0,
+        aheadOfRemote: 5,
+        containedInIntegration: false,
+        done: true,
+      }),
+    );
     expect(v.action).toBe('refuse');
     expect(v.reasons).toContain('unpushed');
   });
@@ -100,12 +106,14 @@ describe('decideClose - --done waives recency for contained work', () => {
   });
 
   it('composes with retired: a retired branch is never contained, so recency holds', () => {
-    const v = decideClose(makeCloseInput({
-      idleHours: 0,
-      containedInIntegration: false,
-      retired: true,
-      done: true,
-    }));
+    const v = decideClose(
+      makeCloseInput({
+        idleHours: 0,
+        containedInIntegration: false,
+        retired: true,
+        done: true,
+      }),
+    );
     expect(v.action).toBe('refuse');
     expect(v.reasons).toContain('recent');
   });

@@ -56,7 +56,10 @@ describe('@fleet/test-fixtures - payload fixtures', () => {
   });
   it('createCreateTransportOrderInput accepts stops override', () => {
     const t = createCreateTransportOrderInput({
-      stops: [{ sequence: 1, stopType: 'pickup' }, { sequence: 2, stopType: 'dropoff' }],
+      stops: [
+        { sequence: 1, stopType: 'pickup' },
+        { sequence: 2, stopType: 'dropoff' },
+      ],
     });
     expect(t.stops.length).toBe(2);
   });

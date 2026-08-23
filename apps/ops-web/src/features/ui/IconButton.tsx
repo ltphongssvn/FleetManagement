@@ -58,7 +58,10 @@ const BASE_CLASSES = [
   'disabled:cursor-not-allowed disabled:opacity-50',
 ].join(' ');
 
-export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'color' | 'aria-label'> {
+export interface IconButtonProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  'color' | 'aria-label'
+> {
   readonly tone: ActionTone;
   readonly emphasis: ActionEmphasis;
   // REQUIRED. The accessible name of the action, in Vietnamese. Not optional by
@@ -89,7 +92,12 @@ export function IconButton({
       data-emphasis={emphasis}
       disabled={isDisabled}
       aria-disabled={isDisabled ? 'true' : undefined}
-      className={BASE_CLASSES + ' ' + TONE_EMPHASIS_CLASSES[tone][emphasis] + (className === undefined ? '' : ' ' + className)}
+      className={
+        BASE_CLASSES +
+        ' ' +
+        TONE_EMPHASIS_CLASSES[tone][emphasis] +
+        (className === undefined ? '' : ' ' + className)
+      }
       style={{ minHeight: size, minWidth: size, ...style }}
       {...rest}
     >

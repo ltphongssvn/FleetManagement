@@ -83,8 +83,7 @@ describe('rewriteExcludeBlock: the file it edits is hand-written', () => {
 
   it('adds no lines when every package already has one', () => {
     const before = workspaceAt('2.10.9');
-    expect(rewriteExcludeBlock(before, '2.10.10').split(NL))
-      .toHaveLength(before.split(NL).length);
+    expect(rewriteExcludeBlock(before, '2.10.10').split(NL)).toHaveLength(before.split(NL).length);
   });
 });
 

@@ -53,7 +53,11 @@ export class CompletionReconcilerService {
     const tenants = await this.repo.findStrandedTenants(this.batchSize);
     let repaired = 0;
     for (const companyId of tenants) {
-      repaired += await this.repo.repairTenant(companyId, COMPLETION_RECONCILE_OPERATOR_ID, this.batchSize);
+      repaired += await this.repo.repairTenant(
+        companyId,
+        COMPLETION_RECONCILE_OPERATOR_ID,
+        this.batchSize,
+      );
     }
     return { tenants: tenants.length, repaired };
   }

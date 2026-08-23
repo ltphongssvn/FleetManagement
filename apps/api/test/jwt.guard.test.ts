@@ -3,7 +3,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { type ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { JwtGuard } from '../src/auth/jwt.guard.js';
 import { OperatorContextFactory } from '../src/auth/operator-context.factory.js';
-import type { IIdentityProvider, VerifiedIdentity } from '../src/auth/identity-provider.interface.js';
+import type {
+  IIdentityProvider,
+  VerifiedIdentity,
+} from '../src/auth/identity-provider.interface.js';
 import type { OperatorContext } from '../src/auth/operator-context.js';
 
 function makeCtx(headers: Record<string, string | undefined>): ExecutionContext {
@@ -43,9 +46,9 @@ describe('@fleet/api - JwtGuard', () => {
       verifyToken: vi.fn().mockRejectedValue(new Error('expired')),
     };
     const guard = new JwtGuard(idp, factory);
-    await expect(guard.canActivate(makeCtx({ authorization: 'Bearer x.y.z' }))).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
+    await expect(
+      guard.canActivate(makeCtx({ authorization: 'Bearer x.y.z' })),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('returns true, attaches identity, and attaches fleetOperator on success', async () => {

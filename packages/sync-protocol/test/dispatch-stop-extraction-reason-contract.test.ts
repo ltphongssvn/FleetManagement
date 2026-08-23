@@ -15,14 +15,30 @@ const proofBase = {
 
 describe('StopProofSchema extractionReason (additive)', () => {
   it('accepts each valid failure reason', () => {
-    for (const reason of ['unparseable', 'below_sanity_min', 'above_sanity_max', 'no_field', 'object_missing']) {
-      const r = StopProofSchema.safeParse({ ...proofBase, extractionStatus: 'unreadable', extractionReason: reason });
+    for (const reason of [
+      'unparseable',
+      'below_sanity_min',
+      'above_sanity_max',
+      'no_field',
+      'object_missing',
+    ]) {
+      const r = StopProofSchema.safeParse({
+        ...proofBase,
+        extractionStatus: 'unreadable',
+        extractionReason: reason,
+      });
       expect(r.success).toBe(true);
     }
   });
 
   it('accepts null reason (pending/extracted/manual rows have none)', () => {
-    expect(StopProofSchema.safeParse({ ...proofBase, extractionStatus: 'extracted', extractionReason: null }).success).toBe(true);
+    expect(
+      StopProofSchema.safeParse({
+        ...proofBase,
+        extractionStatus: 'extracted',
+        extractionReason: null,
+      }).success,
+    ).toBe(true);
   });
 
   it('still accepts proofs WITHOUT the key (old producers; EXPAND-only)', () => {
@@ -31,13 +47,19 @@ describe('StopProofSchema extractionReason (additive)', () => {
 
   it('accepts the T33 cannot-recognize reasons (multiple_slips, non_standard_format)', () => {
     for (const reason of ['multiple_slips', 'non_standard_format']) {
-      const r = StopProofSchema.safeParse({ ...proofBase, extractionStatus: 'not_found', extractionReason: reason });
+      const r = StopProofSchema.safeParse({
+        ...proofBase,
+        extractionStatus: 'not_found',
+        extractionReason: reason,
+      });
       expect(r.success).toBe(true);
     }
   });
 
   it('rejects an unknown reason', () => {
-    expect(StopProofSchema.safeParse({ ...proofBase, extractionReason: 'bogus' }).success).toBe(false);
+    expect(StopProofSchema.safeParse({ ...proofBase, extractionReason: 'bogus' }).success).toBe(
+      false,
+    );
   });
 
   it('round-trips status + reason inside DispatchStopViewSchema', () => {
@@ -48,7 +70,12 @@ describe('StopProofSchema extractionReason (additive)', () => {
       warehouseName: 'Kho A',
       arrivedAt: null,
       departedAt: null,
-      proof: { ...proofBase, extractedNetWeightKg: null, extractionStatus: 'unreadable', extractionReason: 'unparseable' },
+      proof: {
+        ...proofBase,
+        extractedNetWeightKg: null,
+        extractionStatus: 'unreadable',
+        extractionReason: 'unparseable',
+      },
     };
     expect(DispatchStopViewSchema.safeParse(stop).success).toBe(true);
   });

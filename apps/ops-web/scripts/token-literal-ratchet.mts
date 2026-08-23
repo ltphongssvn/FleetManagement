@@ -35,8 +35,8 @@ const toPosix = (p: string): string => p.split(sep).join('/');
 // Positive-named wrappers so no call site needs a negation operator (avoided in
 // files written via the heredoc transport) or a === false comparison (rejected
 // by the house lint config).
-const missing = (path: string): boolean => existsSync(path) ? false : true;
-const failed = (ok: boolean): boolean => ok ? false : true;
+const missing = (path: string): boolean => (existsSync(path) ? false : true);
+const failed = (ok: boolean): boolean => (ok ? false : true);
 
 function collectTsxFiles(dir: string, acc: string[]): string[] {
   for (const entry of readdirSync(dir)) {
@@ -71,34 +71,56 @@ if (tighten) {
   // becomes the escape hatch that launders new debt into the baseline, which is
   // the one failure mode that would make the whole ratchet decorative.
   if (failed(verdict.ok) && existsSync(BASELINE)) {
-    console.error('[tokens:lint] REFUSED to tighten: ' + String(verdict.regressions.length) +
-      ' file(s) exceed the current baseline. Migrate or revert them first.');
+    console.error(
+      '[tokens:lint] REFUSED to tighten: ' +
+        String(verdict.regressions.length) +
+        ' file(s) exceed the current baseline. Migrate or revert them first.',
+    );
     for (const r of verdict.regressions) {
-      console.error('  ' + r.file + ': allowed ' + String(r.baseline) + ', found ' + String(r.current));
+      console.error(
+        '  ' + r.file + ': allowed ' + String(r.baseline) + ', found ' + String(r.current),
+      );
     }
     process.exit(1);
   }
   writeFileSync(BASELINE, formatRatchetTsv(current));
-  console.error('[tokens:lint] baseline written: ' + String(current.size) +
-    ' file(s), ' + String(verdict.currentTotal) + ' literal(s).');
+  console.error(
+    '[tokens:lint] baseline written: ' +
+      String(current.size) +
+      ' file(s), ' +
+      String(verdict.currentTotal) +
+      ' literal(s).',
+  );
   if (verdict.improvements.length > 0) {
-    console.error('[tokens:lint] tightened ' + String(verdict.improvements.length) +
-      ' file(s); total ' + String(verdict.baselineTotal) + ' -> ' + String(verdict.currentTotal) + '.');
+    console.error(
+      '[tokens:lint] tightened ' +
+        String(verdict.improvements.length) +
+        ' file(s); total ' +
+        String(verdict.baselineTotal) +
+        ' -> ' +
+        String(verdict.currentTotal) +
+        '.',
+    );
   }
   process.exit(0);
 }
 
 if (missing(BASELINE)) {
   console.error('[tokens:lint] no baseline at design-token-ratchet.tsv.');
-  console.error('[tokens:lint] Create it: turbo run tokens:lint --filter=@fleet/ops-web -- --tighten');
+  console.error(
+    '[tokens:lint] Create it: turbo run tokens:lint --filter=@fleet/ops-web -- --tighten',
+  );
   process.exit(2);
 }
 
 const verdict = compareRatchet(parseRatchetTsv(readFileSync(BASELINE, 'utf8')), current);
 
 if (failed(verdict.ok)) {
-  console.error('[tokens:lint] RAW COLOR LITERALS INCREASED in ' +
-    String(verdict.regressions.length) + ' file(s).');
+  console.error(
+    '[tokens:lint] RAW COLOR LITERALS INCREASED in ' +
+      String(verdict.regressions.length) +
+      ' file(s).',
+  );
   for (const r of verdict.regressions) {
     const how = r.baseline === 0 ? 'not baselined' : 'allowed ' + String(r.baseline);
     console.error('  ' + r.file + ': ' + how + ', found ' + String(r.current));
@@ -110,8 +132,19 @@ if (failed(verdict.ok)) {
 }
 
 const pending = verdict.improvements.length;
-console.error('[tokens:lint] OK. ' + String(verdict.currentTotal) + ' literal(s) across ' +
-  String(current.size) + ' file(s), budget ' + String(verdict.baselineTotal) + '.');
+console.error(
+  '[tokens:lint] OK. ' +
+    String(verdict.currentTotal) +
+    ' literal(s) across ' +
+    String(current.size) +
+    ' file(s), budget ' +
+    String(verdict.baselineTotal) +
+    '.',
+);
 if (pending > 0) {
-  console.error('[tokens:lint] ' + String(pending) + ' file(s) now below budget -- run --tighten to lock the gain.');
+  console.error(
+    '[tokens:lint] ' +
+      String(pending) +
+      ' file(s) now below budget -- run --tighten to lock the gain.',
+  );
 }

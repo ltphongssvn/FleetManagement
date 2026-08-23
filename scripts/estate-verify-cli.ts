@@ -141,16 +141,17 @@ function gitOutcome(args: readonly string[], cwd?: string): GitOutcome {
  *  function that knows which failures are normal and which are defects. */
 function readingsFor(rec: WorktreeRecord): WorktreeReadings {
   const upstream = gitOutcome(
-    ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+    ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'],
     rec.path,
   );
   return {
     upstream,
-    ahead: upstream.ok && upstream.out.length > 0
-      ? gitOutcome(["rev-list", "--count", upstream.out + "..HEAD"], rec.path)
-      : { ok: false },
-    status: gitOutcome(["status", "--porcelain=v1", "--untracked-files=all"], rec.path),
-    stash: gitOutcome(["stash", "list"], rec.path),
+    ahead:
+      upstream.ok && upstream.out.length > 0
+        ? gitOutcome(['rev-list', '--count', upstream.out + '..HEAD'], rec.path)
+        : { ok: false },
+    status: gitOutcome(['status', '--porcelain=v1', '--untracked-files=all'], rec.path),
+    stash: gitOutcome(['stash', 'list'], rec.path),
   };
 }
 
@@ -185,7 +186,9 @@ function mainEstateVerify(): number {
     argv = parseEstateArgv(process.argv.slice(2));
   } catch (err) {
     process.stderr.write((err instanceof Error ? err.message : String(err)) + NL);
-    process.stderr.write('usage: turbo run estate:verify -- [--quiet] [--pushing] [--expect-digest=<sha256>]' + NL);
+    process.stderr.write(
+      'usage: turbo run estate:verify -- [--quiet] [--pushing] [--expect-digest=<sha256>]' + NL,
+    );
     return 2;
   }
 

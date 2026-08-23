@@ -88,12 +88,12 @@ repos:
         # scripts/secrets-baseline-age-keys.test.ts under //#test:scripts.
         args: ['--baseline', '.secrets.baseline', '--exclude-lines', 'age1[02-9ac-hj-np-z]{58}']
         exclude: (?x)(
-            pnpm-lock\.yaml|
-            .*\.lock|
-            .*\.log|
-            package-lock\.json|
-            yarn\.lock|
-            \.secrets\.baseline
+          pnpm-lock\.yaml|
+          .*\.lock|
+          .*\.log|
+          package-lock\.json|
+          yarn\.lock|
+          \.secrets\.baseline
           )$
   - repo: local
     hooks:

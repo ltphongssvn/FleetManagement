@@ -24,19 +24,19 @@
 // a raw correlated SQL subquery: the live gate is the single authority on
 // what -delivered- means, so reusing its counting method keeps the
 // reconciler and the gate in lockstep by construction.
-import { and, eq, count, inArray } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
-import { ROAD_RUN_NON_TERMINAL_STATES } from "@fleet/domain";
-import { OUTBOX_QUEUES } from "@fleet/sync-protocol";
-import { roadRun, roadRunTransportOrder, stop } from "../database/schema/transport.js";
-import { manifest } from "../database/schema/manifest.js";
-import { allocateServerSeq } from "../database/server-seq.repository.js";
-import { appendTriWrite } from "../database/append-tri-write.js";
-import type { FleetDb } from "../database/database.module.js";
+import { and, eq, count, inArray } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import { ROAD_RUN_NON_TERMINAL_STATES } from '@fleet/domain';
+import { OUTBOX_QUEUES } from '@fleet/sync-protocol';
+import { roadRun, roadRunTransportOrder, stop } from '../database/schema/transport.js';
+import { manifest } from '../database/schema/manifest.js';
+import { allocateServerSeq } from '../database/server-seq.repository.js';
+import { appendTriWrite } from '../database/append-tri-write.js';
+import type { FleetDb } from '../database/database.module.js';
 // Transaction handle type, identical to appendTriWrite TxLike: this module
 // edge-completes inside the caller-owned finalizeIntake tx.
 type TxLike = Parameters<Parameters<FleetDb['transaction']>[0]>[0];
-import type { OperatorContext } from "../auth/operator-context.js";
+import type { OperatorContext } from '../auth/operator-context.js';
 
 export interface DeliveredRunRow {
   readonly roadRunId: string;
@@ -53,35 +53,32 @@ export interface RepairCompleteDeliveredRunsResult {
 // True when EVERY stop across the run orders has a committed manifest
 // (committed count >= stop count) with at least one stop. Counts scoped by
 // company; identical arithmetic to the live gate assertAllManifestsCommitted.
-async function runIsDelivered(
-  db: FleetDb,
-  companyId: string,
-  roadRunId: string,
-): Promise<boolean> {
+async function runIsDelivered(db: FleetDb, companyId: string, roadRunId: string): Promise<boolean> {
   const orderRows = await db
     .select({ id: roadRunTransportOrder.transportOrderId })
     .from(roadRunTransportOrder)
-    .where(and(
-      eq(roadRunTransportOrder.roadRunId, roadRunId),
-      eq(roadRunTransportOrder.companyId, companyId),
-    ));
+    .where(
+      and(
+        eq(roadRunTransportOrder.roadRunId, roadRunId),
+        eq(roadRunTransportOrder.companyId, companyId),
+      ),
+    );
   const orderIds = orderRows.map((r) => r.id);
   if (orderIds.length === 0) return false;
   const stopCountRows = await db
     .select({ n: count() })
     .from(stop)
-    .where(and(
-      eq(stop.companyId, companyId),
-      inArray(stop.transportOrderId, orderIds),
-    ));
+    .where(and(eq(stop.companyId, companyId), inArray(stop.transportOrderId, orderIds)));
   const committedCountRows = await db
     .select({ n: count() })
     .from(manifest)
-    .where(and(
-      eq(manifest.companyId, companyId),
-      inArray(manifest.transportOrderId, orderIds),
-      eq(manifest.state, "committed"),
-    ));
+    .where(
+      and(
+        eq(manifest.companyId, companyId),
+        inArray(manifest.transportOrderId, orderIds),
+        eq(manifest.state, 'committed'),
+      ),
+    );
   /* v8 ignore next 2 -- defensive: a SQL count() aggregate always returns exactly one row, so [0] is never undefined and the ?? 0 fallback is unreachable */
   const stopCount = stopCountRows[0]?.n ?? 0;
   const committed = committedCountRows[0]?.n ?? 0;
@@ -99,10 +96,9 @@ export async function findDeliveredIncompleteRuns(
   const candidates = await db
     .select({ roadRunId: roadRun.roadRunId, state: roadRun.state })
     .from(roadRun)
-    .where(and(
-      eq(roadRun.companyId, companyId),
-      inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
-    ));
+    .where(
+      and(eq(roadRun.companyId, companyId), inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES)),
+    );
   const delivered: DeliveredRunRow[] = [];
   for (const c of candidates) {
     if (await runIsDelivered(db, companyId, c.roadRunId)) {
@@ -131,10 +127,12 @@ export async function completeRunIfDelivered(
   const linkRows = await tx
     .select({ roadRunId: roadRunTransportOrder.roadRunId })
     .from(roadRunTransportOrder)
-    .where(and(
-      eq(roadRunTransportOrder.transportOrderId, transportOrderId),
-      eq(roadRunTransportOrder.companyId, op.companyId),
-    ));
+    .where(
+      and(
+        eq(roadRunTransportOrder.transportOrderId, transportOrderId),
+        eq(roadRunTransportOrder.companyId, op.companyId),
+      ),
+    );
   const runId = linkRows[0]?.roadRunId;
   if (runId === undefined) return { completed: false, roadRunId: null };
   if (!(await runIsDelivered(tx as never, op.companyId, runId))) {
@@ -143,30 +141,32 @@ export async function completeRunIfDelivered(
   const now = new Date();
   const moved = await tx
     .update(roadRun)
-    .set({ state: "completed", completedAt: now })
-    .where(and(
-      eq(roadRun.roadRunId, runId),
-      eq(roadRun.companyId, op.companyId),
-      inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
-    ))
+    .set({ state: 'completed', completedAt: now })
+    .where(
+      and(
+        eq(roadRun.roadRunId, runId),
+        eq(roadRun.companyId, op.companyId),
+        inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
+      ),
+    )
     .returning({ roadRunId: roadRun.roadRunId });
   if (moved.length === 0) return { completed: false, roadRunId: runId };
   const serverSeq = await allocateServerSeq(tx);
   await appendTriWrite(tx, {
     serverSeq,
     actionId: randomUUID(),
-    aggregateType: "road_run",
+    aggregateType: 'road_run',
     aggregateId: runId,
-    delta: { state: "completed" },
-    eventType: "road_run.completed",
-    auditPayload: { roadRunId: runId, trigger: "manifest-committed-edge" },
+    delta: { state: 'completed' },
+    eventType: 'road_run.completed',
+    auditPayload: { roadRunId: runId, trigger: 'manifest-committed-edge' },
     operatorId: op.operatorId,
     queueName: OUTBOX_QUEUES.PROJECTIONS,
     outboxPayload: {
-      aggregateType: "road_run",
-      eventType: "road_run.completed",
+      aggregateType: 'road_run',
+      eventType: 'road_run.completed',
       roadRunId: runId,
-      trigger: "manifest-committed-edge",
+      trigger: 'manifest-committed-edge',
     },
     op,
   });
@@ -195,30 +195,32 @@ export async function repairCompleteDeliveredRuns(
     // events are appended only for rows that ACTUALLY moved.
     const moved = await tx
       .update(roadRun)
-      .set({ state: "completed", completedAt: now })
-      .where(and(
-        inArray(roadRun.roadRunId, [...roadRunIds]),
-        eq(roadRun.companyId, op.companyId),
-        inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
-      ))
+      .set({ state: 'completed', completedAt: now })
+      .where(
+        and(
+          inArray(roadRun.roadRunId, [...roadRunIds]),
+          eq(roadRun.companyId, op.companyId),
+          inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
+        ),
+      )
       .returning({ roadRunId: roadRun.roadRunId });
     for (const { roadRunId: id } of moved) {
       const serverSeq = await allocateServerSeq(tx);
       await appendTriWrite(tx, {
         serverSeq,
         actionId: randomUUID(),
-        aggregateType: "road_run",
+        aggregateType: 'road_run',
         aggregateId: id,
-        delta: { state: "completed" },
-        eventType: "road_run.completed",
-        auditPayload: { roadRunId: id, repair: "delivered-run-compensating-event" },
+        delta: { state: 'completed' },
+        eventType: 'road_run.completed',
+        auditPayload: { roadRunId: id, repair: 'delivered-run-compensating-event' },
         operatorId: op.operatorId,
         queueName: OUTBOX_QUEUES.PROJECTIONS,
         outboxPayload: {
-          aggregateType: "road_run",
-          eventType: "road_run.completed",
+          aggregateType: 'road_run',
+          eventType: 'road_run.completed',
           roadRunId: id,
-          repair: "delivered-run-compensating-event",
+          repair: 'delivered-run-compensating-event',
         },
         op,
       });

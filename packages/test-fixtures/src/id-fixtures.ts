@@ -30,7 +30,12 @@
 // from the ARRAY of digits, which hexFromLabel already has in hand, removes the
 // indexed read entirely: there is no optional access, so no fallback, so no
 // branch. A /* v8 ignore */ would have hidden the same code; this deletes it.
-import { createActionId, createAggregateId, type ActionId, type AggregateId } from '@fleet/sync-protocol';
+import {
+  createActionId,
+  createAggregateId,
+  type ActionId,
+  type AggregateId,
+} from '@fleet/sync-protocol';
 
 /** FNV-1a over the label, expanded to the 32 hex digits a UUID needs. Not
  *  cryptographic and not meant to be: it only has to be stable and collision
@@ -69,11 +74,13 @@ function variantNibble(hexDigit: string): string {
  *  practice; this removes the branch v8 was counting. */
 function uuidFromLabel(label: string): string {
   const h = hexFromLabel(label);
-  const v7 = h.slice(0, 12) + '7' + h.slice(13, 16) +
-    variantNibble(h.charAt(16)) + h.slice(17, 32);
+  const v7 = h.slice(0, 12) + '7' + h.slice(13, 16) + variantNibble(h.charAt(16)) + h.slice(17, 32);
   return [
-    v7.slice(0, 8), v7.slice(8, 12), v7.slice(12, 16),
-    v7.slice(16, 20), v7.slice(20, 32),
+    v7.slice(0, 8),
+    v7.slice(8, 12),
+    v7.slice(12, 16),
+    v7.slice(16, 20),
+    v7.slice(20, 32),
   ].join('-');
 }
 

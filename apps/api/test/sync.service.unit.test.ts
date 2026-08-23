@@ -3,17 +3,13 @@
 // allocateServerSeq, appendTriWrite, mapDbErrorToSyncResult, and parseCursor.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const {
-  mockAllocateServerSeq,
-  mockAppendTriWrite,
-  mockMapDbErrorToSyncResult,
-  mockParseCursor,
-} = vi.hoisted(() => ({
-  mockAllocateServerSeq: vi.fn(),
-  mockAppendTriWrite: vi.fn(),
-  mockMapDbErrorToSyncResult: vi.fn(),
-  mockParseCursor: vi.fn(),
-}));
+const { mockAllocateServerSeq, mockAppendTriWrite, mockMapDbErrorToSyncResult, mockParseCursor } =
+  vi.hoisted(() => ({
+    mockAllocateServerSeq: vi.fn(),
+    mockAppendTriWrite: vi.fn(),
+    mockMapDbErrorToSyncResult: vi.fn(),
+    mockParseCursor: vi.fn(),
+  }));
 
 vi.mock('drizzle-orm', () => ({
   eq: (col: unknown, value: unknown) => ({ _kind: 'eq', col, value }),
@@ -68,8 +64,12 @@ import type { OperatorContext } from '../src/auth/operator-context.js';
 import { createSyncCursor } from '@fleet/sync-protocol';
 import { testActionId, testAggregateId } from '@fleet/test-fixtures';
 
-interface SelectCall { shape?: Record<string, unknown> | undefined }
-interface WhereCall { predicate: unknown }
+interface SelectCall {
+  shape?: Record<string, unknown> | undefined;
+}
+interface WhereCall {
+  predicate: unknown;
+}
 interface FakeDb {
   selectCalls: SelectCall[];
   whereCalls: WhereCall[];
@@ -110,7 +110,8 @@ function makeFakeDb(opts: MakeDbOptions = {}): FakeDb {
     },
     transaction: async (fn: (tx: object) => Promise<unknown>) => {
       fake.transactionFn = fn;
-      if (opts.transactionThrows !== undefined) return Promise.reject(opts.transactionThrows as Error);
+      if (opts.transactionThrows !== undefined)
+        return Promise.reject(opts.transactionThrows as Error);
       return fn(fakeTx);
     },
   };
@@ -161,7 +162,10 @@ describe('@fleet/api - SyncService.processSync (unit)', () => {
   it('iterates ALL actions and pushes a result per action (kills loop BlockStatement)', async () => {
     const fake = makeFakeDb({ selectReturns: [] });
     const svc = new SyncService(fake.db as never);
-    const res = await svc.processSync({ cursor: createSyncCursor('0'), actions: [ACTION, ACTION, ACTION] }, OP);
+    const res = await svc.processSync(
+      { cursor: createSyncCursor('0'), actions: [ACTION, ACTION, ACTION] },
+      OP,
+    );
     expect(res.results).toHaveLength(3);
     expect(res.results.every((r) => r === 'applied')).toBe(true);
     expect(mockAppendTriWrite).toHaveBeenCalledTimes(3);
@@ -170,9 +174,30 @@ describe('@fleet/api - SyncService.processSync (unit)', () => {
   it('uses the LAST delta row server_seq as newCursor (kills length - 1 ArithmeticOperator)', async () => {
     mockParseCursor.mockReturnValue(0n);
     const rows = [
-      { serverSeq: '10', actionId: 'a', aggregateType: 't', aggregateId: 'x', delta: {}, createdAt: new Date() },
-      { serverSeq: '20', actionId: 'b', aggregateType: 't', aggregateId: 'y', delta: {}, createdAt: new Date() },
-      { serverSeq: '30', actionId: 'c', aggregateType: 't', aggregateId: 'z', delta: {}, createdAt: new Date() },
+      {
+        serverSeq: '10',
+        actionId: 'a',
+        aggregateType: 't',
+        aggregateId: 'x',
+        delta: {},
+        createdAt: new Date(),
+      },
+      {
+        serverSeq: '20',
+        actionId: 'b',
+        aggregateType: 't',
+        aggregateId: 'y',
+        delta: {},
+        createdAt: new Date(),
+      },
+      {
+        serverSeq: '30',
+        actionId: 'c',
+        aggregateType: 't',
+        aggregateId: 'z',
+        delta: {},
+        createdAt: new Date(),
+      },
     ];
     const fake = makeFakeDb({ selectReturns: rows });
     const svc = new SyncService(fake.db as never);
@@ -202,11 +227,20 @@ describe('@fleet/api - SyncService.processSync (unit)', () => {
   it('throws when server_seq exceeds Number.MAX_SAFE_INTEGER (kills isSafeInteger guard mutants)', async () => {
     const huge = (BigInt(Number.MAX_SAFE_INTEGER) + 100n).toString();
     const rows = [
-      { serverSeq: huge, actionId: 'a', aggregateType: 't', aggregateId: 'x', delta: {}, createdAt: new Date() },
+      {
+        serverSeq: huge,
+        actionId: 'a',
+        aggregateType: 't',
+        aggregateId: 'x',
+        delta: {},
+        createdAt: new Date(),
+      },
     ];
     const fake = makeFakeDb({ selectReturns: rows });
     const svc = new SyncService(fake.db as never);
-    await expect(svc.processSync({ cursor: createSyncCursor('0'), actions: [] }, OP)).rejects.toThrow(/safe integer range/i);
+    await expect(
+      svc.processSync({ cursor: createSyncCursor('0'), actions: [] }, OP),
+    ).rejects.toThrow(/safe integer range/i);
   });
 
   it('returns full SyncResponse shape with all required fields (kills return-shape ObjectLiteral)', async () => {

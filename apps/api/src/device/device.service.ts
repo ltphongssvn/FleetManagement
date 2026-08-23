@@ -69,7 +69,12 @@ export class DeviceService {
       if (!row) throw new SessionInsertFailedError();
       return row;
     } catch (err) {
-      if (isPgUniqueViolationOnConstraintInChain(err, 'device_session_one_mutating_per_operator_surface_uq')) {
+      if (
+        isPgUniqueViolationOnConstraintInChain(
+          err,
+          'device_session_one_mutating_per_operator_surface_uq',
+        )
+      ) {
         throw new ConflictException(
           new SessionAlreadyActiveError(input.operatorId, input.surface).message,
         );
@@ -84,7 +89,9 @@ export class DeviceService {
     const [row] = await this.db
       .update(deviceSession)
       .set({ revokedAt: new Date(), revocationReason: reason })
-      .where(and(eq(deviceSession.deviceSessionId, deviceSessionId), isNull(deviceSession.revokedAt)))
+      .where(
+        and(eq(deviceSession.deviceSessionId, deviceSessionId), isNull(deviceSession.revokedAt)),
+      )
       .returning();
     if (!row) {
       const [existing] = await this.db
@@ -105,7 +112,9 @@ export class DeviceService {
     const [row] = await this.db
       .select()
       .from(deviceSession)
-      .where(and(eq(deviceSession.deviceSessionId, deviceSessionId), isNull(deviceSession.revokedAt)))
+      .where(
+        and(eq(deviceSession.deviceSessionId, deviceSessionId), isNull(deviceSession.revokedAt)),
+      )
       .limit(1);
     return row ?? null;
   }

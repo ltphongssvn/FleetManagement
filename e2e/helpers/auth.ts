@@ -30,17 +30,26 @@ const TOKEN_URL = process.env['E2E_OIDC_TOKEN_URL'] ?? 'http://mock-oauth2:8080/
 // a signed ES256 JWT the API accepts via its JWKS.
 export function mintToken(username = 'dispatcher'): string {
   const body =
-    'grant_type=password&username=' + username +
+    'grant_type=password&username=' +
+    username +
     '&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret';
   // The container script emits the FULL token response as JSON; the shape is
   // then validated on the Playwright side against TokenResponseSchema (the
   // OIDC token contract), so a malformed/error response fails here with a
   // descriptive ZodError rather than surfacing as a confusing downstream 401.
   const script =
-    'fetch(' + JSON.stringify(TOKEN_URL) +
-    ',{method:' + JSON.stringify('POST') +
-    ',headers:{' + JSON.stringify('content-type') + ':' + JSON.stringify('application/x-www-form-urlencoded') + '}' +
-    ',body:' + JSON.stringify(body) + '})' +
+    'fetch(' +
+    JSON.stringify(TOKEN_URL) +
+    ',{method:' +
+    JSON.stringify('POST') +
+    ',headers:{' +
+    JSON.stringify('content-type') +
+    ':' +
+    JSON.stringify('application/x-www-form-urlencoded') +
+    '}' +
+    ',body:' +
+    JSON.stringify(body) +
+    '})' +
     '.then(r=>r.json()).then(j=>process.stdout.write(JSON.stringify(j)))';
   const out = dockerExecNode(API_CONTAINER, script);
   let parsed: unknown;
@@ -61,8 +70,10 @@ export const mintDispatcherToken = (): string => mintToken('dispatcher');
 // page.request shares this cookie, so BFF -> API calls are authenticated too.
 export async function loginAs(page: Page, username = 'dispatcher'): Promise<void> {
   const token = mintToken(username);
-  await page.context().addCookies([
-    { name: 'fleet_session', value: token, url: BASE_URL, httpOnly: true, sameSite: 'Lax' },
-  ]);
+  await page
+    .context()
+    .addCookies([
+      { name: 'fleet_session', value: token, url: BASE_URL, httpOnly: true, sameSite: 'Lax' },
+    ]);
   await page.goto('/');
 }

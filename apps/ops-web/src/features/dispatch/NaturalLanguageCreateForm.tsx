@@ -20,21 +20,33 @@ import { ComboboxField } from './ui/ComboboxField';
 import { FieldError, type CreateOrderFormProps } from './CreateOrderForm';
 
 const slotCls = 'inline-block min-w-[9rem] align-baseline';
-const dateSlotCls = 'inline-block rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 align-baseline focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20';
+const dateSlotCls =
+  'inline-block rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 align-baseline focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20';
 
 export function NaturalLanguageCreateForm({
-  drivers, vehicles = [], customers = [], cargoTypes = [],
-  pickupWarehouses = [], deliveryWarehouses = [],
+  drivers,
+  vehicles = [],
+  customers = [],
+  cargoTypes = [],
+  pickupWarehouses = [],
+  deliveryWarehouses = [],
   driverVehicleAssignments = [],
   locale = 'vi',
   onCreated,
 }: CreateOrderFormProps): JSX.Element {
-  const [state, formAction, pending] = useActionState<CreateOrderState, FormData>(createOrder, undefined);
+  const [state, formAction, pending] = useActionState<CreateOrderState, FormData>(
+    createOrder,
+    undefined,
+  );
   const router = useRouter();
   const [pickupCount, setPickupCount] = useState(1);
   const [deliveryCount, setDeliveryCount] = useState(1);
-  const addPickup = (): void => { setPickupCount((n) => n + 1); };
-  const addDelivery = (): void => { setDeliveryCount((n) => n + 1); };
+  const addPickup = (): void => {
+    setPickupCount((n) => n + 1);
+  };
+  const addDelivery = (): void => {
+    setDeliveryCount((n) => n + 1);
+  };
   const pickupRows = Array.from({ length: pickupCount }, (_, i) => i + 1);
   const deliveryRows = Array.from({ length: deliveryCount }, (_, i) => i + 1);
   const pairedOperatorIds = new Set(driverVehicleAssignments.map((x) => x.operatorId));
@@ -45,7 +57,9 @@ export function NaturalLanguageCreateForm({
   const [assetIdValue, setAssetIdValue] = useState('');
   const [driverValue, setDriverValue] = useState('');
   const [hydrated, setHydrated] = useState(false);
-  useEffect(() => { setHydrated(true); }, []);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
   const handledRefRef = useRef<string | null>(null);
   const onCreatedRef = useRef(onCreated);
   onCreatedRef.current = onCreated;
@@ -61,7 +75,10 @@ export function NaturalLanguageCreateForm({
   }, [state, router]);
   const onVehicleChange = (nextPlate: string): void => {
     setVehicleValue(nextPlate);
-    if (nextPlate === '') { setAssetIdValue(''); return; }
+    if (nextPlate === '') {
+      setAssetIdValue('');
+      return;
+    }
     const veh = pairedVehicles.find((v) => v.label === nextPlate);
     if (!veh) return;
     setAssetIdValue(veh.id);
@@ -74,79 +91,166 @@ export function NaturalLanguageCreateForm({
     const pair = driverVehicleAssignments.find((x) => x.operatorId === nextOperatorId);
     if (!pair) return;
     const veh = pairedVehicles.find((v) => v.id === pair.vehicleId);
-    if (veh) { setVehicleValue(veh.label); setAssetIdValue(veh.id); }
+    if (veh) {
+      setVehicleValue(veh.label);
+      setAssetIdValue(veh.id);
+    }
   };
   const errs = state?.status === 'invalid' ? state.errors : {};
-  const topError = state?.status === 'api_error' || state?.status === 'server_error' ? state.message : undefined;
+  const topError =
+    state?.status === 'api_error' || state?.status === 'server_error' ? state.message : undefined;
   const vi = locale === 'vi';
   const ph = (labelVi: string, labelEn: string): string =>
     vi ? 'Chọn ' + labelVi : 'Select ' + labelEn;
   const lead = vi ? 'Hôm nay ngày ' : 'Today ';
   return (
-    <form action={formAction} data-testid='nl-create-order-form' data-hydrated={hydrated ? 'true' : 'false'} className='rounded-2xl border border-white/60 bg-white/95 p-6 text-[15px] leading-9 text-slate-800 shadow-xl shadow-indigo-900/5 ring-1 ring-slate-900/5'>
+    <form
+      action={formAction}
+      data-testid="nl-create-order-form"
+      data-hydrated={hydrated ? 'true' : 'false'}
+      className="rounded-2xl border border-white/60 bg-white/95 p-6 text-[15px] leading-9 text-slate-800 shadow-xl shadow-indigo-900/5 ring-1 ring-slate-900/5"
+    >
       {topError ? (
-        <div role='alert' className='mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700'>{topError}</div>
+        <div
+          role="alert"
+          className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {topError}
+        </div>
       ) : null}
       {/* The Số Lệnh confirmation is NOT rendered here. onCreated closes the
           drawer, so a banner inside this form is unmounted in the same commit
           that assigns the number. DispatchView owns a persistent role=status
           live region on the board instead, which outlives the drawer. */}
-      <div className='flex flex-wrap items-baseline gap-x-1 gap-y-2'>
+      <div className="flex flex-wrap items-baseline gap-x-1 gap-y-2">
         <span>{lead}</span>
-        <input id='plannedStartAt' name='plannedStartAt' type='date' required aria-label={vi ? 'Ngày điều xe' : 'Dispatch date'} className={dateSlotCls} />
+        <input
+          id="plannedStartAt"
+          name="plannedStartAt"
+          type="date"
+          required
+          aria-label={vi ? 'Ngày điều xe' : 'Dispatch date'}
+          className={dateSlotCls}
+        />
         <span>{vi ? 'hãy làm lệnh điều xe' : 'create a dispatch order for truck'}</span>
         <span className={slotCls}>
-          <ComboboxField id='vehiclePlate' name='vehiclePlate' options={pairedVehicles} placeholder={ph('số xe', 'truck')} value={vehicleValue} onChange={onVehicleChange} />
-          <input type='hidden' name='assignedAssetId' value={assetIdValue} readOnly />
+          <ComboboxField
+            id="vehiclePlate"
+            name="vehiclePlate"
+            options={pairedVehicles}
+            placeholder={ph('số xe', 'truck')}
+            value={vehicleValue}
+            onChange={onVehicleChange}
+          />
+          <input type="hidden" name="assignedAssetId" value={assetIdValue} readOnly />
         </span>
         <span>{vi ? 'do tài xế' : 'driven by'}</span>
         <span className={slotCls}>
-          <ComboboxField id='assignedOperatorId' name='assignedOperatorId' options={pairedDrivers} placeholder={ph('tài xế', 'driver')} required submitValue='id' value={driverValue} onChange={onDriverChange} />
+          <ComboboxField
+            id="assignedOperatorId"
+            name="assignedOperatorId"
+            options={pairedDrivers}
+            placeholder={ph('tài xế', 'driver')}
+            required
+            submitValue="id"
+            value={driverValue}
+            onChange={onDriverChange}
+          />
         </span>
         <span>{vi ? 'chở' : 'carrying'}</span>
         <span className={slotCls}>
-          <ComboboxField id='cargo' name='cargo' options={cargoTypes} placeholder={ph('tên hàng', 'cargo')} submitValue='id' />
+          <ComboboxField
+            id="cargo"
+            name="cargo"
+            options={cargoTypes}
+            placeholder={ph('tên hàng', 'cargo')}
+            submitValue="id"
+          />
         </span>
         <span>{vi ? 'cho khách hàng' : 'for customer'}</span>
         <span className={slotCls}>
-          <ComboboxField id='customer' name='customer' options={customers} placeholder={ph('khách hàng', 'customer')} submitValue='id' />
+          <ComboboxField
+            id="customer"
+            name="customer"
+            options={customers}
+            placeholder={ph('khách hàng', 'customer')}
+            submitValue="id"
+          />
         </span>
         <span>{vi ? '. Tài xế tới kho nhận hàng ngày' : '. Pick up on'}</span>
-        <input id='pickupAt' name='pickupAt' type='date' required aria-label={vi ? 'Ngày nhận hàng' : 'Pickup date'} className={dateSlotCls} />
+        <input
+          id="pickupAt"
+          name="pickupAt"
+          type="date"
+          required
+          aria-label={vi ? 'Ngày nhận hàng' : 'Pickup date'}
+          className={dateSlotCls}
+        />
         <span>{vi ? 'tại' : 'at'}</span>
         {pickupRows.map((n) => {
           const whId = 'pickupWarehouse_' + String(n);
           return (
             <span key={n} className={slotCls}>
-              <ComboboxField id={whId} name={whId} options={pickupWarehouses} placeholder={ph('kho nhận', 'warehouse')} submitValue='id' />
+              <ComboboxField
+                id={whId}
+                name={whId}
+                options={pickupWarehouses}
+                placeholder={ph('kho nhận', 'warehouse')}
+                submitValue="id"
+              />
             </span>
           );
         })}
-        <button type='button' onClick={addPickup} className='rounded-md border border-dashed border-indigo-300 bg-indigo-50/50 px-2 py-1 text-sm font-medium text-indigo-700 transition hover:bg-indigo-50'>
-          <span aria-hidden='true'>+</span> {vi ? 'thêm kho nhận hàng' : 'add loading warehouse'}
+        <button
+          type="button"
+          onClick={addPickup}
+          className="rounded-md border border-dashed border-indigo-300 bg-indigo-50/50 px-2 py-1 text-sm font-medium text-indigo-700 transition hover:bg-indigo-50"
+        >
+          <span aria-hidden="true">+</span> {vi ? 'thêm kho nhận hàng' : 'add loading warehouse'}
         </button>
         <span>{vi ? ', xong giao ở kho' : ', then deliver to'}</span>
         {deliveryRows.map((n) => {
           const whId = 'deliveryWarehouse_' + String(n);
           return (
             <span key={n} className={slotCls}>
-              <ComboboxField id={whId} name={whId} options={deliveryWarehouses} placeholder={ph('kho giao', 'warehouse')} submitValue='id' />
+              <ComboboxField
+                id={whId}
+                name={whId}
+                options={deliveryWarehouses}
+                placeholder={ph('kho giao', 'warehouse')}
+                submitValue="id"
+              />
             </span>
           );
         })}
-        <button type='button' onClick={addDelivery} className='rounded-md border border-dashed border-indigo-300 bg-indigo-50/50 px-2 py-1 text-sm font-medium text-indigo-700 transition hover:bg-indigo-50'>
-          <span aria-hidden='true'>+</span> {vi ? 'thêm kho giao hàng' : 'add unloading warehouse'}
+        <button
+          type="button"
+          onClick={addDelivery}
+          className="rounded-md border border-dashed border-indigo-300 bg-indigo-50/50 px-2 py-1 text-sm font-medium text-indigo-700 transition hover:bg-indigo-50"
+        >
+          <span aria-hidden="true">+</span> {vi ? 'thêm kho giao hàng' : 'add unloading warehouse'}
         </button>
         <span>{vi ? '. Khách cần nhận hàng ngày' : '. Customer delivery date'}</span>
-        <input id='deliveryAt' name='deliveryAt' type='date' required aria-label={vi ? 'Ngày giao hàng' : 'Delivery date'} className={dateSlotCls} />
+        <input
+          id="deliveryAt"
+          name="deliveryAt"
+          type="date"
+          required
+          aria-label={vi ? 'Ngày giao hàng' : 'Delivery date'}
+          className={dateSlotCls}
+        />
         <span>.</span>
       </div>
       <FieldError msg={errs.pickupWarehouses} />
       <FieldError msg={errs.deliveryWarehouses} />
       <FieldError msg={errs.assignedOperatorId} />
-      <div className='mt-6 flex items-center justify-end'>
-        <button type='submit' disabled={pending} className='inline-flex items-center gap-2 rounded-md bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-60'>
-          {pending ? (vi ? 'Đang tạo…' : 'Creating…') : (vi ? 'Tạo lệnh' : 'Create order')}
+      <div className="mt-6 flex items-center justify-end">
+        <button
+          type="submit"
+          disabled={pending}
+          className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-60"
+        >
+          {pending ? (vi ? 'Đang tạo…' : 'Creating…') : vi ? 'Tạo lệnh' : 'Create order'}
         </button>
       </div>
     </form>

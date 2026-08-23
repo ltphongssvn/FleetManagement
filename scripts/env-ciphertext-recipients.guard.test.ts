@@ -65,11 +65,10 @@ describe('the ciphertext grants exactly what the roster lists', () => {
   // direction and what to run.
   it('has NO drift in either direction', () => {
     const drift = recipientDrift(rosterText, cipherText);
-    expect({ drift, remedy: describeRecipientDrift(drift) })
-      .toEqual({
-        drift: { lockedOut: [], staleGrants: [] },
-        remedy: 'roster and ciphertext agree.',
-      });
+    expect({ drift, remedy: describeRecipientDrift(drift) }).toEqual({
+      drift: { lockedOut: [], staleGrants: [] },
+      remedy: 'roster and ciphertext agree.',
+    });
   });
 
   // The roster is the SSOT and .sops.yaml is generated from it; if the
@@ -77,7 +76,6 @@ describe('the ciphertext grants exactly what the roster lists', () => {
   // catches an .env.sops.yaml encrypted against a hand-edited .sops.yaml.
   it('grants the same set the generated .sops.yaml names', () => {
     const rendered = recipientsInRoster(read('.sops.yaml').replaceAll(',', '\n'));
-    expect([...recipientsInCiphertext(cipherText)].sort())
-      .toEqual([...rendered].sort());
+    expect([...recipientsInCiphertext(cipherText)].sort()).toEqual([...rendered].sort());
   });
 });

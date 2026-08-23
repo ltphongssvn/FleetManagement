@@ -17,12 +17,21 @@ describe('@fleet/domain barrel: phieu-can format SSOT', () => {
   });
 
   it('re-exports the goods-derivation refusal vocabulary', () => {
-    expect(domain.GOODS_DERIVATION_REFUSALS)
-      .toEqual(['incomplete_format', 'inconsistent_weights', 'no_goods_weight']);
+    expect(domain.GOODS_DERIVATION_REFUSALS).toEqual([
+      'incomplete_format',
+      'inconsistent_weights',
+      'no_goods_weight',
+    ]);
   });
 
   it('re-exports the derivation rule', () => {
-    expect(domain.deriveGoodsKg({ format: 'truck_and_goods', grossKg: 30000, tareKg: 10000, goodsKg: null }))
-      .toEqual({ ok: true, kg: 20000 });
+    expect(
+      domain.deriveGoodsKg({
+        format: 'truck_and_goods',
+        grossKg: 30000,
+        tareKg: 10000,
+        goodsKg: null,
+      }),
+    ).toEqual({ ok: true, kg: 20000 });
   });
 });

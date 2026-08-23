@@ -26,41 +26,67 @@
 // removes the last raw child_process call from this file.
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { type z } from 'zod';
-import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, ReferenceListResponseSchema } from './helpers/contracts';
+import {
+  parseJson,
+  CreateDriverResponseSchema,
+  ReferenceItemSchema,
+  AssignmentResponseSchema,
+  ReferenceListResponseSchema,
+} from './helpers/contracts';
 import { mintDispatcherToken } from './helpers/auth';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+async function adminPost<T>(
+  api: APIRequestContext,
+  token: string,
+  path: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
-  if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
+  if (!res.ok())
+    throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   return parseJson(res, schema);
 }
-async function listLabels(api: APIRequestContext, token: string, path: string): Promise<readonly string[]> {
+async function listLabels(
+  api: APIRequestContext,
+  token: string,
+  path: string,
+): Promise<readonly string[]> {
   const res = await api.get(API_URL + path, { headers: { Authorization: 'Bearer ' + token } });
   if (!res.ok()) throw new Error('GET ' + path + ' failed ' + String(res.status()));
   const json = await parseJson(res, ReferenceListResponseSchema);
   return json.items.map((i) => i.label).sort();
 }
 test.describe('dispatch protection-chain helpers must not leak into reference data', () => {
-  test('a setupPair-style flow leaves no trace of its own seeded labels after cleanup', async ({ request }) => {
+  test('a setupPair-style flow leaves no trace of its own seeded labels after cleanup', async ({
+    request,
+  }) => {
     const token = mintDispatcherToken();
     const ts = Date.now();
     const phone = '09' + String(ts).slice(-8);
     const driverLabel = 'E2E DRIVER NOLEAK ' + String(ts);
     const vehicleLabel = 'E2E-NOLEAK-' + String(ts);
     const drv = await adminPost(
-      request, token, '/admin/drivers',
+      request,
+      token,
+      '/admin/drivers',
       { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
       CreateDriverResponseSchema,
     );
     const veh = await adminPost(
-      request, token, '/reference/vehicles', { name: vehicleLabel },
+      request,
+      token,
+      '/reference/vehicles',
+      { name: vehicleLabel },
       ReferenceItemSchema,
     );
     const asgn = await adminPost(
-      request, token, '/admin/driver-vehicle-assignments',
+      request,
+      token,
+      '/admin/driver-vehicle-assignments',
       { driverId: drv.driverId, vehicleId: veh.id },
       AssignmentResponseSchema,
     );

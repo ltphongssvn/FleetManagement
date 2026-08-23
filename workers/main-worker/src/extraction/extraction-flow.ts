@@ -52,7 +52,10 @@ export interface VlmExtractorPort {
   /** Returns the raw net-weight field(s) read off the ticket image, or null
    *  when the model finds no net-weight field at all. Throws on transport/
    *  quota errors (retryable). */
-  extractNetWeight(input: { readonly bytes: Uint8Array; readonly contentType: string }): Promise<VlmRawNetWeight | null>;
+  extractNetWeight(input: {
+    readonly bytes: Uint8Array;
+    readonly contentType: string;
+  }): Promise<VlmRawNetWeight | null>;
 }
 
 export type ExtractionOutcome =
@@ -66,7 +69,11 @@ function completed(result: ExtractionResultWire): ExtractionOutcome {
 // Build the extracted/unreadable result from a set of verbatim component strings
 // that must be SUMMED then sanity-bounded (goods_only = one component; a two-pass
 // legacy pair = two components). Single numeric authority stays parseNetWeightKg.
-function parseAndBound(manifestId: string, rawLabel: string, rawValues: readonly string[]): ExtractionResultWire {
+function parseAndBound(
+  manifestId: string,
+  rawLabel: string,
+  rawValues: readonly string[],
+): ExtractionResultWire {
   const parsed = parseNetWeightKg({ rawLabel, rawValues });
   if (!parsed.ok) {
     return { manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: parsed.reason };
@@ -77,7 +84,11 @@ function parseAndBound(manifestId: string, rawLabel: string, rawValues: readonly
 // Recognition path: turn the standard-format signal into a wire result. Numeric
 // interpretation still flows through parseNetWeightKg (one authority); this only
 // decides WHICH components feed it and maps cannot-recognize reasons.
-function runRecognition(manifestId: string, raw: VlmRawNetWeight, format: PhieuCanFormat | null): ExtractionResultWire {
+function runRecognition(
+  manifestId: string,
+  raw: VlmRawNetWeight,
+  format: PhieuCanFormat | null,
+): ExtractionResultWire {
   const recognition = recognizePhieuCan({
     slipCount: raw.slipCount ?? 1,
     format,
@@ -87,10 +98,20 @@ function runRecognition(manifestId: string, raw: VlmRawNetWeight, format: PhieuC
   });
   if (!recognition.ok) {
     if (recognition.reason === 'multiple_slips') {
-      return { manifestId, status: 'not_found', extractedNetWeightKg: null, reason: 'multiple_slips' };
+      return {
+        manifestId,
+        status: 'not_found',
+        extractedNetWeightKg: null,
+        reason: 'multiple_slips',
+      };
     }
     if (recognition.reason === 'non_standard_format') {
-      return { manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: 'non_standard_format' };
+      return {
+        manifestId,
+        status: 'unreadable',
+        extractedNetWeightKg: null,
+        reason: 'non_standard_format',
+      };
     }
     // no_goods_weight (truck_only): correctly recognised but the ticket carries no
     // goods weight -> surface as not_found/no_field so the board offers manual entry.
@@ -99,12 +120,31 @@ function runRecognition(manifestId: string, raw: VlmRawNetWeight, format: PhieuC
   if (recognition.format === 'truck_and_goods') {
     // Net the two components first (gross - tare) via the domain rule, parsing each
     // through the number authority, then sanity-bound the derived goods weight.
-    const gross = parseNetWeightKg({ rawLabel: 'gross', rawValues: [recognition.rawValues[0] ?? ''] });
-    const tare = parseNetWeightKg({ rawLabel: 'tare', rawValues: [recognition.rawValues[1] ?? ''] });
-    if (!gross.ok) return { manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: gross.reason };
-    if (!tare.ok) return { manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: tare.reason };
-    const derived = deriveGoodsKg({ format: 'truck_and_goods', grossKg: gross.kg, tareKg: tare.kg, goodsKg: null });
-    if (!derived.ok) return { manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: 'unparseable' };
+    const gross = parseNetWeightKg({
+      rawLabel: 'gross',
+      rawValues: [recognition.rawValues[0] ?? ''],
+    });
+    const tare = parseNetWeightKg({
+      rawLabel: 'tare',
+      rawValues: [recognition.rawValues[1] ?? ''],
+    });
+    if (!gross.ok)
+      return { manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: gross.reason };
+    if (!tare.ok)
+      return { manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: tare.reason };
+    const derived = deriveGoodsKg({
+      format: 'truck_and_goods',
+      grossKg: gross.kg,
+      tareKg: tare.kg,
+      goodsKg: null,
+    });
+    if (!derived.ok)
+      return {
+        manifestId,
+        status: 'unreadable',
+        extractedNetWeightKg: null,
+        reason: 'unparseable',
+      };
     // Re-bound the derived goods weight against the same sanity policy.
     return parseAndBound(manifestId, 'goods', [String(derived.kg)]);
   }
@@ -120,11 +160,21 @@ export async function runExtraction(
   try {
     const bytes = await store.getObject({ bucket: job.s3Bucket, key: job.s3Key });
     if (bytes === null) {
-      return completed({ manifestId: job.manifestId, status: 'not_found', extractedNetWeightKg: null, reason: 'object_missing' });
+      return completed({
+        manifestId: job.manifestId,
+        status: 'not_found',
+        extractedNetWeightKg: null,
+        reason: 'object_missing',
+      });
     }
     const raw = await vlm.extractNetWeight({ bytes, contentType: job.contentType });
     if (raw === null) {
-      return completed({ manifestId: job.manifestId, status: 'not_found', extractedNetWeightKg: null, reason: 'no_field' });
+      return completed({
+        manifestId: job.manifestId,
+        status: 'not_found',
+        extractedNetWeightKg: null,
+        reason: 'no_field',
+      });
     }
     // Discriminator: a producer that reports the recognition signal includes the
     // format key (value may be null = no standard layout). Absent => legacy path.

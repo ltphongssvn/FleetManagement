@@ -11,27 +11,29 @@
 // This module computes the next projection state deterministically given the
 // previous state + a sync_change_feed event.
 
-
 import { z } from 'zod';
 
 /** Zod schema for sync_change_feed events at the projection boundary.
  *  serverSeq is bigint at runtime; coerced from string|number|bigint at parse. */
-export const SyncFeedEventSchema = z.object({
-  serverSeq: z.union([z.bigint(), z.number(), z.string()]).transform((v) => {
-    // Stryker disable next-line ConditionalExpression,StringLiteral: equivalent mutant.
-    // This is a fast-path identity shortcut; BigInt(aBigInt) is itself identity, so
-    // skipping the branch yields an identical result. No input can distinguish it.
-    if (typeof v === 'bigint') return v;
-    if (typeof v === 'number') {
-      if (!Number.isInteger(v) || v < 0) throw new Error('serverSeq must be non-negative integer');
+export const SyncFeedEventSchema = z
+  .object({
+    serverSeq: z.union([z.bigint(), z.number(), z.string()]).transform((v) => {
+      // Stryker disable next-line ConditionalExpression,StringLiteral: equivalent mutant.
+      // This is a fast-path identity shortcut; BigInt(aBigInt) is itself identity, so
+      // skipping the branch yields an identical result. No input can distinguish it.
+      if (typeof v === 'bigint') return v;
+      if (typeof v === 'number') {
+        if (!Number.isInteger(v) || v < 0)
+          throw new Error('serverSeq must be non-negative integer');
+        return BigInt(v);
+      }
       return BigInt(v);
-    }
-    return BigInt(v);
-  }),
-  aggregateType: z.string().min(1).max(64),
-  aggregateId: z.guid(),
-  delta: z.unknown(),
-}).strict();
+    }),
+    aggregateType: z.string().min(1).max(64),
+    aggregateId: z.guid(),
+    delta: z.unknown(),
+  })
+  .strict();
 
 export const PROJECTION_POLICY_VERSION = 'projection-dispatch-board-v1' as const;
 
@@ -78,7 +80,9 @@ export type ProjectionNoopReason = z.infer<typeof ProjectionNoopReasonSchema>;
 export const ProjectionDeltaSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('noop'), reason: ProjectionNoopReasonSchema }).strict(),
   z.object({ kind: z.literal('upsert'), row: z.custom<RoadRunProjectionRow>() }).strict(),
-  z.object({ kind: z.literal('soft_delete'), roadRunId: z.string(), serverSeq: z.bigint() }).strict(),
+  z
+    .object({ kind: z.literal('soft_delete'), roadRunId: z.string(), serverSeq: z.bigint() })
+    .strict(),
 ]);
 export type ProjectionDelta = z.infer<typeof ProjectionDeltaSchema>;
 

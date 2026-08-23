@@ -33,16 +33,18 @@ import { evaluateStepUp } from './step-up-policy.js';
 
 export const STEP_UP_KEY = 'fleet:step-up-profile';
 
-export const RequireStepUp = (
-  profile: StepUpProfile,
-): MethodDecorator & ClassDecorator =>
+export const RequireStepUp = (profile: StepUpProfile): MethodDecorator & ClassDecorator =>
   SetMetadata(STEP_UP_KEY, StepUpProfileSchema.parse(profile));
 
 function challenge(description: string, requiredAcr: string): string {
   return (
     'Bearer error="insufficient_user_authentication", ' +
-    'error_description="' + description + '", ' +
-    'acr_values="' + requiredAcr + '"'
+    'error_description="' +
+    description +
+    '", ' +
+    'acr_values="' +
+    requiredAcr +
+    '"'
   );
 }
 

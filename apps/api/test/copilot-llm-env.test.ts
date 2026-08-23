@@ -24,7 +24,11 @@ describe('env: copilot LLM adapter surface', () => {
   });
 
   it('accepts an explicit key + model override (A/B path)', () => {
-    const c = validateEnv({ ...BASE, ANTHROPIC_API_KEY: 'k-abc', COPILOT_LLM_MODEL: 'claude-sonnet-4-5' });
+    const c = validateEnv({
+      ...BASE,
+      ANTHROPIC_API_KEY: 'k-abc',
+      COPILOT_LLM_MODEL: 'claude-sonnet-4-5',
+    });
     expect(c.ANTHROPIC_API_KEY).toBe('k-abc');
     expect(c.COPILOT_LLM_MODEL).toBe('claude-sonnet-4-5');
   });

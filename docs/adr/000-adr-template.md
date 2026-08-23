@@ -15,8 +15,8 @@ Why:     PDF mandates docs/adr/ for versioned architectural decisions.
 
 ## Context
 
-<What problem forced this decision? What constraints apply? Cite the PDF
-section or empirical finding that motivated it.>
+<What problem forced this decision? What constraints apply? Cite the PDF section or empirical
+finding that motivated it.>
 
 ## Decision
 
@@ -24,8 +24,8 @@ section or empirical finding that motivated it.>
 
 ## Rationale
 
-<Why this choice over alternatives. Include empirical evidence (CLI
-verification output, doc citations) where applicable.>
+<Why this choice over alternatives. Include empirical evidence (CLI verification output, doc
+citations) where applicable.>
 
 ## Alternatives Considered
 
@@ -34,17 +34,13 @@ verification output, doc citations) where applicable.>
 
 ## Consequences
 
-**Positive**: <what this unlocks>
-**Negative**: <what this costs>
-**Neutral**: <side effects>
+**Positive**: <what this unlocks> **Negative**: <what this costs> **Neutral**: <side effects>
 
 ## Future Work
 
-<Deferred items that depend on this decision. Each item should name the
-trigger condition (e.g., "when apps/* packages land") and the concrete
-change required.>
+<Deferred items that depend on this decision. Each item should name the trigger condition (e.g.,
+"when apps/\* packages land") and the concrete change required.>
 
 ## Verification
 
-<How to empirically confirm the decision still holds. CLI commands,
-tests, or metrics.>
+<How to empirically confirm the decision still holds. CLI commands, tests, or metrics.>

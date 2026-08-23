@@ -26,7 +26,10 @@ describe('@fleet/main-worker - sendErpInvoice', () => {
 
   it('returns rejected when mapping missing', async () => {
     const send = vi.fn();
-    const result = await sendErpInvoice({ ...validJob, mapping: { customerExternalId: null, jobCodeExternalId: 'JOB-EXT-1' } }, { sendInvoice: send });
+    const result = await sendErpInvoice(
+      { ...validJob, mapping: { customerExternalId: null, jobCodeExternalId: 'JOB-EXT-1' } },
+      { sendInvoice: send },
+    );
     expect(result.kind).toBe('rejected');
     expect(send).not.toHaveBeenCalled();
   });

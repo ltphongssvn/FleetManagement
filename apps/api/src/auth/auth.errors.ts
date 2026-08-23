@@ -21,7 +21,10 @@ export class MissingCompanyIdError extends AuthError {
 }
 
 export class IdentityExpiredError extends AuthError {
-  constructor(public readonly expiresAt: number, public readonly nowSec: number) {
+  constructor(
+    public readonly expiresAt: number,
+    public readonly nowSec: number,
+  ) {
     super(`Identity expired at ${String(expiresAt)} (now=${String(nowSec)})`);
   }
 }

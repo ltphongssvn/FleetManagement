@@ -9,5 +9,4 @@ import { ErpInboundService } from './erp-inbound.service.js';
   controllers: [ErpInboundController],
   providers: [ErpInboundService],
 })
-
 export class ErpInboundModule {}

@@ -9,7 +9,12 @@ import { ConflictException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { AdminAssignmentService } from '../src/admin/admin-assignment.service.js';
 import { driver, vehicle } from '../src/database/schema/reference.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+  truncateAllTables,
+} from './helpers/migrate-test-db.js';
 
 let testDb: MigratedTestDb;
 const TENANCY = {
@@ -20,14 +25,16 @@ const TENANCY = {
 };
 
 async function seedDriver(): Promise<string> {
-  const [d] = await testDb.db.insert(driver)
+  const [d] = await testDb.db
+    .insert(driver)
     .values({ ...TENANCY, fullName: 'D-' + randomUUID().slice(0, 8) })
     .returning({ driverId: driver.driverId });
   if (d === undefined) throw new Error('seed driver failed');
   return d.driverId;
 }
 async function seedVehicle(): Promise<string> {
-  const [v] = await testDb.db.insert(vehicle)
+  const [v] = await testDb.db
+    .insert(vehicle)
     .values({ ...TENANCY, plate: 'P-' + randomUUID().slice(0, 8) })
     .returning({ vehicleId: vehicle.vehicleId });
   if (v === undefined) throw new Error('seed vehicle failed');
@@ -35,22 +42,34 @@ async function seedVehicle(): Promise<string> {
 }
 
 describe('@fleet/api - AdminAssignmentService conflict (409)', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_adminassign_conflict'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
-  beforeEach(async () => { await truncateAllTables(testDb.db); });
-  function svc(): AdminAssignmentService { return new AdminAssignmentService(testDb.db as never); }
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_test_adminassign_conflict');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
+  beforeEach(async () => {
+    await truncateAllTables(testDb.db);
+  });
+  function svc(): AdminAssignmentService {
+    return new AdminAssignmentService(testDb.db as never);
+  }
 
   it('throws ConflictException when the same driver is assigned a second active vehicle', async () => {
     const driverId = await seedDriver();
     const v1 = await seedVehicle();
     const v2 = await seedVehicle();
     await svc().assign({ ...TENANCY, driverId, vehicleId: v1 });
-    const err = await svc().assign({ ...TENANCY, driverId, vehicleId: v2 }).then(
-      () => undefined,
-      (e: unknown) => e,
-    );
+    const err = await svc()
+      .assign({ ...TENANCY, driverId, vehicleId: v2 })
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
     expect(err).toBeInstanceOf(ConflictException);
-    expect((err as ConflictException).getResponse()).toMatchObject({ code: 'DRIVER_ALREADY_ASSIGNED' });
+    expect((err as ConflictException).getResponse()).toMatchObject({
+      code: 'DRIVER_ALREADY_ASSIGNED',
+    });
   });
 
   it('throws ConflictException when the same vehicle is assigned a second active driver', async () => {
@@ -58,12 +77,16 @@ describe('@fleet/api - AdminAssignmentService conflict (409)', () => {
     const d1 = await seedDriver();
     const d2 = await seedDriver();
     await svc().assign({ ...TENANCY, driverId: d1, vehicleId });
-    const err = await svc().assign({ ...TENANCY, driverId: d2, vehicleId }).then(
-      () => undefined,
-      (e: unknown) => e,
-    );
+    const err = await svc()
+      .assign({ ...TENANCY, driverId: d2, vehicleId })
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
     expect(err).toBeInstanceOf(ConflictException);
-    expect((err as ConflictException).getResponse()).toMatchObject({ code: 'VEHICLE_ALREADY_ASSIGNED' });
+    expect((err as ConflictException).getResponse()).toMatchObject({
+      code: 'VEHICLE_ALREADY_ASSIGNED',
+    });
   }, 30_000);
 
   it('allows re-assigning the same driver after the prior assignment is revoked', async () => {

@@ -6,7 +6,11 @@ import { Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import type { VerifiedIdentity } from './identity-provider.interface.js';
 import type { OperatorContext } from './operator-context.js';
-import { IdentityExpiredError, MissingCompanyIdError, MissingOperatorIdError } from './auth.errors.js';
+import {
+  IdentityExpiredError,
+  MissingCompanyIdError,
+  MissingOperatorIdError,
+} from './auth.errors.js';
 
 export const PILOT_TENANCY_SENTINEL = '00000000-0000-0000-0000-000000000000';
 

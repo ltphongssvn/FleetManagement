@@ -6,7 +6,10 @@ import { describe, it, expect } from 'vitest';
 import { ReferenceService } from '../src/reference/reference.service.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 function mkServiceWithReactivate(reactivatedRow: { id: string; label: string }): ReferenceService {
-  const uniqueViolation = Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
+  const uniqueViolation = Object.assign(
+    new Error('duplicate key value violates unique constraint'),
+    { code: '23505' },
+  );
   const insertChain = {
     values: () => ({
       returning: () => Promise.reject(uniqueViolation),
@@ -46,6 +49,8 @@ describe('ReferenceService reactivate-on-conflict (unit)', () => {
   });
   it('createWarehouse pickup returns the reactivated row when UPDATE flips active=true', async () => {
     const row = { id: 'w1', label: 'ReHouse' };
-    await expect(mkServiceWithReactivate(row).createWarehouse(op, 'ReHouse', 'pickup')).resolves.toEqual(row);
+    await expect(
+      mkServiceWithReactivate(row).createWarehouse(op, 'ReHouse', 'pickup'),
+    ).resolves.toEqual(row);
   });
 });

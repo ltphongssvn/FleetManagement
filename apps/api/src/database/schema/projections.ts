@@ -2,7 +2,18 @@
 // Read-side projection tables per Frozen Stack PDF "projection_status table
 // keyed by (projection_name, scope) with watermark, lag_ms, last_rebuilt_at"
 // + Day-One #7 "RSC reads from dispatch_board_projection".
-import { pgTable, uuid, varchar, timestamp, index, integer, jsonb, bigint, primaryKey, check } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  varchar,
+  timestamp,
+  index,
+  integer,
+  jsonb,
+  bigint,
+  primaryKey,
+  check,
+} from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { tenancyColumns } from './tenancy.js';
 import { roadRunStateEnum } from './transport.js';
@@ -21,7 +32,10 @@ export const dispatchBoardProjection = pgTable(
     assignedAssetId: uuid('assigned_asset_id'),
     plannedStartAt: timestamp('planned_start_at', { withTimezone: true, mode: 'date' }),
     stopCount: integer('stop_count').notNull().default(0),
-    transportOrderRefs: jsonb('transport_order_refs').$type<readonly string[]>().notNull().default([]),
+    transportOrderRefs: jsonb('transport_order_refs')
+      .$type<readonly string[]>()
+      .notNull()
+      .default([]),
     /** server_seq of the latest event applied to this row (monotonic). */
     serverSeq: bigint('server_seq', { mode: 'bigint' }).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
@@ -56,7 +70,9 @@ export const projectionStatus = pgTable(
     projectionName: varchar('projection_name', { length: 64 }).notNull(),
     scope: varchar('scope', { length: 128 }).notNull(),
     /** Highest server_seq successfully applied to this projection. */
-    watermark: bigint('watermark', { mode: 'bigint' }).notNull().default(sql`0`),
+    watermark: bigint('watermark', { mode: 'bigint' })
+      .notNull()
+      .default(sql`0`),
     lagMs: integer('lag_ms').notNull().default(0),
     /** Per PDF: timestamp of last full rebuild. NOT updated on incremental drains. */
     lastRebuiltAt: timestamp('last_rebuilt_at', { withTimezone: true, mode: 'date' }),

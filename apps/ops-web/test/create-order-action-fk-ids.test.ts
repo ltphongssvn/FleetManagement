@@ -40,10 +40,14 @@ describe('createOrder server action forwards FK ids (T7)', () => {
   it('sends customerId at the API body root when form customer is a UUID', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'jwt' });
-    const fetchMock = vi.fn(() => Promise.resolve(new Response(
-      JSON.stringify({ transportOrderId: 't1', roadRunId: 'r1', externalRef: 'XTT.06-001' }),
-      { status: 201, headers: { 'content-type': 'application/json' } },
-    )));
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ transportOrderId: 't1', roadRunId: 'r1', externalRef: 'XTT.06-001' }),
+          { status: 201, headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     await createOrder(undefined, buildFormData());
@@ -56,10 +60,14 @@ describe('createOrder server action forwards FK ids (T7)', () => {
   it('sends cargoTypeId at the API body root when form cargo is a UUID', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'jwt' });
-    const fetchMock = vi.fn(() => Promise.resolve(new Response(
-      JSON.stringify({ transportOrderId: 't1', roadRunId: 'r1', externalRef: 'XTT.06-001' }),
-      { status: 201, headers: { 'content-type': 'application/json' } },
-    )));
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ transportOrderId: 't1', roadRunId: 'r1', externalRef: 'XTT.06-001' }),
+          { status: 201, headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     await createOrder(undefined, buildFormData());
@@ -72,17 +80,23 @@ describe('createOrder server action forwards FK ids (T7)', () => {
   it('sends each stop with yardId set to the warehouse UUID', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'jwt' });
-    const fetchMock = vi.fn(() => Promise.resolve(new Response(
-      JSON.stringify({ transportOrderId: 't1', roadRunId: 'r1', externalRef: 'XTT.06-001' }),
-      { status: 201, headers: { 'content-type': 'application/json' } },
-    )));
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ transportOrderId: 't1', roadRunId: 'r1', externalRef: 'XTT.06-001' }),
+          { status: 201, headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     await createOrder(undefined, buildFormData());
     const calls = fetchMock.mock.calls as unknown as [string, { body: string }][];
     const firstCall = calls[0];
     if (!firstCall) throw new Error('no fetch call');
-    const body = JSON.parse(firstCall[1].body) as { stops: { stopType: string; yardId?: string }[] };
+    const body = JSON.parse(firstCall[1].body) as {
+      stops: { stopType: string; yardId?: string }[];
+    };
     const pickup = body.stops.find((s) => s.stopType === 'pickup');
     const delivery = body.stops.find((s) => s.stopType === 'delivery');
     expect(pickup?.yardId).toBe(PICKUP_WH_ID);

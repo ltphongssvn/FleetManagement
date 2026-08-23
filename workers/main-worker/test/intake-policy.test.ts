@@ -1,7 +1,11 @@
 // workers/main-worker/test/intake-policy.test.ts
 import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
-import { validateIntake, INTAKE_POLICY_VERSION, type IntakeInput } from '../src/intake/intake-policy.js';
+import {
+  validateIntake,
+  INTAKE_POLICY_VERSION,
+  type IntakeInput,
+} from '../src/intake/intake-policy.js';
 const baseInput: IntakeInput = {
   expectedContentType: 'image/jpeg',
   expectedSizeBytes: 1_000_000,
@@ -34,7 +38,11 @@ describe('@fleet/main-worker - validateIntake', () => {
     expect(r.rejectionCode).toBe('object_missing');
   });
   it('rejects unsupported MIME type with unsupported_mime_type code', () => {
-    const r = validateIntake({ ...baseInput, actualContentType: 'image/gif', expectedContentType: 'image/gif' });
+    const r = validateIntake({
+      ...baseInput,
+      actualContentType: 'image/gif',
+      expectedContentType: 'image/gif',
+    });
     if (r.accepted) throw new Error('expected reject');
     expect(r.rejectionCode).toBe('unsupported_mime_type');
   });
@@ -84,7 +92,11 @@ describe('@fleet/main-worker - validateIntake', () => {
   it('accepts actual exactly at the 0.5 size ratio when absDiff exceeds tolerance (ratio is exclusive lower bound)', () => {
     // expected 1,000,000 ; actual 500,000 -> ratio exactly 0.5, absDiff 500,000 > 5,000.
     // sizeRatio < MIN_SIZE_RATIO must be strict: 0.5 is NOT below 0.5 -> accepted.
-    const r = validateIntake({ ...baseInput, expectedSizeBytes: 1_000_000, actualSizeBytes: 500_000 });
+    const r = validateIntake({
+      ...baseInput,
+      expectedSizeBytes: 1_000_000,
+      actualSizeBytes: 500_000,
+    });
     expect(r.accepted).toBe(true);
   });
   it('accepts small under-ratio file when absDiff is exactly at tolerance (tolerance gate is exclusive)', () => {
@@ -98,7 +110,11 @@ describe('@fleet/main-worker - validateIntake', () => {
     // expected 12_002, actual 7_001 -> ratio 0.583 (>=0.5) so ratio gate alone would pass;
     // use a genuinely under-ratio case: expected 1_000_000 actual 400_000 ->
     // ratio 0.4 < 0.5 AND absDiff 600_000 > 5_000 -> size_mismatch.
-    const r = validateIntake({ ...baseInput, expectedSizeBytes: 1_000_000, actualSizeBytes: 400_000 });
+    const r = validateIntake({
+      ...baseInput,
+      expectedSizeBytes: 1_000_000,
+      actualSizeBytes: 400_000,
+    });
     if (r.accepted) throw new Error('expected reject');
     expect(r.rejectionCode).toBe('size_mismatch');
   });

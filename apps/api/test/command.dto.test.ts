@@ -1,6 +1,11 @@
 // apps/api/test/command.dto.test.ts
 import { describe, it, expect } from 'vitest';
-import { CommandPayloadSchema, CommandAckSchema, CommandTypeSchema, AckRejectionReasonSchema } from '../src/commands/command.dto.js';
+import {
+  CommandPayloadSchema,
+  CommandAckSchema,
+  CommandTypeSchema,
+  AckRejectionReasonSchema,
+} from '../src/commands/command.dto.js';
 
 const validCommand = {
   commandId: '00000000-0000-0000-0000-000000000001',
@@ -30,21 +35,35 @@ describe('@fleet/api - CommandPayloadSchema', () => {
   });
 
   it('rejects non-uuid commandId', () => {
-    expect(CommandPayloadSchema.safeParse({ ...validCommand, commandId: 'bad' }).success).toBe(false);
+    expect(CommandPayloadSchema.safeParse({ ...validCommand, commandId: 'bad' }).success).toBe(
+      false,
+    );
   });
 
   it('rejects non-uuid targetOperatorId', () => {
-    expect(CommandPayloadSchema.safeParse({ ...validCommand, targetOperatorId: 'bad' }).success).toBe(false);
+    expect(
+      CommandPayloadSchema.safeParse({ ...validCommand, targetOperatorId: 'bad' }).success,
+    ).toBe(false);
   });
 
   it('rejects non-ISO issuedAt', () => {
-    expect(CommandPayloadSchema.safeParse({ ...validCommand, issuedAt: 'yesterday' }).success).toBe(false);
+    expect(CommandPayloadSchema.safeParse({ ...validCommand, issuedAt: 'yesterday' }).success).toBe(
+      false,
+    );
   });
 });
 
 describe('@fleet/api - AckRejectionReasonSchema', () => {
   it('accepts all enum values', () => {
-    for (const r of ['operator_offline', 'operator_busy', 'invalid_state', 'not_authorized', 'stale_command', 'duplicate_command', 'client_error']) {
+    for (const r of [
+      'operator_offline',
+      'operator_busy',
+      'invalid_state',
+      'not_authorized',
+      'stale_command',
+      'duplicate_command',
+      'client_error',
+    ]) {
       expect(AckRejectionReasonSchema.parse(r)).toBe(r);
     }
   });

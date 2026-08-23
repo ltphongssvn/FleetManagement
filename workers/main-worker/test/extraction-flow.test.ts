@@ -7,7 +7,12 @@
 // VLM raw output is the decomposed rawValues array (no twoPass boolean).
 import { describe, expect, it, vi } from 'vitest';
 import { ExtractionResultWireSchema } from '@fleet/sync-protocol';
-import { runExtraction, type VlmExtractorPort, type VlmRawNetWeight, type ExtractionObjectStore } from '../src/extraction/extraction-flow.js';
+import {
+  runExtraction,
+  type VlmExtractorPort,
+  type VlmRawNetWeight,
+  type ExtractionObjectStore,
+} from '../src/extraction/extraction-flow.js';
 import type { ExtractionJobDataWire } from '@fleet/sync-protocol';
 
 const JOB: ExtractionJobDataWire = {
@@ -28,48 +33,121 @@ function vlm(fields: { rawLabel: string; rawValues: readonly string[] } | null):
 
 describe('runExtraction', () => {
   it('happy path: extracted + SSOT-valid result, no reason', async () => {
-    const out = await runExtraction(JOB, stores(BYTES), vlm({ rawLabel: 'TL Hang', rawValues: ['20.730 Kg'] }));
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'extracted', extractedNetWeightKg: 20730 } });
-    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
+    const out = await runExtraction(
+      JOB,
+      stores(BYTES),
+      vlm({ rawLabel: 'TL Hang', rawValues: ['20.730 Kg'] }),
+    );
+    expect(out).toEqual({
+      kind: 'completed',
+      result: { manifestId: JOB.manifestId, status: 'extracted', extractedNetWeightKg: 20730 },
+    });
+    if (out.kind === 'completed')
+      expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
   });
 
   it('two-pass: sums the decomposed components', async () => {
-    const out = await runExtraction(JOB, stores(BYTES), vlm({ rawLabel: 'TL hang lan 1 / lan 2', rawValues: ['10.500', '9.730'] }));
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'extracted', extractedNetWeightKg: 20230 } });
-    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
+    const out = await runExtraction(
+      JOB,
+      stores(BYTES),
+      vlm({ rawLabel: 'TL hang lan 1 / lan 2', rawValues: ['10.500', '9.730'] }),
+    );
+    expect(out).toEqual({
+      kind: 'completed',
+      result: { manifestId: JOB.manifestId, status: 'extracted', extractedNetWeightKg: 20230 },
+    });
+    if (out.kind === 'completed')
+      expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
   });
 
   it('VLM finds nothing -> not_found, reason no_field', async () => {
     const out = await runExtraction(JOB, stores(BYTES), vlm(null));
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'not_found', extractedNetWeightKg: null, reason: 'no_field' } });
-    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
+    expect(out).toEqual({
+      kind: 'completed',
+      result: {
+        manifestId: JOB.manifestId,
+        status: 'not_found',
+        extractedNetWeightKg: null,
+        reason: 'no_field',
+      },
+    });
+    if (out.kind === 'completed')
+      expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
   });
 
   it('policy rejects over-max -> unreadable, reason above_sanity_max', async () => {
-    const out = await runExtraction(JOB, stores(BYTES), vlm({ rawLabel: 'TL Hang', rawValues: ['120.000 kg'] }));
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: 'above_sanity_max' } });
-    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
+    const out = await runExtraction(
+      JOB,
+      stores(BYTES),
+      vlm({ rawLabel: 'TL Hang', rawValues: ['120.000 kg'] }),
+    );
+    expect(out).toEqual({
+      kind: 'completed',
+      result: {
+        manifestId: JOB.manifestId,
+        status: 'unreadable',
+        extractedNetWeightKg: null,
+        reason: 'above_sanity_max',
+      },
+    });
+    if (out.kind === 'completed')
+      expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
   });
 
   it('policy rejects under-min -> unreadable, reason below_sanity_min', async () => {
-    const out = await runExtraction(JOB, stores(BYTES), vlm({ rawLabel: 'TL Hang', rawValues: ['50 kg'] }));
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: 'below_sanity_min' } });
-    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
+    const out = await runExtraction(
+      JOB,
+      stores(BYTES),
+      vlm({ rawLabel: 'TL Hang', rawValues: ['50 kg'] }),
+    );
+    expect(out).toEqual({
+      kind: 'completed',
+      result: {
+        manifestId: JOB.manifestId,
+        status: 'unreadable',
+        extractedNetWeightKg: null,
+        reason: 'below_sanity_min',
+      },
+    });
+    if (out.kind === 'completed')
+      expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
   });
 
   it('policy cannot parse the value -> unreadable, reason unparseable', async () => {
-    const out = await runExtraction(JOB, stores(BYTES), vlm({ rawLabel: 'TL Hang', rawValues: ['O.OOO'] }));
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: 'unparseable' } });
-    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
+    const out = await runExtraction(
+      JOB,
+      stores(BYTES),
+      vlm({ rawLabel: 'TL Hang', rawValues: ['O.OOO'] }),
+    );
+    expect(out).toEqual({
+      kind: 'completed',
+      result: {
+        manifestId: JOB.manifestId,
+        status: 'unreadable',
+        extractedNetWeightKg: null,
+        reason: 'unparseable',
+      },
+    });
+    if (out.kind === 'completed')
+      expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
   });
 
   it('object missing -> not_found, reason object_missing (no VLM call)', async () => {
     const extractFn = vi.fn().mockResolvedValue({ rawLabel: 'x', rawValues: ['y'] });
     const v: VlmExtractorPort = { extractNetWeight: extractFn };
     const out = await runExtraction(JOB, stores(null), v);
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'not_found', extractedNetWeightKg: null, reason: 'object_missing' } });
+    expect(out).toEqual({
+      kind: 'completed',
+      result: {
+        manifestId: JOB.manifestId,
+        status: 'not_found',
+        extractedNetWeightKg: null,
+        reason: 'object_missing',
+      },
+    });
     expect(extractFn).not.toHaveBeenCalled();
-    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
+    if (out.kind === 'completed')
+      expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
   });
 
   // T33 recognition wiring (backward-compatible EXPAND): when the VLM reports
@@ -82,51 +160,208 @@ describe('runExtraction', () => {
   }
 
   it('multiple slips in one photo -> not_found, reason multiple_slips', async () => {
-    const out = await runExtraction(JOB, stores(BYTES), vlmSignal({ rawLabel: 'TL Hang', rawValues: ['20.730'], slipCount: 2, format: 'goods_only', grossRaw: null, tareRaw: null, goodsRaw: '20.730' }));
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'not_found', extractedNetWeightKg: null, reason: 'multiple_slips' } });
-    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
+    const out = await runExtraction(
+      JOB,
+      stores(BYTES),
+      vlmSignal({
+        rawLabel: 'TL Hang',
+        rawValues: ['20.730'],
+        slipCount: 2,
+        format: 'goods_only',
+        grossRaw: null,
+        tareRaw: null,
+        goodsRaw: '20.730',
+      }),
+    );
+    expect(out).toEqual({
+      kind: 'completed',
+      result: {
+        manifestId: JOB.manifestId,
+        status: 'not_found',
+        extractedNetWeightKg: null,
+        reason: 'multiple_slips',
+      },
+    });
+    if (out.kind === 'completed')
+      expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
   });
 
   it('non-standard layout -> unreadable, reason non_standard_format', async () => {
-    const out = await runExtraction(JOB, stores(BYTES), vlmSignal({ rawLabel: '?', rawValues: ['20.730'], slipCount: 1, format: null, grossRaw: null, tareRaw: null, goodsRaw: null }));
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: 'non_standard_format' } });
-    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
+    const out = await runExtraction(
+      JOB,
+      stores(BYTES),
+      vlmSignal({
+        rawLabel: '?',
+        rawValues: ['20.730'],
+        slipCount: 1,
+        format: null,
+        grossRaw: null,
+        tareRaw: null,
+        goodsRaw: null,
+      }),
+    );
+    expect(out).toEqual({
+      kind: 'completed',
+      result: {
+        manifestId: JOB.manifestId,
+        status: 'unreadable',
+        extractedNetWeightKg: null,
+        reason: 'non_standard_format',
+      },
+    });
+    if (out.kind === 'completed')
+      expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
   });
 
   it('truck_and_goods: nets gross minus tare then parses', async () => {
-    const out = await runExtraction(JOB, stores(BYTES), vlmSignal({ rawLabel: 'xe+hang/xe', rawValues: [], slipCount: 1, format: 'truck_and_goods', grossRaw: '28.450', tareRaw: '8.720', goodsRaw: null }));
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'extracted', extractedNetWeightKg: 19730 } });
-    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
+    const out = await runExtraction(
+      JOB,
+      stores(BYTES),
+      vlmSignal({
+        rawLabel: 'xe+hang/xe',
+        rawValues: [],
+        slipCount: 1,
+        format: 'truck_and_goods',
+        grossRaw: '28.450',
+        tareRaw: '8.720',
+        goodsRaw: null,
+      }),
+    );
+    expect(out).toEqual({
+      kind: 'completed',
+      result: { manifestId: JOB.manifestId, status: 'extracted', extractedNetWeightKg: 19730 },
+    });
+    if (out.kind === 'completed')
+      expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
   });
 
   it('truck_only: no goods weight -> not_found, reason no_field (needs manual entry)', async () => {
-    const out = await runExtraction(JOB, stores(BYTES), vlmSignal({ rawLabel: 'xe', rawValues: [], slipCount: 1, format: 'truck_only', grossRaw: null, tareRaw: '8.720', goodsRaw: null }));
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'not_found', extractedNetWeightKg: null, reason: 'no_field' } });
-    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
+    const out = await runExtraction(
+      JOB,
+      stores(BYTES),
+      vlmSignal({
+        rawLabel: 'xe',
+        rawValues: [],
+        slipCount: 1,
+        format: 'truck_only',
+        grossRaw: null,
+        tareRaw: '8.720',
+        goodsRaw: null,
+      }),
+    );
+    expect(out).toEqual({
+      kind: 'completed',
+      result: {
+        manifestId: JOB.manifestId,
+        status: 'not_found',
+        extractedNetWeightKg: null,
+        reason: 'no_field',
+      },
+    });
+    if (out.kind === 'completed')
+      expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
   });
 
   it('goods_only: the printed goods value IS the goods weight', async () => {
-    const out = await runExtraction(JOB, stores(BYTES), vlmSignal({ rawLabel: 'TL Hang', rawValues: [], slipCount: 1, format: 'goods_only', grossRaw: null, tareRaw: null, goodsRaw: '20.730 Kg' }));
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'extracted', extractedNetWeightKg: 20730 } });
-    if (out.kind === 'completed') expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
+    const out = await runExtraction(
+      JOB,
+      stores(BYTES),
+      vlmSignal({
+        rawLabel: 'TL Hang',
+        rawValues: [],
+        slipCount: 1,
+        format: 'goods_only',
+        grossRaw: null,
+        tareRaw: null,
+        goodsRaw: '20.730 Kg',
+      }),
+    );
+    expect(out).toEqual({
+      kind: 'completed',
+      result: { manifestId: JOB.manifestId, status: 'extracted', extractedNetWeightKg: 20730 },
+    });
+    if (out.kind === 'completed')
+      expect(ExtractionResultWireSchema.safeParse(out.result).success).toBe(true);
   });
 
   it('truck_and_goods with an unparseable gross -> unreadable, parser reason kept', async () => {
-    const out = await runExtraction(JOB, stores(BYTES), vlmSignal({ rawLabel: 'xe+hang/xe', rawValues: [], slipCount: 1, format: 'truck_and_goods', grossRaw: 'khong doc duoc', tareRaw: '8.720', goodsRaw: null }));
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: 'unparseable' } });
+    const out = await runExtraction(
+      JOB,
+      stores(BYTES),
+      vlmSignal({
+        rawLabel: 'xe+hang/xe',
+        rawValues: [],
+        slipCount: 1,
+        format: 'truck_and_goods',
+        grossRaw: 'khong doc duoc',
+        tareRaw: '8.720',
+        goodsRaw: null,
+      }),
+    );
+    expect(out).toEqual({
+      kind: 'completed',
+      result: {
+        manifestId: JOB.manifestId,
+        status: 'unreadable',
+        extractedNetWeightKg: null,
+        reason: 'unparseable',
+      },
+    });
   });
 
   it('truck_and_goods with an unparseable tare -> unreadable, parser reason kept', async () => {
-    const out = await runExtraction(JOB, stores(BYTES), vlmSignal({ rawLabel: 'xe+hang/xe', rawValues: [], slipCount: 1, format: 'truck_and_goods', grossRaw: '28.450', tareRaw: 'khong doc duoc', goodsRaw: null }));
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: 'unparseable' } });
+    const out = await runExtraction(
+      JOB,
+      stores(BYTES),
+      vlmSignal({
+        rawLabel: 'xe+hang/xe',
+        rawValues: [],
+        slipCount: 1,
+        format: 'truck_and_goods',
+        grossRaw: '28.450',
+        tareRaw: 'khong doc duoc',
+        goodsRaw: null,
+      }),
+    );
+    expect(out).toEqual({
+      kind: 'completed',
+      result: {
+        manifestId: JOB.manifestId,
+        status: 'unreadable',
+        extractedNetWeightKg: null,
+        reason: 'unparseable',
+      },
+    });
   });
 
   it('truck_and_goods with tare >= gross -> unreadable (never persists nonsense)', async () => {
-    const out = await runExtraction(JOB, stores(BYTES), vlmSignal({ rawLabel: 'xe+hang/xe', rawValues: [], slipCount: 1, format: 'truck_and_goods', grossRaw: '8.720', tareRaw: '28.450', goodsRaw: null }));
-    expect(out).toEqual({ kind: 'completed', result: { manifestId: JOB.manifestId, status: 'unreadable', extractedNetWeightKg: null, reason: 'unparseable' } });
+    const out = await runExtraction(
+      JOB,
+      stores(BYTES),
+      vlmSignal({
+        rawLabel: 'xe+hang/xe',
+        rawValues: [],
+        slipCount: 1,
+        format: 'truck_and_goods',
+        grossRaw: '8.720',
+        tareRaw: '28.450',
+        goodsRaw: null,
+      }),
+    );
+    expect(out).toEqual({
+      kind: 'completed',
+      result: {
+        manifestId: JOB.manifestId,
+        status: 'unreadable',
+        extractedNetWeightKg: null,
+        reason: 'unparseable',
+      },
+    });
   });
   it('VLM throw -> failed outcome (retryable), no result', async () => {
-    const v: VlmExtractorPort = { extractNetWeight: vi.fn().mockRejectedValue(new Error('429 quota')) };
+    const v: VlmExtractorPort = {
+      extractNetWeight: vi.fn().mockRejectedValue(new Error('429 quota')),
+    };
     const out = await runExtraction(JOB, stores(BYTES), v);
     expect(out.kind).toBe('failed');
   });

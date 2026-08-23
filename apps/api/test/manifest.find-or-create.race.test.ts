@@ -10,7 +10,12 @@ import type { OperatorContext } from '../src/auth/operator-context.js';
 import type { IBlobStore, PresignedUpload } from '../src/storage/storage-provider.interface.js';
 import type { ConfigService } from '@nestjs/config';
 import type { Env } from '../src/config/env.config.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+  truncateAllTables,
+} from './helpers/migrate-test-db.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 
 let testDb: MigratedTestDb;
@@ -18,12 +23,16 @@ let service: ManifestService;
 const OP: OperatorContext = createOperatorContext();
 
 function fakeBlobStore(): IBlobStore {
-  return { presignUpload: vi.fn().mockImplementation(() => Promise.resolve({
-    url: 'https://s3.example/presigned',
-    key: `manifests/co/${randomUUID()}/x.jpg`,
-    bucket: 'fleet-test',
-    expiresAt: new Date('2026-04-27T20:00:00Z'),
-  } satisfies PresignedUpload))};
+  return {
+    presignUpload: vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        url: 'https://s3.example/presigned',
+        key: `manifests/co/${randomUUID()}/x.jpg`,
+        bucket: 'fleet-test',
+        expiresAt: new Date('2026-04-27T20:00:00Z'),
+      } satisfies PresignedUpload),
+    ),
+  };
 }
 function fakeConfig(): ConfigService<Env, true> {
   return { getOrThrow: vi.fn().mockReturnValue(900) } as unknown as ConfigService<Env, true>;
@@ -34,7 +43,9 @@ describe('@fleet/api - findOrCreateManifest concurrent first-write', () => {
     testDb = await startMigratedTestDb('fleet_test_foc');
     service = new ManifestService(testDb.db, fakeBlobStore(), fakeConfig());
   });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
 
   beforeEach(async () => {
     await truncateAllTables(testDb.db);
@@ -49,15 +60,33 @@ describe('@fleet/api - findOrCreateManifest concurrent first-write', () => {
     `);
 
     const [r1, r2] = await Promise.all([
-      service.negotiateUpload({ manifestCorrelationId: correlationId, transportOrderId, contentType: 'image/jpeg', expectedSizeBytes: 1000 }, OP),
-      service.negotiateUpload({ manifestCorrelationId: correlationId, transportOrderId, contentType: 'image/jpeg', expectedSizeBytes: 1000 }, OP),
+      service.negotiateUpload(
+        {
+          manifestCorrelationId: correlationId,
+          transportOrderId,
+          contentType: 'image/jpeg',
+          expectedSizeBytes: 1000,
+        },
+        OP,
+      ),
+      service.negotiateUpload(
+        {
+          manifestCorrelationId: correlationId,
+          transportOrderId,
+          contentType: 'image/jpeg',
+          expectedSizeBytes: 1000,
+        },
+        OP,
+      ),
     ]);
 
     expect(r1.uploadSessionId).toBeDefined();
     expect(r2.uploadSessionId).toBeDefined();
     expect(r1.uploadSessionId).not.toBe(r2.uploadSessionId);
 
-    const cnt = await testDb.db.execute<{ count: string }>(sql`SELECT COUNT(*)::text AS count FROM manifest`);
+    const cnt = await testDb.db.execute<{ count: string }>(
+      sql`SELECT COUNT(*)::text AS count FROM manifest`,
+    );
     expect(cnt.rows[0]?.count).toBe('1');
   });
 });

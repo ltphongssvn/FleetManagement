@@ -80,9 +80,8 @@ describe('runEstateVerify: the whole path, without spawning git', () => {
       const r = runEstateVerify({
         // git-failed carries NO source digest: there was no porcelain to
         // address, and claiming one would fabricate provenance.
-        gather: () => (reason === 'git-failed'
-          ? unobservableFixture(reason)
-          : unobservableFixture(reason, SRC)),
+        gather: () =>
+          reason === 'git-failed' ? unobservableFixture(reason) : unobservableFixture(reason, SRC),
       });
       expect(r.exitCode).toBe(3);
       expect(r.action).toBe('REPAIR_TOOLING');
@@ -267,7 +266,11 @@ describe('a throw is UNKNOWN, never clean', () => {
       // permits throwing any value, so a boundary catching only Error has a
       // hole. The rule is right about production code, not about this.
       // eslint-disable-next-line @typescript-eslint/only-throw-error
-      const r = runEstateVerify({ gather: () => { throw thrown; } });
+      const r = runEstateVerify({
+        gather: () => {
+          throw thrown;
+        },
+      });
       expect(r.exitCode).toBe(3);
       expect(r.mayProceed).toBe(false);
     }

@@ -71,7 +71,10 @@ describe('@fleet/main-worker - buildErpInvoice', () => {
     expect(r.rejectionCode).toBe('invalid_payload');
   });
   it('rejects amountCents above MAX_SAFE_INTEGER', () => {
-    const r = buildErpInvoice({ ...validPayload, amountCents: Number.MAX_SAFE_INTEGER + 1 }, validMapping);
+    const r = buildErpInvoice(
+      { ...validPayload, amountCents: Number.MAX_SAFE_INTEGER + 1 },
+      validMapping,
+    );
     if (r.accepted) throw new Error('expected reject');
     expect(r.rejectionCode).toBe('invalid_payload');
   });
@@ -81,7 +84,10 @@ describe('@fleet/main-worker - buildErpInvoice', () => {
     if (r.accepted) expect(r.mappedPayload.amountCents).toBe(ERP_AMOUNT_CENTS_MAX);
   });
   it('rejects amountCents one above ERP_AMOUNT_CENTS_MAX (exclusive past the cap)', () => {
-    const r = buildErpInvoice({ ...validPayload, amountCents: ERP_AMOUNT_CENTS_MAX + 1 }, validMapping);
+    const r = buildErpInvoice(
+      { ...validPayload, amountCents: ERP_AMOUNT_CENTS_MAX + 1 },
+      validMapping,
+    );
     if (r.accepted) throw new Error('expected reject');
     expect(r.rejectionCode).toBe('invalid_payload');
     expect(r.details.missingField).toBe('amountCents');
@@ -118,7 +124,10 @@ describe('@fleet/main-worker - buildErpInvoice', () => {
       fc.assert(
         fc.property(
           fc.record({
-            amountCents: fc.oneof(fc.integer({ min: -1000, max: 1_000_000 }), fc.constant(Number.NaN)),
+            amountCents: fc.oneof(
+              fc.integer({ min: -1000, max: 1_000_000 }),
+              fc.constant(Number.NaN),
+            ),
             currency: fc.constantFrom('USD', 'EUR', 'GBP', 'JPY', 'ZZZ', 'DOLLARS'),
           }),
           fc.record({

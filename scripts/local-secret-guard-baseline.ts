@@ -55,14 +55,15 @@ function main(): void {
   });
   const host = hostOf(parseProdDbUrl(kv));
   const sha256 = createHash('sha256').update(host.toLowerCase()).digest('hex');
-  const body = buildConfig([
-    { sha256, note: 'production database public proxy endpoint' },
-  ]);
+  const body = buildConfig([{ sha256, note: 'production database public proxy endpoint' }]);
   writeFileSync(resolve(root, CONFIG_FILE), body);
   // Report the hash prefix only -- never the hostname.
   process.stdout.write(
-    'local-secret-guard-baseline: wrote ' + CONFIG_FILE +
-      ' with 1 forbidden host [sha256 ' + sha256.slice(0, 12) + '...]\n',
+    'local-secret-guard-baseline: wrote ' +
+      CONFIG_FILE +
+      ' with 1 forbidden host [sha256 ' +
+      sha256.slice(0, 12) +
+      '...]\n',
   );
 }
 

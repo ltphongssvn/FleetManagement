@@ -77,12 +77,15 @@ describe('DispatchView — optimistic row insertion on action success (T3)', () 
   });
 
   it('exposes a pushOptimisticRow callback so the form can inject a created order before router.refresh resolves', () => {
-    let captured: ((ref: string, op: { operatorId: string; assetId: string }) => void) | null = null;
+    let captured: ((ref: string, op: { operatorId: string; assetId: string }) => void) | null =
+      null;
     render(
       <DispatchView
         initialRuns={initialRuns}
         refs={refs}
-        onMountForTest={(push) => { captured = push; }}
+        onMountForTest={(push) => {
+          captured = push;
+        }}
       />,
     );
     expect(captured).not.toBeNull();
@@ -93,12 +96,15 @@ describe('DispatchView — optimistic row insertion on action success (T3)', () 
   });
 
   it('dedupes an optimistic row when the server later returns the same externalRef', () => {
-    let captured: ((ref: string, op: { operatorId: string; assetId: string }) => void) | null = null;
+    let captured: ((ref: string, op: { operatorId: string; assetId: string }) => void) | null =
+      null;
     const { rerender } = render(
       <DispatchView
         initialRuns={initialRuns}
         refs={refs}
-        onMountForTest={(push) => { captured = push; }}
+        onMountForTest={(push) => {
+          captured = push;
+        }}
       />,
     );
     act(() => {
@@ -129,12 +135,15 @@ describe('DispatchView — optimistic row insertion on action success (T3)', () 
   });
 
   it('ignores a duplicate pushOptimisticRow call for the same externalRef (idempotent)', () => {
-    let captured: ((ref: string, op: { operatorId: string; assetId: string }) => void) | null = null;
+    let captured: ((ref: string, op: { operatorId: string; assetId: string }) => void) | null =
+      null;
     render(
       <DispatchView
         initialRuns={initialRuns}
         refs={refs}
-        onMountForTest={(push) => { captured = push; }}
+        onMountForTest={(push) => {
+          captured = push;
+        }}
       />,
     );
     act(() => {
@@ -165,12 +174,15 @@ describe('DispatchView — optimistic row insertion on action success (T3)', () 
       vi.fn(),
       false,
     ]);
-    let captured: ((ref: string, op: { operatorId: string; assetId: string }) => void) | null = null;
+    let captured: ((ref: string, op: { operatorId: string; assetId: string }) => void) | null =
+      null;
     render(
       <DispatchView
         initialRuns={initialRuns}
         refs={refs}
-        onMountForTest={(push) => { captured = push; }}
+        onMountForTest={(push) => {
+          captured = push;
+        }}
       />,
     );
     // Drive the inline onCreated path indirectly via the test hook,
@@ -212,7 +224,9 @@ describe('DispatchView — optimistic row insertion on action success (T3)', () 
     ];
     render(<DispatchView initialRuns={runWithoutRef} refs={refs} />);
     const links = screen.queryAllByRole('link');
-    const orderLinks = links.filter((l) => (l.getAttribute('href') ?? '').startsWith('/dispatch/orders/'));
+    const orderLinks = links.filter((l) =>
+      (l.getAttribute('href') ?? '').startsWith('/dispatch/orders/'),
+    );
     expect(orderLinks.length).toBe(0);
   });
 });

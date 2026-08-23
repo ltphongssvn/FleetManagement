@@ -101,10 +101,14 @@ export function describeStaleWorktrees(worktrees: readonly WorktreeObservation[]
   const lines = worktrees.map(
     (w) => '  ' + w.path + ' (' + (w.branch ?? 'detached') + ') idle ' + hours(w.idleHours) + 'h',
   );
-  return 'These worktrees are fully merged, clean and idle -- their work has ' +
-    'landed and the directories are residue:' + String.fromCharCode(10) +
-    lines.join(String.fromCharCode(10)) + String.fromCharCode(10) +
-    'Reclaim each with: pnpm exec turbo run worktree:close -- <path>';
+  return (
+    'These worktrees are fully merged, clean and idle -- their work has ' +
+    'landed and the directories are residue:' +
+    String.fromCharCode(10) +
+    lines.join(String.fromCharCode(10)) +
+    String.fromCharCode(10) +
+    'Reclaim each with: pnpm exec turbo run worktree:close -- <path>'
+  );
 }
 
 /**

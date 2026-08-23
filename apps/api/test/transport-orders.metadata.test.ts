@@ -18,7 +18,11 @@ describe('CreateTransportOrderSchema metadata', () => {
     });
     expect(r.success).toBe(true);
     if (r.success) {
-      expect(r.data.metadata).toEqual({ customer: 'ĐẠI THÀNH', cargo: 'GẠO', vehiclePlate: '62H 05817' });
+      expect(r.data.metadata).toEqual({
+        customer: 'ĐẠI THÀNH',
+        cargo: 'GẠO',
+        vehiclePlate: '62H 05817',
+      });
     }
   });
   it('accepts request without metadata (metadata still optional)', () => {

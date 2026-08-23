@@ -32,7 +32,14 @@ describe('@fleet/api - TransportOrdersCancelController', () => {
   let ctl: TransportOrdersCancelController;
   beforeEach(() => {
     cancel = vi.fn();
-    drainOnce = vi.fn().mockResolvedValue({ scope: op.companyId, polled: 1, applied: 1, noops: 0, deletes: 0, newWatermark: '1' });
+    drainOnce = vi.fn().mockResolvedValue({
+      scope: op.companyId,
+      polled: 1,
+      applied: 1,
+      noops: 0,
+      deletes: 0,
+      newWatermark: '1',
+    });
     svc = { cancel } as unknown as TransportOrdersCancelService;
     runner = { drainOnce };
     ctl = new TransportOrdersCancelController(svc, runner as never);
@@ -50,7 +57,11 @@ describe('@fleet/api - TransportOrdersCancelController', () => {
     cancel.mockResolvedValue(out);
     const result = await ctl.cancel(validId, validBody, op);
     expect(result).toEqual(out);
-    expect(cancel).toHaveBeenCalledWith(validId, { reason: 'customer_request', note: 'unit test' }, op);
+    expect(cancel).toHaveBeenCalledWith(
+      validId,
+      { reason: 'customer_request', note: 'unit test' },
+      op,
+    );
   });
   it('rejects a non-uuid :id path param via Zod', async () => {
     await expect(ctl.cancel('not-a-uuid', validBody, op)).rejects.toThrow();

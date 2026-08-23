@@ -14,8 +14,14 @@ const ConfigSchema = z.object({
   // Compose substitutes UNSET vars with an EMPTY STRING (spec behavior) --
   // empty must mean ABSENT, never a boot crash on token-less machines.
   WORKER_OIDC_TOKEN_URL: z.preprocess((v) => (v === '' ? undefined : v), z.url().optional()),
-  WORKER_OIDC_CLIENT_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
-  WORKER_OIDC_CLIENT_SECRET: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
+  WORKER_OIDC_CLIENT_ID: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  WORKER_OIDC_CLIENT_SECRET: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
   ERP_API_URL: z.url().optional(),
   ERP_API_KEY: z.string().min(1).optional(),
   // S3 intake enrichment: worker HEADs the uploaded object to validate the real

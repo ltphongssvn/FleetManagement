@@ -7,7 +7,12 @@ import {
   DEFAULT_SYNC_BATCH_SIZE,
   type QueuedActionWithPayload,
 } from '../src/sync/sync-policy.js';
-import { createActionId, createAggregateId, createSyncCursor, type SyncResponse } from '@fleet/sync-protocol';
+import {
+  createActionId,
+  createAggregateId,
+  createSyncCursor,
+  type SyncResponse,
+} from '@fleet/sync-protocol';
 
 const cursor = createSyncCursor('0');
 const aggId = createAggregateId('11111111-1111-4111-8111-111111111111');
@@ -44,7 +49,9 @@ describe('@fleet/driver-app - sync-policy', () => {
     const plan = planSyncRequest(acts, cursor, 30);
     expect(plan.request.actions).toHaveLength(30);
     expect(plan.dispatchedActionIds).toHaveLength(30);
-    const first = acts[0]; if (!first) throw new Error('no first'); expect(plan.dispatchedActionIds[0]).toBe(first.actionId);
+    const first = acts[0];
+    if (!first) throw new Error('no first');
+    expect(plan.dispatchedActionIds[0]).toBe(first.actionId);
   });
 
   it('preserves cursor in request', () => {
@@ -72,7 +79,11 @@ describe('@fleet/driver-app - sync-policy', () => {
     if (outcome.kind !== 'ok') throw new Error('expected ok outcome');
     {
       expect(outcome.transitions).toHaveLength(1);
-      { const t = outcome.transitions[0]; if (!t) throw new Error('no transition'); expect(t.newStatus).toBe('synced'); };
+      {
+        const t = outcome.transitions[0];
+        if (!t) throw new Error('no transition');
+        expect(t.newStatus).toBe('synced');
+      }
       expect(outcome.newCursor).toBe('100');
     }
   });
@@ -80,7 +91,11 @@ describe('@fleet/driver-app - sync-policy', () => {
   it('reconciles duplicate -> synced (idempotent retry)', () => {
     const id = createActionId('aaaaaaaa-1111-4111-8111-111111111111');
     const res: SyncResponse = {
-      status: 'ok', newCursor: createSyncCursor('1'), eventSeq: 1, results: ['duplicate'], serverTime: '',
+      status: 'ok',
+      newCursor: createSyncCursor('1'),
+      eventSeq: 1,
+      results: ['duplicate'],
+      serverTime: '',
       deltas: [],
       projectionStatus: {},
       hysteresisVersion: 0,
@@ -89,13 +104,21 @@ describe('@fleet/driver-app - sync-policy', () => {
     const outcome = reconcileSyncAck([id], res);
     expect(outcome.kind).toBe('ok');
     if (outcome.kind !== 'ok') throw new Error('expected ok outcome');
-    { const t = outcome.transitions[0]; if (!t) throw new Error('no transition'); expect(t.newStatus).toBe('synced'); };
+    {
+      const t = outcome.transitions[0];
+      if (!t) throw new Error('no transition');
+      expect(t.newStatus).toBe('synced');
+    }
   });
 
   it('reconciles rejected -> rejected', () => {
     const id = createActionId('aaaaaaaa-1111-4111-8111-111111111111');
     const res: SyncResponse = {
-      status: 'ok', newCursor: createSyncCursor('1'), eventSeq: 1, results: ['rejected'], serverTime: '',
+      status: 'ok',
+      newCursor: createSyncCursor('1'),
+      eventSeq: 1,
+      results: ['rejected'],
+      serverTime: '',
       deltas: [],
       projectionStatus: {},
       hysteresisVersion: 0,
@@ -104,13 +127,21 @@ describe('@fleet/driver-app - sync-policy', () => {
     const outcome = reconcileSyncAck([id], res);
     expect(outcome.kind).toBe('ok');
     if (outcome.kind !== 'ok') throw new Error('expected ok outcome');
-    { const t = outcome.transitions[0]; if (!t) throw new Error('no transition'); expect(t.newStatus).toBe('rejected'); };
+    {
+      const t = outcome.transitions[0];
+      if (!t) throw new Error('no transition');
+      expect(t.newStatus).toBe('rejected');
+    }
   });
 
   it('reconciles superseded -> superseded', () => {
     const id = createActionId('aaaaaaaa-1111-4111-8111-111111111111');
     const res: SyncResponse = {
-      status: 'ok', newCursor: createSyncCursor('1'), eventSeq: 1, results: ['superseded'], serverTime: '',
+      status: 'ok',
+      newCursor: createSyncCursor('1'),
+      eventSeq: 1,
+      results: ['superseded'],
+      serverTime: '',
       deltas: [],
       projectionStatus: {},
       hysteresisVersion: 0,
@@ -119,30 +150,50 @@ describe('@fleet/driver-app - sync-policy', () => {
     const outcome = reconcileSyncAck([id], res);
     expect(outcome.kind).toBe('ok');
     if (outcome.kind !== 'ok') throw new Error('expected ok outcome');
-    { const t = outcome.transitions[0]; if (!t) throw new Error('no transition'); expect(t.newStatus).toBe('superseded'); };
+    {
+      const t = outcome.transitions[0];
+      if (!t) throw new Error('no transition');
+      expect(t.newStatus).toBe('superseded');
+    }
   });
 
   it('reconciles awaiting/hint_conflict -> stays pending', () => {
     const id = createActionId('aaaaaaaa-1111-4111-8111-111111111111');
     for (const r of ['awaiting_handoff', 'awaiting_proof', 'hint_conflict'] as const) {
       const res: SyncResponse = {
-        status: 'ok', newCursor: createSyncCursor('1'), eventSeq: 1, results: [r], serverTime: '',
-      deltas: [],
-      projectionStatus: {},
-      hysteresisVersion: 0,
-      configFlagVersion: 0,
-    };
+        status: 'ok',
+        newCursor: createSyncCursor('1'),
+        eventSeq: 1,
+        results: [r],
+        serverTime: '',
+        deltas: [],
+        projectionStatus: {},
+        hysteresisVersion: 0,
+        configFlagVersion: 0,
+      };
       const outcome = reconcileSyncAck([id], res);
       expect(outcome.kind).toBe('ok');
       if (outcome.kind !== 'ok') throw new Error('expected ok outcome');
-      { const t = outcome.transitions[0]; if (!t) throw new Error('no transition'); expect(t.newStatus).toBe('pending'); };
+      {
+        const t = outcome.transitions[0];
+        if (!t) throw new Error('no transition');
+        expect(t.newStatus).toBe('pending');
+      }
     }
   });
 
   it('returns cursor_expired when server signals expired cursor', () => {
     const id = createActionId('aaaaaaaa-1111-4111-8111-111111111111');
     const res = {
-      status: 'cursor_expired', newCursor: createSyncCursor('0'), eventSeq: 0, results: [], serverTime: '', deltas: [], projectionStatus: {}, hysteresisVersion: 0, configFlagVersion: 0,
+      status: 'cursor_expired',
+      newCursor: createSyncCursor('0'),
+      eventSeq: 0,
+      results: [],
+      serverTime: '',
+      deltas: [],
+      projectionStatus: {},
+      hysteresisVersion: 0,
+      configFlagVersion: 0,
     } as unknown as SyncResponse;
     const outcome = reconcileSyncAck([id], res);
     expect(outcome.kind).toBe('cursor_expired');
@@ -155,8 +206,11 @@ describe('@fleet/driver-app - sync-policy', () => {
       createActionId('33333333-3333-4333-8333-333333333333'),
     ];
     const res: SyncResponse = {
-      status: 'ok', newCursor: createSyncCursor('100'), eventSeq: 100,
-      results: ['applied', 'rejected', 'duplicate'], serverTime: '',
+      status: 'ok',
+      newCursor: createSyncCursor('100'),
+      eventSeq: 100,
+      results: ['applied', 'rejected', 'duplicate'],
+      serverTime: '',
       deltas: [],
       projectionStatus: {},
       hysteresisVersion: 0,
@@ -167,9 +221,21 @@ describe('@fleet/driver-app - sync-policy', () => {
     if (outcome.kind !== 'ok') throw new Error('expected ok outcome');
     {
       expect(outcome.transitions).toHaveLength(3);
-      { const t = outcome.transitions[0]; if (!t) throw new Error('no transition'); expect(t.newStatus).toBe('synced'); };
-      { const t = outcome.transitions[1]; if (!t) throw new Error('no transition'); expect(t.newStatus).toBe('rejected'); };
-      { const t = outcome.transitions[2]; if (!t) throw new Error('no transition'); expect(t.newStatus).toBe('synced'); };
+      {
+        const t = outcome.transitions[0];
+        if (!t) throw new Error('no transition');
+        expect(t.newStatus).toBe('synced');
+      }
+      {
+        const t = outcome.transitions[1];
+        if (!t) throw new Error('no transition');
+        expect(t.newStatus).toBe('rejected');
+      }
+      {
+        const t = outcome.transitions[2];
+        if (!t) throw new Error('no transition');
+        expect(t.newStatus).toBe('synced');
+      }
     }
   });
 
@@ -179,7 +245,11 @@ describe('@fleet/driver-app - sync-policy', () => {
       createActionId('22222222-2222-4222-8222-222222222222'),
     ];
     const res: SyncResponse = {
-      status: 'ok', newCursor: createSyncCursor('1'), eventSeq: 1, results: ['applied'], serverTime: '',
+      status: 'ok',
+      newCursor: createSyncCursor('1'),
+      eventSeq: 1,
+      results: ['applied'],
+      serverTime: '',
       deltas: [],
       projectionStatus: {},
       hysteresisVersion: 0,
@@ -216,15 +286,33 @@ describe('@fleet/driver-app - sync-policy property invariants', () => {
     fc.assert(
       fc.property(
         fc.integer({ min: 0, max: 30 }),
-        fc.array(fc.constantFrom('applied', 'duplicate', 'rejected', 'superseded', 'awaiting_handoff', 'awaiting_proof', 'hint_conflict' as const), { maxLength: 30 }),
+        fc.array(
+          fc.constantFrom(
+            'applied',
+            'duplicate',
+            'rejected',
+            'superseded',
+            'awaiting_handoff',
+            'awaiting_proof',
+            'hint_conflict' as const,
+          ),
+          { maxLength: 30 },
+        ),
         (idCount, results) => {
           const ids = Array.from({ length: idCount }, (_, i) => {
             const hex = (i + 1).toString(16).padStart(8, '0');
             return createActionId(`${hex}-1111-4111-8111-111111111111`);
           });
           const res: SyncResponse = {
-            status: 'ok', newCursor: createSyncCursor('1'), eventSeq: 1, results, serverTime: '',
-            deltas: [], projectionStatus: {}, hysteresisVersion: 0, configFlagVersion: 0,
+            status: 'ok',
+            newCursor: createSyncCursor('1'),
+            eventSeq: 1,
+            results,
+            serverTime: '',
+            deltas: [],
+            projectionStatus: {},
+            hysteresisVersion: 0,
+            configFlagVersion: 0,
           };
           const outcome = reconcileSyncAck(ids, res);
           if (outcome.kind === 'ok') {
@@ -246,8 +334,15 @@ describe('@fleet/driver-app - sync-policy property invariants', () => {
           return createActionId(`${hex}-1111-4111-8111-111111111111`);
         });
         const res = {
-          status: 'cursor_expired', newCursor: createSyncCursor('0'), eventSeq: 0, results: [], serverTime: '',
-          deltas: [], projectionStatus: {}, hysteresisVersion: 0, configFlagVersion: 0,
+          status: 'cursor_expired',
+          newCursor: createSyncCursor('0'),
+          eventSeq: 0,
+          results: [],
+          serverTime: '',
+          deltas: [],
+          projectionStatus: {},
+          hysteresisVersion: 0,
+          configFlagVersion: 0,
         } as unknown as SyncResponse;
         const outcome = reconcileSyncAck(ids, res);
         return outcome.kind === 'cursor_expired';
@@ -258,7 +353,9 @@ describe('@fleet/driver-app - sync-policy property invariants', () => {
 
 describe('@fleet/driver-app - sync-policy batchSize validation', () => {
   it('throws on batchSize = 0', () => {
-    expect(() => planSyncRequest([action('aaaaaaaa-1111-4111-8111-111111111111', 1)], cursor, 0)).toThrow(RangeError);
+    expect(() =>
+      planSyncRequest([action('aaaaaaaa-1111-4111-8111-111111111111', 1)], cursor, 0),
+    ).toThrow(RangeError);
   });
   it('throws on batchSize = -1', () => {
     expect(() => planSyncRequest([], cursor, -1)).toThrow(RangeError);
@@ -273,7 +370,11 @@ describe('@fleet/driver-app - sync-policy batchSize validation', () => {
   it('reconcileSyncAck: ill-typed response.status (defensive line 80) returns empty transitions', () => {
     // Simulate a malformed server response where status is neither 'ok' nor
     // 'cursor_expired' (e.g., parsed from JSON without zod validation).
-    const malformed = { status: 'wat', newCursor: createSyncCursor('1'), results: [] } as unknown as SyncResponse;
+    const malformed = {
+      status: 'wat',
+      newCursor: createSyncCursor('1'),
+      results: [],
+    } as unknown as SyncResponse;
     const outcome = reconcileSyncAck(['a' as never], malformed);
     expect(outcome.kind).toBe('ok');
     if (outcome.kind !== 'ok') throw new Error('narrow');
@@ -312,15 +413,17 @@ describe('@fleet/driver-app - sync-policy mutation-hardening', () => {
   it('planSyncRequest builds actions with all required fields populated (kills slice.map -> undefined / {} mutants)', () => {
     // Mutated to () => undefined → actions = [undefined]. Mutated to () => ({}) → actions = [{}].
     // Original populates actionId, aggregateType, aggregateId, payload, timestamp.
-    const dispatchable = [{
-      actionId: createActionId('11111111-1111-4111-8111-111111111111'),
-      aggregateType: 'transport_order',
-      aggregateId: createAggregateId('22222222-2222-4222-8222-222222222222'),
-      payload: { key: 'value' },
-      status: 'pending' as const,
-      sequence: 1,
-      blockedByActionId: null,
-    }];
+    const dispatchable = [
+      {
+        actionId: createActionId('11111111-1111-4111-8111-111111111111'),
+        aggregateType: 'transport_order',
+        aggregateId: createAggregateId('22222222-2222-4222-8222-222222222222'),
+        payload: { key: 'value' },
+        status: 'pending' as const,
+        sequence: 1,
+        blockedByActionId: null,
+      },
+    ];
     const plan = planSyncRequest(dispatchable as never, createSyncCursor('cursor-0'));
     expect(plan.request.actions).toHaveLength(1);
     const a = plan.request.actions[0];
@@ -335,16 +438,28 @@ describe('@fleet/driver-app - sync-policy mutation-hardening', () => {
   });
 
   it('batchSize RangeError message names "positive safe integer" and the bad value (kills empty-string mutant on L40)', () => {
-    expect(() => planSyncRequest([], createSyncCursor('c'), 0)).toThrow(/positive safe integer.*got 0/);
-    expect(() => planSyncRequest([], createSyncCursor('c'), -1)).toThrow(/positive safe integer.*got -1/);
-    expect(() => planSyncRequest([], createSyncCursor('c'), NaN)).toThrow(/positive safe integer.*got NaN/);
+    expect(() => planSyncRequest([], createSyncCursor('c'), 0)).toThrow(
+      /positive safe integer.*got 0/,
+    );
+    expect(() => planSyncRequest([], createSyncCursor('c'), -1)).toThrow(
+      /positive safe integer.*got -1/,
+    );
+    expect(() => planSyncRequest([], createSyncCursor('c'), NaN)).toThrow(
+      /positive safe integer.*got NaN/,
+    );
   });
 
   it('protocol_violation outcome has reason "results_length_mismatch" (kills L89 string-literal mutant)', () => {
     const id = createActionId('11111111-1111-4111-8111-111111111111');
     const res: SyncResponse = {
-      status: 'ok', newCursor: createSyncCursor('1'), eventSeq: 1, results: [],
-      deltas: [], projectionStatus: {}, hysteresisVersion: 0, configFlagVersion: 0,
+      status: 'ok',
+      newCursor: createSyncCursor('1'),
+      eventSeq: 1,
+      results: [],
+      deltas: [],
+      projectionStatus: {},
+      hysteresisVersion: 0,
+      configFlagVersion: 0,
       serverTime: '',
     };
     const outcome = reconcileSyncAck([id], res);
@@ -367,9 +482,14 @@ describe('@fleet/driver-app - sync-policy mutation-hardening', () => {
       createActionId('cccccccc-3333-4ccc-8ccc-cccccccccccc'),
     ];
     const res: SyncResponse = {
-      status: 'ok', newCursor: createSyncCursor('1'), eventSeq: 1,
+      status: 'ok',
+      newCursor: createSyncCursor('1'),
+      eventSeq: 1,
       results: ['applied', 'rejected', 'superseded'],
-      deltas: [], projectionStatus: {}, hysteresisVersion: 0, configFlagVersion: 0,
+      deltas: [],
+      projectionStatus: {},
+      hysteresisVersion: 0,
+      configFlagVersion: 0,
       serverTime: '',
     };
     const outcome = reconcileSyncAck(ids, res);
@@ -388,9 +508,14 @@ describe('@fleet/driver-app - sync-policy mutation-hardening', () => {
     // Original: `const _exhaustive: never = result; return _exhaustive;` returns the input string verbatim.
     const actionId = createActionId('22222222-2222-4222-8222-222222222222');
     const malformed: SyncResponse = {
-      status: 'ok', newCursor: createSyncCursor('2'), eventSeq: 2,
+      status: 'ok',
+      newCursor: createSyncCursor('2'),
+      eventSeq: 2,
       results: ['mystery_result' as never],
-      deltas: [], projectionStatus: {}, hysteresisVersion: 0, configFlagVersion: 0,
+      deltas: [],
+      projectionStatus: {},
+      hysteresisVersion: 0,
+      configFlagVersion: 0,
       serverTime: '',
     };
     const outcome = reconcileSyncAck([actionId], malformed);

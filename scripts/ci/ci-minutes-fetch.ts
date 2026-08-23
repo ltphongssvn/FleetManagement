@@ -31,7 +31,12 @@
 // failure modes in the deploy and audit paths.
 import { z } from 'zod';
 import { spawnSync } from 'node:child_process';
-import { JobSchema, type Job, type RunEntry, summarizeBillableMinutes } from './ci-minutes-audit.js';
+import {
+  JobSchema,
+  type Job,
+  type RunEntry,
+  summarizeBillableMinutes,
+} from './ci-minutes-audit.js';
 import { BillingUsageSchema, linuxMinutesForRepo, reconcile } from './ci-minutes-reconcile.js';
 
 export const PER_PAGE = 100;
@@ -59,16 +64,33 @@ export const JobsPageSchema = z.object({
 });
 
 export function buildRunsUrl(apiUrl: string, repo: string, created: string, page: number): string {
-  return apiUrl + '/repos/' + repo + '/actions/runs' +
-    '?created=' + created +
-    '&per_page=' + String(PER_PAGE) +
-    '&page=' + String(page);
+  return (
+    apiUrl +
+    '/repos/' +
+    repo +
+    '/actions/runs' +
+    '?created=' +
+    created +
+    '&per_page=' +
+    String(PER_PAGE) +
+    '&page=' +
+    String(page)
+  );
 }
 
 export function buildJobsUrl(apiUrl: string, repo: string, runId: number, page: number): string {
-  return apiUrl + '/repos/' + repo + '/actions/runs/' + String(runId) + '/jobs' +
-    '?per_page=' + String(PER_PAGE) +
-    '&page=' + String(page);
+  return (
+    apiUrl +
+    '/repos/' +
+    repo +
+    '/actions/runs/' +
+    String(runId) +
+    '/jobs' +
+    '?per_page=' +
+    String(PER_PAGE) +
+    '&page=' +
+    String(page)
+  );
 }
 
 // A full page means another may follow; a short or empty page ends it.
@@ -89,10 +111,14 @@ export const RUNS_LIST_CEILING = 1000;
 export function assertNotTruncated(fetched: number, totalCount: number): void {
   if (totalCount > fetched) {
     throw new Error(
-      'runs list truncated: fetched ' + String(fetched) +
-      ' of ' + String(totalCount) + ' total_count (API ceiling is ' +
-      String(RUNS_LIST_CEILING) + '). Narrow --created and re-run; refusing to ' +
-      'report a partial month as the whole bill.',
+      'runs list truncated: fetched ' +
+        String(fetched) +
+        ' of ' +
+        String(totalCount) +
+        ' total_count (API ceiling is ' +
+        String(RUNS_LIST_CEILING) +
+        '). Narrow --created and re-run; refusing to ' +
+        'report a partial month as the whole bill.',
     );
   }
 }
@@ -108,8 +134,10 @@ export function toRunEntries(
     const jobs = jobsByRunId.get(run.id);
     if (jobs === undefined) {
       throw new Error(
-        'run ' + String(run.id) + ' has no jobs record -- refusing to drop a run ' +
-        'that may have billed minutes',
+        'run ' +
+          String(run.id) +
+          ' has no jobs record -- refusing to drop a run ' +
+          'that may have billed minutes',
       );
     }
     return {
@@ -123,13 +151,22 @@ export function toRunEntries(
 // --- side-effecting helpers, used only by main() ---
 
 function ghGet(url: string, token: string, apiVersion: string): unknown {
-  const r = spawnSync('curl', [
-    '--silent', '--show-error', '--fail',
-    '-H', 'Accept: application/vnd.github+json',
-    '-H', 'Authorization: Bearer ' + token,
-    '-H', 'X-GitHub-Api-Version: ' + apiVersion,
-    url,
-  ], { encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync(
+    'curl',
+    [
+      '--silent',
+      '--show-error',
+      '--fail',
+      '-H',
+      'Accept: application/vnd.github+json',
+      '-H',
+      'Authorization: Bearer ' + token,
+      '-H',
+      'X-GitHub-Api-Version: ' + apiVersion,
+      url,
+    ],
+    { encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024 },
+  );
   if (r.status !== 0) {
     throw new Error('GET ' + url + ' failed: ' + (r.stderr || '').trim());
   }
@@ -146,8 +183,15 @@ function fetchAllRuns(apiUrl: string, repo: string, created: string, token: stri
     const payload = ghGet(buildRunsUrl(apiUrl, repo, created, page), token, ACTIONS_API_VERSION);
     const parsed = RunsPageSchema.parse(payload);
     out.push(...parsed.workflow_runs);
-    process.stderr.write('[audit:ci-minutes] runs page ' + String(page) + ': +' +
-      String(parsed.workflow_runs.length) + ' (total ' + String(out.length) + ')\n');
+    process.stderr.write(
+      '[audit:ci-minutes] runs page ' +
+        String(page) +
+        ': +' +
+        String(parsed.workflow_runs.length) +
+        ' (total ' +
+        String(out.length) +
+        ')\n',
+    );
     if (!hasMorePages(parsed.workflow_runs.length, PER_PAGE)) {
       assertNotTruncated(out.length, parsed.total_count);
       break;
@@ -167,9 +211,22 @@ function fetchJobsForRun(apiUrl: string, repo: string, runId: number, token: str
   return out;
 }
 
-function fetchBilledMinutes(apiUrl: string, owner: string, repoName: string, year: number, month: number, token: string): number {
-  const url = apiUrl + '/users/' + owner + '/settings/billing/usage?year=' +
-    String(year) + '&month=' + String(month);
+function fetchBilledMinutes(
+  apiUrl: string,
+  owner: string,
+  repoName: string,
+  year: number,
+  month: number,
+  token: string,
+): number {
+  const url =
+    apiUrl +
+    '/users/' +
+    owner +
+    '/settings/billing/usage?year=' +
+    String(year) +
+    '&month=' +
+    String(month);
   const parsed = BillingUsageSchema.parse(ghGet(url, token, BILLING_API_VERSION));
   return linuxMinutesForRepo(parsed.usageItems, repoName);
 }
@@ -182,7 +239,9 @@ function argOf(flag: string, fallback: string): string {
 function main(): void {
   const token = process.env['GITHUB_TOKEN'] ?? process.env['GH_TOKEN'];
   if (!token) {
-    console.error('audit:ci-minutes: GITHUB_TOKEN (or GH_TOKEN) required -- needs actions:read + billing scope');
+    console.error(
+      'audit:ci-minutes: GITHUB_TOKEN (or GH_TOKEN) required -- needs actions:read + billing scope',
+    );
     process.exit(1);
   }
   const apiUrl = process.env['GITHUB_API_URL'] ?? 'https://api.github.com';
@@ -192,7 +251,10 @@ function main(): void {
   const month = Number(argOf('--month', String(now.getUTCMonth() + 1)));
   const mm = String(month).padStart(2, '0');
   const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const created = argOf('--created', String(year) + '-' + mm + '-01..' + String(year) + '-' + mm + '-' + String(lastDay));
+  const created = argOf(
+    '--created',
+    String(year) + '-' + mm + '-01..' + String(year) + '-' + mm + '-' + String(lastDay),
+  );
   const owner = repo.split('/')[0] ?? '';
   const repoName = repo.split('/')[1] ?? '';
 
@@ -203,7 +265,10 @@ function main(): void {
   for (const run of runs) {
     jobsByRunId.set(run.id, fetchJobsForRun(apiUrl, repo, run.id, token));
     n += 1;
-    if (n % 25 === 0) process.stderr.write('[audit:ci-minutes] jobs fetched for ' + String(n) + '/' + String(runs.length) + ' runs\n');
+    if (n % 25 === 0)
+      process.stderr.write(
+        '[audit:ci-minutes] jobs fetched for ' + String(n) + '/' + String(runs.length) + ' runs\n',
+      );
   }
   const report = summarizeBillableMinutes(toRunEntries(runs, jobsByRunId));
 
@@ -212,28 +277,43 @@ function main(): void {
   for (const w of report.byWorkflow) {
     process.stdout.write(
       w.workflowName.padEnd(38) +
-      String(w.billableMinutes).padStart(8) + ' min' +
-      String(w.runs).padStart(7) + ' runs' +
-      String(w.jobs).padStart(7) + ' jobs\n',
+        String(w.billableMinutes).padStart(8) +
+        ' min' +
+        String(w.runs).padStart(7) +
+        ' runs' +
+        String(w.jobs).padStart(7) +
+        ' jobs\n',
     );
   }
   process.stdout.write('-'.repeat(72) + '\n');
-  process.stdout.write('COMPUTED TOTAL'.padEnd(38) + String(report.totalBillableMinutes).padStart(8) + ' min\n');
+  process.stdout.write(
+    'COMPUTED TOTAL'.padEnd(38) + String(report.totalBillableMinutes).padStart(8) + ' min\n',
+  );
 
   // --no-reconcile: this window is one slice of a month, so comparing it to the
   // month total would always fail. Slices are summed by the caller and
   // reconciled once. Needed because /actions/runs caps at 1000 and July has
   // 1353 runs, so a whole month cannot be fetched in a single window.
   if (process.argv.includes('--no-reconcile')) {
-    process.stdout.write('WINDOW_TOTAL ' + created + ' ' +
-      String(report.totalBillableMinutes) + '\\n');
+    process.stdout.write(
+      'WINDOW_TOTAL ' + created + ' ' + String(report.totalBillableMinutes) + '\\n',
+    );
     return;
   }
   const billed = fetchBilledMinutes(apiUrl, owner, repoName, year, month, token);
   const rec = reconcile(report.totalBillableMinutes, billed, 0.05);
-  process.stdout.write('BILLED (enhanced billing)'.padEnd(38) + String(billed).padStart(8) + ' min\n');
-  process.stdout.write('DRIFT'.padEnd(38) + (rec.driftPct * 100).toFixed(2).padStart(8) + ' %  ' +
-    (rec.ok ? 'RECONCILED' : 'OUT OF TOLERANCE -- instrument is wrong, do not size cuts on this') + '\n');
+  process.stdout.write(
+    'BILLED (enhanced billing)'.padEnd(38) + String(billed).padStart(8) + ' min\n',
+  );
+  process.stdout.write(
+    'DRIFT'.padEnd(38) +
+      (rec.driftPct * 100).toFixed(2).padStart(8) +
+      ' %  ' +
+      (rec.ok
+        ? 'RECONCILED'
+        : 'OUT OF TOLERANCE -- instrument is wrong, do not size cuts on this') +
+      '\n',
+  );
   if (!rec.ok) process.exit(2);
 }
 

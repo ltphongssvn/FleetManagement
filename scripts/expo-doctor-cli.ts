@@ -44,8 +44,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /* v8 ignore start -- side-effecting driver; every decision above and in
    expo-doctor.ts is unit-tested */
-function out(s: string): void { process.stdout.write('[expo:doctor] ' + s + NL); }
-function errline(s: string): void { process.stderr.write('[expo:doctor] ' + s + NL); }
+function out(s: string): void {
+  process.stdout.write('[expo:doctor] ' + s + NL);
+}
+function errline(s: string): void {
+  process.stderr.write('[expo:doctor] ' + s + NL);
+}
 
 /** Run the doctor in ONE app. Never throws: a failure becomes a summary the
  *  verdict can reason about, because an exception here would exit with a stack

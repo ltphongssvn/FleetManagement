@@ -10,7 +10,9 @@ export interface MigrationsRunnerResult {
   readonly executed: boolean;
 }
 
-export async function runMigrationsIfEnabled(input: MigrationsRunnerInput): Promise<MigrationsRunnerResult> {
+export async function runMigrationsIfEnabled(
+  input: MigrationsRunnerInput,
+): Promise<MigrationsRunnerResult> {
   if (input.env['DB_AUTO_MIGRATE'] === 'true') {
     await input.migrate();
     return { executed: true };

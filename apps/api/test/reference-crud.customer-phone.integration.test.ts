@@ -5,13 +5,21 @@
 // service signatures take only name and customers() returns no meta.phone.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ReferenceService } from '../src/reference/reference.service.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { withTxIsolation } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 describe('@fleet/api - ReferenceService customer phone (integration)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('createCustomer persists phone and customers() surfaces it via meta.phone', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const svc = new ReferenceService(tx as never);

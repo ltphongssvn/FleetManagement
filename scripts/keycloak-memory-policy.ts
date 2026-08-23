@@ -93,10 +93,7 @@ export const parseJvmFlags = (opts: string | null | undefined): Map<string, stri
   return flags;
 };
 
-export const numericFlag = (
-  flags: Map<string, string>,
-  name: string,
-): number | undefined => {
+export const numericFlag = (flags: Map<string, string>, name: string): number | undefined => {
   const raw = flags.get(name);
   if (raw === undefined) return undefined;
   const n = Number(raw);

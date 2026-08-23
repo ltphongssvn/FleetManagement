@@ -14,7 +14,9 @@ import type * as SessionRefreshNavigation from '@/features/auth/session-refresh-
 const listMock = vi.fn();
 const refreshMock = vi.fn();
 const { revalidateDispatchMock } = vi.hoisted(() => ({ revalidateDispatchMock: vi.fn() }));
-const { navigateToSessionRefreshMock } = vi.hoisted(() => ({ navigateToSessionRefreshMock: vi.fn() }));
+const { navigateToSessionRefreshMock } = vi.hoisted(() => ({
+  navigateToSessionRefreshMock: vi.fn(),
+}));
 vi.mock('next/navigation', () => ({
   useRouter: (): { refresh: () => void } => ({ refresh: refreshMock }),
 }));
@@ -39,7 +41,10 @@ vi.mock('@/features/admin/admin-drivers-client', () => ({
   },
 }));
 import AdminDriversPage from '@/app/admin/drivers/page';
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 beforeEach(() => {
   globalThis.fetch = vi.fn().mockResolvedValue({
     ok: true,

@@ -30,7 +30,10 @@ function makeReq(pathname: string, opts: { cookie?: string; accept?: string } = 
     nextUrl: new URL('http://localhost:3001' + pathname),
     url: 'http://localhost:3001' + pathname,
     headers: { get: (n: string) => (n.toLowerCase() === 'accept' ? accept : null) },
-    cookies: { get: (n: string) => (n === 'fleet_session' && opts.cookie ? { value: opts.cookie } : undefined) },
+    cookies: {
+      get: (n: string) =>
+        n === 'fleet_session' && opts.cookie ? { value: opts.cookie } : undefined,
+    },
   } as unknown as NextRequest;
 }
 describe('auth middleware — RSC prefetch loop guard', () => {
@@ -41,7 +44,9 @@ describe('auth middleware — RSC prefetch loop guard', () => {
   });
   it('rewrites when text/x-component appears among multiple Accept values', async () => {
     const { proxy } = await import('@/proxy');
-    const r = proxy(makeReq('/dispatch/orders/XTT.05-001', { accept: 'text/x-component;q=1, */*;q=0.1' }));
+    const r = proxy(
+      makeReq('/dispatch/orders/XTT.05-001', { accept: 'text/x-component;q=1, */*;q=0.1' }),
+    );
     expect(r).toEqual({ type: 'rewrite', url: 'http://localhost:3001/login' });
   });
   it('still redirects an unauthenticated document (text/html) request', async () => {
@@ -51,7 +56,9 @@ describe('auth middleware — RSC prefetch loop guard', () => {
   });
   it('lets an authenticated RSC request through', async () => {
     const { proxy } = await import('@/proxy');
-    const r = proxy(makeReq('/dispatch/orders/XTT.05-001', { cookie: 'jwt', accept: 'text/x-component' }));
+    const r = proxy(
+      makeReq('/dispatch/orders/XTT.05-001', { cookie: 'jwt', accept: 'text/x-component' }),
+    );
     expect(r.type).toBe('next');
   });
 });

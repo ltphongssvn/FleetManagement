@@ -33,8 +33,12 @@ export interface FormReferences {
 }
 const EMPTY: FormReferences = {
   nextOrderRef: '',
-  drivers: [], vehicles: [], customers: [], cargoTypes: [],
-  pickupWarehouses: [], deliveryWarehouses: [],
+  drivers: [],
+  vehicles: [],
+  customers: [],
+  cargoTypes: [],
+  pickupWarehouses: [],
+  deliveryWarehouses: [],
   driverVehicleAssignments: [],
 };
 async function getList(apiUrl: string, token: string, path: string): Promise<readonly RefItem[]> {
@@ -56,7 +60,10 @@ async function getList(apiUrl: string, token: string, path: string): Promise<rea
     return [];
   }
 }
-async function getAssignments(apiUrl: string, token: string): Promise<readonly DriverVehicleAssignmentItem[]> {
+async function getAssignments(
+  apiUrl: string,
+  token: string,
+): Promise<readonly DriverVehicleAssignmentItem[]> {
   const path = '/reference/driver-vehicle-assignments';
   try {
     const res = await fetch(`${apiUrl}${path}`, {
@@ -78,16 +85,36 @@ async function getAssignments(apiUrl: string, token: string): Promise<readonly D
 }
 export async function loadReferences(): Promise<FormReferences> {
   const apiUrl = process.env['FLEET_API_URL'];
-  if (!apiUrl) { console.error('[loadReferences] FLEET_API_URL not set'); return EMPTY; }
+  if (!apiUrl) {
+    console.error('[loadReferences] FLEET_API_URL not set');
+    return EMPTY;
+  }
   const token = (await cookies()).get('fleet_session')?.value;
-  if (!token) { console.error('[loadReferences] no fleet_session cookie'); return EMPTY; }
+  if (!token) {
+    console.error('[loadReferences] no fleet_session cookie');
+    return EMPTY;
+  }
   console.log(`[loadReferences] apiUrl=${apiUrl} tokenLen=${String(token.length)}`);
   const peekRes = await fetch(`${apiUrl}/reference/peek-order-ref?prefix=XTT`, {
-    headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
-  }).catch((e: unknown) => { console.error('[loadReferences] peek threw:', e); return null; });
-  const peekParsed = peekRes?.ok ? PeekOrderRefResponseSchema.safeParse(await peekRes.json()) : null;
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  }).catch((e: unknown) => {
+    console.error('[loadReferences] peek threw:', e);
+    return null;
+  });
+  const peekParsed = peekRes?.ok
+    ? PeekOrderRefResponseSchema.safeParse(await peekRes.json())
+    : null;
   const nextOrderRef = peekParsed?.success === true ? peekParsed.data.ref : '';
-  const [drivers, vehicles, customers, cargoTypes, pickupWarehouses, deliveryWarehouses, driverVehicleAssignments] = await Promise.all([
+  const [
+    drivers,
+    vehicles,
+    customers,
+    cargoTypes,
+    pickupWarehouses,
+    deliveryWarehouses,
+    driverVehicleAssignments,
+  ] = await Promise.all([
     getList(apiUrl, token, '/reference/drivers'),
     getList(apiUrl, token, '/reference/vehicles'),
     getList(apiUrl, token, '/reference/customers'),
@@ -96,5 +123,14 @@ export async function loadReferences(): Promise<FormReferences> {
     getList(apiUrl, token, '/reference/warehouses?role=delivery'),
     getAssignments(apiUrl, token),
   ]);
-  return { nextOrderRef, drivers, vehicles, customers, cargoTypes, pickupWarehouses, deliveryWarehouses, driverVehicleAssignments };
+  return {
+    nextOrderRef,
+    drivers,
+    vehicles,
+    customers,
+    cargoTypes,
+    pickupWarehouses,
+    deliveryWarehouses,
+    driverVehicleAssignments,
+  };
 }

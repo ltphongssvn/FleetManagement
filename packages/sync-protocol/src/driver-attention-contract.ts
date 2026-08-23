@@ -15,10 +15,7 @@
 import { z } from 'zod';
 
 /** Strict producer union: every reason the classifier may emit today. */
-export const DRIVER_ATTENTION_REASONS = [
-  'VEHICLE_UNASSIGNED',
-  'DEVICE_UNREGISTERED',
-] as const;
+export const DRIVER_ATTENTION_REASONS = ['VEHICLE_UNASSIGNED', 'DEVICE_UNREGISTERED'] as const;
 
 export const DriverAttentionReasonSchema = z.enum(DRIVER_ATTENTION_REASONS);
 export type DriverAttentionReason = z.infer<typeof DriverAttentionReasonSchema>;
@@ -54,9 +51,7 @@ export type AdminDriverRow = z.infer<typeof AdminDriverRowSchema>;
 export const AdminDriverRowsSchema = z.array(AdminDriverRowSchema);
 
 /** Safe trust-boundary parse: rows or null, never a throw. */
-export function parseAdminDriverRows(
-  raw: unknown,
-): readonly AdminDriverRow[] | null {
+export function parseAdminDriverRows(raw: unknown): readonly AdminDriverRow[] | null {
   const parsed = AdminDriverRowsSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
 }

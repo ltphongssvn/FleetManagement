@@ -21,35 +21,61 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ReferenceService } from '../src/reference/reference.service.js';
 import { driver, vehicle } from '../src/database/schema/reference.js';
 import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { withTxIsolation } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 function tenancy(op: ReturnType<typeof createOperatorContext>): {
-  companyId: string; businessUnitId: string; depotId: string; legalEntityId: string;
+  companyId: string;
+  businessUnitId: string;
+  depotId: string;
+  legalEntityId: string;
 } {
   return {
-    companyId: op.companyId, businessUnitId: op.businessUnitId,
-    depotId: op.depotId, legalEntityId: op.legalEntityId,
+    companyId: op.companyId,
+    businessUnitId: op.businessUnitId,
+    depotId: op.depotId,
+    legalEntityId: op.legalEntityId,
   };
 }
 describe('@fleet/api - ReferenceService.driverVehicleAssignments (integration)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('returns active pairs as { operatorId, vehicleId }', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const svc = new ReferenceService(tx as never);
       const op = createOperatorContext();
       const opAlpha = '00000000-0000-0000-0000-0000000000a1';
-      const [drvAlpha] = await tx.insert(driver).values({
-        ...tenancy(op), fullName: 'Alpha', active: true, operatorId: opAlpha,
-      }).returning();
-      const [vehAA] = await tx.insert(vehicle).values({
-        ...tenancy(op), plate: 'AA-01', active: true,
-      }).returning();
+      const [drvAlpha] = await tx
+        .insert(driver)
+        .values({
+          ...tenancy(op),
+          fullName: 'Alpha',
+          active: true,
+          operatorId: opAlpha,
+        })
+        .returning();
+      const [vehAA] = await tx
+        .insert(vehicle)
+        .values({
+          ...tenancy(op),
+          plate: 'AA-01',
+          active: true,
+        })
+        .returning();
       if (!drvAlpha || !vehAA) throw new Error('seed failed');
       await tx.insert(driverVehicleAssignment).values({
-        ...tenancy(op), driverId: drvAlpha.driverId, vehicleId: vehAA.vehicleId,
+        ...tenancy(op),
+        driverId: drvAlpha.driverId,
+        vehicleId: vehAA.vehicleId,
       });
       const res = await svc.driverVehicleAssignments(op);
       expect(res.items).toEqual([{ operatorId: opAlpha, vehicleId: vehAA.vehicleId }]);
@@ -60,15 +86,28 @@ describe('@fleet/api - ReferenceService.driverVehicleAssignments (integration)',
       const svc = new ReferenceService(tx as never);
       const op = createOperatorContext();
       const opR = '00000000-0000-0000-0000-0000000000b2';
-      const [drvR] = await tx.insert(driver).values({
-        ...tenancy(op), fullName: 'Revoked', active: true, operatorId: opR,
-      }).returning();
-      const [vehR] = await tx.insert(vehicle).values({
-        ...tenancy(op), plate: 'BB-02', active: true,
-      }).returning();
+      const [drvR] = await tx
+        .insert(driver)
+        .values({
+          ...tenancy(op),
+          fullName: 'Revoked',
+          active: true,
+          operatorId: opR,
+        })
+        .returning();
+      const [vehR] = await tx
+        .insert(vehicle)
+        .values({
+          ...tenancy(op),
+          plate: 'BB-02',
+          active: true,
+        })
+        .returning();
       if (!drvR || !vehR) throw new Error('seed failed');
       await tx.insert(driverVehicleAssignment).values({
-        ...tenancy(op), driverId: drvR.driverId, vehicleId: vehR.vehicleId,
+        ...tenancy(op),
+        driverId: drvR.driverId,
+        vehicleId: vehR.vehicleId,
         revokedAt: new Date(),
       });
       const res = await svc.driverVehicleAssignments(op);
@@ -80,15 +119,28 @@ describe('@fleet/api - ReferenceService.driverVehicleAssignments (integration)',
       const svc = new ReferenceService(tx as never);
       const op = createOperatorContext();
       const opX = '00000000-0000-0000-0000-0000000000c3';
-      const [drvX] = await tx.insert(driver).values({
-        ...tenancy(op), fullName: 'InactiveDrv', active: false, operatorId: opX,
-      }).returning();
-      const [vehX] = await tx.insert(vehicle).values({
-        ...tenancy(op), plate: 'CC-03', active: true,
-      }).returning();
+      const [drvX] = await tx
+        .insert(driver)
+        .values({
+          ...tenancy(op),
+          fullName: 'InactiveDrv',
+          active: false,
+          operatorId: opX,
+        })
+        .returning();
+      const [vehX] = await tx
+        .insert(vehicle)
+        .values({
+          ...tenancy(op),
+          plate: 'CC-03',
+          active: true,
+        })
+        .returning();
       if (!drvX || !vehX) throw new Error('seed failed');
       await tx.insert(driverVehicleAssignment).values({
-        ...tenancy(op), driverId: drvX.driverId, vehicleId: vehX.vehicleId,
+        ...tenancy(op),
+        driverId: drvX.driverId,
+        vehicleId: vehX.vehicleId,
       });
       const res = await svc.driverVehicleAssignments(op);
       expect(res.items).toEqual([]);
@@ -99,15 +151,28 @@ describe('@fleet/api - ReferenceService.driverVehicleAssignments (integration)',
       const svc = new ReferenceService(tx as never);
       const op = createOperatorContext();
       const opY = '00000000-0000-0000-0000-0000000000d4';
-      const [drvY] = await tx.insert(driver).values({
-        ...tenancy(op), fullName: 'OkDrv', active: true, operatorId: opY,
-      }).returning();
-      const [vehY] = await tx.insert(vehicle).values({
-        ...tenancy(op), plate: 'DD-04', active: false,
-      }).returning();
+      const [drvY] = await tx
+        .insert(driver)
+        .values({
+          ...tenancy(op),
+          fullName: 'OkDrv',
+          active: true,
+          operatorId: opY,
+        })
+        .returning();
+      const [vehY] = await tx
+        .insert(vehicle)
+        .values({
+          ...tenancy(op),
+          plate: 'DD-04',
+          active: false,
+        })
+        .returning();
       if (!drvY || !vehY) throw new Error('seed failed');
       await tx.insert(driverVehicleAssignment).values({
-        ...tenancy(op), driverId: drvY.driverId, vehicleId: vehY.vehicleId,
+        ...tenancy(op),
+        driverId: drvY.driverId,
+        vehicleId: vehY.vehicleId,
       });
       const res = await svc.driverVehicleAssignments(op);
       expect(res.items).toEqual([]);
@@ -117,15 +182,28 @@ describe('@fleet/api - ReferenceService.driverVehicleAssignments (integration)',
     await withTxIsolation(testDb, async (tx) => {
       const svc = new ReferenceService(tx as never);
       const op = createOperatorContext();
-      const [drvN] = await tx.insert(driver).values({
-        ...tenancy(op), fullName: 'NoOp', active: true, operatorId: null,
-      }).returning();
-      const [vehN] = await tx.insert(vehicle).values({
-        ...tenancy(op), plate: 'EE-05', active: true,
-      }).returning();
+      const [drvN] = await tx
+        .insert(driver)
+        .values({
+          ...tenancy(op),
+          fullName: 'NoOp',
+          active: true,
+          operatorId: null,
+        })
+        .returning();
+      const [vehN] = await tx
+        .insert(vehicle)
+        .values({
+          ...tenancy(op),
+          plate: 'EE-05',
+          active: true,
+        })
+        .returning();
       if (!drvN || !vehN) throw new Error('seed failed');
       await tx.insert(driverVehicleAssignment).values({
-        ...tenancy(op), driverId: drvN.driverId, vehicleId: vehN.vehicleId,
+        ...tenancy(op),
+        driverId: drvN.driverId,
+        vehicleId: vehN.vehicleId,
       });
       const res = await svc.driverVehicleAssignments(op);
       expect(res.items).toEqual([]);
@@ -138,18 +216,40 @@ describe('@fleet/api - ReferenceService.driverVehicleAssignments (integration)',
       const op2 = createOperatorContext();
       const opMine = '00000000-0000-0000-0000-0000000000f6';
       const opOther = '00000000-0000-0000-0000-0000000000f7';
-      const [drvMine] = await tx.insert(driver).values({
-        ...tenancy(op1), fullName: 'Mine', active: true, operatorId: opMine,
-      }).returning();
-      const [vehMine] = await tx.insert(vehicle).values({
-        ...tenancy(op1), plate: 'FF-06', active: true,
-      }).returning();
-      const [drvOther] = await tx.insert(driver).values({
-        ...tenancy(op2), fullName: 'Other', active: true, operatorId: opOther,
-      }).returning();
-      const [vehOther] = await tx.insert(vehicle).values({
-        ...tenancy(op2), plate: 'GG-07', active: true,
-      }).returning();
+      const [drvMine] = await tx
+        .insert(driver)
+        .values({
+          ...tenancy(op1),
+          fullName: 'Mine',
+          active: true,
+          operatorId: opMine,
+        })
+        .returning();
+      const [vehMine] = await tx
+        .insert(vehicle)
+        .values({
+          ...tenancy(op1),
+          plate: 'FF-06',
+          active: true,
+        })
+        .returning();
+      const [drvOther] = await tx
+        .insert(driver)
+        .values({
+          ...tenancy(op2),
+          fullName: 'Other',
+          active: true,
+          operatorId: opOther,
+        })
+        .returning();
+      const [vehOther] = await tx
+        .insert(vehicle)
+        .values({
+          ...tenancy(op2),
+          plate: 'GG-07',
+          active: true,
+        })
+        .returning();
       if (!drvMine || !vehMine || !drvOther || !vehOther) throw new Error('seed failed');
       await tx.insert(driverVehicleAssignment).values([
         { ...tenancy(op1), driverId: drvMine.driverId, vehicleId: vehMine.vehicleId },
@@ -165,12 +265,23 @@ describe('@fleet/api - ReferenceService.driverVehicleAssignments (integration)',
       const opMine = createOperatorContext();
       const opForeign = createOperatorContext();
       const opIdForeign = '00000000-0000-0000-0000-000000000a99';
-      const [drvForeign] = await tx.insert(driver).values({
-        ...tenancy(opForeign), fullName: 'ForeignDriver', active: true, operatorId: opIdForeign,
-      }).returning();
-      const [vehForeign] = await tx.insert(vehicle).values({
-        ...tenancy(opForeign), plate: 'XX-99', active: true,
-      }).returning();
+      const [drvForeign] = await tx
+        .insert(driver)
+        .values({
+          ...tenancy(opForeign),
+          fullName: 'ForeignDriver',
+          active: true,
+          operatorId: opIdForeign,
+        })
+        .returning();
+      const [vehForeign] = await tx
+        .insert(vehicle)
+        .values({
+          ...tenancy(opForeign),
+          plate: 'XX-99',
+          active: true,
+        })
+        .returning();
       if (!drvForeign || !vehForeign) throw new Error('seed failed');
       await tx.insert(driverVehicleAssignment).values({
         ...tenancy(opMine),

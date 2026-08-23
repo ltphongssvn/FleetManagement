@@ -20,13 +20,18 @@ import { ExportDateRangeSchema, type ExportDateRange } from '@fleet/sync-protoco
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
 import type { OperatorContext } from '../auth/operator-context.js';
-import { TransportOrdersExportService, type ExportResult } from './transport-orders-export.service.js';
+import {
+  TransportOrdersExportService,
+  type ExportResult,
+} from './transport-orders-export.service.js';
 // 'manual' is intentionally excluded — manual exports go through the GET
 // endpoint that streams the binary. Auto endpoint is for backup ledger
 // rows only.
-const AutoExportSchema = z.object({
-  trigger: z.enum(['login', 'logout']),
-}).strict();
+const AutoExportSchema = z
+  .object({
+    trigger: z.enum(['login', 'logout']),
+  })
+  .strict();
 export interface AutoExportResponse {
   readonly exportLogId: string;
   readonly trigger: 'login' | 'logout';
@@ -58,8 +63,14 @@ export class TransportOrdersExportController {
       range = ExportDateRangeSchema.parse({ from: query['from'], to: query['to'] });
     }
     const result: ExportResult = await this.svc.exportAndLog(op, 'manual', range);
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename=' + String.fromCharCode(34) + result.filename + String.fromCharCode(34));
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename=' + String.fromCharCode(34) + result.filename + String.fromCharCode(34),
+    );
     res.setHeader('Content-Length', String(result.buffer.byteLength));
     res.send(result.buffer);
   }

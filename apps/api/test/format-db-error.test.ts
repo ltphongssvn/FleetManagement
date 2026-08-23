@@ -29,10 +29,13 @@ describe('@fleet/api - formatDbError', () => {
 
   it('includes a pg error code and detail when the cause carries them', () => {
     const wrapper = new Error('Failed query: INSERT ...');
-    (wrapper as { cause?: unknown }).cause = Object.assign(new Error('permission denied for table driver_vehicle_assignment'), {
-      code: '42501',
-      detail: 'role fleet_app lacks SELECT',
-    });
+    (wrapper as { cause?: unknown }).cause = Object.assign(
+      new Error('permission denied for table driver_vehicle_assignment'),
+      {
+        code: '42501',
+        detail: 'role fleet_app lacks SELECT',
+      },
+    );
     const out = formatDbError(wrapper);
     expect(out).toContain('42501');
     expect(out).toContain('permission denied for table driver_vehicle_assignment');

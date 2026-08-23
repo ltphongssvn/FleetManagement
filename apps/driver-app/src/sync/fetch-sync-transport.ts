@@ -28,11 +28,23 @@ interface RawSyncResponse {
 }
 
 const VALID_STATUSES = new Set([
-  'ok', 'cursor_expired', 'config_refresh_required', 'artifact_generation_in_progress',
-  'artifact_unavailable', 'lock_contended', 'bootstrap_config_stale', 'bootstrap_format_deprecated',
+  'ok',
+  'cursor_expired',
+  'config_refresh_required',
+  'artifact_generation_in_progress',
+  'artifact_unavailable',
+  'lock_contended',
+  'bootstrap_config_stale',
+  'bootstrap_format_deprecated',
 ]);
 const VALID_RESULTS = new Set([
-  'applied', 'duplicate', 'rejected', 'superseded', 'awaiting_handoff', 'awaiting_proof', 'hint_conflict',
+  'applied',
+  'duplicate',
+  'rejected',
+  'superseded',
+  'awaiting_handoff',
+  'awaiting_proof',
+  'hint_conflict',
 ]);
 
 function parseSyncResponse(raw: unknown): SyncResponse {
@@ -48,14 +60,17 @@ function parseSyncResponse(raw: unknown): SyncResponse {
   if (!Array.isArray(r.deltas)) throw new Error('SyncResponse: deltas must be array');
   if (!Array.isArray(r.results)) throw new Error('SyncResponse: results must be array');
   for (const x of r.results as unknown[]) {
-    if (typeof x !== 'string' || !VALID_RESULTS.has(x)) throw new Error(`SyncResponse: invalid result: ${String(x)}`);
+    if (typeof x !== 'string' || !VALID_RESULTS.has(x))
+      throw new Error(`SyncResponse: invalid result: ${String(x)}`);
   }
   if (typeof r.serverTime !== 'string') throw new Error('SyncResponse: serverTime must be string');
   if (typeof r.projectionStatus !== 'object' || r.projectionStatus === null) {
     throw new Error('SyncResponse: projectionStatus must be object');
   }
-  if (typeof r.hysteresisVersion !== 'number') throw new Error('SyncResponse: hysteresisVersion must be number');
-  if (typeof r.configFlagVersion !== 'number') throw new Error('SyncResponse: configFlagVersion must be number');
+  if (typeof r.hysteresisVersion !== 'number')
+    throw new Error('SyncResponse: hysteresisVersion must be number');
+  if (typeof r.configFlagVersion !== 'number')
+    throw new Error('SyncResponse: configFlagVersion must be number');
   return {
     status: r.status as SyncResponse['status'],
     newCursor: createSyncCursor(r.newCursor),

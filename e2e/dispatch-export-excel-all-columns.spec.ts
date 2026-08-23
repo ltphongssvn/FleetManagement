@@ -27,7 +27,12 @@ import ExcelJS from 'exceljs';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { type z } from 'zod';
 import { LENH_DIEU_XE_EXPORT_HEADERS } from '@fleet/sync-protocol';
-import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
+import {
+  parseJson,
+  CreateDriverResponseSchema,
+  ReferenceItemSchema,
+  AssignmentResponseSchema,
+} from './helpers/contracts';
 import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const POSTGRES_CONTAINER = process.env['E2E_PG_CONTAINER'] ?? 'fleet-pilot-postgres-1';
@@ -37,21 +42,44 @@ const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 // now possible because e2e is a workspace member — makes it structurally impossible
 // for this acceptance spec to assert a stale column set, which is exactly the drift
 // that previously slipped past the PR gate and only failed on the release push.
-interface PsqlResult { stdout: string; stderr: string; failed: boolean }
+interface PsqlResult {
+  stdout: string;
+  stderr: string;
+  failed: boolean;
+}
 function dockerPsql(sqlText: string): PsqlResult {
-  const cmd = 'docker exec -i ' + POSTGRES_CONTAINER + ' psql -U fleet -d fleet -tA -v ON_ERROR_STOP=1';
+  const cmd =
+    'docker exec -i ' + POSTGRES_CONTAINER + ' psql -U fleet -d fleet -tA -v ON_ERROR_STOP=1';
   try {
     const stdout = execSync(cmd, { input: sqlText, stdio: ['pipe', 'pipe', 'pipe'] }).toString();
     return { stdout, stderr: '', failed: false };
   } catch (e) {
     const err = e as { stderr?: Buffer; stdout?: Buffer; message?: string };
-    return { stdout: err.stdout ? err.stdout.toString() : '', stderr: (err.stderr ? err.stderr.toString() : '') + (err.message ?? ''), failed: true };
+    return {
+      stdout: err.stdout ? err.stdout.toString() : '',
+      stderr: (err.stderr ? err.stderr.toString() : '') + (err.message ?? ''),
+      failed: true,
+    };
   }
 }
-interface Pair { vehicleId: string; vehicleLabel: string; token: string }
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
-  const res = await api.post(API_URL + path, { headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, data: JSON.stringify(body) });
-  if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
+interface Pair {
+  vehicleId: string;
+  vehicleLabel: string;
+  token: string;
+}
+async function adminPost<T>(
+  api: APIRequestContext,
+  token: string,
+  path: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+): Promise<T> {
+  const res = await api.post(API_URL + path, {
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    data: JSON.stringify(body),
+  });
+  if (!res.ok())
+    throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   return parseJson(res, schema);
 }
 async function setupPair(api: APIRequestContext): Promise<Pair> {
@@ -59,9 +87,27 @@ async function setupPair(api: APIRequestContext): Promise<Pair> {
   const ts = Date.now();
   const driverLabel = 'E2E DRIVER XLSXCOL ' + String(ts);
   const vehicleLabel = 'E2E-XLSXCOL-' + String(ts);
-  const drv = await adminPost(api, token, '/admin/drivers', { fullName: driverLabel, phone: '09' + String(ts).slice(-8), password: 'e2e-pass-1234' }, CreateDriverResponseSchema); // pragma: allowlist secret
-  const veh = await adminPost(api, token, '/reference/vehicles', { name: vehicleLabel }, ReferenceItemSchema);
-  await adminPost(api, token, '/admin/driver-vehicle-assignments', { driverId: drv.driverId, vehicleId: veh.id }, AssignmentResponseSchema);
+  const drv = await adminPost(
+    api,
+    token,
+    '/admin/drivers',
+    { fullName: driverLabel, phone: '09' + String(ts).slice(-8), password: 'e2e-pass-1234' },
+    CreateDriverResponseSchema,
+  ); // pragma: allowlist secret
+  const veh = await adminPost(
+    api,
+    token,
+    '/reference/vehicles',
+    { name: vehicleLabel },
+    ReferenceItemSchema,
+  );
+  await adminPost(
+    api,
+    token,
+    '/admin/driver-vehicle-assignments',
+    { driverId: drv.driverId, vehicleId: veh.id },
+    AssignmentResponseSchema,
+  );
   return { vehicleId: veh.id, vehicleLabel, token };
 }
 function cleanupPair(pair: Pair): void {
@@ -69,13 +115,25 @@ function cleanupPair(pair: Pair): void {
   const v = sq + pair.vehicleId + sq;
   const co = sq + COMPANY_ID + sq;
   const stmts = [
-    'DELETE FROM stop WHERE transport_order_id IN (SELECT t.transport_order_id FROM transport_order t JOIN road_run_transport_order rrto ON rrto.transport_order_id=t.transport_order_id JOIN road_run r ON r.road_run_id=rrto.road_run_id WHERE r.assigned_asset_id=' + v + ');',
-    'DELETE FROM road_run_transport_order WHERE road_run_id IN (SELECT road_run_id FROM road_run WHERE assigned_asset_id=' + v + ');',
-    'DELETE FROM transport_order WHERE transport_order_id IN (SELECT t.transport_order_id FROM transport_order t WHERE NOT EXISTS (SELECT 1 FROM road_run_transport_order x WHERE x.transport_order_id=t.transport_order_id) AND t.company_id=' + co + ');',
+    'DELETE FROM stop WHERE transport_order_id IN (SELECT t.transport_order_id FROM transport_order t JOIN road_run_transport_order rrto ON rrto.transport_order_id=t.transport_order_id JOIN road_run r ON r.road_run_id=rrto.road_run_id WHERE r.assigned_asset_id=' +
+      v +
+      ');',
+    'DELETE FROM road_run_transport_order WHERE road_run_id IN (SELECT road_run_id FROM road_run WHERE assigned_asset_id=' +
+      v +
+      ');',
+    'DELETE FROM transport_order WHERE transport_order_id IN (SELECT t.transport_order_id FROM transport_order t WHERE NOT EXISTS (SELECT 1 FROM road_run_transport_order x WHERE x.transport_order_id=t.transport_order_id) AND t.company_id=' +
+      co +
+      ');',
     'DELETE FROM road_run WHERE assigned_asset_id=' + v + ';',
     'DELETE FROM dispatch_board_projection WHERE assigned_asset_id=' + v + ';',
   ];
-  for (const s of stmts) { try { dockerPsql(s); } catch { /* tolerate */ } }
+  for (const s of stmts) {
+    try {
+      dockerPsql(s);
+    } catch {
+      /* tolerate */
+    }
+  }
 }
 // Authenticate via injected session (PKCE login has no credential form).
 async function login(page: Page): Promise<void> {
@@ -96,13 +154,21 @@ async function createOrderViaUi(page: Page, pair: Pair): Promise<void> {
   await page.locator('input#deliveryWarehouse_1').click();
   await page.getByRole('option').first().click();
   await page.getByRole('button', { name: 'Tạo lệnh' }).click();
-  await expect(page.locator('a[href^="/dispatch/orders/"]').first()).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('a[href^="/dispatch/orders/"]').first()).toBeVisible({
+    timeout: 15000,
+  });
 }
 test.describe.serial('export Excel contains all on-screen Lệnh điều xe columns', () => {
   let pair: Pair | null = null;
-  test.beforeAll(async ({ request }) => { pair = await setupPair(request); });
-  test.afterAll(() => { if (pair) cleanupPair(pair); });
-  test('exported workbook header row equals the 19 SSOT columns (Số lệnh + Trạng thái + Khách hàng + Tên hàng + 4 more identifying + Chênh lệch + per-slot name/kg pairs) in order', async ({ page }) => {
+  test.beforeAll(async ({ request }) => {
+    pair = await setupPair(request);
+  });
+  test.afterAll(() => {
+    if (pair) cleanupPair(pair);
+  });
+  test('exported workbook header row equals the 19 SSOT columns (Số lệnh + Trạng thái + Khách hàng + Tên hàng + 4 more identifying + Chênh lệch + per-slot name/kg pairs) in order', async ({
+    page,
+  }) => {
     if (!pair) throw new Error('pair missing');
     await login(page);
     await createOrderViaUi(page, pair);

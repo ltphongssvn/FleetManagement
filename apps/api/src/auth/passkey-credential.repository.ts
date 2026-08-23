@@ -3,7 +3,10 @@
 // no policy decisions, no crypto. Drizzle-typed; uses Buffer for bytea columns.
 import { eq, sql } from 'drizzle-orm';
 import type { FleetDb } from '../database/database.module.js';
-import { passkeyCredential, type PasskeyCredential } from '../database/schema/passkey-credential.js';
+import {
+  passkeyCredential,
+  type PasskeyCredential,
+} from '../database/schema/passkey-credential.js';
 
 export interface InsertPasskeyCredential {
   readonly companyId: string;
@@ -39,14 +42,17 @@ export class PasskeyCredentialRepository {
   }
 
   async findByCredentialId(credentialId: Buffer): Promise<PasskeyCredential | null> {
-    const rows = await this.db.select().from(passkeyCredential)
+    const rows = await this.db
+      .select()
+      .from(passkeyCredential)
       .where(eq(passkeyCredential.credentialId, credentialId))
       .limit(1);
     return rows[0] ?? null;
   }
 
   async credentialIdExists(credentialId: Buffer): Promise<boolean> {
-    const rows = await this.db.select({ id: passkeyCredential.passkeyCredentialId })
+    const rows = await this.db
+      .select({ id: passkeyCredential.passkeyCredentialId })
       .from(passkeyCredential)
       .where(eq(passkeyCredential.credentialId, credentialId))
       .limit(1);
@@ -57,7 +63,8 @@ export class PasskeyCredentialRepository {
   // is always a number. No null-coalescing fallback needed (would be dead code per
   // branch-coverage gate).
   async countByDriverId(driverId: string): Promise<number> {
-    const rows = await this.db.select({ c: sql<number>`count(*)::int` })
+    const rows = await this.db
+      .select({ c: sql<number>`count(*)::int` })
       .from(passkeyCredential)
       .where(eq(passkeyCredential.driverId, driverId));
     /* c8 ignore next -- count(*) always returns 1 row; ?. and ?? are defensive */
@@ -65,7 +72,8 @@ export class PasskeyCredentialRepository {
   }
 
   async updateSignCountAndLastUsed(credentialId: Buffer, newSignCount: number): Promise<void> {
-    await this.db.update(passkeyCredential)
+    await this.db
+      .update(passkeyCredential)
       .set({ signCount: newSignCount, lastUsedAt: new Date() })
       .where(eq(passkeyCredential.credentialId, credentialId));
   }

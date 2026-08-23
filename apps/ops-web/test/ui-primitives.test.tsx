@@ -41,7 +41,11 @@ describe('Button', () => {
     // Pattern affordance: a button must BE a button. The board previously used
     // bare anchors and text spans for actions, which is why users could not tell
     // what was clickable.
-    render(<Button tone='primary' emphasis='solid'>Tạo lệnh điều xe</Button>);
+    render(
+      <Button tone="primary" emphasis="solid">
+        Tạo lệnh điều xe
+      </Button>,
+    );
     const btn = screen.getByRole('button', { name: 'Tạo lệnh điều xe' });
     expect(btn.tagName).toBe('BUTTON');
     expect(btn.getAttribute('type')).toBe('button');
@@ -68,19 +72,31 @@ describe('Button', () => {
   it('exposes tone and emphasis as data attributes rather than a colour prop', () => {
     // WCAG 1.4.1: meaning travels as a NAMED role. A caller cannot pass a colour,
     // and a test or an e2e spec can assert intent without matching class strings.
-    render(<Button tone='danger' emphasis='solid' data-testid='btn-delete'>Xóa</Button>);
+    render(
+      <Button tone="danger" emphasis="solid" data-testid="btn-delete">
+        Xóa
+      </Button>,
+    );
     const btn = screen.getByTestId('btn-delete');
     expect(btn.getAttribute('data-tone')).toBe('danger');
     expect(btn.getAttribute('data-emphasis')).toBe('solid');
   });
 
   it('carries a visible focus ring class so keyboard focus is never invisible', () => {
-    render(<Button tone='neutral' emphasis='ghost' data-testid='btn-focus'>Đóng</Button>);
+    render(
+      <Button tone="neutral" emphasis="ghost" data-testid="btn-focus">
+        Đóng
+      </Button>,
+    );
     expect(screen.getByTestId('btn-focus').className).toContain('focus-visible:ring');
   });
 
   it('marks a disabled button as disabled to assistive technology, not just visually', () => {
-    render(<Button tone='primary' emphasis='solid' disabled data-testid='btn-disabled'>Lưu</Button>);
+    render(
+      <Button tone="primary" emphasis="solid" disabled data-testid="btn-disabled">
+        Lưu
+      </Button>,
+    );
     const btn = screen.getByTestId('btn-disabled');
     expect(btn).toBeDisabled();
     expect(btn.getAttribute('aria-disabled')).toBe('true');
@@ -89,7 +105,13 @@ describe('Button', () => {
   it('invokes onClick when activated', async () => {
     let clicks = 0;
     render(
-      <Button tone='primary' emphasis='solid' onClick={() => { clicks += 1; }}>
+      <Button
+        tone="primary"
+        emphasis="solid"
+        onClick={() => {
+          clicks += 1;
+        }}
+      >
         Tạo lệnh
       </Button>,
     );
@@ -103,8 +125,8 @@ describe('IconButton', () => {
     // An icon with no name is the purest form of the reported complaint: the
     // control exists but nothing says what it does.
     render(
-      <IconButton tone='neutral' emphasis='ghost' label='Trợ giúp' data-testid='icon-help'>
-        <svg aria-hidden='true' />
+      <IconButton tone="neutral" emphasis="ghost" label="Trợ giúp" data-testid="icon-help">
+        <svg aria-hidden="true" />
       </IconButton>,
     );
     const btn = screen.getByRole('button', { name: 'Trợ giúp' });
@@ -115,8 +137,8 @@ describe('IconButton', () => {
     // Icon-only controls carry no text to enlarge the hit area, so they take the
     // WCAG AAA-recommended 44px rather than the bare AA floor.
     render(
-      <IconButton tone='neutral' emphasis='ghost' label='Đóng' data-testid='icon-close'>
-        <svg aria-hidden='true' />
+      <IconButton tone="neutral" emphasis="ghost" label="Đóng" data-testid="icon-close">
+        <svg aria-hidden="true" />
       </IconButton>,
     );
     const btn = screen.getByTestId('icon-close');
@@ -140,15 +162,19 @@ describe('EmptyState', () => {
     // UX-06: the empty board previously ended the user journey with a sentence.
     render(
       <EmptyState
-        reason='no_data_yet'
-        action={<Button tone='primary' emphasis='solid'>Tạo lệnh điều xe</Button>}
+        reason="no_data_yet"
+        action={
+          <Button tone="primary" emphasis="solid">
+            Tạo lệnh điều xe
+          </Button>
+        }
       />,
     );
     expect(screen.getByRole('button', { name: 'Tạo lệnh điều xe' })).toBeInTheDocument();
   });
 
   it('is announced as a status region so a screen reader learns why the area is blank', () => {
-    render(<EmptyState reason='no_search_results' data-testid='empty-search' />);
+    render(<EmptyState reason="no_search_results" data-testid="empty-search" />);
     expect(screen.getByTestId('empty-search').getAttribute('role')).toBe('status');
   });
 });
@@ -165,7 +191,7 @@ describe('HelpHint', () => {
   it('keeps the guidance collapsed until asked, then reveals the SSOT steps', async () => {
     // Progressive disclosure: guidance must be available without permanently
     // consuming the density a dispatcher relies on.
-    render(<HelpHint topic='dispatch_board' />);
+    render(<HelpHint topic="dispatch_board" />);
     const trigger = screen.getByRole('button', { name: 'Hướng dẫn' });
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByText(HELP_TOPIC_VI.dispatch_board.title)).toBeNull();
@@ -180,7 +206,7 @@ describe('HelpHint', () => {
   });
 
   it('renders the steps as an ordered list so the sequence is conveyed structurally', async () => {
-    render(<HelpHint topic='create_order' />);
+    render(<HelpHint topic="create_order" />);
     await userEvent.click(screen.getByRole('button', { name: 'Hướng dẫn' }));
     const list = screen.getByRole('list');
     expect(list.tagName).toBe('OL');
@@ -188,7 +214,7 @@ describe('HelpHint', () => {
   });
 
   it('links the trigger to the panel it controls', async () => {
-    render(<HelpHint topic='order_detail' />);
+    render(<HelpHint topic="order_detail" />);
     const trigger = screen.getByRole('button', { name: 'Hướng dẫn' });
     const controls = trigger.getAttribute('aria-controls');
     expect(controls).not.toBeNull();
@@ -204,8 +230,8 @@ describe('FieldLabel', () => {
     // placeholder-only (defect UX-12).
     render(
       <div>
-        <FieldLabel htmlFor='vehiclePlate'>Số xe</FieldLabel>
-        <input id='vehiclePlate' />
+        <FieldLabel htmlFor="vehiclePlate">Số xe</FieldLabel>
+        <input id="vehiclePlate" />
       </div>,
     );
     const input = screen.getByLabelText('Số xe');
@@ -215,8 +241,10 @@ describe('FieldLabel', () => {
   it('marks a required field in text, not by colour or an unexplained asterisk', () => {
     render(
       <div>
-        <FieldLabel htmlFor='driver' required>Tài xế</FieldLabel>
-        <input id='driver' />
+        <FieldLabel htmlFor="driver" required>
+          Tài xế
+        </FieldLabel>
+        <input id="driver" />
       </div>,
     );
     expect(screen.getByText('bắt buộc')).toBeInTheDocument();
@@ -225,8 +253,8 @@ describe('FieldLabel', () => {
   it('renders an optional hint tied to the control via aria-describedby', () => {
     render(
       <div>
-        <FieldLabel htmlFor='pickupAt' hint='Ngày tài xế tới kho lấy hàng.' />
-        <input id='pickupAt' aria-describedby='pickupAt-hint' />
+        <FieldLabel htmlFor="pickupAt" hint="Ngày tài xế tới kho lấy hàng." />
+        <input id="pickupAt" aria-describedby="pickupAt-hint" />
       </div>,
     );
     const hint = screen.getByText('Ngày tài xế tới kho lấy hàng.');

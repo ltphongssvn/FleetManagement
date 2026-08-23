@@ -54,7 +54,8 @@ function log(section: string, msg: string): void {
 // dispatcher token is minted from INSIDE the api container, exactly as
 // dispatcher-to-driver-fulfillment.spec.ts does.
 async function mintToken(): Promise<string> {
-    const script = "fetch('http://mock-oauth2:8080/fleet/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:'grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret'}).then(r=>r.json()).then(j=>process.stdout.write(j.access_token))";
+  const script =
+    "fetch('http://mock-oauth2:8080/fleet/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:'grant_type=password&username=dispatcher&password=x&scope=fleet&client_id=ops-web&client_secret=ops-web-secret'}).then(r=>r.json()).then(j=>process.stdout.write(j.access_token))";
   const r = await execa('docker', ['exec', API_CTR, 'node', '-e', script], { all: true });
   const tok = r.stdout.trim();
   if (!tok.includes('.')) throw new Error('token mint failed: ' + r.all);
@@ -93,21 +94,46 @@ async function seed(): Promise<SeedResult> {
   const phone = '09' + String(ts).slice(-8);
   const driverLabel = 'E2E DRIVER MAESTRO ' + String(ts);
   const vehicleLabel = 'E2E-MAESTRO-' + String(ts);
-  const drv = await apiPost(token, '/admin/drivers', { fullName: driverLabel, phone, password: KNOWN_PASSWORD });
+  const drv = await apiPost(token, '/admin/drivers', {
+    fullName: driverLabel,
+    phone,
+    password: KNOWN_PASSWORD,
+  });
   const veh = await apiPost(token, '/reference/vehicles', { name: vehicleLabel });
-  await apiPost(token, '/admin/driver-vehicle-assignments', { driverId: drv['driverId'], vehicleId: veh['id'] });
+  await apiPost(token, '/admin/driver-vehicle-assignments', {
+    driverId: drv['driverId'],
+    vehicleId: veh['id'],
+  });
   const order = await apiPost(token, '/transport-orders', {
-    stops: [ { sequence: 1, stopType: 'pickup' }, { sequence: 2, stopType: 'delivery' } ],
-    roadRun: { assignedOperatorId: drv['operatorId'], assignedAssetId: veh['id'], plannedStartAt: new Date().toISOString() },
+    stops: [
+      { sequence: 1, stopType: 'pickup' },
+      { sequence: 2, stopType: 'delivery' },
+    ],
+    roadRun: {
+      assignedOperatorId: drv['operatorId'],
+      assignedAssetId: veh['id'],
+      plannedStartAt: new Date().toISOString(),
+    },
   });
   const orderRef = String(order['externalRef']);
   const vehicleId = String(veh['id']);
   log('seed', 'phone=' + phone + ' order=' + orderRef + ' vehicle=' + vehicleLabel);
   mkdirSync(dirname(HANDOFF), { recursive: true });
-  writeFileSync(HANDOFF, JSON.stringify({
-    driverPhone: phone, driverPassword: KNOWN_PASSWORD, orderRef,
-    operatorId: drv['operatorId'], vehicleId, vehicleLabel,
-  }, null, 2));
+  writeFileSync(
+    HANDOFF,
+    JSON.stringify(
+      {
+        driverPhone: phone,
+        driverPassword: KNOWN_PASSWORD,
+        orderRef,
+        operatorId: drv['operatorId'],
+        vehicleId,
+        vehicleLabel,
+      },
+      null,
+      2,
+    ),
+  );
   return { phone, password: KNOWN_PASSWORD, orderRef, vehicleLabel, vehicleId };
 }
 
@@ -141,12 +167,26 @@ async function cleanup(vehicleId: string): Promise<void> {
     "WITH del AS (DELETE FROM driver_vehicle_assignment WHERE vehicle_id=:'vid' RETURNING driver_id) DELETE FROM driver WHERE driver_id IN (SELECT driver_id FROM del);",
     "DELETE FROM vehicle WHERE vehicle_id=:'vid';",
   ].join('\n');
-  await execa('docker', [
-    'exec', '-i', PG, 'psql', '-U', 'fleet', '-d', 'fleet',
-    '-v', 'vid=' + vehicleId,
-    '-v', 'cid=' + COMPANY_ID,
-    '-f', '-',
-  ], { input: sql, reject: false, all: true });
+  await execa(
+    'docker',
+    [
+      'exec',
+      '-i',
+      PG,
+      'psql',
+      '-U',
+      'fleet',
+      '-d',
+      'fleet',
+      '-v',
+      'vid=' + vehicleId,
+      '-v',
+      'cid=' + COMPANY_ID,
+      '-f',
+      '-',
+    ],
+    { input: sql, reject: false, all: true },
+  );
   log('cleanup', 'order graph removed for vehicle ' + vehicleId);
 }
 
@@ -160,12 +200,23 @@ async function adbReverse(): Promise<void> {
 // ANR modal from occluding the app / blocking gesture injection. Per-emulator
 // setting, not persisted across a fresh AVD, so applied every run.
 async function ensureEmulatorSettings(): Promise<void> {
-  await execa('adb', ['-s', DEVICE, 'shell', 'settings', 'put', 'global', 'hide_error_dialogs', '1'], { reject: false });
-  const r = await execa('adb', ['-s', DEVICE, 'shell', 'settings', 'get', 'global', 'hide_error_dialogs'], { reject: false, all: true });
+  await execa(
+    'adb',
+    ['-s', DEVICE, 'shell', 'settings', 'put', 'global', 'hide_error_dialogs', '1'],
+    { reject: false },
+  );
+  const r = await execa(
+    'adb',
+    ['-s', DEVICE, 'shell', 'settings', 'get', 'global', 'hide_error_dialogs'],
+    { reject: false, all: true },
+  );
   log('hide_error_dialogs', r.all.trim());
 }
 
-interface FlowResult { flow: string; rc: number }
+interface FlowResult {
+  flow: string;
+  rc: number;
+}
 // FAILS CLOSED on a signal death (2026-08-08). execa types exitCode as
 // number | undefined because it is UNDEFINED when the process was killed by a
 // signal rather than exiting normally -- SIGKILL from an emulator OOM, or a CI
@@ -179,7 +230,12 @@ interface FlowResult { flow: string; rc: number }
 // 1 treats "we do not know how it ended" as a failure, and the signal is
 // surfaced in the log line rather than swallowed.
 async function runFlow(flowPath: string, seedEnv: Record<string, string>): Promise<FlowResult> {
-  const r = await execa('maestro', ['test', flowPath], { cwd: WT, env: { ...env, ...seedEnv }, reject: false, all: true });
+  const r = await execa('maestro', ['test', flowPath], {
+    cwd: WT,
+    env: { ...env, ...seedEnv },
+    reject: false,
+    all: true,
+  });
   const rc = r.exitCode ?? 1;
   const how = r.exitCode === undefined ? ' (killed by signal ' + (r.signal ?? 'unknown') + ')' : '';
   log('maestro ' + basename(flowPath), r.all + '\nRC=' + String(rc) + how);
@@ -189,15 +245,23 @@ async function runFlow(flowPath: string, seedEnv: Record<string, string>): Promi
 function copyScreens(): void {
   const base = join(homedir(), '.maestro/tests');
   if (!existsSync(base)) return;
-  const runs = readdirSync(base).map((d) => join(base, d)).filter((d) => statSync(d).isDirectory());
+  const runs = readdirSync(base)
+    .map((d) => join(base, d))
+    .filter((d) => statSync(d).isDirectory());
   if (runs.length === 0) return;
   // Indexed access: [0] is string | undefined under noUncheckedIndexedAccess even
   // though runs.length > 0 was checked above. Narrow explicitly rather than assert.
   const latest = runs.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
   if (latest === undefined) return;
-  const pngs = readdirSync(latest).filter((f) => f.endsWith('.png')).map((f) => join(latest, f));
+  const pngs = readdirSync(latest)
+    .filter((f) => f.endsWith('.png'))
+    .map((f) => join(latest, f));
   const usersDir = '/mnt/c/Users';
-  const desks = existsSync(usersDir) ? readdirSync(usersDir).map((u) => join(usersDir, u, 'Desktop')).filter((d) => existsSync(d)) : [];
+  const desks = existsSync(usersDir)
+    ? readdirSync(usersDir)
+        .map((u) => join(usersDir, u, 'Desktop'))
+        .filter((d) => existsSync(d))
+    : [];
   for (const png of pngs) {
     for (const desk of desks) copyFileSync(png, join(desk, 'rel_' + basename(png)));
   }

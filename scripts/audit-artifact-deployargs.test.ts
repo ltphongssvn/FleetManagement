@@ -42,8 +42,7 @@ describe('deployArgs carries the flag pnpm 10+ requires', () => {
   // THE OBSERVED FAILURE. Without this, every deploy exits
   // ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE and the gate can never run.
   it('passes --config.inject-workspace-packages=true', () => {
-    expect(deployArgs('@fleet/api', 'out'))
-      .toContain('--config.inject-workspace-packages=true');
+    expect(deployArgs('@fleet/api', 'out')).toContain('--config.inject-workspace-packages=true');
   });
 
   // THE TRAP THE ERROR MESSAGE SETS. pnpm offers --legacy as the alternative,

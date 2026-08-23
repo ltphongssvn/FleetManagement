@@ -22,11 +22,18 @@ export async function runSpoolSweepOnBoot(deps: SpoolSweepDeps): Promise<SpoolSw
   const now = (deps.now ?? Date.now)();
   const entries = await deps.list();
   const decisions = sweepSpool(entries, now);
-  let resumed = 0, skipped = 0, abandoned = 0, cleaned = 0;
+  let resumed = 0,
+    skipped = 0,
+    abandoned = 0,
+    cleaned = 0;
   for (const d of decisions) {
     switch (d.classification.action) {
-      case 'resume_upload': resumed++; break;
-      case 'skip_in_progress': skipped++; break;
+      case 'resume_upload':
+        resumed++;
+        break;
+      case 'skip_in_progress':
+        skipped++;
+        break;
       case 'abandon':
         await deps.remove(d.entry.captureId);
         abandoned++;

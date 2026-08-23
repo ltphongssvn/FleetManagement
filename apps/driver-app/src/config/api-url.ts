@@ -68,8 +68,9 @@ export function getApiUrl(): string {
   const url = resolveRawUrl();
   if (isProductionBuild() && !url.startsWith('https://')) {
     throw new Error(
-      'Insecure API base URL in production build: ' + url +
-      ' -- EXPO_PUBLIC_API_URL must be an https URL (MASVS-NETWORK).',
+      'Insecure API base URL in production build: ' +
+        url +
+        ' -- EXPO_PUBLIC_API_URL must be an https URL (MASVS-NETWORK).',
     );
   }
   return url;

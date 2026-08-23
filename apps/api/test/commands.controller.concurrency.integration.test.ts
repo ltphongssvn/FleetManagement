@@ -11,7 +11,11 @@ import { TenantPolicy } from '../src/auth/tenant-policy.js';
 import type { IPushProvider } from '../src/push/push-provider.interface.js';
 import type { Clock } from '../src/common/clock.js';
 import type { OperatorContext } from '../src/auth/operator-context.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+} from './helpers/migrate-test-db.js';
 import { rowsOf } from './helpers/integration-rows.js';
 
 let testDb: MigratedTestDb;
@@ -31,7 +35,8 @@ const opCtx: OperatorContext = {
 };
 
 function makeController(): CommandsController {
-  const noopPush: IPushProvider['sendToOperator'] = () => Promise.resolve({ accepted: 0, rejected: 0 });
+  const noopPush: IPushProvider['sendToOperator'] = () =>
+    Promise.resolve({ accepted: 0, rejected: 0 });
   const clock: Clock = { now: () => new Date('2026-05-02T10:00:00.000Z') };
   const gateway = new CommandsGateway({ sendToOperator: noopPush }, clock);
   // Stub Socket.IO server: pushCommand only reads sockets.adapter.rooms.get + .to().emit().
@@ -40,7 +45,9 @@ function makeController(): CommandsController {
     to: () => ({ emit: () => undefined }),
   };
   Object.assign(gateway as unknown as { server: unknown }, { server: fakeServer });
-  const service = new (CommandsService as unknown as new (db: unknown) => CommandsService)(testDb.db);
+  const service = new (CommandsService as unknown as new (db: unknown) => CommandsService)(
+    testDb.db,
+  );
   const policy = new (TenantPolicy as unknown as new (db: unknown) => TenantPolicy)(testDb.db);
   return new CommandsController(gateway, service, policy);
 }
@@ -58,10 +65,16 @@ function cmd(commandId: string): unknown {
 }
 
 describe('@fleet/api - CommandsController concurrency (integration, RED)', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_cmd_concurrency'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_cmd_concurrency');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
   beforeEach(async () => {
-    await testDb.db.execute(sql`TRUNCATE TABLE sync_change_feed, fleet_audit_log, outbox, device_registry, road_run CASCADE`);
+    await testDb.db.execute(
+      sql`TRUNCATE TABLE sync_change_feed, fleet_audit_log, outbox, device_registry, road_run CASCADE`,
+    );
     await testDb.db.execute(sql`
       INSERT INTO device_registry (device_id, company_id, business_unit_id, depot_id, legal_entity_id, operator_id, platform, app_version)
       VALUES (gen_random_uuid(), ${COMPANY}, ${BU}, ${DEPOT}, ${LE}, ${OP}, 'ios', '1.0')
@@ -76,13 +89,12 @@ describe('@fleet/api - CommandsController concurrency (integration, RED)', () =>
   it('assigns DISTINCT server_seq values to N concurrent commands for same company', async () => {
     const N = 20;
     const ctrl = makeController();
-    const ids = Array.from({ length: N }, (_, i) =>
-      `00000000-0000-0000-0000-${String(i).padStart(12, '0')}`,
+    const ids = Array.from(
+      { length: N },
+      (_, i) => `00000000-0000-0000-0000-${String(i).padStart(12, '0')}`,
     );
 
-    const results = await Promise.allSettled(
-      ids.map((id) => ctrl.issue(cmd(id), opCtx)),
-    );
+    const results = await Promise.allSettled(ids.map((id) => ctrl.issue(cmd(id), opCtx)));
 
     const fulfilled = results.filter((r) => r.status === 'fulfilled').length;
     expect(fulfilled).toBe(N);

@@ -27,7 +27,10 @@ export type RotationOutcome =
   | { readonly kind: 'driver-disabled' }
   | { readonly kind: 'ok'; readonly familyId: string; readonly claims: LoginClaims };
 
-export function decideRotationOutcome(candidate: RefreshCandidate | null, nowMs: number): RotationOutcome {
+export function decideRotationOutcome(
+  candidate: RefreshCandidate | null,
+  nowMs: number,
+): RotationOutcome {
   if (candidate === null) return { kind: 'not-found' };
   if (candidate.revokedAt !== null) return { kind: 'reused', familyId: candidate.familyId };
   if (candidate.expiresAt.getTime() <= nowMs) return { kind: 'expired' };

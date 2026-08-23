@@ -6,7 +6,12 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { AdminDriversUpdateService } from '../src/admin/admin-drivers-update.service.js';
 import { driver } from '../src/database/schema/reference.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+  truncateAllTables,
+} from './helpers/migrate-test-db.js';
 let testDb: MigratedTestDb;
 const COMPANY = '11111111-1111-1111-1111-111111111111';
 const OTHER_COMPANY = '99999999-9999-9999-9999-999999999999';
@@ -23,14 +28,25 @@ const OTHER_TENANCY = {
   legalEntityId: '66666666-6666-6666-6666-666666666666',
 };
 describe('@fleet/api - AdminDriversUpdateService', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_adminupd'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
-  beforeEach(async () => { await truncateAllTables(testDb.db); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_test_adminupd');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
+  beforeEach(async () => {
+    await truncateAllTables(testDb.db);
+  });
   function svc(): AdminDriversUpdateService {
     return new AdminDriversUpdateService(testDb.db as never);
   }
-  async function seedDriver(tenancy: typeof TENANCY, fullName: string, phone?: string): Promise<string> {
-    const [row] = await testDb.db.insert(driver)
+  async function seedDriver(
+    tenancy: typeof TENANCY,
+    fullName: string,
+    phone?: string,
+  ): Promise<string> {
+    const [row] = await testDb.db
+      .insert(driver)
       .values({ ...tenancy, fullName, phone })
       .returning({ driverId: driver.driverId });
     if (row === undefined) throw new Error('seed failed');
@@ -59,7 +75,9 @@ describe('@fleet/api - AdminDriversUpdateService', () => {
   it('softDelete flips active=false', async () => {
     const id = await seedDriver(TENANCY, 'BYE', '+84900000001');
     await svc().softDelete({ driverId: id, companyId: COMPANY });
-    const [row] = await testDb.db.select().from(driver)
+    const [row] = await testDb.db
+      .select()
+      .from(driver)
       .where(and(eq(driver.driverId, id), eq(driver.companyId, COMPANY)));
     expect(row?.active).toBe(false);
     expect(row?.fullName).toBe('BYE');

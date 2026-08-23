@@ -29,7 +29,11 @@ export interface RefreshTokenRecord {
 
 export interface RefreshTokenRepositoryPort {
   insert(row: RefreshTokenRecord): Promise<void>;
-  claimForRotation(tokenHash: string, replacedByTokenHash: string, nowMs: number): Promise<RefreshTokenRecord | null>;
+  claimForRotation(
+    tokenHash: string,
+    replacedByTokenHash: string,
+    nowMs: number,
+  ): Promise<RefreshTokenRecord | null>;
   findByTokenHash(tokenHash: string): Promise<RefreshTokenRecord | null>;
   revokeFamily(familyId: string, reason: string, nowMs: number): Promise<void>;
   revokeByTokenHash(tokenHash: string, reason: string, nowMs: number): Promise<void>;
@@ -158,7 +162,12 @@ export class RefreshTokenService {
     }
   }
 
-  private buildRecord(claims: LoginClaims, familyId: string, token: string, nowMs: number): RefreshTokenRecord {
+  private buildRecord(
+    claims: LoginClaims,
+    familyId: string,
+    token: string,
+    nowMs: number,
+  ): RefreshTokenRecord {
     return {
       driverId: claims.driverId,
       companyId: claims.companyId,

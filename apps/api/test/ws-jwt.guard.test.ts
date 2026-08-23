@@ -3,7 +3,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { type ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { WsJwtGuard, type AuthenticatedSocketData } from '../src/auth/ws-jwt.guard.js';
 import { OperatorContextFactory } from '../src/auth/operator-context.factory.js';
-import type { IIdentityProvider, VerifiedIdentity } from '../src/auth/identity-provider.interface.js';
+import type {
+  IIdentityProvider,
+  VerifiedIdentity,
+} from '../src/auth/identity-provider.interface.js';
 
 interface FakeSocket {
   handshake: { auth: Record<string, unknown>; headers: Record<string, string | undefined> };
@@ -76,7 +79,10 @@ describe('@fleet/api - WsJwtGuard', () => {
   it('rejects non-Bearer Authorization header', async () => {
     const idp: IIdentityProvider = { verifyToken: vi.fn() };
     const guard = new WsJwtGuard(idp, factory);
-    const sock: FakeSocket = { handshake: { auth: {}, headers: { authorization: 'Basic xyz' } }, data: {} };
+    const sock: FakeSocket = {
+      handshake: { auth: {}, headers: { authorization: 'Basic xyz' } },
+      data: {},
+    };
     await expect(guard.canActivate(makeWsCtx(sock))).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
@@ -84,7 +90,10 @@ describe('@fleet/api - WsJwtGuard', () => {
     const invalid: VerifiedIdentity = { ...validIdentity, operatorId: '' };
     const idp: IIdentityProvider = { verifyToken: vi.fn().mockResolvedValue(invalid) };
     const guard = new WsJwtGuard(idp, factory);
-    const sock: FakeSocket = { handshake: { auth: { token: 'bad-claims' }, headers: {} }, data: {} };
+    const sock: FakeSocket = {
+      handshake: { auth: { token: 'bad-claims' }, headers: {} },
+      data: {},
+    };
     await expect(guard.canActivate(makeWsCtx(sock))).rejects.toBeInstanceOf(UnauthorizedException);
   });
 });

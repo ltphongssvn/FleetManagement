@@ -40,7 +40,12 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { dockerPsql } from './helpers/docker-exec';
 import { type z } from 'zod';
-import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
+import {
+  parseJson,
+  CreateDriverResponseSchema,
+  ReferenceItemSchema,
+  AssignmentResponseSchema,
+} from './helpers/contracts';
 import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 import { settleBoardAfterCreate } from './helpers/wait-for-projection';
 import { ROW_VISIBILITY_BUDGET_MS } from './helpers/budgets';
@@ -60,18 +65,31 @@ async function pickCombobox(page: Page, inputId: string, optionLabel: string): P
   for (let attempt = 0; attempt < 4; attempt++) {
     await input.fill('');
     await input.fill(optionLabel);
-    try { await expect(opt).toBeVisible({ timeout: 5_000 }); break; }
-    catch { if (attempt === 3) throw new Error('combobox option not visible: ' + optionLabel); await page.keyboard.press('Escape'); await page.waitForTimeout(250); }
+    try {
+      await expect(opt).toBeVisible({ timeout: 5_000 });
+      break;
+    } catch {
+      if (attempt === 3) throw new Error('combobox option not visible: ' + optionLabel);
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(250);
+    }
   }
   await opt.click();
 }
 
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+async function adminPost<T>(
+  api: APIRequestContext,
+  token: string,
+  path: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
-  if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
+  if (!res.ok())
+    throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   return parseJson(res, schema);
 }
 
@@ -96,7 +114,12 @@ async function seedAll(api: APIRequestContext): Promise<Seed> {
   const token = mintDispatcherToken();
   const ts = Date.now();
   const rand = Math.floor(Math.random() * 1e9).toString(36);
-  const phone = '09' + String(ts).slice(-6) + Math.floor(Math.random() * 100).toString().padStart(2, '0');
+  const phone =
+    '09' +
+    String(ts).slice(-6) +
+    Math.floor(Math.random() * 100)
+      .toString()
+      .padStart(2, '0');
   const driverLabel = 'E2E DRIVER KH ' + rand;
   const vehicleLabel = 'E2E-KH-' + rand;
   const customerName = 'E2E-KHACH-' + rand;
@@ -105,16 +128,54 @@ async function seedAll(api: APIRequestContext): Promise<Seed> {
   const deliveryName = 'E2E-DELIVERY-' + rand;
 
   const drv = await adminPost(
-    api, token, '/admin/drivers',
+    api,
+    token,
+    '/admin/drivers',
     { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
     CreateDriverResponseSchema,
   );
-  const veh = await adminPost(api, token, '/reference/vehicles', { name: vehicleLabel }, ReferenceItemSchema);
-  const asgn = await adminPost(api, token, '/admin/driver-vehicle-assignments', { driverId: drv.driverId, vehicleId: veh.id }, AssignmentResponseSchema);
-  const cust = await adminPost(api, token, '/reference/customers', { name: customerName }, ReferenceItemSchema);
-  const cargo = await adminPost(api, token, '/reference/cargo-types', { name: cargoName }, ReferenceItemSchema);
-  const pickup = await adminPost(api, token, '/reference/warehouses', { name: pickupName, role: 'pickup' }, ReferenceItemSchema);
-  const delivery = await adminPost(api, token, '/reference/warehouses', { name: deliveryName, role: 'delivery' }, ReferenceItemSchema);
+  const veh = await adminPost(
+    api,
+    token,
+    '/reference/vehicles',
+    { name: vehicleLabel },
+    ReferenceItemSchema,
+  );
+  const asgn = await adminPost(
+    api,
+    token,
+    '/admin/driver-vehicle-assignments',
+    { driverId: drv.driverId, vehicleId: veh.id },
+    AssignmentResponseSchema,
+  );
+  const cust = await adminPost(
+    api,
+    token,
+    '/reference/customers',
+    { name: customerName },
+    ReferenceItemSchema,
+  );
+  const cargo = await adminPost(
+    api,
+    token,
+    '/reference/cargo-types',
+    { name: cargoName },
+    ReferenceItemSchema,
+  );
+  const pickup = await adminPost(
+    api,
+    token,
+    '/reference/warehouses',
+    { name: pickupName, role: 'pickup' },
+    ReferenceItemSchema,
+  );
+  const delivery = await adminPost(
+    api,
+    token,
+    '/reference/warehouses',
+    { name: deliveryName, role: 'delivery' },
+    ReferenceItemSchema,
+  );
 
   return {
     token,
@@ -125,7 +186,12 @@ async function seedAll(api: APIRequestContext): Promise<Seed> {
     cargoTypeId: cargo.id,
     pickupId: pickup.id,
     deliveryId: delivery.id,
-    customerName, cargoName, vehicleLabel, driverLabel, pickupName, deliveryName,
+    customerName,
+    cargoName,
+    vehicleLabel,
+    driverLabel,
+    pickupName,
+    deliveryName,
   };
 }
 
@@ -135,19 +201,87 @@ async function seedAll(api: APIRequestContext): Promise<Seed> {
 // a partially-created order still cleans up.
 function cleanupOrder(externalRef: string): void {
   const sq = String.fromCharCode(39);
-  const txId = dockerPsql('SELECT transport_order_id FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq + ' AND external_ref=' + sq + externalRef + sq + ';').stdout.trim();
+  const txId = dockerPsql(
+    'SELECT transport_order_id FROM transport_order WHERE company_id=' +
+      sq +
+      COMPANY_ID +
+      sq +
+      ' AND external_ref=' +
+      sq +
+      externalRef +
+      sq +
+      ';',
+  ).stdout.trim();
   if (txId.length > 0) {
-    const rrIds = dockerPsql('SELECT road_run_id FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';')
-      .stdout.trim().split(String.fromCharCode(10)).filter((line) => line.length > 0);
-    try { dockerPsql('DELETE FROM stop WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
-    try { dockerPsql('DELETE FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
+    const rrIds = dockerPsql(
+      'SELECT road_run_id FROM road_run_transport_order WHERE transport_order_id=' +
+        sq +
+        txId +
+        sq +
+        ';',
+    )
+      .stdout.trim()
+      .split(String.fromCharCode(10))
+      .filter((line) => line.length > 0);
+    try {
+      dockerPsql('DELETE FROM stop WHERE transport_order_id=' + sq + txId + sq + ';');
+    } catch {
+      /* tolerate */
+    }
+    try {
+      dockerPsql(
+        'DELETE FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';',
+      );
+    } catch {
+      /* tolerate */
+    }
     for (const rrId of rrIds) {
-      try { dockerPsql('DELETE FROM dispatch_board_projection WHERE road_run_id=' + sq + rrId + sq + ';'); } catch { /* tolerate */ }
-      try { dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + rrId + sq + ';'); } catch { /* tolerate */ }
+      try {
+        dockerPsql(
+          'DELETE FROM dispatch_board_projection WHERE road_run_id=' + sq + rrId + sq + ';',
+        );
+      } catch {
+        /* tolerate */
+      }
+      try {
+        dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + rrId + sq + ';');
+      } catch {
+        /* tolerate */
+      }
     }
   }
-  try { dockerPsql('DELETE FROM outbox WHERE company_id=' + sq + COMPANY_ID + sq + ' AND payload::text LIKE ' + sq + '%' + externalRef + '%' + sq + ';'); } catch { /* tolerate */ }
-  try { dockerPsql('DELETE FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq + ' AND external_ref=' + sq + externalRef + sq + ';'); } catch { /* tolerate */ }
+  try {
+    dockerPsql(
+      'DELETE FROM outbox WHERE company_id=' +
+        sq +
+        COMPANY_ID +
+        sq +
+        ' AND payload::text LIKE ' +
+        sq +
+        '%' +
+        externalRef +
+        '%' +
+        sq +
+        ';',
+    );
+  } catch {
+    /* tolerate */
+  }
+  try {
+    dockerPsql(
+      'DELETE FROM transport_order WHERE company_id=' +
+        sq +
+        COMPANY_ID +
+        sq +
+        ' AND external_ref=' +
+        sq +
+        externalRef +
+        sq +
+        ';',
+    );
+  } catch {
+    /* tolerate */
+  }
 }
 
 // Revoke the pair and remove every reference row this spec seeded, so the next
@@ -160,7 +294,9 @@ async function cleanupSeed(api: APIRequestContext, seed: Seed): Promise<void> {
       headers: { ...auth, 'Content-Type': 'application/json' },
       data: JSON.stringify({ reason: 'e2e-cleanup' }),
     });
-  } catch { /* tolerate */ }
+  } catch {
+    /* tolerate */
+  }
   for (const path of [
     '/reference/vehicles/' + seed.vehicleId,
     '/admin/drivers/' + seed.driverId,
@@ -169,7 +305,11 @@ async function cleanupSeed(api: APIRequestContext, seed: Seed): Promise<void> {
     '/reference/warehouses/' + seed.pickupId,
     '/reference/warehouses/' + seed.deliveryId,
   ]) {
-    try { await api.delete(API_URL + path, { headers: auth }); } catch { /* tolerate */ }
+    try {
+      await api.delete(API_URL + path, { headers: auth });
+    } catch {
+      /* tolerate */
+    }
   }
 }
 
@@ -182,7 +322,10 @@ test.describe.serial('Lệnh điều xe board: Khách hàng column replaces Tr�
     if (seed) await cleanupSeed(request, seed);
   });
 
-  test('board shows Khách hàng header + customer name, and no Trạng thái column', async ({ page, request }) => {
+  test('board shows Khách hàng header + customer name, and no Trạng thái column', async ({
+    page,
+    request,
+  }) => {
     seed = await seedAll(request);
 
     // Authenticate via injected session (PKCE login has no credential form).
@@ -225,18 +368,16 @@ test.describe.serial('Lệnh điều xe board: Khách hàng column replaces Tr�
     await settleBoardAfterCreate(page, request, seed.token, createdRef);
 
     // INVARIANT 1: the board renders a Khách hàng column header.
-    await expect(
-      page.getByRole('columnheader', { name: 'Khách hàng' }),
-    ).toBeVisible({ timeout: ROW_VISIBILITY_BUDGET_MS });
+    await expect(page.getByRole('columnheader', { name: 'Khách hàng' })).toBeVisible({
+      timeout: ROW_VISIBILITY_BUDGET_MS,
+    });
 
     // INVARIANT 2: the created order's customer name shows in the board.
-    await expect(
-      page.getByRole('cell', { name: seed.customerName }),
-    ).toBeVisible({ timeout: ROW_VISIBILITY_BUDGET_MS });
+    await expect(page.getByRole('cell', { name: seed.customerName })).toBeVisible({
+      timeout: ROW_VISIBILITY_BUDGET_MS,
+    });
 
     // INVARIANT 3: the Trạng thái column is gone from the board.
-    await expect(
-      page.getByRole('columnheader', { name: 'Trạng thái' }),
-    ).toHaveCount(0);
+    await expect(page.getByRole('columnheader', { name: 'Trạng thái' })).toHaveCount(0);
   });
 });

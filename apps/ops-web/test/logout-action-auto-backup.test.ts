@@ -5,7 +5,11 @@
 // failures must NOT block the redirect to /login.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('next/headers', () => ({ cookies: vi.fn() }));
-vi.mock('next/navigation', () => ({ redirect: vi.fn((to: string) => { throw new Error('REDIRECT:' + to); }) }));
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn((to: string) => {
+    throw new Error('REDIRECT:' + to);
+  }),
+}));
 import { cookies } from 'next/headers';
 import { logout } from '../src/features/auth/logout.action.js';
 describe('@fleet/ops-web - logout.action auto-backup wiring', () => {
@@ -19,9 +23,9 @@ describe('@fleet/ops-web - logout.action auto-backup wiring', () => {
       get: vi.fn().mockReturnValue({ value: 'jwt-xyz' }),
       delete: deleteMock,
     } as never);
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({}), { status: 200 }) as never,
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }) as never);
     await expect(logout()).rejects.toThrow(/REDIRECT/);
     expect(fetchSpy).toHaveBeenCalledOnce();
     const call = fetchSpy.mock.calls[0];
@@ -39,7 +43,9 @@ describe('@fleet/ops-web - logout.action auto-backup wiring', () => {
       get: vi.fn().mockReturnValue(undefined),
       delete: vi.fn(),
     } as never);
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 200 }) as never);
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('', { status: 200 }) as never);
     await expect(logout()).rejects.toThrow(/REDIRECT/);
     expect(fetchSpy).not.toHaveBeenCalled();
   });

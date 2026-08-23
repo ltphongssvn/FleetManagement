@@ -15,7 +15,9 @@ export const driverRefreshToken = pgTable(
   {
     driverRefreshTokenId: uuid('driver_refresh_token_id').primaryKey().defaultRandom(),
     ...tenancyColumns,
-    driverId: uuid('driver_id').notNull().references(() => driver.driverId),
+    driverId: uuid('driver_id')
+      .notNull()
+      .references(() => driver.driverId),
     operatorId: uuid('operator_id').notNull(),
     familyId: uuid('family_id').notNull(),
     tokenHash: varchar('token_hash', { length: 64 }).notNull(),

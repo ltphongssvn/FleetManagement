@@ -17,8 +17,8 @@
 //   3. Entry point guarded (import.meta) so importing in tests runs nothing.
 //
 // Run: pnpm exec turbo run sync:worktrees   (root-scoped //# task)
-import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { classifyDepsCandidate } from './worktree-deps-status.js';
@@ -45,35 +45,35 @@ export interface WorktreeState {
   behind: number;
   isDirty: boolean;
 }
-export type BlockedReason = "dirty" | "diverged-remote";
+export type BlockedReason = 'dirty' | 'diverged-remote';
 export type Action =
-  | { kind: "detached" }
-  | { kind: "synced" }
-  | { kind: "ff"; behind: number }
-  | { kind: "ahead"; ahead: number }
-  | { kind: "publish"; branch: string }
-  | { kind: "set-upstream"; branch: string }
-  | { kind: "blocked"; reason: BlockedReason; ahead: number; behind: number };
+  | { kind: 'detached' }
+  | { kind: 'synced' }
+  | { kind: 'ff'; behind: number }
+  | { kind: 'ahead'; ahead: number }
+  | { kind: 'publish'; branch: string }
+  | { kind: 'set-upstream'; branch: string }
+  | { kind: 'blocked'; reason: BlockedReason; ahead: number; behind: number };
 
 // Total decision function. Order matters: detached, then upstream presence,
 // then the ahead/behind quadrants with the dirty gate on the FF path.
 export function classify(s: WorktreeState): Action {
-  if (s.branch === null) return { kind: "detached" };
+  if (s.branch === null) return { kind: 'detached' };
   if (!s.hasUpstream) {
     return s.originBranchExists
-      ? { kind: "set-upstream", branch: s.branch }
-      : { kind: "publish", branch: s.branch };
+      ? { kind: 'set-upstream', branch: s.branch }
+      : { kind: 'publish', branch: s.branch };
   }
   if (s.ahead > 0 && s.behind > 0) {
-    return { kind: "blocked", reason: "diverged-remote", ahead: s.ahead, behind: s.behind };
+    return { kind: 'blocked', reason: 'diverged-remote', ahead: s.ahead, behind: s.behind };
   }
-  if (s.ahead > 0) return { kind: "ahead", ahead: s.ahead };
+  if (s.ahead > 0) return { kind: 'ahead', ahead: s.ahead };
   if (s.behind > 0) {
     return s.isDirty
-      ? { kind: "blocked", reason: "dirty", ahead: s.ahead, behind: s.behind }
-      : { kind: "ff", behind: s.behind };
+      ? { kind: 'blocked', reason: 'dirty', ahead: s.ahead, behind: s.behind }
+      : { kind: 'ff', behind: s.behind };
   }
-  return { kind: "synced" };
+  return { kind: 'synced' };
 }
 
 // ------------------------------ SHELL (impure) -----------------------------
@@ -111,24 +111,27 @@ export function gitExecOptions(args: string[], cwd?: string): GitExecOptions {
 
 function git(args: string[], opts: { cwd?: string; allowFail?: boolean } = {}): string {
   try {
-    return execFileSync("git", args, gitExecOptions(args, opts.cwd)).trim();
+    return execFileSync('git', args, gitExecOptions(args, opts.cwd)).trim();
   } catch (err) {
     if (opts.allowFail) return '';
     throw err;
   }
 }
-interface Worktree { path: string; branch: string | null }
+interface Worktree {
+  path: string;
+  branch: string | null;
+}
 function listWorktrees(): Worktree[] {
-  const out = git(["worktree", "list", "--porcelain"]);
+  const out = git(['worktree', 'list', '--porcelain']);
   const trees: Worktree[] = [];
   let cur: Partial<Worktree> = {};
   for (const line of out.split(String.fromCharCode(10))) {
-    if (line.startsWith("worktree ")) {
+    if (line.startsWith('worktree ')) {
       if (cur.path) trees.push({ path: cur.path, branch: cur.branch ?? null });
-      cur = { path: line.slice("worktree ".length) };
-    } else if (line.startsWith("branch ")) {
-      cur.branch = line.slice("branch ".length).replace("refs/heads/", '');
-    } else if (line === "detached") {
+      cur = { path: line.slice('worktree '.length) };
+    } else if (line.startsWith('branch ')) {
+      cur.branch = line.slice('branch '.length).replace('refs/heads/', '');
+    } else if (line === 'detached') {
       cur.branch = null;
     }
   }
@@ -136,19 +139,27 @@ function listWorktrees(): Worktree[] {
   return trees;
 }
 function currentUpstream(cwd: string): string | null {
-  const u = git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], { cwd, allowFail: true });
+  const u = git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], {
+    cwd,
+    allowFail: true,
+  });
   return u || null;
 }
 function aheadBehindVs(cwd: string, upstream: string): { ahead: number; behind: number } {
-  const counts = git(["rev-list", "--left-right", "--count", "HEAD..." + upstream], { cwd });
+  const counts = git(['rev-list', '--left-right', '--count', 'HEAD...' + upstream], { cwd });
   const [aStr, bStr] = counts.split(/\s+/);
   return { ahead: Number(aStr), behind: Number(bStr) };
 }
 function isDirty(cwd: string): boolean {
-  return git(["status", "--porcelain"], { cwd }).length > 0;
+  return git(['status', '--porcelain'], { cwd }).length > 0;
 }
 function originBranchExists(cwd: string, branch: string): boolean {
-  return git(["rev-parse", "--verify", "--quiet", "refs/remotes/origin/" + branch], { cwd, allowFail: true }).length > 0;
+  return (
+    git(['rev-parse', '--verify', '--quiet', 'refs/remotes/origin/' + branch], {
+      cwd,
+      allowFail: true,
+    }).length > 0
+  );
 }
 function observe(wt: Worktree): WorktreeState {
   const upstream = wt.branch ? currentUpstream(wt.path) : null;
@@ -163,40 +174,111 @@ function observe(wt: Worktree): WorktreeState {
   };
 }
 const C = {
-  reset: "\x1b[0m", red: "\x1b[31m", green: "\x1b[32m",
-  yellow: "\x1b[33m", dim: "\x1b[2m",
+  reset: '\x1b[0m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  dim: '\x1b[2m',
 };
 function label(wt: Worktree): string {
-  return (wt.branch ?? "(detached)") + " " + C.dim + "@ " + wt.path + C.reset;
+  return (wt.branch ?? '(detached)') + ' ' + C.dim + '@ ' + wt.path + C.reset;
 }
-interface Tally { ff: number; synced: number; ahead: number; published: number; tracked: number; blocked: number; detached: number; depsOk: number; depsStale: number; toolchainBlocked: number }
+interface Tally {
+  ff: number;
+  synced: number;
+  ahead: number;
+  published: number;
+  tracked: number;
+  blocked: number;
+  detached: number;
+  depsOk: number;
+  depsStale: number;
+  toolchainBlocked: number;
+}
 
 function runAction(wt: Worktree, act: Action, dryRun: boolean, t: Tally): void {
-  const w = (s: string): void => { process.stdout.write(s + String.fromCharCode(10)); };
-  const e = (s: string): void => { process.stderr.write(s + String.fromCharCode(10)); };
+  const w = (s: string): void => {
+    process.stdout.write(s + String.fromCharCode(10));
+  };
+  const e = (s: string): void => {
+    process.stderr.write(s + String.fromCharCode(10));
+  };
   const tag = (c: string, s: string): string => c + s + C.reset;
-  const DRY = dryRun ? C.dim + " [dry-run]" + C.reset : '';
+  const DRY = dryRun ? C.dim + ' [dry-run]' + C.reset : '';
   switch (act.kind) {
-    case "detached":
-      w(tag(C.dim, "skip") + "   " + label(wt) + " (detached HEAD)"); t.detached++; return;
-    case "synced":
-      w(tag(C.green, "sync") + "   " + label(wt) + " (up to date)"); t.synced++; return;
-    case "ahead":
-      w(tag(C.yellow, "ahead") + "  " + label(wt) + " (" + String(act.ahead) + " ahead of remote; nothing to pull)"); t.ahead++; return;
-    case "ff":
-      if (!dryRun) git(["merge", "--ff-only", "@{u}"], { cwd: wt.path });
-      w(tag(C.green, "ff") + "     " + label(wt) + " (" + String(act.behind) + " behind -> fast-forwarded)" + DRY); t.ff++; return;
-    case "publish":
-      if (!dryRun) git(["push", "-u", "origin", act.branch], { cwd: wt.path });
-      w(tag(C.green, "pub") + "    " + label(wt) + " (published + tracking origin/" + act.branch + ")" + DRY); t.published++; return;
-    case "set-upstream":
-      if (!dryRun) git(["branch", "--set-upstream-to=origin/" + act.branch, act.branch], { cwd: wt.path });
-      w(tag(C.green, "track") + "  " + label(wt) + " (set upstream -> origin/" + act.branch + ")" + DRY); t.tracked++; return;
-    case "blocked": {
-      const why = act.reason === "dirty"
-        ? "uncommitted changes block fast-forward (" + String(act.behind) + " behind) -- commit or stash"
-        : "DIVERGED: " + String(act.ahead) + " ahead AND " + String(act.behind) + " behind -- refusing to auto-reconcile";
-      e(tag(C.red, "BLOCK") + "  " + label(wt) + " (" + why + ")"); t.blocked++; return;
+    case 'detached':
+      w(tag(C.dim, 'skip') + '   ' + label(wt) + ' (detached HEAD)');
+      t.detached++;
+      return;
+    case 'synced':
+      w(tag(C.green, 'sync') + '   ' + label(wt) + ' (up to date)');
+      t.synced++;
+      return;
+    case 'ahead':
+      w(
+        tag(C.yellow, 'ahead') +
+          '  ' +
+          label(wt) +
+          ' (' +
+          String(act.ahead) +
+          ' ahead of remote; nothing to pull)',
+      );
+      t.ahead++;
+      return;
+    case 'ff':
+      if (!dryRun) git(['merge', '--ff-only', '@{u}'], { cwd: wt.path });
+      w(
+        tag(C.green, 'ff') +
+          '     ' +
+          label(wt) +
+          ' (' +
+          String(act.behind) +
+          ' behind -> fast-forwarded)' +
+          DRY,
+      );
+      t.ff++;
+      return;
+    case 'publish':
+      if (!dryRun) git(['push', '-u', 'origin', act.branch], { cwd: wt.path });
+      w(
+        tag(C.green, 'pub') +
+          '    ' +
+          label(wt) +
+          ' (published + tracking origin/' +
+          act.branch +
+          ')' +
+          DRY,
+      );
+      t.published++;
+      return;
+    case 'set-upstream':
+      if (!dryRun)
+        git(['branch', '--set-upstream-to=origin/' + act.branch, act.branch], { cwd: wt.path });
+      w(
+        tag(C.green, 'track') +
+          '  ' +
+          label(wt) +
+          ' (set upstream -> origin/' +
+          act.branch +
+          ')' +
+          DRY,
+      );
+      t.tracked++;
+      return;
+    case 'blocked': {
+      const why =
+        act.reason === 'dirty'
+          ? 'uncommitted changes block fast-forward (' +
+            String(act.behind) +
+            ' behind) -- commit or stash'
+          : 'DIVERGED: ' +
+            String(act.ahead) +
+            ' ahead AND ' +
+            String(act.behind) +
+            ' behind -- refusing to auto-reconcile';
+      e(tag(C.red, 'BLOCK') + '  ' + label(wt) + ' (' + why + ')');
+      t.blocked++;
+      return;
     }
   }
 }
@@ -264,8 +346,7 @@ function reportDeps(wt: Worktree, t: Tally, verbose: boolean): void {
   });
   if (verbose) {
     process.stdout.write(
-      C.dim + '  tier1 ' + candidate.kind + '  ' + wt.path + C.reset +
-        String.fromCharCode(10),
+      C.dim + '  tier1 ' + candidate.kind + '  ' + wt.path + C.reset + String.fromCharCode(10),
     );
   }
   if (candidate.kind === 'ok') {
@@ -275,8 +356,7 @@ function reportDeps(wt: Worktree, t: Tally, verbose: boolean): void {
   const probe = probeDeps(wt.path);
   if (verbose) {
     process.stdout.write(
-      C.dim + '  tier2 ' + probe.kind + '  ' + wt.path + C.reset +
-        String.fromCharCode(10),
+      C.dim + '  tier2 ' + probe.kind + '  ' + wt.path + C.reset + String.fromCharCode(10),
     );
   }
   if (probe.kind === 'deps-ok') {
@@ -288,32 +368,59 @@ function reportDeps(wt: Worktree, t: Tally, verbose: boolean): void {
   if (probe.kind === 'toolchain-blocked') {
     t.toolchainBlocked++;
     process.stderr.write(
-      C.red + 'TOOLCHAIN' + C.reset + '  ' + label(wt) +
-        ' (' + probe.reason + ')' + String.fromCharCode(10),
+      C.red +
+        'TOOLCHAIN' +
+        C.reset +
+        '  ' +
+        label(wt) +
+        ' (' +
+        probe.reason +
+        ')' +
+        String.fromCharCode(10),
     );
     return;
   }
   t.depsStale++;
   process.stderr.write(
-    C.yellow + 'DRIFT' + C.reset + '  ' + label(wt) +
-      ' (deps: ' + probe.reason + ')' + String.fromCharCode(10),
+    C.yellow +
+      'DRIFT' +
+      C.reset +
+      '  ' +
+      label(wt) +
+      ' (deps: ' +
+      probe.reason +
+      ')' +
+      String.fromCharCode(10),
   );
 }
 export function main(argv: string[] = process.argv.slice(2)): number {
-  const dryRun = argv.includes("--dry-run");
+  const dryRun = argv.includes('--dry-run');
   // Makes the two tiers observable. Without it depsOk is tallied but never
   // shown, so a worktree that is probed-and-passes is indistinguishable from
   // one that tier 1 never referred -- the exact ambiguity that stalled the
   // first live diagnosis.
-  const verboseDeps = argv.includes("--verbose-deps");
-  process.stdout.write(C.dim + "Fetching origin (prune)..." + C.reset + String.fromCharCode(10));
-  git(["fetch", "--all", "--prune"]);
+  const verboseDeps = argv.includes('--verbose-deps');
+  process.stdout.write(C.dim + 'Fetching origin (prune)...' + C.reset + String.fromCharCode(10));
+  git(['fetch', '--all', '--prune']);
   // refs/terminals/* is NOT in the default fetch refspec, so --all does not
   // bring it. Without this the registry reads as empty, which is
   // indistinguishable from "nothing claimed" and would re-issue terminal 1.
   // allowFail: an older remote without the namespace must not break the sync.
-  git(["fetch", "origin", "+refs/terminals/*:refs/remotes/origin/terminals/*"], { allowFail: true });
-  const t: Tally = { ff: 0, synced: 0, ahead: 0, published: 0, tracked: 0, blocked: 0, detached: 0, depsOk: 0, depsStale: 0, toolchainBlocked: 0 };
+  git(['fetch', 'origin', '+refs/terminals/*:refs/remotes/origin/terminals/*'], {
+    allowFail: true,
+  });
+  const t: Tally = {
+    ff: 0,
+    synced: 0,
+    ahead: 0,
+    published: 0,
+    tracked: 0,
+    blocked: 0,
+    detached: 0,
+    depsOk: 0,
+    depsStale: 0,
+    toolchainBlocked: 0,
+  };
   for (const wt of listWorktrees()) {
     try {
       runAction(wt, classify(observe(wt)), dryRun, t);
@@ -322,28 +429,75 @@ export function main(argv: string[] = process.argv.slice(2)): number {
       t.blocked++;
       // split() is indexed, so under noUncheckedIndexedAccess the first element is
       // string | undefined even though a split always yields at least one entry.
-      const msg = err instanceof Error ? (err.message.split(String.fromCharCode(10))[0] ?? err.message) : String(err);
-      process.stderr.write(C.red + "BLOCK" + C.reset + "  " + label(wt) + " (" + msg + ")" + String.fromCharCode(10));
+      const msg =
+        err instanceof Error
+          ? (err.message.split(String.fromCharCode(10))[0] ?? err.message)
+          : String(err);
+      process.stderr.write(
+        C.red + 'BLOCK' + C.reset + '  ' + label(wt) + ' (' + msg + ')' + String.fromCharCode(10),
+      );
     }
   }
   // Printed with the census because this output IS where terminal numbers are
   // read from. Leaving it out would mean the correct number exists but nobody
   // sees it, and the local high-water gets reused out of habit.
   process.stdout.write(
-    String.fromCharCode(10) + C.dim +
-      formatTerminalCensus(parseTerminalRefs(
-        git(listTerminalRefsArgs(), { allowFail: true }).split(String.fromCharCode(10)).filter((l) => l.length > 0),
-      )) + C.reset + String.fromCharCode(10),
+    String.fromCharCode(10) +
+      C.dim +
+      formatTerminalCensus(
+        parseTerminalRefs(
+          git(listTerminalRefsArgs(), { allowFail: true })
+            .split(String.fromCharCode(10))
+            .filter((l) => l.length > 0),
+        ),
+      ) +
+      C.reset +
+      String.fromCharCode(10),
   );
   process.stdout.write(
-    String.fromCharCode(10) + C.dim + "Summary:" + C.reset + " " +
-      C.green + String(t.ff) + " ff" + C.reset + ", " + String(t.synced) + " synced" + ", " +
-      String(t.published) + " published" + ", " + String(t.tracked) + " tracked" + ", " +
-      String(t.ahead) + " ahead" + ", " + String(t.detached) + " detached" + ", " +
-      (t.blocked > 0 ? C.red : C.dim) + String(t.blocked) + " blocked" + C.reset + ", " +
-      String(t.depsOk) + " deps-ok" + ", " +
-      (t.depsStale > 0 ? C.yellow : C.dim) + String(t.depsStale) + " deps-stale" + C.reset + ", " +
-      (t.toolchainBlocked > 0 ? C.red : C.dim) + String(t.toolchainBlocked) + " toolchain-blocked" + C.reset + String.fromCharCode(10),
+    String.fromCharCode(10) +
+      C.dim +
+      'Summary:' +
+      C.reset +
+      ' ' +
+      C.green +
+      String(t.ff) +
+      ' ff' +
+      C.reset +
+      ', ' +
+      String(t.synced) +
+      ' synced' +
+      ', ' +
+      String(t.published) +
+      ' published' +
+      ', ' +
+      String(t.tracked) +
+      ' tracked' +
+      ', ' +
+      String(t.ahead) +
+      ' ahead' +
+      ', ' +
+      String(t.detached) +
+      ' detached' +
+      ', ' +
+      (t.blocked > 0 ? C.red : C.dim) +
+      String(t.blocked) +
+      ' blocked' +
+      C.reset +
+      ', ' +
+      String(t.depsOk) +
+      ' deps-ok' +
+      ', ' +
+      (t.depsStale > 0 ? C.yellow : C.dim) +
+      String(t.depsStale) +
+      ' deps-stale' +
+      C.reset +
+      ', ' +
+      (t.toolchainBlocked > 0 ? C.red : C.dim) +
+      String(t.toolchainBlocked) +
+      ' toolchain-blocked' +
+      C.reset +
+      String.fromCharCode(10),
   );
   return t.blocked > 0 ? 1 : 0;
 }

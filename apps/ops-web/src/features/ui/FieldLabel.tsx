@@ -41,15 +41,20 @@ export function FieldLabel({
     <>
       <label
         htmlFor={htmlFor}
-        className={'block text-sm font-medium text-text-secondary' + (className === undefined ? '' : ' ' + className)}
+        className={
+          'block text-sm font-medium text-text-secondary' +
+          (className === undefined ? '' : ' ' + className)
+        }
       >
         {children}
         {required === true ? (
-          <span className='ml-1 text-xs font-normal text-text-muted'>{REQUIRED_MARKER_VI}</span>
+          <span className="ml-1 text-xs font-normal text-text-muted">{REQUIRED_MARKER_VI}</span>
         ) : null}
       </label>
       {hint === undefined ? null : (
-        <p id={htmlFor + '-hint'} className='mt-0.5 text-xs text-text-muted'>{hint}</p>
+        <p id={htmlFor + '-hint'} className="mt-0.5 text-xs text-text-muted">
+          {hint}
+        </p>
       )}
     </>
   );

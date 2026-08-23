@@ -45,7 +45,10 @@ function operator(companyId: string): OperatorContext {
   return { companyId } as OperatorContext;
 }
 
-function controllerWithSplit(): { controller: DispatchRosterSplitController; split: ReturnType<typeof vi.fn> } {
+function controllerWithSplit(): {
+  controller: DispatchRosterSplitController;
+  split: ReturnType<typeof vi.fn>;
+} {
   const split = vi.fn().mockResolvedValue(SPLIT);
   const svc = { split } as unknown as DispatchRosterSplitService;
   return { controller: new DispatchRosterSplitController(svc), split };

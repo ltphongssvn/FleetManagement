@@ -18,7 +18,10 @@ const { DispatchView } = await import('../src/features/dispatch/DispatchView');
 const refs = {
   drivers: [{ id: 'op-1', label: 'Driver 1' }],
   vehicles: [{ id: 'veh-1', label: '62H 05194' }],
-  customers: [], cargoTypes: [], pickupWarehouses: [], deliveryWarehouses: [],
+  customers: [],
+  cargoTypes: [],
+  pickupWarehouses: [],
+  deliveryWarehouses: [],
   driverVehicleAssignments: [{ operatorId: 'op-1', vehicleId: 'veh-1' }],
   nextOrderRef: '',
 };

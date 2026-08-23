@@ -62,8 +62,12 @@ export function countPackages(treeDir: string): number {
 
 /* v8 ignore start -- side-effecting driver; every decision above and in
    audit-artifact.ts is unit-tested */
-function out(s: string): void { process.stdout.write('[audit:artifact] ' + s + NL); }
-function errline(s: string): void { process.stderr.write('[audit:artifact] ' + s + NL); }
+function out(s: string): void {
+  process.stdout.write('[audit:artifact] ' + s + NL);
+}
+function errline(s: string): void {
+  process.stderr.write('[audit:artifact] ' + s + NL);
+}
 
 /** Build and audit ONE shipped package. Never throws: a failure becomes an
  *  outcome the verdict can reason about, because an exception here would exit

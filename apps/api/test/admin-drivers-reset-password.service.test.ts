@@ -10,7 +10,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
 import { AdminDriversResetPasswordService } from '../src/admin/admin-drivers-reset-password.service.js';
 import type { FleetDb } from '../src/database/database.module.js';
-interface Row { driverId: string }
+interface Row {
+  driverId: string;
+}
 interface TxMocks {
   update: ReturnType<typeof vi.fn>;
   setFn: ReturnType<typeof vi.fn>;
@@ -47,21 +49,25 @@ const BASE = {
 };
 describe('AdminDriversResetPasswordService', () => {
   let hashFn: ReturnType<typeof vi.fn>;
-  beforeEach(() => { hashFn = vi.fn().mockResolvedValue('HASH_OF_NEW'); });
+  beforeEach(() => {
+    hashFn = vi.fn().mockResolvedValue('HASH_OF_NEW');
+  });
   it('rehashes, updates the driver, and writes an attributed audit row', async () => {
     const { db, tx } = makeDb({ driverId: 'driver-target-1' });
     const svc = new AdminDriversResetPasswordService(db, hashFn as never);
     await svc.resetPassword(BASE);
     expect(hashFn).toHaveBeenCalledWith('freshpass1', 10);
     expect(tx.setFn).toHaveBeenCalledWith({ passwordHash: 'HASH_OF_NEW' }); // pragma: allowlist secret
-    expect(tx.insertValues).toHaveBeenCalledWith(expect.objectContaining({
-      companyId: BASE.companyId,
-      businessUnitId: BASE.businessUnitId,
-      depotId: BASE.depotId,
-      legalEntityId: BASE.legalEntityId,
-      actorOperatorId: BASE.actorOperatorId,
-      targetDriverId: BASE.driverId,
-    }));
+    expect(tx.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: BASE.companyId,
+        businessUnitId: BASE.businessUnitId,
+        depotId: BASE.depotId,
+        legalEntityId: BASE.legalEntityId,
+        actorOperatorId: BASE.actorOperatorId,
+        targetDriverId: BASE.driverId,
+      }),
+    );
   });
   it('throws NotFoundException and writes/logs NOTHING when driver not in tenant', async () => {
     const { db, tx } = makeDb(null);

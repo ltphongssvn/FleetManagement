@@ -22,13 +22,20 @@ describe('@fleet/ops-web - exportOrdersExcel action', () => {
     vi.mocked(cookies).mockResolvedValue({
       get: vi.fn().mockReturnValue({ value: 'session-jwt-123' }),
     } as never);
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(xlsxBytes, {
-      status: 200,
-      headers: {
-        'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'content-disposition': 'attachment; filename=' + String.fromCharCode(34) + 'lenh-dieu-xe_t_2026-05-24_manual_deadbeef.xlsx' + String.fromCharCode(34) + ',',
-      },
-    }) as never);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(xlsxBytes, {
+        status: 200,
+        headers: {
+          'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'content-disposition':
+            'attachment; filename=' +
+            String.fromCharCode(34) +
+            'lenh-dieu-xe_t_2026-05-24_manual_deadbeef.xlsx' +
+            String.fromCharCode(34) +
+            ',',
+        },
+      }) as never,
+    );
     const result = await exportOrdersExcel();
     expect(result.status).toBe('ok');
     if (result.status !== 'ok') throw new Error('unreachable');
@@ -71,10 +78,15 @@ describe('@fleet/ops-web - exportOrdersExcel action', () => {
     vi.mocked(cookies).mockResolvedValue({
       get: vi.fn().mockReturnValue({ value: 'jwt' }),
     } as never);
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(xlsxBytes, {
-      status: 200,
-      headers: { 'content-disposition': 'attachment; filename=' + String.fromCharCode(34) + 'f.xlsx' + String.fromCharCode(34) },
-    }) as never);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(xlsxBytes, {
+        status: 200,
+        headers: {
+          'content-disposition':
+            'attachment; filename=' + String.fromCharCode(34) + 'f.xlsx' + String.fromCharCode(34),
+        },
+      }) as never,
+    );
     const result = await exportOrdersExcel({ from: '2026-05-01', to: '2026-05-31' });
     expect(result.status).toBe('ok');
     expect(fetchSpy).toHaveBeenCalledWith(
@@ -86,10 +98,15 @@ describe('@fleet/ops-web - exportOrdersExcel action', () => {
     vi.mocked(cookies).mockResolvedValue({
       get: vi.fn().mockReturnValue({ value: 'jwt' }),
     } as never);
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(new Uint8Array([0x50]), {
-      status: 200,
-      headers: { 'content-disposition': 'attachment; filename=' + String.fromCharCode(34) + 'f.xlsx' + String.fromCharCode(34) },
-    }) as never);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([0x50]), {
+        status: 200,
+        headers: {
+          'content-disposition':
+            'attachment; filename=' + String.fromCharCode(34) + 'f.xlsx' + String.fromCharCode(34),
+        },
+      }) as never,
+    );
     await exportOrdersExcel();
     expect(fetchSpy).toHaveBeenCalledWith(
       FLEET_API_URL + '/transport-orders-export.xlsx',

@@ -28,9 +28,7 @@ describe('dispatch board delivery column label (2026)', () => {
         </thead>
       </table>,
     );
-    const headers = Array.from(container.querySelectorAll('th')).map(
-      (th) => th.textContent,
-    );
+    const headers = Array.from(container.querySelectorAll('th')).map((th) => th.textContent);
     // Positive assertion: the bare label must be present somewhere.
     expect(headers).toContain('Kho giao hàng');
     // Negative assertion: the legacy label MUST NOT appear anywhere.

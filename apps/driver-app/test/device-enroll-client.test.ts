@@ -11,7 +11,9 @@ function jsonResponse(body: unknown, ok = true, status = 200): Response {
 
 describe('DeviceEnrollClient', () => {
   it('posts platform + appVersion and returns the deviceId', async () => {
-    const fetchFn = vi.fn(() => Promise.resolve(jsonResponse({ deviceId: '00000000-0000-0000-0000-0000000000d1' }))) as unknown as typeof globalThis.fetch;
+    const fetchFn = vi.fn(() =>
+      Promise.resolve(jsonResponse({ deviceId: '00000000-0000-0000-0000-0000000000d1' })),
+    ) as unknown as typeof globalThis.fetch;
     const client = new DeviceEnrollClient({
       apiUrl: 'https://api.test',
       bearerToken: () => 'tok',
@@ -32,10 +34,16 @@ describe('DeviceEnrollClient', () => {
   });
 
   it('includes an optional expoPushToken when provided', async () => {
-    const fetchFn = vi.fn(() => Promise.resolve(jsonResponse({ deviceId: '00000000-0000-0000-0000-0000000000d2' }))) as unknown as typeof globalThis.fetch;
+    const fetchFn = vi.fn(() =>
+      Promise.resolve(jsonResponse({ deviceId: '00000000-0000-0000-0000-0000000000d2' })),
+    ) as unknown as typeof globalThis.fetch;
     const client = new DeviceEnrollClient({
-      apiUrl: 'https://api.test', bearerToken: () => 'tok',
-      platform: 'ios', appVersion: '2.31.0', expoPushToken: 'ExponentPushToken[x]', fetchFn,
+      apiUrl: 'https://api.test',
+      bearerToken: () => 'tok',
+      platform: 'ios',
+      appVersion: '2.31.0',
+      expoPushToken: 'ExponentPushToken[x]',
+      fetchFn,
     });
     await client.enroll();
     const call = (fetchFn as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
@@ -44,17 +52,29 @@ describe('DeviceEnrollClient', () => {
   });
 
   it('throws when enrollment returns non-ok', async () => {
-    const fetchFn = vi.fn(() => Promise.resolve(jsonResponse({}, false, 401))) as unknown as typeof globalThis.fetch;
+    const fetchFn = vi.fn(() =>
+      Promise.resolve(jsonResponse({}, false, 401)),
+    ) as unknown as typeof globalThis.fetch;
     const client = new DeviceEnrollClient({
-      apiUrl: 'https://api.test', bearerToken: () => 'tok', platform: 'android', appVersion: '2.31.0', fetchFn,
+      apiUrl: 'https://api.test',
+      bearerToken: () => 'tok',
+      platform: 'android',
+      appVersion: '2.31.0',
+      fetchFn,
     });
     await expect(client.enroll()).rejects.toThrow(/enroll HTTP/i);
   });
 
   it('throws when the response lacks a deviceId', async () => {
-    const fetchFn = vi.fn(() => Promise.resolve(jsonResponse({}))) as unknown as typeof globalThis.fetch;
+    const fetchFn = vi.fn(() =>
+      Promise.resolve(jsonResponse({})),
+    ) as unknown as typeof globalThis.fetch;
     const client = new DeviceEnrollClient({
-      apiUrl: 'https://api.test', bearerToken: () => 'tok', platform: 'android', appVersion: '2.31.0', fetchFn,
+      apiUrl: 'https://api.test',
+      bearerToken: () => 'tok',
+      platform: 'android',
+      appVersion: '2.31.0',
+      fetchFn,
     });
     await expect(client.enroll()).rejects.toThrow(/deviceId/i);
   });

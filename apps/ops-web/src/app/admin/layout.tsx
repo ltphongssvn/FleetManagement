@@ -33,9 +33,5 @@ export default async function AdminLayout({
   children: ReactNode;
 }): Promise<JSX.Element> {
   const username = await getSessionUsername();
-  return (
-    <AppShell {...(username ? { username } : {})}>
-      {children}
-    </AppShell>
-  );
+  return <AppShell {...(username ? { username } : {})}>{children}</AppShell>;
 }

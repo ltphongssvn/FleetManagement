@@ -24,12 +24,13 @@ vi.mock('@/features/admin/reference-admin-client', () => ({
   },
 }));
 import ReferenceAdminPage from '@/app/admin/reference/page';
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 beforeEach(() => {
   // Customer rows carry meta.phone; other sections carry plain rows.
-  listMock.mockResolvedValue([
-    { id: 'c1', label: 'Acme', meta: { phone: '0901234567' } },
-  ]);
+  listMock.mockResolvedValue([{ id: 'c1', label: 'Acme', meta: { phone: '0901234567' } }]);
   createMock.mockResolvedValue({ id: 'c2', label: 'NewCo' });
   updateMock.mockResolvedValue(undefined);
 });
@@ -67,8 +68,12 @@ describe('ReferenceAdminPage Khách hàng Số điện thoại (L1)', () => {
     render(<ReferenceAdminPage />);
     await screen.findAllByText('Acme');
     const sec = customerSection();
-    fireEvent.change(within(sec).getByPlaceholderText('Thêm khách hàng'), { target: { value: 'NewCo' } });
-    fireEvent.change(within(sec).getByPlaceholderText('Số điện thoại'), { target: { value: '0905555555' } });
+    fireEvent.change(within(sec).getByPlaceholderText('Thêm khách hàng'), {
+      target: { value: 'NewCo' },
+    });
+    fireEvent.change(within(sec).getByPlaceholderText('Số điện thoại'), {
+      target: { value: '0905555555' },
+    });
     const addBtn = within(sec).getAllByRole('button', { name: 'Thêm khách hàng' })[0];
     if (addBtn === undefined) throw new Error('no add button');
     fireEvent.click(addBtn);

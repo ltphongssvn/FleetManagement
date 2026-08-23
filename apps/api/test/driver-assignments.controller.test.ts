@@ -12,7 +12,16 @@ const op: OperatorContext = Object.freeze({
   legalEntityId: '00000000-0000-0000-0000-000000000000',
 });
 
-function makeDb(rows: readonly Record<string, unknown>[]): { select: ReturnType<typeof vi.fn>; _chain: { from: ReturnType<typeof vi.fn>; leftJoin: ReturnType<typeof vi.fn>; where: ReturnType<typeof vi.fn>; orderBy: ReturnType<typeof vi.fn>; limit: ReturnType<typeof vi.fn> } } {
+function makeDb(rows: readonly Record<string, unknown>[]): {
+  select: ReturnType<typeof vi.fn>;
+  _chain: {
+    from: ReturnType<typeof vi.fn>;
+    leftJoin: ReturnType<typeof vi.fn>;
+    where: ReturnType<typeof vi.fn>;
+    orderBy: ReturnType<typeof vi.fn>;
+    limit: ReturnType<typeof vi.fn>;
+  };
+} {
   const chain = {
     from: vi.fn().mockReturnThis(),
     leftJoin: vi.fn().mockReturnThis(),
@@ -30,10 +39,12 @@ describe('DriverAssignmentsController', () => {
   beforeEach(() => {
     db = makeDb([
       {
-        roadRunId: 'r1', state: 'dispatched',
+        roadRunId: 'r1',
+        state: 'dispatched',
         plate: '62H-12345',
         plannedStartAt: new Date('2026-05-10T08:00:00Z'),
-        startedAt: null, completedAt: null,
+        startedAt: null,
+        completedAt: null,
       },
     ]);
     controller = new DriverAssignmentsController(db as never);
@@ -53,7 +64,14 @@ describe('DriverAssignmentsController', () => {
 
   it('serializes nullable timestamps as null', async () => {
     db = makeDb([
-      { roadRunId: 'r2', state: 'planned', plate: null, plannedStartAt: null, startedAt: null, completedAt: null },
+      {
+        roadRunId: 'r2',
+        state: 'planned',
+        plate: null,
+        plannedStartAt: null,
+        startedAt: null,
+        completedAt: null,
+      },
     ]);
     controller = new DriverAssignmentsController(db as never);
     const res = await controller.getAssignments(op);

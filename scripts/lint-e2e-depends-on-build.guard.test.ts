@@ -14,33 +14,42 @@
 // lint (dependsOn ^build) and typecheck (dependsOn ^build) both document this
 // exact constraint in their own descriptions. This guard keeps the third
 // root-scoped sibling from drifting back out of that contract.
-import { readFileSync } from 'node:fs';
+//
+// PARSING (2026-08-23). This file read turbo.jsonc by blanking every line
+// matching /^\s*\/\/.*$/gm and calling JSON.parse. That regex deletes the line
+// `"//#lint:e2e": {` -- the exact task this guard exists to assert -- along with
+// all 47 other root-task definitions, because a turbo root task is spelled with
+// the same two characters as a line comment. Prettier's committed
+// trailingComma:"all" then broke it outright, since JSON.parse rejects `},`.
+//
+// The property is not lexical, so no pattern fixes it: `//` inside a string is
+// data. read-jsonc.ts uses TypeScript's own JSONC parser -- the one
+// tsconfig.json is read with -- and is shared by the guards that each kept a
+// private copy of this bug.
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { readTurboTasks } from '@fleet/test-fixtures';
 
-const REPO_ROOT = join(import.meta.dirname, '..');
+const TURBO = join(import.meta.dirname, '..', 'turbo.jsonc');
+const tasks = readTurboTasks(TURBO);
 
-/** turbo.jsonc allows comments; strip whole-line // before parsing. */
-const readTurboConfig = (): Record<string, unknown> => {
-  const raw = readFileSync(join(REPO_ROOT, 'turbo.jsonc'), 'utf8');
-  return JSON.parse(raw.replace(/^\s*\/\/.*$/gm, '')) as Record<string, unknown>;
-};
-
-const tasks = readTurboConfig()['tasks'] as Record<string, Record<string, unknown>>;
-
-const dependsOn = (task: string): string[] =>
-  (tasks[task]?.['dependsOn'] as string[] | undefined) ?? [];
+const dependsOn = (task: string): readonly string[] => tasks[task]?.dependsOn ?? [];
 
 describe('type-aware lint tasks depend on upstream builds', () => {
-  it.each(['//#lint:e2e', 'lint', 'typecheck'])(
-    '%s declares ^build',
-    (task) => {
-      expect(dependsOn(task)).toContain('^build');
-    },
-  );
+  // Vacuity guard FIRST. The old reader silently removed every //# task, and
+  // nothing noticed -- so the subject of every assertion below is checked to
+  // exist before anything is asserted about it.
+  it('turbo.jsonc parses with its root tasks intact', () => {
+    expect(Object.keys(tasks).filter((n) => n.startsWith('//#')).length).toBeGreaterThan(10);
+    expect(tasks['//#lint:e2e']).toBeDefined();
+  });
+
+  it.each(['//#lint:e2e', 'lint', 'typecheck'])('%s declares ^build', (task) => {
+    expect(dependsOn(task)).toContain('^build');
+  });
 
   it('lint:e2e records WHY it needs ^build, not just THAT it does', () => {
-    const description = tasks['//#lint:e2e']?.['description'];
+    const description = tasks['//#lint:e2e']?.description;
     expect(typeof description).toBe('string');
     expect(description).toMatch(/emitted \.d\.ts/i);
   });

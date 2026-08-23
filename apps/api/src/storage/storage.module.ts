@@ -25,5 +25,4 @@ import type { Env } from '../config/env.config.js';
   ],
   exports: [BLOB_STORE],
 })
-
 export class StorageModule {}

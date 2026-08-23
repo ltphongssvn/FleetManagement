@@ -26,8 +26,7 @@ import {
 
 // Synthetic per-run credentials: never literals, never real values.
 const FAKE_PASSWORD = 'pw-' + randomBytes(8).toString('hex');
-const PROD_LITERAL =
-  'postgresql://appuser:' + FAKE_PASSWORD + '@db.example.invalid:5432/appdb';
+const PROD_LITERAL = 'postgresql://appuser:' + FAKE_PASSWORD + '@db.example.invalid:5432/appdb';
 const LOCAL_DEV_DSN =
   'postgresql://fleet:' + randomBytes(4).toString('hex') + '@localhost:5432/fleet';
 
@@ -111,7 +110,11 @@ describe('findForbiddenHostsInSource', () => {
   });
 
   it('does not flag ordinary dotted tokens (no false positives by construction)', () => {
-    const body = ['import x from "./a.js";', 'const f = "package.json";', 'api.example.invalid'].join('\n');
+    const body = [
+      'import x from "./a.js";',
+      'const f = "package.json";',
+      'api.example.invalid',
+    ].join('\n');
     expect(findForbiddenHostsInSource('a.ts', body, forbidden)).toEqual([]);
   });
 

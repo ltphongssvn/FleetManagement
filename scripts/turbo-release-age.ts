@@ -90,10 +90,7 @@ export function versionsInExcludeLine(line: string): readonly string[] {
  *  IDEMPOTENT: re-running a bump at the same version must produce a byte-
  *  identical file, or //#bump:turbo would dirty the tree on a no-op and the
  *  dirty-tree refusal in its own driver would start failing legitimate runs. */
-export function withTurboVersion(
-  existing: readonly string[],
-  version: string,
-): readonly string[] {
+export function withTurboVersion(existing: readonly string[], version: string): readonly string[] {
   return existing.includes(version) ? existing : [...existing, version];
 }
 
@@ -103,10 +100,7 @@ export function withTurboVersion(
  *  assertion is pure. Returns package names, not a boolean: a failure that says
  *  WHICH platform is unexempted is actionable, and "the exclude list is wrong"
  *  is not. */
-export function missingTurboExcludes(
-  lines: readonly string[],
-  version: string,
-): readonly string[] {
+export function missingTurboExcludes(lines: readonly string[], version: string): readonly string[] {
   return TURBO_PLATFORM_PACKAGES.filter((pkg) => {
     const line = lines.find((l) => {
       const t = l.trim().replace(/^-\s*/, '').replace(/^'|'$/g, '');

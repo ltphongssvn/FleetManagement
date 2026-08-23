@@ -68,34 +68,52 @@ function androidPermissions(): string[] {
 describe('@fleet/driver-app - transport alert native bundle contract', () => {
   it('declares expo-notifications as a dependency', () => {
     const deps = pkg.dependencies ?? {};
-    expect(deps['expo-notifications'], 'expo-notifications must be a real dependency, not a transitive hope').toBeDefined();
+    expect(
+      deps['expo-notifications'],
+      'expo-notifications must be a real dependency, not a transitive hope',
+    ).toBeDefined();
   });
 
   it('declares expo-device as a dependency (physical-device gate)', () => {
     const deps = pkg.dependencies ?? {};
-    expect(deps['expo-device'], 'expo-device backs NotificationPlatformPort.isPhysicalDevice').toBeDefined();
+    expect(
+      deps['expo-device'],
+      'expo-device backs NotificationPlatformPort.isPhysicalDevice',
+    ).toBeDefined();
   });
 
   it('declares the expo-notifications config plugin', () => {
-    expect(findPlugin('expo-notifications'), 'expo-notifications must be a configured plugin so prebuild wires the native side').toBeDefined();
+    expect(
+      findPlugin('expo-notifications'),
+      'expo-notifications must be a configured plugin so prebuild wires the native side',
+    ).toBeDefined();
   });
 
   it('bundles at least one custom alert sound through the plugin sounds[] array', () => {
     const sounds = findPlugin('expo-notifications')?.[1]?.['sounds'];
-    expect(Array.isArray(sounds), 'plugin sounds[] must be an array listing the bundled asset').toBe(true);
+    expect(
+      Array.isArray(sounds),
+      'plugin sounds[] must be an array listing the bundled asset',
+    ).toBe(true);
     expect((sounds as string[]).length, 'at least one sound must be bundled').toBeGreaterThan(0);
   });
 
   it('the bundled sound basename equals the shared DRIVER_ALERT_SOUND SSOT', () => {
     const basenames = declaredSounds().map((s) => s.split('/').pop());
-    expect(basenames, 'the api sender stamps DRIVER_ALERT_SOUND on every message; the bundle must match exactly').toContain(DRIVER_ALERT_SOUND);
+    expect(
+      basenames,
+      'the api sender stamps DRIVER_ALERT_SOUND on every message; the bundle must match exactly',
+    ).toContain(DRIVER_ALERT_SOUND);
   });
 
   it('every declared sound asset exists on disk', () => {
     const sounds = declaredSounds();
     expect(sounds.length, 'sounds[] must be non-empty or this guard is vacuous').toBeGreaterThan(0);
     const missing = sounds.filter((rel) => !existsSync(resolve(__dirname, '..', rel)));
-    expect(missing, 'declared in app.json but missing on disk -- prebuild would register a channel with the DEFAULT tone, permanently').toEqual([]);
+    expect(
+      missing,
+      'declared in app.json but missing on disk -- prebuild would register a channel with the DEFAULT tone, permanently',
+    ).toEqual([]);
   });
 
   it('every declared sound is a real non-empty RIFF/WAVE file (not a placeholder)', () => {
@@ -112,14 +130,22 @@ describe('@fleet/driver-app - transport alert native bundle contract', () => {
 
   it('enables the iOS remote-notification background mode (APNs may wake the app)', () => {
     const modes = (app.expo.ios?.infoPlist?.['UIBackgroundModes'] ?? []) as string[];
-    expect(modes, 'UIBackgroundModes must include remote-notification').toContain('remote-notification');
+    expect(modes, 'UIBackgroundModes must include remote-notification').toContain(
+      'remote-notification',
+    );
   });
 
   it('declares android POST_NOTIFICATIONS (Android 13+ runtime prompt)', () => {
-    expect(androidPermissions(), 'without POST_NOTIFICATIONS the OS never prompts and every alert is dropped silently').toContain('android.permission.POST_NOTIFICATIONS');
+    expect(
+      androidPermissions(),
+      'without POST_NOTIFICATIONS the OS never prompts and every alert is dropped silently',
+    ).toContain('android.permission.POST_NOTIFICATIONS');
   });
 
   it('declares android VIBRATE (independent delivery channel from sound)', () => {
-    expect(androidPermissions(), 'VIBRATE backs DRIVER_ALERT_VIBRATION_PATTERN on the transport channel').toContain('android.permission.VIBRATE');
+    expect(
+      androidPermissions(),
+      'VIBRATE backs DRIVER_ALERT_VIBRATION_PATTERN on the transport channel',
+    ).toContain('android.permission.VIBRATE');
   });
 });

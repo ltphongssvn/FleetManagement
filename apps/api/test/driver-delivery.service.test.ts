@@ -9,17 +9,25 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const appendTriWriteMock = vi.fn(() => Promise.resolve({ duplicate: false }));
 const allocateServerSeqMock = vi.fn(() => Promise.resolve(42n));
 vi.mock('../src/database/append-tri-write.js', () => ({ appendTriWrite: appendTriWriteMock }));
-vi.mock('../src/database/server-seq.repository.js', () => ({ allocateServerSeq: allocateServerSeqMock }));
+vi.mock('../src/database/server-seq.repository.js', () => ({
+  allocateServerSeq: allocateServerSeqMock,
+}));
 
 const { DriverDeliveryService } = await import('../src/dispatch/driver-delivery.service.js');
 
 const op = {
-  operatorId: 'op-1', companyId: 'co-1',
-  businessUnitId: 'bu-1', depotId: 'dp-1', legalEntityId: 'le-1',
+  operatorId: 'op-1',
+  companyId: 'co-1',
+  businessUnitId: 'bu-1',
+  depotId: 'dp-1',
+  legalEntityId: 'le-1',
 } as never;
 
 function dbWithRoadRun(state: string | null): never {
-  const rrRow = state === null ? [] : [{ roadRunId: 'rr-1', state, companyId: 'co-1', assignedOperatorId: 'op-1' }];
+  const rrRow =
+    state === null
+      ? []
+      : [{ roadRunId: 'rr-1', state, companyId: 'co-1', assignedOperatorId: 'op-1' }];
   // The rr ownership lookup uses .from().where().limit() -> rrRow.
   // The completion guard (assertAllManifestsCommitted) uses .from().where()
   // WITHOUT .limit(), awaiting an array of rows. We make where() BOTH awaitable
@@ -27,18 +35,22 @@ function dbWithRoadRun(state: string | null): never {
   // unit test stays focused on FSM + ownership + tri-write; the manifest-count
   // gate is covered by driver-delivery.complete-requires-manifests.integration)
   // AND still expose .limit() for the rr lookup.
-  const whereResult: { limit: (n: number) => Promise<readonly unknown[]> } & PromiseLike<readonly unknown[]> = {
+  const whereResult: { limit: (n: number) => Promise<readonly unknown[]> } & PromiseLike<
+    readonly unknown[]
+  > = {
     limit: () => Promise.resolve(rrRow),
-    then: <R>(onfulfilled?: ((value: readonly unknown[]) => R | PromiseLike<R>) | null): PromiseLike<R> =>
-      Promise.resolve([] as readonly unknown[]).then(onfulfilled),
+    then: <R>(
+      onfulfilled?: ((value: readonly unknown[]) => R | PromiseLike<R>) | null,
+    ): PromiseLike<R> => Promise.resolve([] as readonly unknown[]).then(onfulfilled),
   };
   const selChain = { from: () => ({ where: () => whereResult }) };
   const updChain = { set: () => ({ where: () => Promise.resolve(undefined) }) };
   return {
-    transaction: (fn: (tx: unknown) => unknown) => fn({
-      select: () => selChain,
-      update: () => updChain,
-    }),
+    transaction: (fn: (tx: unknown) => unknown) =>
+      fn({
+        select: () => selChain,
+        update: () => updChain,
+      }),
   } as never;
 }
 

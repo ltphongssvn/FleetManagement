@@ -12,7 +12,7 @@
 // --live-url fetches the deploy commit from a /health/version endpoint, so the
 // running app self-reports its SHA instead of an operator copying a build id.
 
-import { execFileSync } from "node:child_process";
+import { execFileSync } from 'node:child_process';
 
 export interface DeployFacts {
   fixInBase: boolean;
@@ -21,7 +21,7 @@ export interface DeployFacts {
 }
 
 export interface DeployVerdict {
-  verdict: "EFFECTIVE" | "REDEPLOY-NEEDED" | "NOT-PROMOTED";
+  verdict: 'EFFECTIVE' | 'REDEPLOY-NEEDED' | 'NOT-PROMOTED';
   exitCode: 0 | 1;
   lines: string[];
 }
@@ -30,41 +30,44 @@ export interface DeployVerdict {
 export function computeDeployVerdict(f: DeployFacts): DeployVerdict {
   const promoted = f.fixInBase;
   const running = f.fixInLive;
-  let verdict: DeployVerdict["verdict"];
+  let verdict: DeployVerdict['verdict'];
   if (!promoted) {
-    verdict = "NOT-PROMOTED";
+    verdict = 'NOT-PROMOTED';
   } else if (!running) {
-    verdict = "REDEPLOY-NEEDED";
+    verdict = 'REDEPLOY-NEEDED';
   } else {
-    verdict = "EFFECTIVE";
+    verdict = 'EFFECTIVE';
   }
-  const exitCode: 0 | 1 = verdict === "EFFECTIVE" ? 0 : 1;
-  const yn = (b: boolean): string => (b ? "YES" : "NO");
+  const exitCode: 0 | 1 = verdict === 'EFFECTIVE' ? 0 : 1;
+  const yn = (b: boolean): string => (b ? 'YES' : 'NO');
   const lines = [
-    "fix promoted to base (fix in base):   " + yn(promoted),
-    "fix running in live (fix in live):    " + yn(running),
-    "base ahead of live by:                " + String(f.aheadCount) + " commits",
-    "VERDICT: " + verdict,
-    "",
-    "RAILWAY MANUAL CHECK: git cannot prove the container was BUILT after",
-    "the G1 NEXT_SERVER_ACTIONS_ENCRYPTION_KEY build var was set. Confirm the",
-    "live deploy build timestamp is AFTER that var existed, else the key is",
-    "not baked in even when the fix commit IS present.",
+    'fix promoted to base (fix in base):   ' + yn(promoted),
+    'fix running in live (fix in live):    ' + yn(running),
+    'base ahead of live by:                ' + String(f.aheadCount) + ' commits',
+    'VERDICT: ' + verdict,
+    '',
+    'RAILWAY MANUAL CHECK: git cannot prove the container was BUILT after',
+    'the G1 NEXT_SERVER_ACTIONS_ENCRYPTION_KEY build var was set. Confirm the',
+    'live deploy build timestamp is AFTER that var existed, else the key is',
+    'not baked in even when the fix commit IS present.',
   ];
   return { verdict, exitCode, lines };
 }
 
-
 // --- live-ref resolution: ask prod which commit it runs (ends tile-hash guessing) ---
 export function looksLikeUrl(v: string): boolean {
-  return v.startsWith("http://") || v.startsWith("https://");
+  return v.startsWith('http://') || v.startsWith('https://');
 }
 
 export function parseShaFromVersionPayload(body: string): string {
   const data = JSON.parse(body) as { sha?: unknown };
-  const sha = typeof data.sha === "string" ? data.sha : "";
-  if (sha === "" || sha === "unknown") {
-    throw new Error("version endpoint returned no usable sha (got: " + String((data as { sha?: unknown }).sha) + ")");
+  const sha = typeof data.sha === 'string' ? data.sha : '';
+  if (sha === '' || sha === 'unknown') {
+    throw new Error(
+      'version endpoint returned no usable sha (got: ' +
+        String((data as { sha?: unknown }).sha) +
+        ')',
+    );
   }
   return sha;
 }
@@ -72,18 +75,18 @@ export function parseShaFromVersionPayload(body: string): string {
 export async function resolveLiveRef(live: string): Promise<string> {
   if (!looksLikeUrl(live)) return live;
   const res = await fetch(live);
-  if (!res.ok) throw new Error("version endpoint HTTP " + String(res.status) + " at " + live);
+  if (!res.ok) throw new Error('version endpoint HTTP ' + String(res.status) + ' at ' + live);
   return parseShaFromVersionPayload(await res.text());
 }
 
 // --- git driver (impure; resolves ancestry facts) ---
 function git(args: string[]): string {
-  return execFileSync("git", args, { encoding: "utf-8" }).trim();
+  return execFileSync('git', args, { encoding: 'utf-8' }).trim();
 }
 
 function isAncestor(anc: string, desc: string): boolean {
   try {
-    execFileSync("git", ["merge-base", "--is-ancestor", anc, desc], { stdio: "ignore" });
+    execFileSync('git', ['merge-base', '--is-ancestor', anc, desc], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
@@ -97,10 +100,10 @@ function arg(flag: string, argv: string[]): string | undefined {
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  const liveUrl = arg("--live-url", argv);
-  const liveArg = arg("--live", argv);
-  const fix = arg("--fix", argv);
-  const base = arg("--base", argv) ?? "origin/main";
+  const liveUrl = arg('--live-url', argv);
+  const liveArg = arg('--live', argv);
+  const fix = arg('--fix', argv);
+  const base = arg('--base', argv) ?? 'origin/main';
   // The usage guard NARROWS as well as exits: process.exit() is typed never in
   // @types/node, so the compiler treats this branch as terminating and liveRef
   // and fix are non-undefined below with no assertion.
@@ -117,23 +120,25 @@ async function main(): Promise<void> {
   // have shown up immediately.
   const liveRef = liveUrl ?? liveArg;
   if (liveRef === undefined || fix === undefined) {
-    console.error("usage: inspect:prod-deploy -- (--live <sha> | --live-url <url>) --fix <sha> [--base <ref>]");
+    console.error(
+      'usage: inspect:prod-deploy -- (--live <sha> | --live-url <url>) --fix <sha> [--base <ref>]',
+    );
     process.exit(2);
   }
   const live = await resolveLiveRef(liveRef);
   const facts: DeployFacts = {
     fixInBase: isAncestor(fix, base),
     fixInLive: isAncestor(fix, live),
-    aheadCount: Number(git(["rev-list", "--count", live + ".." + base])),
+    aheadCount: Number(git(['rev-list', '--count', live + '..' + base])),
   };
   const r = computeDeployVerdict(facts);
-  console.log("=== inspect:prod-deploy ===");
-  console.log("base ref: " + base + ", fix: " + fix + ", live: " + live);
+  console.log('=== inspect:prod-deploy ===');
+  console.log('base ref: ' + base + ', fix: ' + fix + ', live: ' + live);
   for (const ln of r.lines) console.log(ln);
   process.exit(r.exitCode);
 }
 
-const invoked = process.argv[1] ?? "";
-if (invoked.endsWith("inspect-prod-deploy.ts") || invoked.endsWith("inspect-prod-deploy.js")) {
+const invoked = process.argv[1] ?? '';
+if (invoked.endsWith('inspect-prod-deploy.ts') || invoked.endsWith('inspect-prod-deploy.js')) {
   void main();
 }

@@ -1,6 +1,10 @@
 // packages/sync-protocol/test/extraction-types.test.ts
 import { describe, expect, it } from 'vitest';
-import { ExtractionJobDataWireSchema, ExtractionResultWireSchema, EXTRACTION_FAILURE_REASONS } from '../src/extraction-types.js';
+import {
+  ExtractionJobDataWireSchema,
+  ExtractionResultWireSchema,
+  EXTRACTION_FAILURE_REASONS,
+} from '../src/extraction-types.js';
 
 const job = {
   manifestId: '7b6a1c9e-2f4d-4a8b-9c0d-1e2f3a4b5c6d',
@@ -18,7 +22,9 @@ describe('ExtractionJobDataWireSchema', () => {
     expect(ExtractionJobDataWireSchema.safeParse({ ...job, extra: 1 }).success).toBe(false);
   });
   it('rejects disallowed mime', () => {
-    expect(ExtractionJobDataWireSchema.safeParse({ ...job, contentType: 'text/plain' }).success).toBe(false);
+    expect(
+      ExtractionJobDataWireSchema.safeParse({ ...job, contentType: 'text/plain' }).success,
+    ).toBe(false);
   });
 });
 
@@ -31,30 +37,70 @@ describe('ExtractionResultWireSchema kg-iff-extracted invariant', () => {
     expect(ok({ manifestId: m, status: 'extracted', extractedNetWeightKg: null })).toBe(false);
   });
   it('non-extracted requires null kg', () => {
-    expect(ok({ manifestId: m, status: 'unreadable', extractedNetWeightKg: 99, reason: 'unparseable' })).toBe(false);
+    expect(
+      ok({ manifestId: m, status: 'unreadable', extractedNetWeightKg: 99, reason: 'unparseable' }),
+    ).toBe(false);
   });
 });
 
 describe('ExtractionResultWireSchema reason invariant (failure cause is SSOT, not lost as unreadable)', () => {
   it('a failure status carries its deterministic reason', () => {
-    expect(ok({ manifestId: m, status: 'unreadable', extractedNetWeightKg: null, reason: 'unparseable' })).toBe(true);
-    expect(ok({ manifestId: m, status: 'unreadable', extractedNetWeightKg: null, reason: 'below_sanity_min' })).toBe(true);
-    expect(ok({ manifestId: m, status: 'unreadable', extractedNetWeightKg: null, reason: 'above_sanity_max' })).toBe(true);
-    expect(ok({ manifestId: m, status: 'not_found', extractedNetWeightKg: null, reason: 'no_field' })).toBe(true);
-    expect(ok({ manifestId: m, status: 'not_found', extractedNetWeightKg: null, reason: 'object_missing' })).toBe(true);
+    expect(
+      ok({
+        manifestId: m,
+        status: 'unreadable',
+        extractedNetWeightKg: null,
+        reason: 'unparseable',
+      }),
+    ).toBe(true);
+    expect(
+      ok({
+        manifestId: m,
+        status: 'unreadable',
+        extractedNetWeightKg: null,
+        reason: 'below_sanity_min',
+      }),
+    ).toBe(true);
+    expect(
+      ok({
+        manifestId: m,
+        status: 'unreadable',
+        extractedNetWeightKg: null,
+        reason: 'above_sanity_max',
+      }),
+    ).toBe(true);
+    expect(
+      ok({ manifestId: m, status: 'not_found', extractedNetWeightKg: null, reason: 'no_field' }),
+    ).toBe(true);
+    expect(
+      ok({
+        manifestId: m,
+        status: 'not_found',
+        extractedNetWeightKg: null,
+        reason: 'object_missing',
+      }),
+    ).toBe(true);
   });
   it('a failure status WITHOUT a reason is rejected', () => {
     expect(ok({ manifestId: m, status: 'not_found', extractedNetWeightKg: null })).toBe(false);
     expect(ok({ manifestId: m, status: 'unreadable', extractedNetWeightKg: null })).toBe(false);
   });
   it('extracted MUST NOT carry a reason', () => {
-    expect(ok({ manifestId: m, status: 'extracted', extractedNetWeightKg: 20730, reason: 'unparseable' })).toBe(false);
+    expect(
+      ok({
+        manifestId: m,
+        status: 'extracted',
+        extractedNetWeightKg: 20730,
+        reason: 'unparseable',
+      }),
+    ).toBe(false);
   });
   it('rejects an unknown reason value', () => {
-    expect(ok({ manifestId: m, status: 'not_found', extractedNetWeightKg: null, reason: 'bogus' })).toBe(false);
+    expect(
+      ok({ manifestId: m, status: 'not_found', extractedNetWeightKg: null, reason: 'bogus' }),
+    ).toBe(false);
   });
 });
-
 
 // T33: cannot-recognize outcomes. The recognizer accepts ONLY the three
 // standard phieu-can layouts. Two NEW terminal causes, both surfaced to the
@@ -69,9 +115,23 @@ describe('ExtractionResultWireSchema cannot-recognize reasons (T33)', () => {
     expect(EXTRACTION_FAILURE_REASONS).toContain('non_standard_format');
   });
   it('accepts multiple_slips as a not_found cause', () => {
-    expect(ok({ manifestId: m, status: 'not_found', extractedNetWeightKg: null, reason: 'multiple_slips' })).toBe(true);
+    expect(
+      ok({
+        manifestId: m,
+        status: 'not_found',
+        extractedNetWeightKg: null,
+        reason: 'multiple_slips',
+      }),
+    ).toBe(true);
   });
   it('accepts non_standard_format as an unreadable cause', () => {
-    expect(ok({ manifestId: m, status: 'unreadable', extractedNetWeightKg: null, reason: 'non_standard_format' })).toBe(true);
+    expect(
+      ok({
+        manifestId: m,
+        status: 'unreadable',
+        extractedNetWeightKg: null,
+        reason: 'non_standard_format',
+      }),
+    ).toBe(true);
   });
 });

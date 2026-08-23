@@ -55,7 +55,10 @@ const DIVERGENT: SpawnOutcome = {
   }),
   stderr: '',
 };
-const STALE = { kind: 'deps-stale', reason: 'The value of the overrides setting has changed' } as const;
+const STALE = {
+  kind: 'deps-stale',
+  reason: 'The value of the overrides setting has changed',
+} as const;
 const BLOCKED = { kind: 'toolchain-blocked', reason: 'pnpm v11.13.0 is a broken release' } as const;
 const FRESH = { kind: 'deps-ok' } as const;
 describe('runReconcile: consent gates every mutation', () => {
@@ -192,10 +195,7 @@ describe('runReconcile: classification and exit', () => {
       fn,
       { execute: true },
     );
-    expect(
-      n,
-      'one bad worktree must not abandon the other 44',
-      ).toBe(3);
+    expect(n, 'one bad worktree must not abandon the other 44').toBe(3);
     expect(r.summary).toEqual({ reconciled: 1, divergent: 0, failed: 1, skipped: 0 });
   });
   it('names every worktree it acted on so the report is auditable', () => {

@@ -1,14 +1,12 @@
 # @fleet/test-fixtures
 
-Shared test fixtures, factories, and seed data for TDD across the
-FleetManagement monorepo.
+Shared test fixtures, factories, and seed data for TDD across the FleetManagement monorepo.
 
 ## Purpose
 
-Provides factory functions that create valid, minimal domain and protocol
-objects with sensible defaults. Callers override only the fields relevant
-to their test case — reduces boilerplate and ensures test data stays
-aligned with the actual type contracts.
+Provides factory functions that create valid, minimal domain and protocol objects with sensible
+defaults. Callers override only the fields relevant to their test case — reduces boilerplate and
+ensures test data stays aligned with the actual type contracts.
 
 ## What belongs here
 
@@ -32,8 +30,5 @@ pnpm test:watch  # TDD watch loop
 ## Importing
 
 ```typescript
-import {
-  createMockSyncRequest,
-  createMockSyncResponse,
-} from '@fleet/test-fixtures';
+import { createMockSyncRequest, createMockSyncResponse } from '@fleet/test-fixtures';
 ```

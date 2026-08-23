@@ -4,9 +4,9 @@ Sync wire protocol types and contracts for the Intermodal Fleet Platform.
 
 ## Purpose
 
-Defines the TypeScript types for the `POST /sync` endpoint wire protocol
-as specified in the Frozen Stack PDF (p2-3). Shared between `apps/api`
-(server implementation) and `apps/driver-app` (client consumer).
+Defines the TypeScript types for the `POST /sync` endpoint wire protocol as specified in the Frozen
+Stack PDF (p2-3). Shared between `apps/api` (server implementation) and `apps/driver-app` (client
+consumer).
 
 Contains:
 

@@ -56,9 +56,15 @@ const PkgJsonSchema = z.object({
   devDependencies: z.record(z.string(), z.string()).optional(),
 });
 
-const eas = EasJsonSchema.parse(JSON.parse(readFileSync(resolve(__dirname, '../eas.json'), 'utf8')));
-const app = AppJsonSchema.parse(JSON.parse(readFileSync(resolve(__dirname, '../app.json'), 'utf8')));
-const pkg = PkgJsonSchema.parse(JSON.parse(readFileSync(resolve(__dirname, '../package.json'), 'utf8')));
+const eas = EasJsonSchema.parse(
+  JSON.parse(readFileSync(resolve(__dirname, '../eas.json'), 'utf8')),
+);
+const app = AppJsonSchema.parse(
+  JSON.parse(readFileSync(resolve(__dirname, '../app.json'), 'utf8')),
+);
+const pkg = PkgJsonSchema.parse(
+  JSON.parse(readFileSync(resolve(__dirname, '../package.json'), 'utf8')),
+);
 // Derived from the schema, not restated: adding a profile above makes this
 // list grow automatically and every loop below covers it.
 const PROFILES = Object.keys(EasJsonSchema.shape.build.shape) as readonly EasProfile[];

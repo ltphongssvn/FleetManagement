@@ -61,5 +61,8 @@ const RejectedAckSchema = z.object({
 });
 
 /** Driver-app -> server acknowledgement, discriminated on status. */
-export const CommandAckSchema = z.discriminatedUnion('status', [ReceivedAckSchema, RejectedAckSchema]);
+export const CommandAckSchema = z.discriminatedUnion('status', [
+  ReceivedAckSchema,
+  RejectedAckSchema,
+]);
 export type CommandAck = z.infer<typeof CommandAckSchema>;

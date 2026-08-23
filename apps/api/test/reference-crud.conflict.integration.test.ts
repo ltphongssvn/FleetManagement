@@ -8,13 +8,21 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ConflictException } from '@nestjs/common';
 import { ReferenceService } from '../src/reference/reference.service.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { withTxIsolation } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 describe('@fleet/api - ReferenceService duplicate -> ConflictException (T5b)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('createCustomer duplicate name throws ConflictException', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const svc = new ReferenceService(tx as never);
@@ -44,7 +52,9 @@ describe('@fleet/api - ReferenceService duplicate -> ConflictException (T5b)', (
       const svc = new ReferenceService(tx as never);
       const op = createOperatorContext();
       await svc.createWarehouse(op, 'DupHouse', 'pickup');
-      await expect(svc.createWarehouse(op, 'DupHouse', 'pickup')).rejects.toBeInstanceOf(ConflictException);
+      await expect(svc.createWarehouse(op, 'DupHouse', 'pickup')).rejects.toBeInstanceOf(
+        ConflictException,
+      );
     });
   });
   it('createWarehouse same name but different role does NOT conflict', async () => {

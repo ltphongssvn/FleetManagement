@@ -54,7 +54,11 @@ describe('@fleet/sync-protocol - ListAssignedRowStopSchema', () => {
     expect(r.success).toBe(true);
   });
   it('accepts null timestamps (not-yet-arrived stop)', () => {
-    const r = ListAssignedRowStopSchema.safeParse({ ...stop, plannedAt: null, warehouseName: null });
+    const r = ListAssignedRowStopSchema.safeParse({
+      ...stop,
+      plannedAt: null,
+      warehouseName: null,
+    });
     expect(r.success).toBe(true);
   });
 });
@@ -71,9 +75,18 @@ describe('@fleet/sync-protocol - ListAssignedRowSchema', () => {
   it('accepts null enrichment fields (pre-projection / missing joins)', () => {
     const sparse = {
       ...row,
-      externalRef: null, plannedStartAt: null, createdAt: null, startedAt: null,
-      completedAt: null, orderRef: null, plate: null, customerName: null,
-      cargoName: null, driverName: null, pickupName: null, deliveryName: null,
+      externalRef: null,
+      plannedStartAt: null,
+      createdAt: null,
+      startedAt: null,
+      completedAt: null,
+      orderRef: null,
+      plate: null,
+      customerName: null,
+      cargoName: null,
+      driverName: null,
+      pickupName: null,
+      deliveryName: null,
       stops: [],
     };
     expect(ListAssignedRowSchema.safeParse(sparse).success).toBe(true);

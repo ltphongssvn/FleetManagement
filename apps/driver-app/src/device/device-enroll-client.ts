@@ -24,7 +24,8 @@ export class DeviceEnrollClient {
       platform: this.config.platform,
       appVersion: this.config.appVersion,
     };
-    if (this.config.expoPushToken !== undefined) payload['expoPushToken'] = this.config.expoPushToken;
+    if (this.config.expoPushToken !== undefined)
+      payload['expoPushToken'] = this.config.expoPushToken;
     const res = await fetchFn(this.config.apiUrl + '/devices/enroll', {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },

@@ -267,7 +267,12 @@ function run(command: string, args: readonly string[], fd: number): RunResult {
  *  the opposite of the bug being fixed. Re-raising also preserves the
  *  conventional 128+n exit code a wrapper expects. */
 function installCleanup(lockDir: string): void {
-  const numbers: Readonly<Record<string, number>> = { SIGINT: 2, SIGQUIT: 3, SIGTERM: 15, SIGHUP: 1 };
+  const numbers: Readonly<Record<string, number>> = {
+    SIGINT: 2,
+    SIGQUIT: 3,
+    SIGTERM: 15,
+    SIGHUP: 1,
+  };
   for (const signal of CLEANUP_SIGNALS) {
     process.on(signal as NodeJS.Signals, () => {
       releaseLock(lockDir);

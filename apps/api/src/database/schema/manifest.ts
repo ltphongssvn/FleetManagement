@@ -5,7 +5,18 @@
 // reason arrays were previously hand-duplicated here). pgEnum accepts the
 // as-const tuples directly and emits identical SQL, so this is a pure
 // source-dedup with zero migration.
-import { pgTable, uuid, varchar, timestamp, index, integer, jsonb, numeric, pgEnum, check } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  varchar,
+  timestamp,
+  index,
+  integer,
+  jsonb,
+  numeric,
+  pgEnum,
+  check,
+} from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import {
   UPLOAD_SESSION_STATES,
@@ -17,20 +28,29 @@ import { EXTRACTION_FAILURE_REASONS } from '@fleet/sync-protocol';
 import { tenancyColumns } from './tenancy.js';
 import { transportOrder, stop } from './transport.js';
 export const uploadSessionStateEnum = pgEnum('upload_session_state', UPLOAD_SESSION_STATES);
-export const manifestRejectionReasonEnum = pgEnum('manifest_rejection_reason', MANIFEST_REJECTION_REASONS);
+export const manifestRejectionReasonEnum = pgEnum(
+  'manifest_rejection_reason',
+  MANIFEST_REJECTION_REASONS,
+);
 export const manifestStateEnum = pgEnum('manifest_state', MANIFEST_STATES);
 // Phieu-can net-weight extraction status (SSOT @fleet/domain
 // MANIFEST_EXTRACTION_STATUSES). Persisted on EVERY worker outcome (incl.
 // not_found/unreadable) so the board can tell processing (pending) from
 // needs-entry (not_found/unreadable) from a value (extracted/manual).
 // Expand-only: default pending backfills existing rows.
-export const manifestExtractionStatusEnum = pgEnum('manifest_extraction_status', MANIFEST_EXTRACTION_STATUSES);
+export const manifestExtractionStatusEnum = pgEnum(
+  'manifest_extraction_status',
+  MANIFEST_EXTRACTION_STATUSES,
+);
 // Deterministic cause of a non-extracted outcome (SSOT @fleet/sync-protocol
 // EXTRACTION_FAILURE_REASONS). Nullable: only set for not_found/unreadable
 // rows so a parse refusal (unparseable) is queryably distinct from an
 // illegible photo (object_missing). Expand-only; null for
 // pending/extracted/manual.
-export const manifestExtractionReasonEnum = pgEnum('manifest_extraction_reason', EXTRACTION_FAILURE_REASONS);
+export const manifestExtractionReasonEnum = pgEnum(
+  'manifest_extraction_reason',
+  EXTRACTION_FAILURE_REASONS,
+);
 export const manifest = pgTable(
   'manifest',
   {
@@ -54,7 +74,10 @@ export const manifest = pgTable(
     // stay verifying; manual intake:redrive is the deliberate post-fix replay
     // and ignores this gate).
     intakeReconcileAttempts: integer('intake_reconcile_attempts').notNull().default(0),
-    lastIntakeReconcileAt: timestamp('last_intake_reconcile_at', { withTimezone: true, mode: 'date' }),
+    lastIntakeReconcileAt: timestamp('last_intake_reconcile_at', {
+      withTimezone: true,
+      mode: 'date',
+    }),
     capturedByOperatorId: uuid('captured_by_operator_id'),
     capturedAt: timestamp('captured_at', { withTimezone: true, mode: 'date' }),
     committedAt: timestamp('committed_at', { withTimezone: true, mode: 'date' }),
@@ -67,7 +90,9 @@ export const manifest = pgTable(
     /** Extraction lifecycle status (see manifestExtractionStatusEnum). Default
      *  pending; the worker callback sets extracted/not_found/unreadable, a
      *  dispatcher manual edit sets manual. */
-    extractionStatus: manifestExtractionStatusEnum('extraction_status').notNull().default('pending'),
+    extractionStatus: manifestExtractionStatusEnum('extraction_status')
+      .notNull()
+      .default('pending'),
     /** EXPAND-only: deterministic failure cause for not_found/unreadable rows
      *  (see manifestExtractionReasonEnum). Null for pending/extracted/manual. */
     extractionReason: manifestExtractionReasonEnum('extraction_reason'),
@@ -94,7 +119,9 @@ export const uploadSession = pgTable(
     actualSizeBytes: integer('actual_size_bytes'),
     state: uploadSessionStateEnum('state').notNull().default('initiated'),
     contentHash: varchar('content_hash', { length: 128 }),
-    initiatedAt: timestamp('initiated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    initiatedAt: timestamp('initiated_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
     committedAt: timestamp('committed_at', { withTimezone: true, mode: 'date' }),
     abortedAt: timestamp('aborted_at', { withTimezone: true, mode: 'date' }),
   },
@@ -102,7 +129,10 @@ export const uploadSession = pgTable(
     index('upload_session_manifest_idx').on(t.manifestId),
     index('upload_session_operator_idx').on(t.operatorId),
     index('upload_session_state_idx').on(t.state),
-    check('upload_session_size_positive', sql`${t.expectedSizeBytes} IS NULL OR ${t.expectedSizeBytes} > 0`),
+    check(
+      'upload_session_size_positive',
+      sql`${t.expectedSizeBytes} IS NULL OR ${t.expectedSizeBytes} > 0`,
+    ),
   ],
 );
 export type Manifest = typeof manifest.$inferSelect;

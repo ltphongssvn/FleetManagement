@@ -14,7 +14,9 @@ export interface FetchAdoptionOptions {
   readonly fetchFn?: typeof globalThis.fetch;
 }
 
-export async function fetchAdoptionMetrics(opts: FetchAdoptionOptions): Promise<OwnerAdoptionMetrics> {
+export async function fetchAdoptionMetrics(
+  opts: FetchAdoptionOptions,
+): Promise<OwnerAdoptionMetrics> {
   const fetchFn = opts.fetchFn ?? globalThis.fetch;
   const token = await opts.bearerToken();
   const res = await fetchFn(opts.apiUrl + '/owner/metrics/adoption', {

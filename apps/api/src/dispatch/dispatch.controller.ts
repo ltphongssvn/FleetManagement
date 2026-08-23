@@ -29,8 +29,19 @@
 // tombstone (soft-deleted, since the app role holds no DELETE privilege) never appear.
 import { Controller, Get, Inject, Optional, Query, UseGuards } from '@nestjs/common';
 import { and, count, eq, inArray, isNull, or, sql } from 'drizzle-orm';
-import { computeWeightDiffKg, statesForStatusGroup, RoadRunPageQuerySchema } from '@fleet/sync-protocol';
-import type { DispatchBoardApiResponse, DispatchBoardApiRow, DispatchBoardPageApiResponse, DispatchStopView, StopProof, WeightDiffStop } from '@fleet/sync-protocol';
+import {
+  computeWeightDiffKg,
+  statesForStatusGroup,
+  RoadRunPageQuerySchema,
+} from '@fleet/sync-protocol';
+import type {
+  DispatchBoardApiResponse,
+  DispatchBoardApiRow,
+  DispatchBoardPageApiResponse,
+  DispatchStopView,
+  StopProof,
+  WeightDiffStop,
+} from '@fleet/sync-protocol';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import {
@@ -101,7 +112,10 @@ export class DispatchController {
   // name/phone), Ten hang (cargo_type name), Diem/Kho (warehouse name). Chenh
   // lech is JS-computed, not a column, so it is not searchable. Returns undefined when no
   // term is given so the caller keeps the base predicate untouched (back-compat).
-  private buildSearchClause(op: OperatorContext, search: string | undefined): ReturnType<typeof or> | undefined {
+  private buildSearchClause(
+    op: OperatorContext,
+    search: string | undefined,
+  ): ReturnType<typeof or> | undefined {
     if (search === undefined || search === '') return undefined;
     const like = '%' + search + '%';
     const co = op.companyId;
@@ -119,9 +133,7 @@ export class DispatchController {
   }
 
   @Get('board')
-  async getBoard(
-    @CurrentOperator() op: OperatorContext,
-  ): Promise<DispatchBoardApiResponse> {
+  async getBoard(@CurrentOperator() op: OperatorContext): Promise<DispatchBoardApiResponse> {
     const rows = await this.db
       .select({
         roadRunId: dispatchBoardProjection.roadRunId,
@@ -135,18 +147,26 @@ export class DispatchController {
         vehiclePlate: vehicle.plate,
       })
       .from(dispatchBoardProjection)
-      .leftJoin(driver, and(
-        eq(driver.operatorId, dispatchBoardProjection.assignedOperatorId),
-        eq(driver.companyId, op.companyId),
-      ))
-      .leftJoin(vehicle, and(
-        eq(vehicle.vehicleId, dispatchBoardProjection.assignedAssetId),
-        eq(vehicle.companyId, op.companyId),
-      ))
-      .where(and(
-        eq(dispatchBoardProjection.companyId, op.companyId),
-        isNull(dispatchBoardProjection.deletedAt),
-      ))
+      .leftJoin(
+        driver,
+        and(
+          eq(driver.operatorId, dispatchBoardProjection.assignedOperatorId),
+          eq(driver.companyId, op.companyId),
+        ),
+      )
+      .leftJoin(
+        vehicle,
+        and(
+          eq(vehicle.vehicleId, dispatchBoardProjection.assignedAssetId),
+          eq(vehicle.companyId, op.companyId),
+        ),
+      )
+      .where(
+        and(
+          eq(dispatchBoardProjection.companyId, op.companyId),
+          isNull(dispatchBoardProjection.deletedAt),
+        ),
+      )
       .orderBy(dispatchBoardProjection.plannedStartAt)
       .limit(DISPATCH_BOARD_MAX_ROWS);
     return { rows: await this.enrichRows(op, rows) };
@@ -194,14 +214,20 @@ export class DispatchController {
         vehiclePlate: vehicle.plate,
       })
       .from(dispatchBoardProjection)
-      .leftJoin(driver, and(
-        eq(driver.operatorId, dispatchBoardProjection.assignedOperatorId),
-        eq(driver.companyId, op.companyId),
-      ))
-      .leftJoin(vehicle, and(
-        eq(vehicle.vehicleId, dispatchBoardProjection.assignedAssetId),
-        eq(vehicle.companyId, op.companyId),
-      ))
+      .leftJoin(
+        driver,
+        and(
+          eq(driver.operatorId, dispatchBoardProjection.assignedOperatorId),
+          eq(driver.companyId, op.companyId),
+        ),
+      )
+      .leftJoin(
+        vehicle,
+        and(
+          eq(vehicle.vehicleId, dispatchBoardProjection.assignedAssetId),
+          eq(vehicle.companyId, op.companyId),
+        ),
+      )
       .where(whereClause)
       .orderBy(dispatchBoardProjection.plannedStartAt)
       .limit(pageSize)
@@ -213,7 +239,10 @@ export class DispatchController {
   // Shared per-row enrichment: given base projection rows (driver/vehicle labels
   // already joined), resolve stops (+ proof photos), customer name/phone, and the
   // pickup-vs-delivery weight diff, producing the canonical DispatchBoardApiRow[].
-  private async enrichRows(op: OperatorContext, rows: readonly BoardBaseRow[]): Promise<DispatchBoardApiRow[]> {
+  private async enrichRows(
+    op: OperatorContext,
+    rows: readonly BoardBaseRow[],
+  ): Promise<DispatchBoardApiRow[]> {
     const roadRunIds = rows.map((r) => r.roadRunId);
     const stopsByRoadRun = new Map<string, DispatchStopView[]>();
     const customerByRoadRun = new Map<string, string>();
@@ -233,10 +262,12 @@ export class DispatchController {
         .from(roadRunTransportOrder)
         .innerJoin(stop, eq(stop.transportOrderId, roadRunTransportOrder.transportOrderId))
         .leftJoin(warehouse, eq(warehouse.warehouseId, stop.yardId))
-        .where(and(
-          eq(roadRunTransportOrder.companyId, op.companyId),
-          inArray(roadRunTransportOrder.roadRunId, roadRunIds),
-        ))
+        .where(
+          and(
+            eq(roadRunTransportOrder.companyId, op.companyId),
+            inArray(roadRunTransportOrder.roadRunId, roadRunIds),
+          ),
+        )
         .orderBy(stop.sequence);
       const stopIds = stopRows.map((sr) => sr.stopId);
       const proofByStopId = new Map<string, ProofSource>();
@@ -254,11 +285,13 @@ export class DispatchController {
           })
           .from(manifest)
           .innerJoin(uploadSession, eq(uploadSession.manifestId, manifest.manifestId))
-          .where(and(
-            eq(manifest.companyId, op.companyId),
-            eq(manifest.state, 'committed'),
-            inArray(manifest.stopId, stopIds),
-          ));
+          .where(
+            and(
+              eq(manifest.companyId, op.companyId),
+              eq(manifest.state, 'committed'),
+              inArray(manifest.stopId, stopIds),
+            ),
+          );
         for (const pr of proofRows) {
           if (pr.stopId === null) continue;
           if (!proofByStopId.has(pr.stopId)) {
@@ -267,7 +300,8 @@ export class DispatchController {
               bucket: pr.s3Bucket,
               key: pr.s3Key,
               capturedAt: (pr.committedAt ?? new Date()).toISOString(),
-              extractedNetWeightKg: pr.extractedNetWeightKg === null ? null : Number(pr.extractedNetWeightKg),
+              extractedNetWeightKg:
+                pr.extractedNetWeightKg === null ? null : Number(pr.extractedNetWeightKg),
               extractionStatus: pr.extractionStatus,
               extractionReason: pr.extractionReason,
             });
@@ -279,8 +313,19 @@ export class DispatchController {
         const p = proofByStopId.get(sr.stopId);
         let proof: StopProof | null = null;
         if (p && this.proofSigner) {
-          const photoUrl = await this.proofSigner.presignProofUrl({ bucket: p.bucket, key: p.key, ttlSeconds: PROOF_URL_TTL_SECONDS });
-          proof = { manifestId: p.manifestId, photoUrl, capturedAt: p.capturedAt, extractedNetWeightKg: p.extractedNetWeightKg, extractionStatus: p.extractionStatus, extractionReason: p.extractionReason };
+          const photoUrl = await this.proofSigner.presignProofUrl({
+            bucket: p.bucket,
+            key: p.key,
+            ttlSeconds: PROOF_URL_TTL_SECONDS,
+          });
+          proof = {
+            manifestId: p.manifestId,
+            photoUrl,
+            capturedAt: p.capturedAt,
+            extractedNetWeightKg: p.extractedNetWeightKg,
+            extractionStatus: p.extractionStatus,
+            extractionReason: p.extractionReason,
+          };
         }
         list.push({
           stopId: sr.stopId,
@@ -300,12 +345,17 @@ export class DispatchController {
           customerPhone: customer.phone,
         })
         .from(roadRunTransportOrder)
-        .innerJoin(transportOrder, eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId))
+        .innerJoin(
+          transportOrder,
+          eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId),
+        )
         .innerJoin(customer, eq(customer.customerId, transportOrder.customerId))
-        .where(and(
-          eq(roadRunTransportOrder.companyId, op.companyId),
-          inArray(roadRunTransportOrder.roadRunId, roadRunIds),
-        ))
+        .where(
+          and(
+            eq(roadRunTransportOrder.companyId, op.companyId),
+            inArray(roadRunTransportOrder.roadRunId, roadRunIds),
+          ),
+        )
         .orderBy(roadRunTransportOrder.sequence);
       for (const cr of customerRows) {
         if (!customerByRoadRun.has(cr.roadRunId)) {
@@ -319,12 +369,17 @@ export class DispatchController {
           cargoName: cargoType.name,
         })
         .from(roadRunTransportOrder)
-        .innerJoin(transportOrder, eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId))
+        .innerJoin(
+          transportOrder,
+          eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId),
+        )
         .leftJoin(cargoType, eq(cargoType.cargoTypeId, transportOrder.cargoTypeId))
-        .where(and(
-          eq(roadRunTransportOrder.companyId, op.companyId),
-          inArray(roadRunTransportOrder.roadRunId, roadRunIds),
-        ))
+        .where(
+          and(
+            eq(roadRunTransportOrder.companyId, op.companyId),
+            inArray(roadRunTransportOrder.roadRunId, roadRunIds),
+          ),
+        )
         .orderBy(roadRunTransportOrder.sequence);
       for (const gr of cargoRows) {
         if (!cargoByRoadRun.has(gr.roadRunId)) {
@@ -346,10 +401,12 @@ export class DispatchController {
       customerPhone: customerPhoneByRoadRun.get(r.roadRunId) ?? null,
       cargoName: cargoByRoadRun.get(r.roadRunId) ?? null,
       weightDiffKg: computeWeightDiffKg(
-        (stopsByRoadRun.get(r.roadRunId) ?? []).map((s): WeightDiffStop => ({
-          stopType: s.stopType,
-          extractedNetWeightKg: s.proof?.extractedNetWeightKg ?? null,
-        })),
+        (stopsByRoadRun.get(r.roadRunId) ?? []).map(
+          (s): WeightDiffStop => ({
+            stopType: s.stopType,
+            extractedNetWeightKg: s.proof?.extractedNetWeightKg ?? null,
+          }),
+        ),
       ),
       stops: stopsByRoadRun.get(r.roadRunId) ?? [],
     }));

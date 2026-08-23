@@ -22,8 +22,7 @@ import { AdminDriversResetPasswordController } from './admin-drivers-reset-passw
 import * as bcrypt from 'bcryptjs';
 const bcryptHashProvider = {
   provide: BCRYPT_HASH,
-  useValue: ((plain: string, rounds: number) =>
-    bcrypt.hash(plain, rounds)) satisfies BcryptHashFn,
+  useValue: ((plain: string, rounds: number) => bcrypt.hash(plain, rounds)) satisfies BcryptHashFn,
 };
 @Module({
   imports: [AuthModule],
@@ -55,5 +54,4 @@ const bcryptHashProvider = {
     AdminDriversResetPasswordService,
   ],
 })
-
 export class AdminModule {}

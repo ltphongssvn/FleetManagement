@@ -35,8 +35,14 @@ import {
   parseReflogIdleHours,
   resolveCloseInput,
 } from './worktree-close.js';
-import { listWorktreesArgs, upstreamArgs, aheadBehindArgs, dirtyArgs, containmentArgs, reflogArgs }
-  from './worktree-close-cli.js';
+import {
+  listWorktreesArgs,
+  upstreamArgs,
+  aheadBehindArgs,
+  dirtyArgs,
+  containmentArgs,
+  reflogArgs,
+} from './worktree-close-cli.js';
 import {
   classifyStaleWorktrees,
   describeStaleWorktrees,
@@ -77,9 +83,8 @@ function observe(): readonly WorktreeObservation[] {
 
   return entries.map((entry) => {
     const upstream = gitAllowFail(upstreamArgs(), entry.path);
-    const ahead = upstream.length > 0
-      ? parseAheadBehind(git(aheadBehindArgs(upstream), entry.path)).ahead
-      : 0;
+    const ahead =
+      upstream.length > 0 ? parseAheadBehind(git(aheadBehindArgs(upstream), entry.path)).ahead : 0;
     const idleHours = parseReflogIdleHours(gitAllowFail(reflogArgs(), entry.path), nowSec);
     const input = resolveCloseInput({
       path: entry.path,
@@ -120,8 +125,13 @@ function main(): number {
     return exitCodeForStaleGate(verdict);
   }
   if (verdict.kind === 'clean') {
-    process.stdout.write('[worktree:stale-gate] OK -- no merged, clean, idle worktrees ' +
-      'awaiting reclamation (' + String(worktrees.length) + ' inspected).' + NL);
+    process.stdout.write(
+      '[worktree:stale-gate] OK -- no merged, clean, idle worktrees ' +
+        'awaiting reclamation (' +
+        String(worktrees.length) +
+        ' inspected).' +
+        NL,
+    );
     return exitCodeForStaleGate(verdict);
   }
 
@@ -130,4 +140,6 @@ function main(): number {
 }
 
 const isEntry = process.argv[1] !== undefined && import.meta.url === 'file://' + process.argv[1];
-if (isEntry) { process.exit(main()); }
+if (isEntry) {
+  process.exit(main());
+}

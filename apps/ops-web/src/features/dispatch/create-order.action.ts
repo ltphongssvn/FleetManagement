@@ -29,9 +29,17 @@ import { cookies } from 'next/headers';
 import { DateOnlyFormSchema } from './create-order.schema';
 import { vnApiErrorMessage } from '../errors/present-problem';
 type ErrorKey =
-  | 'plannedStartAt' | 'assignedOperatorId' | 'assignedAssetId'
-  | 'customer' | 'cargo' | 'vehiclePlate' | 'driverName'
-  | 'pickupAt' | 'deliveryAt' | 'pickupWarehouses' | 'deliveryWarehouses';
+  | 'plannedStartAt'
+  | 'assignedOperatorId'
+  | 'assignedAssetId'
+  | 'customer'
+  | 'cargo'
+  | 'vehiclePlate'
+  | 'driverName'
+  | 'pickupAt'
+  | 'deliveryAt'
+  | 'pickupWarehouses'
+  | 'deliveryWarehouses';
 export type CreateOrderState =
   | undefined
   | { status: 'invalid'; errors: Partial<Record<ErrorKey, string>> }
@@ -53,7 +61,10 @@ function collectWarehouses(formData: FormData, prefix: string): string[] {
   }
   return out;
 }
-export async function createOrder(_prev: CreateOrderState, formData: FormData): Promise<CreateOrderState> {
+export async function createOrder(
+  _prev: CreateOrderState,
+  formData: FormData,
+): Promise<CreateOrderState> {
   const parsed = DateOnlyFormSchema.safeParse({
     plannedStartAt: formData.get('plannedStartAt'),
     assignedOperatorId: formData.get('assignedOperatorId'),
@@ -76,10 +87,15 @@ export async function createOrder(_prev: CreateOrderState, formData: FormData): 
     return { status: 'invalid', errors };
   }
   const apiUrl = process.env['FLEET_API_URL'];
-  if (!apiUrl) return { status: 'server_error', message: 'Hệ thống chưa được cấu hình. Vui lòng liên hệ quản trị.' };
+  if (!apiUrl)
+    return {
+      status: 'server_error',
+      message: 'Hệ thống chưa được cấu hình. Vui lòng liên hệ quản trị.',
+    };
   const cookieStore = await cookies();
   const token = cookieStore.get('fleet_session')?.value;
-  if (!token) return { status: 'server_error', message: 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.' };
+  if (!token)
+    return { status: 'server_error', message: 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.' };
   const pickupPlannedAt = toIso(parsed.data.pickupAt);
   const deliveryPlannedAt = toIso(parsed.data.deliveryAt);
   const pickupStops = parsed.data.pickupWarehouses.map((yardId, idx) => ({
@@ -120,6 +136,14 @@ export async function createOrder(_prev: CreateOrderState, formData: FormData): 
     const errBody: unknown = await res.json().catch(() => undefined);
     return { status: 'api_error', message: vnApiErrorMessage(res.status, errBody) };
   }
-  const json = (await res.json()) as { transportOrderId: string; roadRunId: string; externalRef: string };
-  return { status: 'created', externalRef: json.externalRef, transportOrderId: json.transportOrderId };
+  const json = (await res.json()) as {
+    transportOrderId: string;
+    roadRunId: string;
+    externalRef: string;
+  };
+  return {
+    status: 'created',
+    externalRef: json.externalRef,
+    transportOrderId: json.transportOrderId,
+  };
 }

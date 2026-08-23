@@ -37,11 +37,15 @@ function RootLayout(): JSX.Element {
   // from first launch, or a 4AM tap from a cold, logged-out app has no channel
   // to ring through and nowhere to route the tap.
   useEffect(() => {
-    const navigate = (href: string): void => { router.push(href as Href); };
+    const navigate = (href: string): void => {
+      router.push(href as Href);
+    };
     // (1) Boot bring-up: foreground handler + channel-first setup + token.
     //     Fire-and-forget -- a slow or denied permission prompt must never
     //     block first paint. Errors are reported, not thrown into render.
-    void setUpDriverAlerts().catch((err: unknown) => { Sentry.captureException(err); });
+    void setUpDriverAlerts().catch((err: unknown) => {
+      Sentry.captureException(err);
+    });
     // (2) Live taps (app foreground/background): register the response listener
     //     FIRST. Expo only reliably returns the last response once a listener
     //     exists (expo/expo#36930, #37511), so this must precede the drain.
@@ -51,7 +55,9 @@ function RootLayout(): JSX.Element {
     //     in SDK 55, so the initial response is read and routed immediately --
     //     no async gap, no unmount race.
     drainInitialNotificationResponse(navigate);
-    return (): void => { subscription.remove(); };
+    return (): void => {
+      subscription.remove();
+    };
   }, [router]);
   // AuthProvider holds the single shared auth state for the whole app, so
   // logout() on one screen flips the auth gate on every other screen.

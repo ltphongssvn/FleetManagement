@@ -25,7 +25,9 @@ describe('StopProofSchema extractionStatus (additive)', () => {
   });
 
   it('rejects an unknown status', () => {
-    expect(StopProofSchema.safeParse({ ...proofBase, extractionStatus: 'done' }).success).toBe(false);
+    expect(StopProofSchema.safeParse({ ...proofBase, extractionStatus: 'done' }).success).toBe(
+      false,
+    );
   });
 
   it('round-trips status + kg inside DispatchStopViewSchema', () => {

@@ -20,7 +20,10 @@ const OP: OperatorContext = {
 function makeCtrl(): CommandsController {
   const svc = { persist: vi.fn() } as unknown as CommandsService;
   const gw = { pushCommand: vi.fn() } as unknown as CommandsGateway;
-  const policy = { assertOperatorInTenant: () => Promise.resolve(), assertAggregateInTenant: () => Promise.resolve() } as unknown as TenantPolicy;
+  const policy = {
+    assertOperatorInTenant: () => Promise.resolve(),
+    assertAggregateInTenant: () => Promise.resolve(),
+  } as unknown as TenantPolicy;
   return new CommandsController(gw, svc, policy);
 }
 

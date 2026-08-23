@@ -10,10 +10,7 @@ import {
   AuthContextClaimsSchema,
   StepUpRequirementSchema,
 } from '../src/auth/auth-context.schema.js';
-import type {
-  AuthContextClaims,
-  StepUpRequirement,
-} from '../src/auth/auth-context.schema.js';
+import type { AuthContextClaims, StepUpRequirement } from '../src/auth/auth-context.schema.js';
 import { evaluateStepUp } from '../src/auth/step-up-policy.js';
 
 const LADDER = ['aal1', 'aal2', 'aal3'] as const;
@@ -82,7 +79,11 @@ describe('evaluateStepUp - assurance gate on acr', () => {
 
 describe('evaluateStepUp - phishing-resistant method gate on amr', () => {
   const pr = (): StepUpRequirement =>
-    requirement({ requiredAcr: 'aal2', requirePhishingResistant: true, phishingResistantAmr: ['hwk'] });
+    requirement({
+      requiredAcr: 'aal2',
+      requirePhishingResistant: true,
+      phishingResistantAmr: ['hwk'],
+    });
 
   it('rejects a sufficient-acr token whose amr proves no phishing-resistant method', () => {
     expect(evaluateStepUp(claims('aal2', ['pwd', 'otp']), pr())).toEqual({

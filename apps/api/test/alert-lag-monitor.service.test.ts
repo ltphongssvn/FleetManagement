@@ -16,7 +16,10 @@ const { mockCaptureEvent, capturedEvents } = vi.hoisted(() => {
   const capturedEvents: unknown[] = [];
   return {
     capturedEvents,
-    mockCaptureEvent: vi.fn((e: unknown) => { capturedEvents.push(e); return 'evt-id'; }),
+    mockCaptureEvent: vi.fn((e: unknown) => {
+      capturedEvents.push(e);
+      return 'evt-id';
+    }),
   };
 });
 vi.mock('@sentry/nestjs', () => ({ captureEvent: mockCaptureEvent }));
@@ -100,10 +103,22 @@ describe('@fleet/api - AlertLagMonitorService', () => {
   });
 
   it('re-arms after recovery so a NEW stall pages again', async () => {
-    const bad: AlertLagSnapshot = { deadLetterCount: 1, oldestPendingId: null, oldestPendingCreatedAt: null, pendingCount: 0 };
-    const good: AlertLagSnapshot = { deadLetterCount: 0, oldestPendingId: null, oldestPendingCreatedAt: null, pendingCount: 0 };
+    const bad: AlertLagSnapshot = {
+      deadLetterCount: 1,
+      oldestPendingId: null,
+      oldestPendingCreatedAt: null,
+      pendingCount: 0,
+    };
+    const good: AlertLagSnapshot = {
+      deadLetterCount: 0,
+      oldestPendingId: null,
+      oldestPendingCreatedAt: null,
+      pendingCount: 0,
+    };
     let current: AlertLagSnapshot = bad;
-    const repo: AlertLagRepo = { snapshot: vi.fn().mockImplementation(() => Promise.resolve(current)) };
+    const repo: AlertLagRepo = {
+      snapshot: vi.fn().mockImplementation(() => Promise.resolve(current)),
+    };
     const m = new AlertLagMonitorService(repo, 15, () => T0);
     await m.checkOnce();
     current = good;
@@ -122,7 +137,10 @@ describe('@fleet/api - AlertLagMonitorService', () => {
     };
     const m = new AlertLagMonitorService(repoWith(snap), 15, () => T0);
     await m.checkOnce();
-    const evt = capturedEvents[0] as { tags?: Record<string, string>; extra?: Record<string, unknown> };
+    const evt = capturedEvents[0] as {
+      tags?: Record<string, string>;
+      extra?: Record<string, unknown>;
+    };
     expect(evt.tags?.['pipeline_event']).toBe('driver_alert_stalled');
     expect(evt.extra?.['pendingCount']).toBe(4);
     expect(evt.extra?.['oldestAgeMinutes']).toBe(30);

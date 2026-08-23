@@ -35,7 +35,9 @@ describe('sessionRefreshUrl', () => {
 });
 
 describe('navigateToSessionRefresh', () => {
-  afterEach(() => { vi.unstubAllGlobals(); });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('calls the injected navigate with the built URL for an explicit path', () => {
     const nav = vi.fn();
@@ -45,7 +47,9 @@ describe('navigateToSessionRefresh', () => {
 
   it('defaults currentPath to window.location pathname + search', () => {
     const nav = vi.fn();
-    vi.stubGlobal('window', { location: { pathname: '/dispatch/orders/XTT.07-001', search: '?tab=cargo' } });
+    vi.stubGlobal('window', {
+      location: { pathname: '/dispatch/orders/XTT.07-001', search: '?tab=cargo' },
+    });
     navigateToSessionRefresh(nav);
     expect(nav).toHaveBeenCalledWith(
       '/api/auth/refresh?next=' + encodeURIComponent('/dispatch/orders/XTT.07-001?tab=cargo'),

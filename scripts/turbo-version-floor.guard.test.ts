@@ -100,8 +100,11 @@ describe('turbo version floor guard', () => {
 
   it('never drifts below the floor ' + FLOOR_TEXT, () => {
     const pinned = versionOf(turboSpec());
-    expect({ pinned, floor: FLOOR_TEXT, belowFloor: isBelow(pinned, FLOOR) })
-      .toEqual({ pinned, floor: FLOOR_TEXT, belowFloor: false });
+    expect({ pinned, floor: FLOOR_TEXT, belowFloor: isBelow(pinned, FLOOR) }).toEqual({
+      pinned,
+      floor: FLOOR_TEXT,
+      belowFloor: false,
+    });
   });
 
   it('preserves a range operator so patch updates stay available', () => {

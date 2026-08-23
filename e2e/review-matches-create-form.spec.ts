@@ -25,11 +25,18 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import { dockerPsql } from './helpers/docker-exec';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { type z } from 'zod';
-import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
+import {
+  parseJson,
+  CreateDriverResponseSchema,
+  ReferenceItemSchema,
+  AssignmentResponseSchema,
+} from './helpers/contracts';
 import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
-function sq39(): string { return String.fromCharCode(39); }
+function sq39(): string {
+  return String.fromCharCode(39);
+}
 interface SeededPair {
   driverId: string;
   operatorId: string;
@@ -49,7 +56,13 @@ interface SeededRefs {
   deliveryLabel: string;
   deliveryId: string;
 }
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+async function adminPost<T>(
+  api: APIRequestContext,
+  token: string,
+  path: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
@@ -66,40 +79,83 @@ async function setupPair(api: APIRequestContext, suffix: string): Promise<Seeded
   const driverLabel = 'E2E DRIVER ' + suffix + ' ' + String(ts);
   const vehicleLabel = 'E2E-' + suffix + '-' + String(ts);
   const drv = await adminPost(
-    api, token, '/admin/drivers',
+    api,
+    token,
+    '/admin/drivers',
     { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
     CreateDriverResponseSchema,
   );
   const veh = await adminPost(
-    api, token, '/reference/vehicles', { name: vehicleLabel },
+    api,
+    token,
+    '/reference/vehicles',
+    { name: vehicleLabel },
     ReferenceItemSchema,
   );
   const asgn = await adminPost(
-    api, token, '/admin/driver-vehicle-assignments',
+    api,
+    token,
+    '/admin/driver-vehicle-assignments',
     { driverId: drv.driverId, vehicleId: veh.id },
     AssignmentResponseSchema,
   );
   return {
-    driverId: drv.driverId, operatorId: drv.operatorId,
-    vehicleId: veh.id, vehicleLabel, driverLabel,
-    assignmentId: asgn.assignmentId, token,
+    driverId: drv.driverId,
+    operatorId: drv.operatorId,
+    vehicleId: veh.id,
+    vehicleLabel,
+    driverLabel,
+    assignmentId: asgn.assignmentId,
+    token,
   };
 }
-async function setupRefs(api: APIRequestContext, token: string, suffix: string): Promise<SeededRefs> {
+async function setupRefs(
+  api: APIRequestContext,
+  token: string,
+  suffix: string,
+): Promise<SeededRefs> {
   const ts = Date.now();
   const customerLabel = 'E2E-CUST-' + suffix + '-' + String(ts);
   const cargoLabel = 'E2E-CARGO-' + suffix + '-' + String(ts);
   const pickupLabel = 'E2E-PICKUP-' + suffix + '-' + String(ts);
   const deliveryLabel = 'E2E-DELIVERY-' + suffix + '-' + String(ts);
-  const c = await adminPost(api, token, '/reference/customers', { name: customerLabel }, ReferenceItemSchema);
-  const cg = await adminPost(api, token, '/reference/cargo-types', { name: cargoLabel }, ReferenceItemSchema);
-  const p = await adminPost(api, token, '/reference/warehouses', { name: pickupLabel, role: 'pickup' }, ReferenceItemSchema);
-  const d = await adminPost(api, token, '/reference/warehouses', { name: deliveryLabel, role: 'delivery' }, ReferenceItemSchema);
+  const c = await adminPost(
+    api,
+    token,
+    '/reference/customers',
+    { name: customerLabel },
+    ReferenceItemSchema,
+  );
+  const cg = await adminPost(
+    api,
+    token,
+    '/reference/cargo-types',
+    { name: cargoLabel },
+    ReferenceItemSchema,
+  );
+  const p = await adminPost(
+    api,
+    token,
+    '/reference/warehouses',
+    { name: pickupLabel, role: 'pickup' },
+    ReferenceItemSchema,
+  );
+  const d = await adminPost(
+    api,
+    token,
+    '/reference/warehouses',
+    { name: deliveryLabel, role: 'delivery' },
+    ReferenceItemSchema,
+  );
   return {
-    customerLabel, customerId: c.id,
-    cargoLabel, cargoId: cg.id,
-    pickupLabel, pickupId: p.id,
-    deliveryLabel, deliveryId: d.id,
+    customerLabel,
+    customerId: c.id,
+    cargoLabel,
+    cargoId: cg.id,
+    pickupLabel,
+    pickupId: p.id,
+    deliveryLabel,
+    deliveryId: d.id,
   };
 }
 // Authenticate via injected session (PKCE login has no credential form).
@@ -124,7 +180,8 @@ async function pickCombobox(page: Page, inputId: string, optionLabel: string): P
       await expect(opt).toBeVisible({ timeout: 5000 });
       break;
     } catch {
-      if (attempt === 3) throw new Error('combobox ' + inputId + ' never opened option: ' + optionLabel);
+      if (attempt === 3)
+        throw new Error('combobox ' + inputId + ' never opened option: ' + optionLabel);
       await page.keyboard.press('Escape');
       await page.waitForTimeout(250);
     }
@@ -135,7 +192,10 @@ test.describe.configure({ mode: 'serial' });
 test.describe('review view reflects create-order form (T7)', () => {
   const seededOrderRefs: string[] = [];
   const seededRefNames: string[] = [];
-  test('every form field shows on the review view with the same value', async ({ page, request }) => {
+  test('every form field shows on the review view with the same value', async ({
+    page,
+    request,
+  }) => {
     test.setTimeout(120000);
     const pair = await setupPair(request, 'T7');
     const refs = await setupRefs(request, pair.token, 'T7');
@@ -168,15 +228,26 @@ test.describe('review view reflects create-order form (T7)', () => {
     // Capture the assigned ref so we can navigate AND clean up.
     const sq = sq39();
     const findSql =
-      'SELECT external_ref FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq + ' ' +
-      'AND external_ref ~ ' + sq + '^XTT[.](0[1-9]|1[0-2])-[0-9]+$' + sq + ' ' +
+      'SELECT external_ref FROM transport_order WHERE company_id=' +
+      sq +
+      COMPANY_ID +
+      sq +
+      ' ' +
+      'AND external_ref ~ ' +
+      sq +
+      '^XTT[.](0[1-9]|1[0-2])-[0-9]+$' +
+      sq +
+      ' ' +
       'ORDER BY created_at DESC LIMIT 1;';
     let createdRef = '';
     for (let i = 0; i < 40; i++) {
       const r = dockerPsql(findSql);
       if (r.failed) throw new Error('poll psql failed: ' + r.stderr);
       const v = r.stdout.trim();
-      if (v.length > 0) { createdRef = v; break; }
+      if (v.length > 0) {
+        createdRef = v;
+        break;
+      }
       await page.waitForTimeout(500);
     }
     if (createdRef.length > 0) seededOrderRefs.push(createdRef);
@@ -213,7 +284,15 @@ test.describe('review view reflects create-order form (T7)', () => {
     // labels, never opaque UUIDs. The ONLY allowed UUID is the explicit
     // Mã đơn (ID) field. Every other display field must not match a UUID.
     const uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-    for (const tid of ['order-review-external-ref','order-review-plate','order-review-customer','order-review-cargo','order-review-driver','order-review-state','order-review-created-at']) {
+    for (const tid of [
+      'order-review-external-ref',
+      'order-review-plate',
+      'order-review-customer',
+      'order-review-cargo',
+      'order-review-driver',
+      'order-review-state',
+      'order-review-created-at',
+    ]) {
       const txt = await page.getByTestId(tid).innerText();
       expect(uuidRe.test(txt), tid + ' must not display a UUID: ' + txt).toBe(false);
     }
@@ -222,32 +301,129 @@ test.describe('review view reflects create-order form (T7)', () => {
     test.setTimeout(60000);
     const sq = sq39();
     for (const ref of seededOrderRefs) {
-      const txIdSql = 'SELECT transport_order_id FROM transport_order WHERE company_id=' +
-        sq + COMPANY_ID + sq + ' AND external_ref=' + sq + ref + sq + ';';
+      const txIdSql =
+        'SELECT transport_order_id FROM transport_order WHERE company_id=' +
+        sq +
+        COMPANY_ID +
+        sq +
+        ' AND external_ref=' +
+        sq +
+        ref +
+        sq +
+        ';';
       const txId = dockerPsql(txIdSql).stdout.trim();
       if (txId.length > 0) {
-        const rrIdSql = 'SELECT road_run_id FROM road_run_transport_order WHERE transport_order_id=' +
-          sq + txId + sq + ';';
-        const rrIds = dockerPsql(rrIdSql).stdout.trim().split(String.fromCharCode(10)).filter((l) => l.length > 0);
-        try { dockerPsql('DELETE FROM stop WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
-        try { dockerPsql('DELETE FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
+        const rrIdSql =
+          'SELECT road_run_id FROM road_run_transport_order WHERE transport_order_id=' +
+          sq +
+          txId +
+          sq +
+          ';';
+        const rrIds = dockerPsql(rrIdSql)
+          .stdout.trim()
+          .split(String.fromCharCode(10))
+          .filter((l) => l.length > 0);
+        try {
+          dockerPsql('DELETE FROM stop WHERE transport_order_id=' + sq + txId + sq + ';');
+        } catch {
+          /* tolerate */
+        }
+        try {
+          dockerPsql(
+            'DELETE FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';',
+          );
+        } catch {
+          /* tolerate */
+        }
         for (const rrId of rrIds) {
-          try { dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + rrId + sq + ';'); } catch { /* tolerate */ }
+          try {
+            dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + rrId + sq + ';');
+          } catch {
+            /* tolerate */
+          }
         }
       }
-      try { dockerPsql('DELETE FROM dispatch_board_projection WHERE company_id=' + sq + COMPANY_ID + sq +
-        ' AND external_ref=' + sq + ref + sq + ';'); } catch { /* tolerate */ }
-      try { dockerPsql('DELETE FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq +
-        ' AND external_ref=' + sq + ref + sq + ';'); } catch { /* tolerate */ }
+      try {
+        dockerPsql(
+          'DELETE FROM dispatch_board_projection WHERE company_id=' +
+            sq +
+            COMPANY_ID +
+            sq +
+            ' AND external_ref=' +
+            sq +
+            ref +
+            sq +
+            ';',
+        );
+      } catch {
+        /* tolerate */
+      }
+      try {
+        dockerPsql(
+          'DELETE FROM transport_order WHERE company_id=' +
+            sq +
+            COMPANY_ID +
+            sq +
+            ' AND external_ref=' +
+            sq +
+            ref +
+            sq +
+            ';',
+        );
+      } catch {
+        /* tolerate */
+      }
     }
     // Soft-delete the reference rows this spec seeded so they never leak
     // into the live dispatcher form dropdowns (Khach hang, Ten hang, Diem
     // nhan/giao hang). The global teardown is the defense-in-depth backstop;
     // per-spec cleanup keeps the DB clean even between specs in a run.
     for (const name of seededRefNames) {
-      try { dockerPsql('UPDATE customer SET active=false WHERE company_id=' + sq + COMPANY_ID + sq + ' AND name=' + sq + name + sq + ';'); } catch { /* tolerate */ }
-      try { dockerPsql('UPDATE cargo_type SET active=false WHERE company_id=' + sq + COMPANY_ID + sq + ' AND name=' + sq + name + sq + ';'); } catch { /* tolerate */ }
-      try { dockerPsql('UPDATE warehouse SET active=false WHERE company_id=' + sq + COMPANY_ID + sq + ' AND name=' + sq + name + sq + ';'); } catch { /* tolerate */ }
+      try {
+        dockerPsql(
+          'UPDATE customer SET active=false WHERE company_id=' +
+            sq +
+            COMPANY_ID +
+            sq +
+            ' AND name=' +
+            sq +
+            name +
+            sq +
+            ';',
+        );
+      } catch {
+        /* tolerate */
+      }
+      try {
+        dockerPsql(
+          'UPDATE cargo_type SET active=false WHERE company_id=' +
+            sq +
+            COMPANY_ID +
+            sq +
+            ' AND name=' +
+            sq +
+            name +
+            sq +
+            ';',
+        );
+      } catch {
+        /* tolerate */
+      }
+      try {
+        dockerPsql(
+          'UPDATE warehouse SET active=false WHERE company_id=' +
+            sq +
+            COMPANY_ID +
+            sq +
+            ' AND name=' +
+            sq +
+            name +
+            sq +
+            ';',
+        );
+      } catch {
+        /* tolerate */
+      }
     }
   });
 });

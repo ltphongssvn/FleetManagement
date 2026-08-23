@@ -205,28 +205,34 @@ describe('interpretHealResult (outcome IS the classifier)', () => {
 // untrustworthy, so its divergent findings may be incomplete.
 describe('reconcileExitCode (gates, does not merely print)', () => {
   it('is 0 when every candidate reconciled', () => {
-    expect(reconcileExitCode({ reconciled: 9, divergent: 0, failed: 0, skipped: 33 }))
-      .toBe(RECONCILE_EXIT.ok);
+    expect(reconcileExitCode({ reconciled: 9, divergent: 0, failed: 0, skipped: 33 })).toBe(
+      RECONCILE_EXIT.ok,
+    );
   });
   it('is 0 for a run with nothing to do', () => {
-    expect(reconcileExitCode({ reconciled: 0, divergent: 0, failed: 0, skipped: 45 }))
-      .toBe(RECONCILE_EXIT.ok);
+    expect(reconcileExitCode({ reconciled: 0, divergent: 0, failed: 0, skipped: 45 })).toBe(
+      RECONCILE_EXIT.ok,
+    );
   });
   it('reports genuine lockfile divergence with its OWN code', () => {
-    expect(reconcileExitCode({ reconciled: 8, divergent: 1, failed: 0, skipped: 33 }))
-      .toBe(RECONCILE_EXIT.divergent);
+    expect(reconcileExitCode({ reconciled: 8, divergent: 1, failed: 0, skipped: 33 })).toBe(
+      RECONCILE_EXIT.divergent,
+    );
   });
   it('reports a heal failure with a DIFFERENT code than divergence', () => {
-    expect(reconcileExitCode({ reconciled: 0, divergent: 0, failed: 1, skipped: 44 }))
-      .toBe(RECONCILE_EXIT.failed);
+    expect(reconcileExitCode({ reconciled: 0, divergent: 0, failed: 1, skipped: 44 })).toBe(
+      RECONCILE_EXIT.failed,
+    );
   });
   it('lets failed DOMINATE divergent: an untrustworthy sweep outranks its findings', () => {
-    expect(reconcileExitCode({ reconciled: 0, divergent: 3, failed: 1, skipped: 41 }))
-      .toBe(RECONCILE_EXIT.failed);
+    expect(reconcileExitCode({ reconciled: 0, divergent: 3, failed: 1, skipped: 41 })).toBe(
+      RECONCILE_EXIT.failed,
+    );
   });
   it('does not fail a run merely because worktrees were skipped', () => {
-    expect(reconcileExitCode({ reconciled: 0, divergent: 0, failed: 0, skipped: 4 }))
-      .toBe(RECONCILE_EXIT.ok);
+    expect(reconcileExitCode({ reconciled: 0, divergent: 0, failed: 0, skipped: 4 })).toBe(
+      RECONCILE_EXIT.ok,
+    );
   });
   it('keeps every exit code distinct so the operator can branch on it', () => {
     const codes = [RECONCILE_EXIT.ok, RECONCILE_EXIT.divergent, RECONCILE_EXIT.failed];

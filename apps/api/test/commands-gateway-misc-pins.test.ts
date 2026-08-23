@@ -7,14 +7,27 @@
 // - line 170: WS missing-token warn template
 // - line 180: WS rejection warn template
 import { describe, it, expect, vi } from 'vitest';
-import { CommandsGateway, COMMAND_DELIVERY_POLICY_VERSION } from '../src/commands/commands.gateway.js';
+import {
+  CommandsGateway,
+  COMMAND_DELIVERY_POLICY_VERSION,
+} from '../src/commands/commands.gateway.js';
 import type { Clock } from '../src/common/clock.js';
 import type { IIdentityProvider } from '../src/auth/identity-provider.interface.js';
 import type { IPushProvider } from '../src/push/push-provider.interface.js';
 import { OperatorContextFactory } from '../src/auth/operator-context.factory.js';
 
-interface PendingEntry { operatorId: string; issuedAt: Date; attempts: number; pushAttempts: number; pushInFlight: boolean; policyVersion: string }
-interface PendingMap { readonly pending: Map<string, PendingEntry>; readonly deadLetters: unknown[] }
+interface PendingEntry {
+  operatorId: string;
+  issuedAt: Date;
+  attempts: number;
+  pushAttempts: number;
+  pushInFlight: boolean;
+  policyVersion: string;
+}
+interface PendingMap {
+  readonly pending: Map<string, PendingEntry>;
+  readonly deadLetters: unknown[];
+}
 
 function makeGateway(push?: IPushProvider): {
   gw: InstanceType<typeof CommandsGateway>;
@@ -27,19 +40,30 @@ function makeGateway(push?: IPushProvider): {
   const warns: string[] = [];
   const errors: string[] = [];
   (gw as unknown as { logger: unknown }).logger = {
-    warn: (m: unknown) => { if (typeof m === 'string') warns.push(m); },
+    warn: (m: unknown) => {
+      if (typeof m === 'string') warns.push(m);
+    },
     log: vi.fn(),
-    error: (m: unknown) => { if (typeof m === 'string') errors.push(m); },
+    error: (m: unknown) => {
+      if (typeof m === 'string') errors.push(m);
+    },
     debug: vi.fn(),
   };
   return { gw, warns, errors, fakeClock };
 }
 
-function seedTimedOut(gw: InstanceType<typeof CommandsGateway>, commandId: string, operatorId: string, fakeClock: Clock): void {
+function seedTimedOut(
+  gw: InstanceType<typeof CommandsGateway>,
+  commandId: string,
+  operatorId: string,
+  fakeClock: Clock,
+): void {
   (gw as unknown as PendingMap).pending.set(commandId, {
     operatorId,
     issuedAt: new Date(fakeClock.now().getTime() - 60_000),
-    attempts: 999, pushAttempts: 0, pushInFlight: false,
+    attempts: 999,
+    pushAttempts: 0,
+    pushInFlight: false,
     policyVersion: COMMAND_DELIVERY_POLICY_VERSION,
   });
 }
@@ -70,7 +94,14 @@ describe('@fleet/api - CommandsGateway misc pins', () => {
 
   it('clearDeadLetters() empties the DLQ (kills line 391 BlockStatement NoCoverage mutant)', () => {
     const { gw } = makeGateway(undefined);
-    (gw as unknown as PendingMap).deadLetters.push({ commandId: 'x', operatorId: 'o', issuedAt: new Date(), pushAttempts: 3, lastError: 'e', deadLetteredAt: new Date() });
+    (gw as unknown as PendingMap).deadLetters.push({
+      commandId: 'x',
+      operatorId: 'o',
+      issuedAt: new Date(),
+      pushAttempts: 3,
+      lastError: 'e',
+      deadLetteredAt: new Date(),
+    });
     expect(gw.getDeadLetters()).toHaveLength(1);
     gw.clearDeadLetters();
     expect(gw.getDeadLetters()).toHaveLength(0);
@@ -89,7 +120,13 @@ describe('@fleet/api - CommandsGateway misc pins', () => {
     // Constructor with no idp + no factory triggers line 160.
     const { gw, errors } = makeGateway(undefined);
     const disconnectSpy = vi.fn();
-    const sock = { id: 's', handshake: { auth: {}, headers: {} }, disconnect: disconnectSpy, data: {}, join: vi.fn() } as never;
+    const sock = {
+      id: 's',
+      handshake: { auth: {}, headers: {} },
+      disconnect: disconnectSpy,
+      data: {},
+      join: vi.fn(),
+    } as never;
     await gw.handleConnection(sock);
     expect(errors).toHaveLength(1);
     expect(errors[0]).toContain('IdentityProvider');
@@ -106,12 +143,22 @@ describe('@fleet/api - CommandsGateway misc pins', () => {
     const warns: string[] = [];
     const errors: string[] = [];
     (gw as unknown as { logger: unknown }).logger = {
-      warn: (m: unknown) => { if (typeof m === 'string') warns.push(m); },
+      warn: (m: unknown) => {
+        if (typeof m === 'string') warns.push(m);
+      },
       log: vi.fn(),
-      error: (m: unknown) => { if (typeof m === 'string') errors.push(m); },
+      error: (m: unknown) => {
+        if (typeof m === 'string') errors.push(m);
+      },
       debug: vi.fn(),
     };
-    const sock = { id: 's', handshake: { auth: { token: 'good' }, headers: {} }, disconnect: vi.fn(), data: {}, join: vi.fn() } as never;
+    const sock = {
+      id: 's',
+      handshake: { auth: { token: 'good' }, headers: {} },
+      disconnect: vi.fn(),
+      data: {},
+      join: vi.fn(),
+    } as never;
     await gw.handleConnection(sock);
     // Original: error log fires, warn does NOT fire (early return before extractToken).
     // Mutant: error log does NOT fire (guard skipped), warn fires from catch path.
@@ -127,10 +174,20 @@ describe('@fleet/api - CommandsGateway misc pins', () => {
     const gw = new CommandsGateway(undefined, fakeClock, undefined, idp, factory);
     const warns: string[] = [];
     (gw as unknown as { logger: unknown }).logger = {
-      warn: (m: unknown) => { if (typeof m === 'string') warns.push(m); },
-      log: vi.fn(), error: vi.fn(), debug: vi.fn(),
+      warn: (m: unknown) => {
+        if (typeof m === 'string') warns.push(m);
+      },
+      log: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
     };
-    const sock = { id: 'sock-no-token', handshake: { auth: {}, headers: {} }, disconnect: vi.fn(), data: {}, join: vi.fn() } as never;
+    const sock = {
+      id: 'sock-no-token',
+      handshake: { auth: {}, headers: {} },
+      disconnect: vi.fn(),
+      data: {},
+      join: vi.fn(),
+    } as never;
     await gw.handleConnection(sock);
     expect(warns).toHaveLength(1);
     expect(warns[0]).toContain('sock-no-token');
@@ -138,16 +195,28 @@ describe('@fleet/api - CommandsGateway misc pins', () => {
   });
 
   it('handleConnection warns with error message + socket id when verifyToken throws (kills line 180 StringLiteral template)', async () => {
-    const idp: IIdentityProvider = { verifyToken: vi.fn().mockRejectedValue(new Error('jwt-malformed')) };
+    const idp: IIdentityProvider = {
+      verifyToken: vi.fn().mockRejectedValue(new Error('jwt-malformed')),
+    };
     const factory = { fromIdentity: vi.fn() } as unknown as OperatorContextFactory;
     const fakeClock: Clock = { now: () => new Date('2026-05-02T10:00:00.000Z') };
     const gw = new CommandsGateway(undefined, fakeClock, undefined, idp, factory);
     const warns: string[] = [];
     (gw as unknown as { logger: unknown }).logger = {
-      warn: (m: unknown) => { if (typeof m === 'string') warns.push(m); },
-      log: vi.fn(), error: vi.fn(), debug: vi.fn(),
+      warn: (m: unknown) => {
+        if (typeof m === 'string') warns.push(m);
+      },
+      log: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
     };
-    const sock = { id: 'sock-bad-tok', handshake: { auth: { token: 'bad' }, headers: {} }, disconnect: vi.fn(), data: {}, join: vi.fn() } as never;
+    const sock = {
+      id: 'sock-bad-tok',
+      handshake: { auth: { token: 'bad' }, headers: {} },
+      disconnect: vi.fn(),
+      data: {},
+      join: vi.fn(),
+    } as never;
     await gw.handleConnection(sock);
     expect(warns).toHaveLength(1);
     expect(warns[0]).toContain('sock-bad-tok');

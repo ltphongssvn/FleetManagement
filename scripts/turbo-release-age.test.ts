@@ -41,8 +41,9 @@ describe('excludeLineFor: YAML quoting is derived from the name', () => {
   // A leading @ starts an alias node in YAML, so an unquoted scoped name is a
   // parse error -- pnpm-workspace.yaml would stop loading entirely.
   it('quotes a scoped package', () => {
-    expect(excludeLineFor('@turbo/darwin-arm64', ['2.10.10']))
-      .toBe("'@turbo/darwin-arm64@2.10.10'");
+    expect(excludeLineFor('@turbo/darwin-arm64', ['2.10.10'])).toBe(
+      "'@turbo/darwin-arm64@2.10.10'",
+    );
   });
 
   // Matching the committed file exactly matters: rendering the bare name with
@@ -52,26 +53,24 @@ describe('excludeLineFor: YAML quoting is derived from the name', () => {
   });
 
   it('joins several versions with the pnpm range separator', () => {
-    expect(excludeLineFor('turbo', ['2.10.9', '2.10.10']))
-      .toBe('turbo@2.10.9 || 2.10.10');
+    expect(excludeLineFor('turbo', ['2.10.9', '2.10.10'])).toBe('turbo@2.10.9 || 2.10.10');
   });
 
   it('renders one line per package', () => {
-    expect(turboExcludeLines(['2.10.10'])).toHaveLength(
-      TURBO_PLATFORM_PACKAGES.length,
-    );
+    expect(turboExcludeLines(['2.10.10'])).toHaveLength(TURBO_PLATFORM_PACKAGES.length);
   });
 });
 
 describe('versionsInExcludeLine: reads a human-edited file', () => {
   it('reads a bare entry', () => {
-    expect(versionsInExcludeLine('turbo@2.10.9 || 2.10.10'))
-      .toEqual(['2.10.9', '2.10.10']);
+    expect(versionsInExcludeLine('turbo@2.10.9 || 2.10.10')).toEqual(['2.10.9', '2.10.10']);
   });
 
   it('reads a quoted scoped entry', () => {
-    expect(versionsInExcludeLine("'@turbo/linux-64@2.10.8 || 2.10.9'"))
-      .toEqual(['2.10.8', '2.10.9']);
+    expect(versionsInExcludeLine("'@turbo/linux-64@2.10.8 || 2.10.9'")).toEqual([
+      '2.10.8',
+      '2.10.9',
+    ]);
   });
 
   // The file stores these as YAML sequence items, so the reader must tolerate
@@ -83,8 +82,7 @@ describe('versionsInExcludeLine: reads a human-edited file', () => {
   // lastIndexOf('@'), not indexOf: a scoped name contains an @ of its own, and
   // splitting on the first one would yield 'turbo/linux-64@2.10.9' as a version.
   it('splits on the LAST @, so a scoped name is not mistaken for a version', () => {
-    expect(versionsInExcludeLine("'@turbo/windows-arm64@2.10.10'"))
-      .toEqual(['2.10.10']);
+    expect(versionsInExcludeLine("'@turbo/windows-arm64@2.10.10'")).toEqual(['2.10.10']);
   });
 
   it('returns nothing for a line carrying no version', () => {
@@ -108,8 +106,11 @@ describe('withTurboVersion: appending is idempotent', () => {
   // Chronological order is the file's convention; re-sorting would rewrite six
   // untouched lines on every bump and bury the real change in the diff.
   it('appends rather than sorting, keeping the file chronological', () => {
-    expect(withTurboVersion(['2.10.3', '2.10.2'], '2.10.10'))
-      .toEqual(['2.10.3', '2.10.2', '2.10.10']);
+    expect(withTurboVersion(['2.10.3', '2.10.2'], '2.10.10')).toEqual([
+      '2.10.3',
+      '2.10.2',
+      '2.10.10',
+    ]);
   });
 });
 
@@ -124,8 +125,9 @@ describe('missingTurboExcludes: the question nothing could ask', () => {
   // every exclude line at 2.10.9.
   it('reports EVERY package when the bump forgot the exclude list', () => {
     const stale = turboExcludeLines(['2.10.9']);
-    expect([...missingTurboExcludes(stale, '2.10.10')].sort())
-      .toEqual([...TURBO_PLATFORM_PACKAGES].sort());
+    expect([...missingTurboExcludes(stale, '2.10.10')].sort()).toEqual(
+      [...TURBO_PLATFORM_PACKAGES].sort(),
+    );
   });
 
   // NAMES the platform rather than returning a boolean: "the exclude list is
@@ -136,15 +138,12 @@ describe('missingTurboExcludes: the question nothing could ask', () => {
   });
 
   it('treats an ABSENT line as missing, not as satisfied', () => {
-    expect(missingTurboExcludes([], '2.10.10')).toHaveLength(
-      TURBO_PLATFORM_PACKAGES.length,
-    );
+    expect(missingTurboExcludes([], '2.10.10')).toHaveLength(TURBO_PLATFORM_PACKAGES.length);
   });
 
   // A line for the right package at the WRONG version is the subtle case: it
   // looks present to any check that only greps for the package name.
   it('treats a present line at an OLDER version as missing', () => {
-    expect(missingTurboExcludes(turboExcludeLines(['2.10.9']), '2.10.10'))
-      .toContain('turbo');
+    expect(missingTurboExcludes(turboExcludeLines(['2.10.9']), '2.10.10')).toContain('turbo');
   });
 });

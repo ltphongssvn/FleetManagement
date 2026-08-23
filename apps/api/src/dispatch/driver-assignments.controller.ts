@@ -7,7 +7,12 @@ import { Controller, Get, Inject, UseGuards } from '@nestjs/common';
 import { and, eq, sql } from 'drizzle-orm';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
-import { roadRun, roadRunTransportOrder, transportOrder, stop } from '../database/schema/transport.js';
+import {
+  roadRun,
+  roadRunTransportOrder,
+  transportOrder,
+  stop,
+} from '../database/schema/transport.js';
 import { customer, vehicle, warehouse } from '../database/schema/reference.js';
 import { JwtGuard } from '../auth/jwt.guard.js';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
@@ -37,8 +42,14 @@ export class DriverAssignmentsController {
   async getAssignments(
     @CurrentOperator() op: OperatorContext,
   ): Promise<{ rows: readonly DriverAssignmentRow[] }> {
-    const pickup = sql`(SELECT w.name FROM ${stop} s JOIN ${warehouse} w ON w.warehouse_id = s.yard_id WHERE s.transport_order_id = ${transportOrder.transportOrderId} AND s.stop_type = 'pickup' ORDER BY s.sequence ASC LIMIT 1)`.as('pickupName');
-    const delivery = sql`(SELECT w.name FROM ${stop} s JOIN ${warehouse} w ON w.warehouse_id = s.yard_id WHERE s.transport_order_id = ${transportOrder.transportOrderId} AND s.stop_type = 'delivery' ORDER BY s.sequence DESC LIMIT 1)`.as('deliveryName');
+    const pickup =
+      sql`(SELECT w.name FROM ${stop} s JOIN ${warehouse} w ON w.warehouse_id = s.yard_id WHERE s.transport_order_id = ${transportOrder.transportOrderId} AND s.stop_type = 'pickup' ORDER BY s.sequence ASC LIMIT 1)`.as(
+        'pickupName',
+      );
+    const delivery =
+      sql`(SELECT w.name FROM ${stop} s JOIN ${warehouse} w ON w.warehouse_id = s.yard_id WHERE s.transport_order_id = ${transportOrder.transportOrderId} AND s.stop_type = 'delivery' ORDER BY s.sequence DESC LIMIT 1)`.as(
+        'deliveryName',
+      );
 
     const rows = await this.db
       .select({
@@ -56,9 +67,14 @@ export class DriverAssignmentsController {
       .from(roadRun)
       .leftJoin(vehicle, eq(vehicle.vehicleId, roadRun.assignedAssetId))
       .leftJoin(roadRunTransportOrder, eq(roadRunTransportOrder.roadRunId, roadRun.roadRunId))
-      .leftJoin(transportOrder, eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId))
+      .leftJoin(
+        transportOrder,
+        eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId),
+      )
       .leftJoin(customer, eq(customer.customerId, transportOrder.customerId))
-      .where(and(eq(roadRun.assignedOperatorId, op.operatorId), eq(roadRun.companyId, op.companyId)))
+      .where(
+        and(eq(roadRun.assignedOperatorId, op.operatorId), eq(roadRun.companyId, op.companyId)),
+      )
       .orderBy(roadRun.plannedStartAt)
       .limit(DRIVER_ASSIGNMENTS_MAX_ROWS);
 
@@ -69,9 +85,9 @@ export class DriverAssignmentsController {
         plannedStartAt: r.plannedStartAt?.toISOString() ?? null,
         startedAt: r.startedAt?.toISOString() ?? null,
         completedAt: r.completedAt?.toISOString() ?? null,
-        plate: (r.plate) ?? null,
-        orderRef: (r.orderRef) ?? null,
-        customerName: (r.customerName) ?? null,
+        plate: r.plate ?? null,
+        orderRef: r.orderRef ?? null,
+        customerName: r.customerName ?? null,
         pickupName: (r.pickupName as string | null) ?? null,
         deliveryName: (r.deliveryName as string | null) ?? null,
       })),

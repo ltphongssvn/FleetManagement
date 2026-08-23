@@ -7,14 +7,10 @@
 // existing single-credential environments keep working unchanged. The runtime pool
 // (database.module.ts) always uses DATABASE_URL, which in a Layer-1 deployment is the
 // restricted role. Pure + env-injected so it is unit-testable without a real database.
-export function selectMigrationConnectionString(
-  env: Record<string, string | undefined>,
-): string {
+export function selectMigrationConnectionString(env: Record<string, string | undefined>): string {
   const migrationUrl = env['MIGRATION_DATABASE_URL'];
   if (migrationUrl !== undefined && migrationUrl.length > 0) return migrationUrl;
   const databaseUrl = env['DATABASE_URL'];
   if (databaseUrl !== undefined && databaseUrl.length > 0) return databaseUrl;
-  throw new Error(
-    'No migration connection string: set MIGRATION_DATABASE_URL or DATABASE_URL',
-  );
+  throw new Error('No migration connection string: set MIGRATION_DATABASE_URL or DATABASE_URL');
 }

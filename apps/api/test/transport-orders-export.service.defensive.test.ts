@@ -28,6 +28,8 @@ describe('@fleet/api - TransportOrdersExportService defensive branches', () => {
     };
     const svc = new TransportOrdersExportService(db as never);
     const op = createOperatorContext();
-    await expect(svc.exportAndLog(op, 'manual')).rejects.toThrow(/transport_order_export_log insert failed/);
+    await expect(svc.exportAndLog(op, 'manual')).rejects.toThrow(
+      /transport_order_export_log insert failed/,
+    );
   });
 });

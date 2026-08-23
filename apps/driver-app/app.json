@@ -11,9 +11,7 @@
       "bundleIdentifier": "com.fleetmanagement.driver",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": [
-          "remote-notification"
-        ]
+        "UIBackgroundModes": ["remote-notification"]
       }
     },
     "android": {
@@ -21,10 +19,7 @@
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
       },
-      "permissions": [
-        "android.permission.POST_NOTIFICATIONS",
-        "android.permission.VIBRATE"
-      ]
+      "permissions": ["android.permission.POST_NOTIFICATIONS", "android.permission.VIBRATE"]
     },
     "plugins": [
       "expo-router",
@@ -56,9 +51,7 @@
       [
         "expo-notifications",
         {
-          "sounds": [
-            "./assets/sounds/transport_alert.wav"
-          ],
+          "sounds": ["./assets/sounds/transport_alert.wav"],
           "enableBackgroundRemoteNotifications": true
         }
       ]

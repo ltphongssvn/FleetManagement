@@ -2,7 +2,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { CommandsGateway } from '../src/commands/commands.gateway.js';
 import { OperatorContextFactory } from '../src/auth/operator-context.factory.js';
-import type { IIdentityProvider, VerifiedIdentity } from '../src/auth/identity-provider.interface.js';
+import type {
+  IIdentityProvider,
+  VerifiedIdentity,
+} from '../src/auth/identity-provider.interface.js';
 
 const validIdentity: VerifiedIdentity = {
   subject: 'user-1',
@@ -22,15 +25,22 @@ interface FakeSocket {
   disconnect(close?: boolean): void;
 }
 
-function makeSocket(auth: Record<string, unknown>, headers: Record<string, string | undefined> = {}): FakeSocket {
+function makeSocket(
+  auth: Record<string, unknown>,
+  headers: Record<string, string | undefined> = {},
+): FakeSocket {
   const sock: FakeSocket = {
     id: 's1',
     handshake: { auth, headers },
     data: {},
     joined: [],
     disconnected: false,
-    join(room) { this.joined.push(room); },
-    disconnect() { this.disconnected = true; },
+    join(room) {
+      this.joined.push(room);
+    },
+    disconnect() {
+      this.disconnected = true;
+    },
   };
   return sock;
 }
@@ -52,10 +62,9 @@ describe('@fleet/api - handleConnection room join', () => {
     const gw = new CommandsGateway(undefined, undefined, undefined, idp, factory);
     const sock = makeSocket({ token: 'good', depotId: 'depot-A' });
     await gw.handleConnection(sock as never);
-    expect(sock.joined).toEqual(expect.arrayContaining([
-      'operator:' + validIdentity.operatorId,
-      'depot:depot-A',
-    ]));
+    expect(sock.joined).toEqual(
+      expect.arrayContaining(['operator:' + validIdentity.operatorId, 'depot:depot-A']),
+    );
   });
 
   it('invalid auth disconnects socket without joining any room', async () => {

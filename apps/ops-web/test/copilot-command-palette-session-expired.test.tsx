@@ -9,7 +9,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import type * as SessionRefreshNavigation from '@/features/auth/session-refresh-navigation';
-const { navigateToSessionRefreshMock } = vi.hoisted(() => ({ navigateToSessionRefreshMock: vi.fn() }));
+const { navigateToSessionRefreshMock } = vi.hoisted(() => ({
+  navigateToSessionRefreshMock: vi.fn(),
+}));
 vi.mock('@/features/auth/session-refresh-navigation', async (importOriginal) => {
   const actual = await importOriginal<typeof SessionRefreshNavigation>();
   return { ...actual, navigateToSessionRefresh: navigateToSessionRefreshMock };
@@ -25,10 +27,10 @@ const PLAN = {
 };
 
 function problemRes(status: number, code: string): Response {
-  return new Response(
-    JSON.stringify({ type: 'about:blank', title: 'x', status, code }),
-    { status, headers: { 'content-type': 'application/problem+json' } },
-  );
+  return new Response(JSON.stringify({ type: 'about:blank', title: 'x', status, code }), {
+    status,
+    headers: { 'content-type': 'application/problem+json' },
+  });
 }
 
 function jsonRes(body: unknown): Response {
@@ -47,7 +49,9 @@ function submitText(value: string): void {
   fireEvent.submit(screen.getByRole('form', { name: 'copilot' }));
 }
 
-afterEach(() => { vi.clearAllMocks(); });
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
 describe('CommandPalette on idle-expired session (401)', () => {
   it('plan 401 -> silent-refresh navigation, no stranded in-place message', async () => {

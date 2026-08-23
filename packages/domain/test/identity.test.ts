@@ -161,8 +161,12 @@ describe('@fleet/domain - OperatorContext', () => {
       depotId: 'd',
       legalEntityId: 'le',
     };
-    expect(Object.keys(op).sort()).toEqual(
-      ['businessUnitId', 'companyId', 'depotId', 'legalEntityId', 'operatorId'],
-    );
+    expect(Object.keys(op).sort()).toEqual([
+      'businessUnitId',
+      'companyId',
+      'depotId',
+      'legalEntityId',
+      'operatorId',
+    ]);
   });
 });

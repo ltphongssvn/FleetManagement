@@ -29,15 +29,23 @@ const validBody = {
 describe('@fleet/api - CommandsController (thin HTTP layer)', () => {
   it('delegates to CommandsService.persist and pushes via gateway', async () => {
     const persist = vi.fn().mockResolvedValue({ duplicate: false });
-    const pushCommand = vi.fn().mockReturnValue({ status: 'emitted', recipientCount: 1, room: 'operator:x' });
+    const pushCommand = vi
+      .fn()
+      .mockReturnValue({ status: 'emitted', recipientCount: 1, room: 'operator:x' });
     const svc = { persist } as unknown as CommandsService;
     const gw = { pushCommand } as unknown as CommandsGateway;
-    const ctrl = new CommandsController(gw, svc, { assertOperatorInTenant: () => Promise.resolve(), assertAggregateInTenant: () => Promise.resolve() } as unknown as TenantPolicy);
+    const ctrl = new CommandsController(gw, svc, {
+      assertOperatorInTenant: () => Promise.resolve(),
+      assertAggregateInTenant: () => Promise.resolve(),
+    } as unknown as TenantPolicy);
 
     const result = await ctrl.issue(validBody, OP);
 
     expect(persist).toHaveBeenCalledOnce();
-    expect(persist).toHaveBeenCalledWith(expect.objectContaining({ commandId: validBody.commandId }), OP);
+    expect(persist).toHaveBeenCalledWith(
+      expect.objectContaining({ commandId: validBody.commandId }),
+      OP,
+    );
     expect(pushCommand).toHaveBeenCalledOnce();
     expect(result.status).toBe('emitted');
     expect(result.recipientCount).toBe(1);
@@ -48,7 +56,10 @@ describe('@fleet/api - CommandsController (thin HTTP layer)', () => {
     const pushCommand = vi.fn();
     const svc = { persist } as unknown as CommandsService;
     const gw = { pushCommand } as unknown as CommandsGateway;
-    const ctrl = new CommandsController(gw, svc, { assertOperatorInTenant: () => Promise.resolve(), assertAggregateInTenant: () => Promise.resolve() } as unknown as TenantPolicy);
+    const ctrl = new CommandsController(gw, svc, {
+      assertOperatorInTenant: () => Promise.resolve(),
+      assertAggregateInTenant: () => Promise.resolve(),
+    } as unknown as TenantPolicy);
 
     const result = await ctrl.issue(validBody, OP);
 

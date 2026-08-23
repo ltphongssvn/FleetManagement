@@ -177,9 +177,8 @@ export function policyDigestOf(policy: EstatePolicy): string {
     'kind_precedence=' + policy.kind_precedence.join(','),
     'suppressed=' + ESTATE_REASONS.filter((r) => policy.suppressed_reasons.includes(r)).join(','),
     ...ESTATE_REASONS.map(
-      (r) => 'reason=' + r
-        + ';kind=' + policy.reason_kind[r]
-        + ';trigger=' + policy.reason_trigger[r],
+      (r) =>
+        'reason=' + r + ';kind=' + policy.reason_kind[r] + ';trigger=' + policy.reason_trigger[r],
     ),
   ];
   return createHash('sha256').update(lines.join('\u0001')).digest('hex');

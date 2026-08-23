@@ -59,13 +59,23 @@ describe('@fleet/api - JoseIdentityProvider (dual-issuer)', () => {
     expect(result.issuedAt).toBe(1700000000);
     expect(result.expiresAt).toBe(1700003600);
     // self path used the imported SPKI key, not the JWKS
-    expect(mockJwtVerify).toHaveBeenCalledWith('eyJself', 'mock-self-key', expect.objectContaining({ issuer: SELF_ISSUER }));
+    expect(mockJwtVerify).toHaveBeenCalledWith(
+      'eyJself',
+      'mock-self-key',
+      expect.objectContaining({ issuer: SELF_ISSUER }),
+    );
   });
 
   it('verifies an OIDC token via the remote JWKS', async () => {
     mockDecodeJwt.mockReturnValueOnce({ iss: OIDC_ISSUER });
     mockJwtVerify.mockResolvedValueOnce({
-      payload: { sub: 'oidc-sub', operator_id: 'op-9', company_id: 'co-9', iat: 1700000000, exp: 1700003600 },
+      payload: {
+        sub: 'oidc-sub',
+        operator_id: 'op-9',
+        company_id: 'co-9',
+        iat: 1700000000,
+        exp: 1700003600,
+      },
     });
     const provider = new JoseIdentityProvider(makeConfig());
     await provider.onModuleInit();
@@ -74,7 +84,11 @@ describe('@fleet/api - JoseIdentityProvider (dual-issuer)', () => {
     expect(result.operatorId).toBe('op-9');
     expect(result.companyId).toBe('co-9');
     // OIDC path used the remote JWKS getter, with the OIDC issuer/audience
-    expect(mockJwtVerify).toHaveBeenCalledWith('eyJoidc', mockRemoteJwks, expect.objectContaining({ issuer: OIDC_ISSUER, audience: 'fleet-pilot' }));
+    expect(mockJwtVerify).toHaveBeenCalledWith(
+      'eyJoidc',
+      mockRemoteJwks,
+      expect.objectContaining({ issuer: OIDC_ISSUER, audience: 'fleet-pilot' }),
+    );
   });
 
   it('rejects a token whose issuer is neither trusted issuer', async () => {
@@ -89,7 +103,9 @@ describe('@fleet/api - JoseIdentityProvider (dual-issuer)', () => {
     mockDecodeJwt.mockReturnValueOnce({ iss: SELF_ISSUER });
     const provider = new JoseIdentityProvider(makeConfig({ publicPem: undefined }));
     await provider.onModuleInit();
-    await expect(provider.verifyToken('eyJself')).rejects.toThrow(/JWT_PUBLIC_KEY_PEM not configured/);
+    await expect(provider.verifyToken('eyJself')).rejects.toThrow(
+      /JWT_PUBLIC_KEY_PEM not configured/,
+    );
   });
 
   it('throws when jwtVerify rejects', async () => {
@@ -102,7 +118,9 @@ describe('@fleet/api - JoseIdentityProvider (dual-issuer)', () => {
 
   it('throws when iat is missing', async () => {
     mockDecodeJwt.mockReturnValueOnce({ iss: SELF_ISSUER });
-    mockJwtVerify.mockResolvedValueOnce({ payload: { sub: 'op-2', company_id: 'co-2', exp: 1700003600 } });
+    mockJwtVerify.mockResolvedValueOnce({
+      payload: { sub: 'op-2', company_id: 'co-2', exp: 1700003600 },
+    });
     const provider = new JoseIdentityProvider(makeConfig());
     await provider.onModuleInit();
     await expect(provider.verifyToken('eyJnoiat')).rejects.toThrow('iat/exp');
@@ -110,7 +128,9 @@ describe('@fleet/api - JoseIdentityProvider (dual-issuer)', () => {
 
   it('throws when exp is missing', async () => {
     mockDecodeJwt.mockReturnValueOnce({ iss: SELF_ISSUER });
-    mockJwtVerify.mockResolvedValueOnce({ payload: { sub: 'op-3', company_id: 'co-3', iat: 1700000000 } });
+    mockJwtVerify.mockResolvedValueOnce({
+      payload: { sub: 'op-3', company_id: 'co-3', iat: 1700000000 },
+    });
     const provider = new JoseIdentityProvider(makeConfig());
     await provider.onModuleInit();
     await expect(provider.verifyToken('eyJnoexp')).rejects.toThrow('iat/exp');
@@ -118,7 +138,9 @@ describe('@fleet/api - JoseIdentityProvider (dual-issuer)', () => {
 
   it('throws when company_id is missing', async () => {
     mockDecodeJwt.mockReturnValueOnce({ iss: SELF_ISSUER });
-    mockJwtVerify.mockResolvedValueOnce({ payload: { sub: 'op-4', iat: 1700000000, exp: 1700003600 } });
+    mockJwtVerify.mockResolvedValueOnce({
+      payload: { sub: 'op-4', iat: 1700000000, exp: 1700003600 },
+    });
     const provider = new JoseIdentityProvider(makeConfig());
     await provider.onModuleInit();
     await expect(provider.verifyToken('eyJnocom')).rejects.toThrow(/company_id/);
@@ -127,7 +149,15 @@ describe('@fleet/api - JoseIdentityProvider (dual-issuer)', () => {
   it('surfaces acr and amr claims from the verified token (RFC 9068)', async () => {
     mockDecodeJwt.mockReturnValueOnce({ iss: OIDC_ISSUER });
     mockJwtVerify.mockResolvedValueOnce({
-      payload: { sub: 'op-5', operator_id: 'op-5', company_id: 'co-5', iat: 1700000000, exp: 1700003600, acr: 'aal2', amr: ['pwd', 'hwk'] },
+      payload: {
+        sub: 'op-5',
+        operator_id: 'op-5',
+        company_id: 'co-5',
+        iat: 1700000000,
+        exp: 1700003600,
+        acr: 'aal2',
+        amr: ['pwd', 'hwk'],
+      },
     });
     const provider = new JoseIdentityProvider(makeConfig());
     await provider.onModuleInit();
@@ -148,7 +178,14 @@ describe('@fleet/api - JoseIdentityProvider (dual-issuer)', () => {
   it('surfaces realm_access.roles from the verified token', async () => {
     mockDecodeJwt.mockReturnValueOnce({ iss: OIDC_ISSUER });
     mockJwtVerify.mockResolvedValueOnce({
-      payload: { sub: 'op-6', operator_id: 'op-6', company_id: 'co-6', iat: 1700000000, exp: 1700003600, realm_access: { roles: ['fleet-owner', 'offline_access'] } },
+      payload: {
+        sub: 'op-6',
+        operator_id: 'op-6',
+        company_id: 'co-6',
+        iat: 1700000000,
+        exp: 1700003600,
+        realm_access: { roles: ['fleet-owner', 'offline_access'] },
+      },
     });
     const provider = new JoseIdentityProvider(makeConfig());
     await provider.onModuleInit();

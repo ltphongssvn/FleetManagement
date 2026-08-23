@@ -29,7 +29,12 @@ function fakeResponse(ok: boolean, status: number, body: unknown): Response {
   } as unknown as Response;
 }
 function goodBody(token: string, expiresIn: number): Record<string, unknown> {
-  return { access_token: token, expires_in: expiresIn, token_type: 'Bearer', scope: 'profile email' };
+  return {
+    access_token: token,
+    expires_in: expiresIn,
+    token_type: 'Bearer',
+    scope: 'profile email',
+  };
 }
 // Runtime-generated credential: no credential-shaped literal exists in the
 // file, so secret scanners have no source to fire on (locked scanner rule).
@@ -61,7 +66,10 @@ describe('KeycloakClientCredentialsTokenProvider', () => {
     const provider = new KeycloakClientCredentialsTokenProvider({ ...BASE, fetchFn, now: () => 0 });
     await expect(provider.getToken()).resolves.toBe('tok-1');
     expect(fetchFn).toHaveBeenCalledTimes(1);
-    const call = fetchFn.mock.calls[0] as [string, { method: string; headers: Record<string, string>; body: unknown }];
+    const call = fetchFn.mock.calls[0] as [
+      string,
+      { method: string; headers: Record<string, string>; body: unknown },
+    ];
     expect(call[0]).toBe(BASE.tokenUrl);
     expect(call[1].method).toBe('POST');
     expect(call[1].headers['Content-Type']).toBe('application/x-www-form-urlencoded');
@@ -74,7 +82,11 @@ describe('KeycloakClientCredentialsTokenProvider', () => {
   it('serves from cache inside the validity window: one fetch for two calls', async () => {
     let nowMs = 0;
     const fetchFn = vi.fn().mockResolvedValue(fakeResponse(true, 200, goodBody('tok-1', 300)));
-    const provider = new KeycloakClientCredentialsTokenProvider({ ...BASE, fetchFn, now: () => nowMs });
+    const provider = new KeycloakClientCredentialsTokenProvider({
+      ...BASE,
+      fetchFn,
+      now: () => nowMs,
+    });
     await provider.getToken();
     nowMs = 239000;
     await expect(provider.getToken()).resolves.toBe('tok-1');
@@ -87,7 +99,11 @@ describe('KeycloakClientCredentialsTokenProvider', () => {
       .fn()
       .mockResolvedValueOnce(fakeResponse(true, 200, goodBody('tok-1', 300)))
       .mockResolvedValueOnce(fakeResponse(true, 200, goodBody('tok-2', 300)));
-    const provider = new KeycloakClientCredentialsTokenProvider({ ...BASE, fetchFn, now: () => nowMs });
+    const provider = new KeycloakClientCredentialsTokenProvider({
+      ...BASE,
+      fetchFn,
+      now: () => nowMs,
+    });
     await expect(provider.getToken()).resolves.toBe('tok-1');
     nowMs = 241000;
     await expect(provider.getToken()).resolves.toBe('tok-2');
@@ -158,5 +174,4 @@ describe('KeycloakClientCredentialsTokenProvider', () => {
       globalThis.fetch = origFetch;
     }
   });
-
 });

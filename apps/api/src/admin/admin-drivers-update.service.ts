@@ -29,12 +29,14 @@ export class AdminDriversUpdateService {
   async update(input: UpdateDriverInput): Promise<void> {
     // Normalize on rename too, so a rename cannot reintroduce a case/spacing
     // variant of an existing name (mirrors the create path + the lower() index).
-    const patch: { fullName: string; phone?: string } = { fullName: normalizeDisplayName(input.fullName) };
+    const patch: { fullName: string; phone?: string } = {
+      fullName: normalizeDisplayName(input.fullName),
+    };
     if (input.phone !== undefined) patch.phone = input.phone;
-    await this.db.update(driver).set(patch).where(and(
-      eq(driver.companyId, input.companyId),
-      eq(driver.driverId, input.driverId),
-    ));
+    await this.db
+      .update(driver)
+      .set(patch)
+      .where(and(eq(driver.companyId, input.companyId), eq(driver.driverId, input.driverId)));
   }
   async softDelete(input: SoftDeleteDriverInput): Promise<void> {
     // Defense-in-depth (2026-Q2): soft-deleting a driver is a cascade.
@@ -48,36 +50,56 @@ export class AdminDriversUpdateService {
     const now = new Date();
     await this.db.transaction(async (tx) => {
       // Look up operatorId via driver row so we can match road_run.assigned_operator_id.
-      const [d] = await tx.select({ operatorId: driver.operatorId })
+      const [d] = await tx
+        .select({ operatorId: driver.operatorId })
         .from(driver)
         .where(and(eq(driver.companyId, input.companyId), eq(driver.driverId, input.driverId)));
-      await tx.update(driver).set({ active: false }).where(and(
-        eq(driver.companyId, input.companyId),
-        eq(driver.driverId, input.driverId),
-      ));
-      await tx.update(driverVehicleAssignment)
+      await tx
+        .update(driver)
+        .set({ active: false })
+        .where(and(eq(driver.companyId, input.companyId), eq(driver.driverId, input.driverId)));
+      await tx
+        .update(driverVehicleAssignment)
         .set({ revokedAt: now, revocationReason: 'driver_soft_deleted' })
-        .where(and(
-          eq(driverVehicleAssignment.companyId, input.companyId),
-          eq(driverVehicleAssignment.driverId, input.driverId),
-          isNull(driverVehicleAssignment.revokedAt),
-        ));
+        .where(
+          and(
+            eq(driverVehicleAssignment.companyId, input.companyId),
+            eq(driverVehicleAssignment.driverId, input.driverId),
+            isNull(driverVehicleAssignment.revokedAt),
+          ),
+        );
       if (d?.operatorId !== undefined && d.operatorId !== null) {
         const openOrderIds = await tx
           .select({ id: transportOrder.transportOrderId })
           .from(transportOrder)
-          .innerJoin(roadRunTransportOrder, eq(roadRunTransportOrder.transportOrderId, transportOrder.transportOrderId))
+          .innerJoin(
+            roadRunTransportOrder,
+            eq(roadRunTransportOrder.transportOrderId, transportOrder.transportOrderId),
+          )
           .innerJoin(roadRun, eq(roadRun.roadRunId, roadRunTransportOrder.roadRunId))
-          .where(and(
-            eq(transportOrder.companyId, input.companyId),
-            eq(roadRun.assignedOperatorId, d.operatorId),
-            inArray(transportOrder.state, ['draft', 'assigned', 'in_transit']),
-          ));
+          .where(
+            and(
+              eq(transportOrder.companyId, input.companyId),
+              eq(roadRun.assignedOperatorId, d.operatorId),
+              inArray(transportOrder.state, ['draft', 'assigned', 'in_transit']),
+            ),
+          );
         if (openOrderIds.length > 0) {
           const ids = openOrderIds.map((r) => r.id);
-          await tx.update(transportOrder)
-            .set({ state: 'cancelled', cancelledAt: now, cancellationReason: 'driver_soft_deleted', updatedAt: now })
-            .where(and(eq(transportOrder.companyId, input.companyId), inArray(transportOrder.transportOrderId, ids)));
+          await tx
+            .update(transportOrder)
+            .set({
+              state: 'cancelled',
+              cancelledAt: now,
+              cancellationReason: 'driver_soft_deleted',
+              updatedAt: now,
+            })
+            .where(
+              and(
+                eq(transportOrder.companyId, input.companyId),
+                inArray(transportOrder.transportOrderId, ids),
+              ),
+            );
         }
       }
     });

@@ -86,7 +86,8 @@ export function envConfig(env: Readonly<Record<string, string | undefined>>): St
   const project = env['FLEET_COMPOSE_PROJECT'];
   return stackUpConfigSchema.parse({
     ...defaultConfig,
-    composeProject: project !== undefined && project.length > 0 ? project : defaultConfig.composeProject,
+    composeProject:
+      project !== undefined && project.length > 0 ? project : defaultConfig.composeProject,
     apiUrl: 'http://localhost:' + port('FLEET_PORT_API', '3000'),
     opsWebUrl: 'http://localhost:' + port('FLEET_PORT_OPS_WEB', '3001'),
     includeAndroid: env['FLEET_SKIP_ANDROID'] === '1' ? false : defaultConfig.includeAndroid,
@@ -102,7 +103,6 @@ export function loadWorktreeEnv(): Readonly<Record<string, string | undefined>> 
   }
   return process.env;
 }
-
 
 // ---- side-effecting helpers (entrypoint only) ----
 function sh(cmd: string, args: string[], opts: { quiet?: boolean } = {}): void {
@@ -120,11 +120,19 @@ async function waitHttp(url: string, timeoutMs = 180_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   let last = '';
   while (Date.now() < deadline) {
-    try { const res = await fetch(url, { redirect: 'manual' }); if (res.status > 0) { console.log(`✅ ready: ${url}`); return; } }
-    catch (e) { last = e instanceof Error ? e.message : String(e); }
+    try {
+      const res = await fetch(url, { redirect: 'manual' });
+      if (res.status > 0) {
+        console.log(`✅ ready: ${url}`);
+        return;
+      }
+    } catch (e) {
+      last = e instanceof Error ? e.message : String(e);
+    }
     await new Promise((r) => setTimeout(r, 1500));
   }
-  console.error(`❌ readiness timeout for ${url}: ${last}`); process.exit(1);
+  console.error(`❌ readiness timeout for ${url}: ${last}`);
+  process.exit(1);
 }
 
 // ANDROID_HOME first, then ANDROID_SDK_ROOT, then the conventional home path.
@@ -145,7 +153,8 @@ async function waitHttp(url: string, timeoutMs = 180_000): Promise<void> {
 // a PARAMETER for exactly this testability reason; sdkBin is the one function
 // in this file that reads process.env directly.
 function sdkBin(name: string): string {
-  const home = process.env['ANDROID_HOME'] ?? process.env['ANDROID_SDK_ROOT'] ?? `${homedir()}/Android/Sdk`;
+  const home =
+    process.env['ANDROID_HOME'] ?? process.env['ANDROID_SDK_ROOT'] ?? `${homedir()}/Android/Sdk`;
   const sub = name === 'emulator' ? `emulator/${name}` : `platform-tools/${name}`;
   return `${home}/${sub}`;
 }
@@ -155,25 +164,67 @@ async function bootEmulator(plan: AndroidPlan): Promise<void> {
   if (!running) {
     const emu = sdkBin('emulator');
     console.log(`🔌 booting ${plan.avd} (${plan.device}) ...`);
-    const child = spawn(emu, ['-avd', plan.avd, '-no-window', '-no-snapshot', '-no-boot-anim', '-gpu', 'swiftshader_indirect', '-no-audio'], { detached: true, stdio: 'ignore' });
+    const child = spawn(
+      emu,
+      [
+        '-avd',
+        plan.avd,
+        '-no-window',
+        '-no-snapshot',
+        '-no-boot-anim',
+        '-gpu',
+        'swiftshader_indirect',
+        '-no-audio',
+      ],
+      { detached: true, stdio: 'ignore' },
+    );
     child.unref();
   }
   sh('adb', ['start-server'], { quiet: true });
-  if (spawnSync('timeout', ['120', 'adb', 'wait-for-device']).status !== 0) { console.error('❌ device never attached'); process.exit(1); }
+  if (spawnSync('timeout', ['120', 'adb', 'wait-for-device']).status !== 0) {
+    console.error('❌ device never attached');
+    process.exit(1);
+  }
   for (let i = 0; i < 60; i++) {
-    if (out('adb', ['-s', plan.device, 'shell', 'getprop', 'sys.boot_completed']).replace(/\r/g, '') === '1') { console.log('✅ emulator booted'); break; }
+    if (
+      out('adb', ['-s', plan.device, 'shell', 'getprop', 'sys.boot_completed']).replace(
+        /\r/g,
+        '',
+      ) === '1'
+    ) {
+      console.log('✅ emulator booted');
+      break;
+    }
     await new Promise((r) => setTimeout(r, 3000));
   }
-  for (const [ns, k] of [['global','window_animation_scale'],['global','transition_animation_scale'],['global','animator_duration_scale']] as const) {
+  for (const [ns, k] of [
+    ['global', 'window_animation_scale'],
+    ['global', 'transition_animation_scale'],
+    ['global', 'animator_duration_scale'],
+  ] as const) {
     spawnSync('adb', ['-s', plan.device, 'shell', 'settings', 'put', ns, k, '0']);
   }
-  spawnSync('adb', ['-s', plan.device, 'shell', 'settings', 'put', 'secure', 'hide_error_dialogs', '1']);
+  spawnSync('adb', [
+    '-s',
+    plan.device,
+    'shell',
+    'settings',
+    'put',
+    'secure',
+    'hide_error_dialogs',
+    '1',
+  ]);
   console.log(`📦 installing ${plan.apkPath} ...`);
   sh('adb', ['-s', plan.device, 'install', '-r', '-d', plan.apkPath]);
   const pkgs = out('adb', ['-s', plan.device, 'shell', 'pm', 'list', 'packages']);
-  if (!pkgs.includes(plan.packageId)) { console.error(`❌ ${plan.packageId} not installed after install`); process.exit(1); }
+  if (!pkgs.includes(plan.packageId)) {
+    console.error(`❌ ${plan.packageId} not installed after install`);
+    process.exit(1);
+  }
   spawnSync('adb', ['-s', plan.device, 'reverse', plan.reverse.from, plan.reverse.to]);
-  console.log(`✅ ${plan.packageId} installed; adb reverse ${plan.reverse.from} -> ${plan.reverse.to}`);
+  console.log(
+    `✅ ${plan.packageId} installed; adb reverse ${plan.reverse.from} -> ${plan.reverse.to}`,
+  );
 }
 
 async function main(): Promise<void> {
@@ -194,10 +245,15 @@ async function main(): Promise<void> {
   await new Promise((r) => setTimeout(r, 6000));
   for (const url of readinessProbes(c)) await waitHttp(url);
   if (c.includeAndroid) await bootEmulator(androidPlan(c));
-  console.log('\n✅ STACK UP — api + ops-web healthy' + (c.includeAndroid ? ', emulator booted + driver APK installed' : ''));
+  console.log(
+    '\n✅ STACK UP — api + ops-web healthy' +
+      (c.includeAndroid ? ', emulator booted + driver APK installed' : ''),
+  );
   console.log('   ops-web E2E:  pnpm run e2e:ops-web');
   console.log('   driver E2E:   pnpm tsx scripts/e2e/driver-maestro.mts');
 }
 
 const isEntry = process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`;
-if (isEntry) { void main(); }
+if (isEntry) {
+  void main();
+}

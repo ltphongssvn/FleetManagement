@@ -33,7 +33,9 @@ const DDL = STARTUP_DDL.join('\n');
 
 /** Column names Drizzle will actually read/write for a table. */
 function schemaColumns(table: typeof localActionLog | typeof syncCursor): string[] {
-  return getTableConfig(table).columns.map((c) => c.name).sort();
+  return getTableConfig(table)
+    .columns.map((c) => c.name)
+    .sort();
 }
 
 /** Column names the startup DDL declares for one CREATE TABLE block. */
@@ -78,7 +80,10 @@ describe('the startup DDL matches the Drizzle schema', () => {
   // otherwise sit in the CHECK accepting a value the schema no longer knows.
   it('the status CHECK carries no value the schema does not declare', () => {
     const check = /CHECK \(status IN \(([^)]*)\)\)/.exec(DDL)?.[1] ?? '';
-    const declared = check.split(',').map((s) => s.trim().replace(/'/g, '')).filter(Boolean);
+    const declared = check
+      .split(',')
+      .map((s) => s.trim().replace(/'/g, ''))
+      .filter(Boolean);
     expect(declared.sort()).toEqual([...ACTION_STATUSES].sort());
   });
 

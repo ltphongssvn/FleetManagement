@@ -147,7 +147,10 @@ export class CopilotPlannerService {
         return clarify('Không tìm thấy xe ' + plateKey + '. Vui lòng kiểm tra biển số.');
       }
       const pending = pendingDriverIds.get(cmd.driverName);
-      let driverRef: CopilotEntityRef & { readonly output?: 'driverId'; readonly idSpace?: 'driverId' };
+      let driverRef: CopilotEntityRef & {
+        readonly output?: 'driverId';
+        readonly idSpace?: 'driverId';
+      };
       if (pending !== undefined) {
         driverRef = { kind: 'stepOutput', fromCommandId: pending, output: 'driverId' };
       } else {
@@ -157,7 +160,11 @@ export class CopilotPlannerService {
           return {
             kind: 'clarify',
             questionVi:
-              'Có ' + String(matches.length) + ' tài xế tên ' + cmd.driverName + '. Bạn muốn chọn ai?',
+              'Có ' +
+              String(matches.length) +
+              ' tài xế tên ' +
+              cmd.driverName +
+              '. Bạn muốn chọn ai?',
             candidates: matches.map((d) => ({
               idSpace: 'driverId' as const,
               id: d.driverId,

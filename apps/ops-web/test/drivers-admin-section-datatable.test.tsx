@@ -19,7 +19,9 @@ import { AdminDriverRowSchema, type AdminDriverRow } from '@fleet/sync-protocol'
 import { DriversAdminSection, type DriversAdminClient } from '@/features/admin/DriversAdminSection';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => undefined }) }));
-vi.mock('@/features/admin/revalidate-dispatch.action', () => ({ revalidateDispatch: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('@/features/admin/revalidate-dispatch.action', () => ({
+  revalidateDispatch: vi.fn().mockResolvedValue(undefined),
+}));
 
 function makeConfiguredRow(id: string, name: string): AdminDriverRow {
   return AdminDriverRowSchema.parse({
@@ -29,10 +31,11 @@ function makeConfiguredRow(id: string, name: string): AdminDriverRow {
     operatorId: 'op-' + id,
     assignedVehicle: { vehicleId: 'v' + id, plate: '62H ' + id },
     assignmentId: 'a' + id,
-    devices: [{ deviceId: 'dev-' + id, platform: 'android', appVersion: '1.0.0', lastSeenAt: null }],
+    devices: [
+      { deviceId: 'dev-' + id, platform: 'android', appVersion: '1.0.0', lastSeenAt: null },
+    ],
   });
 }
-
 
 function fakeClient(rows: readonly AdminDriverRow[]): DriversAdminClient {
   return {
@@ -48,7 +51,13 @@ function fakeClient(rows: readonly AdminDriverRow[]): DriversAdminClient {
 
 beforeEach(() => {
   cleanup();
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ items: [] }) }) as unknown as typeof fetch);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ items: [] }),
+    }) as unknown as typeof fetch,
+  );
 });
 
 // Hermetic teardown: an un-restored global fetch stub leaks into every other
@@ -61,22 +70,30 @@ afterEach(() => {
 describe('DriversAdminSection configured list via DataTable', () => {
   it('renders the DataTable search box on the configured driver list', async () => {
     render(<DriversAdminSection client={fakeClient([makeConfiguredRow('1', 'Nguyen Van A')])} />);
-    await waitFor(() => { expect(screen.getByText('Nguyen Van A')).toBeInTheDocument(); });
+    await waitFor(() => {
+      expect(screen.getByText('Nguyen Van A')).toBeInTheDocument();
+    });
     expect(screen.getByTestId('datatable-search')).toBeInTheDocument();
   });
 
   it('keeps the reset-password CRUD control (in the Thao tac menu) for each configured row', async () => {
     const user = userEvent.setup();
     render(<DriversAdminSection client={fakeClient([makeConfiguredRow('1', 'Nguyen Van A')])} />);
-    await waitFor(() => { expect(screen.getByText('Nguyen Van A')).toBeInTheDocument(); });
+    await waitFor(() => {
+      expect(screen.getByText('Nguyen Van A')).toBeInTheDocument();
+    });
     await user.click(screen.getByRole('button', { name: /Thao tác/ }));
     expect(await screen.findByRole('menuitem', { name: 'Đặt lại mật khẩu' })).toBeInTheDocument();
   });
 
   it('paginates when configured drivers exceed one page', async () => {
-    const rows = Array.from({ length: 12 }, (_v, i) => makeConfiguredRow(String(i + 1), 'Driver ' + String(i + 1)));
+    const rows = Array.from({ length: 12 }, (_v, i) =>
+      makeConfiguredRow(String(i + 1), 'Driver ' + String(i + 1)),
+    );
     render(<DriversAdminSection client={fakeClient(rows)} />);
-    await waitFor(() => { expect(screen.getByText('Driver 1')).toBeInTheDocument(); });
+    await waitFor(() => {
+      expect(screen.getByText('Driver 1')).toBeInTheDocument();
+    });
     expect(screen.getByTestId('datatable-page-info')).toBeInTheDocument();
     expect(screen.getByTestId('datatable-next')).toBeInTheDocument();
   });
@@ -85,9 +102,13 @@ describe('DriversAdminSection configured list via DataTable', () => {
     const user = userEvent.setup();
     const rows = [makeConfiguredRow('1', 'Nguyen Van A'), makeConfiguredRow('2', 'Tran Van B')];
     render(<DriversAdminSection client={fakeClient(rows)} />);
-    await waitFor(() => { expect(screen.getByText('Nguyen Van A')).toBeInTheDocument(); });
+    await waitFor(() => {
+      expect(screen.getByText('Nguyen Van A')).toBeInTheDocument();
+    });
     await user.type(screen.getByTestId('datatable-search'), 'Tran');
-    await waitFor(() => { expect(screen.queryByText('Nguyen Van A')).not.toBeInTheDocument(); });
+    await waitFor(() => {
+      expect(screen.queryByText('Nguyen Van A')).not.toBeInTheDocument();
+    });
     expect(screen.getByText('Tran Van B')).toBeInTheDocument();
   });
 
@@ -100,12 +121,13 @@ describe('DriversAdminSection configured list via DataTable', () => {
     // the row menu -- the column was pure dead width. Assign controls remain
     // in the queue, where an unassigned driver actually needs them.
     render(<DriversAdminSection client={fakeClient([makeConfiguredRow('3', 'Le Van C')])} />);
-    await waitFor(() => { expect(screen.getByText('Le Van C')).toBeInTheDocument(); });
+    await waitFor(() => {
+      expect(screen.getByText('Le Van C')).toBeInTheDocument();
+    });
     expect(screen.queryByRole('columnheader', { name: 'Phân công xe' })).toBeNull();
     expect(screen.queryByTestId('driver-assign-vehicle-3')).toBeNull();
     // the columns that carry real content survive
     expect(screen.getByRole('columnheader', { name: 'Xe được giao' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Thao tác' })).toBeInTheDocument();
   });
-
 });

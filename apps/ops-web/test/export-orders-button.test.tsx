@@ -12,7 +12,9 @@ const { exportOrdersExcel } = vi.hoisted(() => ({ exportOrdersExcel: vi.fn() }))
 vi.mock('../src/features/dispatch/export-orders-excel.action', () => ({ exportOrdersExcel }));
 import { ExportOrdersExcelButton } from '../src/features/dispatch/ExportOrdersExcelButton.js';
 describe('@fleet/ops-web - ExportOrdersExcelButton', () => {
-  afterEach(() => { cleanup(); });
+  afterEach(() => {
+    cleanup();
+  });
   beforeEach(() => {
     exportOrdersExcel.mockReset();
   });
@@ -27,7 +29,9 @@ describe('@fleet/ops-web - ExportOrdersExcelButton', () => {
       filename: 'lenh-dieu-xe_t_2026-05-24_manual_deadbeef.xlsx',
     });
     const clickSpy = vi.fn();
-    const anchorClickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => { clickSpy(); });
+    const anchorClickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {
+      clickSpy();
+    });
     const createObjectURLSpy = vi.fn().mockReturnValue('blob:mock');
     const revokeObjectURLSpy = vi.fn();
     Object.defineProperty(globalThis.URL, 'createObjectURL', {
@@ -45,8 +49,12 @@ describe('@fleet/ops-web - ExportOrdersExcelButton', () => {
     });
     render(<ExportOrdersExcelButton />);
     await userEvent.click(screen.getByRole('button', { name: /xu.t excel/i }));
-    await waitFor(() => { expect(exportOrdersExcel).toHaveBeenCalledOnce(); });
-    await waitFor(() => { expect(clickSpy).toHaveBeenCalled(); });
+    await waitFor(() => {
+      expect(exportOrdersExcel).toHaveBeenCalledOnce();
+    });
+    await waitFor(() => {
+      expect(clickSpy).toHaveBeenCalled();
+    });
     expect(createObjectURLSpy).toHaveBeenCalled();
     anchorClickSpy.mockRestore();
   });
@@ -54,13 +62,17 @@ describe('@fleet/ops-web - ExportOrdersExcelButton', () => {
     exportOrdersExcel.mockResolvedValue({ status: 'server_error', message: 'boom' });
     render(<ExportOrdersExcelButton />);
     await userEvent.click(screen.getByRole('button', { name: /xu.t excel/i }));
-    await waitFor(() => { expect(screen.getByRole('alert')).toHaveTextContent(/boom|l.i/i); });
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/boom|l.i/i);
+    });
   });
   it('renders an auth message when the action returns auth_required', async () => {
     exportOrdersExcel.mockResolvedValue({ status: 'auth_required' });
     render(<ExportOrdersExcelButton />);
     await userEvent.click(screen.getByRole('button', { name: /xu.t excel/i }));
-    await waitFor(() => { expect(screen.getByRole('alert')).toBeInTheDocument(); });
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+    });
   });
 
   it('renders Từ ngày / Đến ngày date inputs for the optional range', () => {

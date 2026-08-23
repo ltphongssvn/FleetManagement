@@ -43,9 +43,7 @@ const LockfileSchema = z.object({
 const workspace = WorkspaceSchema.parse(
   parse(readFileSync(resolve(ROOT, 'pnpm-workspace.yaml'), 'utf8')),
 );
-const lock = LockfileSchema.parse(
-  parse(readFileSync(resolve(ROOT, 'pnpm-lock.yaml'), 'utf8')),
-);
+const lock = LockfileSchema.parse(parse(readFileSync(resolve(ROOT, 'pnpm-lock.yaml'), 'utf8')));
 
 /** Every wasm fallback binding that must stay out of the graph. */
 const IGNORED_WASM_BINDINGS = Object.freeze([
@@ -81,8 +79,8 @@ describe('wasm32 fallback bindings stay out of the dependency graph', () => {
   // The peers these bindings dragged in. Their absence is the actual proof the
   // unmet-peer warning cannot recur -- the consumer is gone, not silenced.
   it('@emnapi and @napi-rs/wasm-runtime left the graph entirely', () => {
-    const orphans = packageNames.filter((p) =>
-      p.startsWith('@emnapi/') || p.startsWith('@napi-rs/wasm-runtime@'),
+    const orphans = packageNames.filter(
+      (p) => p.startsWith('@emnapi/') || p.startsWith('@napi-rs/wasm-runtime@'),
     );
     expect(orphans).toEqual([]);
   });

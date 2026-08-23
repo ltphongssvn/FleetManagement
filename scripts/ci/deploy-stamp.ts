@@ -118,12 +118,7 @@ export function railwayVariablesArgs(
     }
     pairs.push('--set', name + '=' + value);
   }
-  return [
-    'variables',
-    ...pairs,
-    '--service', service.trim(),
-    '--skip-deploys',
-  ];
+  return ['variables', ...pairs, '--service', service.trim(), '--skip-deploys'];
 }
 
 export interface ShaVerdict {
@@ -153,8 +148,8 @@ export function evaluateDeployedSha(payload: unknown, expectedSha: string): ShaV
   if (live !== expectedSha) {
     return {
       ok: false,
-      reason: 'live sha ' + live.slice(0, 7) +
-        ' does not match deployed ' + expectedSha.slice(0, 7),
+      reason:
+        'live sha ' + live.slice(0, 7) + ' does not match deployed ' + expectedSha.slice(0, 7),
     };
   }
   return { ok: true, reason: 'live sha matches deployed ' + expectedSha.slice(0, 7) };
@@ -231,7 +226,9 @@ async function runMain(): Promise<void> {
     process.exit(verdict.ok ? 0 : 1);
   }
 
-  console.error('usage: deploy-stamp (--stamp --service S --sha SHA --branch B | --verify --url U --sha SHA)');
+  console.error(
+    'usage: deploy-stamp (--stamp --service S --sha SHA --branch B | --verify --url U --sha SHA)',
+  );
   process.exit(2);
 }
 

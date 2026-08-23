@@ -29,7 +29,7 @@
 // answers "is this a well-formed file with the intended surface" in
 // milliseconds AT THE MOMENT OF WRITING.
 import { readFileSync } from 'node:fs';
-import ts from "typescript";
+import ts from 'typescript';
 
 // parseDiagnostics is not on the public SourceFile type -- it is internal to the
 // compiler, and reading it untyped is how the .mjs version hid an `any` from
@@ -79,22 +79,22 @@ export interface GateArgv {
 /** Pure argv split. Flags are order-independent; unknown --flags are reported
  *  rather than ignored, because a swallowed typo yields a confident no-op. */
 export function parseGateArgv(argv: readonly string[]): GateArgv {
-  const files = argv.filter((a) => !a.startsWith("--"));
+  const files = argv.filter((a) => !a.startsWith('--'));
   const flag = (name: string): string | null => {
     const hit = argv.find((a) => a.startsWith('--' + name + '='));
     return hit === undefined ? null : hit.slice(name.length + 3);
   };
   const list = (name: string): readonly string[] => {
     const raw = flag(name);
-    return raw === null ? [] : raw.split(",").filter((s) => s.length > 0);
+    return raw === null ? [] : raw.split(',').filter((s) => s.length > 0);
   };
-  const minTestsFlag = flag("min-tests");
+  const minTestsFlag = flag('min-tests');
   return {
     files,
-    wanted: list("exports"),
+    wanted: list('exports'),
     minTests: minTestsFlag === null ? null : Number(minTestsFlag),
-    contains: list("contains"),
-    absent: list("absent"),
+    contains: list('contains'),
+    absent: list('absent'),
   };
 }
 
@@ -117,9 +117,12 @@ export function exportedNames(sf: ts.SourceFile): ReadonlySet<string> {
         if (ts.isIdentifier(d.name)) names.add(d.name.text);
       }
     } else if (
-      (ts.isFunctionDeclaration(stmt) || ts.isClassDeclaration(stmt) ||
-       ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt) ||
-       ts.isEnumDeclaration(stmt)) && stmt.name !== undefined
+      (ts.isFunctionDeclaration(stmt) ||
+        ts.isClassDeclaration(stmt) ||
+        ts.isInterfaceDeclaration(stmt) ||
+        ts.isTypeAliasDeclaration(stmt) ||
+        ts.isEnumDeclaration(stmt)) &&
+      stmt.name !== undefined
     ) {
       names.add(stmt.name.text);
     }
@@ -155,19 +158,14 @@ export function countTests(sf: ts.SourceFile): number {
  *  string literal. Tokens are joined with a space so adjacent identifiers can
  *  never fuse into a false match. */
 export function codeOnly(src: string): string {
-  const scanner = ts.createScanner(
-    ts.ScriptTarget.ES2022,
-    true,
-    ts.LanguageVariant.Standard,
-    src,
-  );
+  const scanner = ts.createScanner(ts.ScriptTarget.ES2022, true, ts.LanguageVariant.Standard, src);
   const parts: string[] = [];
   let tok = scanner.scan();
   while (tok !== ts.SyntaxKind.EndOfFileToken) {
     parts.push(scanner.getTokenText());
     tok = scanner.scan();
   }
-  return parts.join(" ");
+  return parts.join(' ');
 }
 
 /** The whole verdict for one file's SOURCE. Pure: takes text, returns a result,
@@ -185,12 +183,15 @@ export function classifySource(
   const diags = (sf as ParsedSourceFile).parseDiagnostics ?? [];
   if (diags.length > 0) {
     return {
-      event: 'GATE_FAILURE', schema_version: GATE_SCHEMA_VERSION,
-      file: path, reasons: ['syntax'],
+      event: 'GATE_FAILURE',
+      schema_version: GATE_SCHEMA_VERSION,
+      file: path,
+      reasons: ['syntax'],
       diagnostics: diags.map((d) => {
         const { line, character } = sf.getLineAndCharacterOfPosition(d.start ?? 0);
         return {
-          line: line + 1, column: character + 1,
+          line: line + 1,
+          column: character + 1,
           message: ts.flattenDiagnosticMessageText(d.messageText, ' '),
         };
       }),
@@ -203,31 +204,40 @@ export function classifySource(
   const tests = countTests(sf);
   const reasons: string[] = [];
   if (missing.length > 0) reasons.push('missing_exports');
-  if (minTests !== null && tests < minTests) reasons.push("too_few_tests");
+  if (minTests !== null && tests < minTests) reasons.push('too_few_tests');
   // Checked against CODE, never raw source: a phrase in a comment is not an
   // implementation, and treating it as one is a false pass.
   const code = codeOnly(src);
   const missingText = contains.filter((n) => !code.includes(n));
   const presentText = absent.filter((n) => code.includes(n));
-  if (missingText.length > 0) reasons.push("missing_text");
-  if (presentText.length > 0) reasons.push("forbidden_text");
+  if (missingText.length > 0) reasons.push('missing_text');
+  if (presentText.length > 0) reasons.push('forbidden_text');
 
   if (reasons.length > 0) {
     return {
-      event: 'GATE_FAILURE', schema_version: GATE_SCHEMA_VERSION, file: path, reasons,
-      missing, found: [...found].sort(), tests,
+      event: 'GATE_FAILURE',
+      schema_version: GATE_SCHEMA_VERSION,
+      file: path,
+      reasons,
+      missing,
+      found: [...found].sort(),
+      tests,
       // Spread rather than assigning undefined: under exactOptionalPropertyTypes
       // an explicit undefined is NOT the same as an absent key, and the field is
       // declared optional precisely so it can be absent.
       ...(minTests === null ? {} : { minTests }),
-      missingText, presentText,
+      missingText,
+      presentText,
       agent_action: 'REGENERATE_FILE',
     };
   }
   return {
-    event: 'GATE_OK', schema_version: GATE_SCHEMA_VERSION,
-    file: path, bytes: src.length,
-    exports: [...found].sort(), tests,
+    event: 'GATE_OK',
+    schema_version: GATE_SCHEMA_VERSION,
+    file: path,
+    bytes: src.length,
+    exports: [...found].sort(),
+    tests,
   };
 }
 
@@ -281,23 +291,31 @@ function mainAssertParses(): number {
   const { files, wanted, minTests, contains, absent } = parseGateArgv(process.argv.slice(2));
   if (files.length === 0) {
     emit({
-      event: 'GATE_FAILURE', schema_version: GATE_SCHEMA_VERSION,
-      reasons: ['usage'], agent_action: 'FIX_INVOCATION',
+      event: 'GATE_FAILURE',
+      schema_version: GATE_SCHEMA_VERSION,
+      reasons: ['usage'],
+      agent_action: 'FIX_INVOCATION',
     });
     return ASSERT_EXIT.usage;
   }
-  if ((wanted.length > 0 || minTests !== null || contains.length > 0 ||
-       absent.length > 0) && files.length !== 1) {
+  if (
+    (wanted.length > 0 || minTests !== null || contains.length > 0 || absent.length > 0) &&
+    files.length !== 1
+  ) {
     emit({
-      event: 'GATE_FAILURE', schema_version: GATE_SCHEMA_VERSION,
-      reasons: ['needs_one_file'], agent_action: 'FIX_INVOCATION',
+      event: 'GATE_FAILURE',
+      schema_version: GATE_SCHEMA_VERSION,
+      reasons: ['needs_one_file'],
+      agent_action: 'FIX_INVOCATION',
     });
     return ASSERT_EXIT.usage;
   }
   if (minTests !== null && !Number.isInteger(minTests)) {
     emit({
-      event: 'GATE_FAILURE', schema_version: GATE_SCHEMA_VERSION,
-      reasons: ['min_tests_not_an_integer'], agent_action: 'FIX_INVOCATION',
+      event: 'GATE_FAILURE',
+      schema_version: GATE_SCHEMA_VERSION,
+      reasons: ['min_tests_not_an_integer'],
+      agent_action: 'FIX_INVOCATION',
     });
     return ASSERT_EXIT.usage;
   }
@@ -310,8 +328,10 @@ function mainAssertParses(): number {
     } catch (err) {
       // Fail closed: an unreadable file is never a pass.
       emit({
-        event: 'GATE_FAILURE', schema_version: GATE_SCHEMA_VERSION,
-        file: path, reasons: ['unreadable'],
+        event: 'GATE_FAILURE',
+        schema_version: GATE_SCHEMA_VERSION,
+        file: path,
+        reasons: ['unreadable'],
         detail: err instanceof Error ? err.message : String(err),
         agent_action: 'REGENERATE_FILE',
       });

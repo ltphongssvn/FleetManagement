@@ -18,7 +18,11 @@ interface SetCall {
 }
 // Minimal fake ioredis: models SET ... NX (first write wins) and records the
 // full arg list so the PX/NX flags can be asserted.
-function makeFakeRedis(): { set: (...a: unknown[]) => Promise<string | null>; calls: SetCall[]; store: Map<string, string> } {
+function makeFakeRedis(): {
+  set: (...a: unknown[]) => Promise<string | null>;
+  calls: SetCall[];
+  store: Map<string, string>;
+} {
   const store = new Map<string, string>();
   const calls: SetCall[] = [];
   return {

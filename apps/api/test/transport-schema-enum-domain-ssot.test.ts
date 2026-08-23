@@ -19,10 +19,7 @@
 // real schema change even when the member set is identical.
 import { describe, it, expect } from 'vitest';
 import { TransportOrderStateSchema, RoadRunStateSchema } from '@fleet/domain';
-import {
-  transportOrderStateEnum,
-  roadRunStateEnum,
-} from '../src/database/schema/transport.js';
+import { transportOrderStateEnum, roadRunStateEnum } from '../src/database/schema/transport.js';
 describe('transport.ts pgEnum vocabularies are the @fleet/domain SSOT', () => {
   it('transport_order_state enumValues match TransportOrderStateSchema options in order', () => {
     expect(transportOrderStateEnum.enumValues).toEqual([...TransportOrderStateSchema.options]);

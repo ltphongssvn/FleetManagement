@@ -10,8 +10,14 @@ import { describe, it, expect, vi } from 'vitest';
 import { DrizzleIntakeLagRepo } from '../src/manifest/intake-lag.repo.js';
 import type { FleetDb } from '../src/database/database.module.js';
 
-interface OldestRow { manifestId: string; createdAt: Date }
-function makeDb(oldest: OldestRow[], tally: { n: number }[] | 'empty'): { db: FleetDb; selectSpy: ReturnType<typeof vi.fn> } {
+interface OldestRow {
+  manifestId: string;
+  createdAt: Date;
+}
+function makeDb(
+  oldest: OldestRow[],
+  tally: { n: number }[] | 'empty',
+): { db: FleetDb; selectSpy: ReturnType<typeof vi.fn> } {
   const limit = vi.fn().mockResolvedValue(oldest);
   const orderBy = vi.fn().mockReturnValue({ limit });
   const oldestWhere = vi.fn().mockReturnValue({ orderBy });

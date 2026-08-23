@@ -19,8 +19,12 @@ function makeMemStore(): MemStore {
   const map = new Map<string, string>();
   return {
     getItem: (k) => map.get(k) ?? null,
-    setItem: (k, v) => { map.set(k, v); },
-    removeItem: (k) => { map.delete(k); },
+    setItem: (k, v) => {
+      map.set(k, v);
+    },
+    removeItem: (k) => {
+      map.delete(k);
+    },
   };
 }
 describe('token-storage on web', () => {

@@ -37,7 +37,11 @@ describe('createOrder dynamic pickup + delivery warehouses (no hard cap)', () =>
     vi.stubGlobal('fetch', fetchMock);
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = baseForm();
-    for (let i = 1; i <= 6; i++) fd.set('pickupWarehouse_' + String(i), '99999999-0001-4000-8000-' + String(i).padStart(12, '0'));
+    for (let i = 1; i <= 6; i++)
+      fd.set(
+        'pickupWarehouse_' + String(i),
+        '99999999-0001-4000-8000-' + String(i).padStart(12, '0'),
+      );
     fd.set('deliveryWarehouse_1', '99999999-0002-4000-8000-000000000001');
     await createOrder(undefined, fd);
     const stops = lastBody(fetchMock)['stops'] as { stopType: string }[];
@@ -52,7 +56,11 @@ describe('createOrder dynamic pickup + delivery warehouses (no hard cap)', () =>
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = baseForm();
     fd.set('pickupWarehouse_1', '99999999-0001-4000-8000-000000000001');
-    for (let i = 1; i <= 3; i++) fd.set('deliveryWarehouse_' + String(i), '99999999-0002-4000-8000-' + String(i).padStart(12, '0'));
+    for (let i = 1; i <= 3; i++)
+      fd.set(
+        'deliveryWarehouse_' + String(i),
+        '99999999-0002-4000-8000-' + String(i).padStart(12, '0'),
+      );
     await createOrder(undefined, fd);
     const stops = lastBody(fetchMock)['stops'] as { sequence: number; stopType: string }[];
     expect(stops.filter((s) => s.stopType === 'pickup')).toHaveLength(1);
@@ -98,7 +106,10 @@ describe('createOrder dynamic pickup + delivery warehouses (no hard cap)', () =>
   it('rejects when no pickup warehouse is assigned', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'tok' });
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('{}', { status: 201 }))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response('{}', { status: 201 }))),
+    );
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = baseForm();
     fd.set('deliveryWarehouse_1', '99999999-0002-4000-8000-000000000001');
@@ -107,7 +118,10 @@ describe('createOrder dynamic pickup + delivery warehouses (no hard cap)', () =>
   it('rejects when no delivery warehouse is assigned', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'tok' });
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('{}', { status: 201 }))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response('{}', { status: 201 }))),
+    );
     const { createOrder } = await import('@/features/dispatch/create-order.action');
     const fd = baseForm();
     fd.set('pickupWarehouse_1', '99999999-0001-4000-8000-000000000001');

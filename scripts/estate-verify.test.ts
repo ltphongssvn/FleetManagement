@@ -87,7 +87,6 @@ function reasons(...rs: readonly EstateReason[]): readonly EstateReason[] {
   return rs;
 }
 
-
 describe('classifyEstate', () => {
   it('reports clean when every worktree is clean', () => {
     const v = classifyEstate([CLEAN]);
@@ -106,30 +105,28 @@ describe('classifyEstate', () => {
   });
 
   it('flags unpushed commits', () => {
-    expect(classifyEstate([{ ...CLEAN, aheadOfRemote: 2 }]).problems[0]?.reasons)
-      .toContain('unpushed');
+    expect(classifyEstate([{ ...CLEAN, aheadOfRemote: 2 }]).problems[0]?.reasons).toContain(
+      'unpushed',
+    );
   });
 
   it('flags a stash', () => {
-    expect(classifyEstate([{ ...CLEAN, stashCount: 1 }]).problems[0]?.reasons)
-      .toContain('stash');
+    expect(classifyEstate([{ ...CLEAN, stashCount: 1 }]).problems[0]?.reasons).toContain('stash');
   });
 
   // The property the hand check could not see.
   it('flags a prunable (stale) worktree', () => {
-    expect(classifyEstate([{ ...CLEAN, prunable: true }]).problems[0]?.reasons)
-      .toContain('prunable');
+    expect(classifyEstate([{ ...CLEAN, prunable: true }]).problems[0]?.reasons).toContain(
+      'prunable',
+    );
   });
 
   it('flags a locked worktree', () => {
-    expect(classifyEstate([{ ...CLEAN, locked: true }]).problems[0]?.reasons)
-      .toContain('locked');
+    expect(classifyEstate([{ ...CLEAN, locked: true }]).problems[0]?.reasons).toContain('locked');
   });
 
   it('reports every reason for one worktree at once', () => {
-    const v = classifyEstate([
-      { ...CLEAN, dirtyFileCount: 1, aheadOfRemote: 1, stashCount: 1 },
-    ]);
+    const v = classifyEstate([{ ...CLEAN, dirtyFileCount: 1, aheadOfRemote: 1, stashCount: 1 }]);
     expect(v.problems[0]?.reasons).toEqual(reasons('dirty', 'unpushed', 'stash'));
   });
 
@@ -149,49 +146,55 @@ describe('classifyEstate', () => {
 // exists to expose: the test ran the function and checked almost nothing, so a
 // defect in the count would have shipped green. Exact equality is the strongest
 // form; substring matchers are for when a PATTERN, not a value, is the point.
-describe("describeEstate", () => {
-  it("renders the failure line in full, worktree, branch and reasons", () => {
+describe('describeEstate', () => {
+  it('renders the failure line in full, worktree, branch and reasons', () => {
     expect(describeEstate(classifyEstate([{ ...CLEAN, dirtyFileCount: 2 }]))).toBe(
-      "estate NOT clean: 1 of 1 worktree(s)" + NL +
-      "  /c/t1-wt1-x [feat/x] (dirty)",
+      'estate NOT clean: 1 of 1 worktree(s)' + NL + '  /c/t1-wt1-x [feat/x] (dirty)',
     );
   });
 
-  it("names EVERY reason on the line, comma separated", () => {
-    expect(describeEstate(classifyEstate([
-      { ...CLEAN, dirtyFileCount: 1, aheadOfRemote: 1, stashCount: 1 },
-    ]))).toBe(
-      "estate NOT clean: 1 of 1 worktree(s)" + NL +
-      "  /c/t1-wt1-x [feat/x] (dirty,unpushed,stash)",
+  it('names EVERY reason on the line, comma separated', () => {
+    expect(
+      describeEstate(
+        classifyEstate([{ ...CLEAN, dirtyFileCount: 1, aheadOfRemote: 1, stashCount: 1 }]),
+      ),
+    ).toBe(
+      'estate NOT clean: 1 of 1 worktree(s)' + NL + '  /c/t1-wt1-x [feat/x] (dirty,unpushed,stash)',
     );
   });
 
-  it("gives one line per unclean worktree, and none for the clean ones", () => {
-    expect(describeEstate(classifyEstate([
-      { ...CLEAN, path: "/c/a", dirtyFileCount: 1 },
-      CLEAN,
-      { ...CLEAN, path: "/c/b", stashCount: 1 },
-    ]))).toBe(
-      "estate NOT clean: 2 of 3 worktree(s)" + NL +
-      "  /c/a [feat/x] (dirty)" + NL +
-      "  /c/b [feat/x] (stash)",
+  it('gives one line per unclean worktree, and none for the clean ones', () => {
+    expect(
+      describeEstate(
+        classifyEstate([
+          { ...CLEAN, path: '/c/a', dirtyFileCount: 1 },
+          CLEAN,
+          { ...CLEAN, path: '/c/b', stashCount: 1 },
+        ]),
+      ),
+    ).toBe(
+      'estate NOT clean: 2 of 3 worktree(s)' +
+        NL +
+        '  /c/a [feat/x] (dirty)' +
+        NL +
+        '  /c/b [feat/x] (stash)',
     );
   });
 
   // The count is the whole point: a bare OK cannot be told apart from a run
   // that examined nothing. Asserting the SENTENCE means a wrong count fails,
   // which toContain("2") did not.
-  it("states how many were checked on success, never a bare OK", () => {
+  it('states how many were checked on success, never a bare OK', () => {
     expect(describeEstate(classifyEstate([CLEAN, CLEAN]))).toBe(
-      "estate clean: 2 worktree(s) checked, no dirty tree, " +
-      "no unpushed commits, no stash, none stale or locked",
+      'estate clean: 2 worktree(s) checked, no dirty tree, ' +
+        'no unpushed commits, no stash, none stale or locked',
     );
   });
 
-  it("counts an empty estate as zero rather than omitting the count", () => {
+  it('counts an empty estate as zero rather than omitting the count', () => {
     expect(describeEstate(classifyEstate([]))).toBe(
-      "estate clean: 0 worktree(s) checked, no dirty tree, " +
-      "no unpushed commits, no stash, none stale or locked",
+      'estate clean: 0 worktree(s) checked, no dirty tree, ' +
+        'no unpushed commits, no stash, none stale or locked',
     );
   });
 });
@@ -231,7 +234,7 @@ describe('createWorktreeState: fixtures cannot drift from the contract', () => {
 describe('estateTelemetry', () => {
   it('reports a clean estate as structured fields', () => {
     const t = estateTelemetry(classifyEstate([CLEAN, CLEAN]), null, DIGEST, AT);
-    expect(t["event.name"]).toBe("fleet.estate.verified");
+    expect(t['event.name']).toBe('fleet.estate.verified');
     expect(t.attributes.clean).toBe(true);
     expect(t.attributes.checked).toBe(2);
     expect(t.attributes.unclean_count).toBe(0);
@@ -239,31 +242,46 @@ describe('estateTelemetry', () => {
   });
 
   it('surfaces a flat reason set a consumer can route on', () => {
-    const t = estateTelemetry(classifyEstate([
-      createWorktreeState({ path: '/c/a', dirtyFileCount: 1 }),
-      createWorktreeState({ path: '/c/b', prunable: true }),
-    ]), null, DIGEST, AT);
+    const t = estateTelemetry(
+      classifyEstate([
+        createWorktreeState({ path: '/c/a', dirtyFileCount: 1 }),
+        createWorktreeState({ path: '/c/b', prunable: true }),
+      ]),
+      null,
+      DIGEST,
+      AT,
+    );
     expect(t.attributes.clean).toBe(false);
     expect(t.attributes.unclean_count).toBe(2);
-    expect(t.attributes.reasons).toEqual(reasons("dirty", "prunable"));
+    expect(t.attributes.reasons).toEqual(reasons('dirty', 'prunable'));
   });
 
   it('de-duplicates a reason shared by several worktrees', () => {
-    const t = estateTelemetry(classifyEstate([
-      createWorktreeState({ path: '/c/a', stashCount: 1 }),
-      createWorktreeState({ path: '/c/b', stashCount: 2 }),
-    ]), null, DIGEST, AT);
-    expect(t.attributes.reasons).toEqual(reasons("stash"));
+    const t = estateTelemetry(
+      classifyEstate([
+        createWorktreeState({ path: '/c/a', stashCount: 1 }),
+        createWorktreeState({ path: '/c/b', stashCount: 2 }),
+      ]),
+      null,
+      DIGEST,
+      AT,
+    );
+    expect(t.attributes.reasons).toEqual(reasons('stash'));
   });
 
   // Declaration order, never walk order: a consumer diffing two runs must not
   // see a change because the estate happened to be enumerated differently.
   it('orders reasons by declaration, not by discovery', () => {
-    const t = estateTelemetry(classifyEstate([
-      createWorktreeState({ path: '/c/a', locked: true }),
-      createWorktreeState({ path: '/c/b', dirtyFileCount: 1 }),
-    ]), null, DIGEST, AT);
-    expect(t.attributes.reasons).toEqual(reasons("dirty", "locked"));
+    const t = estateTelemetry(
+      classifyEstate([
+        createWorktreeState({ path: '/c/a', locked: true }),
+        createWorktreeState({ path: '/c/b', dirtyFileCount: 1 }),
+      ]),
+      null,
+      DIGEST,
+      AT,
+    );
+    expect(t.attributes.reasons).toEqual(reasons('dirty', 'locked'));
   });
 
   // The whole point: prose and telemetry must never disagree, because they are
@@ -272,11 +290,16 @@ describe('estateTelemetry', () => {
     const v = classifyEstate([createWorktreeState({ dirtyFileCount: 1 })]);
     const t = estateTelemetry(v, null, DIGEST, AT);
     expect(t.attributes.clean).toBe(v.clean);
-    expect(describeEstate(v).includes("NOT clean")).not.toBe(t.attributes.clean);
+    expect(describeEstate(v).includes('NOT clean')).not.toBe(t.attributes.clean);
   });
 
   it('serialises to JSON without loss', () => {
-    const t = estateTelemetry(classifyEstate([createWorktreeState({ stashCount: 1 })]), null, DIGEST, AT);
+    const t = estateTelemetry(
+      classifyEstate([createWorktreeState({ stashCount: 1 })]),
+      null,
+      DIGEST,
+      AT,
+    );
     expect(JSON.parse(JSON.stringify(t))).toEqual(t);
   });
 });
@@ -368,10 +391,10 @@ describe('WorktreeStateSchema: strict about its own keys', () => {
 // being reversed.
 describe('unreadableEstateEvent', () => {
   it('carries its own event name, so the discriminant is the name', () => {
-    expect(unreadableEstateEvent('git-failed', AT)['event.name'])
-      .toBe('fleet.estate.unreadable');
-    expect(estateTelemetry(classifyEstate([]), null, DIGEST, AT)['event.name'])
-      .toBe('fleet.estate.verified');
+    expect(unreadableEstateEvent('git-failed', AT)['event.name']).toBe('fleet.estate.unreadable');
+    expect(estateTelemetry(classifyEstate([]), null, DIGEST, AT)['event.name']).toBe(
+      'fleet.estate.verified',
+    );
   });
 
   it('is always ERROR severity', () => {
@@ -404,8 +427,9 @@ describe('unreadableEstateEvent', () => {
   });
 
   it('carries the source digest when the porcelain was readable', () => {
-    expect(unreadableEstateEvent('no-records', AT, null, digestOf('raw')).source_digest)
-      .toBe(digestOf('raw'));
+    expect(unreadableEstateEvent('no-records', AT, null, digestOf('raw')).source_digest).toBe(
+      digestOf('raw'),
+    );
   });
 
   it('serialises to JSON without loss', () => {
@@ -413,7 +437,6 @@ describe('unreadableEstateEvent', () => {
     expect(JSON.parse(JSON.stringify(t))).toEqual(t);
   });
 });
-
 
 // ---- a rejected record must not crash the run ----
 // The driver called WorktreeStateSchema.parse inside its gather loop, so a
@@ -426,8 +449,13 @@ describe('unreadableEstateEvent', () => {
 describe('toWorktreeState', () => {
   it('returns the parsed state for a well-formed record', () => {
     const s = toWorktreeState({
-      path: '/c/a', branch: 'x', dirtyFileCount: 0, aheadOfRemote: 0,
-      stashCount: 0, prunable: false, locked: false,
+      path: '/c/a',
+      branch: 'x',
+      dirtyFileCount: 0,
+      aheadOfRemote: 0,
+      stashCount: 0,
+      prunable: false,
+      locked: false,
     });
     expect(s?.path).toBe('/c/a');
   });
@@ -445,10 +473,18 @@ describe('toWorktreeState', () => {
 
   // The strictObject rule still applies through this path.
   it('returns null for an unrecognised key rather than stripping it', () => {
-    expect(toWorktreeState({
-      path: '/c/a', branch: 'x', dirtyFileCount: 0, aheadOfRemote: 0,
-      stashCount: 0, prunable: false, locked: false, stashcount: 9,
-    })).toBeNull();
+    expect(
+      toWorktreeState({
+        path: '/c/a',
+        branch: 'x',
+        dirtyFileCount: 0,
+        aheadOfRemote: 0,
+        stashCount: 0,
+        prunable: false,
+        locked: false,
+        stashcount: 9,
+      }),
+    ).toBeNull();
   });
 
   // A half-parsed worktree would be a guess, and guessing here means reporting
@@ -519,7 +555,9 @@ describe('traceContextFrom', () => {
   // The W3C spec declares all-zero ids invalid.
   it('rejects all-zero ids, which the spec calls invalid', () => {
     expect(traceContextFrom('00-' + '0'.repeat(32) + '-00f067aa0ba902b7-01')).toBeNull();
-    expect(traceContextFrom('00-4bf92f3577b34da6a3ce929d0e0e4736-' + '0'.repeat(16) + '-01')).toBeNull();
+    expect(
+      traceContextFrom('00-4bf92f3577b34da6a3ce929d0e0e4736-' + '0'.repeat(16) + '-01'),
+    ).toBeNull();
   });
 
   it('omits the fields entirely when there is no parent context', () => {
@@ -570,8 +608,9 @@ describe('WorktreeStateSchema: canonical paths only', () => {
   // A sibling of the clone is the NORMAL case, so no root confinement may
   // reject it.
   it('accepts a worktree outside the repository, the normal case', () => {
-    expect(() => createWorktreeState({ path: '/Users/dev/code/t116-wt1-estate-verify' }))
-      .not.toThrow();
+    expect(() =>
+      createWorktreeState({ path: '/Users/dev/code/t116-wt1-estate-verify' }),
+    ).not.toThrow();
   });
 });
 
@@ -600,8 +639,9 @@ describe('estateDigest', () => {
 
   it('changes when any field changes', () => {
     const before = estateDigest([A]);
-    expect(estateDigest([createWorktreeState({ path: '/c/a', branch: 'x', stashCount: 1 })]))
-      .not.toBe(before);
+    expect(
+      estateDigest([createWorktreeState({ path: '/c/a', branch: 'x', stashCount: 1 })]),
+    ).not.toBe(before);
   });
 
   it('changes when a worktree is added or removed', () => {
@@ -677,13 +717,17 @@ describe('digestOf and source_digest', () => {
     const raw = 'worktree /c/a';
     const before = estateTelemetry(
       classifyEstate([createWorktreeState({ path: '/c/a' })]),
-      null, estateDigest([createWorktreeState({ path: '/c/a' })]), AT, digestOf(raw),
+      null,
+      estateDigest([createWorktreeState({ path: '/c/a' })]),
+      AT,
+      digestOf(raw),
     );
     const after = estateTelemetry(
       classifyEstate([createWorktreeState({ path: '/c/a', dirtyFileCount: 1 })]),
       null,
       estateDigest([createWorktreeState({ path: '/c/a', dirtyFileCount: 1 })]),
-      AT, digestOf(raw),
+      AT,
+      digestOf(raw),
     );
     expect(after.source_digest).toBe(before.source_digest);
     expect(after.estate_digest).not.toBe(before.estate_digest);
@@ -729,21 +773,32 @@ describe('REASON_KIND and kindsFor', () => {
 
   // The discrimination the whole taxonomy exists for.
   it('separates a merely dirty worktree from a broken one on the event', () => {
-    const wip = estateTelemetry(classifyEstate([
-      createWorktreeState({ path: '/c/a', dirtyFileCount: 3 }),
-    ]), null, DIGEST, AT);
-    const broken = estateTelemetry(classifyEstate([
-      createWorktreeState({ path: '/c/b', prunable: true }),
-    ]), null, DIGEST, AT);
+    const wip = estateTelemetry(
+      classifyEstate([createWorktreeState({ path: '/c/a', dirtyFileCount: 3 })]),
+      null,
+      DIGEST,
+      AT,
+    );
+    const broken = estateTelemetry(
+      classifyEstate([createWorktreeState({ path: '/c/b', prunable: true })]),
+      null,
+      DIGEST,
+      AT,
+    );
     expect(wip.attributes.kinds).toEqual(['work-in-progress']);
     expect(broken.attributes.kinds).toEqual(['structural']);
   });
 
   it('reports both kinds when the estate has both', () => {
-    const t = estateTelemetry(classifyEstate([
-      createWorktreeState({ path: '/c/a', dirtyFileCount: 1 }),
-      createWorktreeState({ path: '/c/b', locked: true }),
-    ]), null, DIGEST, AT);
+    const t = estateTelemetry(
+      classifyEstate([
+        createWorktreeState({ path: '/c/a', dirtyFileCount: 1 }),
+        createWorktreeState({ path: '/c/b', locked: true }),
+      ]),
+      null,
+      DIGEST,
+      AT,
+    );
     expect(t.attributes.kinds).toEqual(['work-in-progress', 'structural']);
   });
 });
@@ -784,7 +839,9 @@ describe('ESTATE_SCHEMA_VERSION', () => {
   });
 
   it('survives serialisation, so a subscriber reads it off the wire', () => {
-    const t = JSON.parse(JSON.stringify(estateTelemetry(classifyEstate([CLEAN]), null, DIGEST, AT)));
+    const t = JSON.parse(
+      JSON.stringify(estateTelemetry(classifyEstate([CLEAN]), null, DIGEST, AT)),
+    );
     expect(t.schema_version).toBe(ESTATE_SCHEMA_VERSION);
   });
 
@@ -814,7 +871,9 @@ describe('EstateEventSchema: what we emit parses against what we declare', () =>
   const TRACE = TraceContextSchema.parse({ trace_id: 'a'.repeat(32), span_id: 'b'.repeat(16) });
 
   it('accepts a clean verdict event', () => {
-    const r = EstateEventSchema.safeParse(estateTelemetry(classifyEstate(STATES), null, DIGEST, AT));
+    const r = EstateEventSchema.safeParse(
+      estateTelemetry(classifyEstate(STATES), null, DIGEST, AT),
+    );
     expect(r.success).toBe(true);
   });
 
@@ -846,12 +905,18 @@ describe('EstateEventSchema: what we emit parses against what we declare', () =>
   // stamped with any other version fails to parse. A consumer pinned to 1.0.0
   // cannot be handed a 2.0.0 payload by accident.
   it('REJECTS an event stamped with a different schema version', () => {
-    const e = { ...estateTelemetry(classifyEstate(STATES), null, DIGEST, AT), schema_version: '9.9.9' };
+    const e = {
+      ...estateTelemetry(classifyEstate(STATES), null, DIGEST, AT),
+      schema_version: '9.9.9',
+    };
     expect(EstateEventSchema.safeParse(e).success).toBe(false);
   });
 
   it('REJECTS an unknown event name rather than accepting it loosely', () => {
-    const e = { ...estateTelemetry(classifyEstate(STATES), null, DIGEST, AT), 'event.name': 'fleet.estate.other' };
+    const e = {
+      ...estateTelemetry(classifyEstate(STATES), null, DIGEST, AT),
+      'event.name': 'fleet.estate.other',
+    };
     expect(EstateEventSchema.safeParse(e).success).toBe(false);
   });
 
@@ -879,9 +944,17 @@ describe('EstateEventSchema: what we emit parses against what we declare', () =>
 describe('vocabularies are declared once', () => {
   it('every kind the type admits is accepted by the schema', () => {
     for (const k of REASON_KINDS) {
-      const e = estateTelemetry(classifyEstate([
-        createWorktreeState({ path: '/c/a', ...(k === 'structural' ? { locked: true } : { dirtyFileCount: 1 }) }),
-      ]), null, DIGEST, AT);
+      const e = estateTelemetry(
+        classifyEstate([
+          createWorktreeState({
+            path: '/c/a',
+            ...(k === 'structural' ? { locked: true } : { dirtyFileCount: 1 }),
+          }),
+        ]),
+        null,
+        DIGEST,
+        AT,
+      );
       expect(e.attributes.kinds).toContain(k);
       expect(EstateEventSchema.safeParse(e).success).toBe(true);
     }
@@ -898,13 +971,23 @@ describe('vocabularies are declared once', () => {
   // The schema must reject a kind the vocabulary does not contain, or deriving
   // it bought nothing.
   it('REJECTS a kind outside the vocabulary', () => {
-    const e = estateTelemetry(classifyEstate([createWorktreeState({ dirtyFileCount: 1 })]), null, DIGEST, AT);
+    const e = estateTelemetry(
+      classifyEstate([createWorktreeState({ dirtyFileCount: 1 })]),
+      null,
+      DIGEST,
+      AT,
+    );
     const tampered = { ...e, attributes: { ...e.attributes, kinds: ['invented'] } };
     expect(EstateEventSchema.safeParse(tampered).success).toBe(false);
   });
 
   it('REJECTS a reason outside the vocabulary', () => {
-    const e = estateTelemetry(classifyEstate([createWorktreeState({ dirtyFileCount: 1 })]), null, DIGEST, AT);
+    const e = estateTelemetry(
+      classifyEstate([createWorktreeState({ dirtyFileCount: 1 })]),
+      null,
+      DIGEST,
+      AT,
+    );
     const tampered = { ...e, attributes: { ...e.attributes, reasons: ['dirtyy'] } };
     expect(EstateEventSchema.safeParse(tampered).success).toBe(false);
   });

@@ -52,7 +52,6 @@ describe('@fleet/driver-app - decideSyncSchedule basic', () => {
     if (r.action === 'skip') expect(r.reason).toBe('app_inactive');
   });
 
-
   it('runs on app_foreground even when state.appActive is stale (#496)', () => {
     const r = decideSyncSchedule(state({ appActive: false }), 'app_foreground', NOW);
     expect(r.action).toBe('run_now');
@@ -148,7 +147,11 @@ describe('@fleet/driver-app - decideSyncSchedule timer + idle interval', () => {
 describe('@fleet/driver-app - decideSyncSchedule transport failure backoff', () => {
   it('applies exponential backoff after transport failure (1 failure -> 5s, no jitter)', () => {
     const r = decideSyncSchedule(
-      state({ lastSyncAtMs: NOW - 1_000, lastOutcome: 'last_transport_failure', consecutiveTransportFailures: 1 }),
+      state({
+        lastSyncAtMs: NOW - 1_000,
+        lastOutcome: 'last_transport_failure',
+        consecutiveTransportFailures: 1,
+      }),
       'timer_tick',
       NOW,
       NO_JITTER,
@@ -163,7 +166,11 @@ describe('@fleet/driver-app - decideSyncSchedule transport failure backoff', () 
   it('doubles backoff per consecutive failure', () => {
     // 3 failures -> 5s * 2^2 = 20s
     const r = decideSyncSchedule(
-      state({ lastSyncAtMs: NOW - 1_000, lastOutcome: 'last_transport_failure', consecutiveTransportFailures: 3 }),
+      state({
+        lastSyncAtMs: NOW - 1_000,
+        lastOutcome: 'last_transport_failure',
+        consecutiveTransportFailures: 3,
+      }),
       'timer_tick',
       NOW,
       NO_JITTER,
@@ -174,7 +181,11 @@ describe('@fleet/driver-app - decideSyncSchedule transport failure backoff', () 
 
   it('manual_retry bypasses backoff', () => {
     const r = decideSyncSchedule(
-      state({ lastSyncAtMs: NOW - 1_000, lastOutcome: 'last_transport_failure', consecutiveTransportFailures: 3 }),
+      state({
+        lastSyncAtMs: NOW - 1_000,
+        lastOutcome: 'last_transport_failure',
+        consecutiveTransportFailures: 3,
+      }),
       'manual_retry',
       NOW,
     );
@@ -185,7 +196,11 @@ describe('@fleet/driver-app - decideSyncSchedule transport failure backoff', () 
 describe('@fleet/driver-app - decideSyncSchedule circuit breaker', () => {
   it('opens circuit breaker after threshold consecutive failures', () => {
     const r = decideSyncSchedule(
-      state({ lastSyncAtMs: NOW, lastOutcome: 'last_transport_failure', consecutiveTransportFailures: SYNC_CIRCUIT_BREAKER_THRESHOLD }),
+      state({
+        lastSyncAtMs: NOW,
+        lastOutcome: 'last_transport_failure',
+        consecutiveTransportFailures: SYNC_CIRCUIT_BREAKER_THRESHOLD,
+      }),
       'timer_tick',
       NOW,
     );
@@ -196,30 +211,25 @@ describe('@fleet/driver-app - decideSyncSchedule circuit breaker', () => {
     }
   });
 
-
   it('does NOT open circuit breaker at THRESHOLD - 1 failures', () => {
     const r = decideSyncSchedule(
-      state({ lastSyncAtMs: NOW - SYNC_BACKOFF_MAX_MS - 1, lastOutcome: 'last_transport_failure', consecutiveTransportFailures: SYNC_CIRCUIT_BREAKER_THRESHOLD - 1 }),
+      state({
+        lastSyncAtMs: NOW - SYNC_BACKOFF_MAX_MS - 1,
+        lastOutcome: 'last_transport_failure',
+        consecutiveTransportFailures: SYNC_CIRCUIT_BREAKER_THRESHOLD - 1,
+      }),
       'timer_tick',
       NOW,
     );
     expect(r.action).toBe('run_now');
   });
   it('manual_retry bypasses circuit breaker', () => {
-    const r = decideSyncSchedule(
-      state({ consecutiveTransportFailures: 99 }),
-      'manual_retry',
-      NOW,
-    );
+    const r = decideSyncSchedule(state({ consecutiveTransportFailures: 99 }), 'manual_retry', NOW);
     expect(r.action).toBe('run_now');
   });
 
   it('push_wake bypasses circuit breaker', () => {
-    const r = decideSyncSchedule(
-      state({ consecutiveTransportFailures: 99 }),
-      'push_wake',
-      NOW,
-    );
+    const r = decideSyncSchedule(state({ consecutiveTransportFailures: 99 }), 'push_wake', NOW);
     expect(r.action).toBe('run_now');
   });
 });
@@ -238,27 +248,39 @@ describe('@fleet/driver-app - decideSyncSchedule jitter', () => {
   it('adds positive jitter when random > 0.5', () => {
     const maxJitter: SyncSchedulerDeps = { random: () => 1 };
     const r = decideSyncSchedule(
-      state({ lastSyncAtMs: NOW - 1_000, lastOutcome: 'last_transport_failure', consecutiveTransportFailures: 1 }),
+      state({
+        lastSyncAtMs: NOW - 1_000,
+        lastOutcome: 'last_transport_failure',
+        consecutiveTransportFailures: 1,
+      }),
       'timer_tick',
       NOW,
       maxJitter,
     );
     if (r.action !== 'defer') throw new Error('expected defer');
     // base 5s + 25% jitter = 6.25s
-    expect(r.nextEarliestAtMs).toBe(NOW - 1_000 + Math.round(SYNC_BACKOFF_BASE_MS * (1 + SYNC_BACKOFF_JITTER_RATIO)));
+    expect(r.nextEarliestAtMs).toBe(
+      NOW - 1_000 + Math.round(SYNC_BACKOFF_BASE_MS * (1 + SYNC_BACKOFF_JITTER_RATIO)),
+    );
   });
 
   it('adds negative jitter when random = 0', () => {
     const minJitter: SyncSchedulerDeps = { random: () => 0 };
     const r = decideSyncSchedule(
-      state({ lastSyncAtMs: NOW - 1_000, lastOutcome: 'last_transport_failure', consecutiveTransportFailures: 1 }),
+      state({
+        lastSyncAtMs: NOW - 1_000,
+        lastOutcome: 'last_transport_failure',
+        consecutiveTransportFailures: 1,
+      }),
       'timer_tick',
       NOW,
       minJitter,
     );
     if (r.action !== 'defer') throw new Error('expected defer');
     // base 5s - 25% jitter = 3.75s
-    expect(r.nextEarliestAtMs).toBe(NOW - 1_000 + Math.round(SYNC_BACKOFF_BASE_MS * (1 - SYNC_BACKOFF_JITTER_RATIO)));
+    expect(r.nextEarliestAtMs).toBe(
+      NOW - 1_000 + Math.round(SYNC_BACKOFF_BASE_MS * (1 - SYNC_BACKOFF_JITTER_RATIO)),
+    );
   });
 
   it('exports SYNC_BACKOFF_JITTER_RATIO', () => {
@@ -315,12 +337,24 @@ describe('@fleet/driver-app - decideSyncSchedule property invariants', () => {
   it('offline state skips with offline reason for non-network_online triggers', () => {
     fc.assert(
       fc.property(
-        fc.constantFrom('app_foreground', 'timer_tick', 'push_wake', 'manual_retry', 'pending_action_added' as const),
+        fc.constantFrom(
+          'app_foreground',
+          'timer_tick',
+          'push_wake',
+          'manual_retry',
+          'pending_action_added' as const,
+        ),
         fc.integer({ min: 0, max: 100 }),
         fc.boolean(),
         (trigger, failures, appActive) => {
           const r = decideSyncSchedule(
-            { online: false, appActive, lastSyncAtMs: null, lastOutcome: null, consecutiveTransportFailures: failures },
+            {
+              online: false,
+              appActive,
+              lastSyncAtMs: null,
+              lastOutcome: null,
+              consecutiveTransportFailures: failures,
+            },
             trigger,
             NOW,
             NO_JITTER,
@@ -348,7 +382,6 @@ describe('@fleet/driver-app - decideSyncSchedule property invariants', () => {
     );
   });
 
-
   it('backoff defer time stays within base..max bounds across wide failure range', () => {
     fc.assert(
       fc.property(
@@ -356,7 +389,11 @@ describe('@fleet/driver-app - decideSyncSchedule property invariants', () => {
         fc.double({ min: 0, max: 1, noNaN: true }),
         (failures, randomVal) => {
           const r = decideSyncSchedule(
-            state({ lastSyncAtMs: NOW - 1, lastOutcome: TRANSPORT_FAILURE_OUTCOME, consecutiveTransportFailures: failures }),
+            state({
+              lastSyncAtMs: NOW - 1,
+              lastOutcome: TRANSPORT_FAILURE_OUTCOME,
+              consecutiveTransportFailures: failures,
+            }),
             'timer_tick',
             NOW,
             { random: () => randomVal },
@@ -376,13 +413,26 @@ describe('@fleet/driver-app - decideSyncSchedule property invariants', () => {
   it('every decision carries policyVersion', () => {
     fc.assert(
       fc.property(
-        fc.constantFrom('app_foreground', 'timer_tick', 'push_wake', 'network_online', 'manual_retry', 'pending_action_added' as const),
+        fc.constantFrom(
+          'app_foreground',
+          'timer_tick',
+          'push_wake',
+          'network_online',
+          'manual_retry',
+          'pending_action_added' as const,
+        ),
         fc.boolean(),
         fc.boolean(),
         fc.integer({ min: 0, max: 20 }),
         (trigger, online, appActive, failures) => {
           const r = decideSyncSchedule(
-            { online, appActive, lastSyncAtMs: NOW - 1000, lastOutcome: 'last_transport_failure', consecutiveTransportFailures: failures },
+            {
+              online,
+              appActive,
+              lastSyncAtMs: NOW - 1000,
+              lastOutcome: 'last_transport_failure',
+              consecutiveTransportFailures: failures,
+            },
             trigger,
             NOW,
             NO_JITTER,

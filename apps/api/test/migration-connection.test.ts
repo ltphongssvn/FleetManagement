@@ -11,7 +11,10 @@ import { selectMigrationConnectionString } from '../src/database/migration-conne
 
 describe('@fleet/api - selectMigrationConnectionString', () => {
   it('returns MIGRATION_DATABASE_URL when it is set', () => {
-    const env = { MIGRATION_DATABASE_URL: 'postgres://migrator@host/db', DATABASE_URL: 'postgres://app@host/db' };
+    const env = {
+      MIGRATION_DATABASE_URL: 'postgres://migrator@host/db',
+      DATABASE_URL: 'postgres://app@host/db',
+    };
     expect(selectMigrationConnectionString(env)).toBe('postgres://migrator@host/db');
   });
 
@@ -30,6 +33,8 @@ describe('@fleet/api - selectMigrationConnectionString', () => {
   });
 
   it('throws when both are empty strings', () => {
-    expect(() => selectMigrationConnectionString({ MIGRATION_DATABASE_URL: '', DATABASE_URL: '' })).toThrow();
+    expect(() =>
+      selectMigrationConnectionString({ MIGRATION_DATABASE_URL: '', DATABASE_URL: '' }),
+    ).toThrow();
   });
 });

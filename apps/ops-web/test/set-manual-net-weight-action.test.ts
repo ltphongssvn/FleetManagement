@@ -31,13 +31,19 @@ describe('setManualNetWeight server action (T33)', () => {
   it('forwards a PATCH with bearer + JSON body and revalidates the board on success', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'jwt-abc' });
-    const fetchMock = vi.fn(() => Promise.resolve(new Response(
-      JSON.stringify({ manifestId: VALID_ID, status: 'manual' }),
-      { status: 200, headers: { 'content-type': 'application/json' } },
-    )));
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ manifestId: VALID_ID, status: 'manual' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const { setManualNetWeight } = await import('@/features/dispatch/set-manual-net-weight.action');
-    const r = defined(await setManualNetWeight({ manifestId: VALID_ID, extractedNetWeightKg: 19730 }));
+    const r = defined(
+      await setManualNetWeight({ manifestId: VALID_ID, extractedNetWeightKg: 19730 }),
+    );
     expect(r.status).toBe('ok');
     expect(revalidatePath).toHaveBeenCalledWith('/');
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -56,7 +62,9 @@ describe('setManualNetWeight server action (T33)', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const { setManualNetWeight } = await import('@/features/dispatch/set-manual-net-weight.action');
-    const r = defined(await setManualNetWeight({ manifestId: 'not-a-uuid', extractedNetWeightKg: 19730 }));
+    const r = defined(
+      await setManualNetWeight({ manifestId: 'not-a-uuid', extractedNetWeightKg: 19730 }),
+    );
     expect(r.status).toBe('invalid');
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -67,9 +75,13 @@ describe('setManualNetWeight server action (T33)', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const { setManualNetWeight } = await import('@/features/dispatch/set-manual-net-weight.action');
-    const zero = defined(await setManualNetWeight({ manifestId: VALID_ID, extractedNetWeightKg: 0 }));
+    const zero = defined(
+      await setManualNetWeight({ manifestId: VALID_ID, extractedNetWeightKg: 0 }),
+    );
     expect(zero.status).toBe('invalid');
-    const neg = defined(await setManualNetWeight({ manifestId: VALID_ID, extractedNetWeightKg: -5 }));
+    const neg = defined(
+      await setManualNetWeight({ manifestId: VALID_ID, extractedNetWeightKg: -5 }),
+    );
     expect(neg.status).toBe('invalid');
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -78,7 +90,9 @@ describe('setManualNetWeight server action (T33)', () => {
     vi.stubEnv('FLEET_API_URL', '');
     cookieGet.mockReturnValue({ value: 'jwt' });
     const { setManualNetWeight } = await import('@/features/dispatch/set-manual-net-weight.action');
-    const r = defined(await setManualNetWeight({ manifestId: VALID_ID, extractedNetWeightKg: 19730 }));
+    const r = defined(
+      await setManualNetWeight({ manifestId: VALID_ID, extractedNetWeightKg: 19730 }),
+    );
     expect(r.status).toBe('server_error');
   });
 
@@ -88,7 +102,9 @@ describe('setManualNetWeight server action (T33)', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const { setManualNetWeight } = await import('@/features/dispatch/set-manual-net-weight.action');
-    const r = defined(await setManualNetWeight({ manifestId: VALID_ID, extractedNetWeightKg: 19730 }));
+    const r = defined(
+      await setManualNetWeight({ manifestId: VALID_ID, extractedNetWeightKg: 19730 }),
+    );
     expect(r.status).toBe('unauthorized');
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -96,12 +112,21 @@ describe('setManualNetWeight server action (T33)', () => {
   it('returns conflict when the API returns 409 (manifest not committed)', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'jwt' });
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(
-      JSON.stringify({ message: 'not committed' }),
-      { status: 409, headers: { 'content-type': 'application/json' } },
-    ))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ message: 'not committed' }), {
+            status: 409,
+            headers: { 'content-type': 'application/json' },
+          }),
+        ),
+      ),
+    );
     const { setManualNetWeight } = await import('@/features/dispatch/set-manual-net-weight.action');
-    const r = defined(await setManualNetWeight({ manifestId: VALID_ID, extractedNetWeightKg: 19730 }));
+    const r = defined(
+      await setManualNetWeight({ manifestId: VALID_ID, extractedNetWeightKg: 19730 }),
+    );
     expect(r.status).toBe('conflict');
     expect(revalidatePath).not.toHaveBeenCalled();
   });
@@ -109,9 +134,14 @@ describe('setManualNetWeight server action (T33)', () => {
   it('returns api_error with immutable Vietnamese copy on a 5xx', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'jwt' });
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('boom', { status: 500 }))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response('boom', { status: 500 }))),
+    );
     const { setManualNetWeight } = await import('@/features/dispatch/set-manual-net-weight.action');
-    const r = defined(await setManualNetWeight({ manifestId: VALID_ID, extractedNetWeightKg: 19730 }));
+    const r = defined(
+      await setManualNetWeight({ manifestId: VALID_ID, extractedNetWeightKg: 19730 }),
+    );
     expect(r.status).toBe('api_error');
     if (r.status !== 'api_error') throw new Error('not api_error');
     expect(r.message).toBe('Hệ thống đang gặp sự cố. Vui lòng thử lại sau.');

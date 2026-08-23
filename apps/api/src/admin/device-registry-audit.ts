@@ -20,10 +20,12 @@ export type DeviceAuditRow = z.infer<typeof DeviceAuditRowSchema>;
 
 export const DeviceAuditReportSchema = z.object({
   totalDevices: z.number().int().nonnegative(),
-  duplicateUdids: z.array(z.object({
-    udid: z.string(),
-    deviceIds: z.array(z.uuid()).min(2),
-  })),
+  duplicateUdids: z.array(
+    z.object({
+      udid: z.string(),
+      deviceIds: z.array(z.uuid()).min(2),
+    }),
+  ),
   placeholderVersionDeviceIds: z.array(z.uuid()),
   platformCounts: z.record(z.string(), z.number().int().nonnegative()),
   isPlatformMonoculture: z.boolean(),
@@ -32,9 +34,7 @@ export type DeviceAuditReport = z.infer<typeof DeviceAuditReportSchema>;
 
 const PLACEHOLDER_VERSION = '0.0.0';
 
-export function auditDeviceRegistry(
-  rowsInput: readonly unknown[],
-): DeviceAuditReport {
+export function auditDeviceRegistry(rowsInput: readonly unknown[]): DeviceAuditReport {
   const rows: DeviceAuditRow[] = rowsInput.map((r) => DeviceAuditRowSchema.parse(r));
 
   const byUdid = new Map<string, string[]>();

@@ -16,7 +16,10 @@ export interface QueueableAction {
 }
 
 /** Returns the next sequence number for a given aggregate. FIFO per-aggregate. */
-export function nextSequence(existing: readonly QueueableAction[], aggregateId: AggregateId): number {
+export function nextSequence(
+  existing: readonly QueueableAction[],
+  aggregateId: AggregateId,
+): number {
   const max = existing
     .filter((a) => a.aggregateId === aggregateId)
     .reduce((acc, a) => Math.max(acc, a.sequence), 0);

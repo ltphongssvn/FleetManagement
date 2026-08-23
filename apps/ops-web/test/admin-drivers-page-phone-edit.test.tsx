@@ -22,12 +22,25 @@ vi.mock('@/features/admin/admin-drivers-client', () => ({
   },
 }));
 import AdminDriversPage from '@/app/admin/drivers/page';
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 beforeEach(() => {
   listMock.mockResolvedValue([
-    { driverId: 'd1', fullName: 'Driver Alpha', phone: '0900000001', operatorId: 'op-a', assignedVehicle: null, assignmentId: null, devices: [] },
+    {
+      driverId: 'd1',
+      fullName: 'Driver Alpha',
+      phone: '0900000001',
+      operatorId: 'op-a',
+      assignedVehicle: null,
+      assignmentId: null,
+      devices: [],
+    },
   ]);
-  globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ items: [] }) }) as never;
+  globalThis.fetch = vi
+    .fn()
+    .mockResolvedValue({ ok: true, json: () => Promise.resolve({ items: [] }) }) as never;
 });
 describe('AdminDriversPage phone edit', () => {
   it('renders an editable phone input prefilled with the current phone', async () => {
@@ -51,7 +64,10 @@ describe('AdminDriversPage phone edit', () => {
     const saveBtn = screen.getByLabelText('Lưu SĐT của Driver Alpha');
     fireEvent.click(saveBtn);
     await waitFor(() => {
-      expect(updateMock).toHaveBeenCalledWith('d1', { fullName: 'Driver Alpha', phone: '0911111111' });
+      expect(updateMock).toHaveBeenCalledWith('d1', {
+        fullName: 'Driver Alpha',
+        phone: '0911111111',
+      });
     });
   });
 });

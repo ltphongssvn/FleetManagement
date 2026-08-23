@@ -176,6 +176,8 @@ describe('auditDriverRoster', () => {
   });
 
   it('rejects an id that is not even UUID-shaped', () => {
-    expect(() => auditDriverRoster([row({ operatorId: 'ZZZZZZZZ-0000-0000-0000-000000000000' })])).toThrow();
+    expect(() =>
+      auditDriverRoster([row({ operatorId: 'ZZZZZZZZ-0000-0000-0000-000000000000' })]),
+    ).toThrow();
   });
 });

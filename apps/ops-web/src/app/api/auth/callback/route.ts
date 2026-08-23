@@ -67,11 +67,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const tokenEndpoint = process.env['OIDC_TOKEN_ENDPOINT'];
   const clientId = process.env['OIDC_CLIENT_ID'];
   const redirectUri = process.env['OIDC_REDIRECT_URI'];
-  if (
-    tokenEndpoint === undefined ||
-    clientId === undefined ||
-    redirectUri === undefined
-  ) {
+  if (tokenEndpoint === undefined || clientId === undefined || redirectUri === undefined) {
     return loginRedirect(req, 'oidc_not_configured');
   }
   const exchange = await fetch(tokenEndpoint, {

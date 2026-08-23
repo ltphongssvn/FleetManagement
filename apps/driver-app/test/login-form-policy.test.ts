@@ -17,7 +17,7 @@ describe('decideLoginSubmit', () => {
     expect(decideLoginSubmit('  0900000001  ', 'pw')).toEqual({
       kind: 'submit',
       phone: '0900000001',
-      password: 'pw',  // pragma: allowlist secret
+      password: 'pw', // pragma: allowlist secret
     });
   });
 });

@@ -53,9 +53,7 @@ export default function Assignments(): JSX.Element {
     return (
       <View style={styles.center} testID={'error'}>
         <Text style={styles.errorTitle}>Lỗi tải dữ liệu</Text>
-        <Text style={styles.muted}>
-          {presentApiError(query.error, 'Lỗi tải dữ liệu')}
-        </Text>
+        <Text style={styles.muted}>{presentApiError(query.error, 'Lỗi tải dữ liệu')}</Text>
       </View>
     );
   }
@@ -84,7 +82,9 @@ export default function Assignments(): JSX.Element {
                   <Text style={styles.badgeText}>{roadRunStateLabelVi(item.state)}</Text>
                 </View>
               </View>
-              {item.customerName ? <Text style={styles.detail}>Khách hàng: {item.customerName}</Text> : null}
+              {item.customerName ? (
+                <Text style={styles.detail}>Khách hàng: {item.customerName}</Text>
+              ) : null}
               {item.plate ? <Text style={styles.detail}>Số xe: {item.plate}</Text> : null}
               {/* Each stop is a capture (proof) button: tapping opens the
                   per-warehouse manifest-photo screen for that exact stop. */}
@@ -95,38 +95,44 @@ export default function Assignments(): JSX.Element {
                 // auto-advance the lifecycle (photo-implies-progress).
                 const remaining = stops.filter((s) => !s.done).length;
                 return stops.map((st) => {
-                const captureLabel =
-                  st.stopKind === 'loading'
-                    ? 'Chụp ảnh phiếu nhận hàng - ' + st.label
-                    : 'Chụp ảnh phiếu giao hàng - ' + st.label;
-                return (
-                  <Pressable
-                    key={st.key}
-                    onPress={() => {
-                      router.push(
-                        captureHrefForStop(item.transportOrderId, {
-                          sequence: st.sequence,
-                          stopKind: st.stopKind,
-                          stopIndex: st.stopIndex,
-                          roadRunId: item.roadRunId,
-                          runState: item.state,
-                          remaining,
-                        }) as Href,
-                      );
-                    }}
-                    accessibilityRole={'button'}
-                    accessibilityLabel={captureLabel}
-                    style={({ pressed }) => [styles.stopButton, pressed && styles.stopButtonPressed]}
-                  >
-                    <Text style={styles.stopButtonText}>
-                      {st.label}: {st.warehouseName}{st.done ? ' ✓' : ''}
-                    </Text>
-                    <Text style={styles.stopButtonHint}>
-                      {st.stopKind === 'loading' ? 'Chụp ảnh phiếu nhận hàng' : 'Chụp ảnh phiếu giao hàng'}
-                    </Text>
-                  </Pressable>
-                );
-              });
+                  const captureLabel =
+                    st.stopKind === 'loading'
+                      ? 'Chụp ảnh phiếu nhận hàng - ' + st.label
+                      : 'Chụp ảnh phiếu giao hàng - ' + st.label;
+                  return (
+                    <Pressable
+                      key={st.key}
+                      onPress={() => {
+                        router.push(
+                          captureHrefForStop(item.transportOrderId, {
+                            sequence: st.sequence,
+                            stopKind: st.stopKind,
+                            stopIndex: st.stopIndex,
+                            roadRunId: item.roadRunId,
+                            runState: item.state,
+                            remaining,
+                          }) as Href,
+                        );
+                      }}
+                      accessibilityRole={'button'}
+                      accessibilityLabel={captureLabel}
+                      style={({ pressed }) => [
+                        styles.stopButton,
+                        pressed && styles.stopButtonPressed,
+                      ]}
+                    >
+                      <Text style={styles.stopButtonText}>
+                        {st.label}: {st.warehouseName}
+                        {st.done ? ' ✓' : ''}
+                      </Text>
+                      <Text style={styles.stopButtonHint}>
+                        {st.stopKind === 'loading'
+                          ? 'Chụp ảnh phiếu nhận hàng'
+                          : 'Chụp ảnh phiếu giao hàng'}
+                      </Text>
+                    </Pressable>
+                  );
+                });
               })()}
               {item.plannedStartAt ? (
                 <Text style={styles.detail}>Khởi hành: {formatVnDateUS(item.plannedStartAt)}</Text>
@@ -148,7 +154,12 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     backgroundColor: colors.backdrop,
   },
-  muted: { ...typography.caption, color: colors.slate300, marginTop: spacing.sm, textAlign: 'center' },
+  muted: {
+    ...typography.caption,
+    color: colors.slate300,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
   errorTitle: { ...typography.heading, color: colors.red600 },
   emptyTitle: { ...typography.heading, color: colors.white },
   card: {
@@ -173,7 +184,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
   },
-  badgeText: { color: colors.white, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  badgeText: {
+    color: colors.white,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   detail: { ...typography.caption, color: colors.slate600, marginTop: 2 },
   stopButton: {
     backgroundColor: colors.slate100,

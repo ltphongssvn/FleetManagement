@@ -34,7 +34,12 @@ export class DrizzleIntakeReconcileRepo implements IntakeReconcileRepo {
   private freshnessCutoff(now: Date, afterMinutes: number): Date {
     return new Date(now.getTime() - afterMinutes * 60_000);
   }
-  async findEligible(now: Date, afterMinutes: number, maxAttempts: number, limit: number): Promise<readonly IntakeReconcileCandidate[]> {
+  async findEligible(
+    now: Date,
+    afterMinutes: number,
+    maxAttempts: number,
+    limit: number,
+  ): Promise<readonly IntakeReconcileCandidate[]> {
     const cutoff = this.freshnessCutoff(now, afterMinutes);
     const backoffDue = or(
       isNull(manifest.lastIntakeReconcileAt),
@@ -62,12 +67,14 @@ export class DrizzleIntakeReconcileRepo implements IntakeReconcileRepo {
       })
       .from(manifest)
       .innerJoin(uploadSession, eq(uploadSession.manifestId, manifest.manifestId))
-      .where(and(
-        this.verifyingWhere(),
-        lt(manifest.createdAt, cutoff),
-        lt(manifest.intakeReconcileAttempts, maxAttempts),
-        backoffDue,
-      ))
+      .where(
+        and(
+          this.verifyingWhere(),
+          lt(manifest.createdAt, cutoff),
+          lt(manifest.intakeReconcileAttempts, maxAttempts),
+          backoffDue,
+        ),
+      )
       .orderBy(asc(manifest.createdAt))
       .limit(limit);
     return rows;
@@ -83,11 +90,13 @@ export class DrizzleIntakeReconcileRepo implements IntakeReconcileRepo {
           intakeReconcileAttempts: candidate.attempts + 1,
           lastIntakeReconcileAt: now,
         })
-        .where(and(
-          eq(manifest.manifestId, candidate.manifestId),
-          eq(manifest.intakeReconcileAttempts, candidate.attempts),
-          eq(manifest.state, 'verifying'),
-        ))
+        .where(
+          and(
+            eq(manifest.manifestId, candidate.manifestId),
+            eq(manifest.intakeReconcileAttempts, candidate.attempts),
+            eq(manifest.state, 'verifying'),
+          ),
+        )
         .returning({ manifestId: manifest.manifestId });
       if (claimed.length === 0) return false;
       const seq = await allocateServerSeq(tx);
@@ -96,16 +105,22 @@ export class DrizzleIntakeReconcileRepo implements IntakeReconcileRepo {
       return true;
     });
   }
-  async exhaustedSummary(now: Date, afterMinutes: number, maxAttempts: number): Promise<IntakeExhaustedSummary | null> {
+  async exhaustedSummary(
+    now: Date,
+    afterMinutes: number,
+    maxAttempts: number,
+  ): Promise<IntakeExhaustedSummary | null> {
     const cutoff = this.freshnessCutoff(now, afterMinutes);
     const [oldest] = await this.db
       .select({ manifestId: manifest.manifestId, createdAt: manifest.createdAt })
       .from(manifest)
-      .where(and(
-        this.verifyingWhere(),
-        lt(manifest.createdAt, cutoff),
-        sql`${manifest.intakeReconcileAttempts} >= ${maxAttempts}`,
-      ))
+      .where(
+        and(
+          this.verifyingWhere(),
+          lt(manifest.createdAt, cutoff),
+          sql`${manifest.intakeReconcileAttempts} >= ${maxAttempts}`,
+        ),
+      )
       .orderBy(asc(manifest.createdAt))
       .limit(1);
     if (oldest === undefined) return null;
@@ -116,11 +131,13 @@ export class DrizzleIntakeReconcileRepo implements IntakeReconcileRepo {
     const [{ n: count }] = (await this.db
       .select({ n: sql<number>`count(*)::int` })
       .from(manifest)
-      .where(and(
-        this.verifyingWhere(),
-        lt(manifest.createdAt, cutoff),
-        sql`${manifest.intakeReconcileAttempts} >= ${maxAttempts}`,
-      ))) as [{ n: number }];
+      .where(
+        and(
+          this.verifyingWhere(),
+          lt(manifest.createdAt, cutoff),
+          sql`${manifest.intakeReconcileAttempts} >= ${maxAttempts}`,
+        ),
+      )) as [{ n: number }];
     return {
       count,
       oldestManifestId: oldest.manifestId,

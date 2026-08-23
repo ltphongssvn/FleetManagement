@@ -30,10 +30,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  TURBO_PLATFORM_PACKAGES,
-  missingTurboExcludes,
-} from './turbo-release-age.js';
+import { TURBO_PLATFORM_PACKAGES, missingTurboExcludes } from './turbo-release-age.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -73,8 +70,10 @@ describe('turbo release-age exclude agrees with the pin', () => {
   // rather than a hunt through 25 exclude lines.
   it('exempts EVERY turbo package at the pinned version', () => {
     const version = pinnedTurboVersion();
-    expect({ version, missing: missingTurboExcludes(excludeLines(), version) })
-      .toEqual({ version, missing: [] });
+    expect({ version, missing: missingTurboExcludes(excludeLines(), version) }).toEqual({
+      version,
+      missing: [],
+    });
   });
 
   // Guards the guard: if a rename ever emptied the package list, the assertion

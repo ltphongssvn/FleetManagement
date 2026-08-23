@@ -28,28 +28,34 @@ export function ManualNetWeightEditor({
     if (!Number.isFinite(kg) || kg <= 0) return;
     setBusy(true);
     void setManualNetWeight({ manifestId, extractedNetWeightKg: kg })
-      .then(() => { onDone(); })
-      .catch(() => { setBusy(false); });
+      .then(() => {
+        onDone();
+      })
+      .catch(() => {
+        setBusy(false);
+      });
   };
   return (
-    <span className='mt-1 inline-flex items-center gap-1'>
+    <span className="mt-1 inline-flex items-center gap-1">
       <input
         data-testid={'manual-netweight-input-' + manifestId}
-        type='number'
+        type="number"
         min={1}
-        step='any'
-        inputMode='numeric'
+        step="any"
+        inputMode="numeric"
         value={value}
-        onChange={(e) => { setValue(e.target.value); }}
-        aria-label='Nhập khối lượng hàng (kg)'
-        className='w-24 rounded border px-1 py-0.5 text-xs tabular-nums'
+        onChange={(e) => {
+          setValue(e.target.value);
+        }}
+        aria-label="Nhập khối lượng hàng (kg)"
+        className="w-24 rounded border px-1 py-0.5 text-xs tabular-nums"
       />
       <button
-        type='button'
+        type="button"
         data-testid={'manual-netweight-confirm-' + manifestId}
         onClick={submit}
         disabled={busy}
-        className='rounded bg-amber-600 px-1.5 py-0.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50'
+        className="rounded bg-amber-600 px-1.5 py-0.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
       >
         {'Lưu'}
       </button>

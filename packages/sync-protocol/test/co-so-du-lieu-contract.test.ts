@@ -32,7 +32,13 @@ describe('DRIVER_DB_STATUSES enum SSOT', () => {
 describe('classifyDriverDbStatus', () => {
   const device = (
     appVersion: string,
-  ): { deviceId: string; platform: string; appVersion: string; lastSeenAt: string | null; udid: string | null } => ({
+  ): {
+    deviceId: string;
+    platform: string;
+    appVersion: string;
+    lastSeenAt: string | null;
+    udid: string | null;
+  } => ({
     deviceId: 'd1',
     platform: 'android',
     appVersion,
@@ -42,7 +48,9 @@ describe('classifyDriverDbStatus', () => {
   const vehicle = { vehicleId: 'v1', plate: '62H 05194' };
 
   it('returns unassigned when no vehicle is assigned, regardless of devices', () => {
-    expect(classifyDriverDbStatus({ assignedVehicle: null, devices: [device('1.4.0')] })).toBe('unassigned');
+    expect(classifyDriverDbStatus({ assignedVehicle: null, devices: [device('1.4.0')] })).toBe(
+      'unassigned',
+    );
   });
 
   it('returns assigned when a vehicle is set but no device exists', () => {
@@ -50,10 +58,17 @@ describe('classifyDriverDbStatus', () => {
   });
 
   it('returns assigned when the only device is the 0.0.0 pre-enroll placeholder', () => {
-    expect(classifyDriverDbStatus({ assignedVehicle: vehicle, devices: [device('0.0.0')] })).toBe('assigned');
+    expect(classifyDriverDbStatus({ assignedVehicle: vehicle, devices: [device('0.0.0')] })).toBe(
+      'assigned',
+    );
   });
 
   it('returns active when a vehicle is set and a device runs a real app version', () => {
-    expect(classifyDriverDbStatus({ assignedVehicle: vehicle, devices: [device('0.0.0'), device('1.4.0')] })).toBe('active');
+    expect(
+      classifyDriverDbStatus({
+        assignedVehicle: vehicle,
+        devices: [device('0.0.0'), device('1.4.0')],
+      }),
+    ).toBe('active');
   });
 });

@@ -16,9 +16,14 @@ function mkServiceWithError(err: Error): ReferenceService {
   //   * for create* reactivate path: caller chains .returning() -> [].
   // We achieve that with a thenable that ALSO exposes .returning().
   const makeWhere = (): unknown => {
-    const obj: { returning: () => Promise<unknown[]>; then: (resolve: (v: unknown) => void, reject: (e: unknown) => void) => void } = {
+    const obj: {
+      returning: () => Promise<unknown[]>;
+      then: (resolve: (v: unknown) => void, reject: (e: unknown) => void) => void;
+    } = {
       returning: () => Promise.resolve([]),
-      then: (_resolve, reject) => { reject(err); },
+      then: (_resolve, reject) => {
+        reject(err);
+      },
     };
     return obj;
   };
@@ -56,59 +61,77 @@ function genericDbError(): Error & { code: string } {
 describe('ReferenceService unique-violation translation (unit)', () => {
   const op = createOperatorContext();
   it('createCustomer translates 23505 to ConflictException', async () => {
-    await expect(mkServiceWithError(pgUniqueViolation()).createCustomer(op, 'X')).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      mkServiceWithError(pgUniqueViolation()).createCustomer(op, 'X'),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
   it('createCustomer rethrows non-23505 verbatim', async () => {
     const err = genericDbError();
     await expect(mkServiceWithError(err).createCustomer(op, 'X')).rejects.toBe(err);
   });
   it('updateCustomer translates 23505 to ConflictException', async () => {
-    await expect(mkServiceWithError(pgUniqueViolation()).updateCustomer(op, 'id', 'X')).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      mkServiceWithError(pgUniqueViolation()).updateCustomer(op, 'id', 'X'),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
   it('updateCustomer rethrows non-23505 verbatim', async () => {
     const err = genericDbError();
     await expect(mkServiceWithError(err).updateCustomer(op, 'id', 'X')).rejects.toBe(err);
   });
   it('createCargoType translates 23505 to ConflictException', async () => {
-    await expect(mkServiceWithError(pgUniqueViolation()).createCargoType(op, 'X')).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      mkServiceWithError(pgUniqueViolation()).createCargoType(op, 'X'),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
   it('createCargoType rethrows non-23505 verbatim', async () => {
     const err = genericDbError();
     await expect(mkServiceWithError(err).createCargoType(op, 'X')).rejects.toBe(err);
   });
   it('updateCargoType translates 23505 to ConflictException', async () => {
-    await expect(mkServiceWithError(pgUniqueViolation()).updateCargoType(op, 'id', 'X')).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      mkServiceWithError(pgUniqueViolation()).updateCargoType(op, 'id', 'X'),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
   it('updateCargoType rethrows non-23505 verbatim', async () => {
     const err = genericDbError();
     await expect(mkServiceWithError(err).updateCargoType(op, 'id', 'X')).rejects.toBe(err);
   });
   it('createVehicle translates 23505 to ConflictException', async () => {
-    await expect(mkServiceWithError(pgUniqueViolation()).createVehicle(op, 'X')).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      mkServiceWithError(pgUniqueViolation()).createVehicle(op, 'X'),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
   it('createVehicle rethrows non-23505 verbatim', async () => {
     const err = genericDbError();
     await expect(mkServiceWithError(err).createVehicle(op, 'X')).rejects.toBe(err);
   });
   it('updateVehicle translates 23505 to ConflictException', async () => {
-    await expect(mkServiceWithError(pgUniqueViolation()).updateVehicle(op, 'id', 'X')).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      mkServiceWithError(pgUniqueViolation()).updateVehicle(op, 'id', 'X'),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
   it('updateVehicle rethrows non-23505 verbatim', async () => {
     const err = genericDbError();
     await expect(mkServiceWithError(err).updateVehicle(op, 'id', 'X')).rejects.toBe(err);
   });
   it('createWarehouse pickup translates 23505 to ConflictException', async () => {
-    await expect(mkServiceWithError(pgUniqueViolation()).createWarehouse(op, 'X', 'pickup')).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      mkServiceWithError(pgUniqueViolation()).createWarehouse(op, 'X', 'pickup'),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
   it('createWarehouse delivery translates 23505 to ConflictException', async () => {
-    await expect(mkServiceWithError(pgUniqueViolation()).createWarehouse(op, 'X', 'delivery')).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      mkServiceWithError(pgUniqueViolation()).createWarehouse(op, 'X', 'delivery'),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
   it('createWarehouse rethrows non-23505 verbatim', async () => {
     const err = genericDbError();
     await expect(mkServiceWithError(err).createWarehouse(op, 'X', 'pickup')).rejects.toBe(err);
   });
   it('updateWarehouse translates 23505 to ConflictException', async () => {
-    await expect(mkServiceWithError(pgUniqueViolation()).updateWarehouse(op, 'id', 'X')).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      mkServiceWithError(pgUniqueViolation()).updateWarehouse(op, 'id', 'X'),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
   it('updateWarehouse rethrows non-23505 verbatim', async () => {
     const err = genericDbError();

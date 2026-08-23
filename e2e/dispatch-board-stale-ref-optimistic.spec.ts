@@ -19,7 +19,12 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import { dockerPsql, dockerExecApiNode } from './helpers/docker-exec';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { type z } from 'zod';
-import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema } from './helpers/contracts';
+import {
+  parseJson,
+  CreateDriverResponseSchema,
+  ReferenceItemSchema,
+  AssignmentResponseSchema,
+} from './helpers/contracts';
 import { openCreateOrderDrawer, plannedStartAtField } from './helpers/create-order';
 import { ROW_VISIBILITY_BUDGET_MS } from './helpers/budgets';
 
@@ -30,41 +35,73 @@ const COMPANY_ID = '00000000-0000-0000-0000-000000000000';
 // window. 1000ms was a harness artifact -- under serial load router.refresh()
 // can reconcile + prune the optimistic row before a 1s assertion runs.
 
-async function adminPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+async function adminPost<T>(
+  api: APIRequestContext,
+  token: string,
+  path: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
-  if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
+  if (!res.ok())
+    throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   return parseJson(res, schema);
 }
 
 interface Pair {
-  driverId: string; operatorId: string; vehicleId: string;
-  vehicleLabel: string; driverLabel: string; assignmentId: string; token: string;
+  driverId: string;
+  operatorId: string;
+  vehicleId: string;
+  vehicleLabel: string;
+  driverLabel: string;
+  assignmentId: string;
+  token: string;
 }
 
 async function seedPair(api: APIRequestContext): Promise<Pair> {
   const token = mintDispatcherToken();
   const ts = Date.now();
   const rand = Math.floor(Math.random() * 1e9).toString(36);
-  const phone = '09' + String(ts).slice(-6) + Math.floor(Math.random() * 100).toString().padStart(2, '0');
+  const phone =
+    '09' +
+    String(ts).slice(-6) +
+    Math.floor(Math.random() * 100)
+      .toString()
+      .padStart(2, '0');
   const driverLabel = 'E2E DRIVER STALEREF ' + rand;
   const vehicleLabel = 'E2E-SR-' + rand;
   const drv = await adminPost(
-    api, token, '/admin/drivers',
+    api,
+    token,
+    '/admin/drivers',
     { fullName: driverLabel, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
     CreateDriverResponseSchema,
   );
-  const veh = await adminPost(api, token, '/reference/vehicles', { name: vehicleLabel }, ReferenceItemSchema);
+  const veh = await adminPost(
+    api,
+    token,
+    '/reference/vehicles',
+    { name: vehicleLabel },
+    ReferenceItemSchema,
+  );
   const asgn = await adminPost(
-    api, token, '/admin/driver-vehicle-assignments',
+    api,
+    token,
+    '/admin/driver-vehicle-assignments',
     { driverId: drv.driverId, vehicleId: veh.id },
     AssignmentResponseSchema,
   );
   return {
-    driverId: drv.driverId, operatorId: drv.operatorId, vehicleId: veh.id,
-    vehicleLabel, driverLabel, assignmentId: asgn.assignmentId, token,
+    driverId: drv.driverId,
+    operatorId: drv.operatorId,
+    vehicleId: veh.id,
+    vehicleLabel,
+    driverLabel,
+    assignmentId: asgn.assignmentId,
+    token,
   };
 }
 
@@ -74,9 +111,23 @@ async function cleanupPair(api: APIRequestContext, p: Pair): Promise<void> {
       headers: { Authorization: 'Bearer ' + p.token, 'Content-Type': 'application/json' },
       data: JSON.stringify({ reason: 'e2e-cleanup' }),
     });
-  } catch { /* tolerate */ }
-  try { await api.delete(API_URL + '/reference/vehicles/' + p.vehicleId, { headers: { Authorization: 'Bearer ' + p.token } }); } catch { /* tolerate */ }
-  try { await api.delete(API_URL + '/admin/drivers/' + p.driverId, { headers: { Authorization: 'Bearer ' + p.token } }); } catch { /* tolerate */ }
+  } catch {
+    /* tolerate */
+  }
+  try {
+    await api.delete(API_URL + '/reference/vehicles/' + p.vehicleId, {
+      headers: { Authorization: 'Bearer ' + p.token },
+    });
+  } catch {
+    /* tolerate */
+  }
+  try {
+    await api.delete(API_URL + '/admin/drivers/' + p.driverId, {
+      headers: { Authorization: 'Bearer ' + p.token },
+    });
+  } catch {
+    /* tolerate */
+  }
 }
 
 // Authenticate via injected session (PKCE login has no credential form).
@@ -91,17 +142,67 @@ function nextRefAndSeedStale(): string {
   const sq = String.fromCharCode(39);
   const dq = String.fromCharCode(34);
   const month = new Date().toISOString().slice(5, 7);
-  const nv = dockerPsql('SELECT next_value FROM order_sequence WHERE company_id=' + sq + COMPANY_ID + sq + ' AND prefix=' + sq + 'XTT' + sq + ';').stdout.trim();
+  const nv = dockerPsql(
+    'SELECT next_value FROM order_sequence WHERE company_id=' +
+      sq +
+      COMPANY_ID +
+      sq +
+      ' AND prefix=' +
+      sq +
+      'XTT' +
+      sq +
+      ';',
+  ).stdout.trim();
   const pinned = parseInt(nv, 10);
-  dockerPsql('UPDATE order_sequence SET next_value=' + String(pinned) + ' WHERE company_id=' + sq + COMPANY_ID + sq + ' AND prefix=' + sq + 'XTT' + sq + ';');
+  dockerPsql(
+    'UPDATE order_sequence SET next_value=' +
+      String(pinned) +
+      ' WHERE company_id=' +
+      sq +
+      COMPANY_ID +
+      sq +
+      ' AND prefix=' +
+      sq +
+      'XTT' +
+      sq +
+      ';',
+  );
   const seq = String(pinned).padStart(3, '0');
   const ref = 'XTT.' + month + '-' + seq;
-  const staleRr = dockerExecApiNode('process.stdout.write(require(' + JSON.stringify('crypto') + ').randomUUID())').trim();
+  const staleRr = dockerExecApiNode(
+    'process.stdout.write(require(' + JSON.stringify('crypto') + ').randomUUID())',
+  ).trim();
   const refsJson = '[' + dq + ref + dq + ']';
   dockerPsql(
     'INSERT INTO dispatch_board_projection (road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, stop_count, transport_order_refs) VALUES (' +
-    sq + staleRr + sq + ',' + sq + COMPANY_ID + sq + ',' + sq + COMPANY_ID + sq + ',' + sq + COMPANY_ID + sq + ',' + sq + COMPANY_ID + sq + ',' +
-    sq + 'planned' + sq + ', 1, ' + sq + refsJson + sq + ');',
+      sq +
+      staleRr +
+      sq +
+      ',' +
+      sq +
+      COMPANY_ID +
+      sq +
+      ',' +
+      sq +
+      COMPANY_ID +
+      sq +
+      ',' +
+      sq +
+      COMPANY_ID +
+      sq +
+      ',' +
+      sq +
+      COMPANY_ID +
+      sq +
+      ',' +
+      sq +
+      'planned' +
+      sq +
+      ', 1, ' +
+      sq +
+      refsJson +
+      sq +
+      ');',
   );
   return ref;
 }
@@ -110,31 +211,114 @@ test.describe('stale-ref projection does not hide the optimistic row', () => {
   let pair: Pair | null = null;
   const seededOrderRefs: string[] = [];
 
-  test.beforeAll(async ({ request }) => { pair = await seedPair(request); });
+  test.beforeAll(async ({ request }) => {
+    pair = await seedPair(request);
+  });
 
   test.afterEach(() => {
     const sq = String.fromCharCode(39);
     while (seededOrderRefs.length > 0) {
       const ref = seededOrderRefs.pop();
       if (!ref) continue;
-      try { dockerPsql('DELETE FROM dispatch_board_projection WHERE company_id=' + sq + COMPANY_ID + sq + ' AND transport_order_refs->>0=' + sq + ref + sq + ';'); } catch { /* tolerate */ }
-      const txId = dockerPsql('SELECT transport_order_id FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq + ' AND external_ref=' + sq + ref + sq + ';').stdout.trim();
+      try {
+        dockerPsql(
+          'DELETE FROM dispatch_board_projection WHERE company_id=' +
+            sq +
+            COMPANY_ID +
+            sq +
+            ' AND transport_order_refs->>0=' +
+            sq +
+            ref +
+            sq +
+            ';',
+        );
+      } catch {
+        /* tolerate */
+      }
+      const txId = dockerPsql(
+        'SELECT transport_order_id FROM transport_order WHERE company_id=' +
+          sq +
+          COMPANY_ID +
+          sq +
+          ' AND external_ref=' +
+          sq +
+          ref +
+          sq +
+          ';',
+      ).stdout.trim();
       if (txId.length > 0) {
-        const rrIds = dockerPsql('SELECT road_run_id FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';').stdout.trim().split(String.fromCharCode(10)).filter((l) => l.length > 0);
-        try { dockerPsql('DELETE FROM stop WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
-        try { dockerPsql('DELETE FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';'); } catch { /* tolerate */ }
+        const rrIds = dockerPsql(
+          'SELECT road_run_id FROM road_run_transport_order WHERE transport_order_id=' +
+            sq +
+            txId +
+            sq +
+            ';',
+        )
+          .stdout.trim()
+          .split(String.fromCharCode(10))
+          .filter((l) => l.length > 0);
+        try {
+          dockerPsql('DELETE FROM stop WHERE transport_order_id=' + sq + txId + sq + ';');
+        } catch {
+          /* tolerate */
+        }
+        try {
+          dockerPsql(
+            'DELETE FROM road_run_transport_order WHERE transport_order_id=' + sq + txId + sq + ';',
+          );
+        } catch {
+          /* tolerate */
+        }
         for (const rrId of rrIds) {
-          try { dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + rrId + sq + ';'); } catch { /* tolerate */ }
+          try {
+            dockerPsql('DELETE FROM road_run WHERE road_run_id=' + sq + rrId + sq + ';');
+          } catch {
+            /* tolerate */
+          }
         }
       }
-      try { dockerPsql('DELETE FROM outbox WHERE company_id=' + sq + COMPANY_ID + sq + ' AND payload::text LIKE ' + sq + '%' + ref + '%' + sq + ';'); } catch { /* tolerate */ }
-      try { dockerPsql('DELETE FROM transport_order WHERE company_id=' + sq + COMPANY_ID + sq + ' AND external_ref=' + sq + ref + sq + ';'); } catch { /* tolerate */ }
+      try {
+        dockerPsql(
+          'DELETE FROM outbox WHERE company_id=' +
+            sq +
+            COMPANY_ID +
+            sq +
+            ' AND payload::text LIKE ' +
+            sq +
+            '%' +
+            ref +
+            '%' +
+            sq +
+            ';',
+        );
+      } catch {
+        /* tolerate */
+      }
+      try {
+        dockerPsql(
+          'DELETE FROM transport_order WHERE company_id=' +
+            sq +
+            COMPANY_ID +
+            sq +
+            ' AND external_ref=' +
+            sq +
+            ref +
+            sq +
+            ';',
+        );
+      } catch {
+        /* tolerate */
+      }
     }
   });
 
-  test.afterAll(async ({ request }) => { if (pair) await cleanupPair(request, pair); });
+  test.afterAll(async ({ request }) => {
+    if (pair) await cleanupPair(request, pair);
+  });
 
-  test('optimistic row appears despite a pre-existing stale projection row with the same ref', async ({ page }) => {
+  test('optimistic row appears despite a pre-existing stale projection row with the same ref', async ({
+    page,
+  }) => {
     if (!pair) throw new Error('pair not seeded');
     const stRef = nextRefAndSeedStale();
     seededOrderRefs.push(stRef);

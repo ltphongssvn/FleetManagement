@@ -80,10 +80,12 @@ export class AdminAssignmentService {
     const [row] = await this.db
       .update(driverVehicleAssignment)
       .set({ revokedAt: new Date(), revocationReason: input.reason })
-      .where(and(
-        eq(driverVehicleAssignment.assignmentId, input.assignmentId),
-        isNull(driverVehicleAssignment.revokedAt),
-      ))
+      .where(
+        and(
+          eq(driverVehicleAssignment.assignmentId, input.assignmentId),
+          isNull(driverVehicleAssignment.revokedAt),
+        ),
+      )
       .returning();
     if (!row) throw new Error('Assignment not found or already revoked');
     return row;

@@ -40,16 +40,23 @@ let testDb: MigratedTestDb;
 const SEED_COMPANY = '00000000-0000-0000-0000-000000000000';
 
 async function activeDriverNames(): Promise<string[]> {
-  const rows = await testDb.db.select({ fullName: driver.fullName })
+  const rows = await testDb.db
+    .select({ fullName: driver.fullName })
     .from(driver)
     .where(eq(driver.companyId, SEED_COMPANY));
   return rows.map((r) => r.fullName);
 }
 
 describe('@fleet/api - seedReference against a migrated database', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_seedreal'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
-  beforeEach(async () => { await truncateAllTables(testDb.db); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_test_seedreal');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
+  beforeEach(async () => {
+    await truncateAllTables(testDb.db);
+  });
 
   it('runs to completion in production mode -- the boot path', async () => {
     await expect(seedReference(testDb.db, { isProduction: true })).resolves.toBeUndefined();

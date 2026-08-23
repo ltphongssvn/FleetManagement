@@ -24,7 +24,10 @@ describe('@fleet/api - pushCommand no_socket → reconciler fallback', () => {
   });
 
   it('reconciler fires push fallback for no_socket commands after timeout', async () => {
-    const push = vi.fn().mockResolvedValue({ accepted: 1, rejected: 0 }) as unknown as IPushProvider['sendToOperator'];
+    const push = vi.fn().mockResolvedValue({
+      accepted: 1,
+      rejected: 0,
+    }) as unknown as IPushProvider['sendToOperator'];
     const fakeClock: Clock = { now: () => new Date('2026-05-02T10:00:00.000Z') };
     const gw = new CommandsGateway({ sendToOperator: push }, fakeClock);
     (gw as unknown as { server: unknown }).server = {

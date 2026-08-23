@@ -21,10 +21,14 @@ describe('OwnerOidcEnvSchema', () => {
     expect(OwnerOidcEnvSchema.safeParse(validEnv).success).toBe(true);
   });
   it('rejects a non-URL issuer', () => {
-    expect(OwnerOidcEnvSchema.safeParse({ ...validEnv, EXPO_PUBLIC_OIDC_ISSUER: 'not-a-url' }).success).toBe(false);
+    expect(
+      OwnerOidcEnvSchema.safeParse({ ...validEnv, EXPO_PUBLIC_OIDC_ISSUER: 'not-a-url' }).success,
+    ).toBe(false);
   });
   it('rejects an empty client id', () => {
-    expect(OwnerOidcEnvSchema.safeParse({ ...validEnv, EXPO_PUBLIC_OIDC_CLIENT_ID: '' }).success).toBe(false);
+    expect(
+      OwnerOidcEnvSchema.safeParse({ ...validEnv, EXPO_PUBLIC_OIDC_CLIENT_ID: '' }).success,
+    ).toBe(false);
   });
   it('rejects a missing scheme', () => {
     const { EXPO_PUBLIC_OWNER_APP_SCHEME, ...rest } = validEnv;

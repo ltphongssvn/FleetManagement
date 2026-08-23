@@ -19,8 +19,15 @@ import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
-import { TestPgConnectionSchema, TEST_PG_INJECT_KEY } from './helpers/test-pg-connection-contract.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+} from './helpers/migrate-test-db.js';
+import {
+  TestPgConnectionSchema,
+  TEST_PG_INJECT_KEY,
+} from './helpers/test-pg-connection-contract.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const GRANTS_SQL_PATH = resolve(here, '../src/database/security/fleet-app-grants.sql');
@@ -86,7 +93,9 @@ describe('@fleet/api - fleet_app runtime role privilege contract (integration)',
     // just to open a session to this per-file database. Granting it does not weaken
     // the table-level boundary under test.
     await admin.execute(
-      sql.raw('GRANT CONNECT ON DATABASE ' + DQUOTE + testDb.databaseName + DQUOTE + ' TO ' + APP_ROLE),
+      sql.raw(
+        'GRANT CONNECT ON DATABASE ' + DQUOTE + testDb.databaseName + DQUOTE + ' TO ' + APP_ROLE,
+      ),
     );
 
     // Apply the GRANTS-UNDER-TEST verbatim (the privilege contract SSOT), substituting
@@ -115,7 +124,9 @@ describe('@fleet/api - fleet_app runtime role privilege contract (integration)',
   // ---- POSITIVE: the role MUST be able to read and write rows. ----
 
   it('fleet_app CAN SELECT', async () => {
-    const r = await pool().query('SELECT customer_id FROM customer WHERE customer_id = $1', [seededCustomerId]);
+    const r = await pool().query('SELECT customer_id FROM customer WHERE customer_id = $1', [
+      seededCustomerId,
+    ]);
     expect(r.rowCount).toBe(1);
   });
 
@@ -130,7 +141,10 @@ describe('@fleet/api - fleet_app runtime role privilege contract (integration)',
 
   it('fleet_app CAN UPDATE', async () => {
     await expect(
-      pool().query('UPDATE customer SET phone = $1 WHERE customer_id = $2', ['0922222222', seededCustomerId]),
+      pool().query('UPDATE customer SET phone = $1 WHERE customer_id = $2', [
+        '0922222222',
+        seededCustomerId,
+      ]),
     ).resolves.toBeDefined();
   });
 

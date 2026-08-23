@@ -5,24 +5,34 @@
 // computation and can never diverge. Semantics (Feature 3): sum(pickup weights)
 // Semantics (T18 reversal): delivery weight minus sum(pickup weights); null
 import { describe, it, expect } from 'vitest';
-import {
-  WeightDiffStopSchema,
-  computeWeightDiffKg,
-  type WeightDiffStop,
-} from '../src/index.js';
+import { WeightDiffStopSchema, computeWeightDiffKg, type WeightDiffStop } from '../src/index.js';
 
-const pickup = (kg: number | null): WeightDiffStop => ({ stopType: 'pickup', extractedNetWeightKg: kg });
-const delivery = (kg: number | null): WeightDiffStop => ({ stopType: 'delivery', extractedNetWeightKg: kg });
+const pickup = (kg: number | null): WeightDiffStop => ({
+  stopType: 'pickup',
+  extractedNetWeightKg: kg,
+});
+const delivery = (kg: number | null): WeightDiffStop => ({
+  stopType: 'delivery',
+  extractedNetWeightKg: kg,
+});
 
 describe('WeightDiffStopSchema', () => {
   it('accepts a pickup stop with a numeric weight', () => {
-    expect(WeightDiffStopSchema.parse({ stopType: 'pickup', extractedNetWeightKg: 100 })).toEqual({ stopType: 'pickup', extractedNetWeightKg: 100 });
+    expect(WeightDiffStopSchema.parse({ stopType: 'pickup', extractedNetWeightKg: 100 })).toEqual({
+      stopType: 'pickup',
+      extractedNetWeightKg: 100,
+    });
   });
   it('accepts a null weight (true blank)', () => {
-    expect(WeightDiffStopSchema.parse({ stopType: 'delivery', extractedNetWeightKg: null }).extractedNetWeightKg).toBeNull();
+    expect(
+      WeightDiffStopSchema.parse({ stopType: 'delivery', extractedNetWeightKg: null })
+        .extractedNetWeightKg,
+    ).toBeNull();
   });
   it('rejects an unknown stopType (kills enum widening)', () => {
-    expect(() => WeightDiffStopSchema.parse({ stopType: 'sideways', extractedNetWeightKg: 1 })).toThrow();
+    expect(() =>
+      WeightDiffStopSchema.parse({ stopType: 'sideways', extractedNetWeightKg: 1 }),
+    ).toThrow();
   });
 });
 

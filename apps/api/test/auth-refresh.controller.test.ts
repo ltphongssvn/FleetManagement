@@ -41,22 +41,30 @@ describe('AuthRefreshController POST /auth/refresh', () => {
 
   it('maps not-found to 401 unauthorized', async () => {
     const { controller } = makeController({ kind: 'not-found' });
-    await expect(controller.refresh({ refreshToken: 'a'.repeat(64) })).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(controller.refresh({ refreshToken: 'a'.repeat(64) })).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
   });
 
   it('maps reused to the same 401 (no reuse oracle for attackers)', async () => {
     const { controller } = makeController({ kind: 'reused' });
-    await expect(controller.refresh({ refreshToken: 'b'.repeat(64) })).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(controller.refresh({ refreshToken: 'b'.repeat(64) })).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
   });
 
   it('maps expired to the same 401', async () => {
     const { controller } = makeController({ kind: 'expired' });
-    await expect(controller.refresh({ refreshToken: 'c'.repeat(64) })).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(controller.refresh({ refreshToken: 'c'.repeat(64) })).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
   });
 
   it('maps driver-disabled to 403 forbidden', async () => {
     const { controller } = makeController({ kind: 'driver-disabled' });
-    await expect(controller.refresh({ refreshToken: 'd'.repeat(64) })).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(controller.refresh({ refreshToken: 'd'.repeat(64) })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 
   it('rejects an empty refreshToken via zod before touching the service', async () => {

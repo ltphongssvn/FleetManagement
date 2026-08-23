@@ -5,7 +5,15 @@
 //   POST /device/attest/verify -> client sends platform token; server verifies + persists
 // Nonce store is operator-scoped (replay defense across devices for the same driver).
 // Token hash (SHA-256 hex) is persisted for audit, not the raw token.
-import { Body, Controller, ForbiddenException, Inject, Post, UnauthorizedException, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Inject,
+  Post,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { CurrentOperator } from '../auth/current-operator.decorator.js';
@@ -24,7 +32,15 @@ export interface AttestationNonceStore {
   consume(operatorId: string): Promise<string | null>;
 }
 export interface AttestationRepository {
-  markAttestationVerified(input: { deviceId: string; platform: AttestationPlatform; tokenHashHex: string; publicKeySpkiBase64: string; securityLevel: string | null; environment: string; keyId: string | null }): Promise<void>;
+  markAttestationVerified(input: {
+    deviceId: string;
+    platform: AttestationPlatform;
+    tokenHashHex: string;
+    publicKeySpkiBase64: string;
+    securityLevel: string | null;
+    environment: string;
+    keyId: string | null;
+  }): Promise<void>;
 }
 
 // iOS App Attest additionally carries the client-generated keyId (SHA-256 of
@@ -55,12 +71,22 @@ export class AttestationController {
 
   @UseGuards(JwtGuard)
   @Post('verify')
-  async verify(@CurrentOperator() op: OperatorContext, @Body() body: VerifyBody): Promise<{ verified: true }> {
+  async verify(
+    @CurrentOperator() op: OperatorContext,
+    @Body() body: VerifyBody,
+  ): Promise<{ verified: true }> {
     const parsed = VerifyBodySchema.parse(body);
     const expectedNonce = await this.nonceStore.consume(op.operatorId);
-    if (expectedNonce === null) throw new UnauthorizedException('no nonce issued for this operator');
-    const outcome = await this.svc.verify({ platform: parsed.platform, token: parsed.token, expectedNonce, ...(parsed.keyId === undefined ? {} : { keyId: parsed.keyId }) });
-    if (outcome.kind !== 'ok') throw new ForbiddenException(`attestation rejected: ${outcome.kind}`);
+    if (expectedNonce === null)
+      throw new UnauthorizedException('no nonce issued for this operator');
+    const outcome = await this.svc.verify({
+      platform: parsed.platform,
+      token: parsed.token,
+      expectedNonce,
+      ...(parsed.keyId === undefined ? {} : { keyId: parsed.keyId }),
+    });
+    if (outcome.kind !== 'ok')
+      throw new ForbiddenException(`attestation rejected: ${outcome.kind}`);
     const tokenHashHex = createHash('sha256').update(parsed.token).digest('hex');
     await this.repo.markAttestationVerified({
       deviceId: parsed.deviceId,

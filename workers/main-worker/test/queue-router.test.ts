@@ -1,12 +1,22 @@
 // workers/main-worker/test/queue-router.test.ts
 import { describe, it, expect } from 'vitest';
-import { routeJob, createBullDeadLetterSink, type DeadLetterSink, type DeadLetterEntry } from '../src/queue-router.js';
+import {
+  routeJob,
+  createBullDeadLetterSink,
+  type DeadLetterSink,
+  type DeadLetterEntry,
+} from '../src/queue-router.js';
 import type { IntakeObjectStore, IntakeObjectHead } from '../src/intake/intake-object-store.js';
 function makeSink(): { sink: DeadLetterSink; sent: DeadLetterEntry[] } {
   const sent: DeadLetterEntry[] = [];
   return {
     sent,
-    sink: { send: (entry) => { sent.push(entry); return Promise.resolve(); } },
+    sink: {
+      send: (entry) => {
+        sent.push(entry);
+        return Promise.resolve();
+      },
+    },
   };
 }
 // Store that returns a fixed HEAD result (or null = object absent).
@@ -56,7 +66,14 @@ describe('@fleet/main-worker - queue-router', () => {
   it('HEADs S3, fills actuals, and accepts when the object matches', async () => {
     const { sink, sent } = makeSink();
     const store = fakeStore({ contentType: 'image/jpeg', sizeBytes: 1_450_000 });
-    const result = await routeJob('intake', { id: 'j1', data: validIntakeJob }, sink, undefined, undefined, store);
+    const result = await routeJob(
+      'intake',
+      { id: 'j1', data: validIntakeJob },
+      sink,
+      undefined,
+      undefined,
+      store,
+    );
     expect(result.handled).toBe(true);
     expect(result.deadLettered).toBe(false);
     expect(result.summary).toContain('accepted');
@@ -65,7 +82,14 @@ describe('@fleet/main-worker - queue-router', () => {
   it('rejects object_missing when the S3 object is absent (HEAD null)', async () => {
     const { sink } = makeSink();
     const store = fakeStore(null);
-    const result = await routeJob('intake', { id: 'jM', data: validIntakeJob }, sink, undefined, undefined, store);
+    const result = await routeJob(
+      'intake',
+      { id: 'jM', data: validIntakeJob },
+      sink,
+      undefined,
+      undefined,
+      store,
+    );
     expect(result.handled).toBe(true);
     expect(result.deadLettered).toBe(false);
     expect(result.summary).toContain('rejected:object_missing');
@@ -73,7 +97,14 @@ describe('@fleet/main-worker - queue-router', () => {
   it('rejects size_mismatch when the real object is far larger than expected', async () => {
     const { sink } = makeSink();
     const store = fakeStore({ contentType: 'image/jpeg', sizeBytes: 9_000_000 });
-    const result = await routeJob('intake', { id: 'jS', data: validIntakeJob }, sink, undefined, undefined, store);
+    const result = await routeJob(
+      'intake',
+      { id: 'jS', data: validIntakeJob },
+      sink,
+      undefined,
+      undefined,
+      store,
+    );
     expect(result.handled).toBe(true);
     expect(result.summary).toContain('rejected');
   });
@@ -174,13 +205,16 @@ describe('@fleet/main-worker - queue-router non-Zod errors', () => {
 });
 describe('@fleet/main-worker - queue-router non-Zod throw inside try block', () => {
   it('rethrows non-Zod errors raised inside the parse/process block', async () => {
-    const badData = new Proxy({}, {
-      get() { throw new TypeError('synthetic non-zod failure'); },
-    });
+    const badData = new Proxy(
+      {},
+      {
+        get() {
+          throw new TypeError('synthetic non-zod failure');
+        },
+      },
+    );
     const sink: DeadLetterSink = { send: () => Promise.resolve() };
-    await expect(
-      routeJob('intake', { id: 'jY', data: badData as never }, sink),
-    ).rejects.toThrow();
+    await expect(routeJob('intake', { id: 'jY', data: badData as never }, sink)).rejects.toThrow();
   });
 });
 describe('@fleet/main-worker - queue-router rejected-decision summary branches', () => {
@@ -206,7 +240,8 @@ describe('@fleet/main-worker - queue-router rejected-decision summary branches',
   it('falls back to null jobId when job.id is undefined', async () => {
     const { sink, sent } = makeSink();
     await routeJob('intake', { data: { manifestId: 'not-uuid' } } as never, sink);
-    const entry = sent[0]; if (entry === undefined) throw new Error('expected entry');
+    const entry = sent[0];
+    if (entry === undefined) throw new Error('expected entry');
     expect(entry.jobId).toBeNull();
   });
 });
@@ -214,17 +249,35 @@ describe('@fleet/main-worker - queue-router with optional ports', () => {
   it('invokes intakeCallback.finalize on accepted intake', async () => {
     const { sink } = makeSink();
     const calls: unknown[] = [];
-    const cb = { finalize: (input: unknown) => { calls.push(input); return Promise.resolve(); } };
+    const cb = {
+      finalize: (input: unknown) => {
+        calls.push(input);
+        return Promise.resolve();
+      },
+    };
     const result = await routeJob('intake', { id: 'jc1', data: preFilledIntakeJob }, sink, cb);
     expect(result.handled).toBe(true);
     expect(calls).toHaveLength(1);
-    expect(calls[0]).toMatchObject({ uploadSessionId: validIntakeJob.uploadSessionId, accepted: true });
+    expect(calls[0]).toMatchObject({
+      uploadSessionId: validIntakeJob.uploadSessionId,
+      accepted: true,
+    });
   });
   it('invokes intakeCallback.finalize with rejection on rejected intake', async () => {
     const { sink } = makeSink();
     const calls: unknown[] = [];
-    const cb = { finalize: (input: unknown) => { calls.push(input); return Promise.resolve(); } };
-    await routeJob('intake', { id: 'jc2', data: { ...validIntakeJob, virusScanClean: false } }, sink, cb);
+    const cb = {
+      finalize: (input: unknown) => {
+        calls.push(input);
+        return Promise.resolve();
+      },
+    };
+    await routeJob(
+      'intake',
+      { id: 'jc2', data: { ...validIntakeJob, virusScanClean: false } },
+      sink,
+      cb,
+    );
     expect(calls[0]).toMatchObject({ accepted: false });
   });
   it('routes erp via sendErpInvoice when erpClient provided (sent path)', async () => {
@@ -238,7 +291,10 @@ describe('@fleet/main-worker - queue-router with optional ports', () => {
   it('routes erp via sendErpInvoice when erpClient provided (rejected path)', async () => {
     const { sink } = makeSink();
     const erp = { sendInvoice: () => Promise.reject(new Error('unused')) };
-    const rejected = { ...validErpJob, mapping: { customerExternalId: null, jobCodeExternalId: 'EXT-J-1' } };
+    const rejected = {
+      ...validErpJob,
+      mapping: { customerExternalId: null, jobCodeExternalId: 'EXT-J-1' },
+    };
     const result = await routeJob('erp', { id: 'jc4', data: rejected }, sink, undefined, erp);
     expect(result.handled).toBe(true);
     expect(result.deadLettered).toBe(false);

@@ -28,10 +28,7 @@ const SHORT_SHA_LENGTH = 7;
 
 // 40 lowercase hex, or the sentinel. Anything else is a defect: a shape the CI
 // gate cannot compare is worse than an absent one, because it looks answered.
-const ShaField = z.union([
-  z.string().regex(/^[0-9a-f]{40}$/),
-  z.literal(UNKNOWN_VERSION_FIELD),
-]);
+const ShaField = z.union([z.string().regex(/^[0-9a-f]{40}$/), z.literal(UNKNOWN_VERSION_FIELD)]);
 
 // .strict(): a closed contract. CI parses this, so an unexpected key is a
 // contract change that must fail loudly rather than ride along unnoticed.
@@ -127,7 +124,8 @@ export function buildDeployVersion(env: ProvenanceEnv, now: () => string): Deplo
     sha,
     // Derived, never carried separately: a shortSha that could disagree with
     // its own sha is a second source of truth for one fact.
-    shortSha: sha === UNKNOWN_VERSION_FIELD ? UNKNOWN_VERSION_FIELD : sha.slice(0, SHORT_SHA_LENGTH),
+    shortSha:
+      sha === UNKNOWN_VERSION_FIELD ? UNKNOWN_VERSION_FIELD : sha.slice(0, SHORT_SHA_LENGTH),
     branch,
     buildTime,
   });

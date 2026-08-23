@@ -11,21 +11,25 @@
 import { z } from 'zod';
 import { ALLOWED_MANIFEST_MIME_TYPES } from './manifest-types.js';
 
-const IntakeManifestMimeSchema = z.enum(ALLOWED_MANIFEST_MIME_TYPES as unknown as [string, ...string[]]);
+const IntakeManifestMimeSchema = z.enum(
+  ALLOWED_MANIFEST_MIME_TYPES as unknown as [string, ...string[]],
+);
 
-export const IntakeJobDataWireSchema = z.object({
-  manifestId: z.guid(),
-  uploadSessionId: z.guid(),
-  s3Key: z.string().min(1).max(512),
-  s3Bucket: z.string().min(1).max(128),
-  expectedContentType: IntakeManifestMimeSchema,
-  expectedSizeBytes: z.number().int().positive(),
-  maxSizeBytes: z.number().int().positive(),
-  actualContentType: z.union([IntakeManifestMimeSchema, z.null()]),
-  actualSizeBytes: z.union([z.number().int().nonnegative(), z.null()]),
-  providedHash: z.union([z.string().min(1), z.null()]),
-  computedHash: z.union([z.string().min(1), z.null()]),
-  virusScanClean: z.union([z.boolean(), z.null()]),
-}).strict();
+export const IntakeJobDataWireSchema = z
+  .object({
+    manifestId: z.guid(),
+    uploadSessionId: z.guid(),
+    s3Key: z.string().min(1).max(512),
+    s3Bucket: z.string().min(1).max(128),
+    expectedContentType: IntakeManifestMimeSchema,
+    expectedSizeBytes: z.number().int().positive(),
+    maxSizeBytes: z.number().int().positive(),
+    actualContentType: z.union([IntakeManifestMimeSchema, z.null()]),
+    actualSizeBytes: z.union([z.number().int().nonnegative(), z.null()]),
+    providedHash: z.union([z.string().min(1), z.null()]),
+    computedHash: z.union([z.string().min(1), z.null()]),
+    virusScanClean: z.union([z.boolean(), z.null()]),
+  })
+  .strict();
 
 export type IntakeJobDataWire = z.infer<typeof IntakeJobDataWireSchema>;

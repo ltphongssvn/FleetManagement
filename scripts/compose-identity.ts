@@ -19,8 +19,15 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { z } from 'zod';
 
 export const PORT_NAMES = Object.freeze([
-  'API', 'OPS_WEB', 'OAUTH', 'POSTGRES', 'REDIS', 'S3',
-  'EXPO_METRO', 'EXPO_DEV', 'EXPO_DEV2',
+  'API',
+  'OPS_WEB',
+  'OAUTH',
+  'POSTGRES',
+  'REDIS',
+  'S3',
+  'EXPO_METRO',
+  'EXPO_DEV',
+  'EXPO_DEV2',
 ] as const);
 export type PortName = (typeof PORT_NAMES)[number];
 export type PortMap = Readonly<Record<PortName, number>>;
@@ -95,8 +102,13 @@ function parseArgs(argv: readonly string[]): z.infer<typeof ArgsSchema> {
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--print') out['print'] = true;
-    else if (a === '--root') { out['root'] = argv[i + 1]; i += 1; }
-    else if (a === '--env') { out['env'] = argv[i + 1]; i += 1; }
+    else if (a === '--root') {
+      out['root'] = argv[i + 1];
+      i += 1;
+    } else if (a === '--env') {
+      out['env'] = argv[i + 1];
+      i += 1;
+    }
   }
   return ArgsSchema.parse(out);
 }

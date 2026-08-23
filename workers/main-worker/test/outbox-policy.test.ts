@@ -88,12 +88,18 @@ describe('@fleet/main-worker - isEligibleForPickup', () => {
   });
   it('picks up failed when nextAttemptAt has passed', () => {
     expect(
-      isEligibleForPickup(row({ status: 'failed', nextAttemptAt: new Date(now.getTime() - 1000) }), now),
+      isEligibleForPickup(
+        row({ status: 'failed', nextAttemptAt: new Date(now.getTime() - 1000) }),
+        now,
+      ),
     ).toBe(true);
   });
   it('skips failed when nextAttemptAt is in future', () => {
     expect(
-      isEligibleForPickup(row({ status: 'failed', nextAttemptAt: new Date(now.getTime() + 60_000) }), now),
+      isEligibleForPickup(
+        row({ status: 'failed', nextAttemptAt: new Date(now.getTime() + 60_000) }),
+        now,
+      ),
     ).toBe(false);
   });
   it('skips processing/succeeded/dead_letter', () => {

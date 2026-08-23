@@ -17,15 +17,13 @@ export interface CaptureStopDescriptor {
   /** Stops WITHOUT a committed photo before this capture. */
   readonly remaining?: number;
 }
-export function captureHrefForStop(
-  transportOrderId: string,
-  stop: CaptureStopDescriptor,
-): string {
+export function captureHrefForStop(transportOrderId: string, stop: CaptureStopDescriptor): string {
   const base = '/capture?transportOrderId=' + transportOrderId + '&stopKind=' + stop.stopKind;
   const seq = '&stopSequence=' + String(stop.sequence);
-  const run = (stop.roadRunId !== undefined ? '&roadRunId=' + stop.roadRunId : '')
-    + (stop.runState !== undefined ? '&runState=' + stop.runState : '')
-    + (stop.remaining !== undefined ? '&remaining=' + String(stop.remaining) : '');
+  const run =
+    (stop.roadRunId !== undefined ? '&roadRunId=' + stop.roadRunId : '') +
+    (stop.runState !== undefined ? '&runState=' + stop.runState : '') +
+    (stop.remaining !== undefined ? '&remaining=' + String(stop.remaining) : '');
   if (stop.stopKind === 'loading' && stop.stopIndex !== null) {
     return base + '&stopIndex=' + String(stop.stopIndex) + seq + run;
   }

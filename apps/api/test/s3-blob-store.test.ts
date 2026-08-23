@@ -27,9 +27,7 @@ vi.mock('@aws-sdk/client-s3', () => ({
 }));
 const mockGetSignedUrl = vi.fn();
 vi.mock('@aws-sdk/s3-request-presigner', () => ({ getSignedUrl: mockGetSignedUrl }));
-const { S3BlobStore, defaultS3Client, S3_CLIENT } = await import(
-  '../src/storage/s3-blob-store.js'
-);
+const { S3BlobStore, defaultS3Client, S3_CLIENT } = await import('../src/storage/s3-blob-store.js');
 // SDK v3 injects x-amz-checksum-crc32 into presigned PUT URLs by default;
 // the client sets requestChecksumCalculation:'WHEN_REQUIRED' so presigned
 // PUTs stay clean (see s3-blob-store-checksum.test.ts).
@@ -63,7 +61,10 @@ describe('@fleet/api - S3BlobStore', () => {
   // --- presignUpload ---
   it('presignUpload builds PutObjectCommand with Bucket, Key, ContentType (kills PutObjectCommand({}) ObjectLiteral mutant)', async () => {
     mockGetSignedUrl.mockResolvedValueOnce('https://s3.example/signed?token=abc');
-    const fakeConfig = { getOrThrow: vi.fn().mockReturnValue('fleet-bucket'), get: vi.fn().mockReturnValue(undefined) } as never;
+    const fakeConfig = {
+      getOrThrow: vi.fn().mockReturnValue('fleet-bucket'),
+      get: vi.fn().mockReturnValue(undefined),
+    } as never;
     const store = new S3BlobStore(fakeConfig, {} as never);
     await store.presignUpload({ key: 'k1.jpg', contentType: 'image/jpeg', ttlSeconds: 600 });
     expect(putObjectCommandCtorArgs).toHaveLength(1);
@@ -76,7 +77,10 @@ describe('@fleet/api - S3BlobStore', () => {
   it('presignUpload calls getSignedUrl with the client, the command, and { expiresIn: ttlSeconds } (kills getSignedUrl({}) ObjectLiteral mutant)', async () => {
     mockGetSignedUrl.mockResolvedValueOnce('https://s3.example/signed');
     const fakeClient = { marker: 'the-client' } as never;
-    const fakeConfig = { getOrThrow: vi.fn().mockReturnValue('fleet-bucket'), get: vi.fn().mockReturnValue(undefined) } as never;
+    const fakeConfig = {
+      getOrThrow: vi.fn().mockReturnValue('fleet-bucket'),
+      get: vi.fn().mockReturnValue(undefined),
+    } as never;
     const store = new S3BlobStore(fakeConfig, fakeClient);
     await store.presignUpload({ key: 'k2.pdf', contentType: 'application/pdf', ttlSeconds: 300 });
     expect(mockGetSignedUrl).toHaveBeenCalledTimes(1);
@@ -95,7 +99,10 @@ describe('@fleet/api - S3BlobStore', () => {
   });
   it('presignUpload returns url + key + bucket + expiresAt (kills return-shape ObjectLiteral mutant)', async () => {
     mockGetSignedUrl.mockResolvedValueOnce('https://s3.example/signed?token=abc');
-    const fakeConfig = { getOrThrow: vi.fn().mockReturnValue('fleet-bucket'), get: vi.fn().mockReturnValue(undefined) } as never;
+    const fakeConfig = {
+      getOrThrow: vi.fn().mockReturnValue('fleet-bucket'),
+      get: vi.fn().mockReturnValue(undefined),
+    } as never;
     const store = new S3BlobStore(fakeConfig, {} as never);
     const result = await store.presignUpload({
       key: 'k1.jpg',
@@ -120,7 +127,11 @@ describe('@fleet/api - S3BlobStore', () => {
     const get = vi.fn().mockReturnValue('http://localhost:4566');
     const fakeConfig = { getOrThrow, get } as never;
     const store = new S3BlobStore(fakeConfig, {} as never);
-    const result = await store.presignUpload({ key: 'k.jpg', contentType: 'image/jpeg', ttlSeconds: 600 });
+    const result = await store.presignUpload({
+      key: 'k.jpg',
+      contentType: 'image/jpeg',
+      ttlSeconds: 600,
+    });
     expect(result.url).toBe(
       'http://localhost:4566/fleet-pilot-artifacts/k.jpg?X-Amz-Signature=abc',
     );
@@ -131,12 +142,19 @@ describe('@fleet/api - S3BlobStore', () => {
     const get = vi.fn().mockReturnValue(undefined);
     const fakeConfig = { getOrThrow, get } as never;
     const store = new S3BlobStore(fakeConfig, {} as never);
-    const result = await store.presignUpload({ key: 'k.jpg', contentType: 'image/jpeg', ttlSeconds: 600 });
+    const result = await store.presignUpload({
+      key: 'k.jpg',
+      contentType: 'image/jpeg',
+      ttlSeconds: 600,
+    });
     expect(result.url).toBe('http://localstack:4566/b/k.jpg?X-Amz-Signature=z');
   });
-    it('expiresAt = now + ttlSeconds*1000 (kills ttlSeconds*1000 ArithmeticOperator + Date.now()+ ArithmeticOperator)', async () => {
+  it('expiresAt = now + ttlSeconds*1000 (kills ttlSeconds*1000 ArithmeticOperator + Date.now()+ ArithmeticOperator)', async () => {
     mockGetSignedUrl.mockResolvedValueOnce('https://s3.example/signed');
-    const fakeConfig = { getOrThrow: vi.fn().mockReturnValue('fleet-bucket'), get: vi.fn().mockReturnValue(undefined) } as never;
+    const fakeConfig = {
+      getOrThrow: vi.fn().mockReturnValue('fleet-bucket'),
+      get: vi.fn().mockReturnValue(undefined),
+    } as never;
     const store = new S3BlobStore(fakeConfig, {} as never);
     const before = Date.now();
     const result = await store.presignUpload({

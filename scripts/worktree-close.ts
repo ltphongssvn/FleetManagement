@@ -5,10 +5,7 @@
 // which is exactly why it has no tests. Here every parser is a pure function of
 // stdout; only the thin driver (separate slice) touches execFileSync.
 
-import {
-  WorktreeCloseInputSchema,
-  type WorktreeCloseInput,
-} from './close-worktree.js';
+import { WorktreeCloseInputSchema, type WorktreeCloseInput } from './close-worktree.js';
 
 const NL = String.fromCharCode(10);
 const WORKTREE_PREFIX = 'worktree ';
@@ -49,7 +46,10 @@ export interface AheadBehind {
 }
 
 export function parseAheadBehind(stdout: string): AheadBehind {
-  const parts = stdout.trim().split(/\s+/).filter((p) => p.length > 0);
+  const parts = stdout
+    .trim()
+    .split(/\s+/)
+    .filter((p) => p.length > 0);
   if (parts.length !== 2) {
     throw new Error('unparseable rev-list --left-right --count output: ' + JSON.stringify(stdout));
   }

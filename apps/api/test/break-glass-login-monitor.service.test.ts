@@ -11,7 +11,10 @@ const { mockCaptureEvent, capturedEvents } = vi.hoisted(() => {
   const capturedEvents: unknown[] = [];
   return {
     capturedEvents,
-    mockCaptureEvent: vi.fn((e: unknown) => { capturedEvents.push(e); return 'evt-id'; }),
+    mockCaptureEvent: vi.fn((e: unknown) => {
+      capturedEvents.push(e);
+      return 'evt-id';
+    }),
   };
 });
 vi.mock('@sentry/nestjs', () => ({ captureEvent: mockCaptureEvent }));
@@ -26,7 +29,10 @@ function ev(time: number, username: string, type = 'LOGIN'): Record<string, unkn
   return { time, type, realmId: 'master', userId: `u-${username}`, details: { username } };
 }
 
-function makeDeps(events: Record<string, unknown>[], cursorStart = 0): {
+function makeDeps(
+  events: Record<string, unknown>[],
+  cursorStart = 0,
+): {
   client: KeycloakEventsClient;
   cursor: KeycloakEventPollCursorService;
   fetchSince: ReturnType<typeof vi.fn>;
@@ -106,12 +112,16 @@ describe('@fleet/api - BreakGlassLoginMonitorService', () => {
   });
 
   it('handles a break-glass event with no userId (null/empty fallbacks) and still advances', async () => {
-    const noUser = { time: 2000, type: 'LOGIN', realmId: 'master', details: { username: 'fleet-breakglass-1' } };
+    const noUser = {
+      time: 2000,
+      type: 'LOGIN',
+      realmId: 'master',
+      details: { username: 'fleet-breakglass-1' },
+    };
     const { client, cursor, advance } = makeDeps([noUser]);
     const svc = new BreakGlassLoginMonitorService(client, cursor, PREFIX);
     await svc.pollOnce();
     expect(mockCaptureEvent).toHaveBeenCalledTimes(1);
     expect(advance).toHaveBeenCalledWith(2000, '2000:');
   });
-
 });

@@ -73,7 +73,9 @@ describe('board status group + board URL params are schema-first', () => {
     expect(page.includes('parse-board-params')).toBe(true);
   });
   it('source guard: stale finished-includes-cancelled comments are gone', () => {
-    expect(flat(src('features/dispatch/DispatchView.tsx')).includes('Finished = completed + cancelled')).toBe(false);
+    expect(
+      flat(src('features/dispatch/DispatchView.tsx')).includes('Finished = completed + cancelled'),
+    ).toBe(false);
     expect(flat(src('app/page.tsx')).includes('Active/Finished tabs')).toBe(false);
   });
 });

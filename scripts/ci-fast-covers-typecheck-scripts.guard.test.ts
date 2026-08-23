@@ -1,102 +1,77 @@
 // scripts/ci-fast-covers-typecheck-scripts.guard.test.ts
-// Guard (root-cause fix): //#typecheck:scripts -- tsc --noEmit over the
-// repo-level tooling in scripts/ -- must run inside the __ci_fast__ PR gate.
+// Guard: //#typecheck:scripts must stay wired into the __ci_fast__ PR gate.
 //
-// WHY THIS REPLACES A RATCHET. The task was registered in d1f53f2 with 58
-// pre-existing errors and deliberately left OUT of the gate: wiring it while
-// red would have made every branch in a ~50-worktree estate unmergeable at once
-// and taught everyone to ignore the tool (the same adoption reasoning //#knip
-// documents). scripts/typecheck-scripts-ratchet.guard.test.ts held the line in
-// the meantime -- errors may fall, never rise -- and its own header states the
-// exit condition verbatim: "When it reaches 0, delete this guard and add
-// //#typecheck:scripts to __ci_fast__ in turbo.jsonc". The count reached 0, so
-// the ratchet is deleted and this guard takes its place.
+// WHY IT EXISTS. Nothing typechecked scripts/: the package-scoped typecheck task
+// cannot reach a tree that belongs to no workspace package, and //#lint:scripts
+// is type-aware but reports lint rules only -- it builds a TS program and never
+// surfaces the general diagnostic set. A noUncheckedIndexedAccess violation
+// passed lint while returning undefined at runtime, and that hole produced a
+// FALSE MERGE: an unclassifiable check was dropped from every bucket and the
+// rollup reported green.
 //
-// The ratchet also FAILED at zero, and correctly: tsc prints nothing on
-// success, so its "an unreadable run is NOT zero errors; a confident zero would
-// silently retire the ratchet" check could not distinguish success from a
-// crashed run. Patching it to tolerate silence would have kept burn-down
-// scaffolding alive past the burn-down while leaving the task ungated -- the
-// "check exists in principle and nowhere in practice" hole the task
-// description itself warns about. Promotion is the real fix.
+// PARSING (2026-08-23). This guard carried its own JSONC reader -- strip every
+// line whose first token is //, then JSON.parse -- which deleted all 47 root
+// task definitions before parsing, including the //#typecheck:scripts entry this
+// file exists to assert. It passed anyway, because nothing checked the root
+// tasks survived the strip. Prettier's committed trailingComma:"all" then broke
+// it outright, since JSON.parse rejects `},`.
 //
-// WHAT THIS ASSERTS, and why it is not the same as the check running: the gate
-// executes the typecheck; this guard asserts the WIRING, so a future edit that
-// drops //#typecheck:scripts from __ci_fast__ fails here rather than silently
-// reopening the hole -- exactly the shape of the sibling
-// ci-fast-covers-test-scripts.guard.test.ts, which is the precedent the ratchet
-// named for this step.
-//
-// Lives under scripts/ on purpose so vitest run scripts executes it: the suite
-// that runs this guard is the same one the gate it protects invokes.
+// A better regex cannot fix it: `//` inside a string is data, and only a parser
+// knows the difference. read-jsonc.ts uses TypeScript's own JSONC parser -- the
+// one tsconfig.json is read with -- shared across the four guards that each kept
+// a copy.
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readTurboTasks } from '@fleet/test-fixtures';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(here, '..');
-const NLc = String.fromCharCode(10);
-const SLASH = String.fromCharCode(47);
-const LINE_COMMENT = SLASH + SLASH;
-
-// JSONC -> JSON: drop whole-line // comments (turbo.jsonc uses only line
-// comments, never block or trailing), then parse. A trailing-comment strip
-// would corrupt the // inside task names like //#typecheck:scripts, so only
-// lines whose first non-space token is the comment marker are dropped.
-function readTurboTasks(): Record<string, { dependsOn?: string[]; description?: string }> {
-  const raw = readFileSync(resolve(repoRoot, 'turbo.jsonc'), 'utf8');
-  const jsonOnly = raw
-    .split(NLc)
-    .filter((line) => !line.trimStart().startsWith(LINE_COMMENT))
-    .join(NLc);
-  const parsed = JSON.parse(jsonOnly) as {
-    tasks: Record<string, { dependsOn?: string[]; description?: string }>;
-  };
-  return parsed.tasks;
-}
+const TURBO = resolve(here, '..', 'turbo.jsonc');
 
 describe('__ci_fast__ covers the root scripts typecheck', () => {
-  it('turbo.jsonc parses after stripping line comments (guard is not vacuous)', () => {
-    const tasks = readTurboTasks();
+  // Vacuity guard FIRST, asserting the ROOT TASKS specifically -- the previous
+  // version only required a non-empty table, which the broken stripper met
+  // while having eaten every //# entry.
+  it('turbo.jsonc parses with its root tasks intact (guard is not vacuous)', () => {
+    const tasks = readTurboTasks(TURBO);
     expect(Object.keys(tasks).length).toBeGreaterThan(10);
+    expect(Object.keys(tasks).filter((n) => n.startsWith('//#')).length).toBeGreaterThan(10);
     expect(tasks['__ci_fast__']).toBeDefined();
   });
 
   it('a //#typecheck:scripts root task is registered', () => {
-    expect(readTurboTasks()['//#typecheck:scripts']).toBeDefined();
+    expect(readTurboTasks(TURBO)['//#typecheck:scripts']).toBeDefined();
   });
 
   it('__ci_fast__ dependsOn includes //#typecheck:scripts', () => {
-    const deps = readTurboTasks()['__ci_fast__']?.dependsOn ?? [];
-    expect(
-      deps,
-      'a scripts/ type error must fail the PR gate; without this the task exists ' +
-        'but nothing invokes it, which is the hole the ratchet was holding open',
-    ).toContain('//#typecheck:scripts');
+    const deps = readTurboTasks(TURBO)['__ci_fast__']?.dependsOn ?? [];
+    expect(deps).toContain('//#typecheck:scripts');
   });
 
+  // The triad is gated together on purpose: lint, typecheck and test over
+  // scripts/ each close a different hole, and gating two of three leaves the
+  // third silently unrun.
   it('the root-tooling triad is gated together', () => {
-    const deps = readTurboTasks()['__ci_fast__']?.dependsOn ?? [];
-    for (const member of ['//#lint:scripts', '//#test:scripts', '//#typecheck:scripts']) {
-      expect(deps, member + ' completes the lint+test+typecheck triad for scripts/').toContain(member);
+    const deps = readTurboTasks(TURBO)['__ci_fast__']?.dependsOn ?? [];
+    for (const member of ['//#lint:scripts', '//#typecheck:scripts', '//#test:scripts']) {
+      expect(deps).toContain(member);
     }
   });
 
   it('the pre-existing gate members are still present (no accidental drop)', () => {
-    const deps = readTurboTasks()['__ci_fast__']?.dependsOn ?? [];
+    const deps = readTurboTasks(TURBO)['__ci_fast__']?.dependsOn ?? [];
     for (const member of ['lint', 'typecheck', 'test:unit', '//#codemod:check']) {
       expect(deps).toContain(member);
     }
   });
 
+  // The task was ungated at registration while 89 pre-existing errors were
+  // burned down; the description said so. It reached zero and the gate went
+  // live, so a description still claiming it is ungated would now be a lie that
+  // outlives the condition it described.
   it('the task description no longer claims it is ungated', () => {
-    const desc = readTurboTasks()['//#typecheck:scripts']?.description ?? '';
-    expect(
-      desc,
-      'the description documented the burn-down plan ("NOT wired into __ci_fast__ ' +
-        'yet ... burn the count down, then promote it to a gate"); leaving that text ' +
-        'in place after promotion would misdescribe the gate to the next reader',
-    ).not.toContain('NOT wired into __ci_fast__');
+    const description = readTurboTasks(TURBO)['//#typecheck:scripts']?.description ?? '';
+    expect(description.length).toBeGreaterThan(0);
+    expect(description).toContain('WIRED INTO __ci_fast__');
   });
 });

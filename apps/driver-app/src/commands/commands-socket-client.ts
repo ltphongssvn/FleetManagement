@@ -3,13 +3,13 @@
 // event into the pure receiver policy and emits `command_ack` back.
 // Concrete socket.io-client construction lives in the React hook layer so this
 // module stays unit-testable without the socket.io-client dependency.
-import { COMMAND_EVENTS } from "@fleet/sync-protocol";
+import { COMMAND_EVENTS } from '@fleet/sync-protocol';
 import {
   initialReceiverState,
   receiveCommand,
   type CommandPayload,
   type ReceiverState,
-} from "./command-receiver-policy.js";
+} from './command-receiver-policy.js';
 
 /** Minimal port over socket.io-client's Socket so this module is unit-testable. */
 export interface SocketLike {

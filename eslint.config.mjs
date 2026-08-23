@@ -5,33 +5,33 @@
 // Related:  .prettierrc, turbo.jsonc, .pre-commit-config.yaml
 // ============================================================================
 
-import eslint from "@eslint/js";
-import tseslint from "typescript-eslint";
-import eslintConfigPrettier from "eslint-config-prettier";
-import vitest from "@vitest/eslint-plugin";
+import eslint from '@eslint/js';
+import tseslint from 'typescript-eslint';
+import eslintConfigPrettier from 'eslint-config-prettier';
+import vitest from '@vitest/eslint-plugin';
 
 export default tseslint.config(
   // Global ignores — use **/pattern for nested workspace matches
   {
     ignores: [
-      "apps/driver-app/metro.config.js",
-      "apps/owner-app/metro.config.js",
-      "**/node_modules/**",
-      "**/dist/**",
-      "**/build/**",
-      "**/out/**",
-      "**/.next/**",
-      "**/.turbo/**",
-      "**/.expo/**",
-      "**/coverage/**",
-      "**/.stryker-tmp/**",
-      "**/test-results/**",
-      "**/playwright-report/**",
-      "**/*.tsbuildinfo",
-      "pnpm-lock.yaml",
-      "**/postcss.config.mjs",
-      "**/next-env.d.ts",
-      "**/drizzle.config.ts",
+      'apps/driver-app/metro.config.js',
+      'apps/owner-app/metro.config.js',
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/build/**',
+      '**/out/**',
+      '**/.next/**',
+      '**/.turbo/**',
+      '**/.expo/**',
+      '**/coverage/**',
+      '**/.stryker-tmp/**',
+      '**/test-results/**',
+      '**/playwright-report/**',
+      '**/*.tsbuildinfo',
+      'pnpm-lock.yaml',
+      '**/postcss.config.mjs',
+      '**/next-env.d.ts',
+      '**/drizzle.config.ts',
     ],
   },
 
@@ -48,13 +48,13 @@ export default tseslint.config(
       parserOptions: {
         projectService: {
           allowDefaultProject: [
-            "*.config.ts",
-            "*.config.mjs",
-            "vitest.config.ts",
-            "vitest.integration.config.ts",
-            "vitest.coverage.config.ts",
-                          ],
-          defaultProject: "tsconfig.base.json",
+            '*.config.ts',
+            '*.config.mjs',
+            'vitest.config.ts',
+            'vitest.integration.config.ts',
+            'vitest.coverage.config.ts',
+          ],
+          defaultProject: 'tsconfig.base.json',
         },
         tsconfigRootDir: import.meta.dirname,
       },
@@ -63,15 +63,15 @@ export default tseslint.config(
 
   // Test files: relax some rules that don't apply to tests; enable vitest hygiene
   {
-    files: ["**/test/**/*.ts", "**/*.test.ts", "**/*.spec.ts"],
+    files: ['**/test/**/*.ts', '**/*.test.ts', '**/*.spec.ts'],
     plugins: { vitest },
     rules: {
-      "@typescript-eslint/no-unsafe-assignment": "off",
-      "@typescript-eslint/no-unsafe-call": "off",
-      "@typescript-eslint/no-unsafe-member-access": "off",
-      "vitest/no-focused-tests": "error",
-      "vitest/no-disabled-tests": "warn",
-      "vitest/no-identical-title": "error",
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      'vitest/no-focused-tests': 'error',
+      'vitest/no-disabled-tests': 'warn',
+      'vitest/no-identical-title': 'error',
       // assertFunctionNames extends the rule's notion of "an assertion" to
       // custom helpers, which is the documented mechanism rather than a
       // per-file eslint-disable. expectRefused narrows a discriminated union
@@ -81,7 +81,10 @@ export default tseslint.config(
       // rule reports "Test has no assertions" for every refusal case -- a false
       // positive that pressures the author to inline the cast and lose the
       // proof, which is exactly how a sound guard gets switched off.
-      "vitest/expect-expect": ["error", { assertFunctionNames: ["expect", "expectTypeOf", "fc.assert", "expectRefused"] }],
+      'vitest/expect-expect': [
+        'error',
+        { assertFunctionNames: ['expect', 'expectTypeOf', 'fc.assert', 'expectRefused'] },
+      ],
       // maxArgs: 2 because VITEST -- unlike Jest -- supports a second argument to
       // expect() carrying a custom failure message: expect(value, "why").toBe(x).
       // The rule's minArgs/maxArgs both default to 1, the count vanilla Jest
@@ -98,7 +101,7 @@ export default tseslint.config(
       // to satisfy a false positive would degrade every guard in the repo to
       // "expected false to be true". Verified working: the messages appear in
       // full during mutation verification of the RN-resolution guard.
-      "vitest/valid-expect": ["error", { maxArgs: 2 }],
+      'vitest/valid-expect': ['error', { maxArgs: 2 }],
     },
   },
   // e2e specs live under e2e/ and are NOT in any app/package tsconfig include,
@@ -107,11 +110,11 @@ export default tseslint.config(
   // service" parse error. Bind e2e files to e2e/tsconfig.json (include: **/*.ts)
   // so type-aware rules resolve them.
   {
-    files: ["e2e/**/*.ts"],
+    files: ['e2e/**/*.ts'],
     languageOptions: {
       parserOptions: {
         projectService: false,
-        project: "./e2e/tsconfig.json",
+        project: './e2e/tsconfig.json',
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -125,11 +128,11 @@ export default tseslint.config(
   // above: bind them to a dedicated scripts/tsconfig.json so type-aware rules
   // resolve, and drop scripts/* from allowDefaultProject.
   {
-    files: ["scripts/**/*.ts", "scripts/**/*.mts"],
+    files: ['scripts/**/*.ts', 'scripts/**/*.mts'],
     languageOptions: {
       parserOptions: {
         projectService: false,
-        project: "./scripts/tsconfig.json",
+        project: './scripts/tsconfig.json',
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -182,19 +185,21 @@ export default tseslint.config(
   // the rule silently stops covering it. That is the trade for not flagging
   // correct code.
   {
-    files: ["e2e/**/*.spec.ts"],
+    files: ['e2e/**/*.spec.ts'],
     rules: {
-      "no-restricted-syntax": ["error",
+      'no-restricted-syntax': [
+        'error',
         {
-          selector: "VariableDeclarator[id.name=/^(ROW_VISIBILITY_BUDGET_MS|OPTIMISTIC_RENDER_BUDGET_MS)$/]",
+          selector:
+            'VariableDeclarator[id.name=/^(ROW_VISIBILITY_BUDGET_MS|OPTIMISTIC_RENDER_BUDGET_MS)$/]',
           message:
-            "E2E timing budgets are declared once in e2e/helpers/budgets.ts -- " +
-            "import ROW_VISIBILITY_BUDGET_MS or OPTIMISTIC_RENDER_BUDGET_MS " +
-            "instead of declaring a per-spec copy. Six copies of this constant " +
-            "are why the seeded-row flake survived a budget raise. If an " +
-            "assertion needs a LARGER budget to pass, it is racing an async " +
-            "pipeline: call settleBoardAfterCreate from helpers/wait-for-projection " +
-            "before asserting a server-derived field, rather than waiting longer.",
+            'E2E timing budgets are declared once in e2e/helpers/budgets.ts -- ' +
+            'import ROW_VISIBILITY_BUDGET_MS or OPTIMISTIC_RENDER_BUDGET_MS ' +
+            'instead of declaring a per-spec copy. Six copies of this constant ' +
+            'are why the seeded-row flake survived a budget raise. If an ' +
+            'assertion needs a LARGER budget to pass, it is racing an async ' +
+            'pipeline: call settleBoardAfterCreate from helpers/wait-for-projection ' +
+            'before asserting a server-derived field, rather than waiting longer.',
         },
       ],
     },
@@ -202,14 +207,19 @@ export default tseslint.config(
 
   // Forbid test imports in production code
   {
-    files: ["apps/*/src/**/*.ts", "workers/*/src/**/*.ts", "packages/*/src/**/*.ts"],
+    files: ['apps/*/src/**/*.ts', 'workers/*/src/**/*.ts', 'packages/*/src/**/*.ts'],
     rules: {
-      "no-restricted-imports": ["error", {
-        patterns: [{
-          group: ["vitest", "**/test/**", "@fleet/test-fixtures"],
-          message: "Test imports are forbidden in production code",
-        }],
-      }],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['vitest', '**/test/**', '@fleet/test-fixtures'],
+              message: 'Test imports are forbidden in production code',
+            },
+          ],
+        },
+      ],
     },
   },
 
@@ -236,16 +246,17 @@ export default tseslint.config(
   // with no DI container. A blanket ban would fire on correct code, which is
   // how a rule earns a blanket eslint-disable.
   {
-    files: ["apps/*/src/**/*.module.ts", "workers/*/src/**/*.module.ts"],
+    files: ['apps/*/src/**/*.module.ts', 'workers/*/src/**/*.module.ts'],
     rules: {
-      "no-restricted-syntax": ["error",
+      'no-restricted-syntax': [
+        'error',
         {
           selector: "MemberExpression[object.name='process'][property.name='env']",
-          message: "Read config via ConfigService (validated by EnvSchema), not raw process.env.",
+          message: 'Read config via ConfigService (validated by EnvSchema), not raw process.env.',
         },
         {
           selector: "MemberExpression[object.name='process'][property.value='env']",
-          message: "Read config via ConfigService (validated by EnvSchema), not raw process.env.",
+          message: 'Read config via ConfigService (validated by EnvSchema), not raw process.env.',
         },
       ],
     },
@@ -271,32 +282,32 @@ export default tseslint.config(
   // SCOPED TO *.module.ts, not global: a decorated class elsewhere (a
   // @Injectable() with no members, say) is still worth reporting.
   {
-    files: ["apps/*/src/**/*.module.ts", "workers/*/src/**/*.module.ts"],
+    files: ['apps/*/src/**/*.module.ts', 'workers/*/src/**/*.module.ts'],
     rules: {
-      "@typescript-eslint/no-extraneous-class": ["error", { allowWithDecorator: true }],
+      '@typescript-eslint/no-extraneous-class': ['error', { allowWithDecorator: true }],
     },
   },
 
   // Custom rule overrides
   {
     rules: {
-      "@typescript-eslint/no-explicit-any": "error",
-      "@typescript-eslint/consistent-type-imports": [
-        "error",
-        { prefer: "type-imports", fixStyle: "inline-type-imports" },
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
       ],
-      "@typescript-eslint/no-unused-vars": [
-        "error",
+      '@typescript-eslint/no-unused-vars': [
+        'error',
         {
-          argsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
-          caughtErrorsIgnorePattern: "^_",
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
         },
       ],
-      "@typescript-eslint/no-floating-promises": "error",
-      "@typescript-eslint/no-misused-promises": "error",
-      "@typescript-eslint/explicit-function-return-type": [
-        "warn",
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
+      '@typescript-eslint/explicit-function-return-type': [
+        'warn',
         { allowExpressions: true, allowTypedFunctionExpressions: true },
       ],
     },
@@ -324,24 +335,24 @@ export default tseslint.config(
   // languageOptions.globals. Only JS was affected: typescript-eslint disables
   // no-undef for .ts files, since TypeScript itself catches undefined identifiers.
   {
-    files: ["**/*.mjs", "**/*.cjs", "**/*.js"],
+    files: ['**/*.mjs', '**/*.cjs', '**/*.js'],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: {
       globals: {
-        process: "readonly",
-        console: "readonly",
-        Buffer: "readonly",
-        URL: "readonly",
-        fetch: "readonly",
-        __dirname: "readonly",
-        __filename: "readonly",
+        process: 'readonly',
+        console: 'readonly',
+        Buffer: 'readonly',
+        URL: 'readonly',
+        fetch: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
       },
     },
     rules: {
-      "@typescript-eslint/no-floating-promises": "off",
-      "@typescript-eslint/no-misused-promises": "off",
-      "@typescript-eslint/consistent-type-imports": "off",
-      "@typescript-eslint/explicit-function-return-type": "off",
+      '@typescript-eslint/no-floating-promises': 'off',
+      '@typescript-eslint/no-misused-promises': 'off',
+      '@typescript-eslint/consistent-type-imports': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
     },
   },
 

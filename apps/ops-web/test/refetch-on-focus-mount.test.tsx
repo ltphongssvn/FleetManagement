@@ -20,7 +20,10 @@ vi.mock('next/navigation', () => ({
 
 import { RefetchOnFocusMount } from '../src/features/shell/RefetchOnFocusMount';
 
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function setVisibility(state: 'visible' | 'hidden'): void {
   Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });

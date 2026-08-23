@@ -12,9 +12,13 @@ import type { StopProof } from '@fleet/sync-protocol';
 
 function renderCells(stops: readonly DispatchBoardStop[]): void {
   render(
-    <table><tbody><tr>
-      <StopSlotCells primaryRef='XTT.06-005' stops={stops} />
-    </tr></tbody></table>,
+    <table>
+      <tbody>
+        <tr>
+          <StopSlotCells primaryRef="XTT.06-005" stops={stops} />
+        </tr>
+      </tbody>
+    </table>,
   );
 }
 
@@ -28,8 +32,12 @@ const PROOF: StopProof = {
 describe('board-stops warehouse name (Feature 1)', () => {
   it('renders the pickup warehouse name ABOVE the Phiếu Cân link', () => {
     const stop: DispatchBoardStop = {
-      sequence: 1, stopType: 'pickup', warehouseName: 'Đức Tài',
-      arrivedAt: null, departedAt: null, proof: PROOF,
+      sequence: 1,
+      stopType: 'pickup',
+      warehouseName: 'Đức Tài',
+      arrivedAt: null,
+      departedAt: null,
+      proof: PROOF,
     };
     renderCells([stop]);
     const nameNode = screen.getByTestId('board-stop-warehouse-XTT.06-005-pickup-1');
@@ -40,30 +48,46 @@ describe('board-stops warehouse name (Feature 1)', () => {
 
   it('renders the warehouse name above the status text when there is no proof', () => {
     const stop: DispatchBoardStop = {
-      sequence: 1, stopType: 'pickup', warehouseName: 'Chơn Chính',
-      arrivedAt: null, departedAt: null, proof: null,
+      sequence: 1,
+      stopType: 'pickup',
+      warehouseName: 'Chơn Chính',
+      arrivedAt: null,
+      departedAt: null,
+      proof: null,
     };
     renderCells([stop]);
     const nameNode = screen.getByTestId('board-stop-warehouse-XTT.06-005-pickup-1');
     expect(nameNode).toHaveTextContent('Chơn Chính');
     const status = screen.getByTestId('board-stop-status-XTT.06-005-pickup-1');
     expect(status).toHaveTextContent('Chưa tới');
-    expect(nameNode.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      nameNode.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it('renders the delivery warehouse name in the Kho giao hàng cell', () => {
     const stop: DispatchBoardStop = {
-      sequence: 2, stopType: 'delivery', warehouseName: 'Kho Giao 1',
-      arrivedAt: null, departedAt: null, proof: { ...PROOF, extractedNetWeightKg: 50140 },
+      sequence: 2,
+      stopType: 'delivery',
+      warehouseName: 'Kho Giao 1',
+      arrivedAt: null,
+      departedAt: null,
+      proof: { ...PROOF, extractedNetWeightKg: 50140 },
     };
     renderCells([stop]);
-    expect(screen.getByTestId('board-stop-warehouse-XTT.06-005-delivery-1')).toHaveTextContent('Kho Giao 1');
+    expect(screen.getByTestId('board-stop-warehouse-XTT.06-005-delivery-1')).toHaveTextContent(
+      'Kho Giao 1',
+    );
   });
 
   it('renders no warehouse-name node when warehouseName is null (no em-dash leak)', () => {
     const stop: DispatchBoardStop = {
-      sequence: 1, stopType: 'pickup', warehouseName: null,
-      arrivedAt: null, departedAt: null, proof: null,
+      sequence: 1,
+      stopType: 'pickup',
+      warehouseName: null,
+      arrivedAt: null,
+      departedAt: null,
+      proof: null,
     };
     renderCells([stop]);
     expect(screen.queryByTestId('board-stop-warehouse-XTT.06-005-pickup-1')).toBeNull();

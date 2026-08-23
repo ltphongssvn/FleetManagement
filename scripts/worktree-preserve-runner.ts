@@ -98,7 +98,9 @@ export function runPreserve(
     }
     if (plan.action === 'refuse') {
       summary.refused += 1;
-      lines.push('REFUSE     ' + target.path + ' (' + plan.reason + ' -- no branch to commit onto)');
+      lines.push(
+        'REFUSE     ' + target.path + ' (' + plan.reason + ' -- no branch to commit onto)',
+      );
       continue;
     }
     planned += 1;
@@ -106,8 +108,13 @@ export function runPreserve(
     // never called on this path, so a survey cannot write.
     if (!options.execute) {
       lines.push(
-        'would-preserve ' + target.path + ' (' + String(plan.fileCount) + ' file(s) on ' +
-          String(target.branch) + ')',
+        'would-preserve ' +
+          target.path +
+          ' (' +
+          String(plan.fileCount) +
+          ' file(s) on ' +
+          String(target.branch) +
+          ')',
       );
       continue;
     }
@@ -124,12 +131,20 @@ export function runPreserve(
         // NO PUSH. The commit stays local so the operator can inspect and
         // repair it; publishing would make an incomplete rescue look complete.
         summary.shortfall += 1;
-        const detail = verdict.kind === 'shortfall'
-          ? String(verdict.missing) + ' file(s) missing'
-          : String(verdict.extra) + ' unexpected extra file(s)';
+        const detail =
+          verdict.kind === 'shortfall'
+            ? String(verdict.missing) + ' file(s) missing'
+            : String(verdict.extra) + ' unexpected extra file(s)';
         lines.push(
-          'SHORTFALL  ' + target.path + ' (expected ' + String(plan.fileCount) +
-            ', committed ' + String(committed) + ' -- ' + detail + '; NOT pushed)',
+          'SHORTFALL  ' +
+            target.path +
+            ' (expected ' +
+            String(plan.fileCount) +
+            ', committed ' +
+            String(committed) +
+            ' -- ' +
+            detail +
+            '; NOT pushed)',
         );
         continue;
       }

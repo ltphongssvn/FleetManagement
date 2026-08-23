@@ -88,7 +88,8 @@ export async function waitForProjectionRow(
   await expect
     .poll(() => boardCarriesRef(api, token, externalRef), {
       message:
-        'order ' + externalRef +
+        'order ' +
+        externalRef +
         ' never reached GET /dispatch/board: the outbox -> relay -> BullMQ -> ' +
         'projection pipeline did not materialize a visible row',
       intervals: POLL_INTERVALS_MS,

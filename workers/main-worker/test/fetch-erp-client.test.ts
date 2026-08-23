@@ -16,15 +16,25 @@ describe('@fleet/main-worker - FetchErpClient', () => {
     vi.restoreAllMocks();
   });
   it('returns externalInvoiceId on 2xx and sends JSON content-type + API key headers', async () => {
-    const captured: { url?: string; init?: { method?: string; headers?: Record<string, string> } } = {};
-    const fetchFn = vi.fn().mockImplementation(
-      (url: string, init: { method?: string; headers?: Record<string, string> }) => {
-        captured.url = url;
-        captured.init = init;
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ externalInvoiceId: 'EXT-42' }) });
-      },
-    );
-    const client = new FetchErpClient({ baseUrl: 'http://erp', apiKey: 'k', fetchFn: fetchFn as never });
+    const captured: { url?: string; init?: { method?: string; headers?: Record<string, string> } } =
+      {};
+    const fetchFn = vi
+      .fn()
+      .mockImplementation(
+        (url: string, init: { method?: string; headers?: Record<string, string> }) => {
+          captured.url = url;
+          captured.init = init;
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ externalInvoiceId: 'EXT-42' }),
+          });
+        },
+      );
+    const client = new FetchErpClient({
+      baseUrl: 'http://erp',
+      apiKey: 'k',
+      fetchFn: fetchFn as never,
+    });
     const res = await client.sendInvoice(payload);
     expect(res.externalInvoiceId).toBe('EXT-42');
     expect(captured.url).toBe('http://erp/invoices');
@@ -34,23 +44,42 @@ describe('@fleet/main-worker - FetchErpClient', () => {
   });
   it('throws on non-2xx and includes the error body detail in the message', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
-      ok: false, status: 500, statusText: 'err', text: () => Promise.resolve('boom'),
+      ok: false,
+      status: 500,
+      statusText: 'err',
+      text: () => Promise.resolve('boom'),
     });
-    const client = new FetchErpClient({ baseUrl: 'http://erp', apiKey: 'k', fetchFn: fetchFn as never });
+    const client = new FetchErpClient({
+      baseUrl: 'http://erp',
+      apiKey: 'k',
+      fetchFn: fetchFn as never,
+    });
     await expect(client.sendInvoice(payload)).rejects.toThrow(/ERP \/invoices HTTP 500 err boom/);
   });
   it('throws when response missing externalInvoiceId', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
-      ok: true, json: () => Promise.resolve({ wrong: 'x' }),
+      ok: true,
+      json: () => Promise.resolve({ wrong: 'x' }),
     });
-    const client = new FetchErpClient({ baseUrl: 'http://erp', apiKey: 'k', fetchFn: fetchFn as never });
+    const client = new FetchErpClient({
+      baseUrl: 'http://erp',
+      apiKey: 'k',
+      fetchFn: fetchFn as never,
+    });
     await expect(client.sendInvoice(payload)).rejects.toThrow(/externalInvoiceId/);
   });
   it('uses empty-string detail when error body is unreadable (no injected text, no "undefined")', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
-      ok: false, status: 502, statusText: 'bad', text: () => Promise.reject(new Error('stream err')),
+      ok: false,
+      status: 502,
+      statusText: 'bad',
+      text: () => Promise.reject(new Error('stream err')),
     });
-    const client = new FetchErpClient({ baseUrl: 'http://erp', apiKey: 'k', fetchFn: fetchFn as never });
+    const client = new FetchErpClient({
+      baseUrl: 'http://erp',
+      apiKey: 'k',
+      fetchFn: fetchFn as never,
+    });
     let caught: unknown;
     try {
       await client.sendInvoice(payload);
@@ -65,15 +94,16 @@ describe('@fleet/main-worker - FetchErpClient', () => {
     expect(message).not.toContain('Stryker');
   });
   it('falls back to globalThis.fetch when no fetchFn is configured (covers ?? branch)', async () => {
-    const globalFetch = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ externalInvoiceId: 'EXT-GLOBAL' }),
-      } as never);
+    const globalFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ externalInvoiceId: 'EXT-GLOBAL' }),
+    } as never);
     const client = new FetchErpClient({ baseUrl: 'http://erp', apiKey: 'k' });
     const res = await client.sendInvoice(payload);
     expect(res.externalInvoiceId).toBe('EXT-GLOBAL');
-    expect(globalFetch).toHaveBeenCalledWith('http://erp/invoices', expect.objectContaining({ method: 'POST' }));
+    expect(globalFetch).toHaveBeenCalledWith(
+      'http://erp/invoices',
+      expect.objectContaining({ method: 'POST' }),
+    );
   });
 });

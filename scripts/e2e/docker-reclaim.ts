@@ -47,11 +47,7 @@ import {
   STACK_AGE_EXIT,
   stackAgeExitCode,
 } from './stack-age.js';
-import {
-  formatAgeReport,
-  parseReclaimArgv,
-  summarizeStackAges,
-} from './reclaim-mode.js';
+import { formatAgeReport, parseReclaimArgv, summarizeStackAges } from './reclaim-mode.js';
 // Axis-1 trust boundary: docker CLI output is external input, validated here
 // once. Compose emits more fields than these; unknown keys are ignored rather
 // than rejected so a future docker release cannot break the reclaim.
@@ -135,7 +131,10 @@ function oldestStartFor(project: string): string | null {
   if (ps.status !== 0) {
     throw new Error('docker ps failed for ' + project + ': ' + ps.stderr);
   }
-  const ids = ps.stdout.split(NL).map((l) => l.trim()).filter((l) => l.length > 0);
+  const ids = ps.stdout
+    .split(NL)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
   if (ids.length === 0) return null;
   const inspect = spawnSync('docker', [...inspectStartedAtArgs(ids)], { encoding: 'utf-8' });
   if (inspect.status !== 0) {
@@ -157,8 +156,17 @@ function reportMode(ttlHours: number): number {
   for (const line of formatAgeReport(ages)) process.stdout.write(line + NL);
   const s = summarizeStackAges(ages);
   process.stdout.write(
-    NL + 'Summary: ' + String(s.fresh) + ' fresh, ' + String(s.idle) + ' idle, ' +
-    String(s.stale) + ' stale  (ttl ' + String(ttlHours) + 'h, REPORT ONLY -- nothing stopped)' + NL,
+    NL +
+      'Summary: ' +
+      String(s.fresh) +
+      ' fresh, ' +
+      String(s.idle) +
+      ' idle, ' +
+      String(s.stale) +
+      ' stale  (ttl ' +
+      String(ttlHours) +
+      'h, REPORT ONLY -- nothing stopped)' +
+      NL,
   );
   return stackAgeExitCode(s);
 }
@@ -176,8 +184,10 @@ function reclaimMode(): number {
   }
 
   process.stderr.write(
-    '[docker:reclaim] trimming build cache older than ' + cfg.pruneOlderThan +
-    ' (pnpm store cache-mount preserved)' + NL,
+    '[docker:reclaim] trimming build cache older than ' +
+      cfg.pruneOlderThan +
+      ' (pnpm store cache-mount preserved)' +
+      NL,
   );
   spawnSync('docker', [...cachePruneArgs(cfg)], { stdio: 'inherit' });
 
@@ -185,8 +195,10 @@ function reclaimMode(): number {
   const v = reclaimVerdict(runningFleetProjects());
   if (v.verdict === 'RECLAIMED') {
     process.stderr.write(
-      '[docker:reclaim] RECLAIMED -- no fleet projects running.' + NL +
-      'Docker Desktop still holds its VM memory while open; quit it to return that RAM.' + NL,
+      '[docker:reclaim] RECLAIMED -- no fleet projects running.' +
+        NL +
+        'Docker Desktop still holds its VM memory while open; quit it to return that RAM.' +
+        NL,
     );
   } else {
     process.stderr.write(
@@ -202,9 +214,7 @@ function main(): number {
     argv = parseReclaimArgv(process.argv.slice(2));
   } catch (err) {
     process.stderr.write((err instanceof Error ? err.message : String(err)) + NL);
-    process.stderr.write(
-      'usage: turbo run docker:reclaim -- [--report] [--ttl-hours <n>]' + NL,
-    );
+    process.stderr.write('usage: turbo run docker:reclaim -- [--report] [--ttl-hours <n>]' + NL);
     return STACK_AGE_EXIT.usage;
   }
   // Docker errors are OPERATIONAL: an unreachable daemon is a predicted

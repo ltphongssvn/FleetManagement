@@ -24,7 +24,10 @@ const SQ = String.fromCharCode(39);
 const NL = String.fromCharCode(10);
 const BAD_ESCAPES = [BS + DOL, BS + DQ, BS + BS];
 
-interface Block { step: string; script: string }
+interface Block {
+  step: string;
+  script: string;
+}
 
 // Extract YAML literal/folded block scalars introduced by run: | or run: >
 // (with optional chomping/indentation indicators). Captures the indented body

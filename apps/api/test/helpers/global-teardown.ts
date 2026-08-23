@@ -26,7 +26,9 @@ const WT_KEY = worktreeKey(resolve(here, '../../../..'));
 
 function sleepSyncMs(ms: number): void {
   const end = Date.now() + ms;
-  while (Date.now() < end) { /* busy wait — sync because we're in vitest teardown */ }
+  while (Date.now() < end) {
+    /* busy wait — sync because we're in vitest teardown */
+  }
 }
 function listTestcontainerIds(maxAttempts: number): readonly string[] {
   let lastErr: unknown = null;
@@ -35,12 +37,17 @@ function listTestcontainerIds(maxAttempts: number): readonly string[] {
       const raw = execFileSync(
         'docker',
         [
-          'ps', '-aq',
-          '--filter', 'label=org.testcontainers=true',
-          '--filter', 'label=' + WORKTREE_LABEL_KEY + '=' + WT_KEY,
+          'ps',
+          '-aq',
+          '--filter',
+          'label=org.testcontainers=true',
+          '--filter',
+          'label=' + WORKTREE_LABEL_KEY + '=' + WT_KEY,
         ],
         { stdio: ['ignore', 'pipe', 'pipe'] },
-      ).toString().trim();
+      )
+        .toString()
+        .trim();
       return raw.length === 0 ? [] : raw.split(/\s+/);
     } catch (err) {
       lastErr = err;
@@ -56,10 +63,18 @@ export default function setup(): () => Promise<void> {
       const ids = listTestcontainerIds(6);
       if (ids.length === 0) return;
       execFileSync('docker', ['rm', '-f', ...ids], { stdio: ['ignore', 'pipe', 'pipe'] });
-      process.stderr.write('[vitest globalTeardown] removed ' + String(ids.length) + ' testcontainers container(s) for worktree ' + WT_KEY + '\n');
+      process.stderr.write(
+        '[vitest globalTeardown] removed ' +
+          String(ids.length) +
+          ' testcontainers container(s) for worktree ' +
+          WT_KEY +
+          '\n',
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      process.stderr.write('[vitest globalTeardown] docker cleanup failed (non-fatal): ' + msg + '\n');
+      process.stderr.write(
+        '[vitest globalTeardown] docker cleanup failed (non-fatal): ' + msg + '\n',
+      );
     }
   };
 }

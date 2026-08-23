@@ -117,13 +117,13 @@ trustPolicyExclude:
   - 'ua-parser-js@1.0.41'
 
 packages:
-  - "apps/*"
-  - "workers/*"
-  - "packages/*"
+  - 'apps/*'
+  - 'workers/*'
+  - 'packages/*'
   # The top-level Playwright acceptance suite is a first-class workspace member
   # (@fleet/e2e) so its specs IMPORT shared contracts (e.g. the export-header SSOT)
   # via the workspace: protocol instead of re-declaring them and drifting.
-  - "e2e"
+  - 'e2e'
 # Single source of truth for the Zod version across every workspace package.
 # All @fleet/* packages reference this via the catalog: protocol in their
 # package.json (dependencies AND devDependencies), so the entire monorepo
@@ -136,8 +136,8 @@ catalog:
 # blocks all build scripts by default; these are the packages that
 # legitimately need to compile native addons or download prebuilt binaries.
 allowBuilds:
-  "@nestjs/core": true
-  "@sentry/cli": true
+  '@nestjs/core': true
+  '@sentry/cli': true
   cpu-features: true
   dtrace-provider: false
   esbuild: true
@@ -177,9 +177,9 @@ allowBuilds:
 # loud and immediate (oxc throws "Cannot find native binding" at startup), never
 # silent. wasm-fallback-bindings.guard.test.ts pins the list.
 ignoredOptionalDependencies:
-  - "@oxc-parser/binding-wasm32-wasi"
-  - "@oxc-resolver/binding-wasm32-wasi"
-  - "@rolldown/binding-wasm32-wasi"
+  - '@oxc-parser/binding-wasm32-wasi'
+  - '@oxc-resolver/binding-wasm32-wasi'
+  - '@rolldown/binding-wasm32-wasi'
   # @tailwindcss/oxide-wasm32-wasi is a FOURTH of the same class, found only by
   # reading the lockfile after the first three were removed -- it does not
   # currently trip the peer check, because it wants @emnapi/* ^1.11.1 (caret 1.x)
@@ -188,42 +188,42 @@ ignoredOptionalDependencies:
   # Oxide, including StackBlitz", and its own PR says macOS AArch64 and Windows
   # users should use the native modules instead. Leaving the one sibling that has
   # not yet bumped is precisely how this recurs.
-  - "@tailwindcss/oxide-wasm32-wasi"
+  - '@tailwindcss/oxide-wasm32-wasi'
   # @img/sharp-wasm32 is the FIFTH, reached via next -> sharp, and it was the last
   # thing still pulling @emnapi/runtime into the tree. sharp resolves
   # @img/sharp-darwin-arm64 / @img/sharp-linux-x64 on every host here; the wasm32
   # build exists for runtimes with no native option. Removing it takes @emnapi out
   # of the graph entirely rather than leaving one orphaned copy behind.
-  - "@img/sharp-wasm32"
+  - '@img/sharp-wasm32'
 
 overrides:
-  "vite@<8.0.16": ">=8.0.16"
-  esbuild: ">=0.28.1"
+  'vite@<8.0.16': '>=8.0.16'
+  esbuild: '>=0.28.1'
   # GHSA-r28c-9q8g-f849: postcss <=8.5.17 path traversal in previous-source-map
   # auto-loading (sourceMappingURL) leaks arbitrary .map files. The tree carried
   # TWO resolutions -- 8.5.21 (already patched) and a stale 8.5.15 pinned through
   # the webpack/@sentry/nextjs peer chain that the old >=8.5.10 floor still
   # satisfied, so it never re-resolved. Raising the floor forces it forward; no
   # release-age exclude is needed because 8.5.21 already installs cleanly.
-  postcss: ">=8.5.18"
-  uuid: ">=14.0.0"
-  vitest: "4.1.5"
-  "@vitest/coverage-v8": "4.1.5"
-  "@vitest/coverage-istanbul": "4.1.5"
-  fast-xml-builder: ">=1.1.7"
+  postcss: '>=8.5.18'
+  uuid: '>=14.0.0'
+  vitest: '4.1.5'
+  '@vitest/coverage-v8': '4.1.5'
+  '@vitest/coverage-istanbul': '4.1.5'
+  fast-xml-builder: '>=1.1.7'
   # GHSA-6gpp-xcg3-4w24 / m99w-x7hq-7vfj / 89xv-2m56-2m9x / p9j2-gv94-2wf4:
   # next <16.2.11 middleware/proxy bypass + Server Action DoS + 2x SSRF.
-  next: ">=16.2.11"
-  "@opentelemetry/auto-instrumentations-node": ">=0.75.0"
-  "@opentelemetry/sdk-node": ">=0.217.0"
+  next: '>=16.2.11'
+  '@opentelemetry/auto-instrumentations-node': '>=0.75.0'
+  '@opentelemetry/sdk-node': '>=0.217.0'
   # GHSA-45rx-2jwx-cxfr (CVE-2026-59892): propagator-jaeger <2.9.0 uncaught URIError DoS on malformed uber-trace-id header. sdk-node 0.217.0 pins it to EXACT 2.7.1, so re-resolve cannot reach the patch -- scoped override is the last-resort fix.
-  "@opentelemetry/propagator-jaeger": ">=2.9.0"
-  "protobufjs@<7.5.6": ">=7.5.6"
-  "protobufjs@>=8.0.0 <=8.0.1": ">=8.0.2"
-  glob: ">=10.0.0"
-  rimraf: ">=4.0.0"
-  "@ungap/structured-clone": ">=1.3.0"
-  tmp: ">=0.2.6"
+  '@opentelemetry/propagator-jaeger': '>=2.9.0'
+  'protobufjs@<7.5.6': '>=7.5.6'
+  'protobufjs@>=8.0.0 <=8.0.1': '>=8.0.2'
+  glob: '>=10.0.0'
+  rimraf: '>=4.0.0'
+  '@ungap/structured-clone': '>=1.3.0'
+  tmp: '>=0.2.6'
   # GHSA-mh99-v99m-4gvg (CVE-2026-14257): brace-expansion <=5.0.7 memory
   # exhaustion. expand() caps the NUMBER of results (max, default 100000) but
   # not the LENGTH of each result string, so chained brace groups keep the
@@ -233,12 +233,12 @@ overrides:
   # one patch below the fix: GHSA-rgw5-rvv9-x895 reports a DoS via unbounded
   # intermediate arrays that BYPASSES the CVE-2026-14257 mitigation, so <5.0.9
   # is vulnerable despite the earlier patch. Same stale-floor shape, third time.
-  brace-expansion: ">=5.0.9"
-  ws: ">=8.20.1"
-  protobufjs: ">=8.2.0"
-  "@expo/dom-webview": "55.0.6"
-  qs: ">=6.15.2"
-  shell-quote: ">=1.8.5"
+  brace-expansion: '>=5.0.9'
+  ws: '>=8.20.1'
+  protobufjs: '>=8.2.0'
+  '@expo/dom-webview': '55.0.6'
+  qs: '>=6.15.2'
+  shell-quote: '>=1.8.5'
   '@grpc/grpc-js@>=1.14.0 <1.14.4': ^1.14.4
   '@babel/core@<=7.29.0': ^7.29.1
   '@opentelemetry/core@<2.8.0': ^2.8.0
@@ -277,32 +277,32 @@ overrides:
   # construction rather than by a selector the author remembered to bound.
   #
   # REMOVE once cosmiconfig and jsdom floor their own js-yaml ranges at >=4.3.1.
-  "js-yaml@": "4.3.1"
+  'js-yaml@': '4.3.1'
   protobufjs@>=8.0.0 <=8.5.0: ^8.5.1
   protobufjs@>=8.2.0 <=8.4.2: ^8.4.3
   tmp@>=0.2.6 <0.2.7: ^0.2.7
-  vite: ">=8.0.16"
-  multer: ">=2.2.0"
+  vite: '>=8.0.16'
+  multer: '>=2.2.0'
   # GHSA-2v37-7h3g-55p8: nanoid <3.3.17 loops forever when a custom generator
   # is called with size zero. Same optional-Expo-peer chain, via postcss and
   # @react-navigation. Bounded so majors 4+ are untouched.
-  "nanoid@<3.3.17": ">=3.3.17"
+  'nanoid@<3.3.17': '>=3.3.17'
   # GHSA-vmh5-mc38-953g: undici 7.23.0-7.27.x SOCKS5 ProxyAgent TLS bypass.
   # Transitive via @semantic-release/github + testcontainers; scoped to the
   # vulnerable 7.x range so undici 6.x (via @semantic-release/npm) is untouched.
-  "undici@>=7.23.0 <7.28.0": ">=7.28.0"
+  'undici@>=7.23.0 <7.28.0': '>=7.28.0'
   # GHSA-2m8v-j782-fhvr: socket.io-parser <4.2.7 zero-attachment memory
   # exhaustion -- a crafted packet makes the server wait on and buffer an
   # unbounded number of binary attachments. Reaches us through
   # @nestjs/platform-socket.io -> socket.io, so it is a RUNTIME path on the api
   # (the commands gateway), not dev-only. Scoped to the vulnerable range so
   # other majors are untouched.
-  "socket.io-parser@>=4.0.0 <4.2.7": ">=4.2.7"
+  'socket.io-parser@>=4.0.0 <4.2.7': '>=4.2.7'
   # GHSA-vxpw-j846-p89q: undici <6.27.0 WebSocket DoS via fragment count
   # bypass. Transitive via @semantic-release/* -> @actions/http-client (the
   # 6.x path the 7.x pin above intentionally left alone). Dev-only (Release
   # CI job). Scoped to the vulnerable 6.x range so other majors are untouched.
-  "undici@<6.27.0": ">=6.27.0"
+  'undici@<6.27.0': '>=6.27.0'
   # GHSA-7p8r-x3mc-p8w7: fast-uri <3.1.5 host confusion -- a backslash is
   # accepted as an authority introducer, so a crafted URI parses to an
   # unexpected host. PRODUCTION-reachable, verified with pnpm audit --prod:
@@ -314,7 +314,7 @@ overrides:
   # tried first and reported "Already up to date". Bounded selector so no
   # future consumer is dragged across a major (the js-yaml lesson above).
   # REMOVE once ajv ships a release whose own floor is >=3.1.5.
-  "fast-uri@>=3.0.0 <3.1.5": ">=3.1.5"
+  'fast-uri@>=3.0.0 <3.1.5': '>=3.1.5'
 # Accepted-risk allowlist (pnpm 11 filters audit by GHSA, not CVE).
 auditConfig:
   ignoreGhsas:

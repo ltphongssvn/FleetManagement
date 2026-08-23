@@ -28,7 +28,10 @@ describe('@fleet/api - wipeBusinessData production guard wiring', () => {
     const db = { execute };
     await wipeBusinessData(db as never, {
       environment: 'production',
-      authorization: { confirmedEnvironment: 'production', reason: 'approved incident INC-1234 maintenance window' },
+      authorization: {
+        confirmedEnvironment: 'production',
+        reason: 'approved incident INC-1234 maintenance window',
+      },
     });
     // The guard passed, so the enumeration query ran.
     expect(execute).toHaveBeenCalledOnce();

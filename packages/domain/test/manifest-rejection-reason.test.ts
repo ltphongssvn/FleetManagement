@@ -9,9 +9,15 @@ import {
 describe('@fleet/domain - MANIFEST_REJECTION_REASONS', () => {
   it('exports the canonical 9-value enum', () => {
     expect(MANIFEST_REJECTION_REASONS).toEqual([
-      'blurred_image', 'wrong_manifest', 'missing_page', 'oversized_file',
-      'unsupported_format', 'duplicate_upload', 'hash_mismatch',
-      'virus_detected', 'other',
+      'blurred_image',
+      'wrong_manifest',
+      'missing_page',
+      'oversized_file',
+      'unsupported_format',
+      'duplicate_upload',
+      'hash_mismatch',
+      'virus_detected',
+      'other',
     ]);
   });
   it('Zod schema accepts canonical values', () => {

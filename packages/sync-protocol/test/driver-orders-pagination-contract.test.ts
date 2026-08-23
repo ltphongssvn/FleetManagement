@@ -76,7 +76,8 @@ describe('DriverCompletedPageQuerySchema', () => {
   });
   it('rejects pageSize over the shared server cap (kills max() removal)', () => {
     expect(
-      DriverCompletedPageQuerySchema.safeParse({ pageSize: String(ROAD_RUN_PAGE_SIZE_MAX + 1) }).success,
+      DriverCompletedPageQuerySchema.safeParse({ pageSize: String(ROAD_RUN_PAGE_SIZE_MAX + 1) })
+        .success,
     ).toBe(false);
   });
   it('accepts an optional search term and preserves it', () => {
@@ -108,7 +109,9 @@ describe('DriverCompletedPageResponseSchema', () => {
   it('rejects a row missing a required key (kills row-schema drift)', () => {
     const { roadRunId, ...broken } = row;
     void roadRunId;
-    expect(DriverCompletedPageResponseSchema.safeParse({ ...good, data: [broken] }).success).toBe(false);
+    expect(DriverCompletedPageResponseSchema.safeParse({ ...good, data: [broken] }).success).toBe(
+      false,
+    );
   });
   it('requires the hasMore flag (kills field removal)', () => {
     const { hasMore, ...withoutFlag } = good;

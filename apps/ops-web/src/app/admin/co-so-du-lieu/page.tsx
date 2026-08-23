@@ -22,31 +22,31 @@ import { SECTIONS, ReferenceSection } from '@/features/admin/reference-sections'
 
 export default function CoSoDuLieuPage(): JSX.Element {
   return (
-    <div className='space-y-6'>
+    <div className="space-y-6">
       <div>
         <a
-          href='/'
-          data-testid='co-so-du-lieu-back'
-          className='text-sm text-primary-on-dark hover:text-text-on-dark hover:underline'
+          href="/"
+          data-testid="co-so-du-lieu-back"
+          className="text-sm text-primary-on-dark hover:text-text-on-dark hover:underline"
         >
           ← Quay lại Bảng điều phối
         </a>
       </div>
       <div>
-        <h1 className='text-2xl font-semibold text-text-on-dark'>Cơ sở dữ liệu</h1>
-        <p className='mt-1 text-sm text-text-on-dark-muted'>
+        <h1 className="text-2xl font-semibold text-text-on-dark">Cơ sở dữ liệu</h1>
+        <p className="mt-1 text-sm text-text-on-dark-muted">
           Quản lý tài xế, xe và dữ liệu điều phối.
         </p>
       </div>
-      <div className='rounded-xl bg-white/95 p-4 shadow-lg ring-1 ring-black/5'>
-        <h2 className='mb-3 text-lg font-semibold text-text-primary'>Tài xế &amp; xe</h2>
+      <div className="rounded-xl bg-white/95 p-4 shadow-lg ring-1 ring-black/5">
+        <h2 className="mb-3 text-lg font-semibold text-text-primary">Tài xế &amp; xe</h2>
         <DriversAdminSection />
       </div>
-      <div className='rounded-xl bg-white/95 p-4 shadow-lg ring-1 ring-black/5'>
-        <h2 className='mb-3 text-lg font-semibold text-text-primary'>Thiết bị</h2>
+      <div className="rounded-xl bg-white/95 p-4 shadow-lg ring-1 ring-black/5">
+        <h2 className="mb-3 text-lg font-semibold text-text-primary">Thiết bị</h2>
         <DevicesApprovalSection />
       </div>
-      <div className='rounded-xl bg-white/95 p-4 shadow-lg ring-1 ring-black/5'>
+      <div className="rounded-xl bg-white/95 p-4 shadow-lg ring-1 ring-black/5">
         {SECTIONS.map((def) => (
           <ReferenceSection key={def.title} def={def} />
         ))}

@@ -53,8 +53,12 @@ describe('@fleet/api - scheduler registry: anti-collision invariant', () => {
     vi.useFakeTimers();
     const calls: string[] = [];
     const tickers = [
-      makeTicker('a', 1000, () => { calls.push('a'); }),
-      makeTicker('b', 2000, () => { calls.push('b'); }),
+      makeTicker('a', 1000, () => {
+        calls.push('a');
+      }),
+      makeTicker('b', 2000, () => {
+        calls.push('b');
+      }),
     ];
     const svc = new SchedulerService(tickers);
     svc.onModuleInit();
@@ -69,8 +73,12 @@ describe('@fleet/api - scheduler registry: anti-collision invariant', () => {
   it('drainByKey drives exactly one ticker run', async () => {
     const calls: string[] = [];
     const tickers = [
-      makeTicker('x', 1000, () => { calls.push('x'); }),
-      makeTicker('y', 1000, () => { calls.push('y'); }),
+      makeTicker('x', 1000, () => {
+        calls.push('x');
+      }),
+      makeTicker('y', 1000, () => {
+        calls.push('y');
+      }),
     ];
     const svc = new SchedulerService(tickers);
     await svc.drainByKey('x');
@@ -79,7 +87,9 @@ describe('@fleet/api - scheduler registry: anti-collision invariant', () => {
 
   it('a throwing ticker is isolated and does not stop the scheduler', async () => {
     const tickers = [
-      makeTicker('boom', 1000, () => { throw new Error('kaboom'); }),
+      makeTicker('boom', 1000, () => {
+        throw new Error('kaboom');
+      }),
     ];
     const svc = new SchedulerService(tickers);
     // drainByKey swallows (captures) the error rather than rejecting.

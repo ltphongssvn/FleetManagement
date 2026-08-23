@@ -52,7 +52,9 @@ describe('@fleet/api - OwnerMetricsController', () => {
   });
 
   it('is protected by JwtGuard and OwnerRoleGuard at the class level', () => {
-    const guards = Reflect.getMetadata('__guards__', OwnerMetricsController) as unknown[] | undefined;
+    const guards = Reflect.getMetadata('__guards__', OwnerMetricsController) as
+      | unknown[]
+      | undefined;
     expect(guards).toBeDefined();
     expect(guards).toContain(JwtGuard);
     expect(guards).toContain(OwnerRoleGuard);

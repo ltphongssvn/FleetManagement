@@ -17,8 +17,13 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
-  jwtVerify, importSPKI, createRemoteJWKSet, decodeJwt,
-  type CryptoKey, type JWTPayload, type JWTVerifyGetKey,
+  jwtVerify,
+  importSPKI,
+  createRemoteJWKSet,
+  decodeJwt,
+  type CryptoKey,
+  type JWTPayload,
+  type JWTVerifyGetKey,
 } from 'jose';
 import type { Env } from '../config/env.config.js';
 import type { IIdentityProvider, VerifiedIdentity } from './identity-provider.interface.js';

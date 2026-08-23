@@ -19,10 +19,16 @@ const UUID = '11111111-1111-4111-8111-111111111111';
 
 describe('ManifestStopRefSchema', () => {
   it('accepts a stopId-only ref', () => {
-    expect(ManifestStopRefSchema.parse({ stopId: UUID, stopSequence: null })).toEqual({ stopId: UUID, stopSequence: null });
+    expect(ManifestStopRefSchema.parse({ stopId: UUID, stopSequence: null })).toEqual({
+      stopId: UUID,
+      stopSequence: null,
+    });
   });
   it('accepts a sequence-only ref', () => {
-    expect(ManifestStopRefSchema.parse({ stopId: null, stopSequence: 2 })).toEqual({ stopId: null, stopSequence: 2 });
+    expect(ManifestStopRefSchema.parse({ stopId: null, stopSequence: 2 })).toEqual({
+      stopId: null,
+      stopSequence: 2,
+    });
   });
   it('rejects when BOTH are null (kills .refine() removal)', () => {
     expect(() => ManifestStopRefSchema.parse({ stopId: null, stopSequence: null })).toThrow();
@@ -34,11 +40,17 @@ describe('ManifestStopRefSchema', () => {
     expect(() => ManifestStopRefSchema.parse({ stopId: 'nope', stopSequence: null })).toThrow();
   });
   it('rejects extra keys (.strict())', () => {
-    expect(() => ManifestStopRefSchema.parse({ stopId: UUID, stopSequence: null, extra: 1 })).toThrow();
+    expect(() =>
+      ManifestStopRefSchema.parse({ stopId: UUID, stopSequence: null, extra: 1 }),
+    ).toThrow();
   });
 });
 
-const validProof = { manifestId: UUID, photoUrl: 'https://s3.example/p.jpg?sig=x', capturedAt: '2026-06-10T01:00:00.000Z' };
+const validProof = {
+  manifestId: UUID,
+  photoUrl: 'https://s3.example/p.jpg?sig=x',
+  capturedAt: '2026-06-10T01:00:00.000Z',
+};
 
 describe('StopProofSchema', () => {
   it('accepts a well-formed proof', () => {
@@ -55,7 +67,15 @@ describe('StopProofSchema', () => {
   });
 });
 
-const validStop = { stopId: UUID, sequence: 1, stopType: 'pickup', warehouseName: 'Kho 1', arrivedAt: null, departedAt: null, proof: null };
+const validStop = {
+  stopId: UUID,
+  sequence: 1,
+  stopType: 'pickup',
+  warehouseName: 'Kho 1',
+  arrivedAt: null,
+  departedAt: null,
+  proof: null,
+};
 
 describe('DispatchStopViewSchema', () => {
   it('accepts a stop with proof === null', () => {
@@ -66,7 +86,9 @@ describe('DispatchStopViewSchema', () => {
     expect(DispatchStopViewSchema.parse(withProof)).toEqual(withProof);
   });
   it('accepts a null warehouseName (union branch)', () => {
-    expect(DispatchStopViewSchema.parse({ ...validStop, warehouseName: null }).warehouseName).toBeNull();
+    expect(
+      DispatchStopViewSchema.parse({ ...validStop, warehouseName: null }).warehouseName,
+    ).toBeNull();
   });
   it('rejects an unknown stopType (kills enum widening)', () => {
     expect(() => DispatchStopViewSchema.parse({ ...validStop, stopType: 'transfer' })).toThrow();
@@ -82,11 +104,24 @@ describe('DispatchStopViewSchema', () => {
 // Canonical board stop as the loader PARSES it: tolerant (strip). It carries NO
 // stopId field, and the API's per-stop stopId is silently dropped rather than
 // rejected — preserving the former non-strict loader behaviour (Postel).
-const validBoardStop = { sequence: 1, stopType: 'pickup', warehouseName: 'Kho 1', arrivedAt: null, departedAt: null, proof: null };
+const validBoardStop = {
+  sequence: 1,
+  stopType: 'pickup',
+  warehouseName: 'Kho 1',
+  arrivedAt: null,
+  departedAt: null,
+  proof: null,
+};
 
 describe('DispatchBoardStopSchema (tolerant loader shape)', () => {
   it('accepts a well-formed board stop and defaults proof to null when omitted', () => {
-    const parsed = DispatchBoardStopSchema.parse({ sequence: 1, stopType: 'pickup', warehouseName: 'Kho 1', arrivedAt: null, departedAt: null });
+    const parsed = DispatchBoardStopSchema.parse({
+      sequence: 1,
+      stopType: 'pickup',
+      warehouseName: 'Kho 1',
+      arrivedAt: null,
+      departedAt: null,
+    });
     expect(parsed.proof).toBeNull();
   });
   it('strips the API per-stop stopId (tolerant reader, not .strict())', () => {
@@ -95,7 +130,9 @@ describe('DispatchBoardStopSchema (tolerant loader shape)', () => {
     expect(parsed.warehouseName).toBe('Kho 1');
   });
   it('accepts a null warehouseName (union branch)', () => {
-    expect(DispatchBoardStopSchema.parse({ ...validBoardStop, warehouseName: null }).warehouseName).toBeNull();
+    expect(
+      DispatchBoardStopSchema.parse({ ...validBoardStop, warehouseName: null }).warehouseName,
+    ).toBeNull();
   });
 });
 
@@ -145,7 +182,15 @@ describe('DispatchBoardRowSchema', () => {
     expect(parsed.roadRunId).toBe(UUID);
   });
   it('applies EXPAND defaults when nullable label fields are omitted', () => {
-    const minimal = { roadRunId: UUID, state: 'planned', assignedOperatorId: null, assignedAssetId: null, plannedStartAt: null, stopCount: 0, transportOrderRefs: [] };
+    const minimal = {
+      roadRunId: UUID,
+      state: 'planned',
+      assignedOperatorId: null,
+      assignedAssetId: null,
+      plannedStartAt: null,
+      stopCount: 0,
+      transportOrderRefs: [],
+    };
     const parsed = DispatchBoardRowSchema.parse(minimal);
     expect(parsed.driverName).toBeNull();
     expect(parsed.vehiclePlate).toBeNull();

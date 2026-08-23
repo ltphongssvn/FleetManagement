@@ -10,11 +10,22 @@ vi.mock('../src/observability/otel.js', () => ({
   recordSpanFailure: vi.fn(),
   shutdownOtel: vi.fn(),
 }));
-const { CommandsGateway, COMMAND_DELIVERY_POLICY_VERSION } = await import('../src/commands/commands.gateway.js');
+const { CommandsGateway, COMMAND_DELIVERY_POLICY_VERSION } =
+  await import('../src/commands/commands.gateway.js');
 import type { Clock } from '../src/common/clock.js';
 
 interface PendingMap {
-  readonly pending: Map<string, { operatorId: string; issuedAt: Date; attempts: number; pushAttempts: number; pushInFlight: boolean; policyVersion: string }>;
+  readonly pending: Map<
+    string,
+    {
+      operatorId: string;
+      issuedAt: Date;
+      attempts: number;
+      pushAttempts: number;
+      pushInFlight: boolean;
+      policyVersion: string;
+    }
+  >;
 }
 
 const cmdId = '11111111-1111-4111-8111-111111111111';
@@ -26,7 +37,9 @@ function makeGatewayWithPending(): InstanceType<typeof CommandsGateway> {
   (gw as unknown as PendingMap).pending.set(cmdId, {
     operatorId,
     issuedAt: new Date('2026-05-02T09:59:55.000Z'),
-    attempts: 1, pushAttempts: 0, pushInFlight: false,
+    attempts: 1,
+    pushAttempts: 0,
+    pushInFlight: false,
     policyVersion: COMMAND_DELIVERY_POLICY_VERSION,
   });
   return gw;
@@ -38,7 +51,12 @@ describe('@fleet/api - CommandsGateway handleAck OTel outcome pins', () => {
     const gw = makeGatewayWithPending();
     const sock = { id: 's', data: { operatorId } } as never;
     gw.handleAck(
-      { commandId: cmdId, ackedAt: new Date().toISOString(), status: 'rejected', reasonCode: 'operator_busy' },
+      {
+        commandId: cmdId,
+        ackedAt: new Date().toISOString(),
+        status: 'rejected',
+        reasonCode: 'operator_busy',
+      },
       sock,
     );
     const calls = setAttrSpy.mock.calls.map((c) => c[0] as Record<string, unknown>);
@@ -52,10 +70,7 @@ describe('@fleet/api - CommandsGateway handleAck OTel outcome pins', () => {
     setAttrSpy.mockClear();
     const gw = makeGatewayWithPending();
     const sock = { id: 's', data: { operatorId } } as never;
-    gw.handleAck(
-      { commandId: cmdId, ackedAt: new Date().toISOString(), status: 'received' },
-      sock,
-    );
+    gw.handleAck({ commandId: cmdId, ackedAt: new Date().toISOString(), status: 'received' }, sock);
     const calls = setAttrSpy.mock.calls.map((c) => c[0] as Record<string, unknown>);
     expect(calls.some((c) => c['command.outcome'] === 'ack_received')).toBe(true);
     expect(calls.some((c) => c['command.outcome'] === '')).toBe(false);

@@ -122,7 +122,7 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: ["**"]
+    branches: ['**']
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -130,7 +130,7 @@ env:
   # Opt JavaScript actions (actions/cache, download-artifact, etc.) onto
   # Node 24 ahead of the 2026-06-02 forced cutover, clearing the Node 20
   # deprecation warnings.
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   # turbo.jsonc sets remoteCache.signature:true, so turbo HMAC-SHA256-signs
   # artifacts on upload and VERIFIES them on download; any artifact that fails
   # verification is SILENTLY treated as a cache miss. The key must therefore be

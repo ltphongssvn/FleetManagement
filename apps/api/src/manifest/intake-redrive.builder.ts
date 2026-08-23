@@ -11,7 +11,11 @@
 // body. The body is STRICT-PARSED with the SSOT schema before returning, so
 // an incomplete session (missing s3Key/bucket/size) fails HERE, loudly, and
 // never becomes a poison job.
-import { IntakeJobDataWireSchema, MANIFEST_MAX_SIZE_BYTES, OUTBOX_QUEUES } from '@fleet/sync-protocol';
+import {
+  IntakeJobDataWireSchema,
+  MANIFEST_MAX_SIZE_BYTES,
+  OUTBOX_QUEUES,
+} from '@fleet/sync-protocol';
 
 export interface IntakeRedriveCandidate {
   readonly companyId: string;

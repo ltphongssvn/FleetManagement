@@ -102,8 +102,15 @@ export function eventIdFor(name: string, content: string): EventId {
   bytes[8] = (variantByte & 0x3f) | 0x80;
   const hex = bytes.toString('hex');
   return EventIdSchema.parse(
-    hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' +
-    hex.slice(16, 20) + '-' + hex.slice(20),
+    hex.slice(0, 8) +
+      '-' +
+      hex.slice(8, 12) +
+      '-' +
+      hex.slice(12, 16) +
+      '-' +
+      hex.slice(16, 20) +
+      '-' +
+      hex.slice(20),
   );
 }
 
@@ -189,59 +196,60 @@ export const ESTATE_PRODUCER = 'estate:verify';
  *  unrecognised key means OUR OWN typo -- writing stashcount for stashCount
  *  would otherwise be stripped in silence and read as 0, a clean worktree
  *  reported for a dirty one from a single wrong letter. */
-export const WorktreeStateSchema = z.strictObject({
-  // Git always reports an ABSOLUTE path. Requiring one is not decoration: this
-  // value becomes the `cwd` of subsequent git calls, so a relative or
-  // control-character path signals a PARSE failure and must never reach a
-  // subprocess. A newline is the sharp case -- porcelain is line-oriented, so a
-  // path containing one silently desynchronises the parse.
-  path: z.string().min(1)
-    .refine((v) => v.startsWith('/'), 'worktree path must be absolute')
-    .refine(
-      // CANONICAL FORM at the boundary. A path carrying .. or a trailing slash
-      // denotes the same worktree yet compares unequal, and canonicalisation
-      // must precede validation -- sanitising raw strings is how every
-      // traversal bypass works. Confinement to an "estate root" is deliberately
-      // absent: worktrees legitimately live outside the repo, so a root check
-      // would reject every real path.
-      (v) => v === resolve(v),
-      'worktree path must already be canonical',
-    )
-    .refine(
-      // A PREDICATE, not a regex: no-control-regex is right that a control
-      // character inside a pattern is usually accidental, and checking code
-      // points states the intent without needing a suppression.
-      (v) => {
-        for (let i = 0; i < v.length; i += 1) {
-          const code = v.charCodeAt(i);
-          if (code < 0x20 || code === 0x7f) return false;
-        }
-        return true;
-      },
-      'worktree path must not contain control characters',
-    ),
-  // NO CONTROL CHARACTERS, and not for symmetry: this value is interpolated RAW
-  // into the operator sentence on stderr, so an ESC byte reaches a terminal
-  // unescaped. 2026 has a run of CVEs in this class, including command
-  // injection through a BRANCH NAME, which is attacker-controllable in any
-  // shared repository. The concealment case is what matters for an agent:
-  // rendering hides these bytes from a person while a model reads raw text.
-  branch: z.string().refine(
-    (v) => {
+export const WorktreeStateSchema = z
+  .strictObject({
+    // Git always reports an ABSOLUTE path. Requiring one is not decoration: this
+    // value becomes the `cwd` of subsequent git calls, so a relative or
+    // control-character path signals a PARSE failure and must never reach a
+    // subprocess. A newline is the sharp case -- porcelain is line-oriented, so a
+    // path containing one silently desynchronises the parse.
+    path: z
+      .string()
+      .min(1)
+      .refine((v) => v.startsWith('/'), 'worktree path must be absolute')
+      .refine(
+        // CANONICAL FORM at the boundary. A path carrying .. or a trailing slash
+        // denotes the same worktree yet compares unequal, and canonicalisation
+        // must precede validation -- sanitising raw strings is how every
+        // traversal bypass works. Confinement to an "estate root" is deliberately
+        // absent: worktrees legitimately live outside the repo, so a root check
+        // would reject every real path.
+        (v) => v === resolve(v),
+        'worktree path must already be canonical',
+      )
+      .refine(
+        // A PREDICATE, not a regex: no-control-regex is right that a control
+        // character inside a pattern is usually accidental, and checking code
+        // points states the intent without needing a suppression.
+        (v) => {
+          for (let i = 0; i < v.length; i += 1) {
+            const code = v.charCodeAt(i);
+            if (code < 0x20 || code === 0x7f) return false;
+          }
+          return true;
+        },
+        'worktree path must not contain control characters',
+      ),
+    // NO CONTROL CHARACTERS, and not for symmetry: this value is interpolated RAW
+    // into the operator sentence on stderr, so an ESC byte reaches a terminal
+    // unescaped. 2026 has a run of CVEs in this class, including command
+    // injection through a BRANCH NAME, which is attacker-controllable in any
+    // shared repository. The concealment case is what matters for an agent:
+    // rendering hides these bytes from a person while a model reads raw text.
+    branch: z.string().refine((v) => {
       for (let i = 0; i < v.length; i += 1) {
         const code = v.charCodeAt(i);
         if (code < 0x20 || code === 0x7f) return false;
       }
       return true;
-    },
-    'branch must not contain control characters',
-  ),
-  dirtyFileCount: z.number().int().nonnegative(),
-  aheadOfRemote: z.number().int().nonnegative(),
-  stashCount: z.number().int().nonnegative(),
-  prunable: z.boolean(),
-  locked: z.boolean(),
-}).brand<"WorktreeState">();
+    }, 'branch must not contain control characters'),
+    dirtyFileCount: z.number().int().nonnegative(),
+    aheadOfRemote: z.number().int().nonnegative(),
+    stashCount: z.number().int().nonnegative(),
+    prunable: z.boolean(),
+    locked: z.boolean(),
+  })
+  .brand<'WorktreeState'>();
 // BRANDED, so the type cannot be produced by writing an object literal. The
 // schema is the only constructor, so "the driver forgot to parse" becomes a
 // COMPILE error instead of a runtime hazard -- and NOT a re-parse inside every

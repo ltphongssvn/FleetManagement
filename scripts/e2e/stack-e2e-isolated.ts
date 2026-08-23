@@ -101,12 +101,17 @@ export function isLockTimeoutExit(code: number, lockWasTaken: boolean): boolean 
 
 export function hostLockTimeoutMessage(lockPath: string, waitSeconds: number): string {
   return (
-    '[isolated-e2e] timed out after ' + String(waitSeconds) +
-    's waiting for the host lock ' + lockPath + '.' +
+    '[isolated-e2e] timed out after ' +
+    String(waitSeconds) +
+    's waiting for the host lock ' +
+    lockPath +
+    '.' +
     String.fromCharCode(10) +
     'A sibling worktree still holds it. This is a HOST condition, not a test' +
-    ' failure: nothing in this branch is broken.' + String.fromCharCode(10) +
-    'Inspect the holder with: lslocks | grep gate.lock' + String.fromCharCode(10)
+    ' failure: nothing in this branch is broken.' +
+    String.fromCharCode(10) +
+    'Inspect the holder with: lslocks | grep gate.lock' +
+    String.fromCharCode(10)
   );
 }
 
@@ -145,9 +150,12 @@ function mainIsolatedE2E(): number {
       process.argv.slice(2),
     );
     process.stderr.write(
-      '[isolated-e2e] acquiring host lock ' + lockPath +
-      ' (queueing up to ' + String(HOST_LOCK_WAIT_SECONDS) + 's)' +
-      String.fromCharCode(10),
+      '[isolated-e2e] acquiring host lock ' +
+        lockPath +
+        ' (queueing up to ' +
+        String(HOST_LOCK_WAIT_SECONDS) +
+        's)' +
+        String.fromCharCode(10),
     );
     const head = cmd[0] ?? 'flock';
     const code = sh(head, cmd.slice(1), { ...process.env, [HOST_LOCK_ENV]: '1' });
@@ -174,11 +182,19 @@ function mainIsolatedE2E(): number {
   // that times out under WSL2/registry contention. Dependencies are lockfile-pinned
   // (reproducible), so reusing the cached pnpm store is safe AND correct; only the
   // source layers are rebuilt. up --wait is health-gated; --force-recreate is fresh.
-  process.stderr.write('[isolated-e2e] project ' + id.project + ' -- build --no-cache (pnpm store cache-mount preserved)' + String.fromCharCode(10));
+  process.stderr.write(
+    '[isolated-e2e] project ' +
+      id.project +
+      ' -- build --no-cache (pnpm store cache-mount preserved)' +
+      String.fromCharCode(10),
+  );
   let code = sh('docker', composeArgs(id.project, ['build', '--no-cache', ...built]));
   if (code !== 0) return code;
   process.stderr.write('[isolated-e2e] up -d --wait --force-recreate' + String.fromCharCode(10));
-  code = sh('docker', composeArgs(id.project, ['up', '-d', '--wait', '--force-recreate', ...services]));
+  code = sh(
+    'docker',
+    composeArgs(id.project, ['up', '-d', '--wait', '--force-recreate', ...services]),
+  );
   if (code !== 0) {
     sh('docker', composeArgs(id.project, ['down', '-v']));
     return code;
@@ -211,8 +227,19 @@ function mainIsolatedE2E(): number {
     OIDC_AUTHORIZATION_ENDPOINT: e2eEnv.OIDC_AUTHORIZATION_ENDPOINT,
     E2E_OPS_PASSWORD: process.env['E2E_OPS_PASSWORD'] ?? 'unused-token-auth',
   };
-  process.stderr.write('[isolated-e2e] ops-web-runner @ ' + e2eEnv.E2E_BASE_URL + ' (api ' + e2eEnv.E2E_API_URL + ')' + String.fromCharCode(10));
-  const testCode = sh('pnpm', ['exec', 'tsx', 'scripts/e2e/ops-web-runner.ts', ...passthrough], childEnv);
+  process.stderr.write(
+    '[isolated-e2e] ops-web-runner @ ' +
+      e2eEnv.E2E_BASE_URL +
+      ' (api ' +
+      e2eEnv.E2E_API_URL +
+      ')' +
+      String.fromCharCode(10),
+  );
+  const testCode = sh(
+    'pnpm',
+    ['exec', 'tsx', 'scripts/e2e/ops-web-runner.ts', ...passthrough],
+    childEnv,
+  );
   // Always tear the stack down (data-safe: -v drops the isolated volumes).
   process.stderr.write('[isolated-e2e] down -v' + String.fromCharCode(10));
   sh('docker', composeArgs(id.project, ['down', '-v']));

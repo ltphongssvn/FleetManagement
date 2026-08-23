@@ -72,11 +72,7 @@ export const ObservedServiceManifestSchema = z.object({
 // ---------------------------------------------------------------------------
 
 export const PolicyContainerLimitsSchema = z.object({
-  memoryBytes: z
-    .number()
-    .int()
-    .min(CONTAINER_MEMORY_BYTES_MIN)
-    .max(CONTAINER_MEMORY_BYTES_MAX),
+  memoryBytes: z.number().int().min(CONTAINER_MEMORY_BYTES_MIN).max(CONTAINER_MEMORY_BYTES_MAX),
 });
 
 export const PolicyBuildSchema = z.object({

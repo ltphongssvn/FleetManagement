@@ -53,9 +53,15 @@ async function insertDriver(fullName: string, active = true): Promise<void> {
 }
 
 describe('@fleet/api - driver canonical name invariant', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_canonname'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
-  beforeEach(async () => { await truncateAllTables(testDb.db); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_test_canonname');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
+  beforeEach(async () => {
+    await truncateAllTables(testDb.db);
+  });
 
   it('REFUSES a name with a trailing space -- the exact production defect', async () => {
     await expect(insertDriver(TRAILING_SPACE)).rejects.toThrow();
@@ -75,7 +81,9 @@ describe('@fleet/api - driver canonical name invariant', () => {
 
   it('ACCEPTS the canonical composed, trimmed, single-spaced name', async () => {
     await insertDriver(CANONICAL);
-    const rows = await testDb.db.select().from(driver)
+    const rows = await testDb.db
+      .select()
+      .from(driver)
       .where(and(eq(driver.companyId, COMPANY), eq(driver.fullName, CANONICAL)));
     expect(rows).toHaveLength(1);
   });
@@ -95,7 +103,9 @@ describe('@fleet/api - driver canonical name invariant', () => {
   it('lets a soft-deleted name be re-registered -- the partial predicate survives', async () => {
     await insertDriver(CANONICAL, false);
     await insertDriver(CANONICAL, true);
-    const active = await testDb.db.select().from(driver)
+    const active = await testDb.db
+      .select()
+      .from(driver)
       .where(and(eq(driver.companyId, COMPANY), eq(driver.active, true)));
     expect(active).toHaveLength(1);
   });
@@ -104,9 +114,15 @@ describe('@fleet/api - driver canonical name invariant', () => {
     // driver_company_phone_uq was a PLAIN unique on (company_id, phone), so a
     // soft-deleted row held its phone forever; production had four such phones
     // locked. It must be partial on active, mirroring the name index.
-    await testDb.db.insert(driver).values({ ...TENANCY, fullName: 'OLD ONE', phone: '0907606776', active: false });
-    await testDb.db.insert(driver).values({ ...TENANCY, fullName: 'NEW ONE', phone: '0907606776', active: true });
-    const active = await testDb.db.select().from(driver)
+    await testDb.db
+      .insert(driver)
+      .values({ ...TENANCY, fullName: 'OLD ONE', phone: '0907606776', active: false });
+    await testDb.db
+      .insert(driver)
+      .values({ ...TENANCY, fullName: 'NEW ONE', phone: '0907606776', active: true });
+    const active = await testDb.db
+      .select()
+      .from(driver)
       .where(and(eq(driver.companyId, COMPANY), eq(driver.active, true)));
     expect(active).toHaveLength(1);
   });

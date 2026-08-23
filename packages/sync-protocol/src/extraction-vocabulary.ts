@@ -30,4 +30,4 @@ export const EXTRACTION_FAILURE_REASONS = [
 
 export const ExtractionFailureReasonSchema = z.enum(EXTRACTION_FAILURE_REASONS);
 
-export type ExtractionFailureReason = typeof EXTRACTION_FAILURE_REASONS[number];
+export type ExtractionFailureReason = (typeof EXTRACTION_FAILURE_REASONS)[number];

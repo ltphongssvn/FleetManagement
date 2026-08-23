@@ -45,18 +45,24 @@ describe('@fleet/ops-web - assignRun', () => {
       expect(result.issues[0]?.code).toBe('too_short');
     }
   });
-})
+});
 
 describe('@fleet/ops-web - assignRun (property-based)', () => {
   it('rejects any random non-uuid roadRunId with invalid_uuid code', async () => {
     const fc = await import('fast-check');
     await fc.assert(
       fc.asyncProperty(
-        fc.string({ minLength: 1, maxLength: 30 }).filter((s) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)),
+        fc
+          .string({ minLength: 1, maxLength: 30 })
+          .filter(
+            (s) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s),
+          ),
         async (badId) => {
           const result = await assignRun({ ...validInput, roadRunId: badId });
           if (result.status !== 'invalid_input') return false;
-          return result.issues.some((i) => i.code === 'invalid_uuid' && i.path.includes('roadRunId'));
+          return result.issues.some(
+            (i) => i.code === 'invalid_uuid' && i.path.includes('roadRunId'),
+          );
         },
       ),
       { numRuns: 30 },
@@ -73,7 +79,7 @@ describe('@fleet/ops-web - assignRun (property-based)', () => {
       { numRuns: 30 },
     );
   });
-})
+});
 
 describe('@fleet/ops-web - assignRun (issue code mapping)', () => {
   it('maps too-long assetId to too_long code', async () => {
@@ -113,9 +119,9 @@ describe('@fleet/ops-web - assignRun (api integration paths)', () => {
   it('posts to API and returns ok on 2xx', async () => {
     process.env['FLEET_API_URL'] = 'http://api.test';
     process.env['FLEET_API_TOKEN'] = 'tok';
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      { ok: true, status: 202, statusText: 'Accepted' } as Response,
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue({ ok: true, status: 202, statusText: 'Accepted' } as Response);
     try {
       const result = await assignRun(validInput);
       expect(result.status).toBe('ok');
@@ -133,9 +139,9 @@ describe('@fleet/ops-web - assignRun (api integration paths)', () => {
   it('returns api_error when API responds non-2xx', async () => {
     process.env['FLEET_API_URL'] = 'http://api.test';
     process.env['FLEET_API_TOKEN'] = 'tok';
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      { ok: false, status: 503, statusText: 'Service Unavailable' } as Response,
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue({ ok: false, status: 503, statusText: 'Service Unavailable' } as Response);
     try {
       const result = await assignRun(validInput);
       expect(result.status).toBe('api_error');

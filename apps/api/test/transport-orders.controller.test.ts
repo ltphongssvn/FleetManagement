@@ -20,7 +20,9 @@ const op: OperatorContext = createOperatorContext();
 // ConfigService stub for the coerced seed flag (Factor III). Default true so
 // the create path is enabled; pass false to model a seed-disabled deploy.
 function makeConfig(seedEnabled = true): ConfigService {
-  return { get: (k: string): unknown => (k === 'FLEET_PILOT_SEED_ENABLED' ? seedEnabled : undefined) } as ConfigService;
+  return {
+    get: (k: string): unknown => (k === 'FLEET_PILOT_SEED_ENABLED' ? seedEnabled : undefined),
+  } as ConfigService;
 }
 describe('@fleet/api - TransportOrdersController', () => {
   let create: ReturnType<typeof vi.fn>;
@@ -36,21 +38,34 @@ describe('@fleet/api - TransportOrdersController', () => {
     listAssigned = vi.fn();
     listCompleted = vi.fn();
     tripHistory = vi.fn();
-    drainOnce = vi.fn().mockResolvedValue({ scope: op.companyId, polled: 1, applied: 1, noops: 0, deletes: 0, newWatermark: '1' });
+    drainOnce = vi.fn().mockResolvedValue({
+      scope: op.companyId,
+      polled: 1,
+      applied: 1,
+      noops: 0,
+      deletes: 0,
+      newWatermark: '1',
+    });
     svc = { create, listAssigned, listCompleted, tripHistory } as unknown as TransportOrdersService;
     runner = { drainOnce };
     ctl = new TransportOrdersController(svc, runner as never, makeConfig());
   });
   it('parses valid input and delegates to service', async () => {
     create.mockResolvedValue({ transportOrderId: 'to-1', roadRunId: 'rr-1' });
-    const result = await ctl.create({
-      externalRef: 'TO-1001',
-      stops: [{ sequence: 1, stopType: 'pickup' }, { sequence: 2, stopType: 'dropoff' }],
-      roadRun: {
-        assignedOperatorId: '00000000-0000-0000-0000-0000000000a1',
-        assignedAssetId: '00000000-0000-0000-0000-0000000000b2',
+    const result = await ctl.create(
+      {
+        externalRef: 'TO-1001',
+        stops: [
+          { sequence: 1, stopType: 'pickup' },
+          { sequence: 2, stopType: 'dropoff' },
+        ],
+        roadRun: {
+          assignedOperatorId: '00000000-0000-0000-0000-0000000000a1',
+          assignedAssetId: '00000000-0000-0000-0000-0000000000b2',
+        },
       },
-    }, op);
+      op,
+    );
     expect(result).toEqual({ transportOrderId: 'to-1', roadRunId: 'rr-1' });
     expect(create).toHaveBeenCalledOnce();
   });
@@ -59,8 +74,9 @@ describe('@fleet/api - TransportOrdersController', () => {
   });
   it('rejects when seed flag disabled', async () => {
     const disabledCtl = new TransportOrdersController(svc, runner as never, makeConfig(false));
-    await expect(disabledCtl.create({ stops: [{ sequence: 1, stopType: 'pickup' }] }, op))
-      .rejects.toThrow(/seed/i);
+    await expect(
+      disabledCtl.create({ stops: [{ sequence: 1, stopType: 'pickup' }] }, op),
+    ).rejects.toThrow(/seed/i);
   });
   it('listAssigned delegates to the service with the operator context', async () => {
     listAssigned.mockResolvedValue({ rows: [] });
@@ -94,25 +110,37 @@ describe('@fleet/api - TransportOrdersController', () => {
     expect(listCompleted).not.toHaveBeenCalled();
   });
   it('drains the projection runner for the caller company after a successful create so the dispatch board reflects the new row before the response returns', async () => {
-    create.mockResolvedValue({ transportOrderId: 'to-1', roadRunId: 'rr-1', externalRef: 'XTT.05-001' });
-    await ctl.create({
-      stops: [{ sequence: 1, stopType: 'pickup' }],
-      roadRun: {
-        assignedOperatorId: '00000000-0000-0000-0000-0000000000a1',
-        assignedAssetId: '00000000-0000-0000-0000-0000000000b2',
+    create.mockResolvedValue({
+      transportOrderId: 'to-1',
+      roadRunId: 'rr-1',
+      externalRef: 'XTT.05-001',
+    });
+    await ctl.create(
+      {
+        stops: [{ sequence: 1, stopType: 'pickup' }],
+        roadRun: {
+          assignedOperatorId: '00000000-0000-0000-0000-0000000000a1',
+          assignedAssetId: '00000000-0000-0000-0000-0000000000b2',
+        },
       },
-    }, op);
+      op,
+    );
     expect(drainOnce).toHaveBeenCalledWith(op.companyId);
   });
   it('does NOT drain the projection runner when create throws (no state to project)', async () => {
     create.mockRejectedValue(new Error('boom'));
-    await expect(ctl.create({
-      stops: [{ sequence: 1, stopType: 'pickup' }],
-      roadRun: {
-        assignedOperatorId: '00000000-0000-0000-0000-0000000000a1',
-        assignedAssetId: '00000000-0000-0000-0000-0000000000b2',
-      },
-    }, op)).rejects.toThrow('boom');
+    await expect(
+      ctl.create(
+        {
+          stops: [{ sequence: 1, stopType: 'pickup' }],
+          roadRun: {
+            assignedOperatorId: '00000000-0000-0000-0000-0000000000a1',
+            assignedAssetId: '00000000-0000-0000-0000-0000000000b2',
+          },
+        },
+        op,
+      ),
+    ).rejects.toThrow('boom');
     expect(drainOnce).not.toHaveBeenCalled();
   });
 });

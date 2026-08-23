@@ -13,7 +13,10 @@ export type ErpSendOutcome =
   | { readonly kind: 'rejected'; readonly rejectionCode: string }
   | { readonly kind: 'failed'; readonly error: Error };
 
-export async function sendErpInvoice(job: ErpJobData, client: ErpClientPort): Promise<ErpSendOutcome> {
+export async function sendErpInvoice(
+  job: ErpJobData,
+  client: ErpClientPort,
+): Promise<ErpSendOutcome> {
   const decision = buildErpInvoice(job.payload, job.mapping);
   if (!decision.accepted) {
     return { kind: 'rejected', rejectionCode: decision.rejectionCode };

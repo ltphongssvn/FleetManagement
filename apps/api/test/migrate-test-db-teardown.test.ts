@@ -9,7 +9,9 @@ import { describe, it, expect } from 'vitest';
 import { stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
 describe('stopMigratedTestDb null-safety', () => {
   it('resolves without throwing when given undefined (failed beforeAll)', async () => {
-    await expect(stopMigratedTestDb(undefined as unknown as MigratedTestDb)).resolves.toBeUndefined();
+    await expect(
+      stopMigratedTestDb(undefined as unknown as MigratedTestDb),
+    ).resolves.toBeUndefined();
   });
   it('resolves without throwing when given a partial object missing pool', async () => {
     await expect(stopMigratedTestDb({} as unknown as MigratedTestDb)).resolves.toBeUndefined();

@@ -54,7 +54,10 @@ export function isPgUniqueViolationOnConstraint(err: unknown, constraintName: st
  * by an ORM it may live deeper. Used by device.service.ts where the
  * constraint name disambiguates which partial unique index fired.
  */
-export function isPgUniqueViolationOnConstraintInChain(err: unknown, constraintName: string): boolean {
+export function isPgUniqueViolationOnConstraintInChain(
+  err: unknown,
+  constraintName: string,
+): boolean {
   let cur: unknown = err;
   for (let depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
     const shape = asPgErrorShape(cur);

@@ -44,15 +44,14 @@ describe('isTransientCliError', () => {
     expect(isTransientCliError(message)).toBe(true);
   });
 
-  it.each([
-    'Unauthorized: invalid token',
-    'command not found: railway',
-    'No linked project found',
-  ])('does NOT classify %s as transient', (message) => {
-    // These are real tooling errors. Misclassifying one as transient would
-    // soft-skip the gate to exit 0 -- a guard passing because it never ran.
-    expect(isTransientCliError(message)).toBe(false);
-  });
+  it.each(['Unauthorized: invalid token', 'command not found: railway', 'No linked project found'])(
+    'does NOT classify %s as transient',
+    (message) => {
+      // These are real tooling errors. Misclassifying one as transient would
+      // soft-skip the gate to exit 0 -- a guard passing because it never ran.
+      expect(isTransientCliError(message)).toBe(false);
+    },
+  );
 });
 
 describe('parseEnvironmentConfig', () => {
@@ -136,9 +135,9 @@ describe('fetchEnvironmentConfig', () => {
     const run = vi.fn(() => {
       throw new Error('429');
     });
-    expect(() =>
-      fetchEnvironmentConfig({ run, sleep, maxAttempts: 3, baseDelayMs: 100 }),
-    ).toThrow(RailwayConfigUnreadableError);
+    expect(() => fetchEnvironmentConfig({ run, sleep, maxAttempts: 3, baseDelayMs: 100 })).toThrow(
+      RailwayConfigUnreadableError,
+    );
     expect(sleep.mock.calls.map((c) => c[0])).toEqual([100, 200]);
   });
 

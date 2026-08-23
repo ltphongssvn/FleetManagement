@@ -10,26 +10,58 @@
 // - 284: else BlockStatement
 // - 285: received log template
 import { describe, it, expect, vi } from 'vitest';
-const { CommandsGateway, COMMAND_DELIVERY_POLICY_VERSION } = await import('../src/commands/commands.gateway.js');
+const { CommandsGateway, COMMAND_DELIVERY_POLICY_VERSION } =
+  await import('../src/commands/commands.gateway.js');
 import type { Clock } from '../src/common/clock.js';
 
 interface PendingMap {
-  readonly pending: Map<string, { operatorId: string; issuedAt: Date; attempts: number; pushAttempts: number; pushInFlight: boolean; policyVersion: string }>;
+  readonly pending: Map<
+    string,
+    {
+      operatorId: string;
+      issuedAt: Date;
+      attempts: number;
+      pushAttempts: number;
+      pushInFlight: boolean;
+      policyVersion: string;
+    }
+  >;
 }
 
-interface RecordedSample { ms: number; commandId: string; operatorId: string; recordedAt: Date; status: 'ok' | 'rejected' }
+interface RecordedSample {
+  ms: number;
+  commandId: string;
+  operatorId: string;
+  recordedAt: Date;
+  status: 'ok' | 'rejected';
+}
 
-function makeGateway(): { gw: InstanceType<typeof CommandsGateway>; warns: string[]; logs: string[]; samples: RecordedSample[] } {
+function makeGateway(): {
+  gw: InstanceType<typeof CommandsGateway>;
+  warns: string[];
+  logs: string[];
+  samples: RecordedSample[];
+} {
   const fakeClock: Clock = { now: () => new Date('2026-05-02T10:00:00.000Z') };
   const samples: RecordedSample[] = [];
-  const recorder = { record: (s: RecordedSample) => { samples.push(s); }, samples: () => samples };
+  const recorder = {
+    record: (s: RecordedSample) => {
+      samples.push(s);
+    },
+    samples: () => samples,
+  };
   const gw = new CommandsGateway(undefined, fakeClock, recorder as never);
   const warns: string[] = [];
   const logs: string[] = [];
   (gw as unknown as { logger: unknown }).logger = {
-    warn: (m: unknown) => { if (typeof m === 'string') warns.push(m); },
-    log: (m: unknown) => { if (typeof m === 'string') logs.push(m); },
-    error: vi.fn(), debug: vi.fn(),
+    warn: (m: unknown) => {
+      if (typeof m === 'string') warns.push(m);
+    },
+    log: (m: unknown) => {
+      if (typeof m === 'string') logs.push(m);
+    },
+    error: vi.fn(),
+    debug: vi.fn(),
   };
   return { gw, warns, logs, samples };
 }
@@ -41,7 +73,9 @@ function seedPending(gw: InstanceType<typeof CommandsGateway>): void {
   (gw as unknown as PendingMap).pending.set(cmdId, {
     operatorId,
     issuedAt: new Date('2026-05-02T09:59:55.000Z'), // 5s before fake clock
-    attempts: 1, pushAttempts: 0, pushInFlight: false,
+    attempts: 1,
+    pushAttempts: 0,
+    pushInFlight: false,
     policyVersion: COMMAND_DELIVERY_POLICY_VERSION,
   });
 }
@@ -102,7 +136,12 @@ describe('@fleet/api - CommandsGateway handleAck pins', () => {
     seedPending(gw);
     const sock = { id: 's', data: { operatorId } } as never;
     const result = gw.handleAck(
-      { commandId: cmdId, ackedAt: new Date().toISOString(), status: 'rejected', reasonCode: 'operator_busy' },
+      {
+        commandId: cmdId,
+        ackedAt: new Date().toISOString(),
+        status: 'rejected',
+        reasonCode: 'operator_busy',
+      },
       sock,
     );
     expect(result).toEqual({ ok: true });
@@ -142,7 +181,12 @@ describe('@fleet/api - CommandsGateway handleAck pins', () => {
     seedPending(gw);
     const sock = { id: 's', data: { operatorId } } as never;
     gw.handleAck(
-      { commandId: cmdId, ackedAt: new Date().toISOString(), status: 'rejected', reasonCode: 'operator_busy' },
+      {
+        commandId: cmdId,
+        ackedAt: new Date().toISOString(),
+        status: 'rejected',
+        reasonCode: 'operator_busy',
+      },
       sock,
     );
     // mutant "if (rejected) {} else {…}" would skip the warn and instead emit the received log
@@ -154,10 +198,7 @@ describe('@fleet/api - CommandsGateway handleAck pins', () => {
     const { gw, warns, logs } = makeGateway();
     seedPending(gw);
     const sock = { id: 's', data: { operatorId } } as never;
-    gw.handleAck(
-      { commandId: cmdId, ackedAt: new Date().toISOString(), status: 'received' },
-      sock,
-    );
+    gw.handleAck({ commandId: cmdId, ackedAt: new Date().toISOString(), status: 'received' }, sock);
     // mutant "if (true) {…}" would emit the REJECTED warn instead
     expect(logs).toHaveLength(1);
     expect(warns).toHaveLength(0);

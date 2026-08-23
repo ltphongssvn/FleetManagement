@@ -48,9 +48,21 @@ describe('@fleet/driver-app - nextSequence', () => {
 describe('@fleet/driver-app - dispatchableActions', () => {
   it('returns only pending actions', () => {
     const queue = [
-      action({ actionId: testActionId('a1'), aggregateId: testAggregateId('agg-1'), status: 'pending' }),
-      action({ actionId: testActionId('a2'), aggregateId: testAggregateId('agg-2'), status: 'synced' }),
-      action({ actionId: testActionId('a3'), aggregateId: testAggregateId('agg-3'), status: 'rejected' }),
+      action({
+        actionId: testActionId('a1'),
+        aggregateId: testAggregateId('agg-1'),
+        status: 'pending',
+      }),
+      action({
+        actionId: testActionId('a2'),
+        aggregateId: testAggregateId('agg-2'),
+        status: 'synced',
+      }),
+      action({
+        actionId: testActionId('a3'),
+        aggregateId: testAggregateId('agg-3'),
+        status: 'rejected',
+      }),
     ];
     const out = dispatchableActions(queue);
     expect(out).toHaveLength(1);
@@ -59,47 +71,97 @@ describe('@fleet/driver-app - dispatchableActions', () => {
 
   it('blocks action when its dependency is not yet synced', () => {
     const queue = [
-      action({ actionId: testActionId('a1'), aggregateId: testAggregateId('agg-1'), status: 'pending' }),
-      action({ actionId: testActionId('a2'), aggregateId: testAggregateId('agg-2'), status: 'pending', blockedByActionId: testActionId('a1') }),
+      action({
+        actionId: testActionId('a1'),
+        aggregateId: testAggregateId('agg-1'),
+        status: 'pending',
+      }),
+      action({
+        actionId: testActionId('a2'),
+        aggregateId: testAggregateId('agg-2'),
+        status: 'pending',
+        blockedByActionId: testActionId('a1'),
+      }),
     ];
     expect(dispatchableActions(queue).map((a) => a.actionId)).toEqual([testActionId('a1')]);
   });
 
   it('unblocks when dependency reaches synced status', () => {
     const queue = [
-      action({ actionId: testActionId('a1'), aggregateId: testAggregateId('agg-1'), status: 'synced' }),
-      action({ actionId: testActionId('a2'), aggregateId: testAggregateId('agg-2'), status: 'pending', blockedByActionId: testActionId('a1') }),
+      action({
+        actionId: testActionId('a1'),
+        aggregateId: testAggregateId('agg-1'),
+        status: 'synced',
+      }),
+      action({
+        actionId: testActionId('a2'),
+        aggregateId: testAggregateId('agg-2'),
+        status: 'pending',
+        blockedByActionId: testActionId('a1'),
+      }),
     ];
     expect(dispatchableActions(queue).map((a) => a.actionId)).toEqual([testActionId('a2')]);
   });
 
   it('keeps blocking when dependency is in syncing (not yet synced)', () => {
     const queue = [
-      action({ actionId: testActionId('a1'), aggregateId: testAggregateId('agg-1'), status: 'syncing' }),
-      action({ actionId: testActionId('a2'), aggregateId: testAggregateId('agg-2'), status: 'pending', blockedByActionId: testActionId('a1') }),
+      action({
+        actionId: testActionId('a1'),
+        aggregateId: testAggregateId('agg-1'),
+        status: 'syncing',
+      }),
+      action({
+        actionId: testActionId('a2'),
+        aggregateId: testAggregateId('agg-2'),
+        status: 'pending',
+        blockedByActionId: testActionId('a1'),
+      }),
     ];
     expect(dispatchableActions(queue)).toHaveLength(0);
   });
 
   it('keeps blocking when dependency is rejected (not synced)', () => {
     const queue = [
-      action({ actionId: testActionId('a1'), aggregateId: testAggregateId('agg-1'), status: 'rejected' }),
-      action({ actionId: testActionId('a2'), aggregateId: testAggregateId('agg-2'), status: 'pending', blockedByActionId: testActionId('a1') }),
+      action({
+        actionId: testActionId('a1'),
+        aggregateId: testAggregateId('agg-1'),
+        status: 'rejected',
+      }),
+      action({
+        actionId: testActionId('a2'),
+        aggregateId: testAggregateId('agg-2'),
+        status: 'pending',
+        blockedByActionId: testActionId('a1'),
+      }),
     ];
     expect(dispatchableActions(queue)).toHaveLength(0);
   });
 
   it('keeps blocking when dependency is superseded', () => {
     const queue = [
-      action({ actionId: testActionId('a1'), aggregateId: testAggregateId('agg-1'), status: 'superseded' }),
-      action({ actionId: testActionId('a2'), aggregateId: testAggregateId('agg-2'), status: 'pending', blockedByActionId: testActionId('a1') }),
+      action({
+        actionId: testActionId('a1'),
+        aggregateId: testAggregateId('agg-1'),
+        status: 'superseded',
+      }),
+      action({
+        actionId: testActionId('a2'),
+        aggregateId: testAggregateId('agg-2'),
+        status: 'pending',
+        blockedByActionId: testActionId('a1'),
+      }),
     ];
     expect(dispatchableActions(queue)).toHaveLength(0);
   });
 
   it('keeps blocking when blockedByActionId references a missing action', () => {
     const queue = [
-      action({ actionId: testActionId('a1'), aggregateId: testAggregateId('agg-1'), status: 'pending', blockedByActionId: testActionId('does-not-exist') }),
+      action({
+        actionId: testActionId('a1'),
+        aggregateId: testAggregateId('agg-1'),
+        status: 'pending',
+        blockedByActionId: testActionId('does-not-exist'),
+      }),
     ];
     expect(dispatchableActions(queue)).toHaveLength(0);
   });
@@ -119,13 +181,27 @@ describe('@fleet/driver-app - dispatchableActions', () => {
     const c = testActionId('C');
     const cycle1: QueueableAction[] = [
       action({ actionId: a, aggregateId: testAggregateId('ag-A'), status: 'pending' }),
-      action({ actionId: b, aggregateId: testAggregateId('ag-B'), status: 'pending', blockedByActionId: a }),
-      action({ actionId: c, aggregateId: testAggregateId('ag-C'), status: 'pending', blockedByActionId: b }),
+      action({
+        actionId: b,
+        aggregateId: testAggregateId('ag-B'),
+        status: 'pending',
+        blockedByActionId: a,
+      }),
+      action({
+        actionId: c,
+        aggregateId: testAggregateId('ag-C'),
+        status: 'pending',
+        blockedByActionId: b,
+      }),
     ];
     expect(dispatchableActions(cycle1).map((x) => x.actionId)).toEqual([a]);
-    const cycle2 = cycle1.map((x): QueueableAction => (x.actionId === a ? { ...x, status: 'synced' } : x));
+    const cycle2 = cycle1.map(
+      (x): QueueableAction => (x.actionId === a ? { ...x, status: 'synced' } : x),
+    );
     expect(dispatchableActions(cycle2).map((x) => x.actionId)).toEqual([b]);
-    const cycle3 = cycle2.map((x): QueueableAction => (x.actionId === b ? { ...x, status: 'synced' } : x));
+    const cycle3 = cycle2.map(
+      (x): QueueableAction => (x.actionId === b ? { ...x, status: 'synced' } : x),
+    );
     expect(dispatchableActions(cycle3).map((x) => x.actionId)).toEqual([c]);
   });
 
@@ -165,7 +241,13 @@ describe('@fleet/driver-app - isSupersededByServer', () => {
 });
 
 describe('@fleet/driver-app - dispatchableActions (property-based)', () => {
-  const STATUSES: readonly ActionStatus[] = ['pending', 'syncing', 'synced', 'rejected', 'superseded'];
+  const STATUSES: readonly ActionStatus[] = [
+    'pending',
+    'syncing',
+    'synced',
+    'rejected',
+    'superseded',
+  ];
 
   const arbAction = fc.record({
     actionId: fc.uuid().map(testActionId),
@@ -241,8 +323,24 @@ describe('@fleet/driver-app - action-queue-policy mutation-hardening', () => {
     // Construct input out-of-order: [seq:5, seq:1] same aggregateId, both pending.
     const aggregateId = '11111111-1111-4111-8111-111111111111';
     const result = dispatchableActions([
-      { actionId: '22222222-2222-4222-8222-222222222222', aggregateType: 'transport_order', aggregateId, payload: {}, status: 'pending', sequence: 5, blockedByActionId: null },
-      { actionId: '33333333-3333-4333-8333-333333333333', aggregateType: 'transport_order', aggregateId, payload: {}, status: 'pending', sequence: 1, blockedByActionId: null },
+      {
+        actionId: '22222222-2222-4222-8222-222222222222',
+        aggregateType: 'transport_order',
+        aggregateId,
+        payload: {},
+        status: 'pending',
+        sequence: 5,
+        blockedByActionId: null,
+      },
+      {
+        actionId: '33333333-3333-4333-8333-333333333333',
+        aggregateType: 'transport_order',
+        aggregateId,
+        payload: {},
+        status: 'pending',
+        sequence: 1,
+        blockedByActionId: null,
+      },
     ] as never);
     expect(result).toHaveLength(1);
     expect(result[0]?.sequence).toBe(1);
@@ -255,8 +353,24 @@ describe('@fleet/driver-app - action-queue-policy mutation-hardening', () => {
     // behave deterministically for testing purposes.
     const aggregateId = '11111111-1111-4111-8111-111111111111';
     const result = dispatchableActions([
-      { actionId: '22222222-2222-4222-8222-222222222222', aggregateType: 'transport_order', aggregateId, payload: {}, status: 'pending', sequence: 1, blockedByActionId: null },
-      { actionId: '33333333-3333-4333-8333-333333333333', aggregateType: 'transport_order', aggregateId, payload: {}, status: 'pending', sequence: 1, blockedByActionId: null },
+      {
+        actionId: '22222222-2222-4222-8222-222222222222',
+        aggregateType: 'transport_order',
+        aggregateId,
+        payload: {},
+        status: 'pending',
+        sequence: 1,
+        blockedByActionId: null,
+      },
+      {
+        actionId: '33333333-3333-4333-8333-333333333333',
+        aggregateType: 'transport_order',
+        aggregateId,
+        payload: {},
+        status: 'pending',
+        sequence: 1,
+        blockedByActionId: null,
+      },
     ] as never);
     expect(result).toHaveLength(1);
     // Original keeps the FIRST seen action with the lowest seq (here, seq=1 first one).

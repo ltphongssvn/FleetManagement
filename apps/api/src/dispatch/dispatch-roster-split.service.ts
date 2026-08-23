@@ -70,15 +70,21 @@ export class DispatchRosterSplitService {
         assignedPlate: vehicle.plate,
       })
       .from(driver)
-      .leftJoin(driverVehicleAssignment, and(
-        eq(driverVehicleAssignment.driverId, driver.driverId),
-        eq(driverVehicleAssignment.companyId, companyId),
-        isNull(driverVehicleAssignment.revokedAt),
-      ))
-      .leftJoin(vehicle, and(
-        eq(vehicle.vehicleId, driverVehicleAssignment.vehicleId),
-        eq(vehicle.companyId, companyId),
-      ))
+      .leftJoin(
+        driverVehicleAssignment,
+        and(
+          eq(driverVehicleAssignment.driverId, driver.driverId),
+          eq(driverVehicleAssignment.companyId, companyId),
+          isNull(driverVehicleAssignment.revokedAt),
+        ),
+      )
+      .leftJoin(
+        vehicle,
+        and(
+          eq(vehicle.vehicleId, driverVehicleAssignment.vehicleId),
+          eq(vehicle.companyId, companyId),
+        ),
+      )
       .where(and(eq(driver.companyId, companyId), eq(driver.active, true)))
       .orderBy(asc(driver.fullName));
 
@@ -95,22 +101,27 @@ export class DispatchRosterSplitService {
         runPlate: vehicle.plate,
       })
       .from(dispatchBoardProjection)
-      .leftJoin(vehicle, and(
-        eq(vehicle.vehicleId, dispatchBoardProjection.assignedAssetId),
-        eq(vehicle.companyId, companyId),
-      ))
-      .where(and(
-        eq(dispatchBoardProjection.companyId, companyId),
-        isNull(dispatchBoardProjection.deletedAt),
-        inArray(dispatchBoardProjection.state, [...ON_ROAD_STATES]),
-        gte(dispatchBoardProjection.plannedStartAt, startUtc),
-        lt(dispatchBoardProjection.plannedStartAt, endUtc),
-      ))
+      .leftJoin(
+        vehicle,
+        and(
+          eq(vehicle.vehicleId, dispatchBoardProjection.assignedAssetId),
+          eq(vehicle.companyId, companyId),
+        ),
+      )
+      .where(
+        and(
+          eq(dispatchBoardProjection.companyId, companyId),
+          isNull(dispatchBoardProjection.deletedAt),
+          inArray(dispatchBoardProjection.state, [...ON_ROAD_STATES]),
+          gte(dispatchBoardProjection.plannedStartAt, startUtc),
+          lt(dispatchBoardProjection.plannedStartAt, endUtc),
+        ),
+      )
       .orderBy(asc(dispatchBoardProjection.plannedStartAt));
 
     // Earliest run today per operator. A null assigned_operator_id cannot be
     // attributed to a driver, so it is skipped rather than guessed.
-    const runByOperator = new Map<string, typeof runRows[number]>();
+    const runByOperator = new Map<string, (typeof runRows)[number]>();
     for (const run of runRows) {
       const opId = run.assignedOperatorId;
       if (opId === null) continue;

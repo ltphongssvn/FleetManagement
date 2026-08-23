@@ -10,10 +10,7 @@
 // definition shared with the API. This module previously RE-DECLARED them, and its
 // commit-response schema had DRIFTED -- it omitted rejectionReasonCode, which the
 // API emits. Parsing against the shared superset schema fixes that silent drop.
-import {
-  NegotiateUploadResponseSchema,
-  CommitUploadResponseSchema,
-} from '@fleet/sync-protocol';
+import { NegotiateUploadResponseSchema, CommitUploadResponseSchema } from '@fleet/sync-protocol';
 
 export interface ManifestUploadInput {
   readonly apiUrl: string;
@@ -34,7 +31,9 @@ export interface ManifestUploadResult {
   readonly uploadSessionId: string;
 }
 
-export async function negotiateAndUploadManifest(input: ManifestUploadInput): Promise<ManifestUploadResult> {
+export async function negotiateAndUploadManifest(
+  input: ManifestUploadInput,
+): Promise<ManifestUploadResult> {
   const fetchFn = input.fetchFn ?? globalThis.fetch;
   const token = await input.bearerToken();
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };

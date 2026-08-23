@@ -34,7 +34,10 @@ const HASH = String.fromCharCode(35);
 const repoRoot = new URL('..', import.meta.url).pathname;
 const isCommentLine = (line: string): boolean => line.trimStart().startsWith(HASH);
 const codeOnly = (src: string): string =>
-  src.split(NL).filter((line) => !isCommentLine(line)).join(NL);
+  src
+    .split(NL)
+    .filter((line) => !isCommentLine(line))
+    .join(NL);
 /** Root Dockerfiles, DISCOVERED. A hardcoded list is exactly what let
  *  Dockerfile.api and Dockerfile.worker stay broken while "the Dockerfile" was
  *  fixed. */
@@ -85,7 +88,9 @@ describe('Dockerfile deploy mode (production outage guard)', () => {
     // them. A turbo filter without the ... suffix can deploy a package whose
     // dist/ was never emitted.
     const bad = ['Dockerfile.api', 'Dockerfile.worker'].filter((f) => {
-      const line = codeOf(f).split(NL).find((l) => l.includes('turbo run build'));
+      const line = codeOf(f)
+        .split(NL)
+        .find((l) => l.includes('turbo run build'));
       return !line?.includes('...');
     });
     expect(bad).toEqual([]);

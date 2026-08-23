@@ -9,10 +9,7 @@
 //   - Fail-closed session expiry: 401/403 on refresh clears storage.
 //   - Fail-open on transport errors: network failures keep storage (retry).
 //   - Logout: best-effort server revoke, storage always cleared.
-import {
-  DriverLoginResponseSchema,
-  RefreshResponseSchema,
-} from '@fleet/sync-protocol';
+import { DriverLoginResponseSchema, RefreshResponseSchema } from '@fleet/sync-protocol';
 import type { StoredToken } from './token-storage.js';
 
 const SKEW_SECONDS = 30;

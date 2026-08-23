@@ -10,11 +10,7 @@
 // case-sensitive filter matched 0 of 117 items and returned [] -- which reads
 // exactly like 'no usage this month'. Absent data must THROW, never score 0.
 import { describe, it, expect } from 'vitest';
-import {
-  BillingUsageSchema,
-  linuxMinutesForRepo,
-  reconcile,
-} from './ci-minutes-reconcile.js';
+import { BillingUsageSchema, linuxMinutesForRepo, reconcile } from './ci-minutes-reconcile.js';
 
 const ITEM = {
   date: '2026-07-16',

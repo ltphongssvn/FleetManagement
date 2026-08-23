@@ -79,17 +79,20 @@ describe('auditArgs audits the built tree', () => {
 
 describe('artifactVerdict: a real advisory blocks', () => {
   it('passes when every shipped artifact audits clean', () => {
-    expect(artifactVerdict([clean('@fleet/api'), clean('@fleet/main-worker')]))
-      .toBe(ARTIFACT_EXIT.ok);
+    expect(artifactVerdict([clean('@fleet/api'), clean('@fleet/main-worker')])).toBe(
+      ARTIFACT_EXIT.ok,
+    );
   });
 
   // The whole point: an advisory against something that ACTUALLY SHIPS still
   // stops the merge. Narrowing the scope must not weaken the control.
   it('FAILS when a shipped artifact carries an advisory', () => {
-    expect(artifactVerdict([
-      clean('@fleet/api'),
-      { pkg: '@fleet/main-worker', built: true, packageCount: 300, auditStatus: 1 },
-    ])).toBe(ARTIFACT_EXIT.vulnerable);
+    expect(
+      artifactVerdict([
+        clean('@fleet/api'),
+        { pkg: '@fleet/main-worker', built: true, packageCount: 300, auditStatus: 1 },
+      ]),
+    ).toBe(ARTIFACT_EXIT.vulnerable);
   });
 });
 
@@ -97,21 +100,21 @@ describe('artifactVerdict: a broken probe is never a clean bill of health', () =
   // The confident zero, in its natural habitat. An audit of an empty directory
   // reports no vulnerabilities, and that reads exactly like success.
   it('is UNVERIFIABLE when the artifact was never built', () => {
-    expect(artifactVerdict([
-      { pkg: '@fleet/api', built: false, packageCount: 0, auditStatus: 0 },
-    ])).toBe(ARTIFACT_EXIT.unverifiable);
+    expect(
+      artifactVerdict([{ pkg: '@fleet/api', built: false, packageCount: 0, auditStatus: 0 }]),
+    ).toBe(ARTIFACT_EXIT.unverifiable);
   });
 
   it('is UNVERIFIABLE when the tree is implausibly small', () => {
-    expect(artifactVerdict([
-      { pkg: '@fleet/api', built: true, packageCount: 2, auditStatus: 0 },
-    ])).toBe(ARTIFACT_EXIT.unverifiable);
+    expect(
+      artifactVerdict([{ pkg: '@fleet/api', built: true, packageCount: 2, auditStatus: 0 }]),
+    ).toBe(ARTIFACT_EXIT.unverifiable);
   });
 
   it('is UNVERIFIABLE when the audit never ran', () => {
-    expect(artifactVerdict([
-      { pkg: '@fleet/api', built: true, packageCount: 400, auditStatus: null },
-    ])).toBe(ARTIFACT_EXIT.unverifiable);
+    expect(
+      artifactVerdict([{ pkg: '@fleet/api', built: true, packageCount: 400, auditStatus: null }]),
+    ).toBe(ARTIFACT_EXIT.unverifiable);
   });
 
   // A loop that ran zero times -- the same shape as `git worktree list`
@@ -124,10 +127,12 @@ describe('artifactVerdict: a broken probe is never a clean bill of health', () =
   // specific finding either: naming a vulnerable package from a tree that was
   // never built sends the operator to fix something possibly absent.
   it('UNVERIFIABLE dominates VULNERABLE when both are present', () => {
-    expect(artifactVerdict([
-      { pkg: '@fleet/api', built: false, packageCount: 0, auditStatus: null },
-      { pkg: '@fleet/main-worker', built: true, packageCount: 300, auditStatus: 1 },
-    ])).toBe(ARTIFACT_EXIT.unverifiable);
+    expect(
+      artifactVerdict([
+        { pkg: '@fleet/api', built: false, packageCount: 0, auditStatus: null },
+        { pkg: '@fleet/main-worker', built: true, packageCount: 300, auditStatus: 1 },
+      ]),
+    ).toBe(ARTIFACT_EXIT.unverifiable);
   });
 
   it('keeps every exit code distinct, so a caller can branch', () => {
@@ -145,14 +150,20 @@ describe('artifactVerdict: a broken probe is never a clean bill of health', () =
 
 describe('describeArtifact names the package and the reason', () => {
   it('distinguishes an unbuilt artifact from a clean one', () => {
-    expect(describeArtifact({ pkg: '@fleet/api', built: false, packageCount: 0, auditStatus: null }))
-      .toContain('NOT BUILT');
+    expect(
+      describeArtifact({ pkg: '@fleet/api', built: false, packageCount: 0, auditStatus: null }),
+    ).toContain('NOT BUILT');
   });
 
   // The message must say the PROBE is broken, not that the artifact passed --
   // that distinction is the entire fail-closed argument.
   it('says an empty tree means a broken probe, not a clean artifact', () => {
-    const msg = describeArtifact({ pkg: '@fleet/api', built: true, packageCount: 1, auditStatus: 0 });
+    const msg = describeArtifact({
+      pkg: '@fleet/api',
+      built: true,
+      packageCount: 1,
+      auditStatus: 0,
+    });
     expect(msg).toContain('EMPTY TREE');
     expect(msg).toContain('probe is broken');
   });
@@ -164,7 +175,8 @@ describe('describeArtifact names the package and the reason', () => {
   // A finding here is qualitatively different from a workspace-graph finding:
   // it reaches production, so it cannot be deferred to an ignoreGhsas entry.
   it('marks a real finding as SHIPPED, so it cannot be deferred', () => {
-    expect(describeArtifact({ pkg: '@fleet/api', built: true, packageCount: 400, auditStatus: 1 }))
-      .toContain('SHIPPED');
+    expect(
+      describeArtifact({ pkg: '@fleet/api', built: true, packageCount: 400, auditStatus: 1 }),
+    ).toContain('SHIPPED');
   });
 });

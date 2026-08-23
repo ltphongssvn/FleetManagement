@@ -21,8 +21,18 @@ describe('fontSize primitive scale', () => {
   });
 
   it('is strictly ascending (a real scale)', () => {
-    const vals = [fontSize.sm, fontSize.base, fontSize.lg, fontSize.xl, fontSize.xxl, fontSize.huge];
-    vals.reduce((prev, cur) => { expect(cur).toBeGreaterThan(prev); return cur; });
+    const vals = [
+      fontSize.sm,
+      fontSize.base,
+      fontSize.lg,
+      fontSize.xl,
+      fontSize.xxl,
+      fontSize.huge,
+    ];
+    vals.reduce((prev, cur) => {
+      expect(cur).toBeGreaterThan(prev);
+      return cur;
+    });
   });
 
   it('every size is a positive number', () => {

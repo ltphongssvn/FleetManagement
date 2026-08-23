@@ -26,7 +26,12 @@ export type GuardEnvironment = z.infer<typeof GuardEnvironmentSchema>;
 
 /** Destructive operations this guard governs. An unknown operation is rejected by the
  *  schema (no silent passthrough). */
-export const DestructiveOperationKindSchema = z.enum(['wipe_business_data', 'truncate', 'drop_table', 'delete_all']);
+export const DestructiveOperationKindSchema = z.enum([
+  'wipe_business_data',
+  'truncate',
+  'drop_table',
+  'delete_all',
+]);
 export type DestructiveOperationKind = z.infer<typeof DestructiveOperationKindSchema>;
 
 /** The typed break-glass escape hatch. NOT a bare boolean flag: production destruction
@@ -67,11 +72,13 @@ export type GuardDenialReason = z.infer<typeof GuardDenialReasonSchema>;
  *  actionable human message. */
 export const GuardDecisionSchema = z.discriminatedUnion('allowed', [
   z.object({ allowed: z.literal(true) }).strict(),
-  z.object({
-    allowed: z.literal(false),
-    reason: GuardDenialReasonSchema,
-    message: z.string().min(1),
-  }).strict(),
+  z
+    .object({
+      allowed: z.literal(false),
+      reason: GuardDenialReasonSchema,
+      message: z.string().min(1),
+    })
+    .strict(),
 ]);
 export type GuardDecision = z.infer<typeof GuardDecisionSchema>;
 

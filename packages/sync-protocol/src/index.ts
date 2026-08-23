@@ -44,14 +44,8 @@ export {
   ErpMappingContextWireSchema,
   ErpJobDataWireSchema,
 } from './erp-types.js';
-export {
-  type IntakeJobDataWire,
-  IntakeJobDataWireSchema,
-} from './intake-types.js';
-export {
-  ManifestStopRefSchema,
-  type ManifestStopRef,
-} from './manifest-stop-contract.js';
+export { type IntakeJobDataWire, IntakeJobDataWireSchema } from './intake-types.js';
+export { ManifestStopRefSchema, type ManifestStopRef } from './manifest-stop-contract.js';
 export {
   NegotiateUploadResponseSchema,
   type NegotiateUploadResponse,
@@ -155,9 +149,7 @@ export {
 // extraction-types <-> dispatch-stop-view import cycle). The array + type are
 // already re-exported above via extraction-types; the Zod SCHEMA is exported
 // here for boundary validators (api/ops-web) that parse a reason value.
-export {
-  ExtractionFailureReasonSchema,
-} from './extraction-vocabulary.js';
+export { ExtractionFailureReasonSchema } from './extraction-vocabulary.js';
 
 // Leaf SSOT for what a Phieu Can PROOF URL may be. Exported from the barrel
 // because the value crosses a rendering boundary: ops-web parses it off the
@@ -166,11 +158,7 @@ export {
 // src path import is what invites a second, weaker definition -- and the weaker
 // definition here is a bare z.url(), which Zod documents as permissive enough to
 // accept javascript: and data:.
-export {
-  PROOF_URL_PROTOCOL,
-  ProofUrlSchema,
-  type ProofUrl,
-} from './proof-url.js';
+export { PROOF_URL_PROTOCOL, ProofUrlSchema, type ProofUrl } from './proof-url.js';
 export {
   exportDayKeySchema,
   type ExportDayKey,

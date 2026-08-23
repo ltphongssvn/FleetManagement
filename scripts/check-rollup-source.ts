@@ -144,9 +144,11 @@ export function describeRollupFailure(issues: readonly RollupIssue[]): string {
   if (issues.length === 0) {
     return 'statusCheckRollup did not match the expected shape (no issues reported)';
   }
-  return 'statusCheckRollup did not match the expected shape, which does not ' +
+  return (
+    'statusCheckRollup did not match the expected shape, which does not ' +
     'resolve by retrying: ' +
-    issues.map((i) => i.path + ': ' + i.code + ' -- ' + i.message).join('; ');
+    issues.map((i) => i.path + ': ' + i.code + ' -- ' + i.message).join('; ')
+  );
 }
 
 /**
@@ -166,7 +168,10 @@ export function classifyRollup(raw: string, exec?: RollupExec): RollupClassifica
       const why = exec.stderr.trim();
       return {
         kind: 'unavailable',
-        reason: 'gh exited ' + String(exec.exitCode) + ' with no output' +
+        reason:
+          'gh exited ' +
+          String(exec.exitCode) +
+          ' with no output' +
           (why.length > 0 ? ': ' + why.slice(0, 200) : ''),
       };
     }
@@ -181,22 +186,26 @@ export function classifyRollup(raw: string, exec?: RollupExec): RollupClassifica
   } catch {
     return {
       kind: 'unparseable',
-      issues: [{
-        path: '(root)',
-        code: 'not_json',
-        message: 'response was not JSON: ' + raw.slice(0, 200),
-      }],
+      issues: [
+        {
+          path: '(root)',
+          code: 'not_json',
+          message: 'response was not JSON: ' + raw.slice(0, 200),
+        },
+      ],
     };
   }
 
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     return {
       kind: 'unparseable',
-      issues: [{
-        path: '(root)',
-        code: 'invalid_type',
-        message: 'expected an object from gh --json',
-      }],
+      issues: [
+        {
+          path: '(root)',
+          code: 'invalid_type',
+          message: 'expected an object from gh --json',
+        },
+      ],
     };
   }
 

@@ -17,6 +17,8 @@ import { useRefetchOnFocus } from '../../lib/use-refetch-on-focus';
 
 export function RefetchOnFocusMount(): null {
   const router = useRouter();
-  useRefetchOnFocus(() => { router.refresh(); });
+  useRefetchOnFocus(() => {
+    router.refresh();
+  });
   return null;
 }

@@ -42,7 +42,10 @@ function okTokenFetch(): ReturnType<typeof vi.fn> {
   );
 }
 
-function isCleared(res: { cookies: { get: (n: string) => { value: string } | undefined } }, name: string): boolean {
+function isCleared(
+  res: { cookies: { get: (n: string) => { value: string } | undefined } },
+  name: string,
+): boolean {
   const c = res.cookies.get(name);
   return c === undefined || c.value === '';
 }

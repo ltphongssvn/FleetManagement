@@ -8,11 +8,22 @@ vi.mock('../src/observability/otel.js', () => ({
   shutdownOtel: vi.fn(),
 }));
 
-const { CommandsGateway, COMMAND_DELIVERY_POLICY_VERSION } = await import('../src/commands/commands.gateway.js');
+const { CommandsGateway, COMMAND_DELIVERY_POLICY_VERSION } =
+  await import('../src/commands/commands.gateway.js');
 import type { Clock } from '../src/common/clock.js';
 
 interface PendingMap {
-  readonly pending: Map<string, { operatorId: string; issuedAt: Date; attempts: number; pushAttempts: number; pushInFlight: boolean; policyVersion: string }>;
+  readonly pending: Map<
+    string,
+    {
+      operatorId: string;
+      issuedAt: Date;
+      attempts: number;
+      pushAttempts: number;
+      pushInFlight: boolean;
+      policyVersion: string;
+    }
+  >;
 }
 
 describe('@fleet/api - CommandsGateway OTel attributes', () => {

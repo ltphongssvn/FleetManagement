@@ -11,8 +11,13 @@ import type { DispatchBoardRoadRun } from '@/features/dispatch/types';
 afterEach(cleanup);
 const RUN_ID = '33333333-3333-4333-8333-333333333333';
 const refs = {
-  drivers: [], vehicles: [], customers: [], cargoTypes: [],
-  pickupWarehouses: [], deliveryWarehouses: [], driverVehicleAssignments: [],
+  drivers: [],
+  vehicles: [],
+  customers: [],
+  cargoTypes: [],
+  pickupWarehouses: [],
+  deliveryWarehouses: [],
+  driverVehicleAssignments: [],
 };
 const run: DispatchBoardRoadRun = {
   roadRunId: RUN_ID,

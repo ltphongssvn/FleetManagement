@@ -33,7 +33,8 @@ test.describe.serial('docker api image builds without native-build errors', () =
     try {
       execSync(
         'docker build --no-cache --progress=plain -f Dockerfile.api -t fm-api-test . > ' +
-          logPath + ' 2>&1',
+          logPath +
+          ' 2>&1',
         { cwd: repoRoot, shell: '/bin/bash', stdio: 'ignore', maxBuffer: 1024 * 1024 * 64 },
       );
       buildOk = true;
@@ -57,8 +58,8 @@ test.describe.serial('docker api image builds without native-build errors', () =
       'accept4 failed',
       'error getting metadata',
     ];
-    const metadataLoadFailed = /load metadata for[^\n]*\n[^\n]*ERROR/i.test(log) ||
-      log.includes('ERROR: failed to build');
+    const metadataLoadFailed =
+      /load metadata for[^\n]*\n[^\n]*ERROR/i.test(log) || log.includes('ERROR: failed to build');
     const hitEnvFault = envFaultSignatures.some((s) => log.includes(s)) || metadataLoadFailed;
 
     if (!buildStarted && hitEnvFault) {

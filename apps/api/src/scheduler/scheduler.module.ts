@@ -21,7 +21,10 @@ import { AlertLagMonitorService } from '../manifest/alert-lag-monitor.service.js
 import { DrizzleAlertLagRepo } from '../manifest/alert-lag.repo.js';
 import { DrizzleCompletionReconcileRepo } from '../manifest/completion-reconcile.repo.js';
 import { CompletionReconcilerMonitorService } from '../maintenance/completion-reconciler-monitor.service.js';
-import { DrizzleCompletionStrandedRepo, COMPLETION_STRANDED_PILOT_SCOPE } from '../maintenance/completion-stranded.repo.js';
+import {
+  DrizzleCompletionStrandedRepo,
+  COMPLETION_STRANDED_PILOT_SCOPE,
+} from '../maintenance/completion-stranded.repo.js';
 import type { Env } from '../config/env.config.js';
 
 // DI tokens for the optional monitors. Each is provided by a useFactory that
@@ -76,7 +79,10 @@ const COMPLETION_MONITOR_INTERVAL_MS = 300_000;
         config: ConfigService<Env, true>,
         repo: DrizzleIntakeLagRepo,
       ): IntakeLagMonitorService =>
-        new IntakeLagMonitorService(repo, config.getOrThrow('INTAKE_LAG_ALERT_MINUTES', { infer: true })),
+        new IntakeLagMonitorService(
+          repo,
+          config.getOrThrow('INTAKE_LAG_ALERT_MINUTES', { infer: true }),
+        ),
     },
     {
       // Driver-alert-lag guard (T12) is ALWAYS ON. Threshold
@@ -87,7 +93,10 @@ const COMPLETION_MONITOR_INTERVAL_MS = 300_000;
         config: ConfigService<Env, true>,
         repo: DrizzleAlertLagRepo,
       ): AlertLagMonitorService =>
-        new AlertLagMonitorService(repo, config.getOrThrow('DRIVER_ALERT_LAG_MINUTES', { infer: true })),
+        new AlertLagMonitorService(
+          repo,
+          config.getOrThrow('DRIVER_ALERT_LAG_MINUTES', { infer: true }),
+        ),
     },
     {
       // Intake self-healing reconciler. ALWAYS provided but tick-gated: null
@@ -196,46 +205,80 @@ const COMPLETION_MONITOR_INTERVAL_MS = 300_000;
         const pilotScope = config.getOrThrow('FLEET_PILOT_SCOPE', { infer: true });
         const tickers: SchedulerTicker[] = [
           {
-            key: 'outbox', tag: 'outbox-drain', label: 'Outbox drain failed: ',
-            intervalMs: DRAIN_INTERVAL_MS, run: () => outboxRelay.drainOnce(),
+            key: 'outbox',
+            tag: 'outbox-drain',
+            label: 'Outbox drain failed: ',
+            intervalMs: DRAIN_INTERVAL_MS,
+            run: () => outboxRelay.drainOnce(),
           },
           {
-            key: 'projection', tag: 'projection-drain', label: 'Projection drain failed: ',
-            intervalMs: DRAIN_INTERVAL_MS, run: () => projectionRunner.drainOnce(pilotScope),
+            key: 'projection',
+            tag: 'projection-drain',
+            label: 'Projection drain failed: ',
+            intervalMs: DRAIN_INTERVAL_MS,
+            run: () => projectionRunner.drainOnce(pilotScope),
           },
           {
-            key: 'reconciler', tag: 'commands-reconciler', label: 'Reconciler tick failed: ',
-            intervalMs: RECONCILE_INTERVAL_MS, run: () => { commandsGateway.reconcileNow(); },
+            key: 'reconciler',
+            tag: 'commands-reconciler',
+            label: 'Reconciler tick failed: ',
+            intervalMs: RECONCILE_INTERVAL_MS,
+            run: () => {
+              commandsGateway.reconcileNow();
+            },
           },
         ];
-        if (intakeLagMonitor !== null) tickers.push({
-          key: 'intakeLag', tag: 'intake-lag-check', label: 'Intake-lag check failed: ',
-          intervalMs: INTAKE_LAG_INTERVAL_MS, run: () => intakeLagMonitor.checkOnce(),
-        });
-        if (alertLagMonitor !== null) tickers.push({
-          key: 'alertLag', tag: 'driver-alert-lag-check', label: 'Driver-alert-lag check failed: ',
-          intervalMs: ALERT_LAG_INTERVAL_MS, run: () => alertLagMonitor.checkOnce(),
-        });
-        if (intakeReconciler !== null) tickers.push({
-          key: 'intakeReconcile', tag: 'intake-reconcile', label: 'Intake reconcile failed: ',
-          intervalMs: INTAKE_RECONCILE_INTERVAL_MS, run: () => intakeReconciler.reconcileOnce(),
-        });
-        if (completionReconciler !== null) tickers.push({
-          key: 'completionReconcile', tag: 'completion-reconcile', label: 'Completion reconcile failed: ',
-          intervalMs: COMPLETION_RECONCILE_INTERVAL_MS, run: () => completionReconciler.reconcileOnce(),
-        });
-        if (completionMonitor !== null) tickers.push({
-          key: 'completionMonitor', tag: 'completion-monitor-check', label: 'Completion monitor check failed: ',
-          intervalMs: COMPLETION_MONITOR_INTERVAL_MS, run: () => completionMonitor.checkOnce(),
-        });
-        if (breakGlassMonitor !== null) tickers.push({
-          key: 'breakglass', tag: 'breakglass-scan', label: 'Break-glass poll failed: ',
-          intervalMs: BREAKGLASS_INTERVAL_MS, run: () => breakGlassMonitor.pollOnce(),
-        });
+        if (intakeLagMonitor !== null)
+          tickers.push({
+            key: 'intakeLag',
+            tag: 'intake-lag-check',
+            label: 'Intake-lag check failed: ',
+            intervalMs: INTAKE_LAG_INTERVAL_MS,
+            run: () => intakeLagMonitor.checkOnce(),
+          });
+        if (alertLagMonitor !== null)
+          tickers.push({
+            key: 'alertLag',
+            tag: 'driver-alert-lag-check',
+            label: 'Driver-alert-lag check failed: ',
+            intervalMs: ALERT_LAG_INTERVAL_MS,
+            run: () => alertLagMonitor.checkOnce(),
+          });
+        if (intakeReconciler !== null)
+          tickers.push({
+            key: 'intakeReconcile',
+            tag: 'intake-reconcile',
+            label: 'Intake reconcile failed: ',
+            intervalMs: INTAKE_RECONCILE_INTERVAL_MS,
+            run: () => intakeReconciler.reconcileOnce(),
+          });
+        if (completionReconciler !== null)
+          tickers.push({
+            key: 'completionReconcile',
+            tag: 'completion-reconcile',
+            label: 'Completion reconcile failed: ',
+            intervalMs: COMPLETION_RECONCILE_INTERVAL_MS,
+            run: () => completionReconciler.reconcileOnce(),
+          });
+        if (completionMonitor !== null)
+          tickers.push({
+            key: 'completionMonitor',
+            tag: 'completion-monitor-check',
+            label: 'Completion monitor check failed: ',
+            intervalMs: COMPLETION_MONITOR_INTERVAL_MS,
+            run: () => completionMonitor.checkOnce(),
+          });
+        if (breakGlassMonitor !== null)
+          tickers.push({
+            key: 'breakglass',
+            tag: 'breakglass-scan',
+            label: 'Break-glass poll failed: ',
+            intervalMs: BREAKGLASS_INTERVAL_MS,
+            run: () => breakGlassMonitor.pollOnce(),
+          });
         return tickers;
       },
     },
   ],
 })
-
 export class SchedulerModule {}

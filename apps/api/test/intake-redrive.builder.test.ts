@@ -74,7 +74,10 @@ describe('buildIntakeRedriveOutboxValues', () => {
 
   it('throws when both size fields are null (schema requires positive int)', () => {
     expect(() =>
-      buildIntakeRedriveOutboxValues({ ...CANDIDATE, expectedSizeBytes: null, actualSizeBytes: null }, 5n),
+      buildIntakeRedriveOutboxValues(
+        { ...CANDIDATE, expectedSizeBytes: null, actualSizeBytes: null },
+        5n,
+      ),
     ).toThrow();
   });
 });

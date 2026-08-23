@@ -23,7 +23,10 @@
 // board components with RoadRunStatusGroup. No consumer re-declares the union.
 import { z } from 'zod';
 import { ROAD_RUN_STATES, type RoadRunStateName } from './dispatch-stop-view-contract.js';
-import { DispatchBoardApiRowSchema, DispatchBoardRowSchema } from './dispatch-stop-view-contract.js';
+import {
+  DispatchBoardApiRowSchema,
+  DispatchBoardRowSchema,
+} from './dispatch-stop-view-contract.js';
 
 // The three dispatcher-facing slices of the board, each rendered as its own tab:
 // 'active' is the default view (Đang chạy — pending + in-progress); 'finished'
@@ -49,9 +52,13 @@ const ROAD_RUN_TERMINAL_STATES: readonly RoadRunStateName[] = ['completed', 'can
 // them separately so dispatchers can distinguish delivered from cancelled runs.
 const CANCELLED_STATES: readonly RoadRunStateName[] = Object.freeze(['cancelled']);
 const FINISHED_STATES: readonly RoadRunStateName[] = Object.freeze(
-  ROAD_RUN_STATES.filter((s) => ROAD_RUN_TERMINAL_STATES.includes(s) && !CANCELLED_STATES.includes(s)),
+  ROAD_RUN_STATES.filter(
+    (s) => ROAD_RUN_TERMINAL_STATES.includes(s) && !CANCELLED_STATES.includes(s),
+  ),
 );
-const ACTIVE_STATES: readonly RoadRunStateName[] = Object.freeze(ROAD_RUN_STATES.filter((s) => !ROAD_RUN_TERMINAL_STATES.includes(s)));
+const ACTIVE_STATES: readonly RoadRunStateName[] = Object.freeze(
+  ROAD_RUN_STATES.filter((s) => !ROAD_RUN_TERMINAL_STATES.includes(s)),
+);
 
 export function statesForStatusGroup(group: RoadRunStatusGroup): readonly RoadRunStateName[] {
   if (group === 'finished') return FINISHED_STATES;
@@ -72,7 +79,12 @@ export const RoadRunPageQuerySchema = z
   .object({
     group: roadRunStatusGroupSchema.default('active'),
     page: z.coerce.number().int().positive().default(1),
-    pageSize: z.coerce.number().int().min(1).max(ROAD_RUN_PAGE_SIZE_MAX).default(ROAD_RUN_PAGE_SIZE_DEFAULT),
+    pageSize: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(ROAD_RUN_PAGE_SIZE_MAX)
+      .default(ROAD_RUN_PAGE_SIZE_DEFAULT),
     search: z.string().min(1).optional(),
   })
   .strict();
@@ -126,7 +138,8 @@ export function makePaginatedResponseSchema<T extends z.ZodType>(
 // ---------------------------------------------------------------------------
 
 // API-PRODUCED page (rows are DispatchBoardApiRow — stops carry stopId).
-export const DispatchBoardPageApiResponseSchema = makePaginatedResponseSchema(DispatchBoardApiRowSchema);
+export const DispatchBoardPageApiResponseSchema =
+  makePaginatedResponseSchema(DispatchBoardApiRowSchema);
 export type DispatchBoardPageApiResponse = z.infer<typeof DispatchBoardPageApiResponseSchema>;
 
 // CLIENT-PARSED page (rows are the leaner DispatchBoardRow ops-web renders).

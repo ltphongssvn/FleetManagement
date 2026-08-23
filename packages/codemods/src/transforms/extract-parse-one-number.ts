@@ -16,21 +16,29 @@ const DOMAIN_SPECIFIER = '@fleet/domain';
 export function extractParseOneNumber(project: Project): readonly ProjectChange[] {
   const origin = project
     .getSourceFiles()
-    .find((sf) => !sf.getFilePath().includes(DOMAIN_SEGMENT) && sf.getFunction(TARGET) !== undefined);
+    .find(
+      (sf) => !sf.getFilePath().includes(DOMAIN_SEGMENT) && sf.getFunction(TARGET) !== undefined,
+    );
   if (origin === undefined) {
     return [];
   }
 
-  const barrel = project.getSourceFiles().find((sf) => sf.getFilePath().endsWith(DOMAIN_BARREL_SUFFIX));
+  const barrel = project
+    .getSourceFiles()
+    .find((sf) => sf.getFilePath().endsWith(DOMAIN_BARREL_SUFFIX));
   if (barrel === undefined) {
-    throw new Error('extract-parse-one-number: @fleet/domain barrel (packages/domain/src/index.ts) not found in project');
+    throw new Error(
+      'extract-parse-one-number: @fleet/domain barrel (packages/domain/src/index.ts) not found in project',
+    );
   }
 
   const fn = origin.getFunctionOrThrow(TARGET);
   const fnText = fn.getText();
   const modulePath = barrel.getDirectoryPath() + '/number-format/parse-one-number.ts';
   const header = '// packages/domain/src/number-format/parse-one-number.ts\n';
-  const moduleFile = project.createSourceFile(modulePath, header + fnText + '\n', { overwrite: true });
+  const moduleFile = project.createSourceFile(modulePath, header + fnText + '\n', {
+    overwrite: true,
+  });
   moduleFile.getFunctionOrThrow(TARGET).setIsExported(true);
 
   barrel.addExportDeclaration({ moduleSpecifier: MODULE_RELATIVE });

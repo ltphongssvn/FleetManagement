@@ -62,7 +62,12 @@ describe('AdminDevicesClient', () => {
     await expect(client.list({ status: 'pending', page: 1, pageSize: 20 })).rejects.toThrow();
   });
   it('list raises non-ok responses through the ensureOk problem seam', async () => {
-    const problem = { type: 'about:blank', title: 'Unauthorized', status: 401, code: 'UNAUTHORIZED' };
+    const problem = {
+      type: 'about:blank',
+      title: 'Unauthorized',
+      status: 401,
+      code: 'UNAUTHORIZED',
+    };
     const fetchFn = vi.fn().mockResolvedValue(jsonRes(problem, 401));
     const client = new AdminDevicesClient({ fetchFn });
     await expect(client.list({ status: 'pending', page: 1, pageSize: 20 })).rejects.toThrow();
@@ -81,6 +86,9 @@ describe('AdminDevicesClient', () => {
     const client = new AdminDevicesClient({ fetchFn });
     await client.revoke(GUID, 'thiet bi bi mat');
     const [, init] = fetchFn.mock.calls[0] as [string, RequestInit];
-    expect(JSON.parse(init.body as string)).toEqual({ action: 'revoke', revokedReason: 'thiet bi bi mat' });
+    expect(JSON.parse(init.body as string)).toEqual({
+      action: 'revoke',
+      revokedReason: 'thiet bi bi mat',
+    });
   });
 });

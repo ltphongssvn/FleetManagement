@@ -82,9 +82,7 @@ describe('AdminDriversClient.list parses at the boundary', () => {
   });
 
   it('REJECTS a row whose field has the wrong type', async () => {
-    await expect(
-      clientReturning([{ ...VALID_ROW, driverId: 42 }]).list(),
-    ).rejects.toThrow();
+    await expect(clientReturning([{ ...VALID_ROW, driverId: 42 }]).list()).rejects.toThrow();
   });
 
   // nullable is NOT optional: the key must be present. An absent phone is what

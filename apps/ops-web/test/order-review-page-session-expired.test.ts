@@ -28,8 +28,12 @@ vi.mock('next/headers', () => ({
   headers: () => Promise.resolve({ get: headerGet }),
 }));
 const { redirectMock, notFoundMock } = vi.hoisted(() => ({
-  redirectMock: vi.fn((url: string) => { throw new Error('NEXT_REDIRECT:' + url); }),
-  notFoundMock: vi.fn(() => { throw new Error('NEXT_NOT_FOUND'); }),
+  redirectMock: vi.fn((url: string) => {
+    throw new Error('NEXT_REDIRECT:' + url);
+  }),
+  notFoundMock: vi.fn(() => {
+    throw new Error('NEXT_NOT_FOUND');
+  }),
 }));
 vi.mock('next/navigation', () => ({
   redirect: redirectMock,
@@ -66,7 +70,10 @@ describe('OrderReviewPage loader on idle-expired session', () => {
   });
 
   it('401 -> redirect() to the silent-refresh route with next=<this page>', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(problemRes(401, 'UNAUTHORIZED'))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(problemRes(401, 'UNAUTHORIZED'))),
+    );
     await expect(callPage('XTT.07-001')).rejects.toThrow(/NEXT_REDIRECT/);
     expect(redirectMock).toHaveBeenCalledWith(
       '/api/auth/refresh?next=' + encodeURIComponent('/dispatch/orders/XTT.07-001'),
@@ -75,13 +82,19 @@ describe('OrderReviewPage loader on idle-expired session', () => {
   });
 
   it('404 keeps notFound()', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('', { status: 404 }))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response('', { status: 404 }))),
+    );
     await expect(callPage('missing')).rejects.toThrow(/NEXT_NOT_FOUND/);
     expect(redirectMock).not.toHaveBeenCalled();
   });
 
   it('non-auth failures keep the descriptive throw (no redirect)', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(problemRes(500, 'INTERNAL'))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(problemRes(500, 'INTERNAL'))),
+    );
     await expect(callPage('XTT.07-001')).rejects.toThrow(/Failed to load order: 500/);
     expect(redirectMock).not.toHaveBeenCalled();
   });

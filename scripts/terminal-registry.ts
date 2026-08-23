@@ -38,7 +38,9 @@ const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 /** The ref a newly cut worktree publishes to claim its terminal number. */
 export function terminalRefName(terminal: number): string {
   if (!Number.isInteger(terminal) || terminal < 1) {
-    throw new Error('terminalRefName: terminal must be a positive integer, got ' + String(terminal));
+    throw new Error(
+      'terminalRefName: terminal must be a positive integer, got ' + String(terminal),
+    );
   }
   return TERMINAL_REF_PREFIX + String(terminal);
 }
@@ -75,7 +77,9 @@ export function worktreeDirName(terminal: number, worktree: number, slug: string
     throw new Error('worktreeDirName: worktree must be a positive integer');
   }
   if (!SLUG_RE.test(slug)) {
-    throw new Error('worktreeDirName: slug must be lowercase kebab-case, got ' + JSON.stringify(slug));
+    throw new Error(
+      'worktreeDirName: slug must be lowercase kebab-case, got ' + JSON.stringify(slug),
+    );
   }
   return 't' + String(terminal) + '-wt' + String(worktree) + '-' + slug;
 }
@@ -139,6 +143,12 @@ export function formatTerminalCensus(published: readonly number[]): string {
     return 'Terminals: no terminals published (registry empty, or refs/terminals/* not fetched)';
   }
   const next = nextTerminalNumber(published);
-  return 'Terminals: ' + String(published.length) + ' published, highest t' +
-    String(Math.max(...published)) + ' -- next terminal: t' + String(next);
+  return (
+    'Terminals: ' +
+    String(published.length) +
+    ' published, highest t' +
+    String(Math.max(...published)) +
+    ' -- next terminal: t' +
+    String(next)
+  );
 }

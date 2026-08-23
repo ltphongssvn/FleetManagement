@@ -5,20 +5,30 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ReferenceService } from '../src/reference/reference.service.js';
 import { vehicle } from '../src/database/schema/reference.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { withTxIsolation } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 describe('ReferenceService.vehiclesAdmin (T5c)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('returns all active vehicles regardless of driver-vehicle pairing', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const svc = new ReferenceService(tx as never);
       const op = createOperatorContext();
       const tn = {
-        companyId: op.companyId, businessUnitId: op.businessUnitId,
-        depotId: op.depotId, legalEntityId: op.legalEntityId,
+        companyId: op.companyId,
+        businessUnitId: op.businessUnitId,
+        depotId: op.depotId,
+        legalEntityId: op.legalEntityId,
       };
       await tx.insert(vehicle).values({ ...tn, plate: 'UNPAIRED-1' });
       const result = await svc.vehiclesAdmin(op);
@@ -30,8 +40,10 @@ describe('ReferenceService.vehiclesAdmin (T5c)', () => {
       const svc = new ReferenceService(tx as never);
       const op = createOperatorContext();
       const tn = {
-        companyId: op.companyId, businessUnitId: op.businessUnitId,
-        depotId: op.depotId, legalEntityId: op.legalEntityId,
+        companyId: op.companyId,
+        businessUnitId: op.businessUnitId,
+        depotId: op.depotId,
+        legalEntityId: op.legalEntityId,
       };
       await tx.insert(vehicle).values({ ...tn, plate: 'GONE-1', active: false });
       const result = await svc.vehiclesAdmin(op);

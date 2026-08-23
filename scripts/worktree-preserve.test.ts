@@ -155,8 +155,9 @@ describe('commitMessageFor (the record must explain itself)', () => {
     expect(msg).toContain('3');
   });
   it('states plainly that it is NOT an integration candidate', () => {
-    expect(commitMessageFor({ branch: 'feature/x', fileCount: 1 }).toLowerCase())
-      .toContain('not an integration candidate');
+    expect(commitMessageFor({ branch: 'feature/x', fileCount: 1 }).toLowerCase()).toContain(
+      'not an integration candidate',
+    );
   });
 });
 describe('resolvePreserveExecute (dry-run is the default)', () => {
@@ -173,24 +174,29 @@ describe('resolvePreserveExecute (dry-run is the default)', () => {
 // operator's next action differs from every other outcome.
 describe('preserveExitCode (gates, does not merely print)', () => {
   it('is 0 when nothing needed preserving', () => {
-    expect(preserveExitCode({ preserved: 0, refused: 0, failed: 0, shortfall: 0, skipped: 5 }))
-      .toBe(PRESERVE_EXIT.ok);
+    expect(
+      preserveExitCode({ preserved: 0, refused: 0, failed: 0, shortfall: 0, skipped: 5 }),
+    ).toBe(PRESERVE_EXIT.ok);
   });
   it('is 0 when every dirty worktree was preserved and verified', () => {
-    expect(preserveExitCode({ preserved: 3, refused: 0, failed: 0, shortfall: 0, skipped: 41 }))
-      .toBe(PRESERVE_EXIT.ok);
+    expect(
+      preserveExitCode({ preserved: 3, refused: 0, failed: 0, shortfall: 0, skipped: 41 }),
+    ).toBe(PRESERVE_EXIT.ok);
   });
   it('reports a refusal with its own code', () => {
-    expect(preserveExitCode({ preserved: 0, refused: 1, failed: 0, shortfall: 0, skipped: 43 }))
-      .toBe(PRESERVE_EXIT.refused);
+    expect(
+      preserveExitCode({ preserved: 0, refused: 1, failed: 0, shortfall: 0, skipped: 43 }),
+    ).toBe(PRESERVE_EXIT.refused);
   });
   it('reports an operational failure with its own code', () => {
-    expect(preserveExitCode({ preserved: 0, refused: 0, failed: 1, shortfall: 0, skipped: 43 }))
-      .toBe(PRESERVE_EXIT.failed);
+    expect(
+      preserveExitCode({ preserved: 0, refused: 0, failed: 1, shortfall: 0, skipped: 43 }),
+    ).toBe(PRESERVE_EXIT.failed);
   });
   it('lets FAILED outrank refused: an errored git command is unresolved, a refusal is a safe stop', () => {
-    expect(preserveExitCode({ preserved: 0, refused: 2, failed: 1, shortfall: 0, skipped: 41 }))
-      .toBe(PRESERVE_EXIT.failed);
+    expect(
+      preserveExitCode({ preserved: 0, refused: 2, failed: 1, shortfall: 0, skipped: 41 }),
+    ).toBe(PRESERVE_EXIT.failed);
   });
   it('lets SHORTFALL dominate everything: only it means work may already be GONE', () => {
     expect(

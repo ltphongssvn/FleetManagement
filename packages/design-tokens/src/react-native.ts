@@ -10,15 +10,7 @@
 // palette -- explicit + precise is the 2026-preferred, most readable form. Scale
 // primitives pass through unchanged; semanticColors is re-exported to give RN a
 // semantic path (the preferred way to reference colors going forward).
-import {
-  palette,
-  spacing,
-  radius,
-  typography,
-  fontSize,
-  shadow,
-  semanticColors,
-} from './index.js';
+import { palette, spacing, radius, typography, fontSize, shadow, semanticColors } from './index.js';
 
 export const colors = {
   slate50: palette.slate[50],

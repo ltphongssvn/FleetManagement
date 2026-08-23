@@ -57,9 +57,7 @@ function passThroughNoTransform(): NextResponse {
   const existing = res.headers.get('cache-control');
   res.headers.set(
     'Cache-Control',
-    existing !== null && existing.length > 0
-      ? existing + ', no-transform'
-      : 'no-transform',
+    existing !== null && existing.length > 0 ? existing + ', no-transform' : 'no-transform',
   );
   return res;
 }
@@ -93,9 +91,7 @@ export function proxy(req: NextRequest): NextResponse {
     return NextResponse.redirect(refreshUrl);
   }
   const loginUrl = new URL('/login', publicOrigin(req));
-  return isRscRequest(req)
-    ? NextResponse.rewrite(loginUrl)
-    : NextResponse.redirect(loginUrl);
+  return isRscRequest(req) ? NextResponse.rewrite(loginUrl) : NextResponse.redirect(loginUrl);
 }
 export const config = {
   // Exclude /api/auth/* from the matcher: the OAuth Authorization Code + PKCE

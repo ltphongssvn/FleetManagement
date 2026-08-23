@@ -12,7 +12,7 @@ const VI: Dict = {
   'app.locale.en': 'English',
   'login.title': 'Đăng nhập',
   'login.username': 'Tên đăng nhập',
-  'login.password': 'Mật khẩu',  // pragma: allowlist secret
+  'login.password': 'Mật khẩu', // pragma: allowlist secret
   'login.submit': 'Đăng nhập',
   'login.submitting': 'Đang đăng nhập…',
   'login.invalid': 'Tên đăng nhập hoặc mật khẩu không đúng',
@@ -62,7 +62,7 @@ const EN: Dict = {
   'app.locale.en': 'English',
   'login.title': 'Sign in',
   'login.username': 'Username',
-  'login.password': 'Password',  // pragma: allowlist secret
+  'login.password': 'Password', // pragma: allowlist secret
   'login.submit': 'Sign in',
   'login.submitting': 'Signing in…',
   'login.invalid': 'Invalid username or password',
