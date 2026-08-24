@@ -293,6 +293,7 @@
         "//#lint:e2e",
         "//#typecheck:scripts",
         "//#guard:local-secrets",
+        "//#format:check",
       ],
       "cache": false,
     },
@@ -360,7 +361,7 @@
       "cache": false,
     },
     "//#format:check": {
-      "description": "Root-level task: assert every file matches the committed Prettier style. Prefix //# ensures repo-root-only: .prettierrc governs the whole tree and belongs to no workspace package. ROOT CAUSE THIS CLOSES: the repo carried .prettierrc, .prettierignore and the prettier devDependency, AND eslint-config-prettier -- which exists precisely to TURN OFF every ESLint formatting rule so Prettier can own them. So ESLint was told to stop enforcing style, and Prettier was never run: no format script, no hook, no CI step. //#knip reported prettier as an unused devDependency and was right in the only sense that matters -- nothing invoked it. Formatting was enforced by NEITHER tool while two config files described it in detail, which is the decorative-control shape this repo has now closed seven times. 2026 guidance is explicit that ESLint and Prettier run as SEPARATE tools with eslint-config-prettier as the bridge; the bridge was built and the far side was missing. cache:false -- a pass/fail check over working-tree state, matching lint:scripts and test:scripts. Run: pnpm exec turbo run format:check.",
+      "description": "WIRED INTO __ci_fast__ (2026-08-24). Prettier, eslint-config-prettier and .prettierrc were all committed while NOTHING ran the formatter: 1202 files were unformatted when the burndown started. Driving that to zero is worth nothing if the next commit can reopen it, which is the decorative-control shape this repo has now closed six times (//#lint:scripts, //#typecheck:scripts, //#lint:e2e, //#estate:verify, //#worktree:stale-gate, //#test:scripts). VERIFIED NOT BORN RED before gating: format:check reports clean on develop, so this enforces the burndown rather than blocking every branch on day one -- gating an already-failing check is how a team learns to pass --no-verify reflexively. Root-level task: assert every file matches the committed Prettier style. Prefix //# ensures repo-root-only: .prettierrc governs the whole tree and belongs to no workspace package. ROOT CAUSE THIS CLOSES: the repo carried .prettierrc, .prettierignore and the prettier devDependency, AND eslint-config-prettier -- which exists precisely to TURN OFF every ESLint formatting rule so Prettier can own them. So ESLint was told to stop enforcing style, and Prettier was never run: no format script, no hook, no CI step. //#knip reported prettier as an unused devDependency and was right in the only sense that matters -- nothing invoked it. Formatting was enforced by NEITHER tool while two config files described it in detail, which is the decorative-control shape this repo has now closed seven times. 2026 guidance is explicit that ESLint and Prettier run as SEPARATE tools with eslint-config-prettier as the bridge; the bridge was built and the far side was missing. cache:false -- a pass/fail check over working-tree state, matching lint:scripts and test:scripts. Run: pnpm exec turbo run format:check.",
       "cache": false,
       "persistent": false,
     },
