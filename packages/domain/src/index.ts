@@ -81,8 +81,18 @@ export {
   ManifestRejectionReasonSchema,
   type ManifestRejectionReason,
 } from './manifest/manifest-rejection-reason.js';
-export * from './number-format/parse-one-number.js';
-export * from './manifest/manifest-extraction-status.js';
+// parseOneNumber is the pure Vietnamese/OCR number grammar the worker, the api
+// and the board all depend on. Named rather than wildcard: this barrel was
+// root-fixed once already for exactly this class of bug -- symbols missing from
+// the compiled dist that consumers resolve -- and a wildcard is what lets the
+// next relocation land without anyone noticing the surface changed.
+export { parseOneNumber } from './number-format/parse-one-number.js';
+export {
+  MANIFEST_EXTRACTION_STATUSES,
+  manifestExtractionStatusSchema,
+  type ManifestExtractionStatus,
+  isTerminalExtractionStatus,
+} from './manifest/manifest-extraction-status.js';
 
 // T33: phieu-can STANDARD FORMAT SSOT + the pure goods-kg derivation rule.
 // Exported from the barrel because every consumer (worker extraction policy,

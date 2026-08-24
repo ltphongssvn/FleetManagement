@@ -112,7 +112,19 @@ export {
   type OutboxQueueName,
 } from './outbox-routing.js';
 export { COMMAND_EVENTS, type CommandEventName } from './command-events.js';
-export * from './order-timeline-contract.js';
+// Admin order-timeline read model. Named, not wildcard: line 3 of this file
+// forbids wildcards, and a wildcard also defeats the analysis that keeps this
+// barrel honest -- it republishes whatever the module happens to export, so the
+// barrel stops being the authority on the public surface and every bundler and
+// dead-code tool has to guess. Measured cost of the star form in 2026 barrel
+// benchmarks is a large server-side bundle penalty; the correctness cost here is
+// that a new internal helper becomes public by accident.
+export {
+  OrderTimelineEventSchema,
+  type OrderTimelineEvent,
+  OrderTimelineSchema,
+  type OrderTimeline,
+} from './order-timeline-contract.js';
 export {
   ROAD_RUN_STATUS_GROUPS,
   roadRunStatusGroupSchema,
@@ -277,7 +289,49 @@ export {
 } from './copilot-types.js';
 
 // Device binding (installation identity + TOFU binding lifecycle).
-export * from './device-binding-contract.js';
+// Named for the same reason as the timeline contract above. This module is the
+// larger of the two wildcards and the one where the accident was most likely:
+// it defines InstallationIdSchema as a MODULE-PRIVATE const, and a reader
+// skimming a wildcard cannot tell which symbols are contract and which are
+// scaffolding.
+export {
+  DeviceBindingPlatformSchema,
+  type DeviceBindingPlatform,
+  DeviceIdentitySchema,
+  type DeviceIdentity,
+  DeviceBindingStatusSchema,
+  type DeviceBindingStatus,
+  ATTESTATION_SECURITY_LEVELS,
+  AttestationSecurityLevelSchema,
+  type AttestationSecurityLevel,
+  ATTESTATION_ENVIRONMENTS,
+  AttestationEnvironmentSchema,
+  type AttestationEnvironment,
+  DeviceEnrollRequestSchema,
+  type DeviceEnrollRequest,
+  DeviceEnrollResponseSchema,
+  type DeviceEnrollResponse,
+  DEVICE_BINDING_PROBLEM_CODES,
+  type DeviceBindingProblemCode,
+  DEVICE_BINDING_ACTIONS,
+  DeviceBindingActionSchema,
+  type DeviceBindingAction,
+  DEVICE_BINDING_ENFORCEMENT_MODES,
+  DeviceBindingEnforcementModeSchema,
+  type DeviceBindingEnforcementMode,
+  DeviceBindingPatchRequestSchema,
+  type DeviceBindingPatchRequest,
+  AdminDeviceRowSchema,
+  type AdminDeviceRow,
+  parseDeviceEnrollRequest,
+  parseDeviceEnrollResponse,
+  ADMIN_DEVICE_PAGE_SIZE_MAX,
+  ADMIN_DEVICE_PAGE_SIZE_DEFAULT,
+  AdminDeviceListQuerySchema,
+  type AdminDeviceListQuery,
+  AdminDeviceListResponseSchema,
+  type AdminDeviceListResponse,
+} from './device-binding-contract.js';
 export {
   DRIVER_ALERT_KINDS,
   DriverAlertKindSchema,
