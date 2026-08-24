@@ -28,6 +28,12 @@ export async function loadToken(): Promise<StoredToken | null> {
   } else {
     raw = await SecureStore.getItemAsync(TOKEN_KEY);
   }
+  // EQUIVALENT MUTANT. Removing this guard is harmless: the next statement is
+  // JSON.parse(raw), and JSON.parse(null) coerces to 'null' and returns null --
+  // the exact value this line returns. Both variants yield null on every input,
+  // so no assertion can separate them. The guard stays because relying on that
+  // coercion would be a trap for the next reader.
+  // Stryker disable next-line ConditionalExpression: equivalent, see above
   if (raw === null) return null;
   try {
     return JSON.parse(raw) as StoredToken;
