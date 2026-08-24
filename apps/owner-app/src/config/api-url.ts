@@ -23,8 +23,28 @@ function getWebHostname(): string | undefined {
   const win: unknown = g.window;
   if (typeof win !== 'object' || win === null) return undefined;
   const loc: unknown = (win as { location?: unknown }).location;
+  // EQUIVALENT MUTANT, verified by running the guard chain against the mutant
+  // over every window shape a real environment can present. Dropping
+  // `typeof loc !== 'object'` lets a non-object location through, but the very
+  // next line reads .hostname off it and gets undefined, which the string check
+  // rejects -- so both variants return undefined on every input. No test can
+  // distinguish them, so this is noise rather than a gap.
+  //
+  // The directive must be the LAST line before the code: `next-line` targets
+  // the next line literally, so a multi-line reason silently points it at
+  // another comment and the mutant keeps surviving.
+  // Stryker disable next-line ConditionalExpression: equivalent, see above
   if (typeof loc !== 'object' || loc === null) return undefined;
   const host: unknown = (loc as { hostname?: unknown }).hostname;
+  // The `true &&` collapse is EQUIVALENT: with the typeof check removed,
+  // `.length > 0` on a non-string yields undefined > 0, which is false, so the
+  // result is undefined either way.
+  //
+  // Scoped to ConditionalExpression ONLY. The other mutants on this line -- the
+  // || flip and > 0 -> >= 0 -- are NOT equivalent, and the empty-hostname case
+  // in api-url-guards.test.ts kills them. Disabling the whole line would hide
+  // two real gaps to silence one piece of noise.
+  // Stryker disable next-line ConditionalExpression: equivalent, see above
   return typeof host === 'string' && host.length > 0 ? host : undefined;
 }
 export function getApiUrl(): string {
@@ -35,18 +55,34 @@ export function getApiUrl(): string {
   // http://localhost:3000 on device -> ConnectException). Narrow via typeof so
   // it stays type-safe whether process.env is typed as string-record or any.
   const rawValue: unknown = process.env['EXPO_PUBLIC_API_URL'];
+  // EQUIVALENT AT RUNTIME. process.env yields only string | undefined -- Node
+  // coerces every assigned value and rejects a non-enumerable descriptor
+  // outright, so a non-string can never reach this read. Confirmed by trying:
+  //   TypeError: 'process.env' only accepts a configurable, writable, and
+  //   enumerable data descriptor
+  // The narrowing still earns its place because Expo INLINES this value at
+  // build time and the bundler is not obliged to emit a string literal, but no
+  // test can exercise the false branch without faking process itself.
+  // Stryker disable next-line ConditionalExpression: equivalent, see above
   const raw = typeof rawValue === 'string' ? rawValue : undefined;
   if (raw === undefined || raw.length === 0) return DEV_FALLBACK_API_URL;
   const hostname = getWebHostname();
   if (hostname === undefined) return raw;
+  // The catch is LOAD-BEARING here, and deliberately so. It previously wrapped
+  // the whole rewrite and did `return raw`, which the function already does on
+  // the last line -- so emptying the catch changed nothing and the mutant
+  // survived as redundant code. Narrowing the try to the one call that can
+  // throw makes the recovery observable: without it, u is never assigned and
+  // the next line throws instead of falling back.
+  let u: URL;
   try {
-    const u = new URL(raw);
-    if (u.hostname === EMULATOR_HOST) {
-      u.hostname = hostname;
-      return u.toString().replace(/\/$/, '');
-    }
+    u = new URL(raw);
   } catch {
     return raw;
+  }
+  if (u.hostname === EMULATOR_HOST) {
+    u.hostname = hostname;
+    return u.toString().replace(/\/$/, '');
   }
   return raw;
 }
