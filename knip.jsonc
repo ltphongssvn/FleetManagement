@@ -6,22 +6,47 @@
 // hand-written copies. eslint no-unused-vars cannot see this: it works
 // within a file, never across the import graph.
 //
-// ADOPTION STAGE 2 of 3 (knip.dev/guides/adopt-gradually). The documented
-// burn-down order is files -> dependencies -> exports, because one unused
-// FILE hides its own exports and deps, so files must reach zero first. It
-// has: `knip --files` reports "Excellent, Knip found no issues", so that
-// rule is PROMOTED TO ERROR here and a newly-orphaned file now fails the
-// task instead of adding a gray line nobody reads.
+// ADOPTION STAGE 2 of 3 COMPLETE (knip.dev/guides/adopt-gradually). The
+// documented burn-down order is files -> dependencies -> exports, because one
+// unused FILE hides its own exports and deps, so files must reach zero first.
+// Both are now at zero and PROMOTED TO ERROR: files, dependencies,
+// devDependencies, unlisted, unresolved, binaries.
 //
-// The remaining rules stay warn while their config is tuned. That is the
-// same adoption reasoning //#typecheck:scripts documents: it stayed ungated
-// at 89 errors precisely so the gate would not be born red, and was promoted
-// only when the count reached zero by fixing every error at its root.
+// THE DEPENDENCY BURN-DOWN (2026-08-24) found nine findings, and only two were
+// dead code. Three were MISPLACED rather than unused, which a count alone
+// would have hidden:
+//   expo-crypto        imported by driver-app, declared in owner-app -> moved
+//   expo-auth-session  imported by owner-app, declared in driver-app -> moved
+//   @expo/app-integrity  appears ONLY in comments, never imported -> removed
+// The middle two resolved by pnpm hoisting accident and would have broken on
+// any stricter install.
 //
-// NOT YET WIRED INTO __ci_fast__. That is stage 3, and it happens when the
-// task as a whole can pass -- promoting one rule while others still warn
-// makes the task's exit code meaningful for that rule alone, which is
-// exactly the incremental ratchet the guide prescribes.
+// expo-system-ui was UNLISTED IN BOTH Expo apps and is the one that mattered:
+// the Expo plugin derives it from userInterfaceStyle:"automatic" in app.json,
+// so no file names the package and no grep finds it. It was never installed --
+// not directly, not transitively -- so the setting had never worked. Declared
+// at ~55.0.21 to match Expo SDK 55; the registry rejected a guessed ~7.0.7,
+// which is how the SDK-matched version was found.
+//
+// drizzle-kit is resolved on BOTH axes it appeared on. The driver-app devDep
+// was removed: migrate.ts states plainly that the pipeline it exists for does
+// not exist (no drizzle.config.ts, no drizzle/ folder, no .sql, no
+// babel.config.js), so it was a placeholder for unstarted work, and a
+// placeholder that blocks a gate is the ratchet this repo forbids;
+// storage-schema-drift.guard.test.ts holds that line. The unlisted-BINARY half
+// is a path-attribution artefact and is ignored at the root, scoped, below.
+//
+// EXPORTS IS STAGE 3 and remains warn. It is not more of the same work: 284
+// findings dominated by barrel re-exports and Zod schemas exported alongside
+// their inferred types, which need PER-SYMBOL judgment and must be reconciled
+// with the schema-first two-axis rule before any of them is deleted.
+//
+// STILL NOT WIRED INTO __ci_fast__, and deliberately so. //#knip's exit code
+// now fails on any dependency finding -- proven by declaring left-pad in
+// owner-app and watching the task exit 1 while 145 export warnings on the same
+// run did NOT fail it. But the task as a whole still reports those warnings,
+// and gating a task that prints 284 lines of noise teaches people to ignore it.
+// Wiring happens when exports reaches zero.
 //
 // Entry-point decisions, each from an observed hint rather than assumption:
 //   apps/api            src/main.ts REMOVED -- redundant, the plugin
@@ -150,11 +175,11 @@
   ],
   "rules": {
     "files": "error",
-    "dependencies": "warn",
-    "devDependencies": "warn",
-    "unlisted": "warn",
-    "unresolved": "warn",
-    "binaries": "warn",
+    "dependencies": "error",
+    "devDependencies": "error",
+    "unlisted": "error",
+    "unresolved": "error",
+    "binaries": "error",
     "exports": "warn",
     "types": "warn",
     "nsExports": "warn",
@@ -164,6 +189,14 @@
   },
   "workspaces": {
     ".": {
+      // drizzle-kit is spawned by scripts/db-generate.ts, which apps/api runs as
+      // "tsx ../../scripts/db-generate.ts" -- so the cwd is apps/api, where
+      // drizzle-kit IS declared and where its own db:migrate / db:check scripts
+      // invoke it. knip attributes scripts/ to the ROOT by path, so it looks for
+      // the binary in a workspace that never resolves it. Scoped to the root for
+      // that reason: a future workspace that spawns drizzle-kit without
+      // declaring it is still reported.
+      "ignoreBinaries": ["drizzle-kit"],
       "ignoreDependencies": [
         "@semantic-release/github",
         "conventional-changelog-conventionalcommits",
