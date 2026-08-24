@@ -205,6 +205,56 @@ export default tseslint.config(
     },
   },
 
+  // LINT-AS-ARCHITECTURE: a package barrel publishes a NAMED surface, never `*`.
+  //
+  // THE DEFECT THIS PREVENTS, with receipts. packages/sync-protocol/src/index.ts
+  // opens with "Named exports only (no wildcard re-export) to prevent namespace
+  // pollution" -- and then carried two wildcards anyway, order-timeline-contract
+  // (introduced by 8bbec76 and never revisited) and device-binding-contract. A
+  // convention stated in a comment is documentation, and documentation does not
+  // fail a build. Both were known: a July session recorded the first as "a
+  // pre-existing deviation, recorded in the audit ledger, not a license", which
+  // is precisely how debt survives -- acknowledged, then carried.
+  //
+  // WHY IT MATTERS BEYOND STYLE. A star re-export republishes whatever the module
+  // happens to export, so the barrel stops being the authority on the public
+  // surface: a new internal helper becomes public API by accident, and every
+  // static-analysis tool has to guess. That is the stated rationale of the
+  // upstream proposal for this exact rule (import-js/eslint-plugin-import#2493:
+  // "export * breaks static analysis"), which was never shipped -- the plugin
+  // has no-namespace for wildcard IMPORTS only. Bundler cost is measured too:
+  // 2026 barrel benchmarks put the star form at a large server-side penalty
+  // against the named form.
+  //
+  // AST SELECTOR, NOT TEXT MATCHING, and this file already learned that lesson
+  // twice (the budget and process.env rules below/above). It also matters here
+  // concretely: the barrel's own explanatory comments discuss wildcards in
+  // prose, and a grep-based guard would flag the comment that explains why the
+  // wildcard is gone. ExportAllDeclaration matches the STATEMENT and nothing
+  // else.
+  //
+  // SCOPED TO PACKAGE BARRELS. A wildcard inside a package's internals is a
+  // different judgment call and is not what this rule is about; firing on it
+  // would be the false-positive that gets a rule disabled.
+  {
+    files: ['packages/*/src/index.ts', 'apps/*/src/index.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ExportAllDeclaration',
+          message:
+            'A package barrel publishes a NAMED surface: list the symbols ' +
+            "explicitly instead of `export * from './module.js'`. A wildcard " +
+            'republishes whatever that module exports, so the barrel stops being ' +
+            'the authority on what is public -- a new internal helper becomes API ' +
+            'by accident, dead-export analysis cannot see the surface, and ' +
+            'bundlers lose the named form they tree-shake best.',
+        },
+      ],
+    },
+  },
+
   // Forbid test imports in production code
   {
     files: ['apps/*/src/**/*.ts', 'workers/*/src/**/*.ts', 'packages/*/src/**/*.ts'],
