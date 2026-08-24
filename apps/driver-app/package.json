@@ -30,7 +30,6 @@
     "node": ">=22.0.0 <25.0.0"
   },
   "dependencies": {
-    "@expo/app-integrity": "^57.0.0",
     "@expo/metro-runtime": "~55.0.12",
     "@fleet/design-tokens": "workspace:*",
     "@fleet/observability": "workspace:*",
@@ -39,7 +38,6 @@
     "@tanstack/react-query": "^5.100.11",
     "drizzle-orm": "^0.45.2",
     "expo": "~55.0.29",
-    "expo-auth-session": "~55.0.18",
     "expo-build-properties": "~55.0.17",
     "expo-constants": "~55.0.16",
     "expo-crypto": "~55.0.18",
@@ -50,7 +48,7 @@
     "expo-router": "~55.0.18",
     "expo-secure-store": "~55.0.17",
     "expo-sqlite": "~55.0.19",
-    "expo-status-bar": "~55.0.6",
+    "expo-system-ui": "~55.0.21",
     "expo-updates": "~55.0.27",
     "expo-web-browser": "~55.0.19",
     "react": "19.2.0",
@@ -70,7 +68,6 @@
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@types/react": "~19.2.14",
     "@vitest/coverage-v8": "4.1.4",
-    "drizzle-kit": "^0.31.10",
     "expo-doctor": "1.18.24",
     "fast-check": "^4.7.0",
     "rimraf": "^6.0.1"
