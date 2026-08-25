@@ -30,15 +30,19 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+// Direct sibling paths, not '../index.js'. This module is REACHABLE FROM that
+// barrel, so importing back through it is a cycle by construction -- the
+// documented way barrel cycles start. It also cost nothing to avoid: both
+// modules are siblings one directory away.
 import {
   buildTransportAlertChannelConfig,
-  decideDriverAlertNavigation,
   runNotificationSetup,
   type NotificationPlatformPort,
   type NotificationSetupResult,
   type PermissionStatus,
   type TransportAlertChannelConfig,
-} from '../index.js';
+} from './notification-setup-policy.js';
+import { decideDriverAlertNavigation } from './driver-alert-navigation-policy.js';
 
 // Vietnamese: the channel name is user-visible in Android notification
 // settings, where the driver may need to find it to re-enable sound.

@@ -1,7 +1,17 @@
 // apps/driver-app/src/storage/native-bootstrap.ts
 // Native-only sync bootstrap. Resolved on iOS/Android via Metro platform extensions.
-import { decideSyncSchedule, SYNC_IDLE_INTERVAL_MS } from '../index.js';
-import type { SyncSchedulerState, SyncSchedulerOutcome } from '../index.js';
+// Imports name the sibling module directly rather than routing through the
+// package barrel. This file already did it BOTH ways: the dynamic imports
+// below name modules directly while these two went through the barrel, so the
+// correct style was already present one screen down. Importing the barrel from
+// inside the package it belongs to is a cycle by construction -- the barrel
+// re-exports this module's own siblings.
+import {
+  decideSyncSchedule,
+  SYNC_IDLE_INTERVAL_MS,
+  type SyncSchedulerState,
+  type SyncSchedulerOutcome,
+} from '../sync/sync-scheduler-policy.js';
 
 export interface NativeBootstrapConfig {
   readonly apiUrl: string;

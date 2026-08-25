@@ -10,7 +10,12 @@
 // palette -- explicit + precise is the 2026-preferred, most readable form. Scale
 // primitives pass through unchanged; semanticColors is re-exported to give RN a
 // semantic path (the preferred way to reference colors going forward).
-import { palette, spacing, radius, typography, fontSize, shadow, semanticColors } from './index.js';
+// Sibling modules directly. This file is itself a published entry (the package
+// exports map names it), so routing through the barrel closed the cycle in the
+// tightest possible way: the barrel exports this module and this module
+// imported the barrel.
+import { palette, spacing, radius, typography, fontSize, shadow } from './tokens.js';
+import { semanticColors } from './semantic.js';
 
 export const colors = {
   slate50: palette.slate[50],

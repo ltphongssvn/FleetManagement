@@ -255,7 +255,36 @@ export default tseslint.config(
     },
   },
 
-  // Forbid test imports in production code
+  // Two import bans for production source, in ONE rule entry on purpose.
+  //
+  // Flat config REPLACES rule options rather than merging them, so a second
+  // config object with an overlapping files scope would silently switch the
+  // first ban off. A separate block for the barrel rule did exactly that in
+  // draft -- it would have disabled the test-import ban for every file it
+  // covered while looking like an addition.
+  //
+  // (1) TEST IMPORTS IN PRODUCTION CODE. Unchanged.
+  //
+  // (2) A PACKAGE SOURCE FILE IMPORTING ITS OWN BARREL. apps/driver-app/src had
+  // two: notification-setup-native.ts and native-bootstrap.ts both imported the
+  // very barrel that re-exports them, which is a cycle by construction -- the
+  // documented way barrel cycles start. native-bootstrap.ts showed the
+  // incoherence inside ONE file: its static imports went through the barrel
+  // while its dynamic imports four lines below named the same neighbourhood
+  // directly. It also degrades analysis: a barrel is the package's PUBLIC
+  // surface, so when internals consume it every internal symbol looks
+  // externally used.
+  //
+  // regex, NOT group. group patterns are gitignore-style, and a specifier like
+  // '../index.js' opens with a dot segment that wildcard matching does not
+  // treat as an ordinary path part -- a '**/index.js' group silently matched
+  // nothing, and the rule passed while the violation sat in the tree. regex is
+  // the documented alternative for exactly this and cannot be combined with
+  // group in the SAME pattern object, hence two objects.
+  //
+  // TESTS ARE EXEMPT by the files scope (src only). A test importing the barrel
+  // is a CONSUMER exercising the public surface; constants.test.ts exists to
+  // assert precisely that the barrel resolves.
   {
     files: ['apps/*/src/**/*.ts', 'workers/*/src/**/*.ts', 'packages/*/src/**/*.ts'],
     rules: {
@@ -266,6 +295,24 @@ export default tseslint.config(
             {
               group: ['vitest', '**/test/**', '@fleet/test-fixtures'],
               message: 'Test imports are forbidden in production code',
+            },
+            {
+              // ANCESTOR barrels only: './index.js', '../index.js',
+              // '../../index.js'. NOT a barrel BELOW this file --
+              // packages/domain/src/index.ts legitimately aggregates
+              // './identity/index.js' and './transport/index.js', which is the
+              // intended sub-barrel hierarchy and closes no cycle, because a
+              // sub-barrel never re-exports the root. The first draft banned any
+              // relative specifier ending in index.js and flagged exactly those
+              // two correct lines -- the false positive that gets a rule
+              // disabled, which this config documents three times over.
+              regex: '^[.][.]?(/[.][.])*/index[.](js|ts)$',
+              message:
+                'Import the sibling module directly, not your own package barrel. ' +
+                'The barrel re-exports this file, so importing it back is a cycle ' +
+                'by construction -- and it makes every internal symbol look like ' +
+                'public API to dead-code analysis. Tests may import the barrel; ' +
+                'source may not.',
             },
           ],
         },
