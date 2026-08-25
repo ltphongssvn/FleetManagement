@@ -57,4 +57,41 @@ describe('type-aware lint tasks depend on upstream builds', () => {
   it('lint:e2e is still wired into the PR gate', () => {
     expect(dependsOn('__ci_fast__')).toContain('//#lint:e2e');
   });
+
+  // THE SAME CONSTRAINT, ONE DIRECTORY OVER, and it bit exactly as predicted.
+  //
+  // Four guards under scripts/ import readTurboTasks from @fleet/test-fixtures,
+  // whose exports point at ./dist/index.js. //#test:scripts got the edge on
+  // 2026-08-23; its two siblings -- which LINT and TYPECHECK those very same
+  // files -- did not. They passed on every warm worktree for a day and failed
+  // on the first COLD one with 18 no-unsafe-argument / dot-notation reports
+  // that named neither the package nor the missing build, because an
+  // unresolvable import types readTurboTasks as an ERROR type and every call
+  // downstream degrades.
+  //
+  // A ROOT task has no package dependencies, so ^build (asserted above for the
+  // package tasks) cannot express this; the edge must name the package task.
+  // Asserted as a SET so fixing one sibling and leaving the others -- the exact
+  // shape of the original defect -- fails here.
+  it.each(['//#lint:scripts', '//#typecheck:scripts', '//#test:scripts'])(
+    '%s depends on the built @fleet/test-fixtures it imports',
+    (task) => {
+      expect(
+        dependsOn(task),
+        task +
+          ' imports readTurboTasks from @fleet/test-fixtures, which resolves ' +
+          'through dist/. Without this edge the task runs before the build and ' +
+          'fails only on a cold checkout.',
+      ).toContain('@fleet/test-fixtures#build');
+    },
+  );
+
+  it('the scripts trio records WHY the edge exists', () => {
+    for (const task of ['//#lint:scripts', '//#typecheck:scripts', '//#test:scripts']) {
+      const description = tasks[task]?.description ?? '';
+      expect(description, task + ' must explain the dist-resolution reason').toMatch(
+        /@fleet\/test-fixtures#build/,
+      );
+    }
+  });
 });
