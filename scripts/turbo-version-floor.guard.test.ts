@@ -47,9 +47,9 @@ const repoRoot = resolve(here, '..');
 // Minimum acceptable turbo version. Raised WITH the pin in the same commit, as
 // this file header requires: a floor left behind would let a later revert to
 // an older turbo pass the gate silently, which is the drift the guard exists
-// to catch. 2.10.10 was the previous floor; every release since is cumulative,
+// to catch. 2.10.11 was the previous floor; every release since is cumulative,
 // so the floor tracks the pin.
-const FLOOR = [2, 10, 11] as const;
+const FLOOR = [2, 10, 12] as const;
 const FLOOR_TEXT = FLOOR.join('.');
 
 // `turbo` is a NAMED optional property, not Record<string, string>.
