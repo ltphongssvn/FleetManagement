@@ -332,6 +332,28 @@ jobs:
         # //#lint:scripts and //#typecheck:scripts.
         if: hashFiles('pnpm-lock.yaml') != ''
         run: pnpm run lint:e2e
+      - name: Package boundaries
+        # turbo boundaries asserts every package DECLARES what it imports and
+        # imports nothing outside its own directory -- a question no other gate
+        # here asks. Its first run reported 716 issues: 4 from a stale
+        # apps/api/dist (it reads BUILD OUTPUT as well as source, which is why
+        # this step runs AFTER Build rather than before) and 712 from vitest and
+        # typescript being imported by workspace packages while declared only at
+        # the ROOT. The Boundaries RFC calls that an anti-pattern, not a false
+        # positive: root dependencies are globals affecting every package and
+        # make extracting one impossible. All 712 were fixed by declaring the
+        # dependency where it is used -- zero ignore-rules, zero config
+        # carve-outs -- so this gate is honest rather than decorative.
+        #
+        # A CI STEP AND NOT A TURBO TASK, deliberately. `turbo boundaries` IS a
+        # turbo operation, so a //#boundaries root task's script would have to
+        # invoke turbo, which turbo refuses: recursive_turbo_invocations. That
+        # was tried here and reverted -- the identical finding this repo already
+        # recorded for //#graph, which is unimplementable by construction for
+        # the same reason. So the gate lives where a turbo command may legally
+        # run: this workflow, feeding the single required check.
+        if: hashFiles('pnpm-lock.yaml') != ''
+        run: pnpm exec turbo boundaries
 
   api-tests:
     name: API tests (shard ${{ matrix.shard }}/4)
