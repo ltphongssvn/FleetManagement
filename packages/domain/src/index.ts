@@ -94,6 +94,26 @@ export {
   isTerminalExtractionStatus,
 } from './manifest/manifest-extraction-status.js';
 
+// Dispatch-board projection policy. Pure event -> delta computation, moved here
+// from workers/main-worker because BOTH apps/api and the worker consume it, and
+// an app importing a deployable worker is an inverted edge: apps depend on
+// packages, nothing flows the other way. Exported from the barrel because both
+// consumers import from the package ROOT.
+export {
+  SyncFeedEventSchema,
+  type SyncFeedEvent,
+  PROJECTION_POLICY_VERSION,
+  DISPATCH_BOARD_PROJECTION_NAME,
+  type RoadRunStateValue,
+  type ObservedAggregateType,
+  type RoadRunProjectionRow,
+  ProjectionNoopReasonSchema,
+  type ProjectionNoopReason,
+  ProjectionDeltaSchema,
+  type ProjectionDelta,
+  applyDispatchBoardEvent,
+} from './projections/dispatch-board-projection.js';
+
 // T33: phieu-can STANDARD FORMAT SSOT + the pure goods-kg derivation rule.
 // Exported from the barrel because every consumer (worker extraction policy,
 // api manifest service, ops-web board) imports from the package ROOT; a deep

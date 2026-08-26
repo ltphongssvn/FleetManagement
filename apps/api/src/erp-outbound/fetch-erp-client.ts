@@ -1,7 +1,7 @@
 // apps/api/src/erp-outbound/fetch-erp-client.ts
 // Outbound ERP HTTP client. Worker calls this via /erp/send-invoice callback
 // or API uses it directly when draining the erp BullMQ queue.
-import type { MappedErpPayload } from '@fleet/main-worker';
+import type { MappedErpPayload } from '@fleet/sync-protocol';
 
 export interface ErpClient {
   sendInvoice(payload: MappedErpPayload): Promise<{ externalInvoiceId: string }>;

@@ -45,17 +45,6 @@ export {
   type DeadLetterEntry,
 } from './queue-router.js';
 export {
-  PROJECTION_POLICY_VERSION,
-  DISPATCH_BOARD_PROJECTION_NAME,
-  applyDispatchBoardEvent,
-  type RoadRunStateValue,
-  type ObservedAggregateType,
-  type RoadRunProjectionRow,
-  type SyncFeedEvent,
-  type ProjectionDelta,
-  SyncFeedEventSchema,
-} from './projections/projection-policy.js';
-export {
   OUTBOX_ROUTING_POLICY_VERSION,
   routeOutboxRow,
   type OutboxRoutingInput,

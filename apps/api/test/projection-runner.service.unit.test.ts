@@ -24,7 +24,18 @@ vi.mock('drizzle-orm', () => ({
   }),
 }));
 
-vi.mock('@fleet/main-worker', () => ({
+// Mocks @fleet/domain, not @fleet/main-worker: the projection policy MOVED to
+// the package because apps/api and the worker both consume it, and an app
+// importing a deployable worker is an inverted edge. vi.mock binds to a module
+// SPECIFIER, so a mock left pointing at the old path silently intercepts
+// nothing -- which is exactly what happened: the real policy ran and every
+// mock-call assertion here reported 0 calls.
+//
+// A factory mock replaces the WHOLE module, so anything else this test's import
+// graph needs from @fleet/domain would have to be listed here. Only these two
+// symbols are reachable from projection-runner.service.ts, which is why the
+// narrow factory is still correct.
+vi.mock('@fleet/domain', () => ({
   applyDispatchBoardEvent: mockApplyDispatchBoardEvent,
   DISPATCH_BOARD_PROJECTION_NAME: 'dispatch_board',
 }));

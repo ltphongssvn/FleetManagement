@@ -1,4 +1,13 @@
-// workers/main-worker/src/projections/projection-policy.ts
+// packages/domain/src/projections/dispatch-board-projection.ts
+// MOVED HERE FROM workers/main-worker (2026-08-26). This module is pure domain
+// policy -- the file's own line 10 says "Worker stays DB-free" -- and it was
+// consumed by BOTH apps/api and the worker. apps/api therefore imported
+// @fleet/main-worker, an inverted edge: a deployable is not a library, and the
+// rule is that apps depend on packages while nothing flows the other way.
+// Anything shared between two deployables belongs in packages/, and a module
+// used by two domains belongs in the shared library rather than in one of them.
+// It already imported @fleet/domain for RoadRunState, so this move adds no new
+// dependency and closes no cycle -- it removes one.
 // Pure event -> projection delta functions per Frozen Stack PDF
 // "projection_status table keyed by (projection_name, scope) with watermark,
 // lag_ms, last_rebuilt_at" and Day-One #7 "RSC reads from
@@ -39,7 +48,7 @@ export const PROJECTION_POLICY_VERSION = 'projection-dispatch-board-v1' as const
 
 export const DISPATCH_BOARD_PROJECTION_NAME = 'dispatch_board' as const;
 
-import { ROAD_RUN_STATES, type RoadRunState } from '@fleet/domain';
+import { ROAD_RUN_STATES, type RoadRunState } from '../transport/road-run-state.js';
 
 /** Re-exported alias to keep prior public name; canonical type lives in @fleet/domain. */
 export type RoadRunStateValue = RoadRunState;
