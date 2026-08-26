@@ -39,7 +39,7 @@
 // verifying would prove nothing.
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -92,15 +92,27 @@ function trackedTypeScriptSources(): readonly string[] {
     cwd: ROOT,
     encoding: 'utf-8',
   });
-  return out
-    .split(String.fromCharCode(10))
-    .filter((f) => f.length > 0)
-    .filter((f) => !f.includes('/dist/'))
-    .filter((f) => !f.endsWith('.test.ts'))
-    .filter((f) => !f.endsWith('.test.tsx'))
-    .filter((f) => !f.endsWith('.spec.ts'))
-    .filter((f) => !f.includes('/test/'))
-    .filter((f) => f !== SSOT_FILE);
+  return (
+    out
+      .split(String.fromCharCode(10))
+      .filter((f) => f.length > 0)
+      .filter((f) => !f.includes('/dist/'))
+      .filter((f) => !f.endsWith('.test.ts'))
+      .filter((f) => !f.endsWith('.test.tsx'))
+      .filter((f) => !f.endsWith('.spec.ts'))
+      .filter((f) => !f.includes('/test/'))
+      .filter((f) => f !== SSOT_FILE)
+      // git ls-files defaults to --cached, which is the INDEX, not the disk
+      // ("Show cached files in the output (default)"). A file deleted in the
+      // working tree but not yet staged is still listed, so readFileSync below
+      // threw ENOENT and the guard reported a filesystem error instead of a
+      // verdict -- on a tree where no role literal was wrong. That state is
+      // ordinary mid-refactor and reachable in CI on any partially-staged tree.
+      // git offers --deleted to subtract them, but that is a second subprocess
+      // and covers only deletion; an existence predicate covers every reason a
+      // tracked path may be unreadable.
+      .filter((f) => existsSync(join(ROOT, f)))
+  );
 }
 
 function offendingLines(file: string, pattern: RegExp): readonly string[] {
@@ -134,6 +146,14 @@ describe('fleet role literals live in exactly one file', () => {
 
   it('the SSOT itself is excluded from the scan', () => {
     expect(trackedTypeScriptSources()).not.toContain(SSOT_FILE);
+  });
+
+  // Discovery must describe the DISK, not the index: every path it yields is
+  // handed to readFileSync, so a tracked-but-deleted file turns a verdict into
+  // an ENOENT crash.
+  it('every discovered path exists on disk', () => {
+    const missing = trackedTypeScriptSources().filter((f) => !existsSync(join(ROOT, f)));
+    expect(missing, 'discovery yielded paths that cannot be read').toEqual([]);
   });
 
   it('NO other tracked source writes a fleet role as a string literal', () => {

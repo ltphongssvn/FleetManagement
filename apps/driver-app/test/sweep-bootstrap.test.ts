@@ -1,8 +1,8 @@
 // apps/driver-app/test/sweep-bootstrap.test.ts
 import { describe, it, expect, vi } from 'vitest';
 import { runSpoolSweepOnBoot } from '../src/manifest/sweep-bootstrap.js';
-import type { SpoolEntry } from '../src/index.js';
-import { SPOOL_ENTRY_TTL_MS } from '../src/index.js';
+import type { SpoolEntry } from '../src/manifest/capture-spool-policy.js';
+import { SPOOL_ENTRY_TTL_MS } from '../src/manifest/capture-spool-policy.js';
 
 const baseEntry = (over: Partial<SpoolEntry>): SpoolEntry => ({
   captureId: '11111111-1111-7111-8111-111111111111',
