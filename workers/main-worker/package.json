@@ -37,7 +37,8 @@
     "@fleet/test-fixtures": "workspace:*",
     "fast-check": "^4.7.0",
     "rimraf": "^6.0.1",
-    "tsx": "^4.19.2"
+    "tsx": "^4.19.2",
+    "vitest": "^4.1.4"
   },
   "types": "./dist/index.d.ts",
   "exports": {
