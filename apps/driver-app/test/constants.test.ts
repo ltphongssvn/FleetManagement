@@ -1,7 +1,7 @@
 // apps/driver-app/test/constants.test.ts
 // TDD: verify constants module is wired correctly.
 import { describe, it, expect } from 'vitest';
-import { APP_VERSION } from '../src/index.js';
+import { APP_VERSION } from '../src/constants.js';
 
 describe('@fleet/driver-app — constants', () => {
   it('should export APP_VERSION', () => {

@@ -5,7 +5,9 @@
 import type { JSX } from 'react';
 import { Text, View, Pressable, StyleSheet } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
-import { APP_VERSION, presentSyncStatus, type SyncSchedulerState } from '../../src/index.js';
+import { APP_VERSION } from '../../src/constants.js';
+import { presentSyncStatus } from '../../src/sync/sync-status-presenter.js';
+import type { SyncSchedulerState } from '../../src/sync/sync-scheduler-policy.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
 const PLACEHOLDER_STATE: SyncSchedulerState = {
   online: true,
