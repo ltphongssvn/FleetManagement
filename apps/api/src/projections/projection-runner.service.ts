@@ -21,7 +21,7 @@ import {
   DISPATCH_BOARD_PROJECTION_NAME,
   type SyncFeedEvent,
   type RoadRunProjectionRow,
-} from '@fleet/main-worker';
+} from '@fleet/domain';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import {
