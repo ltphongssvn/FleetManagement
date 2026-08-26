@@ -72,12 +72,14 @@ export const CreateTransportOrderResponseSchema = z.object({
 export type CreateTransportOrderResponse = z.infer<typeof CreateTransportOrderResponseSchema>;
 
 // --- Transport orders: assigned list (BFF /api/transport-orders/assigned) ---
-export const AssignedRowSchema = z.object({
+// Module-private: composed into AssignedListResponseSchema below and referenced
+// nowhere else. Exporting it published a name no caller used, which is what a
+// public surface is not for.
+const AssignedRowSchema = z.object({
   transportOrderId: z.string(),
   state: z.string(),
   externalRef: z.string().nullable().optional(),
 });
-export type AssignedRow = z.infer<typeof AssignedRowSchema>;
 
 export const AssignedListResponseSchema = z.object({
   rows: z.array(AssignedRowSchema),
@@ -145,10 +147,3 @@ export const ExtractionResultResponseSchema = z.object({
   status: z.string(),
 });
 export type ExtractionResultResponse = z.infer<typeof ExtractionResultResponseSchema>;
-
-// PATCH /upload/manual-net-weight ack: status is always manual on success.
-export const ManualNetWeightResponseSchema = z.object({
-  manifestId: z.string(),
-  status: z.string(),
-});
-export type ManualNetWeightResponse = z.infer<typeof ManualNetWeightResponseSchema>;
