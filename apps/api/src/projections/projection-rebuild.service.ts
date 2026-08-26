@@ -21,7 +21,7 @@
 // every projection-row mutation flows through the runner's event application.
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, eq, isNull } from 'drizzle-orm';
-import { DISPATCH_BOARD_PROJECTION_NAME } from '@fleet/main-worker';
+import { DISPATCH_BOARD_PROJECTION_NAME } from '@fleet/domain';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { dispatchBoardProjection, projectionStatus } from '../database/schema/index.js';

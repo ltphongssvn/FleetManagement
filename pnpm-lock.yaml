@@ -148,9 +148,6 @@ importers:
       '@fleet/domain':
         specifier: workspace:*
         version: link:../../packages/domain
-      '@fleet/main-worker':
-        specifier: workspace:*
-        version: link:../../workers/main-worker
       '@fleet/observability':
         specifier: workspace:*
         version: link:../../packages/observability

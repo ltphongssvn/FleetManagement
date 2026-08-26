@@ -1,4 +1,4 @@
-// workers/main-worker/test/projection-policy.test.ts
+// packages/domain/test/dispatch-board-projection.test.ts
 import { describe, it, expect } from 'vitest';
 import {
   applyDispatchBoardEvent,
@@ -6,7 +6,7 @@ import {
   DISPATCH_BOARD_PROJECTION_NAME,
   type RoadRunProjectionRow,
   type SyncFeedEvent,
-} from '../src/projections/projection-policy.js';
+} from '../src/projections/dispatch-board-projection.js';
 const ROAD_RUN_ID = '11111111-1111-4111-8111-111111111111';
 const baseCurrent: RoadRunProjectionRow = {
   roadRunId: ROAD_RUN_ID,
@@ -260,7 +260,7 @@ describe('@fleet/main-worker - applyDispatchBoardEvent', () => {
   });
 });
 import fc from 'fast-check';
-import { SyncFeedEventSchema } from '../src/projections/projection-policy.js';
+import { SyncFeedEventSchema } from '../src/projections/dispatch-board-projection.js';
 describe('@fleet/main-worker - SyncFeedEventSchema (boundary)', () => {
   it('parses bigint serverSeq', () => {
     const r = SyncFeedEventSchema.parse({

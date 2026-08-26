@@ -43,6 +43,8 @@ export {
   ErpInvoicePayloadWireSchema,
   ErpMappingContextWireSchema,
   ErpJobDataWireSchema,
+  MappedErpPayloadSchema,
+  type MappedErpPayload,
 } from './erp-types.js';
 export { type IntakeJobDataWire, IntakeJobDataWireSchema } from './intake-types.js';
 export { ManifestStopRefSchema, type ManifestStopRef } from './manifest-stop-contract.js';
