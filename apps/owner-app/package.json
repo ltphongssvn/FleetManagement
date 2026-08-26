@@ -57,6 +57,7 @@
     "@types/react": "~19.2.14",
     "@vitest/coverage-v8": "4.1.4",
     "expo-doctor": "1.18.24",
-    "rimraf": "^6.0.1"
+    "rimraf": "^6.0.1",
+    "vitest": "^4.1.4"
   }
 }
