@@ -12,9 +12,14 @@
 // wiring guards make (capture-auto-advance-wiring.test.ts).
 //
 // Why each invariant is load-bearing:
-//  - The barrel must export the policy surface: the adapter and _layout wire
-//    against @fleet/driver-app internals through src/index.ts, as every other
-//    policy does. An unexported policy is a policy nobody can call.
+//  - The policy surface must be importable BY THE ADAPTER. This block asserted
+//    the surface through src/index.ts because the adapter and _layout once
+//    wired against it. They no longer do -- the adapter imports its policies
+//    directly from the sibling module -- so the assertion had stopped
+//    describing the system and was the last thing keeping a barrel alive that
+//    nothing consumed. Every architectural decision is an assertion; when the
+//    decision changes the assertion moves with it. The invariant that MATTERS
+//    is unchanged: an unexported policy is a policy nobody can call.
 //  - The adapter must map onto AndroidImportance.MAX: anything less than MAX
 //    means no heads-up banner and no sound -- a silent alert at 4AM.
 //  - AndroidAudioUsage/ALARM routes the custom tone through the ALARM stream,
@@ -33,30 +38,30 @@ import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DRIVER_ALERT_ANDROID_CHANNEL_ID, DRIVER_ALERT_SOUND } from '@fleet/sync-protocol';
-import * as barrel from '../src/index.js';
+import * as policy from '../src/push/notification-setup-policy.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const src = (rel: string): string => readFileSync(resolve(here, '..', rel), 'utf8');
 
 const ADAPTER = 'src/push/notification-setup-native.ts';
 
-describe('@fleet/driver-app - notification setup barrel surface', () => {
-  it('exports runNotificationSetup from the barrel', () => {
+describe('@fleet/driver-app - notification setup policy surface', () => {
+  it('exports runNotificationSetup', () => {
     expect(
-      typeof (barrel as Record<string, unknown>)['runNotificationSetup'],
-      'the adapter and _layout call the policy through the barrel',
+      typeof (policy as Record<string, unknown>)['runNotificationSetup'],
+      'the adapter calls the policy directly from its sibling module',
     ).toBe('function');
   });
 
-  it('exports buildTransportAlertChannelConfig from the barrel', () => {
+  it('exports buildTransportAlertChannelConfig', () => {
     expect(
-      typeof (barrel as Record<string, unknown>)['buildTransportAlertChannelConfig'],
+      typeof (policy as Record<string, unknown>)['buildTransportAlertChannelConfig'],
       'the native adapter builds its channel input from the shared config builder',
     ).toBe('function');
   });
 
-  it('the barrel-exported channel config carries the shared SSOT id and sound', () => {
-    const build = (barrel as Record<string, unknown>)[
+  it('the exported channel config carries the shared SSOT id and sound', () => {
+    const build = (policy as Record<string, unknown>)[
       'buildTransportAlertChannelConfig'
     ] as () => Record<string, unknown>;
     const cfg = build();
