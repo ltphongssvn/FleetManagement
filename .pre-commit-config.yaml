@@ -104,7 +104,32 @@ repos:
         pass_filenames: false
       - id: check-env-files
         name: Block .env Files
-        entry: sh -c 'git diff --cached --name-only | grep -vE "\.env\.example$" | grep -qE "(^|/)\.env(\..+)?$" && echo "ERROR - .env file detected. Never commit secrets! (.env.example is allowed)" && exit 1 || exit 0'
+        # DELEGATES to the registered //#guard:env-files op. It used to carry its
+        # own regex inline, and that copy DRIFTED from .gitignore: the SOPS/age
+        # arc added "!.env.sops.yaml" -- deliberately un-ignoring the ciphertext,
+        # because that file is how every machine bootstraps -- while this pattern
+        # kept matching it. Two layers of one policy then contradicted each
+        # other, .gitignore saying "track this" and the hook saying "never", so
+        # the ONLY way to commit the ciphertext was git commit --no-verify. 2026
+        # secret-scanning guidance names that bypass as the critical gap in
+        # pre-commit enforcement, which is precisely why the rule must be CORRECT
+        # rather than merely strict: a gate you must evade to do the right thing
+        # is a gate you will evade to do the wrong one.
+        #
+        # A NAME ALLOWLIST WOULD NOT HAVE BEEN ENOUGH either. Exempting the NAME
+        # .env.sops.yaml passes a PLAINTEXT file carrying that name -- the exact
+        # failure .gitignore warns about when it insists the allowlist be exact
+        # rather than a glob. So the exemption is CONDITIONAL on the STAGED BLOB
+        # actually being sops-encrypted (a sops: MAC block AND ENC[AES256_GCM
+        # values), verified against the index rather than the working tree,
+        # because the index is what becomes the commit and a decrypted-for-
+        # debugging worktree copy is a common way plaintext reaches history.
+        #
+        # A shell one-liner could not be unit-tested and had no home for that
+        # reasoning; scripts/env-file-guard.ts is a pure core with 17 tests under
+        # //#test:scripts, and env-file-guard-wiring.guard.test.ts asserts this
+        # very delegation so the inline copy cannot silently return.
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm run guard:env-files; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
       - id: block-terraform-state
