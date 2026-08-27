@@ -23,8 +23,128 @@ import { z } from 'zod';
 import { EXTRACTION_FAILURE_REASONS } from './extraction-vocabulary.js';
 import { ProofUrlSchema } from './proof-url.js';
 
-export const STOP_TYPES = ['pickup', 'delivery'] as const;
+// STOP TYPE VOCABULARY -- the values actually PERSISTED in stop.stop_type.
+//
+// This array documents REALITY, not an aspiration. A production census
+// (SELECT DISTINCT stop_type FROM stop) returns FOUR values: pickup, delivery,
+// dropoff, return. The previous declaration listed only two, and three defects
+// followed from that gap:
+//
+//   1. computeWeightDiffKg matched stopType === 'delivery' by direct equality,
+//      its comment asserting that was exhaustive. Every order whose delivery leg
+//      is typed 'dropoff' returned null -- indistinguishable from the legitimate
+//      "weight not extracted yet" null, so the Chenh lech column was silently
+//      blank for those orders with nothing to indicate why.
+//   2. Five call sites independently aliased delivery || dropoff, which is the
+//      per-call-site duplication the SSOT rule exists to forbid.
+//   3. Two read paths CAST a raw DB string into this union rather than parsing
+//      it, silencing the compiler exactly where validation was required.
+//
+// WHY WIDEN RATHER THAN MIGRATE THE DATA. 2026 expand-contract guidance is
+// explicit: widen in place, never narrow directly. Rewriting live dropoff/return
+// rows down to two values would destroy a real distinction -- a RETURNED load is
+// not a DELIVERED load -- and returns would silently become billable. So the
+// vocabulary records what is stored, and MEANING is derived on top of it.
+export const STOP_TYPES = Object.freeze(['pickup', 'delivery', 'dropoff', 'return'] as const);
 export type StopType = (typeof STOP_TYPES)[number];
+
+/** Parses an untrusted stop_type, NORMALIZING before matching.
+ *
+ *  The column is varchar(32) with no database constraint and the create DTO
+ *  accepts any string up to 32 characters, so every read crosses a trust
+ *  boundary and mixed case or stray whitespace is reachable by construction --
+ *  not hypothetically: three services already call .toLowerCase() before
+ *  comparing, which is only rational if someone believed it possible.
+ *
+ *  A STRICT z.enum HERE WOULD HAVE BEEN A PRODUCTION BREAK. It would reject any
+ *  legacy 'Delivery' row, and DispatchBoardStopSchema parses this on the read
+ *  path, so the board would blank rather than render. No test would have caught
+ *  it: every fixture in this repo is lowercase. That is precisely why the first
+ *  draft of this schema -- which asserted rejection, on an unevidenced comment
+ *  claiming the column is stored lowercase -- was wrong.
+ *
+ *  Normalizing at the boundary is the house pattern; normalizeDisplayName states
+ *  it as "normalize at ingestion so a name is byte-stable regardless of keying
+ *  style". It also makes the ad-hoc .toLowerCase() call sites redundant, which
+ *  is the actual SSOT win rather than a defensive nicety.
+ *
+ *  ORDER IS LOAD-BEARING: trim and lower-case run BEFORE the enum, so a padded
+ *  or capitalised known value normalizes and passes, while an unknown value
+ *  still FAILS after normalizing -- tolerance about spelling is not tolerance
+ *  about vocabulary.
+ *
+ *  CONTRAST WITH FLEET_ROLES, deliberately opposite: role names REJECT case
+ *  folding, because folding an authorization token lets a lookalike grant
+ *  access. Stop types NORMALIZE it, because this is a data vocabulary and not a
+ *  credential. Same shape, opposite answer, for a reason. */
+export const StopTypeSchema = z.string().trim().toLowerCase().pipe(z.enum(STOP_TYPES));
+
+// STOP ROLE -- the SEMANTIC classification consumers branch on, distinct from the
+// persisted spelling above. Two concepts, deliberately separate: adding a synonym
+// to the vocabulary must not require every consumer to learn it.
+//
+// 'return' is its OWN role and is never folded into 'delivery'. A returned load
+// travelled back rather than reaching the customer, so treating it as a delivery
+// would make it billable and would corrupt the pickup-vs-delivery reconciliation.
+export const STOP_ROLES = Object.freeze(['pickup', 'delivery', 'return'] as const);
+export type StopRole = (typeof STOP_ROLES)[number];
+
+export const StopRoleSchema = z.enum(STOP_ROLES);
+
+/** TOTAL classification of a persisted stop type into its semantic role.
+ *
+ *  'dropoff' folds onto 'delivery': the two are spellings of the same leg, which
+ *  is why five call sites had each grown their own alias. That aliasing now
+ *  lives here, once.
+ *
+ *  EXHAUSTIVE BY CONSTRUCTION: the switch covers the StopType union with no
+ *  default branch, so adding a fifth value to STOP_TYPES makes this function
+ *  non-exhaustive and FAILS THE BUILD until someone decides what it means. A new
+ *  stop type can therefore never silently fall through to a wrong role -- the
+ *  same compile-time guarantee deriveGoodsKg documents for phieu can layouts.
+ *  A default branch would defeat exactly that, so there is none. */
+export function classifyStopRole(stopType: StopType): StopRole {
+  switch (stopType) {
+    case 'pickup':
+      return 'pickup';
+    case 'delivery':
+    case 'dropoff':
+      return 'delivery';
+    case 'return':
+      return 'return';
+  }
+}
+
+/** Parse-then-classify for a RAW persisted stop_type, as DB read paths need it.
+ *
+ *  WHY THIS EXISTS RATHER THAN LETTING CALLERS COMPOSE THE TWO STEPS. Five call
+ *  sites in apps/api read stop.stop_type as an unconstrained varchar(32) and
+ *  must turn it into a semantic role -- two pickup lookups and two delivery
+ *  lookups in transport-orders.service.ts, plus the slot filter in
+ *  transport-orders-export.service.ts. Each had independently grown the same
+ *  pair of steps, .toLowerCase() then compare against delivery || dropoff, which
+ *  is exactly the per-call-site duplication the SSOT rule forbids. Exposing only
+ *  StopTypeSchema and classifyStopRole would leave every caller to re-pair them,
+ *  with five chances to pair them differently.
+ *
+ *  RETURNS null RATHER THAN THROWING. These are READ paths that render the
+ *  dispatch board and build the Excel export. StopTypeSchema.parse would throw
+ *  on a single unrecognised row and blank the ENTIRE board for every user --
+ *  a catastrophic failure mode for a display query. null propagates instead,
+ *  which is the rule computeWeightDiffKg already documents: never report a
+ *  partial aggregate as if complete. An unclassifiable stop matches no slot and
+ *  contributes to no total rather than being silently miscounted.
+ *
+ *  DELIBERATELY NOT FAIL-SAFE-TO-PICKUP. The delivery-capture gate classifies an
+ *  unknown type as 'pickup', and for a PHOTO GATE that is the conservative
+ *  choice: it adds an obligation and cannot be bypassed. Here the same default
+ *  would be actively wrong -- an unknown stop counted as a pickup skews the
+ *  weight reconciliation and, once the accounting columns land, the billable
+ *  total. Same question, different consequence, different answer. */
+export function classifyRawStopRole(rawStopType: string): StopRole | null {
+  const parsed = StopTypeSchema.safeParse(rawStopType);
+  return parsed.success ? classifyStopRole(parsed.data) : null;
+}
 
 // Road-run lifecycle vocabulary. SSOT is @fleet/domain RoadRunStateSchema
 // (packages/domain/src/transport/road-run-state.ts); inlined here (NOT imported)
@@ -67,7 +187,7 @@ export type WeightDiffKg = z.infer<typeof weightDiffKgSchema>;
  *  0, so an absent weight forces the whole diff to null rather than skewing it. */
 export const WeightDiffStopSchema = z
   .object({
-    stopType: z.enum(STOP_TYPES),
+    stopType: StopTypeSchema,
     extractedNetWeightKg: z.union([netWeightKgSchema, z.null()]),
   })
   .strict();
@@ -81,16 +201,27 @@ export type WeightDiffStop = z.infer<typeof WeightDiffStopSchema>;
  *  missing-data best practice). Pure + dependency-free; the SINGLE definition
  *  shared by GET /dispatch/board and the Excel export so the two never diverge. */
 export function computeWeightDiffKg(stops: readonly WeightDiffStop[]): WeightDiffKg | null {
-  // stopType is the STOP_TYPES literal union (pickup | delivery) per the schema,
-  // so direct equality is exhaustive — no normalization or other-leg aliasing.
-  const pickups = stops.filter((s) => s.stopType === 'pickup');
-  const delivery = stops.find((s) => s.stopType === 'delivery');
+  // Legs are resolved through classifyStopRole, NOT by comparing stopType
+  // directly. The previous implementation matched stopType === 'delivery' and
+  // its comment claimed that was exhaustive -- it was not: a delivery leg
+  // persisted as 'dropoff' matched nothing, so this returned null and the board
+  // showed a blank Chenh lech indistinguishable from an unextracted weight.
+  //
+  // 'return' is deliberately EXCLUDED from both sides. A returned load neither
+  // counts as picked up for the customer nor as delivered, so including it in
+  // either total would misstate the reconciliation.
+  const roled = stops.map((s) => ({
+    role: classifyStopRole(s.stopType),
+    kg: s.extractedNetWeightKg,
+  }));
+  const pickups = roled.filter((s) => s.role === 'pickup');
+  const delivery = roled.find((s) => s.role === 'delivery');
   if (pickups.length === 0 || delivery === undefined) return null;
-  const deliveryKg = delivery.extractedNetWeightKg;
+  const deliveryKg = delivery.kg;
   if (deliveryKg === null) return null;
   let pickupTotal = 0;
   for (const p of pickups) {
-    const kg = p.extractedNetWeightKg;
+    const kg = p.kg;
     if (kg === null) return null;
     pickupTotal += kg;
   }
@@ -146,7 +277,7 @@ export const DispatchStopViewSchema = z
   .object({
     stopId: z.guid(),
     sequence: z.number().int().positive(),
-    stopType: z.enum(STOP_TYPES),
+    stopType: StopTypeSchema,
     warehouseName: z.union([z.string(), z.null()]),
     // Preserved from the pre-existing DispatchBoardStop shape (EXPAND-only): the
     // board still shows arrival/departure; proof is ADDED, nothing removed, so old
@@ -177,14 +308,24 @@ export type DispatchStopView = z.infer<typeof DispatchStopViewSchema>;
  *  API still parses, and the API's per-stop stopId is silently dropped (this read
  *  projection does not use it) — preserving the former non-strict loader shape.
  *
- *  TOLERANCE HAS A LIMIT. Dropping unknown KEYS is the Postel property this shape
- *  wants. Accepting an unvalidated VALUE in a known field is not tolerance, it is
- *  an unchecked read -- and this is the shape ops-web actually parses before
- *  rendering proof.photoUrl into an href, so it is the boundary that protects the
- *  sink. The nested StopProofSchema enforces the scheme allowlist here too. */
+ *  TOLERANCE HAS A LIMIT, and this shape has hit it twice. Dropping unknown KEYS
+ *  is the Postel property it wants. Accepting an unvalidated VALUE in a KNOWN
+ *  field is not tolerance -- it is an unchecked read, and this is the shape
+ *  ops-web actually parses before rendering, so it is the boundary that protects
+ *  every downstream sink. Two independent arcs found the same lesson here:
+ *
+ *    - stopType was z.string(), enforcing nothing. It is now the SSOT schema,
+ *      which NORMALIZES case and whitespace before matching the four PERSISTED
+ *      values. Widening the vocabulary is what made enforcing it safe at all:
+ *      the previous two-value union would have rejected live dropoff rows.
+ *    - photoUrl was a bare z.url(), which Zod documents as permissive enough to
+ *      accept javascript: and data:. The nested StopProofSchema now enforces the
+ *      http(s) scheme allowlist here too, guarding the anchor href ops-web
+ *      renders it into.
+ */
 export const DispatchBoardStopSchema = z.object({
   sequence: z.number().int(),
-  stopType: z.string(),
+  stopType: StopTypeSchema,
   warehouseName: z.union([z.string(), z.null()]),
   arrivedAt: z.union([z.string(), z.null()]),
   departedAt: z.union([z.string(), z.null()]),
