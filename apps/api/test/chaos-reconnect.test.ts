@@ -170,7 +170,9 @@ describe('@fleet/api - simulateReconnectStorm', () => {
     //   length+1:       min(22,19)=19 -> sorted[19]=19. (same as correct; see note in next test)
     //   floor removed:  21*0.95=19.95 -> min(20,19.95)=19.95 -> sorted[19.95]=undefined -> ?? 0. (differs)
     const draws: number[] = [];
-    for (let i = 0; i < 21; i++) { draws.push(i / 100, 0); }
+    for (let i = 0; i < 21; i++) {
+      draws.push(i / 100, 0);
+    }
     const r = simulateReconnectStorm({
       trucks: 21,
       jitterMs: 100,

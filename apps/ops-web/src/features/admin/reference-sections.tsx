@@ -44,7 +44,12 @@ export const SECTIONS: SectionDef[] = [
   { segment: 'cargo-types', title: 'Tên hàng', addLabel: 'Thêm tên hàng' },
   { segment: 'vehicles', title: 'Số xe', addLabel: 'Thêm số xe', scope: 'admin' },
   { segment: 'warehouses', title: 'Kho nhận hàng', addLabel: 'Thêm kho nhận hàng', role: 'pickup' },
-  { segment: 'warehouses', title: 'Kho giao hàng', addLabel: 'Thêm kho giao hàng', role: 'delivery' },
+  {
+    segment: 'warehouses',
+    title: 'Kho giao hàng',
+    addLabel: 'Thêm kho giao hàng',
+    role: 'delivery',
+  },
 ];
 function extractConflictName(msg: string): string | null {
   const m = /["“”]([^"“”]+)["“”]\\s*đã tồn tại/i.exec(msg);
@@ -103,8 +108,12 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
       setLoading(false);
     }
   };
-  useEffect(() => { void refresh(); }, []);
-  useRefetchOnFocus(() => { void refresh(); });
+  useEffect(() => {
+    void refresh();
+  }, []);
+  useRefetchOnFocus(() => {
+    void refresh();
+  });
   const add = async (): Promise<void> => {
     if (newName.trim().length === 0) return;
     setBusy(true);
@@ -172,15 +181,17 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
           if (editingId === row.id) {
             return (
               <input
-                type='tel'
+                type="tel"
                 value={editPhone}
-                onChange={(e) => { setEditPhone(e.target.value); }}
-                aria-label='Số điện thoại'
-                className='w-40 rounded border px-2 py-1 text-sm'
+                onChange={(e) => {
+                  setEditPhone(e.target.value);
+                }}
+                aria-label="Số điện thoại"
+                className="w-40 rounded border px-2 py-1 text-sm"
               />
             );
           }
-          return <span className='text-slate-500'>{phone}</span>;
+          return <span className="text-slate-500">{phone}</span>;
         },
       });
     }
@@ -192,49 +203,62 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
         const row = ctx.row.original;
         const phone = rowPhone(row);
         const isEditing = editingId === row.id;
-          return (
-            <span className='flex items-center gap-2'>
-              {isCustomers && isEditing ? (
-                <>
-                  <button
-                    type='button'
-                    disabled={busy}
-                    onClick={() => { void saveEdit(row.id, row.label); }}
-                    className='rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700'
-                  >
-                    Lưu
-                  </button>
-                  <button
-                    type='button'
-                    disabled={busy}
-                    onClick={() => { setEditingId(null); setEditPhone(''); }}
-                    className='rounded border px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-40'
-                  >
-                    Hủy
-                  </button>
-                </>
-              ) : null}
-              <RowActionMenu
-                label={'Thao tác cho ' + row.label}
-                actions={[
-                  ...(isCustomers && !isEditing ? [{
-                    key: 'edit-phone',
-                    label: 'Sửa SĐT',
-                    disabled: busy,
-                    onSelect: () => { startEdit(row.id, phone); },
-                  }] : []),
-                  {
-                    key: 'delete',
-                    label: 'Xóa',
-                    destructive: true,
-                    disabled: busy,
-                    confirmLabel: 'Xóa ' + quote(row.label) + ' ?',
-                    onSelect: () => { void del(row.id); },
+        return (
+          <span className="flex items-center gap-2">
+            {isCustomers && isEditing ? (
+              <>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    void saveEdit(row.id, row.label);
+                  }}
+                  className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
+                >
+                  Lưu
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setEditingId(null);
+                    setEditPhone('');
+                  }}
+                  className="rounded border px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-40"
+                >
+                  Hủy
+                </button>
+              </>
+            ) : null}
+            <RowActionMenu
+              label={'Thao tác cho ' + row.label}
+              actions={[
+                ...(isCustomers && !isEditing
+                  ? [
+                      {
+                        key: 'edit-phone',
+                        label: 'Sửa SĐT',
+                        disabled: busy,
+                        onSelect: () => {
+                          startEdit(row.id, phone);
+                        },
+                      },
+                    ]
+                  : []),
+                {
+                  key: 'delete',
+                  label: 'Xóa',
+                  destructive: true,
+                  disabled: busy,
+                  confirmLabel: 'Xóa ' + quote(row.label) + ' ?',
+                  onSelect: () => {
+                    void del(row.id);
                   },
-                ]}
-              />
-            </span>
-          );
+                },
+              ]}
+            />
+          </span>
+        );
       },
     });
     return cols;
@@ -248,40 +272,52 @@ export function ReferenceSection({ def }: { def: SectionDef }): JSX.Element {
     };
   };
   return (
-    <section className='mb-8 rounded border bg-white p-4'>
-      <h2 className='mb-3 text-lg font-semibold'>{def.title}</h2>
-      {error !== null ? <div className='mb-2 text-sm text-red-600'>{error}</div> : null}
-      <div className='mb-3 flex gap-2'>
+    <section className="mb-8 rounded border bg-white p-4">
+      <h2 className="mb-3 text-lg font-semibold">{def.title}</h2>
+      {error !== null ? <div className="mb-2 text-sm text-red-600">{error}</div> : null}
+      <div className="mb-3 flex gap-2">
         <input
-          type='text'
+          type="text"
           value={newName}
-          onChange={(e) => { setNewName(e.target.value); }}
+          onChange={(e) => {
+            setNewName(e.target.value);
+          }}
           placeholder={def.addLabel}
-          className='w-72 rounded border px-2 py-1 text-sm'
+          className="w-72 rounded border px-2 py-1 text-sm"
         />
         {isCustomers ? (
           <input
-            type='tel'
+            type="tel"
             value={newPhone}
-            onChange={(e) => { setNewPhone(e.target.value); }}
-            placeholder='Số điện thoại'
-            aria-label='Số điện thoại mới'
-            className='w-48 rounded border px-2 py-1 text-sm'
+            onChange={(e) => {
+              setNewPhone(e.target.value);
+            }}
+            placeholder="Số điện thoại"
+            aria-label="Số điện thoại mới"
+            className="w-48 rounded border px-2 py-1 text-sm"
           />
         ) : null}
         <button
-          type='button'
+          type="button"
           disabled={busy}
-          onClick={() => { void add(); }}
-          className='rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700 disabled:bg-gray-400'
+          onClick={() => {
+            void add();
+          }}
+          className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700 disabled:bg-gray-400"
         >
           {def.addLabel}
         </button>
       </div>
       {loading ? (
-        <div className='text-sm text-gray-500'>Đang tải…</div>
+        <div className="text-sm text-gray-500">Đang tải…</div>
       ) : (
-        <DataTable columns={columns} data={rows} caption={def.title} emptyLabel='Chưa có dữ liệu' rowAttrs={rowAttrs} />
+        <DataTable
+          columns={columns}
+          data={rows}
+          caption={def.title}
+          emptyLabel="Chưa có dữ liệu"
+          rowAttrs={rowAttrs}
+        />
       )}
     </section>
   );

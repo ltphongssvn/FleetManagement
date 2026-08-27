@@ -65,7 +65,8 @@ const EMPTY_CLASS = 'px-3 py-8 text-center text-sm text-text-muted';
 const TABLE_WRAP_CLASS = 'overflow-hidden rounded-lg border border-border';
 const TABLE_CLASS = 'min-w-full divide-y divide-border text-sm';
 const BODY_CLASS = 'divide-y divide-border-subtle bg-white';
-const PAGE_BTN_CLASS = 'min-h-11 min-w-11 rounded-md border border-border-strong px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ring';
+const PAGE_BTN_CLASS =
+  'min-h-11 min-w-11 rounded-md border border-border-strong px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ring';
 const PAGE_BTN_ACTIVE_CLASS = PAGE_BTN_CLASS + ' bg-surface-subtle font-semibold';
 
 interface PagedTableProps<TRow> {
@@ -83,7 +84,14 @@ interface PagedTableProps<TRow> {
 // a11y wiring and the paging arithmetic exist exactly once; a second copy is
 // how the two halves of a split view drift apart.
 function PagedRosterTable<TRow>({
-  testId, heading, caption, paginationLabel, columns, rows, emptyLabel, renderRow,
+  testId,
+  heading,
+  caption,
+  paginationLabel,
+  columns,
+  rows,
+  emptyLabel,
+  renderRow,
 }: PagedTableProps<TRow>): JSX.Element {
   // Page state is PER TABLE. One shared index would move the dispatched table
   // when the owner pages the idle one -- two independent questions must not
@@ -100,23 +108,22 @@ function PagedRosterTable<TRow>({
 
   return (
     <div>
-      <h3 className='mb-2 text-sm font-semibold text-white drop-shadow-sm'>
-        {heading}{' '}
-        <span data-testid={testId + '-count'}>{rows.length}</span>
+      <h3 className="mb-2 text-sm font-semibold text-white drop-shadow-sm">
+        {heading} <span data-testid={testId + '-count'}>{rows.length}</span>
       </h3>
       <div className={TABLE_WRAP_CLASS}>
         <table className={TABLE_CLASS} data-testid={testId}>
-          <caption className='sr-only'>{caption}</caption>
-          <thead className='bg-surface-subtle'>
+          <caption className="sr-only">{caption}</caption>
+          <thead className="bg-surface-subtle">
             <tr>
               {columns.map((c) => (
-                <th key={c} scope='col' className={HEAD_CLASS}>{c}</th>
+                <th key={c} scope="col" className={HEAD_CLASS}>
+                  {c}
+                </th>
               ))}
             </tr>
           </thead>
-          <tbody className={BODY_CLASS}>
-            {visible.map((row) => renderRow(row))}
-          </tbody>
+          <tbody className={BODY_CLASS}>{visible.map((row) => renderRow(row))}</tbody>
         </table>
         {rows.length === 0 ? (
           <div className={EMPTY_CLASS} data-testid={testId + '-empty'}>
@@ -128,15 +135,17 @@ function PagedRosterTable<TRow>({
         <nav
           aria-label={paginationLabel}
           data-testid={testId + '-pagination'}
-          className='mt-2 flex flex-wrap gap-2'
+          className="mt-2 flex flex-wrap gap-2"
         >
           {Array.from({ length: pageCount }, (_, i) => (
             <button
               key={i}
-              type='button'
+              type="button"
               aria-label={'Trang ' + String(i + 1)}
               aria-current={i === safePage ? 'page' : undefined}
-              onClick={() => { setPage(i); }}
+              onClick={() => {
+                setPage(i);
+              }}
               className={i === safePage ? PAGE_BTN_ACTIVE_CLASS : PAGE_BTN_CLASS}
             >
               {i + 1}
@@ -144,13 +153,14 @@ function PagedRosterTable<TRow>({
           ))}
         </nav>
       ) : null}
-      <span
-        role='status'
-        aria-live='polite'
-        className='sr-only'
-        data-testid={testId + '-status'}
-      >
-        {'Hiển thị ' + String(rangeStart) + '-' + String(rangeEnd) + ' trên ' + String(rows.length) + ' tài xế'}
+      <span role="status" aria-live="polite" className="sr-only" data-testid={testId + '-status'}>
+        {'Hiển thị ' +
+          String(rangeStart) +
+          '-' +
+          String(rangeEnd) +
+          ' trên ' +
+          String(rows.length) +
+          ' tài xế'}
       </span>
     </div>
   );
@@ -165,14 +175,14 @@ export function RosterSplitPanel({ split }: RosterSplitPanelProps): JSX.Element 
   // change the answer to "does this add up".
   const partitionOk = isRosterPartitionValid(split);
   return (
-    <section className='mb-6 space-y-3' data-testid='roster-split-panel'>
-      <div className='flex flex-wrap items-baseline gap-x-3 gap-y-1'>
-        <h2 className='text-lg font-semibold text-white drop-shadow-sm'>
+    <section className="mb-6 space-y-3" data-testid="roster-split-panel">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="text-lg font-semibold text-white drop-shadow-sm">
           Tình hình tài xế hôm nay
         </h2>
-        <p className='text-sm text-slate-300'>
+        <p className="text-sm text-text-on-dark-muted">
           Tổng số tài xế:{' '}
-          <span data-testid='roster-split-total' className='font-semibold'>
+          <span data-testid="roster-split-total" className="font-semibold">
             {split.totalDrivers}
           </span>
         </p>
@@ -180,29 +190,28 @@ export function RosterSplitPanel({ split }: RosterSplitPanelProps): JSX.Element 
 
       {partitionOk ? null : (
         <p
-          role='alert'
-          data-testid='roster-split-partition-warning'
-          className='rounded-md border border-border-strong px-3 py-2 text-sm text-text-primary'
+          role="alert"
+          data-testid="roster-split-partition-warning"
+          className="rounded-md border border-border-strong px-3 py-2 text-sm text-text-primary"
         >
           Danh sách chưa khớp với tổng số tài xế. Vui lòng tải lại trang.
         </p>
       )}
 
-      <div className='grid gap-4 md:grid-cols-2'>
+      <div className="grid gap-4 md:grid-cols-2">
         <PagedRosterTable
-          testId='roster-split-dispatched'
-          heading='Tài xế đang chạy hôm nay'
-          caption='Danh sách tài xế đang chạy hôm nay'
-          paginationLabel='Phân trang tài xế đang chạy hôm nay'
+          testId="roster-split-dispatched"
+          heading="Tài xế đang chạy hôm nay"
+          caption="Danh sách tài xế đang chạy hôm nay"
+          paginationLabel="Phân trang tài xế đang chạy hôm nay"
           columns={['Tài xế', 'Số xe', 'Mã đơn']}
           rows={split.dispatched}
-          emptyLabel='Chưa có tài xế nào chạy hôm nay.'
+          emptyLabel="Chưa có tài xế nào chạy hôm nay."
           renderRow={(row) => (
-            <tr
-              key={row.driverId}
-              data-testid={'roster-split-dispatched-row-' + row.driverId}
-            >
-              <th scope='row' className={ROW_HEAD_CLASS}>{row.driverName}</th>
+            <tr key={row.driverId} data-testid={'roster-split-dispatched-row-' + row.driverId}>
+              <th scope="row" className={ROW_HEAD_CLASS}>
+                {row.driverName}
+              </th>
               <td className={CELL_CLASS}>{row.vehiclePlate ?? '-'}</td>
               <td className={CELL_CLASS}>
                 {row.orderRefs.length === 0 ? '-' : row.orderRefs.join(', ')}
@@ -212,19 +221,18 @@ export function RosterSplitPanel({ split }: RosterSplitPanelProps): JSX.Element 
         />
 
         <PagedRosterTable
-          testId='roster-split-idle'
-          heading='Tài xế ở nhà hôm nay'
-          caption='Danh sách tài xế ở nhà hôm nay'
-          paginationLabel='Phân trang tài xế ở nhà hôm nay'
+          testId="roster-split-idle"
+          heading="Tài xế ở nhà hôm nay"
+          caption="Danh sách tài xế ở nhà hôm nay"
+          paginationLabel="Phân trang tài xế ở nhà hôm nay"
           columns={['Tài xế', 'Số xe', 'Lý do']}
           rows={split.idle}
-          emptyLabel='Tất cả tài xế đều đang chạy.'
+          emptyLabel="Tất cả tài xế đều đang chạy."
           renderRow={(row) => (
-            <tr
-              key={row.driverId}
-              data-testid={'roster-split-idle-row-' + row.driverId}
-            >
-              <th scope='row' className={ROW_HEAD_CLASS}>{row.driverName}</th>
+            <tr key={row.driverId} data-testid={'roster-split-idle-row-' + row.driverId}>
+              <th scope="row" className={ROW_HEAD_CLASS}>
+                {row.driverName}
+              </th>
               <td className={CELL_CLASS}>{row.vehiclePlate ?? '-'}</td>
               <td className={CELL_CLASS}>{IDLE_REASON_LABEL[row.reason]}</td>
             </tr>

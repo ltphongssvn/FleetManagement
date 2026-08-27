@@ -23,28 +23,28 @@ describe('CreateOrderForm date-only fields (VN form)', () => {
 
   it('Ngày điều xe renders as type=date (no time)', async () => {
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
-    render(<CreateOrderForm drivers={drivers} locale='vi' />);
+    render(<CreateOrderForm drivers={drivers} locale="vi" />);
     const input = screen.getByLabelText(/Ngày điều xe/i);
     expect(input.getAttribute('type')).toBe('date');
   });
 
   it('Ngày nhận hàng renders as type=date (no time)', async () => {
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
-    render(<CreateOrderForm drivers={drivers} locale='vi' />);
+    render(<CreateOrderForm drivers={drivers} locale="vi" />);
     const input = screen.getByLabelText(/Ngày nhận hàng/i);
     expect(input.getAttribute('type')).toBe('date');
   });
 
   it('Ngày giao hàng renders as type=date (no time)', async () => {
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
-    render(<CreateOrderForm drivers={drivers} locale='vi' />);
+    render(<CreateOrderForm drivers={drivers} locale="vi" />);
     const input = screen.getByLabelText(/Ngày giao hàng/i);
     expect(input.getAttribute('type')).toBe('date');
   });
 
   it('none of the date fields uses datetime-local', async () => {
     const { CreateOrderForm } = await import('@/features/dispatch/CreateOrderForm');
-    const { container } = render(<CreateOrderForm drivers={drivers} locale='vi' />);
+    const { container } = render(<CreateOrderForm drivers={drivers} locale="vi" />);
     const dtLocal = container.querySelectorAll('input[type=datetime-local]');
     expect(dtLocal.length).toBe(0);
   });

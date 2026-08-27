@@ -2,21 +2,31 @@
 // Barrel export for @fleet/sync-protocol package.
 // Named exports only (no wildcard re-export) to prevent namespace pollution.
 export {
-  type ActionId,
-  type SyncCursor,
-  type AggregateId,
-  type ManifestCorrelationId,
-  createActionId,
-  createSyncCursor,
-  createAggregateId,
   type SyncStatus,
   SYNC_STATUSES,
   type SyncActionResult,
   SYNC_ACTION_RESULTS,
-  type SyncAction,
-  type SyncRequest,
   type SyncResponse,
 } from './sync-types.js';
+export {
+  ActionIdSchema,
+  type ActionId,
+  AggregateIdSchema,
+  type AggregateId,
+  SyncCursorSchema,
+  type SyncCursor,
+  ManifestCorrelationIdSchema,
+  type ManifestCorrelationId,
+  createActionId,
+  createAggregateId,
+  createSyncCursor,
+  SyncActionSchema,
+  type SyncAction,
+  type SyncActionInput,
+  SyncRequestSchema,
+  type SyncRequest,
+  type SyncRequestInput,
+} from './sync-contract.js';
 export {
   ALLOWED_MANIFEST_MIME_TYPES,
   type ManifestMimeType,
@@ -33,15 +43,11 @@ export {
   ErpInvoicePayloadWireSchema,
   ErpMappingContextWireSchema,
   ErpJobDataWireSchema,
+  MappedErpPayloadSchema,
+  type MappedErpPayload,
 } from './erp-types.js';
-export {
-  type IntakeJobDataWire,
-  IntakeJobDataWireSchema,
-} from './intake-types.js';
-export {
-  ManifestStopRefSchema,
-  type ManifestStopRef,
-} from './manifest-stop-contract.js';
+export { type IntakeJobDataWire, IntakeJobDataWireSchema } from './intake-types.js';
+export { ManifestStopRefSchema, type ManifestStopRef } from './manifest-stop-contract.js';
 export {
   NegotiateUploadResponseSchema,
   type NegotiateUploadResponse,
@@ -125,7 +131,19 @@ export {
   type OutboxQueueName,
 } from './outbox-routing.js';
 export { COMMAND_EVENTS, type CommandEventName } from './command-events.js';
-export * from './order-timeline-contract.js';
+// Admin order-timeline read model. Named, not wildcard: line 3 of this file
+// forbids wildcards, and a wildcard also defeats the analysis that keeps this
+// barrel honest -- it republishes whatever the module happens to export, so the
+// barrel stops being the authority on the public surface and every bundler and
+// dead-code tool has to guess. Measured cost of the star form in 2026 barrel
+// benchmarks is a large server-side bundle penalty; the correctness cost here is
+// that a new internal helper becomes public by accident.
+export {
+  OrderTimelineEventSchema,
+  type OrderTimelineEvent,
+  OrderTimelineSchema,
+  type OrderTimeline,
+} from './order-timeline-contract.js';
 export {
   ROAD_RUN_STATUS_GROUPS,
   roadRunStatusGroupSchema,
@@ -162,9 +180,7 @@ export {
 // extraction-types <-> dispatch-stop-view import cycle). The array + type are
 // already re-exported above via extraction-types; the Zod SCHEMA is exported
 // here for boundary validators (api/ops-web) that parse a reason value.
-export {
-  ExtractionFailureReasonSchema,
-} from './extraction-vocabulary.js';
+export { ExtractionFailureReasonSchema } from './extraction-vocabulary.js';
 
 // Leaf SSOT for what a Phieu Can PROOF URL may be. Exported from the barrel
 // because the value crosses a rendering boundary: ops-web parses it off the
@@ -173,11 +189,7 @@ export {
 // src path import is what invites a second, weaker definition -- and the weaker
 // definition here is a bare z.url(), which Zod documents as permissive enough to
 // accept javascript: and data:.
-export {
-  PROOF_URL_PROTOCOL,
-  ProofUrlSchema,
-  type ProofUrl,
-} from './proof-url.js';
+export { PROOF_URL_PROTOCOL, ProofUrlSchema, type ProofUrl } from './proof-url.js';
 export {
   exportDayKeySchema,
   type ExportDayKey,
@@ -296,7 +308,49 @@ export {
 } from './copilot-types.js';
 
 // Device binding (installation identity + TOFU binding lifecycle).
-export * from './device-binding-contract.js';
+// Named for the same reason as the timeline contract above. This module is the
+// larger of the two wildcards and the one where the accident was most likely:
+// it defines InstallationIdSchema as a MODULE-PRIVATE const, and a reader
+// skimming a wildcard cannot tell which symbols are contract and which are
+// scaffolding.
+export {
+  DeviceBindingPlatformSchema,
+  type DeviceBindingPlatform,
+  DeviceIdentitySchema,
+  type DeviceIdentity,
+  DeviceBindingStatusSchema,
+  type DeviceBindingStatus,
+  ATTESTATION_SECURITY_LEVELS,
+  AttestationSecurityLevelSchema,
+  type AttestationSecurityLevel,
+  ATTESTATION_ENVIRONMENTS,
+  AttestationEnvironmentSchema,
+  type AttestationEnvironment,
+  DeviceEnrollRequestSchema,
+  type DeviceEnrollRequest,
+  DeviceEnrollResponseSchema,
+  type DeviceEnrollResponse,
+  DEVICE_BINDING_PROBLEM_CODES,
+  type DeviceBindingProblemCode,
+  DEVICE_BINDING_ACTIONS,
+  DeviceBindingActionSchema,
+  type DeviceBindingAction,
+  DEVICE_BINDING_ENFORCEMENT_MODES,
+  DeviceBindingEnforcementModeSchema,
+  type DeviceBindingEnforcementMode,
+  DeviceBindingPatchRequestSchema,
+  type DeviceBindingPatchRequest,
+  AdminDeviceRowSchema,
+  type AdminDeviceRow,
+  parseDeviceEnrollRequest,
+  parseDeviceEnrollResponse,
+  ADMIN_DEVICE_PAGE_SIZE_MAX,
+  ADMIN_DEVICE_PAGE_SIZE_DEFAULT,
+  AdminDeviceListQuerySchema,
+  type AdminDeviceListQuery,
+  AdminDeviceListResponseSchema,
+  type AdminDeviceListResponse,
+} from './device-binding-contract.js';
 export {
   DRIVER_ALERT_KINDS,
   DriverAlertKindSchema,

@@ -15,13 +15,21 @@ test.describe.serial('dispatch order review', () => {
     const listRes = await page.request.get('/api/transport-orders/assigned');
     expect(listRes.status(), 'BFF /api/transport-orders/assigned must return 200').toBe(200);
     const listJson = await parseJson(listRes, AssignedListResponseSchema);
-    test.skip(listJson.rows.length === 0, 'no assigned order available to review in this environment');
+    test.skip(
+      listJson.rows.length === 0,
+      'no assigned order available to review in this environment',
+    );
     const target = listJson.rows[0];
     if (target === undefined) throw new Error('unreachable: skipped above');
     const reviewRes = await page.request.get('/api/transport-orders/' + target.transportOrderId);
-    expect(reviewRes.status(), 'BFF /api/transport-orders/[id] must return 200 for a known order').toBe(200);
+    expect(
+      reviewRes.status(),
+      'BFF /api/transport-orders/[id] must return 200 for a known order',
+    ).toBe(200);
     await page.goto('/dispatch/orders/' + target.transportOrderId);
-    await expect(page.getByRole('heading', { name: /order review|đơn vận chuyển|chi tiết/i })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /order review|đơn vận chuyển|chi tiết/i }),
+    ).toBeVisible();
     await expect(page.getByTestId('order-review-id')).toContainText(target.transportOrderId);
     if (target.externalRef) {
       await expect(page.getByTestId('order-review-external-ref')).toContainText(target.externalRef);
@@ -30,7 +38,9 @@ test.describe.serial('dispatch order review', () => {
   });
   test('review BFF returns 404 for an unknown order id', async ({ page }) => {
     await login(page);
-    const res = await page.request.get('/api/transport-orders/00000000-0000-0000-0000-000000000000');
+    const res = await page.request.get(
+      '/api/transport-orders/00000000-0000-0000-0000-000000000000',
+    );
     expect(res.status()).toBe(404);
   });
 });

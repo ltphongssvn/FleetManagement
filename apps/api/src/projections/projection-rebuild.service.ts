@@ -21,7 +21,7 @@
 // every projection-row mutation flows through the runner's event application.
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, eq, isNull } from 'drizzle-orm';
-import { DISPATCH_BOARD_PROJECTION_NAME } from '@fleet/main-worker';
+import { DISPATCH_BOARD_PROJECTION_NAME } from '@fleet/domain';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { dispatchBoardProjection, projectionStatus } from '../database/schema/index.js';
@@ -69,15 +69,22 @@ export class ProjectionRebuildService {
       await tx
         .update(dispatchBoardProjection)
         .set({ deletedAt: new Date(), updatedAt: new Date() })
-        .where(and(eq(dispatchBoardProjection.companyId, scope), isNull(dispatchBoardProjection.deletedAt)));
+        .where(
+          and(
+            eq(dispatchBoardProjection.companyId, scope),
+            isNull(dispatchBoardProjection.deletedAt),
+          ),
+        );
       // Reset the watermark to 0 so the replay reprocesses the entire feed.
       await tx
         .update(projectionStatus)
         .set({ watermark: 0n, updatedAt: new Date() })
-        .where(and(
-          eq(projectionStatus.projectionName, DISPATCH_BOARD_PROJECTION_NAME),
-          eq(projectionStatus.scope, scope),
-        ));
+        .where(
+          and(
+            eq(projectionStatus.projectionName, DISPATCH_BOARD_PROJECTION_NAME),
+            eq(projectionStatus.scope, scope),
+          ),
+        );
     });
 
     // (3) Replay the whole feed via the live runner. drainOnce is idempotent and
@@ -100,10 +107,12 @@ export class ProjectionRebuildService {
     await this.db
       .update(projectionStatus)
       .set({ lastRebuiltAt: new Date(), updatedAt: new Date() })
-      .where(and(
-        eq(projectionStatus.projectionName, DISPATCH_BOARD_PROJECTION_NAME),
-        eq(projectionStatus.scope, scope),
-      ));
+      .where(
+        and(
+          eq(projectionStatus.projectionName, DISPATCH_BOARD_PROJECTION_NAME),
+          eq(projectionStatus.scope, scope),
+        ),
+      );
 
     this.logger.log(
       `[projection ${DISPATCH_BOARD_PROJECTION_NAME} scope=${scope}] REBUILT drains=${String(drains)} applied=${String(applied)} softDeletes=${String(softDeletes)} finalWatermark=${finalWatermark}`,

@@ -45,10 +45,21 @@ vi.mock('@/features/admin/admin-drivers-client', () => ({
   },
 }));
 import AdminDriversPage from '@/app/admin/drivers/page';
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 beforeEach(() => {
   listMock.mockResolvedValue([
-    { driverId: 'd1', fullName: 'Driver Alpha', phone: '0900000001', operatorId: 'op-a', assignedVehicle: null, assignmentId: null, devices: [] },
+    {
+      driverId: 'd1',
+      fullName: 'Driver Alpha',
+      phone: '0900000001',
+      operatorId: 'op-a',
+      assignedVehicle: null,
+      assignmentId: null,
+      devices: [],
+    },
   ]);
   assignMock.mockResolvedValue({ assignmentId: 'asg-1' });
   revokeMock.mockResolvedValue({ assignmentId: 'asg-1', revokedAt: '2026-01-01T00:00:00Z' });
@@ -74,8 +85,14 @@ describe('AdminDriversPage refreshes Router Cache after a mutation', () => {
     await screen.findByRole('option', { name: '62H 99999' });
     await user.selectOptions(screen.getByRole('combobox'), 'v1');
     await user.click(screen.getByRole('button', { name: /Phân công/i }));
-    await waitFor(() => { expect(assignMock).toHaveBeenCalledTimes(1); });
-    await waitFor(() => { expect(refreshMock).toHaveBeenCalled(); });
-    await waitFor(() => { expect(revalidateDispatchMock).toHaveBeenCalled(); });
+    await waitFor(() => {
+      expect(assignMock).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(refreshMock).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(revalidateDispatchMock).toHaveBeenCalled();
+    });
   });
 });

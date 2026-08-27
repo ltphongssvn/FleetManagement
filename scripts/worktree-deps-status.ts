@@ -47,14 +47,9 @@ const NO_OUTPUT_REASON = 'probe failed with no diagnostic output';
 // first working run reported every drifted worktree as no-diagnostic-output
 // because only stderr was read. Guessing the stream is a treadmill; reading
 // both is stable across releases. A killed process yields undefined, not empty.
-export function joinProbeStreams(
-  stderr: string | undefined,
-  stdout: string | undefined,
-): string {
+export function joinProbeStreams(stderr: string | undefined, stdout: string | undefined): string {
   const NL = String.fromCharCode(10);
-  return [stderr ?? '', stdout ?? '']
-    .filter((s) => s.length > 0)
-    .join(NL);
+  return [stderr ?? '', stdout ?? ''].filter((s) => s.length > 0).join(NL);
 }
 interface PnpmErrorRecord {
   code: string;
@@ -112,10 +107,7 @@ function findErrorRecord(lines: string[]): PnpmErrorRecord | null {
 //
 // FAILS CLOSED, mirroring gate:agent: only an explicit 0 is a pass. A null code
 // (timeout SIGTERM) or unparseable output still reports stale.
-export function interpretDepsProbe(
-  exitCode: number | null,
-  output: string,
-): DepsProbe {
+export function interpretDepsProbe(exitCode: number | null, output: string): DepsProbe {
   if (exitCode === 0) return { kind: 'deps-ok' };
   const NL = String.fromCharCode(10);
   const lines = output.split(NL).map((l) => l.trim());
@@ -167,9 +159,7 @@ const STRIP_EXACT = ['init_cwd', 'pnpm_script_src_dir'];
 // PNPM_HOME deliberately SURVIVES: it locates the binary rather than configuring
 // behaviour, and stripping it can leave pnpm unresolvable. undefined values are
 // dropped so spawn never receives them.
-export function buildProbeEnv(
-  source: Record<string, string | undefined>,
-): Record<string, string> {
+export function buildProbeEnv(source: Record<string, string | undefined>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(source)) {
     if (v === undefined) continue;

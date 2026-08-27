@@ -34,37 +34,66 @@ const at = (): string => FIXED_NOW;
 
 describe('DeployVersionSchema', () => {
   it('accepts the payload api already serves', () => {
-    expect(DeployVersionSchema.safeParse({
-      sha: SHA, shortSha: SHA.slice(0, 7), branch: 'main', buildTime: FIXED_NOW,
-    }).success).toBe(true);
+    expect(
+      DeployVersionSchema.safeParse({
+        sha: SHA,
+        shortSha: SHA.slice(0, 7),
+        branch: 'main',
+        buildTime: FIXED_NOW,
+      }).success,
+    ).toBe(true);
   });
 
   it('rejects a payload with no sha -- the one field the CI gate reads', () => {
-    expect(DeployVersionSchema.safeParse({
-      shortSha: SHA.slice(0, 7), branch: 'main', buildTime: FIXED_NOW,
-    }).success).toBe(false);
+    expect(
+      DeployVersionSchema.safeParse({
+        shortSha: SHA.slice(0, 7),
+        branch: 'main',
+        buildTime: FIXED_NOW,
+      }).success,
+    ).toBe(false);
   });
 
   it('rejects a sha that is not 40 lowercase hex', () => {
-    expect(DeployVersionSchema.safeParse({
-      sha: 'not-a-sha', shortSha: 'not-a-s', branch: 'main', buildTime: FIXED_NOW,
-    }).success).toBe(false);
+    expect(
+      DeployVersionSchema.safeParse({
+        sha: 'not-a-sha',
+        shortSha: 'not-a-s',
+        branch: 'main',
+        buildTime: FIXED_NOW,
+      }).success,
+    ).toBe(false);
   });
 
   it('is closed: an unexpected field is rejected, not silently carried', () => {
-    expect(DeployVersionSchema.safeParse({
-      sha: SHA, shortSha: SHA.slice(0, 7), branch: 'main', buildTime: FIXED_NOW,
-      secret: 'leaked',
-    }).success).toBe(false);
+    expect(
+      DeployVersionSchema.safeParse({
+        sha: SHA,
+        shortSha: SHA.slice(0, 7),
+        branch: 'main',
+        buildTime: FIXED_NOW,
+        secret: 'leaked',
+      }).success,
+    ).toBe(false);
   });
 });
 
 describe('buildDeployVersion', () => {
   it('derives every field from the stamped environment', () => {
-    expect(buildDeployVersion({
-      GIT_SHA: SHA, GIT_BRANCH: 'main', BUILD_TIME: FIXED_NOW,
-    }, at)).toStrictEqual({
-      sha: SHA, shortSha: SHA.slice(0, 7), branch: 'main', buildTime: FIXED_NOW,
+    expect(
+      buildDeployVersion(
+        {
+          GIT_SHA: SHA,
+          GIT_BRANCH: 'main',
+          BUILD_TIME: FIXED_NOW,
+        },
+        at,
+      ),
+    ).toStrictEqual({
+      sha: SHA,
+      shortSha: SHA.slice(0, 7),
+      branch: 'main',
+      buildTime: FIXED_NOW,
     });
   });
 
@@ -110,8 +139,9 @@ describe('buildDeployVersion', () => {
   });
 
   it('is pure: identical input yields identical output', () => {
-    expect(buildDeployVersion({ GIT_SHA: SHA }, at))
-      .toStrictEqual(buildDeployVersion({ GIT_SHA: SHA }, at));
+    expect(buildDeployVersion({ GIT_SHA: SHA }, at)).toStrictEqual(
+      buildDeployVersion({ GIT_SHA: SHA }, at),
+    );
   });
 });
 

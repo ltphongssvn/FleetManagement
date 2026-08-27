@@ -16,9 +16,7 @@ import { DRIZZLE_DB } from '../database/database.tokens.js';
 import { allocateServerSeq } from '../database/server-seq.repository.js';
 import { appendTriWrite } from '../database/append-tri-write.js';
 import type { FleetDb } from '../database/database.module.js';
-import {
-  syncChangeFeed,
-} from '../database/schema/index.js';
+import { syncChangeFeed } from '../database/schema/index.js';
 import type { SyncRequestInput, SyncActionInput } from './sync.dto.js';
 
 import { mapDbErrorToSyncResult } from './error-mapping.js';
@@ -64,7 +62,9 @@ export class SyncService {
         createdAt: syncChangeFeed.createdAt,
       })
       .from(syncChangeFeed)
-      .where(and(eq(syncChangeFeed.companyId, op.companyId), gt(syncChangeFeed.serverSeq, cursorBig)))
+      .where(
+        and(eq(syncChangeFeed.companyId, op.companyId), gt(syncChangeFeed.serverSeq, cursorBig)),
+      )
       .orderBy(syncChangeFeed.serverSeq)
       .limit(DELTA_PULL_LIMIT);
 
@@ -95,7 +95,10 @@ export class SyncService {
     };
   }
 
-  private async applyAction(action: SyncActionInput, op: OperatorContext): Promise<SyncActionResult> {
+  private async applyAction(
+    action: SyncActionInput,
+    op: OperatorContext,
+  ): Promise<SyncActionResult> {
     try {
       await this.db.transaction(async (tx) => {
         // Tri-write event via shared appendTriWrite helper.
@@ -112,7 +115,11 @@ export class SyncService {
           auditPayload: action.payload as Record<string, unknown>,
           operatorId: op.operatorId,
           queueName: OUTBOX_QUEUES.PROJECTIONS,
-          outboxPayload: { actionId: action.actionId, aggregateType: action.aggregateType, aggregateId: action.aggregateId },
+          outboxPayload: {
+            actionId: action.actionId,
+            aggregateType: action.aggregateType,
+            aggregateId: action.aggregateId,
+          },
           op,
         });
       });
@@ -129,7 +136,18 @@ export class SyncService {
   }
 
   /** Fetch deltas after a given cursor for a tenant (used by client pull). */
-  async deltasAfter(cursor: string, op: OperatorContext): Promise<readonly { serverSeq: string; actionId: string; aggregateType: string; aggregateId: string; delta: unknown }[]> {
+  async deltasAfter(
+    cursor: string,
+    op: OperatorContext,
+  ): Promise<
+    readonly {
+      serverSeq: string;
+      actionId: string;
+      aggregateType: string;
+      aggregateId: string;
+      delta: unknown;
+    }[]
+  > {
     const cursorBig = parseCursor(cursor);
     const rows = await this.db
       .select({
@@ -140,7 +158,9 @@ export class SyncService {
         delta: syncChangeFeed.delta,
       })
       .from(syncChangeFeed)
-      .where(and(eq(syncChangeFeed.companyId, op.companyId), gt(syncChangeFeed.serverSeq, cursorBig)))
+      .where(
+        and(eq(syncChangeFeed.companyId, op.companyId), gt(syncChangeFeed.serverSeq, cursorBig)),
+      )
       .orderBy(syncChangeFeed.serverSeq)
       .limit(DELTA_PULL_LIMIT);
     return rows;

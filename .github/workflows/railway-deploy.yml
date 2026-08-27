@@ -154,11 +154,27 @@ jobs:
               - 'packages/**'
               - 'pnpm-lock.yaml'
               - 'package.json'
+            # MUST stay byte-identical to the watchPatterns in
+            # workers/main-worker/railway.json. Railway is the system that
+            # actually gates the BUILD, and these two lists disagreeing breaks
+            # in BOTH directions:
+            #   * a pattern here but not there -> this job deploys and STAMPS
+            #     GIT_SHA, Railway skips the build as unwatched, and the
+            #     post-deploy verify fails on a SHA the container never ran.
+            #     Observed 2026-08-20 on a package.json-only change.
+            #   * a pattern there but not here -> this job never runs, nothing
+            #     is uploaded, and the worker silently ships stale with no gate
+            #     firing at all, because the verify step is guarded on
+            #     result == success.
+            # scripts/worker-watch-patterns-parity.guard.test.ts asserts the
+            # equality, so a change to either side fails the PR.
             worker:
               - 'workers/main-worker/**'
-              - 'packages/**'
+              - 'packages/domain/**'
+              - 'packages/sync-protocol/**'
+              - 'packages/observability/**'
+              - 'Dockerfile.worker'
               - 'pnpm-lock.yaml'
-              - 'package.json'
 
   deploy-api:
     name: Deploy api

@@ -1,20 +1,39 @@
 # ============================================================================
 # File:     FleetManagement/.github/workflows/railway-guard.yml
-# Purpose:  Pre-deploy guard that fails the build if any Railway service variable
-#           holds a hardcoded connection-string LITERAL (redis://user:pass@host,
-#           postgresql://user:pass@host) where a reference is expected. Railway
-#           reference variables auto-propagate a single credential rotation to
-#           every consumer on its next deploy; hardcoded literals silently rot.
+# Purpose:  Pre-deploy guards that read LIVE Railway configuration and fail the
+#           build when production drifts out of policy. Two independent guards:
 #
-# Why a separate workflow (not a step in ci.yml):
-#   The guard reads LIVE Railway config via `railway environment config --json`,
-#   which needs the Railway CLI authenticated with a Project Token. The main CI
-#   jobs are hermetic (no platform access), so this concern is isolated here.
+#   1. Reference variables — a Railway service variable holding a hardcoded
+#      connection-string LITERAL (redis://user:pass@host) where a reference is
+#      expected. References auto-propagate a credential rotation to every
+#      consumer on the next deploy; literals silently rot.
+#
+#   2. Keycloak memory envelope — the container memory limit and the JVM heap
+#      options that let an idle heap shrink. The Keycloak image sets no fixed
+#      -Xmx and sizes the heap from CONTAINER memory, so with no limit the JVM
+#      reads the HOST's memory: observed 1.0 -> 4.3 GB at 0.0 vCPU, then OOM,
+#      for $38.15 of a $40.43 invoice. A container limit alone is not enough --
+#      the image ships InitialRAMPercentage=50, pinning the heap floor at half
+#      the container, and G1 never returns memory below -Xms.
+#
+# Why a separate workflow (not steps in ci.yml):
+#   These guards read LIVE Railway config via `railway environment config
+#   --json`, which needs the Railway CLI authenticated with a Project Token.
+#   The main CI jobs are hermetic (no platform access), so this concern is
+#   isolated here. That isolation is also why neither guard belongs in the
+#   all-checks-passed aggregate: live-state drift is caused by dashboard edits,
+#   not by the PR under review, and failing every open PR across 50+ worktrees
+#   for a change none of them made is how a gate gets disabled.
+#
+# Why one JOB per guard rather than two steps:
+#   Each surfaces as its own named check, and both report on the SAME run --
+#   independent jobs complete concurrently and report both problems, where
+#   sequential steps hide the second failure behind the first.
 #
 # How it gates deploys:
 #   This workflow runs on: push. With Railway's "Wait for CI" enabled on the
 #   service, a failing workflow moves the deployment to SKIPPED — so a detected
-#   literal blocks the deploy. See:
+#   violation blocks the deploy. See:
 #   https://docs.railway.com/deployments/github-autodeploys
 #
 # Token setup (one-time):
@@ -23,17 +42,21 @@
 #   2. GitHub repo -> Settings -> Secrets and variables -> Actions -> add a
 #      secret named RAILWAY_TOKEN with that value.
 #
-# Fork/PR safety:
-#   Forked PRs do not receive repository secrets. The job surfaces the secret to
-#   a job-level env flag and SKIPS cleanly when it is absent, so external PRs are
-#   not blocked. The guard only enforces where the token is configured.
+# Fork/PR safety, and its LIMIT:
+#   Forked PRs do not receive repository secrets. Each job surfaces the secret
+#   to a job-level env flag and SKIPS cleanly when it is absent, so external
+#   PRs are not blocked. Be explicit about what that costs: GitHub reports a
+#   conditionally skipped job as SUCCESS, so on a fork these checks go green
+#   having verified nothing. That is acceptable only because a fork cannot
+#   deploy; the enforcement point is the deploy, which always runs with the
+#   token present.
 # ============================================================================
-name: Railway reference guard
+name: Railway guards
 on:
   push:
-    branches: ["**"]
+    branches: ['**']
   pull_request:
-    branches: ["**"]
+    branches: ['**']
 concurrency:
   group: railway-guard-${{ github.ref }}
   cancel-in-progress: true
@@ -84,3 +107,51 @@ jobs:
         # where a reference is expected, failing the workflow and (with
         # Wait-for-CI) skipping the deploy.
         run: pnpm guard:railway-references
+
+  keycloak-memory:
+    name: Enforce Keycloak memory envelope
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      HAS_RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN != '' }}
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_ENVIRONMENT: production
+    steps:
+      - name: Skip notice (no RAILWAY_TOKEN configured)
+        if: env.HAS_RAILWAY_TOKEN != 'true'
+        run: |
+          echo "RAILWAY_TOKEN is not configured for this context (e.g. a forked PR)."
+          echo "Skipping the Keycloak memory guard. Configure a Project Token in"
+          echo "repository secrets as RAILWAY_TOKEN to enforce it."
+      - name: Checkout
+        if: env.HAS_RAILWAY_TOKEN == 'true'
+        uses: actions/checkout@v5
+      - name: Setup pnpm
+        if: env.HAS_RAILWAY_TOKEN == 'true'
+        uses: pnpm/action-setup@v5
+      - name: Setup Node
+        if: env.HAS_RAILWAY_TOKEN == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Install Railway CLI
+        if: env.HAS_RAILWAY_TOKEN == 'true'
+        run: npm install -g @railway/cli
+      - name: Install workspace dependencies
+        if: env.HAS_RAILWAY_TOKEN == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Run Keycloak memory guard
+        if: env.HAS_RAILWAY_TOKEN == 'true'
+        # Exit 0 clean (or a transient Railway API failure, which soft-skips --
+        # a guard must never block a deploy because it could not READ).
+        # Exit 1 policy violation. Exit 2 tooling/unverifiable: an unrecognised
+        # payload or no Keycloak service found, which is NEVER reported as a
+        # pass, because a confident zero is the failure mode this guard exists
+        # to catch.
+        run: pnpm guard:keycloak-memory

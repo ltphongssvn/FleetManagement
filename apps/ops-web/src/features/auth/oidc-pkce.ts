@@ -18,7 +18,6 @@ export interface PkceRandomSource {
   randomBase64Url: (byteLength?: number) => string;
 }
 
-
 export async function deriveCodeChallenge(codeVerifier: string): Promise<string> {
   // Node-native base64url (RFC 4648 §5): - for +, _ for /, no padding. The
   // idiomatic 2026 encoding for a PKCE S256 challenge - no fragile btoa+regex.

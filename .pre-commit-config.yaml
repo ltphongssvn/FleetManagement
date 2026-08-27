@@ -38,16 +38,16 @@
 #   coverage-final.json so the local gate exercises exactly the same
 #   merge + threshold logic as CI. The pnpm-test-coverage-push hook does
 #   both steps in a single bash entry: vitest --coverage, then merge.
-        #
-        # Cross-worktree serialization (2026-Q3 hardening): this box runs up
-        # to 6 parallel worktree terminals; N concurrent coverage gates (each
-        # already intra-serialized via --workspace-concurrency=1) still starve
-        # an 8-core host and stretch PGlite WASM cold-starts past any sane
-        # hook budget (observed: import phase 1018s vs ~28s isolated). A
-        # machine-global flock on $HOME/.cache/fleetmanagement/gate.lock
-        # queues gates (-w 7200 waits up to 2h) instead of letting them
-        # thrash each other. Lock lives under $HOME, never repo-relative:
-        # worktrees have different paths; a repo-local lock serializes nothing.
+#
+#   Cross-worktree serialization (2026-Q3 hardening): this box runs up
+#   to 6 parallel worktree terminals; N concurrent coverage gates (each
+#   already intra-serialized via --workspace-concurrency=1) still starve
+#   an 8-core host and stretch PGlite WASM cold-starts past any sane
+#   hook budget (observed: import phase 1018s vs ~28s isolated). A
+#   machine-global lock on $HOME/.cache/fleetmanagement queues gates
+#   instead of letting them thrash each other. The lock lives under
+#   $HOME, never repo-relative: worktrees have different paths, so a
+#   repo-local lock serializes nothing.
 #
 # Related files:
 #   - .secrets.baseline                  — detect-secrets allowlist
@@ -88,12 +88,12 @@ repos:
         # scripts/secrets-baseline-age-keys.test.ts under //#test:scripts.
         args: ['--baseline', '.secrets.baseline', '--exclude-lines', 'age1[02-9ac-hj-np-z]{58}']
         exclude: (?x)(
-            pnpm-lock\.yaml|
-            .*\.lock|
-            .*\.log|
-            package-lock\.json|
-            yarn\.lock|
-            \.secrets\.baseline
+          pnpm-lock\.yaml|
+          .*\.lock|
+          .*\.log|
+          package-lock\.json|
+          yarn\.lock|
+          \.secrets\.baseline
           )$
   - repo: local
     hooks:
@@ -172,7 +172,9 @@ repos:
         # enforce the 90/90/90/90 per-file gate via the same merge logic
         # CI uses across its 4 shards. Non-api packages run their own
         # test:coverage in the same -r pass so their per-package thresholds
-        # THIN BY DESIGN. This entry used to inline flock, the recursive
+        # apply too.
+        #
+        # THIN BY DESIGN. This entry used to inline the lock, the recursive
         # coverage run and the merge step as a ~300-character bash string --
         # untested, and unreachable by //#test:scripts. It streamed every
         # workspace's vitest output through pre-commit's captured pipe, and
@@ -181,11 +183,103 @@ repos:
         # aborting a push while the tests were PASSING.
         #
         # The gate now lives in scripts/gate-coverage.ts, where its argv is
-        # unit-tested: the flock wait, --workspace-concurrency=1, the quiet
-        # reporter that keeps the pipe from filling, and the same 90/90/90/90
-        # merge. One place to change behaviour, and a test that fails if
-        # someone drops the lock or weakens the run.
+        # unit-tested: the lock wait, --workspace-concurrency=1, the log file
+        # that keeps the pipe from filling, and the same 90/90/90/90 merge. One
+        # place to change behaviour, and a test that fails if someone drops the
+        # lock or weakens the run.
         entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm run gate:coverage; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      - id: estate-verify-push
+        name: Estate Verify (Pre-push, local estate only)
+        # LEVEL 5 of the load-bearing ladder: the task existed, was registered
+        # in turbo.jsonc with graded exits, failed closed, and emitted evidence
+        # -- and NOTHING INVOKED IT. A verdict nobody consumes is decorative,
+        # however sound its internals. This is the same hole ci.yml documents
+        # three times (//#lint:scripts, //#typecheck:scripts, //#lint:e2e):
+        # a check real in principle and absent in practice.
+        #
+        # PRE-PUSH, AND DELIBERATELY NOT CI. The estate it inspects is the
+        # LOCAL one -- dirty trees, stashes, unpushed commits across every
+        # worktree on this machine. A CI runner is a fresh shallow clone with
+        # exactly one worktree, so the verdict there is vacuous; wiring it into
+        # __ci_fast__ would be cargo-culting the shape of a gate. 2026 guidance
+        # splits precisely this way: environment-dependent local state belongs
+        # in the hook, while CI stays authoritative for what a laptop cannot
+        # reproduce. What CI already defends is the MECHANISM -- security-guards
+        # runs test:scripts, which covers every estate suite, so weakening the
+        # classifier turns the PR red (ladder level 8).
+        #
+        # --pushing IS LOAD-BEARING, and it resolves a DEADLOCK observed
+        # 2026-08-18. Without it this hook refused the push because the worktree
+        # BEING PUSHED reported `unpushed` -- and pushing is the only cure for
+        # unpushed, so the gate could never be satisfied by the operation it
+        # gates. Worse, the reasons are estate-wide, so ANY worktree holding an
+        # unpushed commit blocked every OTHER worktree's push: six terminals
+        # mutually locked by design. It hid for weeks because the gate passes
+        # whenever the estate happens to be fully pushed, which is exactly the
+        # moment nobody is trying to push.
+        #
+        # The flag selects PUSH_POLICY, which suppresses `unpushed` AND NOTHING
+        # ELSE: dirty, stash, prunable and locked still block, because pushing
+        # resolves none of them. The relaxation is a POLICY rather than a
+        # special case in this entry, so it is versioned, digested, and named on
+        # every emitted event -- a consumer can see that PROCEED was reached
+        # under relaxed rules rather than having to trust it.
+        #
+        # The hook is bypassable with --no-verify, which is exactly why it is
+        # the LOCAL half of a pair rather than the whole control.
+        #
+        # Exit 1 (not clean) blocks the push; exit 3 (unreadable) blocks it too,
+        # because an estate that cannot be read must never be assumed clean.
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm exec turbo run estate:verify -- --quiet --pushing; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      - id: worktree-stale-gate-push
+        name: Worktree Stale Gate (Pre-push, local estate only)
+        # LEVEL 5 OF THE LOAD-BEARING LADDER, and the fifth instance closed in
+        # this repo. The task was registered in turbo.jsonc with a documented
+        # rationale, a pure decideClose-delegating core, unit tests under
+        # //#test:scripts and a fail-closed exit -- and NOTHING INVOKED IT.
+        #
+        # A constraint is load-bearing only if violating it causes a structural
+        # failure. This one could be ignored with zero consequence, which makes
+        # it decorative however sound its internals -- the identical shape
+        # //#lint:scripts, //#typecheck:scripts, //#lint:e2e and
+        # //#estate:verify each had before they were wired.
+        #
+        # WHAT IT ENFORCES: a worktree that is merged, clean, pushed AND idle
+        # past RECENT_IDLE_THRESHOLD_HOURS is FINISHED WORK NOBODY RECLAIMED.
+        # Closing t1-wt2-cf-beacon-no-transform reported ahead=117
+        # contained=true idleH=604 -- every commit already in origin/develop,
+        # untouched 25 days, with six siblings identical. The predicate bug that
+        # refused them is fixed; nothing made anyone reclaim them, so residue
+        # accumulated until a census happened to be read.
+        #
+        # NOT stale ALONE, which is why this can be gated at all: long-lived
+        # idle WIP is legitimate and 38 of 48 worktrees once exceeded 24h idle.
+        # The gate fires only on merged AND clean AND pushed AND idle, and
+        # closeability is DELEGATED to decideClose rather than re-derived -- a
+        # second opinion is how pr-follow/pr-automerge carried one bug twice.
+        #
+        # PRE-PUSH, AND DELIBERATELY NOT CI, for the reason the task states in
+        # its own description: a CI runner has zero worktrees, so a CI version
+        # would inspect an empty set and pass forever -- a gate that cannot
+        # fail. Same split estate-verify-push documents: environment-dependent
+        # LOCAL state belongs in the hook, while CI stays authoritative for the
+        # MECHANISM (security-guards runs test:scripts, which covers this
+        # gate's core, so weakening the classifier turns the PR red).
+        #
+        # VERIFIED NOT BORN RED before wiring: the gate reports OK on this
+        # estate. Gating a check that is already failing is how a team learns
+        # to pass --no-verify reflexively, which is the adoption reasoning
+        # //#typecheck:scripts and //#knip both document.
+        #
+        # Bypassable with --no-verify, which is exactly why it is the LOCAL
+        # half of a pair rather than the whole control.
+        entry: bash -c 'if command -v pnpm >/dev/null && [ -f pnpm-lock.yaml ]; then pnpm exec turbo run worktree:stale-gate; else echo "Skipped (pre-scaffold or pnpm missing)"; fi'
         language: system
         pass_filenames: false
         stages: [pre-push]

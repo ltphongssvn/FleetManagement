@@ -25,5 +25,4 @@ import type { Env } from '../config/env.config.js';
   ],
   exports: [BLOB_STORE],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class StorageModule {}

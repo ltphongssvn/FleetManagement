@@ -16,9 +16,7 @@ import {
   type SemanticRole,
 } from '../src/semantic.js';
 
-const flatPalette = new Set(
-  Object.values(palette).flatMap((ramp) => Object.values(ramp)),
-);
+const flatPalette = new Set(Object.values(palette).flatMap((ramp) => Object.values(ramp)));
 
 describe('semantic color role layer', () => {
   it('exposes a frozen role vocabulary and a matching z.enum schema', () => {

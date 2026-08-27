@@ -27,15 +27,8 @@ import { listWorktreesArgs } from './worktree-close-cli.js';
 import { parseWorktreePorcelain } from './worktree-close.js';
 import { classifyDepsCandidate, type DepsProbe } from './worktree-deps-status.js';
 import { probeDeps } from './worktree-deps-probe.js';
-import {
-  newestManifestMtimeMs,
-  readValidationTimestampMs,
-} from './sync-worktrees.js';
-import {
-  runReconcile,
-  type ReconcileTarget,
-  type SpawnFn,
-} from './deps-reconcile-runner.js';
+import { newestManifestMtimeMs, readValidationTimestampMs } from './sync-worktrees.js';
+import { runReconcile, type ReconcileTarget, type SpawnFn } from './deps-reconcile-runner.js';
 import { RECONCILE_EXIT, reconcileExitCode } from './deps-reconcile.js';
 const NL = String.fromCharCode(10);
 // ---- pure argv parsing ----
@@ -83,7 +76,11 @@ export function buildTargets(
   const selected = only === null ? entries : entries.filter((e) => e.path === only);
   if (only !== null && selected.length === 0) {
     throw new Error(
-      'not a worktree root: ' + only + NL + 'known roots:' + NL +
+      'not a worktree root: ' +
+        only +
+        NL +
+        'known roots:' +
+        NL +
         entries.map((e) => '  ' + e.path).join(NL),
     );
   }
@@ -144,10 +141,18 @@ function mainDepsReconcile(): number {
   for (const line of report.lines) process.stdout.write(line + NL);
   const s = report.summary;
   process.stdout.write(
-    NL + 'Summary: ' + String(s.reconciled) + ' reconciled, ' +
-      String(s.divergent) + ' divergent, ' + String(s.failed) + ' failed, ' +
-      String(s.skipped) + ' skipped' +
-      (argv.execute ? '' : '  [DRY RUN -- pass --execute to apply]') + NL,
+    NL +
+      'Summary: ' +
+      String(s.reconciled) +
+      ' reconciled, ' +
+      String(s.divergent) +
+      ' divergent, ' +
+      String(s.failed) +
+      ' failed, ' +
+      String(s.skipped) +
+      ' skipped' +
+      (argv.execute ? '' : '  [DRY RUN -- pass --execute to apply]') +
+      NL,
   );
   return reconcileExitCode(s);
 }

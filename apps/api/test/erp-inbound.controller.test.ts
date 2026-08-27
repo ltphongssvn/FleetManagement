@@ -10,7 +10,9 @@ describe('@fleet/api - ErpInboundController', () => {
   let ctl: ErpInboundController;
 
   const SECRET = 'test-secret'; // pragma: allowlist secret
-  const config = { get: (key: string): unknown => (key === 'ERP_WEBHOOK_SECRET' ? SECRET : undefined) } as ConfigService;
+  const config = {
+    get: (key: string): unknown => (key === 'ERP_WEBHOOK_SECRET' ? SECRET : undefined),
+  } as ConfigService;
   beforeEach(() => {
     recordInvoiceAck = vi.fn();
     svc = { recordInvoiceAck } as unknown as ErpInboundService;
@@ -18,16 +20,41 @@ describe('@fleet/api - ErpInboundController', () => {
   });
 
   it('rejects request missing signature header', async () => {
-    await expect(ctl.invoiceAck({ invoiceId: 'INV-1', manifestCorrelationId: '11111111-1111-4111-8111-111111111111', erpSystem: 'sap', status: 'acknowledged' }, undefined)).rejects.toThrow(/signature/i);
+    await expect(
+      ctl.invoiceAck(
+        {
+          invoiceId: 'INV-1',
+          manifestCorrelationId: '11111111-1111-4111-8111-111111111111',
+          erpSystem: 'sap',
+          status: 'acknowledged',
+        },
+        undefined,
+      ),
+    ).rejects.toThrow(/signature/i);
   });
 
   it('rejects request with bad signature', async () => {
-    await expect(ctl.invoiceAck({ invoiceId: 'INV-1', manifestCorrelationId: '11111111-1111-4111-8111-111111111111', erpSystem: 'sap', status: 'acknowledged' }, 'bogus')).rejects.toThrow(/signature/i);
+    await expect(
+      ctl.invoiceAck(
+        {
+          invoiceId: 'INV-1',
+          manifestCorrelationId: '11111111-1111-4111-8111-111111111111',
+          erpSystem: 'sap',
+          status: 'acknowledged',
+        },
+        'bogus',
+      ),
+    ).rejects.toThrow(/signature/i);
   });
 
   it('accepts valid signature and delegates', async () => {
     const { createHmac } = await import('node:crypto');
-    const body = { invoiceId: 'INV-1', manifestCorrelationId: '11111111-1111-4111-8111-111111111111', erpSystem: 'sap', status: 'acknowledged' as const };
+    const body = {
+      invoiceId: 'INV-1',
+      manifestCorrelationId: '11111111-1111-4111-8111-111111111111',
+      erpSystem: 'sap',
+      status: 'acknowledged' as const,
+    };
     const sig = createHmac('sha256', SECRET).update(JSON.stringify(body)).digest('hex');
     recordInvoiceAck.mockResolvedValue({ updated: true });
     const res = await ctl.invoiceAck(body, sig);

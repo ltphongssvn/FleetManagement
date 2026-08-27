@@ -1,12 +1,25 @@
 // apps/api/test/command-push-dlq.test.ts
 import { describe, it, expect, vi } from 'vitest';
-import { CommandsGateway, COMMAND_DELIVERY_POLICY_VERSION } from '../src/commands/commands.gateway.js';
+import {
+  CommandsGateway,
+  COMMAND_DELIVERY_POLICY_VERSION,
+} from '../src/commands/commands.gateway.js';
 import type { IPushProvider } from '../src/push/push-provider.interface.js';
 import type { Clock } from '../src/common/clock.js';
 import { COMMAND_PUSH_MAX_ATTEMPTS } from '../src/commands/command-policy.js';
 
 interface PendingMap {
-  readonly pending: Map<string, { operatorId: string; issuedAt: Date; attempts: number; pushAttempts: number; pushInFlight: boolean; policyVersion: string }>;
+  readonly pending: Map<
+    string,
+    {
+      operatorId: string;
+      issuedAt: Date;
+      attempts: number;
+      pushAttempts: number;
+      pushInFlight: boolean;
+      policyVersion: string;
+    }
+  >;
 }
 
 function makeGw(failingPush: IPushProvider['sendToOperator']): CommandsGateway {
@@ -17,7 +30,9 @@ function makeGw(failingPush: IPushProvider['sendToOperator']): CommandsGateway {
 
 describe('@fleet/api - CommandsGateway push DLQ', () => {
   it('moves command to DLQ after MAX push attempts and purges from pending', async () => {
-    const failing = vi.fn().mockRejectedValue(new Error('expo down')) as unknown as IPushProvider['sendToOperator'];
+    const failing = vi
+      .fn()
+      .mockRejectedValue(new Error('expo down')) as unknown as IPushProvider['sendToOperator'];
     const gw = makeGw(failing);
     (gw as unknown as PendingMap).pending.set('cDLQ', {
       operatorId: 'op1',
@@ -29,7 +44,9 @@ describe('@fleet/api - CommandsGateway push DLQ', () => {
     });
     for (let i = 0; i < COMMAND_PUSH_MAX_ATTEMPTS; i++) {
       gw.reconcileNow(new Date());
-      await new Promise((r) => { setTimeout(r, 10); });
+      await new Promise((r) => {
+        setTimeout(r, 10);
+      });
     }
     expect(gw.pendingCount()).toBe(0);
     expect(gw.getDeadLetters().map((d) => d.commandId)).toEqual(['cDLQ']);
@@ -37,7 +54,9 @@ describe('@fleet/api - CommandsGateway push DLQ', () => {
   });
 
   it('retains in pending below MAX push attempts', async () => {
-    const failing = vi.fn().mockRejectedValue(new Error('expo down')) as unknown as IPushProvider['sendToOperator'];
+    const failing = vi
+      .fn()
+      .mockRejectedValue(new Error('expo down')) as unknown as IPushProvider['sendToOperator'];
     const gw = makeGw(failing);
     (gw as unknown as PendingMap).pending.set('cRetry', {
       operatorId: 'op1',
@@ -48,7 +67,9 @@ describe('@fleet/api - CommandsGateway push DLQ', () => {
       policyVersion: COMMAND_DELIVERY_POLICY_VERSION,
     });
     gw.reconcileNow(new Date());
-    await new Promise((r) => { setTimeout(r, 10); });
+    await new Promise((r) => {
+      setTimeout(r, 10);
+    });
     expect(gw.pendingCount()).toBe(1);
     expect(gw.getDeadLetters()).toEqual([]);
     const entry = (gw as unknown as PendingMap).pending.get('cRetry');
@@ -56,7 +77,10 @@ describe('@fleet/api - CommandsGateway push DLQ', () => {
   });
 
   it('purges from pending on push success (no DLQ entry)', async () => {
-    const ok = vi.fn().mockResolvedValue({ accepted: 1, rejected: 0 }) as unknown as IPushProvider['sendToOperator'];
+    const ok = vi.fn().mockResolvedValue({
+      accepted: 1,
+      rejected: 0,
+    }) as unknown as IPushProvider['sendToOperator'];
     const gw = makeGw(ok);
     (gw as unknown as PendingMap).pending.set('cOk', {
       operatorId: 'op1',
@@ -67,13 +91,17 @@ describe('@fleet/api - CommandsGateway push DLQ', () => {
       policyVersion: COMMAND_DELIVERY_POLICY_VERSION,
     });
     gw.reconcileNow(new Date());
-    await new Promise((r) => { setTimeout(r, 10); });
+    await new Promise((r) => {
+      setTimeout(r, 10);
+    });
     expect(gw.pendingCount()).toBe(0);
     expect(gw.getDeadLetters()).toEqual([]);
   });
 
   it('DLQ entry carries diagnostic context (operatorId, lastError, attempts)', async () => {
-    const failing = vi.fn().mockRejectedValue(new Error('expo down')) as unknown as IPushProvider['sendToOperator'];
+    const failing = vi
+      .fn()
+      .mockRejectedValue(new Error('expo down')) as unknown as IPushProvider['sendToOperator'];
     const gw = makeGw(failing);
     (gw as unknown as PendingMap).pending.set('cCtx', {
       operatorId: 'op-ctx',
@@ -85,7 +113,9 @@ describe('@fleet/api - CommandsGateway push DLQ', () => {
     });
     for (let i = 0; i < COMMAND_PUSH_MAX_ATTEMPTS; i++) {
       gw.reconcileNow(new Date());
-      await new Promise((r) => { setTimeout(r, 10); });
+      await new Promise((r) => {
+        setTimeout(r, 10);
+      });
     }
     const dlq = gw.getDeadLetters();
     expect(dlq.length).toBe(1);

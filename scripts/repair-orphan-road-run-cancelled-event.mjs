@@ -15,7 +15,10 @@ const ACTION_ID = '00000000-0000-0000-0000-00000000e9a1';
 const ZERO = '00000000-0000-0000-0000-000000000000';
 const op = {
   operatorId: '00000000-0000-0000-0000-0000000000aa',
-  companyId: ZERO, businessUnitId: ZERO, depotId: ZERO, legalEntityId: ZERO,
+  companyId: ZERO,
+  businessUnitId: ZERO,
+  depotId: ZERO,
+  legalEntityId: ZERO,
 };
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const db = drizzle(pool);

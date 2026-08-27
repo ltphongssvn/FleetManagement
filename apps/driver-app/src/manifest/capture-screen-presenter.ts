@@ -41,7 +41,11 @@ function statusIdleForStop(stop: CaptureStop): string {
   if (stop.kind === 'unloading') {
     return 'Chụp ảnh phiếu giao hàng tại kho dỡ hàng sau khi dỡ hàng xong.';
   }
-  return 'Chụp ảnh phiếu nhận hàng tại kho nhận hàng ' + String(stop.displayIndex) + ' sau khi nhận hàng xong.';
+  return (
+    'Chụp ảnh phiếu nhận hàng tại kho nhận hàng ' +
+    String(stop.displayIndex) +
+    ' sau khi nhận hàng xong.'
+  );
 }
 
 function stopKindOf(stop: CaptureStop): 'loading' | 'unloading' {

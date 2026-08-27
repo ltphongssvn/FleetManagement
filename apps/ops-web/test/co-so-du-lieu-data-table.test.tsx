@@ -66,9 +66,7 @@ describe('DataTable', () => {
       {
         id: 'nhom-xe',
         header: 'Thong tin xe',
-        columns: [
-          { accessorKey: 'plate', header: 'So xe' },
-        ],
+        columns: [{ accessorKey: 'plate', header: 'So xe' }],
       },
     ];
     render(<DataTable columns={grouped} data={rows} />);
@@ -130,7 +128,14 @@ describe('DataTable row selection', () => {
   it('selects all rows via the header checkbox and reports them', async () => {
     const user = userEvent.setup();
     const onSelectionChange = vi.fn();
-    render(<DataTable columns={columns} data={rows} enableSelection onSelectionChange={onSelectionChange} />);
+    render(
+      <DataTable
+        columns={columns}
+        data={rows}
+        enableSelection
+        onSelectionChange={onSelectionChange}
+      />,
+    );
     await user.click(screen.getByTestId('datatable-select-all'));
     expect(onSelectionChange).toHaveBeenLastCalledWith(rows);
   });
@@ -138,7 +143,14 @@ describe('DataTable row selection', () => {
   it('selects a single row and reports just that row', async () => {
     const user = userEvent.setup();
     const onSelectionChange = vi.fn();
-    render(<DataTable columns={columns} data={rows} enableSelection onSelectionChange={onSelectionChange} />);
+    render(
+      <DataTable
+        columns={columns}
+        data={rows}
+        enableSelection
+        onSelectionChange={onSelectionChange}
+      />,
+    );
     const [, second] = screen.getAllByTestId('datatable-select-row');
     if (second === undefined) throw new Error('expected a second selection checkbox');
     await user.click(second);

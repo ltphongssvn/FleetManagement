@@ -145,12 +145,15 @@ export async function verifyIosAppAttest(
   const counter = new DataView(authData.buffer, authData.byteOffset + 33, 4).getUint32(0, false);
   const aaguid = authData.subarray(37, 53);
 
-  const expectedRpIdHash = sha256(new TextEncoder().encode(params.expectedTeamId + '.' + params.expectedBundleId));
+  const expectedRpIdHash = sha256(
+    new TextEncoder().encode(params.expectedTeamId + '.' + params.expectedBundleId),
+  );
   if (!bytesEqual(rpIdHash, expectedRpIdHash)) return { kind: 'rp-id-mismatch' };
   if (counter !== 0) return { kind: 'bad-counter' };
 
   const aaguidText = new TextDecoder().decode(aaguid).replace(/\\u0000+$/u, '');
-  const environment: IosAppAttestEnvironment = aaguidText === 'appattestdevelop' ? 'development' : 'production';
+  const environment: IosAppAttestEnvironment =
+    aaguidText === 'appattestdevelop' ? 'development' : 'production';
 
   return {
     kind: 'ok',

@@ -7,6 +7,7 @@ Related: apps/driver-app/src/storage/schema.ts
          Frozen Stack PDF page 2: "local_action_log (FIFO per-aggregate;
          blocked_by_action_id for upload->sync only)"
 -->
+
 # ADR-003: Action Queue Blocking Is 1-Level Only
 
 - **Status**: Accepted
@@ -15,12 +16,11 @@ Related: apps/driver-app/src/storage/schema.ts
 
 ## Context
 
-`local_action_log.blocked_by_action_id` exists to chain a sync action behind
-its associated upload action. The PDF specifies this as
-"blocked_by_action_id for upload->sync only".
+`local_action_log.blocked_by_action_id` exists to chain a sync action behind its associated upload
+action. The PDF specifies this as "blocked_by_action_id for upload->sync only".
 
-A future contributor might assume the field supports arbitrary dependency
-chains (A blocks B blocks C). It does not.
+A future contributor might assume the field supports arbitrary dependency chains (A blocks B blocks
+C). It does not.
 
 ## Decision
 
@@ -30,19 +30,16 @@ Blocking is **1 level deep by design**:
 - Sync actions may reference the upload's `action_id` as their blocker.
 - No action references a sync action as its blocker. No chains form.
 
-`dispatchableActions()` therefore checks only direct blocker status. If a
-malformed input creates a chain (A->B->C), B becomes dispatchable only after
-A syncs (cycle 2), and C only after B syncs (cycle 3). Resolution is
-sync-cycle-iterative, never single-pass.
+`dispatchableActions()` therefore checks only direct blocker status. If a malformed input creates a
+chain (A->B->C), B becomes dispatchable only after A syncs (cycle 2), and C only after B syncs
+(cycle 3). Resolution is sync-cycle-iterative, never single-pass.
 
 ## Consequences
 
 - **Simpler reasoning**: O(N) dispatch decision, no graph traversal.
 - **No topological sort needed**: Chains are not a supported input shape.
-- **Test contract**: `action-queue-policy.test.ts` includes a test pinning
-  this 3-cycle resolution behavior so future "improvements" to add transitive
-  resolution fail loudly.
+- **Test contract**: `action-queue-policy.test.ts` includes a test pinning this 3-cycle resolution
+  behavior so future "improvements" to add transitive resolution fail loudly.
 
-If the data model ever needs deeper chains (e.g. signature -> upload -> sync
--> handoff), a new ADR must supersede this one and the dispatcher must be
-upgraded to topological sort.
+If the data model ever needs deeper chains (e.g. signature -> upload -> sync -> handoff), a new ADR
+must supersede this one and the dispatcher must be upgraded to topological sort.

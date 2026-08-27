@@ -16,10 +16,7 @@
 // what main() does, it exercises the default rather than duplicating it, and a
 // future schema field cannot leave this fixture stale.
 import { describe, it, expect } from 'vitest';
-import {
-  opsWebE2EEnvSchema,
-  readinessTargets,
-} from './ops-web-runner.ts';
+import { opsWebE2EEnvSchema, readinessTargets } from './ops-web-runner.ts';
 
 describe('opsWebE2EEnvSchema', () => {
   it('accepts a fully-specified env and yields typed values', () => {

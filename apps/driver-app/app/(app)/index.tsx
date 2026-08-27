@@ -5,7 +5,9 @@
 import type { JSX } from 'react';
 import { Text, View, Pressable, StyleSheet } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
-import { APP_VERSION, presentSyncStatus, type SyncSchedulerState } from '../../src/index.js';
+import { APP_VERSION } from '../../src/constants.js';
+import { presentSyncStatus } from '../../src/sync/sync-status-presenter.js';
+import type { SyncSchedulerState } from '../../src/sync/sync-scheduler-policy.js';
 import { colors, spacing, radius, typography, shadow } from '../../src/theme/tokens.js';
 const PLACEHOLDER_STATE: SyncSchedulerState = {
   online: true,
@@ -34,13 +36,17 @@ export default function Home(): JSX.Element {
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.headerTitle}>Trạng thái đồng bộ</Text>
-          <Text style={styles.headerSub}>{view.label} · {view.secondary}</Text>
+          <Text style={styles.headerSub}>
+            {view.label} · {view.secondary}
+          </Text>
         </View>
         <View style={styles.cardBody}>
           {ACTIONS.map((a) => (
             <Pressable
               key={a.href}
-              onPress={() => { router.push(a.href as Href); }}
+              onPress={() => {
+                router.push(a.href as Href);
+              }}
               accessibilityRole="button"
               accessibilityLabel={a.label}
               style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}

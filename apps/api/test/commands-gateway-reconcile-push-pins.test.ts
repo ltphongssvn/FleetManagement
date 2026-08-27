@@ -14,12 +14,28 @@
 // - 353: push-failed warn template
 // - 361: no-provider else BlockStatement (drop from pending)
 import { describe, it, expect, vi } from 'vitest';
-import { CommandsGateway, COMMAND_DELIVERY_POLICY_VERSION } from '../src/commands/commands.gateway.js';
-import type { IPushProvider, PushBody, PushSendResult } from '../src/push/push-provider.interface.js';
+import {
+  CommandsGateway,
+  COMMAND_DELIVERY_POLICY_VERSION,
+} from '../src/commands/commands.gateway.js';
+import type {
+  IPushProvider,
+  PushBody,
+  PushSendResult,
+} from '../src/push/push-provider.interface.js';
 import type { Clock } from '../src/common/clock.js';
 
-interface PendingEntry { operatorId: string; issuedAt: Date; attempts: number; pushAttempts: number; pushInFlight: boolean; policyVersion: string }
-interface PendingMap { readonly pending: Map<string, PendingEntry> }
+interface PendingEntry {
+  operatorId: string;
+  issuedAt: Date;
+  attempts: number;
+  pushAttempts: number;
+  pushInFlight: boolean;
+  policyVersion: string;
+}
+interface PendingMap {
+  readonly pending: Map<string, PendingEntry>;
+}
 
 const COMMAND_PUSH_MAX_ATTEMPTS = 3; // from commands.gateway.ts
 
@@ -34,15 +50,25 @@ function makeGateway(push: IPushProvider | undefined): {
   const warns: string[] = [];
   const errors: string[] = [];
   (gw as unknown as { logger: unknown }).logger = {
-    warn: (m: unknown) => { if (typeof m === 'string') warns.push(m); },
+    warn: (m: unknown) => {
+      if (typeof m === 'string') warns.push(m);
+    },
     log: vi.fn(),
-    error: (m: unknown) => { if (typeof m === 'string') errors.push(m); },
+    error: (m: unknown) => {
+      if (typeof m === 'string') errors.push(m);
+    },
     debug: vi.fn(),
   };
   return { gw, warns, errors, fakeClock };
 }
 
-function seedTimedOut(gw: InstanceType<typeof CommandsGateway>, commandId: string, operatorId: string, fakeClock: Clock, pushAttempts = 0): void {
+function seedTimedOut(
+  gw: InstanceType<typeof CommandsGateway>,
+  commandId: string,
+  operatorId: string,
+  fakeClock: Clock,
+  pushAttempts = 0,
+): void {
   (gw as unknown as PendingMap).pending.set(commandId, {
     operatorId,
     issuedAt: new Date(fakeClock.now().getTime() - 60_000), // 60s ago -> timed out

@@ -45,9 +45,7 @@ describe('release automation contract', () => {
       const git = (cfg.plugins as unknown[]).find(
         (p) => Array.isArray(p) && p[0] === '@semantic-release/git',
       ) as [string, Record<string, unknown>];
-      expect(git[1].assets).toEqual(
-        expect.arrayContaining(['CHANGELOG.md', 'package.json']),
-      );
+      expect(git[1].assets).toEqual(expect.arrayContaining(['CHANGELOG.md', 'package.json']));
     });
   });
 
@@ -101,7 +99,12 @@ describe('release automation contract', () => {
     });
     it('grants the permissions semantic-release needs', () => {
       const src = read('.github/workflows/release.yml');
-      for (const p of ['contents: write', 'issues: write', 'pull-requests: write', 'id-token: write']) {
+      for (const p of [
+        'contents: write',
+        'issues: write',
+        'pull-requests: write',
+        'id-token: write',
+      ]) {
         expect(src, p + ' permission missing').toContain(p);
       }
     });

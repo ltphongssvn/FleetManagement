@@ -39,11 +39,13 @@ export class ManifestController {
     return this.manifests.commitUpload(input, op);
   }
 }
-const FinalizeIntakeSchema = z.object({
-  uploadSessionId: z.guid(),
-  accepted: z.boolean(),
-  rejectionReasonCode: ManifestRejectionReasonSchema.optional(),
-}).strict();
+const FinalizeIntakeSchema = z
+  .object({
+    uploadSessionId: z.guid(),
+    accepted: z.boolean(),
+    rejectionReasonCode: ManifestRejectionReasonSchema.optional(),
+  })
+  .strict();
 @Controller('upload')
 @UseGuards(JwtGuard)
 export class IntakeCallbackController {
@@ -54,9 +56,14 @@ export class IntakeCallbackController {
     @CurrentOperator() op: OperatorContext,
   ): Promise<{ manifestId: string; state: 'committed' | 'rejected' }> {
     const parsed = FinalizeIntakeSchema.parse(body);
-    const input = parsed.rejectionReasonCode === undefined
-      ? { uploadSessionId: parsed.uploadSessionId, accepted: parsed.accepted }
-      : { uploadSessionId: parsed.uploadSessionId, accepted: parsed.accepted, rejectionReasonCode: parsed.rejectionReasonCode };
+    const input =
+      parsed.rejectionReasonCode === undefined
+        ? { uploadSessionId: parsed.uploadSessionId, accepted: parsed.accepted }
+        : {
+            uploadSessionId: parsed.uploadSessionId,
+            accepted: parsed.accepted,
+            rejectionReasonCode: parsed.rejectionReasonCode,
+          };
     return this.manifests.finalizeIntake(input, op);
   }
 }
@@ -77,7 +84,6 @@ export class ExtractionCallbackController {
     return this.manifests.finalizeExtraction(parsed, op);
   }
 }
-
 
 // Dispatcher manual net-weight entry (board edit, gap 1). PATCH /upload/manual-net-weight
 // strict-parses SetManualNetWeightSchema and dispatches to

@@ -29,9 +29,7 @@ export const opsWebE2EEnvSchema = z.object({
   // is the compact rewriting single-line mode; 'dot'/'github'/'html'/'json'
   // are the other Playwright built-ins. Validated so a typo fails fast here
   // rather than as Playwright's confusing "No tests found".
-  E2E_REPORTER: z
-    .enum(['list', 'line', 'dot', 'github', 'html', 'json'])
-    .default('list'),
+  E2E_REPORTER: z.enum(['list', 'line', 'dot', 'github', 'html', 'json']).default('list'),
 });
 
 export type OpsWebE2EEnv = z.infer<typeof opsWebE2EEnvSchema>;
@@ -73,10 +71,14 @@ async function main(): Promise<void> {
   }
   const passthrough = process.argv.slice(2);
   process.stdout.write(`[e2e:ops-web] launching playwright ${passthrough.join(' ')}\n`);
-  const child = spawn('pnpm', ['exec', 'playwright', 'test', `--reporter=${env.E2E_REPORTER}`, ...passthrough], {
-    stdio: 'inherit',
-    env: { ...process.env, ...env },
-  });
+  const child = spawn(
+    'pnpm',
+    ['exec', 'playwright', 'test', `--reporter=${env.E2E_REPORTER}`, ...passthrough],
+    {
+      stdio: 'inherit',
+      env: { ...process.env, ...env },
+    },
+  );
   child.on('exit', (code) => process.exit(code ?? 1));
 }
 

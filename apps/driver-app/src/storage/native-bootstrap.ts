@@ -1,7 +1,17 @@
 // apps/driver-app/src/storage/native-bootstrap.ts
 // Native-only sync bootstrap. Resolved on iOS/Android via Metro platform extensions.
-import { decideSyncSchedule, SYNC_IDLE_INTERVAL_MS } from '../index.js';
-import type { SyncSchedulerState, SyncSchedulerOutcome } from '../index.js';
+// Imports name the sibling module directly rather than routing through the
+// package barrel. This file already did it BOTH ways: the dynamic imports
+// below name modules directly while these two went through the barrel, so the
+// correct style was already present one screen down. Importing the barrel from
+// inside the package it belongs to is a cycle by construction -- the barrel
+// re-exports this module's own siblings.
+import {
+  decideSyncSchedule,
+  SYNC_IDLE_INTERVAL_MS,
+  type SyncSchedulerState,
+  type SyncSchedulerOutcome,
+} from '../sync/sync-scheduler-policy.js';
 
 export interface NativeBootstrapConfig {
   readonly apiUrl: string;
@@ -22,7 +32,11 @@ export async function startNativeSyncLoop(cfg: NativeBootstrapConfig): Promise<(
   const transport = new FetchSyncTransport({ apiUrl: cfg.apiUrl, bearerToken: cfg.bearerToken });
 
   const state: SyncSchedulerState = {
-    online: true, appActive: true, lastSyncAtMs: null, lastOutcome: null, consecutiveTransportFailures: 0,
+    online: true,
+    appActive: true,
+    lastSyncAtMs: null,
+    lastOutcome: null,
+    consecutiveTransportFailures: 0,
   };
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -33,17 +47,29 @@ export async function startNativeSyncLoop(cfg: NativeBootstrapConfig): Promise<(
       const outcome = await runSyncOnce(transport, store);
       (state as { lastSyncAtMs: number }).lastSyncAtMs = Date.now();
       (state as { lastOutcome: SyncSchedulerOutcome }).lastOutcome =
-        outcome.kind === 'transport_failure' ? 'last_transport_failure' :
-        outcome.kind === 'applied' ? 'last_applied' :
-        outcome.kind === 'idle' ? 'last_idle' :
-        outcome.kind === 'cursor_expired_recovered' ? 'last_cursor_expired_recovered' :
-        outcome.kind === 'protocol_violation' ? 'last_protocol_violation' :
-        'last_storage_failure';
+        outcome.kind === 'transport_failure'
+          ? 'last_transport_failure'
+          : outcome.kind === 'applied'
+            ? 'last_applied'
+            : outcome.kind === 'idle'
+              ? 'last_idle'
+              : outcome.kind === 'cursor_expired_recovered'
+                ? 'last_cursor_expired_recovered'
+                : outcome.kind === 'protocol_violation'
+                  ? 'last_protocol_violation'
+                  : 'last_storage_failure';
       (state as { consecutiveTransportFailures: number }).consecutiveTransportFailures =
         outcome.kind === 'transport_failure' ? state.consecutiveTransportFailures + 1 : 0;
     }
-    timer = setTimeout(() => { void tick(); }, SYNC_IDLE_INTERVAL_MS);
+    timer = setTimeout(() => {
+      void tick();
+    }, SYNC_IDLE_INTERVAL_MS);
   };
-  timer = setTimeout(() => { void tick(); }, SYNC_IDLE_INTERVAL_MS);
-  return () => { stopped = true; if (timer) clearTimeout(timer); };
+  timer = setTimeout(() => {
+    void tick();
+  }, SYNC_IDLE_INTERVAL_MS);
+  return () => {
+    stopped = true;
+    if (timer) clearTimeout(timer);
+  };
 }

@@ -6,7 +6,11 @@ import { DRIZZLE_DB } from '../database/database.tokens.js';
 import type { FleetDb } from '../database/database.module.js';
 import { deviceRegistry } from '../database/schema/device.js';
 import type { IPushProvider, PushBody, PushSendResult } from './push-provider.interface.js';
-import { DRIVER_ALERT_ANDROID_CHANNEL_ID, DRIVER_ALERT_SOUND, DRIVER_ALERT_VIBRATION_PATTERN } from '@fleet/sync-protocol';
+import {
+  DRIVER_ALERT_ANDROID_CHANNEL_ID,
+  DRIVER_ALERT_SOUND,
+  DRIVER_ALERT_VIBRATION_PATTERN,
+} from '@fleet/sync-protocol';
 
 // Channel-contract constants now live in @fleet/sync-protocol (shared SSOT for
 // this api sender AND the driver-app channel setup). Re-exported so existing
@@ -49,7 +53,9 @@ export class ExpoPushProvider implements IPushProvider {
       .from(deviceRegistry)
       .where(eq(deviceRegistry.operatorId, operatorId));
 
-    const tokens = rows.map((r) => r.token).filter((t): t is string => t !== null && this.expo.isExpoPushToken(t));
+    const tokens = rows
+      .map((r) => r.token)
+      .filter((t): t is string => t !== null && this.expo.isExpoPushToken(t));
     if (tokens.length === 0) {
       this.logger.warn(`No valid Expo push tokens for operator ${operatorId}`);
       return { accepted: 0, rejected: 1 };

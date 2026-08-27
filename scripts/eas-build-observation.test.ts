@@ -26,9 +26,9 @@ const iso = '2026-06-12T09:15:00.000Z';
 
 describe('parseBuildObservation -- trustworthy evidence', () => {
   it('maps the newest FINISHED build to a success observation', () => {
-    const o = parseBuildObservation(JSON.stringify([
-      { id: 'b1', status: 'FINISHED', completedAt: iso },
-    ]));
+    const o = parseBuildObservation(
+      JSON.stringify([{ id: 'b1', status: 'FINISHED', completedAt: iso }]),
+    );
     expect(o.kind).toBe('success');
     if (o.kind !== 'success') expect.unreachable('narrowing');
     expect(o.atMs).toBe(Date.parse(iso));
@@ -37,10 +37,12 @@ describe('parseBuildObservation -- trustworthy evidence', () => {
   it('selects the NEWEST success regardless of array order', () => {
     const older = '2026-05-01T00:00:00.000Z';
     const newer = '2026-07-01T00:00:00.000Z';
-    const o = parseBuildObservation(JSON.stringify([
-      { id: 'a', status: 'FINISHED', completedAt: older },
-      { id: 'b', status: 'FINISHED', completedAt: newer },
-    ]));
+    const o = parseBuildObservation(
+      JSON.stringify([
+        { id: 'a', status: 'FINISHED', completedAt: older },
+        { id: 'b', status: 'FINISHED', completedAt: newer },
+      ]),
+    );
     if (o.kind !== 'success') expect.unreachable('narrowing');
     expect(
       o.atMs,
@@ -52,11 +54,13 @@ describe('parseBuildObservation -- trustworthy evidence', () => {
   it('ignores ERRORED and CANCELED builds when choosing the newest success', () => {
     const success = '2026-05-01T00:00:00.000Z';
     const failure = '2026-08-01T00:00:00.000Z';
-    const o = parseBuildObservation(JSON.stringify([
-      { id: 'x', status: 'ERRORED', completedAt: failure },
-      { id: 'y', status: 'CANCELED', completedAt: failure },
-      { id: 'z', status: 'FINISHED', completedAt: success },
-    ]));
+    const o = parseBuildObservation(
+      JSON.stringify([
+        { id: 'x', status: 'ERRORED', completedAt: failure },
+        { id: 'y', status: 'CANCELED', completedAt: failure },
+        { id: 'z', status: 'FINISHED', completedAt: success },
+      ]),
+    );
     if (o.kind !== 'success') expect.unreachable('narrowing');
     expect(
       o.atMs,
@@ -73,9 +77,9 @@ describe('parseBuildObservation -- honest absence', () => {
   });
 
   it('reports no-success when every build failed', () => {
-    const o = parseBuildObservation(JSON.stringify([
-      { id: 'x', status: 'ERRORED', completedAt: iso },
-    ]));
+    const o = parseBuildObservation(
+      JSON.stringify([{ id: 'x', status: 'ERRORED', completedAt: iso }]),
+    );
     expect(
       o.kind,
       'the query DID work and the answer is genuinely "none" -- that is a ' +
@@ -107,18 +111,18 @@ describe('parseBuildObservation -- unavailable, never mistaken for absence', () 
   });
 
   it('reports unavailable when a FINISHED build has an unparseable timestamp', () => {
-    const o = parseBuildObservation(JSON.stringify([
-      { id: 'b1', status: 'FINISHED', completedAt: 'yesterday-ish' },
-    ]));
+    const o = parseBuildObservation(
+      JSON.stringify([{ id: 'b1', status: 'FINISHED', completedAt: 'yesterday-ish' }]),
+    );
     expect(o.kind).toBe('unavailable');
     if (o.kind !== 'unavailable') expect.unreachable('narrowing');
     expect(o.code).toBe('NON_FINITE_TIMESTAMP');
   });
 
   it('reports unavailable when a FINISHED build has no completion time', () => {
-    const o = parseBuildObservation(JSON.stringify([
-      { id: 'b1', status: 'FINISHED', completedAt: null },
-    ]));
+    const o = parseBuildObservation(
+      JSON.stringify([{ id: 'b1', status: 'FINISHED', completedAt: null }]),
+    );
     expect(
       o.kind,
       'a success we cannot date cannot be aged, and an undatable success must ' +

@@ -19,7 +19,9 @@ describe('scrub - property-based', () => {
   it('never throws on arbitrary JSON values', () => {
     fc.assert(
       fc.property(fc.jsonValue(), (v) => {
-        expect(() => { scrub(v); }).not.toThrow();
+        expect(() => {
+          scrub(v);
+        }).not.toThrow();
       }),
       { numRuns: 100 },
     );
@@ -128,7 +130,20 @@ describe('scrubEvent - property-based purity', () => {
 });
 
 describe('scrub - PII redaction invariants (property-based)', () => {
-  const PII_KEY_SAMPLES = ['password', 'authToken', 'api_secret', 'cookie', 'pushToken', 'gps', 'latitude', 'longitude', 'phone', 'email', 'ssn', 'driver_name'];
+  const PII_KEY_SAMPLES = [
+    'password',
+    'authToken',
+    'api_secret',
+    'cookie',
+    'pushToken',
+    'gps',
+    'latitude',
+    'longitude',
+    'phone',
+    'email',
+    'ssn',
+    'driver_name',
+  ];
 
   it('redacts PII key at any nesting depth (1..5)', () => {
     fc.assert(
@@ -158,7 +173,17 @@ describe('scrub - PII redaction invariants (property-based)', () => {
     fc.assert(
       fc.property(
         fc.constantFrom(...PII_KEY_SAMPLES),
-        fc.dictionary(fc.string({ minLength: 1 }).filter((k) => !/password|token|secret|authorization|apikey|cookie|push.*token|gps|lat|lng|latitude|longitude|phone|email|ssn|driver.*name/i.test(k)), fc.string()),
+        fc.dictionary(
+          fc
+            .string({ minLength: 1 })
+            .filter(
+              (k) =>
+                !/password|token|secret|authorization|apikey|cookie|push.*token|gps|lat|lng|latitude|longitude|phone|email|ssn|driver.*name/i.test(
+                  k,
+                ),
+            ),
+          fc.string(),
+        ),
         (piiKey, siblings) => {
           const input = { ...siblings, [piiKey]: 'leaked' };
           const out = scrub(input) as Record<string, unknown>;

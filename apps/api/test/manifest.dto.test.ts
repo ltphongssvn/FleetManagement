@@ -15,11 +15,15 @@ describe('@fleet/api - NegotiateUploadSchema', () => {
   });
 
   it('rejects unsupported content type', () => {
-    expect(NegotiateUploadSchema.safeParse({ ...valid, contentType: 'image/gif' }).success).toBe(false);
+    expect(NegotiateUploadSchema.safeParse({ ...valid, contentType: 'image/gif' }).success).toBe(
+      false,
+    );
   });
 
   it('rejects file exceeding 50MB cap', () => {
-    expect(NegotiateUploadSchema.safeParse({ ...valid, expectedSizeBytes: 60 * 1024 * 1024 }).success).toBe(false);
+    expect(
+      NegotiateUploadSchema.safeParse({ ...valid, expectedSizeBytes: 60 * 1024 * 1024 }).success,
+    ).toBe(false);
   });
 
   it('rejects non-positive size', () => {
@@ -27,7 +31,9 @@ describe('@fleet/api - NegotiateUploadSchema', () => {
   });
 
   it('rejects non-uuid correlation id', () => {
-    expect(NegotiateUploadSchema.safeParse({ ...valid, manifestCorrelationId: 'bad' }).success).toBe(false);
+    expect(
+      NegotiateUploadSchema.safeParse({ ...valid, manifestCorrelationId: 'bad' }).success,
+    ).toBe(false);
   });
 });
 
@@ -52,7 +58,9 @@ describe('@fleet/api - CommitUploadSchema', () => {
   });
 
   it('rejects size exceeding 50MB cap', () => {
-    expect(CommitUploadSchema.safeParse({ ...valid, actualSizeBytes: 60 * 1024 * 1024 }).success).toBe(false);
+    expect(
+      CommitUploadSchema.safeParse({ ...valid, actualSizeBytes: 60 * 1024 * 1024 }).success,
+    ).toBe(false);
   });
 
   it('rejects too-short hash', () => {

@@ -4,8 +4,8 @@ Domain state machines and policy files for the Intermodal Fleet Platform.
 
 ## Purpose
 
-This package is the **bounded context kernel** for all domain logic shared
-across the monorepo (apps/api, apps/driver-app, apps/ops-web, workers).
+This package is the **bounded context kernel** for all domain logic shared across the monorepo
+(apps/api, apps/driver-app, apps/ops-web, workers).
 
 Per the Frozen Stack (Fleet-Management-Stack.pdf), it contains:
 
@@ -45,6 +45,6 @@ pnpm clean       # Remove build artifacts
 import { type MutationLockState, MUTATION_LOCK_STATES } from '@fleet/domain';
 ```
 
-Subpath imports are intentionally restricted to the root export only.
-Internal module structure is private — consumers import from `@fleet/domain`,
-not from `@fleet/domain/state-machines/mutation-lock`.
+Subpath imports are intentionally restricted to the root export only. Internal module structure is
+private — consumers import from `@fleet/domain`, not from
+`@fleet/domain/state-machines/mutation-lock`.

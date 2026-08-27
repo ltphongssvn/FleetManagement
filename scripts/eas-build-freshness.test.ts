@@ -34,7 +34,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const WINDOW_MS = 7 * DAY_MS;
 const IOS = 'ios';
 
-const at = (msAgo: number) => ({ kind: 'success', atMs: NOW - msAgo } as const);
+const at = (msAgo: number) => ({ kind: 'success', atMs: NOW - msAgo }) as const;
 const policy = { nowMs: NOW, maxAgeMs: WINDOW_MS, platform: IOS } as const;
 
 describe('classifyBuildFreshness -- authorising states', () => {
@@ -106,10 +106,9 @@ describe('classifyBuildFreshness -- fail-closed on impossible inputs', () => {
     const v = classifyBuildFreshness({ observation: at(-5 * DAY_MS), ...policy });
     expect(v.kind).toBe('invalid-observation');
     if (v.kind !== 'invalid-observation') expect.unreachable('narrowing');
-    expect(
-      v.code,
-      'clock skew or a wrong field would otherwise satisfy the gate forever',
-    ).toBe('FUTURE_TIMESTAMP');
+    expect(v.code, 'clock skew or a wrong field would otherwise satisfy the gate forever').toBe(
+      'FUTURE_TIMESTAMP',
+    );
   });
 
   it('refuses a non-finite build timestamp', () => {
@@ -186,7 +185,10 @@ describe('telemetryFor -- structured truth, prose derived separately', () => {
 describe('describeVerdict -- operator prose', () => {
   it('names platform, rounded age and the window when stale', () => {
     const msg = describeVerdict({
-      kind: 'stale', platform: IOS, ageMs: 58 * DAY_MS, maxAgeMs: WINDOW_MS,
+      kind: 'stale',
+      platform: IOS,
+      ageMs: 58 * DAY_MS,
+      maxAgeMs: WINDOW_MS,
     });
     expect(msg).toContain(IOS);
     expect(msg, 'humans read days even though policy compares ms').toContain('58');
@@ -200,7 +202,9 @@ describe('describeVerdict -- operator prose', () => {
 
   it('reports the closed code for invalid states', () => {
     const msg = describeVerdict({
-      kind: 'invalid-observation', platform: IOS, code: 'ACQUISITION_FAILED',
+      kind: 'invalid-observation',
+      platform: IOS,
+      code: 'ACQUISITION_FAILED',
     });
     expect(msg).toContain('ACQUISITION_FAILED');
   });

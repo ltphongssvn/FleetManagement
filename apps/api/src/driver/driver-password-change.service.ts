@@ -41,7 +41,9 @@ export class DriverPasswordChangeService {
     this.bcryptCompare = bcryptCompare ?? defaultBcryptCompare;
   }
   async changePassword(input: ChangePasswordInput): Promise<void> {
-    const [d] = await this.db.select().from(driver)
+    const [d] = await this.db
+      .select()
+      .from(driver)
       .where(and(eq(driver.operatorId, input.operatorId), eq(driver.companyId, input.companyId)))
       .limit(1);
     if (!d) throw new UnauthorizedException('Driver not found for operator');
@@ -49,9 +51,9 @@ export class DriverPasswordChangeService {
     const ok = await this.bcryptCompare(input.currentPassword, d.passwordHash);
     if (!ok) throw new UnauthorizedException('Current password is incorrect');
     const newHash = await this.bcryptHash(input.newPassword, DEFAULT_BCRYPT_ROUNDS);
-    await this.db.update(driver).set({ passwordHash: newHash }).where(and(
-      eq(driver.operatorId, input.operatorId),
-      eq(driver.companyId, input.companyId),
-    ));
+    await this.db
+      .update(driver)
+      .set({ passwordHash: newHash })
+      .where(and(eq(driver.operatorId, input.operatorId), eq(driver.companyId, input.companyId)));
   }
 }

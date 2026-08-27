@@ -19,12 +19,20 @@ import { KeycloakClientCredentialsTokenProvider } from './auth/keycloak-token-pr
 import { FetchErpClient } from './erp/fetch-erp-client.js';
 import { S3IntakeObjectStore, type IntakeObjectStore } from './intake/intake-object-store.js';
 import type { ErpClientPort } from './erp/erp-send-flow.js';
-import { FetchExtractionCallback, type ExtractionCallback } from './extraction/extraction-callback.js';
+import {
+  FetchExtractionCallback,
+  type ExtractionCallback,
+} from './extraction/extraction-callback.js';
 import { S3ExtractionObjectStore } from './extraction/s3-extraction-object-store.js';
 import { GeminiVlmExtractor } from './extraction/gemini-vlm-extractor.js';
 import type { ExtractionObjectStore, VlmExtractorPort } from './extraction/extraction-flow.js';
 import { logEvent } from './logger.js';
-import { buildBootProvenance, bootProvenanceSetArgs, provenanceRefreshIntervalMs, startProvenanceRenewal } from './boot-provenance.js';
+import {
+  buildBootProvenance,
+  bootProvenanceSetArgs,
+  provenanceRefreshIntervalMs,
+  startProvenanceRenewal,
+} from './boot-provenance.js';
 
 function bootstrap(): void {
   const config = loadConfig();
@@ -42,7 +50,11 @@ function bootstrap(): void {
   // silent expiry stalled 65 manifests in verifying (Jun-24 incident).
   // Gating stays pilot-safe: any var absent -> callbacks skip.
   let tokenProvider: KeycloakClientCredentialsTokenProvider | undefined;
-  if (config.WORKER_OIDC_TOKEN_URL && config.WORKER_OIDC_CLIENT_ID && config.WORKER_OIDC_CLIENT_SECRET) {
+  if (
+    config.WORKER_OIDC_TOKEN_URL &&
+    config.WORKER_OIDC_CLIENT_ID &&
+    config.WORKER_OIDC_CLIENT_SECRET
+  ) {
     tokenProvider = new KeycloakClientCredentialsTokenProvider({
       tokenUrl: config.WORKER_OIDC_TOKEN_URL,
       clientId: config.WORKER_OIDC_CLIENT_ID,
@@ -104,15 +116,32 @@ function bootstrap(): void {
   }
   let vlmExtractor: VlmExtractorPort | undefined;
   if (config.GEMINI_API_KEY) {
-    vlmExtractor = new GeminiVlmExtractor({ apiKey: config.GEMINI_API_KEY, model: config.GEMINI_MODEL });
+    vlmExtractor = new GeminiVlmExtractor({
+      apiKey: config.GEMINI_API_KEY,
+      model: config.GEMINI_MODEL,
+    });
   }
 
   const workers = QUEUE_NAMES.map((name) => {
     const worker = new Worker(
       name,
       async (job) => {
-        const result = await routeJob(name, job, deadLetters, intakeCallback, erpClient, objectStore, extractionCallback, extractionStore, vlmExtractor);
-        logEvent('info', 'job processed', { queue: name, jobId: String(job.id), summary: result.summary });
+        const result = await routeJob(
+          name,
+          job,
+          deadLetters,
+          intakeCallback,
+          erpClient,
+          objectStore,
+          extractionCallback,
+          extractionStore,
+          vlmExtractor,
+        );
+        logEvent('info', 'job processed', {
+          queue: name,
+          jobId: String(job.id),
+          summary: result.summary,
+        });
         return { processed: true, deadLettered: result.deadLettered };
       },
       { connection, concurrency: QUEUE_CONCURRENCY[name] },
@@ -157,7 +186,10 @@ function bootstrap(): void {
         // Only the first write is announced. Logging every renewal would emit a
         // line every 5 minutes forever, drowning the signal this exists to give.
         if (first) {
-          logEvent('info', 'boot provenance recorded', { sha: provenance.shortSha, branch: provenance.branch });
+          logEvent('info', 'boot provenance recorded', {
+            sha: provenance.shortSha,
+            branch: provenance.branch,
+          });
         }
       })
       .catch((err: unknown) => {
@@ -186,6 +218,8 @@ function bootstrap(): void {
 try {
   bootstrap();
 } catch (err: unknown) {
-  logEvent('error', 'worker bootstrap failed', { error: err instanceof Error ? err.message : String(err) });
+  logEvent('error', 'worker bootstrap failed', {
+    error: err instanceof Error ? err.message : String(err),
+  });
   process.exit(1);
 }

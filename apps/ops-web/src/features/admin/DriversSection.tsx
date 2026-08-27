@@ -54,14 +54,14 @@ export function DriversSection({ client }: DriversSectionProps): JSX.Element {
 
   if (state.kind === 'loading') {
     return (
-      <div data-testid='drivers-section-loading' className='p-4 text-sm text-slate-500'>
+      <div data-testid="drivers-section-loading" className="p-4 text-sm text-slate-500">
         Đang tải dữ liệu...
       </div>
     );
   }
   if (state.kind === 'error') {
     return (
-      <div data-testid='drivers-section-error' className='p-4 text-sm text-red-600'>
+      <div data-testid="drivers-section-error" className="p-4 text-sm text-red-600">
         Không tải được danh sách tài xế.
       </div>
     );

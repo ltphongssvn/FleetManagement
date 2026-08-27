@@ -35,7 +35,7 @@ const ROAD_RUN_STATES = ['planned', 'dispatched', 'started', 'completed', 'cance
 
 /** SSOT idle-reason vocabulary. Ordered most-actionable first. */
 export const IDLE_REASONS = ['no_dispatch_today', 'no_vehicle_assigned'] as const;
-export type IdleReason = typeof IDLE_REASONS[number];
+export type IdleReason = (typeof IDLE_REASONS)[number];
 export const IdleReasonSchema = z.enum(IDLE_REASONS);
 
 /** YYYY-MM-DD Asia/Ho_Chi_Minh calendar key. */

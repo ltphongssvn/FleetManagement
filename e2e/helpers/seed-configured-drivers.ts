@@ -86,29 +86,46 @@ export async function seedConfiguredDriver(
 ): Promise<SeededDriver> {
   const plate = 'E2E ' + tag;
   const vehicle = await post(
-    request, '/reference/vehicles', dispatcherToken, { name: plate }, ReferenceItemSchema,
+    request,
+    '/reference/vehicles',
+    dispatcherToken,
+    { name: plate },
+    ReferenceItemSchema,
   );
 
   const fullName = 'E2E TAI XE ' + tag;
   const phone = '09' + tag.padStart(8, '0');
   const created = await post(
-    request, '/admin/drivers', dispatcherToken,
-    { fullName, phone, password: SEED_CREDENTIAL }, CreateDriverResponseSchema,
+    request,
+    '/admin/drivers',
+    dispatcherToken,
+    { fullName, phone, password: SEED_CREDENTIAL },
+    CreateDriverResponseSchema,
   );
 
   // Enroll a device AS THE DRIVER: /devices/enroll is JWT-gated and takes the
   // operator identity from the caller token, never from the body.
   const login = await post(
-    request, '/auth/login', '', { phone, password: SEED_CREDENTIAL }, DriverLoginResponseSchema,
+    request,
+    '/auth/login',
+    '',
+    { phone, password: SEED_CREDENTIAL },
+    DriverLoginResponseSchema,
   );
   await post(
-    request, '/devices/enroll', login.accessToken,
-    { platform: 'android', appVersion: APP_VERSION }, EnrollDeviceResponseSchema,
+    request,
+    '/devices/enroll',
+    login.accessToken,
+    { platform: 'android', appVersion: APP_VERSION },
+    EnrollDeviceResponseSchema,
   );
 
   const assignment = await post(
-    request, '/admin/driver-vehicle-assignments', dispatcherToken,
-    { driverId: created.driverId, vehicleId: vehicle.id }, AssignmentResponseSchema,
+    request,
+    '/admin/driver-vehicle-assignments',
+    dispatcherToken,
+    { driverId: created.driverId, vehicleId: vehicle.id },
+    AssignmentResponseSchema,
   );
 
   return {
@@ -144,14 +161,21 @@ export async function cleanupSeededDrivers(
   seeded: readonly SeededDriver[],
 ): Promise<void> {
   for (const s of seeded) {
-    await request.delete(API_URL + '/admin/driver-vehicle-assignments/' + s.assignmentId, {
-      headers: auth(dispatcherToken), data: { reason: 'e2e_cleanup' },
-    }).catch(() => undefined);
-    await request.delete(API_URL + '/admin/drivers/' + s.driverId, {
-      headers: auth(dispatcherToken),
-    }).catch(() => undefined);
-    await request.delete(API_URL + '/reference/vehicles/' + s.vehicleId, {
-      headers: auth(dispatcherToken),
-    }).catch(() => undefined);
+    await request
+      .delete(API_URL + '/admin/driver-vehicle-assignments/' + s.assignmentId, {
+        headers: auth(dispatcherToken),
+        data: { reason: 'e2e_cleanup' },
+      })
+      .catch(() => undefined);
+    await request
+      .delete(API_URL + '/admin/drivers/' + s.driverId, {
+        headers: auth(dispatcherToken),
+      })
+      .catch(() => undefined);
+    await request
+      .delete(API_URL + '/reference/vehicles/' + s.vehicleId, {
+        headers: auth(dispatcherToken),
+      })
+      .catch(() => undefined);
   }
 }

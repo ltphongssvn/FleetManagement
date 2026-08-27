@@ -34,12 +34,7 @@ export class RedisChallengeStore implements ChallengeStorePort {
 
   async put(key: string, challenge: string): Promise<void> {
     const record = ChallengeRecordSchema.parse({ challenge });
-    await this.redis.set(
-      this.redisKey(key),
-      JSON.stringify(record),
-      'PX',
-      this.ttlSeconds * 1000,
-    );
+    await this.redis.set(this.redisKey(key), JSON.stringify(record), 'PX', this.ttlSeconds * 1000);
   }
 
   async take(key: string): Promise<string | null> {

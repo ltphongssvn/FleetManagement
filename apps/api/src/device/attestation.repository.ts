@@ -18,6 +18,7 @@ import type { FleetDb } from '../database/database.module.js';
 import { deviceRegistry } from '../database/schema/device.js';
 import type { AttestationRepository } from './attestation.controller.js';
 import type { AttestationPlatform } from './platform.js';
+import type { AttestationSecurityLevel, AttestationEnvironment } from '@fleet/sync-protocol';
 export class AttestationRepositoryImpl implements AttestationRepository {
   constructor(private readonly db: FleetDb) {}
   async markAttestationVerified(input: {
@@ -25,11 +26,12 @@ export class AttestationRepositoryImpl implements AttestationRepository {
     platform: AttestationPlatform;
     tokenHashHex: string;
     publicKeySpkiBase64: string;
-    securityLevel: string | null;
-    environment: string;
+    securityLevel: AttestationSecurityLevel | null;
+    environment: AttestationEnvironment;
     keyId: string | null;
   }): Promise<void> {
-    await this.db.update(deviceRegistry)
+    await this.db
+      .update(deviceRegistry)
       .set({
         attestationPlatform: input.platform,
         attestationTokenHash: input.tokenHashHex,

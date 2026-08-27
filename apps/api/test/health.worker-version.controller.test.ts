@@ -48,22 +48,26 @@ describe('@fleet/api - HealthController.workerVersion', () => {
   // a TypeError from a misspelled method, so it would pass while proving nothing
   // -- the fail-open shape this codebase has been bitten by before.
   it('reports an ABSENT heartbeat: the worker never booted, or its TTL expired', async () => {
-    await expect(makeCtl(() => Promise.resolve(null)).workerVersion())
-      .rejects.toThrow(/no worker provenance/i);
+    await expect(makeCtl(() => Promise.resolve(null)).workerVersion()).rejects.toThrow(
+      /no worker provenance/i,
+    );
   });
 
   it('reports CORRUPT provenance rather than comparing CI against garbage', async () => {
-    await expect(makeCtl(() => Promise.resolve('{"sha":"not-a-sha"}')).workerVersion())
-      .rejects.toThrow(/provenance is not valid/i);
+    await expect(
+      makeCtl(() => Promise.resolve('{"sha":"not-a-sha"}')).workerVersion(),
+    ).rejects.toThrow(/provenance is not valid/i);
   });
 
   it('reports UNREADABLE rather than masking a Redis outage as absent', async () => {
-    await expect(makeCtl(() => Promise.reject(new Error('ECONNREFUSED'))).workerVersion())
-      .rejects.toThrow(/could not be read/i);
+    await expect(
+      makeCtl(() => Promise.reject(new Error('ECONNREFUSED'))).workerVersion(),
+    ).rejects.toThrow(/could not be read/i);
   });
 
   it('rejects non-JSON without leaking the raw stored value', async () => {
-    await expect(makeCtl(() => Promise.resolve('<html>502</html>')).workerVersion())
-      .rejects.toThrow(/provenance is not valid/i);
+    await expect(
+      makeCtl(() => Promise.resolve('<html>502</html>')).workerVersion(),
+    ).rejects.toThrow(/provenance is not valid/i);
   });
 });

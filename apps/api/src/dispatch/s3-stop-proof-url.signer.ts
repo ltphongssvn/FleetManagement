@@ -21,7 +21,11 @@ export class S3StopProofUrlSigner implements StopProofUrlSigner {
     @Inject(S3_CLIENT) private readonly client: S3Client,
     @Optional() private readonly publicUrl?: string,
   ) {}
-  async presignProofUrl(input: { bucket: string; key: string; ttlSeconds: number }): Promise<string> {
+  async presignProofUrl(input: {
+    bucket: string;
+    key: string;
+    ttlSeconds: number;
+  }): Promise<string> {
     const command = new GetObjectCommand({ Bucket: input.bucket, Key: input.key });
     const signed = await getSignedUrl(this.client, command, { expiresIn: input.ttlSeconds });
     return this.rewriteOrigin(signed);

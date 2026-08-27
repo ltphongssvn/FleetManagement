@@ -59,7 +59,10 @@ export class DrizzleCompletionReconcileRepo implements CompletionReconcileRepo {
   async repairTenant(companyId: string, systemOperatorId: string, limit: number): Promise<number> {
     const op: OperatorContext = {
       operatorId: systemOperatorId,
-      companyId, businessUnitId: companyId, depotId: companyId, legalEntityId: companyId,
+      companyId,
+      businessUnitId: companyId,
+      depotId: companyId,
+      legalEntityId: companyId,
     };
     return this.db.transaction(async (tx) => {
       const delivered = await findDeliveredIncompleteRuns(tx as never, companyId);
@@ -69,11 +72,13 @@ export class DrizzleCompletionReconcileRepo implements CompletionReconcileRepo {
       const moved = await tx
         .update(roadRun)
         .set({ state: 'completed', completedAt: now })
-        .where(and(
-          inArray(roadRun.roadRunId, ids),
-          eq(roadRun.companyId, companyId),
-          inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
-        ))
+        .where(
+          and(
+            inArray(roadRun.roadRunId, ids),
+            eq(roadRun.companyId, companyId),
+            inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
+          ),
+        )
         .returning({ roadRunId: roadRun.roadRunId });
       let repaired = 0;
       for (const { roadRunId: id } of moved) {

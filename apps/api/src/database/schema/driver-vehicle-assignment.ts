@@ -11,9 +11,15 @@ export const driverVehicleAssignment = pgTable(
   {
     assignmentId: uuid('assignment_id').primaryKey().defaultRandom(),
     ...tenancyColumns,
-    driverId: uuid('driver_id').notNull().references(() => driver.driverId),
-    vehicleId: uuid('vehicle_id').notNull().references(() => vehicle.vehicleId),
-    assignedAt: timestamp('assigned_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    driverId: uuid('driver_id')
+      .notNull()
+      .references(() => driver.driverId),
+    vehicleId: uuid('vehicle_id')
+      .notNull()
+      .references(() => vehicle.vehicleId),
+    assignedAt: timestamp('assigned_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
     revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
     revocationReason: varchar('revocation_reason', { length: 64 }),
   },

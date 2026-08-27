@@ -18,8 +18,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const src = (rel: string): string =>
-  readFileSync(resolve(here, '../src', rel), 'utf8');
+const src = (rel: string): string => readFileSync(resolve(here, '../src', rel), 'utf8');
 
 const ACTIONS = [
   'features/dispatch/create-order.action.ts',
@@ -53,7 +52,11 @@ describe('ops-web error wiring guard', () => {
   it.each([...BOUNDARIES])('%s shows fixed Vietnamese copy and never error.message', (file) => {
     const s = src(file);
     expect(s.includes('error.message')).toBe(false);
-    expect(s.includes(String.fromCharCode(272,227,32,120,7843,121,32,114,97,32,108,7895,105))).toBe(true);
+    expect(
+      s.includes(
+        String.fromCharCode(272, 227, 32, 120, 7843, 121, 32, 114, 97, 32, 108, 7895, 105),
+      ),
+    ).toBe(true);
     expect(s.includes('Sentry.captureException')).toBe(true);
   });
 

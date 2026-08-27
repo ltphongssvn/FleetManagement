@@ -8,27 +8,60 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { MetricsService } from '../src/metrics/metrics.service.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
 let testDb: PgliteTestDb;
 const qt = String.fromCharCode(39);
 const TENANCY_COLS = 'company_id, business_unit_id, depot_id, legal_entity_id';
 const TENANCY_VALS =
-  qt + '00000000-0000-0000-0000-000000000001' + qt + '::uuid, ' +
-  qt + '00000000-0000-0000-0000-000000000002' + qt + '::uuid, ' +
-  qt + '00000000-0000-0000-0000-000000000003' + qt + '::uuid, ' +
-  qt + '00000000-0000-0000-0000-000000000004' + qt + '::uuid';
+  qt +
+  '00000000-0000-0000-0000-000000000001' +
+  qt +
+  '::uuid, ' +
+  qt +
+  '00000000-0000-0000-0000-000000000002' +
+  qt +
+  '::uuid, ' +
+  qt +
+  '00000000-0000-0000-0000-000000000003' +
+  qt +
+  '::uuid, ' +
+  qt +
+  '00000000-0000-0000-0000-000000000004' +
+  qt +
+  '::uuid';
 async function insertOutboxRow(tx: TestTx, status: string): Promise<void> {
-  const stmt = 'INSERT INTO outbox (' + TENANCY_COLS + ', queue_name, payload, status) VALUES ('
-    + TENANCY_VALS + ', '
-    + qt + 'projections' + qt + ', '
-    + qt + '{}' + qt + '::jsonb, '
-    + qt + status + qt + ')';
+  const stmt =
+    'INSERT INTO outbox (' +
+    TENANCY_COLS +
+    ', queue_name, payload, status) VALUES (' +
+    TENANCY_VALS +
+    ', ' +
+    qt +
+    'projections' +
+    qt +
+    ', ' +
+    qt +
+    '{}' +
+    qt +
+    '::jsonb, ' +
+    qt +
+    status +
+    qt +
+    ')';
   await tx.execute(sql.raw(stmt));
 }
 describe('@fleet/api - MetricsService (integration)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('returns 0 when outbox empty', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const svc = new MetricsService(tx as never);

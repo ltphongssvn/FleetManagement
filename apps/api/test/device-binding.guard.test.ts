@@ -34,26 +34,36 @@ const CLAIMS = { operatorId: OPERATOR_ID };
 
 describe('DeviceBindingGuard', () => {
   it('allows the request when the binding is active', async () => {
-    const port: DeviceBindingStatusPort = { statusForOperator: vi.fn().mockResolvedValue('active') };
+    const port: DeviceBindingStatusPort = {
+      statusForOperator: vi.fn().mockResolvedValue('active'),
+    };
     const guard = makeGuard(port);
     await expect(guard.canActivate(ctxFor(CLAIMS))).resolves.toBe(true);
     expect(port.statusForOperator).toHaveBeenCalledWith(OPERATOR_ID);
   });
 
   it('rejects pending with DEVICE_PENDING_APPROVAL', async () => {
-    const port: DeviceBindingStatusPort = { statusForOperator: vi.fn().mockResolvedValue('pending') };
+    const port: DeviceBindingStatusPort = {
+      statusForOperator: vi.fn().mockResolvedValue('pending'),
+    };
     const guard = makeGuard(port);
     await expect(guard.canActivate(ctxFor(CLAIMS))).rejects.toBeInstanceOf(ForbiddenException);
     await guard.canActivate(ctxFor(CLAIMS)).catch((e: unknown) => {
-      expect(((e as ForbiddenException).getResponse() as { code: string }).code).toBe('DEVICE_PENDING_APPROVAL');
+      expect(((e as ForbiddenException).getResponse() as { code: string }).code).toBe(
+        'DEVICE_PENDING_APPROVAL',
+      );
     });
   });
 
   it('rejects revoked with DEVICE_REVOKED', async () => {
-    const port: DeviceBindingStatusPort = { statusForOperator: vi.fn().mockResolvedValue('revoked') };
+    const port: DeviceBindingStatusPort = {
+      statusForOperator: vi.fn().mockResolvedValue('revoked'),
+    };
     const guard = makeGuard(port);
     await guard.canActivate(ctxFor(CLAIMS)).catch((e: unknown) => {
-      expect(((e as ForbiddenException).getResponse() as { code: string }).code).toBe('DEVICE_REVOKED');
+      expect(((e as ForbiddenException).getResponse() as { code: string }).code).toBe(
+        'DEVICE_REVOKED',
+      );
     });
   });
 
@@ -61,7 +71,9 @@ describe('DeviceBindingGuard', () => {
     const port: DeviceBindingStatusPort = { statusForOperator: vi.fn().mockResolvedValue(null) };
     const guard = makeGuard(port);
     await guard.canActivate(ctxFor(CLAIMS)).catch((e: unknown) => {
-      expect(((e as ForbiddenException).getResponse() as { code: string }).code).toBe('DEVICE_NOT_REGISTERED');
+      expect(((e as ForbiddenException).getResponse() as { code: string }).code).toBe(
+        'DEVICE_NOT_REGISTERED',
+      );
     });
   });
 

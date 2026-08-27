@@ -36,24 +36,39 @@ function serverMessageFrom(body: unknown): string | null {
   const problem = parseProblemDetails(body);
   if (typeof problem?.detail === 'string' && problem.detail.length > 0) return problem.detail;
   const legacy = body as { message?: unknown } | null;
-  if (legacy !== null && typeof legacy === 'object' && typeof legacy.message === 'string' && legacy.message.length > 0) {
+  if (
+    legacy !== null &&
+    typeof legacy === 'object' &&
+    typeof legacy.message === 'string' &&
+    legacy.message.length > 0
+  ) {
     return legacy.message;
   }
   return null;
 }
 async function failWithBestMessage(res: Response): Promise<never> {
-  const body: unknown = await res.clone().json().catch(() => undefined);
+  const body: unknown = await res
+    .clone()
+    .json()
+    .catch(() => undefined);
   const serverMsg = serverMessageFrom(body);
   // ApiProblemError adds machine members (status + Zod-parsed code) while
   // .message keeps the SAME display copy as before (detail > legacy message >
   // status-class Vietnamese): conflict-name extraction on .message is
   // untouched, and pages can now branch on isSessionExpired (401).
   const problem = parseProblemDetails(body);
-  throw new ApiProblemError(res.status, problem?.code, serverMsg ?? vnApiErrorMessage(res.status, body));
+  throw new ApiProblemError(
+    res.status,
+    problem?.code,
+    serverMsg ?? vnApiErrorMessage(res.status, body),
+  );
 }
 export class ReferenceAdminClient {
   private readonly fetchFn: FetchFn;
-  constructor(private readonly segment: ReferenceSegment, fetchFn?: FetchFn) {
+  constructor(
+    private readonly segment: ReferenceSegment,
+    fetchFn?: FetchFn,
+  ) {
     this.fetchFn = fetchFn ?? globalThis.fetch.bind(globalThis);
   }
   private base(): string {

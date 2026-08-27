@@ -6,7 +6,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const cookieGet = vi.fn();
 vi.mock('next/headers', () => ({ cookies: () => Promise.resolve({ get: cookieGet }) }));
 describe('loadReferences', () => {
-  beforeEach(() => { cookieGet.mockReset(); vi.unstubAllGlobals(); vi.resetModules(); });
+  beforeEach(() => {
+    cookieGet.mockReset();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
   it('returns EMPTY when FLEET_API_URL unset', async () => {
     vi.stubEnv('FLEET_API_URL', '');
     const { loadReferences } = await import('@/features/dispatch/load-references');
@@ -27,9 +31,20 @@ describe('loadReferences', () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'tok' });
     const fetchMock = vi.fn((url: string) => {
-      if (url.includes('peek-order-ref')) return Promise.resolve(new Response(JSON.stringify({ ref: 'XT.001' }), { status: 200 }));
-      if (url.includes('driver-vehicle-assignments')) return Promise.resolve(new Response(JSON.stringify({ items: [{ operatorId: 'op-1', vehicleId: 'veh-1' }] }), { status: 200 }));
-      if (url.includes('drivers')) return Promise.resolve(new Response(JSON.stringify({ items: [{ id: 'd1', label: 'Driver 1' }] }), { status: 200 }));
+      if (url.includes('peek-order-ref'))
+        return Promise.resolve(new Response(JSON.stringify({ ref: 'XT.001' }), { status: 200 }));
+      if (url.includes('driver-vehicle-assignments'))
+        return Promise.resolve(
+          new Response(JSON.stringify({ items: [{ operatorId: 'op-1', vehicleId: 'veh-1' }] }), {
+            status: 200,
+          }),
+        );
+      if (url.includes('drivers'))
+        return Promise.resolve(
+          new Response(JSON.stringify({ items: [{ id: 'd1', label: 'Driver 1' }] }), {
+            status: 200,
+          }),
+        );
       return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200 }));
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -43,7 +58,10 @@ describe('loadReferences', () => {
   it('returns empty list for endpoint that fails', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'tok' });
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('', { status: 401 }))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response('', { status: 401 }))),
+    );
     const { loadReferences } = await import('@/features/dispatch/load-references');
     const r = await loadReferences();
     expect(r.drivers).toEqual([]);
@@ -53,7 +71,10 @@ describe('loadReferences', () => {
   it('handles missing items field gracefully', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'tok' });
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify({}), { status: 200 }))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response(JSON.stringify({}), { status: 200 }))),
+    );
     const { loadReferences } = await import('@/features/dispatch/load-references');
     const r = await loadReferences();
     expect(r.drivers).toEqual([]);
@@ -62,7 +83,10 @@ describe('loadReferences', () => {
   it('handles thrown fetch error', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'tok' });
-    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('network'))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new Error('network'))),
+    );
     const { loadReferences } = await import('@/features/dispatch/load-references');
     const r = await loadReferences();
     expect(r.drivers).toEqual([]);

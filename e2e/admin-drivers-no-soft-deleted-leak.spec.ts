@@ -12,9 +12,39 @@ test.describe.serial('admin drivers page excludes soft-deleted rows', () => {
     const insert =
       'INSERT INTO driver (driver_id, company_id, business_unit_id, depot_id, legal_entity_id, full_name, phone, password_hash, operator_id, active) VALUES (' +
       'gen_random_uuid(), ' +
-      sq + zero + sq + ', ' + sq + zero + sq + ', ' + sq + zero + sq + ', ' + sq + zero + sq + ', ' +
-      sq + probe + sq + ', ' + sq + '09' + String(Date.now()).slice(-8) + sq + ', ' +
-      sq + 'x' + sq + ', ' + sq + opId + sq + ', false);';
+      sq +
+      zero +
+      sq +
+      ', ' +
+      sq +
+      zero +
+      sq +
+      ', ' +
+      sq +
+      zero +
+      sq +
+      ', ' +
+      sq +
+      zero +
+      sq +
+      ', ' +
+      sq +
+      probe +
+      sq +
+      ', ' +
+      sq +
+      '09' +
+      String(Date.now()).slice(-8) +
+      sq +
+      ', ' +
+      sq +
+      'x' +
+      sq +
+      ', ' +
+      sq +
+      opId +
+      sq +
+      ', false);';
     const ins = dockerPsql(insert);
     if (ins.failed) throw new Error('seed insert failed: ' + ins.stderr);
 
@@ -24,13 +54,13 @@ test.describe.serial('admin drivers page excludes soft-deleted rows', () => {
     await loginAs(page);
 
     await page.goto('/admin/drivers');
-    await expect(page.getByRole('heading', { name: /Quản lý tài xế|tài xế & xe/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /Quản lý tài xế|tài xế & xe/i })).toBeVisible({
+      timeout: 10000,
+    });
 
     await expect(page.getByText(probe, { exact: false })).toHaveCount(0);
 
-    const cleanup = dockerPsql(
-      'DELETE FROM driver WHERE full_name = ' + sq + probe + sq + ';',
-    );
+    const cleanup = dockerPsql('DELETE FROM driver WHERE full_name = ' + sq + probe + sq + ';');
     if (cleanup.failed) throw new Error('cleanup failed: ' + cleanup.stderr);
   });
 });

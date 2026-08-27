@@ -19,20 +19,45 @@ describe('AdminAssignmentController', () => {
   beforeEach(() => {
     assignFn = vi.fn();
     revokeFn = vi.fn();
-    controller = new AdminAssignmentController({ assign: assignFn, revoke: revokeFn } as unknown as AdminAssignmentService);
+    controller = new AdminAssignmentController({
+      assign: assignFn,
+      revoke: revokeFn,
+    } as unknown as AdminAssignmentService);
   });
 
   it('POST /admin/driver-vehicle-assignments creates assignment', async () => {
-    assignFn.mockResolvedValue({ assignmentId: '0a0a0a0a-1111-4111-8111-0a0a0a0a0a0a', driverId: '55555555-5555-5555-5555-555555555555', vehicleId: '66666666-6666-6666-6666-666666666666' });
-    const r = await controller.create(op, { driverId: '55555555-5555-5555-5555-555555555555', vehicleId: '66666666-6666-6666-6666-666666666666' });
+    assignFn.mockResolvedValue({
+      assignmentId: '0a0a0a0a-1111-4111-8111-0a0a0a0a0a0a',
+      driverId: '55555555-5555-5555-5555-555555555555',
+      vehicleId: '66666666-6666-6666-6666-666666666666',
+    });
+    const r = await controller.create(op, {
+      driverId: '55555555-5555-5555-5555-555555555555',
+      vehicleId: '66666666-6666-6666-6666-666666666666',
+    });
     expect(r.assignmentId).toBe('0a0a0a0a-1111-4111-8111-0a0a0a0a0a0a');
-    expect(assignFn).toHaveBeenCalledWith(expect.objectContaining({ driverId: '55555555-5555-5555-5555-555555555555', vehicleId: '66666666-6666-6666-6666-666666666666', companyId: op.companyId }));
+    expect(assignFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        driverId: '55555555-5555-5555-5555-555555555555',
+        vehicleId: '66666666-6666-6666-6666-666666666666',
+        companyId: op.companyId,
+      }),
+    );
   });
 
   it('DELETE /admin/driver-vehicle-assignments/:id revokes', async () => {
-    revokeFn.mockResolvedValue({ assignmentId: '0a0a0a0a-1111-4111-8111-0a0a0a0a0a0a', revokedAt: new Date(), revocationReason: 'driver_left' });
-    const r = await controller.revoke('0a0a0a0a-1111-4111-8111-0a0a0a0a0a0a', { reason: 'driver_left' });
+    revokeFn.mockResolvedValue({
+      assignmentId: '0a0a0a0a-1111-4111-8111-0a0a0a0a0a0a',
+      revokedAt: new Date(),
+      revocationReason: 'driver_left',
+    });
+    const r = await controller.revoke('0a0a0a0a-1111-4111-8111-0a0a0a0a0a0a', {
+      reason: 'driver_left',
+    });
     expect(r.revokedAt).not.toBeNull();
-    expect(revokeFn).toHaveBeenCalledWith({ assignmentId: '0a0a0a0a-1111-4111-8111-0a0a0a0a0a0a', reason: 'driver_left' });
+    expect(revokeFn).toHaveBeenCalledWith({
+      assignmentId: '0a0a0a0a-1111-4111-8111-0a0a0a0a0a0a',
+      reason: 'driver_left',
+    });
   });
 });

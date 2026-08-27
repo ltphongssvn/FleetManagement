@@ -55,7 +55,10 @@ const baseRun: DispatchBoardRoadRun = {
 const refs = {
   drivers: [{ id: 'op-1', label: 'Driver 1' }],
   vehicles: [{ id: 'veh-1', label: '62H 05194' }],
-  customers: [], cargoTypes: [], pickupWarehouses: [], deliveryWarehouses: [],
+  customers: [],
+  cargoTypes: [],
+  pickupWarehouses: [],
+  deliveryWarehouses: [],
   driverVehicleAssignments: [{ operatorId: 'op-1', vehicleId: 'veh-1' }],
   nextOrderRef: '',
 };
@@ -101,10 +104,7 @@ describe('DispatchView — refetch on tab focus / visibility', () => {
       document.dispatchEvent(new Event('visibilitychange'));
     });
 
-    expect(
-      refreshMock.mock.calls.length,
-      'a tab going hidden must not refetch',
-    ).toBe(0);
+    expect(refreshMock.mock.calls.length, 'a tab going hidden must not refetch').toBe(0);
   });
 
   it('calls router.refresh() on window focus', () => {
@@ -112,7 +112,9 @@ describe('DispatchView — refetch on tab focus / visibility', () => {
     render(<DispatchView initialRuns={[{ ...baseRun }]} refs={refs} />);
     refreshMock.mockClear();
 
-    act(() => { window.dispatchEvent(new Event('focus')); });
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
 
     expect(
       refreshMock.mock.calls.length,

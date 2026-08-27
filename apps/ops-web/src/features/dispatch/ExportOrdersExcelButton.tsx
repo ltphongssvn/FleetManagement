@@ -39,8 +39,7 @@ export function ExportOrdersExcelButton(): React.ReactElement {
     setErr(null);
     // Only send a range when BOTH ends are chosen; a partial range is ambiguous,
     // so it falls back to a full export. The action + API re-validate from<=to.
-    const range: ExportDateRange | undefined =
-      from !== '' && to !== '' ? { from, to } : undefined;
+    const range: ExportDateRange | undefined = from !== '' && to !== '' ? { from, to } : undefined;
     startTransition(async () => {
       const result = await exportOrdersExcel(range);
       if (result.status === 'ok') {
@@ -55,37 +54,43 @@ export function ExportOrdersExcelButton(): React.ReactElement {
     });
   }
   return (
-    <span className='inline-flex items-center gap-2'>
-      <label className='flex items-center gap-1 text-sm text-slate-600'>
+    <span className="inline-flex items-center gap-2">
+      <label className="flex items-center gap-1 text-sm text-slate-600">
         <span>Từ ngày</span>
         <input
-          type='date'
-          data-testid='export-range-from'
+          type="date"
+          data-testid="export-range-from"
           value={from}
-          onChange={(e) => { setFrom(e.target.value); }}
-          className='rounded border border-slate-300 px-2 py-1 text-sm'
+          onChange={(e) => {
+            setFrom(e.target.value);
+          }}
+          className="rounded border border-slate-300 px-2 py-1 text-sm"
         />
       </label>
-      <label className='flex items-center gap-1 text-sm text-slate-600'>
+      <label className="flex items-center gap-1 text-sm text-slate-600">
         <span>Đến ngày</span>
         <input
-          type='date'
-          data-testid='export-range-to'
+          type="date"
+          data-testid="export-range-to"
           value={to}
-          onChange={(e) => { setTo(e.target.value); }}
-          className='rounded border border-slate-300 px-2 py-1 text-sm'
+          onChange={(e) => {
+            setTo(e.target.value);
+          }}
+          className="rounded border border-slate-300 px-2 py-1 text-sm"
         />
       </label>
       <button
-        type='button'
+        type="button"
         onClick={onClick}
         disabled={isPending}
-        className='inline-flex items-center rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50'
+        className="inline-flex items-center rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
       >
         {isPending ? 'Đang xuất...' : 'Xuất Excel'}
       </button>
       {err !== null && (
-        <span role='alert' className='text-sm text-red-700'>{err.message}</span>
+        <span role="alert" className="text-sm text-red-700">
+          {err.message}
+        </span>
       )}
     </span>
   );

@@ -57,9 +57,17 @@ describe('reference-sections shared module', () => {
     const fetchMock = vi.fn((_input: string | URL, init?: RequestInit) => {
       const method = init?.method ?? 'GET';
       if (method === 'DELETE') {
-        return Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({ detail: 'x' }) });
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: () => Promise.resolve({ detail: 'x' }),
+        });
       }
-      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ items: [row] }) });
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ items: [row] }),
+      });
     });
     globalThis.fetch = fetchMock as never;
     vi.spyOn(window, 'confirm').mockReturnValue(true);
@@ -83,9 +91,17 @@ describe('reference-sections shared module', () => {
     const fetchMock = vi.fn((_input: string | URL, init?: RequestInit) => {
       const method = init?.method ?? 'GET';
       if (method === 'PATCH') {
-        return Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({ detail: 'y' }) });
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: () => Promise.resolve({ detail: 'y' }),
+        });
       }
-      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ items: [row] }) });
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ items: [row] }),
+      });
     });
     globalThis.fetch = fetchMock as never;
     const customers = SECTIONS[0];
@@ -108,7 +124,11 @@ describe('reference-sections shared module', () => {
       const method = init?.method ?? 'GET';
       if (method === 'POST') {
         postCount += 1;
-        return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ id: 'n1', label: 'RICE' }) });
+        return Promise.resolve({
+          ok: true,
+          status: 201,
+          json: () => Promise.resolve({ id: 'n1', label: 'RICE' }),
+        });
       }
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ items: [] }) });
     });
@@ -121,7 +141,9 @@ describe('reference-sections shared module', () => {
     const addBtn = addButtons[0];
     if (addBtn === undefined) throw new Error('no add button');
     await user.click(addBtn);
-    await waitFor(() => { expect(postCount).toBe(1); });
+    await waitFor(() => {
+      expect(postCount).toBe(1);
+    });
   });
 
   it('surfaces a string rejection via getErrorMessage (string arm)', async () => {

@@ -46,19 +46,31 @@ function makeReq(
       },
     },
     cookies: {
-      get: (n: string) => (n === 'fleet_session' && opts.cookie ? { value: opts.cookie } : undefined),
+      get: (n: string) =>
+        n === 'fleet_session' && opts.cookie ? { value: opts.cookie } : undefined,
     },
   } as unknown as NextRequest;
 }
 describe('auth proxy — Server Action requests are never diverted to /login', () => {
   it('lets an UNauthenticated Server Action POST through (next, not rewrite/redirect)', async () => {
     const { proxy } = await import('@/proxy');
-    const r = proxy(makeReq('/dispatch/orders/XTT.05-002', { accept: 'text/x-component', nextAction: 'deadbeef' }));
+    const r = proxy(
+      makeReq('/dispatch/orders/XTT.05-002', {
+        accept: 'text/x-component',
+        nextAction: 'deadbeef',
+      }),
+    );
     expect(r.type).toBe('next');
   });
   it('lets an authenticated Server Action POST through as well', async () => {
     const { proxy } = await import('@/proxy');
-    const r = proxy(makeReq('/dispatch/orders/XTT.05-002', { cookie: 'jwt', accept: 'text/x-component', nextAction: 'deadbeef' }));
+    const r = proxy(
+      makeReq('/dispatch/orders/XTT.05-002', {
+        cookie: 'jwt',
+        accept: 'text/x-component',
+        nextAction: 'deadbeef',
+      }),
+    );
     expect(r.type).toBe('next');
   });
   it('still rewrites an unauthenticated RSC navigation (no Next-Action) to /login', async () => {

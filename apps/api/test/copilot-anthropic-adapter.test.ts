@@ -59,7 +59,11 @@ describe('AnthropicCopilotLlmAdapter.proposeDraft', () => {
     const headers = init.headers as Record<string, string>;
     expect(headers['x-api-key']).toBe(TEST_KEY);
     expect(headers['anthropic-version']).toBe('2023-06-01');
-    const body = JSON.parse(init.body as string) as { model: string; temperature: number; max_tokens: number };
+    const body = JSON.parse(init.body as string) as {
+      model: string;
+      temperature: number;
+      max_tokens: number;
+    };
     expect(body.model).toBe('claude-haiku-4-5');
     expect(body.temperature).toBe(0);
     expect(body.max_tokens).toBeGreaterThan(0);
@@ -79,7 +83,9 @@ describe('AnthropicCopilotLlmAdapter.proposeDraft', () => {
 
   it('throws on a non-2xx Anthropic response (surfaced to the route, not swallowed)', async () => {
     const fetchFn = vi.fn(() =>
-      Promise.resolve(new Response('rate limited', { status: 429, statusText: 'Too Many Requests' })),
+      Promise.resolve(
+        new Response('rate limited', { status: 429, statusText: 'Too Many Requests' }),
+      ),
     );
     const adapter = new AnthropicCopilotLlmAdapter({ ...CFG, fetchFn: fetchFn as never });
     await expect(adapter.proposeDraft('x')).rejects.toThrow(/429/);
@@ -98,10 +104,13 @@ describe('AnthropicCopilotLlmAdapter.proposeDraft', () => {
     // union's fallback member matches and the text-block find returns undefined.
     const fetchFn = vi.fn(() =>
       Promise.resolve(
-        new Response(JSON.stringify({ id: 'msg_2', type: 'message', content: [{ type: 'tool_use' }] }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        }),
+        new Response(
+          JSON.stringify({ id: 'msg_2', type: 'message', content: [{ type: 'tool_use' }] }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
       ),
     );
     const adapter = new AnthropicCopilotLlmAdapter({ ...CFG, fetchFn: fetchFn as never });

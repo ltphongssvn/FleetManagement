@@ -6,7 +6,15 @@
 // surface differs per runtime (@sentry/nestjs vs @sentry/nextjs vs
 // @sentry/react-native). This factory returns a fully-resolved options
 // bundle the consumer passes to its SDK's init().
-import { scrubEvent, scrubString, createScrubber, PII_HEADERS, REDACTED, DEFAULT_DEPTH_LIMIT, type ScrubbableEvent } from './sentry-scrub.js';
+import {
+  scrubEvent,
+  scrubString,
+  createScrubber,
+  PII_HEADERS,
+  REDACTED,
+  DEFAULT_DEPTH_LIMIT,
+  type ScrubbableEvent,
+} from './sentry-scrub.js';
 import { parseDsn } from './dsn.js';
 
 export interface SentryInitInput {
@@ -102,7 +110,11 @@ export function createBeforeSend(
   if (!auditLog && !annotateEvent) return scrubEvent;
   return (event) => {
     let count = 0;
-    const scrubFn = createScrubber({ onRedact: () => { count++; } });
+    const scrubFn = createScrubber({
+      onRedact: () => {
+        count++;
+      },
+    });
     const out = { ...event } as ScrubbableEvent;
     if (typeof out.message === 'string') {
       const before = out.message;

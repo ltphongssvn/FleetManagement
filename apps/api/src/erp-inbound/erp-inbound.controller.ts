@@ -9,13 +9,21 @@ import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { InvoiceAckSchema, type InvoiceAckInput } from './erp-inbound.dto.js';
 import { ErpInboundService } from './erp-inbound.service.js';
-function verifySignature(body: InvoiceAckInput, sig: string | undefined, secret: string | undefined): void {
+function verifySignature(
+  body: InvoiceAckInput,
+  sig: string | undefined,
+  secret: string | undefined,
+): void {
   if (!sig) throw new UnauthorizedException('missing signature header');
   if (!secret) throw new UnauthorizedException('signature verification unavailable');
   const expected = createHmac('sha256', secret).update(JSON.stringify(body)).digest('hex');
   const a = Buffer.from(expected, 'hex');
   let b: Buffer;
-  try { b = Buffer.from(sig, 'hex'); } catch { throw new UnauthorizedException('invalid signature'); }
+  try {
+    b = Buffer.from(sig, 'hex');
+  } catch {
+    throw new UnauthorizedException('invalid signature');
+  }
   if (a.length !== b.length || !timingSafeEqual(a, b)) {
     throw new UnauthorizedException('invalid signature');
   }

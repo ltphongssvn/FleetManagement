@@ -58,9 +58,12 @@ describe('auth middleware builds redirects against the public origin', () => {
 
   it('preserves the next query string on the refresh bounce', async () => {
     const { proxy } = await import('@/proxy');
-    const r = proxy(makeReq('/dispatch/orders/XTT.07-1', { cookies: { fleet_refresh: 'rt' }, headers: FWD }));
+    const r = proxy(
+      makeReq('/dispatch/orders/XTT.07-1', { cookies: { fleet_refresh: 'rt' }, headers: FWD }),
+    );
     expect(r.url).toBe(
-      'https://xe.public.example/api/auth/refresh?next=' + encodeURIComponent('/dispatch/orders/XTT.07-1'),
+      'https://xe.public.example/api/auth/refresh?next=' +
+        encodeURIComponent('/dispatch/orders/XTT.07-1'),
     );
   });
 });

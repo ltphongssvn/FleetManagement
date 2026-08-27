@@ -27,11 +27,15 @@ describe('@fleet/api - isAckTimedOut', () => {
 
 describe('@fleet/api - shouldFallbackToPush', () => {
   it('falls back when timed out and at max attempts', () => {
-    expect(shouldFallbackToPush(cmd({ attempts: COMMAND_MAX_ATTEMPTS_CONST }), ELAPSED_TIMEOUT)).toBe(true);
+    expect(
+      shouldFallbackToPush(cmd({ attempts: COMMAND_MAX_ATTEMPTS_CONST }), ELAPSED_TIMEOUT),
+    ).toBe(true);
   });
 
   it('does not fall back when timed out but under max attempts', () => {
-    expect(shouldFallbackToPush(cmd({ attempts: COMMAND_MAX_ATTEMPTS_CONST - 1 }), ELAPSED_TIMEOUT)).toBe(false);
+    expect(
+      shouldFallbackToPush(cmd({ attempts: COMMAND_MAX_ATTEMPTS_CONST - 1 }), ELAPSED_TIMEOUT),
+    ).toBe(false);
   });
 
   it('does not fall back if not yet timed out', () => {

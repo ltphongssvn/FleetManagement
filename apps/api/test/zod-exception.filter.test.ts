@@ -27,9 +27,7 @@ describe('@fleet/api - ZodExceptionFilter', () => {
       expect.objectContaining({
         statusCode: 400,
         message: 'Validation failed',
-        issues: expect.arrayContaining([
-          expect.objectContaining({ path: 'name' }),
-        ]),
+        issues: expect.arrayContaining([expect.objectContaining({ path: 'name' })]),
       }),
     );
   });

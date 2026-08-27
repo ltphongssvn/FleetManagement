@@ -74,14 +74,21 @@ function argValue(flag: string): string | undefined {
  * defence in depth against this flag being dropped later.
  */
 function readBuilds(platform: BuildPlatform): CliResult {
-  const r = spawnSync('eas', [
-    'build:list',
-    '--platform', platform,
-    '--status', 'finished',
-    '--limit', '1',
-    '--json',
-    '--non-interactive',
-  ], { encoding: 'utf-8', cwd: 'apps/driver-app', stdio: ['ignore', 'pipe', 'pipe'] });
+  const r = spawnSync(
+    'eas',
+    [
+      'build:list',
+      '--platform',
+      platform,
+      '--status',
+      'finished',
+      '--limit',
+      '1',
+      '--json',
+      '--non-interactive',
+    ],
+    { encoding: 'utf-8', cwd: 'apps/driver-app', stdio: ['ignore', 'pipe', 'pipe'] },
+  );
   return { stdout: r.stdout, stderr: r.stderr };
 }
 
@@ -89,9 +96,7 @@ function main(): number {
   const rawDays = argValue('--max-age-days');
   const maxAgeDays = rawDays === undefined ? DEFAULT_MAX_AGE_DAYS : Number(rawDays);
   const only = argValue('--platform');
-  const targets = only === undefined
-    ? BUILD_PLATFORMS
-    : BUILD_PLATFORMS.filter((p) => p === only);
+  const targets = only === undefined ? BUILD_PLATFORMS : BUILD_PLATFORMS.filter((p) => p === only);
 
   if (targets.length === 0) {
     process.stderr.write('[eas:freshness] unknown platform: ' + String(only) + nl);
@@ -132,4 +137,6 @@ function main(): number {
 }
 
 const isEntry = process.argv[1] !== undefined && import.meta.url === 'file://' + process.argv[1];
-if (isEntry) { process.exit(main()); }
+if (isEntry) {
+  process.exit(main());
+}

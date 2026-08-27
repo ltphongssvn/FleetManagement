@@ -9,13 +9,11 @@ describe('@fleet/api - PII scrubber', () => {
   });
 
   it('redacts email value embedded in string', () => {
-    expect(scrubString('login failed for bob@example.com'))
-      .toBe('login failed for [redacted]');
+    expect(scrubString('login failed for bob@example.com')).toBe('login failed for [redacted]');
   });
 
   it('redacts JWT in error message', () => {
-    expect(scrubString('Bearer eyJhbGciOi.eyJzdWIiOi.AbCdEf'))
-      .toBe('[redacted]');
+    expect(scrubString('Bearer eyJhbGciOi.eyJzdWIiOi.AbCdEf')).toBe('[redacted]');
   });
 
   it('redacts phone numbers', () => {
@@ -29,8 +27,10 @@ describe('@fleet/api - PII scrubber', () => {
   });
 
   it('scrubs arrays of objects', () => {
-    expect(scrub([{ token: 'a' }, { token: 'b' }]))
-      .toEqual([{ token: '[redacted]' }, { token: '[redacted]' }]);
+    expect(scrub([{ token: 'a' }, { token: 'b' }])).toEqual([
+      { token: '[redacted]' },
+      { token: '[redacted]' },
+    ]);
   });
 
   it('preserves non-PII keys', () => {
@@ -44,7 +44,10 @@ describe('@fleet/api - PII scrubber', () => {
   });
 
   it('redacts gps coordinates', () => {
-    expect(scrub({ gpsLat: 37.7, gpsLng: -122.4 })).toEqual({ gpsLat: '[redacted]', gpsLng: '[redacted]' });
+    expect(scrub({ gpsLat: 37.7, gpsLng: -122.4 })).toEqual({
+      gpsLat: '[redacted]',
+      gpsLng: '[redacted]',
+    });
   });
 
   it('handles deeply nested objects', () => {
@@ -60,7 +63,12 @@ describe('@fleet/api - PII scrubber', () => {
   });
 
   it('handles mixed arrays (primitives + objects + nulls)', () => {
-    expect(scrub([1, null, { token: 'x' }, 'plain string'])).toEqual([1, null, { token: '[redacted]' }, 'plain string']);
+    expect(scrub([1, null, { token: 'x' }, 'plain string'])).toEqual([
+      1,
+      null,
+      { token: '[redacted]' },
+      'plain string',
+    ]);
   });
 
   it('redacts strings inside nested arrays', () => {
@@ -87,15 +95,26 @@ describe('@fleet/api - PII scrubber', () => {
     });
 
     it('scrubs request.data, extra, contexts', () => {
-      const e = { request: { data: { password: 'p' } }, extra: { token: 't' }, contexts: { user: { email: 'a@b.com' } } };
-      const r = scrubEvent(e) as { request: { data: { password: string } }; extra: { token: string }; contexts: { user: { email: string } } };
+      const e = {
+        request: { data: { password: 'p' } },
+        extra: { token: 't' },
+        contexts: { user: { email: 'a@b.com' } },
+      };
+      const r = scrubEvent(e) as {
+        request: { data: { password: string } };
+        extra: { token: string };
+        contexts: { user: { email: string } };
+      };
       expect(r.request.data.password).toBe('[redacted]');
       expect(r.extra.token).toBe('[redacted]');
       expect(r.contexts.user.email).toBe('[redacted]');
     });
 
     it('scrubs message and exception values', () => {
-      const input: ScrubbableEvent = { message: 'failed for foo@example.com', exception: { values: [{ value: 'Bearer eyJ.x.y leaked' }] } };
+      const input: ScrubbableEvent = {
+        message: 'failed for foo@example.com',
+        exception: { values: [{ value: 'Bearer eyJ.x.y leaked' }] },
+      };
       const r = scrubEvent(input);
       expect(r.message).toBe('failed for [redacted]');
       const vals = r.exception?.values ?? [];

@@ -33,7 +33,6 @@ async function main(): Promise<void> {
   const scope = resolveScope(argv);
   const introspect = argv.includes('--introspect');
   const app = await NestFactory.createApplicationContext(ProjectionRebuildModule, {
-
     logger: ['error', 'warn', 'log'],
   });
   try {
@@ -68,10 +67,7 @@ async function main(): Promise<void> {
       const sess = await db
         .select({ n: count() })
         .from(deviceSession)
-        .where(and(
-          inArray(deviceSession.deviceId, dupDeviceIds),
-          isNull(deviceSession.revokedAt),
-        ));
+        .where(and(inArray(deviceSession.deviceId, dupDeviceIds), isNull(deviceSession.revokedAt)));
       activeSessionsOnDuplicateDevices = sess[0]?.n ?? 0;
     }
 
@@ -92,6 +88,8 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  process.stderr.write('audit-device-registry failed: ' + (err instanceof Error ? err.message : String(err)) + '\n');
+  process.stderr.write(
+    'audit-device-registry failed: ' + (err instanceof Error ? err.message : String(err)) + '\n',
+  );
   process.exitCode = 1;
 });

@@ -163,9 +163,7 @@ export function closePlan(verdict: CloseVerdict, input: WorktreeCloseInput): str
 // exercises. idleHours defaults to 999 (well past RECENT_IDLE_THRESHOLD_HOURS)
 // so recency never masks an unrelated assertion; a recency test overrides it.
 // Returns a parsed WorktreeCloseInput so fixtures cannot drift from the schema.
-export function makeCloseInput(
-  overrides: Partial<WorktreeCloseInput> = {},
-): WorktreeCloseInput {
+export function makeCloseInput(overrides: Partial<WorktreeCloseInput> = {}): WorktreeCloseInput {
   return WorktreeCloseInputSchema.parse({
     path: '/home/u/code/wt-fixture',
     branch: 'feature/fixture',

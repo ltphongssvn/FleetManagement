@@ -4,10 +4,7 @@
 // - /health/ready: deps reachable - LB readiness probe (excludes traffic if DB down)
 // - /health/version: build provenance - which COMMIT of THIS service is live
 // - /health/worker-version: build provenance of the WORKER (see below)
-import {
-  Controller, Get, Inject, Logger,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { Controller, Get, Inject, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { buildDeployVersion, DeployVersionSchema, type DeployVersion } from '@fleet/sync-protocol';
 import { PG_POOL } from '../database/database.tokens.js';

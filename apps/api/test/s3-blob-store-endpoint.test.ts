@@ -8,8 +8,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const s3ClientCtorArgs: unknown[] = [];
 vi.mock('@aws-sdk/client-s3', () => ({
-  S3Client: class { constructor(cfg?: unknown) { s3ClientCtorArgs.push(cfg); } destroy(): void { /* no-op */ } },
-  PutObjectCommand: class { constructor(public input?: unknown) {} },
+  S3Client: class {
+    constructor(cfg?: unknown) {
+      s3ClientCtorArgs.push(cfg);
+    }
+    destroy(): void {
+      /* no-op */
+    }
+  },
+  PutObjectCommand: class {
+    constructor(public input?: unknown) {}
+  },
 }));
 vi.mock('@aws-sdk/s3-request-presigner', () => ({ getSignedUrl: vi.fn() }));
 
@@ -17,7 +26,9 @@ const { defaultS3Client } = await import('../src/storage/s3-blob-store.js');
 const CHK = { requestChecksumCalculation: 'WHEN_REQUIRED' } as const;
 
 describe('@fleet/api - defaultS3Client endpoint override', () => {
-  beforeEach(() => { s3ClientCtorArgs.length = 0; });
+  beforeEach(() => {
+    s3ClientCtorArgs.length = 0;
+  });
 
   it('region-only call stays { region } (no endpoint, no creds — prod path unchanged)', () => {
     defaultS3Client('us-west-2');
@@ -38,13 +49,13 @@ describe('@fleet/api - defaultS3Client endpoint override', () => {
     defaultS3Client('us-west-2', {
       endpoint: 'http://localstack:4566',
       accessKeyId: 'test',
-      secretAccessKey: 'test',  // pragma: allowlist secret
+      secretAccessKey: 'test', // pragma: allowlist secret
     });
     expect(s3ClientCtorArgs[0]).toEqual({
       region: 'us-west-2',
       endpoint: 'http://localstack:4566',
       forcePathStyle: true,
-      credentials: { accessKeyId: 'test', secretAccessKey: 'test' },  // pragma: allowlist secret
+      credentials: { accessKeyId: 'test', secretAccessKey: 'test' }, // pragma: allowlist secret
       ...CHK,
     });
   });

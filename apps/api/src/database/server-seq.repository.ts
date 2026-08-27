@@ -8,7 +8,10 @@ import type { FleetDb } from './database.module.js';
 type TxLike = Parameters<Parameters<FleetDb['transaction']>[0]>[0];
 
 export class ServerSeqAllocationError extends Error {
-  constructor() { super('fleet_server_seq nextval returned no row'); this.name = 'ServerSeqAllocationError'; }
+  constructor() {
+    super('fleet_server_seq nextval returned no row');
+    this.name = 'ServerSeqAllocationError';
+  }
 }
 
 export async function allocateServerSeq(tx: TxLike | FleetDb): Promise<bigint> {

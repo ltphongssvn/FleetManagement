@@ -12,10 +12,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ArgumentsHost } from '@nestjs/common';
 import { HttpException } from '@nestjs/common';
-import {
-  parseProblemDetails,
-  parseInvalidStateTransitionExtensions,
-} from '@fleet/sync-protocol';
+import { parseProblemDetails, parseInvalidStateTransitionExtensions } from '@fleet/sync-protocol';
 
 const { mockCaptureException } = vi.hoisted(() => ({ mockCaptureException: vi.fn() }));
 vi.mock('@sentry/nestjs', () => ({ captureException: mockCaptureException }));
@@ -47,15 +44,23 @@ function bodyOf(res: MockRes): Record<string, unknown> {
 }
 
 describe('ProblemDetailsExceptionFilter extensions passthrough', () => {
-  beforeEach(() => { mockCaptureException.mockClear(); });
+  beforeEach(() => {
+    mockCaptureException.mockClear();
+  });
 
   it('spreads an explicit extensions object into the envelope (the 409 FSM seam)', () => {
     const { host, res } = makeHost();
-    new ProblemDetailsExceptionFilter().catch(new HttpException({
-      message: 'Trang thai chuyen da thay doi.',
-      code: 'INVALID_STATE_TRANSITION',
-      extensions: { currentState: 'planned', allowedActions: ['dispatched', 'cancelled'] },
-    }, 409), host);
+    new ProblemDetailsExceptionFilter().catch(
+      new HttpException(
+        {
+          message: 'Trang thai chuyen da thay doi.',
+          code: 'INVALID_STATE_TRANSITION',
+          extensions: { currentState: 'planned', allowedActions: ['dispatched', 'cancelled'] },
+        },
+        409,
+      ),
+      host,
+    );
     const body = bodyOf(res);
     expect(body['status']).toBe(409);
     expect(body['code']).toBe('INVALID_STATE_TRANSITION');
@@ -63,20 +68,33 @@ describe('ProblemDetailsExceptionFilter extensions passthrough', () => {
     expect(body['allowedActions']).toEqual(['dispatched', 'cancelled']);
     const problem = parseProblemDetails(body);
     expect(problem === null).toBe(false);
-    expect(parseInvalidStateTransitionExtensions(body))
-      .toEqual({ currentState: 'planned', allowedActions: ['dispatched', 'cancelled'] });
+    expect(parseInvalidStateTransitionExtensions(body)).toEqual({
+      currentState: 'planned',
+      allowedActions: ['dispatched', 'cancelled'],
+    });
   });
 
   it('shields reserved envelope members from extension overwrite', () => {
     const { host, res } = makeHost();
-    new ProblemDetailsExceptionFilter().catch(new HttpException({
-      message: 'legit detail',
-      code: 'INVALID_STATE_TRANSITION',
-      extensions: {
-        status: 999, detail: 'hacked', title: 'hacked', instance: 'hacked',
-        code: 'HACKED', type: 'hacked', committed: 2,
-      },
-    }, 409), host);
+    new ProblemDetailsExceptionFilter().catch(
+      new HttpException(
+        {
+          message: 'legit detail',
+          code: 'INVALID_STATE_TRANSITION',
+          extensions: {
+            status: 999,
+            detail: 'hacked',
+            title: 'hacked',
+            instance: 'hacked',
+            code: 'HACKED',
+            type: 'hacked',
+            committed: 2,
+          },
+        },
+        409,
+      ),
+      host,
+    );
     const body = bodyOf(res);
     expect(body['status']).toBe(409);
     expect(body['detail']).toBe('legit detail');
@@ -89,9 +107,16 @@ describe('ProblemDetailsExceptionFilter extensions passthrough', () => {
 
   it('ignores a non-object extensions member', () => {
     const { host, res } = makeHost();
-    new ProblemDetailsExceptionFilter().catch(new HttpException({
-      message: 'x', extensions: 'not-an-object',
-    }, 400), host);
+    new ProblemDetailsExceptionFilter().catch(
+      new HttpException(
+        {
+          message: 'x',
+          extensions: 'not-an-object',
+        },
+        400,
+      ),
+      host,
+    );
     const body = bodyOf(res);
     expect(body['extensions']).toBeUndefined();
     expect(Object.keys(body).sort()).toEqual(['code', 'detail', 'instance', 'status', 'title']);
@@ -100,6 +125,12 @@ describe('ProblemDetailsExceptionFilter extensions passthrough', () => {
   it('adds nothing when extensions is absent (existing envelopes byte-stable)', () => {
     const { host, res } = makeHost();
     new ProblemDetailsExceptionFilter().catch(new HttpException({ message: 'plain' }, 400), host);
-    expect(Object.keys(bodyOf(res)).sort()).toEqual(['code', 'detail', 'instance', 'status', 'title']);
+    expect(Object.keys(bodyOf(res)).sort()).toEqual([
+      'code',
+      'detail',
+      'instance',
+      'status',
+      'title',
+    ]);
   });
 });

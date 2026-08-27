@@ -10,5 +10,4 @@ import { AuthModule } from '../auth/auth.module.js';
   providers: [SyncService],
   exports: [SyncService],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class SyncModule {}

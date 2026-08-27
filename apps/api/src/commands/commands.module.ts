@@ -14,5 +14,4 @@ import { PushModule } from '../push/push.module.js';
   providers: [CommandsGateway, CommandsService, TenantPolicy],
   exports: [CommandsGateway],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class CommandsModule {}

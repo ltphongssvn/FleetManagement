@@ -1,5 +1,5 @@
 // scripts/ci/deploy-stamp.test.ts
-// RED spec for deploy-time provenance stamping.
+// Spec for deploy-time provenance stamping.
 //
 // ROOT CAUSE THIS ADDRESSES: railway-deploy.yml documents that all three
 // services run in CLI-ONLY mode (Settings > Source connected to nothing) to
@@ -9,26 +9,29 @@
 // therefore baked GIT_SHA as an empty string and /health/version reported
 // unknown forever, leaving deploy verification a manual ritual.
 //
-// The workflow already resolves the exact deployed SHA and exposes it as
-// gate.outputs.head_sha. The fix is to hand that value to Railway as a service
-// variable before each railway up, then ASSERT it back from /health/version --
-// 2026 practice is that provenance is stamped from the builder and verified
-// automatically in a gate, never confirmed by hand.
+// ---- AND THE CALL SHAPE, 2026-08-19 ----
 //
-// INDEXED ACCESS IS BOUND AND GUARDED (2026-08-08). cmds[0][2] was TS2532 under
-// noUncheckedIndexedAccess. Optional chaining (cmds[0]?.[2]) was rejected: if a
-// regression dropped a command the assertion would report "expected undefined
-// to be GIT_BRANCH=main" instead of naming the real fault, and it would encode
-// "this element might be absent" into a test whose entire premise is that it is
-// not. Binding the row and asserting it exists is the house pattern (t63
-// literal-guard, t15 assignment-audit): a real guard that fails legibly, and it
-// removes the undefined from the type so the index that follows is legal.
+// PR #618's deploy failed mid-stamp: BUILD_TIME set successfully, then
+// GIT_BRANCH -- issued immediately after -- failed with "error decoding
+// response body: expected value at line 1 column 1". That is Railway's CLI
+// JSON-parsing a NON-JSON reply, which is what a rate limit returns; Railway's
+// own maintainers describe it that way, noting the CLI should print the 429
+// instead of the serde failure.
+//
+// The defect was ours: one CLI invocation PER VARIABLE, three per service and
+// nine across api, worker and ops-web, in a loop with no pause. `railway
+// variables` takes repeated --set pairs in ONE request, so the fix is to stop
+// making N calls where one will do -- not to retry into the limit, which is
+// slower and still flaky.
+//
+// A PREVIOUS TEST HERE WOULD HAVE BLOCKED THAT FIX. It asserted "never emits
+// --set", on a reading of the CLI help that marks --set legacy. The legacy form
+// is the `variables set K=V` SUBCOMMAND; --set is the current flag on
+// `railway variables` and the only form accepting several pairs. That
+// assertion encoded a misreading as a contract -- the same shape as the
+// --reporter=dot test that asserted intent rather than behaviour.
 import { describe, it, expect } from 'vitest';
-import {
-  buildStampVariables,
-  railwayVariablesArgs,
-  evaluateDeployedSha,
-} from './deploy-stamp.js';
+import { buildStampVariables, railwayVariablesArgs, evaluateDeployedSha } from './deploy-stamp.js';
 
 const SHA = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);
@@ -53,39 +56,60 @@ describe('buildStampVariables', () => {
   });
 });
 
-describe('railwayVariablesArgs', () => {
-  // The CLI help is the source of truth here, not memory: --set is documented
-  // as LEGACY, superseded by the "variable set" subcommand. --skip-deploys is
-  // real and is what stops each stamp from triggering its own redeploy, which
-  // would otherwise loop: set variable -> deploy -> set variable -> deploy.
-  const vars = { GIT_SHA: SHA, GIT_BRANCH: 'main' };
+describe('railwayVariablesArgs stamps in ONE call', () => {
+  const vars = { GIT_SHA: SHA, GIT_BRANCH: 'main', BUILD_TIME: '2026-08-19T00:00:00Z' };
 
-  it('emits one command per variable using the non-legacy subcommand', () => {
-    const cmds = railwayVariablesArgs('api', vars);
-    expect(cmds).toHaveLength(2);
-    expect(cmds[0]).toEqual([
-      'variable', 'set', 'GIT_BRANCH=main',
-      '--service', 'api', '--skip-deploys',
-    ]);
+  // THE FIX, as an assertion. Three variables previously meant three CLI
+  // invocations and three API round-trips; the second one is what Railway
+  // rate-limited during PR #618's deploy.
+  it('returns a SINGLE command however many variables are stamped', () => {
+    const cmd = railwayVariablesArgs('ops-web', vars);
+    expect(Array.isArray(cmd)).toBe(true);
+    expect(typeof cmd[0]).toBe('string');
+    expect(cmd[0]).toBe('variables');
   });
-  it('sorts variables so the emitted command sequence is reproducible', () => {
-    const cmds = railwayVariablesArgs('api', vars);
-    const [first, second] = cmds;
-    expect(first, 'expected a first command to inspect').toBeDefined();
-    expect(second, 'expected a second command to inspect').toBeDefined();
-    if (first === undefined || second === undefined) return;
-    expect(first[2]).toBe('GIT_BRANCH=main');
-    expect(second[2]).toBe('GIT_SHA=' + SHA);
+
+  it('carries every variable as its own --set pair', () => {
+    const cmd = railwayVariablesArgs('ops-web', vars);
+    expect(cmd.filter((a) => a === '--set')).toHaveLength(3);
+    expect(cmd).toContain('GIT_SHA=' + SHA);
+    expect(cmd).toContain('GIT_BRANCH=main');
+    expect(cmd).toContain('BUILD_TIME=2026-08-19T00:00:00Z');
   });
-  it('never emits the legacy --set flag', () => {
-    const flat = railwayVariablesArgs('api', vars).flat();
-    expect(flat).not.toContain('--set');
+
+  // The legacy form is the SUBCOMMAND `variables set K=V`, which takes one pair
+  // and is exactly the shape that caused the rate limit.
+  it('does NOT use the legacy set SUBCOMMAND', () => {
+    expect(railwayVariablesArgs('api', vars)).not.toContain('set');
   });
-  it('always passes --skip-deploys to avoid a set-deploy-set loop', () => {
-    for (const cmd of railwayVariablesArgs('api', vars)) {
-      expect(cmd).toContain('--skip-deploys');
-    }
+
+  // Without it, every stamp triggers its own redeploy: set -> deploy -> set.
+  it('always passes --skip-deploys', () => {
+    expect(railwayVariablesArgs('api', vars)).toContain('--skip-deploys');
   });
+
+  it('names the service exactly once', () => {
+    const cmd = railwayVariablesArgs('worker', vars);
+    expect(cmd.filter((a) => a === '--service')).toHaveLength(1);
+    expect(cmd).toContain('worker');
+  });
+
+  // Ordering is not semantic, but an unstable one makes two identical deploys
+  // produce different CI logs and defeats diffing.
+  it('sorts the pairs so the command is reproducible', () => {
+    const a = railwayVariablesArgs('api', vars).join(' ');
+    const b = railwayVariablesArgs('api', { ...vars }).join(' ');
+    expect(a).toBe(b);
+    expect(a.indexOf('BUILD_TIME=')).toBeLessThan(a.indexOf('GIT_BRANCH='));
+    expect(a.indexOf('GIT_BRANCH=')).toBeLessThan(a.indexOf('GIT_SHA='));
+  });
+
+  it('still stamps correctly for a single variable', () => {
+    const cmd = railwayVariablesArgs('api', { GIT_SHA: SHA });
+    expect(cmd.filter((a) => a === '--set')).toHaveLength(1);
+    expect(cmd).toContain('GIT_SHA=' + SHA);
+  });
+
   it('rejects an empty service name', () => {
     expect(() => railwayVariablesArgs('', vars)).toThrow();
   });
@@ -121,5 +145,8 @@ describe('evaluateDeployedSha', () => {
   });
   it('FAILS CLOSED on a non-object payload', () => {
     expect(evaluateDeployedSha(null, SHA).ok).toBe(false);
+  });
+  it('FAILS CLOSED on an array payload', () => {
+    expect(evaluateDeployedSha([], SHA).ok).toBe(false);
   });
 });

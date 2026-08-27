@@ -45,11 +45,21 @@ function makeFakeDb(captured: CapturedInsert[]): FleetDb {
     insert: (table: unknown) => ({
       values: (values: Record<string, unknown>) => ({
         onConflictDoNothing: (cfg?: { target?: unknown }) => {
-          captured.push({ table: tableNameOf(table), values, conflict: 'do-nothing', target: cfg?.target });
+          captured.push({
+            table: tableNameOf(table),
+            values,
+            conflict: 'do-nothing',
+            target: cfg?.target,
+          });
           return Promise.resolve();
         },
         onConflictDoUpdate: (cfg: { set: Record<string, unknown>; target?: unknown }) => {
-          captured.push({ table: tableNameOf(table), values, conflict: 'do-update', target: cfg.target });
+          captured.push({
+            table: tableNameOf(table),
+            values,
+            conflict: 'do-update',
+            target: cfg.target,
+          });
           return Promise.resolve();
         },
       }),
@@ -60,9 +70,7 @@ function makeFakeDb(captured: CapturedInsert[]): FleetDb {
 async function seededDriverNames(isProduction: boolean): Promise<string[]> {
   const captured: CapturedInsert[] = [];
   await seedReference(makeFakeDb(captured), { isProduction });
-  return captured
-    .filter((c) => c.table === 'driver')
-    .map((c) => String(c.values['fullName']));
+  return captured.filter((c) => c.table === 'driver').map((c) => String(c.values['fullName']));
 }
 
 describe('seedReference - canonical driver names', () => {
@@ -84,7 +92,8 @@ describe('seedReference - canonical driver names', () => {
     // normalizes" from "the literals happen to be clean today". The source must
     // therefore not interpolate the raw field into the insert.
     const raw = await import('node:fs').then((fs) =>
-      fs.readFileSync('src/database/seeds/reference-seed.ts', 'utf8'));
+      fs.readFileSync('src/database/seeds/reference-seed.ts', 'utf8'),
+    );
     // Assert on CODE, not on the file as text. The header documents the old
     // defect verbatim, so a naive source grep would match that prose and the
     // test would fail on its own explanation -- or, worse, pass later because

@@ -12,7 +12,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { DrizzleAlertLagRepo } from '../src/manifest/alert-lag.repo.js';
 import type { FleetDb } from '../src/database/database.module.js';
 
-interface OldestRow { outboxId: string; createdAt: Date }
+interface OldestRow {
+  outboxId: string;
+  createdAt: Date;
+}
 
 // The repo issues three select chains in order:
 //   (a) dead-letter count  -> awaited at .where

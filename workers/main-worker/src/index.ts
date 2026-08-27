@@ -37,18 +37,13 @@ export { IntakeJobDataSchema } from './intake/intake-job.js';
 export { ErpProcessor } from './erp/erp-processor.js';
 export type { ErpJobData } from './erp/erp-job.js';
 export { ErpJobDataSchema } from './erp/erp-job.js';
-export { routeJob, createBullDeadLetterSink, type RouterResult, type DeadLetterSink, type DeadLetterEntry } from './queue-router.js';
 export {
-  PROJECTION_POLICY_VERSION,
-  DISPATCH_BOARD_PROJECTION_NAME,
-  applyDispatchBoardEvent,
-  type RoadRunStateValue,
-  type ObservedAggregateType,
-  type RoadRunProjectionRow,
-  type SyncFeedEvent,
-  type ProjectionDelta,
-  SyncFeedEventSchema,
-} from './projections/projection-policy.js';
+  routeJob,
+  createBullDeadLetterSink,
+  type RouterResult,
+  type DeadLetterSink,
+  type DeadLetterEntry,
+} from './queue-router.js';
 export {
   OUTBOX_ROUTING_POLICY_VERSION,
   routeOutboxRow,

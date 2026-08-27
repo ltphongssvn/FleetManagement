@@ -13,11 +13,7 @@
 // to the next whole minute, PER JOB -- so parallel jobs bill in parallel and job
 // count itself costs money. Linux multiplier is 1x (this repo is Linux-only).
 import { describe, it, expect } from 'vitest';
-import {
-  JobSchema,
-  billableMinutesForJob,
-  summarizeBillableMinutes,
-} from './ci-minutes-audit.ts';
+import { JobSchema, billableMinutesForJob, summarizeBillableMinutes } from './ci-minutes-audit.ts';
 
 function makeJob(over: Record<string, unknown>): unknown {
   return JobSchema.parse({
@@ -129,22 +125,38 @@ describe('summarizeBillableMinutes', () => {
         workflowName: 'CI',
         runId: 1,
         jobs: [
-          makeJob({ id: 10, started_at: '2026-07-16T14:00:00Z', completed_at: '2026-07-16T14:04:17Z' }),
-          makeJob({ id: 11, started_at: '2026-07-16T14:00:00Z', completed_at: '2026-07-16T14:03:16Z' }),
+          makeJob({
+            id: 10,
+            started_at: '2026-07-16T14:00:00Z',
+            completed_at: '2026-07-16T14:04:17Z',
+          }),
+          makeJob({
+            id: 11,
+            started_at: '2026-07-16T14:00:00Z',
+            completed_at: '2026-07-16T14:03:16Z',
+          }),
         ],
       },
       {
         workflowName: 'Railway reference guard',
         runId: 2,
         jobs: [
-          makeJob({ id: 12, started_at: '2026-07-16T14:51:27Z', completed_at: '2026-07-16T14:52:38Z' }),
+          makeJob({
+            id: 12,
+            started_at: '2026-07-16T14:51:27Z',
+            completed_at: '2026-07-16T14:52:38Z',
+          }),
         ],
       },
       {
         workflowName: 'Railway reference guard',
         runId: 3,
         jobs: [
-          makeJob({ id: 13, started_at: '2026-07-16T14:51:26Z', completed_at: '2026-07-16T14:52:41Z' }),
+          makeJob({
+            id: 13,
+            started_at: '2026-07-16T14:51:26Z',
+            completed_at: '2026-07-16T14:52:41Z',
+          }),
         ],
       },
     ];

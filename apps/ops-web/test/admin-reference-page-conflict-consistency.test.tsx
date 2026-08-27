@@ -15,7 +15,10 @@ vi.mock('@/features/admin/reference-admin-client', () => ({
   },
 }));
 import ReferenceAdminPage from '@/app/admin/reference/page';
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 beforeEach(() => {
   listMock.mockResolvedValue([{ id: 'r1', label: 'TẤM' }]);
   createMock.mockRejectedValue(new Error('Tên hàng TẤM đã tồn tại'));
@@ -32,8 +35,12 @@ describe('ReferenceAdminPage conflict-display consistency (T5c)', () => {
     const addBtn = cargoSection.querySelector('button');
     if (!(addBtn instanceof HTMLButtonElement)) throw new Error('Tên hàng add button not found');
     fireEvent.click(addBtn);
-    await waitFor(() => { expect(createMock).toHaveBeenCalled(); });
-    await waitFor(() => { expect(cargoSection.textContent).toMatch(/đã tồn tại/i); });
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(cargoSection.textContent).toMatch(/đã tồn tại/i);
+    });
   });
   it('refreshes the list after a failed create so the conflicting row is visible', async () => {
     render(<ReferenceAdminPage />);
@@ -47,7 +54,9 @@ describe('ReferenceAdminPage conflict-display consistency (T5c)', () => {
     const addBtn = cargoSection.querySelector('button');
     if (!(addBtn instanceof HTMLButtonElement)) throw new Error('Tên hàng add button not found');
     fireEvent.click(addBtn);
-    await waitFor(() => { expect(createMock).toHaveBeenCalled(); });
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalled();
+    });
     await waitFor(() => {
       expect(listMock.mock.calls.length).toBeGreaterThan(initialListCalls);
     });

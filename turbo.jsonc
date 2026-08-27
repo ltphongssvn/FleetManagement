@@ -8,20 +8,11 @@
 {
   "$schema": "./node_modules/turbo/schema.json",
   "envMode": "strict",
-  "globalDependencies": [
-    ".nvmrc",
-    ".node-version",
-    ".github/workflows/**"
-  ],
-  "globalEnv": [
-    "CI",
-    "NODE_ENV",
-    "VERCEL_ENV",
-    "FEATURE_FLAGS_*"
-  ],
+  "globalDependencies": [".nvmrc", ".node-version", ".github/workflows/**"],
+  "globalEnv": ["CI", "NODE_ENV", "VERCEL_ENV", "FEATURE_FLAGS_*"],
   "futureFlags": {
     "affectedUsingTaskInputs": true,
-    "watchUsingTaskInputs": true
+    "watchUsingTaskInputs": true,
   },
   // Remote caching is the single largest lever on this repo CI bill. Measured
   // (//#audit:ci-minutes, Jul 1-4, 244 runs): ci.yml burned 1440 billable
@@ -51,23 +42,27 @@
   // secret and every job that runs turbo must export it.
   "remoteCache": {
     "enabled": true,
-    "signature": true
+    "signature": true,
   },
   "tasks": {
     "__transit__": {
       "description": "Graph-only node. Double-underscore reduces but does not guarantee collision-freedom; reserved internal name — see ADR-001.",
-      "dependsOn": ["^__transit__"]
+      "dependsOn": ["^__transit__"],
     },
     "build": {
       "description": "Compile production artifacts (NestJS dist, Next.js .next, Expo build). Owns dist/** exclusively. BUILD_ID policy: MUST NOT be read during build. Stamping happens at deploy time (commit SHA metadata) or runtime env — never consumed by build scripts. Not declared here (neither env nor passThroughEnv) because it must not be visible.",
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**", "out/**", "**/*.tsbuildinfo"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "$TURBO_ROOT$/tsconfig.base.json"
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**",
+        "build/**",
+        "out/**",
+        "**/*.tsbuildinfo",
       ],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tsconfig.base.json"],
       "env": ["NEXT_PUBLIC_*", "EXPO_PUBLIC_*", "APP_VERSION"],
-      "outputLogs": "new-only"
+      "outputLogs": "new-only",
     },
     "lint": {
       "description": "Static analysis (ESLint). dependsOn ^build (not just ^lint): the type-aware @typescript-eslint/no-unsafe-* rules need upstream workspace packages' emitted .d.ts to resolve cross-package import types. Without ^build, a clean CI checkout has no dist/ for @fleet/* deps, so those imports resolve to 'any' and the rules fire — passing locally (where dist/ exists) but failing CI. ^build guarantees parity. ^lint retained so the shared eslint-config lints itself before consumers. Hashes package-local + root ESLint configs + root tsconfig. Produces no cacheable artifacts (plain 'eslint .'), so outputs is [].",
@@ -81,14 +76,14 @@
         "$TURBO_ROOT$/.eslintrc*",
         "$TURBO_ROOT$/eslint.config.*",
         "$TURBO_ROOT$/.eslintignore",
-        "$TURBO_ROOT$/tsconfig.base.json"
+        "$TURBO_ROOT$/tsconfig.base.json",
       ],
-      "outputLogs": "new-only"
+      "outputLogs": "new-only",
     },
     "lint:fix": {
       "description": "Auto-fix lint violations — never cached, local/manual invocation only",
       "dependsOn": [],
-      "cache": false
+      "cache": false,
     },
     "typecheck": {
       "description": "Pure TypeScript verification (tsc --noEmit). dependsOn ^build (not just the __transit__ ordering node): cross-package imports of @fleet/* resolve to each dependency's EMITTED .d.ts, not its source -- the same constraint the lint task documents. Without ^build a clean or --force run (no prior dist/) fails with TS2307 'Cannot find module @fleet/...' because upstream declarations are not emitted yet; it only passed before by relying on a warm dist/ from an earlier build. ^build guarantees upstream .d.ts exist, matching real CI. (If cross-package source-resolution via TS project references were wired, an ^topo node like __transit__ would suffice and keep typecheck fully parallel -- see ADR-001.) Produces no cacheable artifact (a pass/fail check), so outputs is [] -- the build task owns **/*.tsbuildinfo. Letting BOTH own it let Turbo restore a buildinfo from a foreign run, and tsc --incremental then replayed stale module resolution (the TS2307 we hit, plus the 'no output files' warning). When composite:true + declaration emission is needed, split into a types:build task per ADR-001.",
@@ -100,9 +95,9 @@
         "tsconfig.*.json",
         "$TURBO_ROOT$/tsconfig.base.json",
         "$TURBO_ROOT$/tsconfig.json",
-        "$TURBO_ROOT$/tsconfig.*.json"
+        "$TURBO_ROOT$/tsconfig.*.json",
       ],
-      "outputLogs": "new-only"
+      "outputLogs": "new-only",
     },
     "test:unit": {
       "description": "Unit tests only — fastest cacheable feedback loop. Produces no cacheable artifacts (plain 'vitest run', no --coverage, no file reporter); coverage/** is owned by test:coverage. Declaring outputs here triggered Turbo's 'no output files found' warning on cache write. Hashes package-local + root test configs + root tsconfig (transforms/path aliases depend on it). Also dependsOn ^build (not just __transit__) so vitest/vite resolves @fleet/* imports to each package built dist before tests run; without it a purged or --force run races the upstream build destructive rebuild and fails with 'Failed to resolve entry for package @fleet/observability'.",
@@ -116,84 +111,84 @@
         "$TURBO_ROOT$/vitest.config.*",
         "$TURBO_ROOT$/vitest.workspace.*",
         "$TURBO_ROOT$/jest.config.*",
-        "$TURBO_ROOT$/tsconfig.base.json"
+        "$TURBO_ROOT$/tsconfig.base.json",
       ],
       "env": ["VITEST_*", "JEST_*"],
-      "outputLogs": "new-only"
+      "outputLogs": "new-only",
     },
     "check": {
       "description": "Per-package composite verification aggregate: lint + typecheck + test:unit as GRAPH DEPENDENCIES (parallel where the graph allows, each individually cached), then the package check script, which is an echo MARKER ONLY. Root cause this eliminates (recurred 3+ sessions): script/task vocabulary mismatch -- packages defined a check pnpm script (pnpm lint && pnpm typecheck && pnpm test) that was never a registered turbo task, so pnpm exec turbo run check failed with Could-not-find-task (distinct from the branch-staleness cause in context/turbo-root-task-staleness-bootstrap.md). The old && composite is the documented 2026 anti-pattern (sequential, unfilterable, cache-opaque); the dependsOn graph replaces it, mirroring the __ci_fast__ orchestration-node house pattern but package-scoped and filterable. Direct in-package pnpm check verifies NOTHING by design -- the marker prints the sanctioned invocation. cache:false: the marker is zero-work; caching lives in the dependency tasks. Run: pnpm exec turbo run check --filter=@fleet/<pkg>.",
       "dependsOn": ["lint", "typecheck", "test:unit"],
-      "cache": false
+      "cache": false,
     },
     "test:watch": {
       "description": "Fast local TDD loop (Red-Green-Refactor). Package scripts invoke 'vitest --watch' or 'jest --watch'.",
       "cache": false,
       "persistent": true,
-      "interruptible": true
+      "interruptible": true,
     },
     "projection:rebuild": {
       "description": "Rebuild dispatch_board_projection for one scope from the event feed (sanctioned rebuild path). Boots a minimal standalone Nest context (ProjectionRebuildModule). Live DB mutation: cache:false. passThroughEnv exposes DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run projection:rebuild --filter=@fleet/api -- --scope <companyId>.",
       "dependsOn": ["build"],
       "cache": false,
       "persistent": false,
-      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"],
     },
     "intake:redrive": {
       "description": "Emit compensating manifest_intake.requested outbox events for manifests stranded in verifying (Jun-24 expired-worker-token incident repair). Event-sourcing repair protocol: events flow THROUGH outbox -> relay -> BullMQ -> worker -> finalizeIntake; manifest state is never hand-patched. DRY-RUN by default; mutation needs --execute AND FLEET_ALLOW_INTAKE_REDRIVE=true (wipe-business-data speed-bump pattern). Live DB access: cache:false. Run: pnpm exec turbo run intake:redrive --filter=@fleet/api [-- --execute].",
       "dependsOn": ["build"],
       "cache": false,
       "persistent": false,
-      "passThroughEnv": ["DATABASE_URL", "FLEET_ALLOW_INTAKE_REDRIVE"]
+      "passThroughEnv": ["DATABASE_URL", "FLEET_ALLOW_INTAKE_REDRIVE"],
     },
     "repair:ghost-runs": {
       "description": "Event-sourced ghost-run repair: cancel every non-terminal road_run whose linked transport_orders are all terminal (or that has zero links) by appending road_run.cancelled through appendTriWrite, letting the projection runner heal dispatch_board. DRY-RUN by default; pass -- --execute to mutate. Live DB mutation: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run repair:ghost-runs --filter=@fleet/api [-- --execute].",
       "dependsOn": ["build"],
       "cache": false,
       "persistent": false,
-      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"],
     },
     "audit:device-registry": {
       "description": "READ-ONLY audit of device_registry fabrication from the manual pre-enroll path. Runs the unit-tested auditDeviceRegistry classifier against live rows and prints duplicate-udid groups, platform monoculture, placeholder-version count, and active device_session blast-radius. No mutation, no --execute. Live DB read: cache:false. passThroughEnv DATABASE_URL under strict envMode. Run: pnpm exec turbo run audit:device-registry --filter=@fleet/api.",
       "dependsOn": ["build"],
       "cache": false,
       "persistent": false,
-      "passThroughEnv": ["DATABASE_URL"]
+      "passThroughEnv": ["DATABASE_URL"],
     },
     "audit:assignment-uniqueness": {
       "description": "READ-ONLY audit of driver-vehicle assignment-pair uniqueness. Runs the unit-tested auditAssignmentUniqueness classifier against live ACTIVE assignment rows and prints any duplicate driver/vehicle/pair groups (violations of the 1:1 partial-unique-index invariant). --introspect mode instead prints whether the two dva_one_active_* partial-unique indexes exist and are VALID in prod (drift check). No mutation. Live DB read: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run audit:assignment-uniqueness --filter=@fleet/api [-- --introspect].",
       "dependsOn": ["build"],
       "cache": false,
       "persistent": false,
-      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"],
     },
     "audit:driver-roster": {
       "description": "READ-ONLY audit of the driver roster -- the instrument built to answer a dispatcher report that deleting a driver from the Can xu ly queue left the row on screen forever, while the SAME display name renders twice on the page. Runs the unit-tested auditDriverRoster classifier against live driver rows and prints: active/inactive counts; EXACT active-name collisions, which driver_company_active_name_ci_uq (UNIQUE on (company_id, lower(full_name)) WHERE active) makes IMPOSSIBLE, so observing one is positive evidence the index is absent or INVALID rather than merely of duplicate data; FOLDED collisions, names equal only after NFC normalization and whitespace collapsing, which slip past that index legitimately because lower() folds case but never normalizes composition -- and Vietnamese diacritics are exactly where NFD appears, since iOS keyboards emit decomposed sequences and Windows emits composed; soft-deleted drivers still holding an unrevoked assignment, meaning the soft-delete cascade did not run; and phones a soft-deleted row has reserved against re-registration, because driver_company_phone_uq is a PLAIN unique and not partial on active -- the asymmetry 2026 partial-index guidance names as the classic soft-delete trap. --introspect instead prints whether the driver indexes exist and are VALID in prod (pg_index.indisvalid), the drift check that tells you whether Postgres was ASKED to block a duplicate and failed, or was never asked at all. NO mutation, no --execute: this task exists to produce evidence before any fix is authored, never to repair. Live DB read: cache:false -- a cached verdict is a stale verdict, which is the exact failure it investigates. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run audit:driver-roster --filter=@fleet/api [-- --introspect].",
       "dependsOn": ["build"],
       "cache": false,
       "persistent": false,
-      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"],
     },
     "inspect:order-state": {
       "description": "Read-only diagnostic: print a transport order actual server-side state (transport_order row, linked road_run states + started_at/completed_at, last 20 fleet_audit_log events) resolved by --ref. Boots the standalone ProjectionRebuildModule (config + database). MUTATES NOTHING. Live DB read: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run inspect:order-state --filter=@fleet/api -- --ref XTT.07-020.",
       "dependsOn": ["build"],
       "cache": false,
       "persistent": false,
-      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"],
     },
     "inspect:review-parse": {
       "description": "Read-only diagnostic: reproduce the dispatcher-review producer (findByCompanyIdOrRef) for --ref and run its output through ListAssignedRowSchema.safeParse to reveal whether the review-page parse throws and on which path. Isolates the review-page crash. MUTATES NOTHING. Live DB read: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run inspect:review-parse --filter=@fleet/api -- --ref XTT.07-043.",
       "dependsOn": ["build"],
       "cache": false,
       "persistent": false,
-      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"],
     },
     "repair:complete-delivered-runs": {
       "description": "Event-sourced completion reconciler: drive every non-terminal road_run whose linked transport_orders are ALL fully photo-committed (committed manifests >= stop count, the same predicate the live completion gate enforces) to completed by appending road_run.completed through appendTriWrite, letting the projection runner heal dispatch_board. Heals runs stranded when intake lagged or the old departedAt-proxy made completion unreachable. DRY-RUN by default; pass -- --execute to mutate. Live DB mutation: cache:false. passThroughEnv DATABASE_URL + FLEET_PILOT_SCOPE under strict envMode. Run: pnpm exec turbo run repair:complete-delivered-runs --filter=@fleet/api [-- --execute].",
       "dependsOn": ["build"],
       "cache": false,
       "persistent": false,
-      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"]
+      "passThroughEnv": ["DATABASE_URL", "FLEET_PILOT_SCOPE"],
     },
     "test:integration": {
       "description": "Integration tests — need own + upstream builds + Testcontainers. Owns coverage/integration/** + test-results/integration/**.",
@@ -207,36 +202,36 @@
         "$TURBO_ROOT$/vitest.config.*",
         "$TURBO_ROOT$/vitest.workspace.*",
         "$TURBO_ROOT$/jest.config.*",
-        "$TURBO_ROOT$/tsconfig.base.json"
+        "$TURBO_ROOT$/tsconfig.base.json",
       ],
       "env": ["DATABASE_URL", "REDIS_URL", "S3_ENDPOINT", "TESTCONTAINERS_*"],
-      "outputLogs": "new-only"
+      "outputLogs": "new-only",
     },
     "db:generate": {
       "description": "Generate Drizzle SQL migrations by diffing the schema barrel against meta/ snapshots (drizzle-kit generate). Mutates the source tree (src/database/migrations/**), so cache:false -- a cache replay could materialize stale SQL from a foreign run. No build dependency: drizzle-kit reads .ts schema sources directly. passThroughEnv DATABASE_URL under strict envMode (drizzle.config.ts references it; generate itself never connects). Run: pnpm exec turbo run db:generate --filter=@fleet/api.",
       "cache": false,
-      "passThroughEnv": ["DATABASE_URL"]
+      "passThroughEnv": ["DATABASE_URL"],
     },
     "eas:builds": {
       "description": "List recent EAS cloud builds (Android + iOS) for the driver app via eas-cli build:list. Read-only network query against Expo servers, so cache:false (no deterministic output) and no build dependency. passThroughEnv exposes EXPO_TOKEN (auth; set persistently via ~/.expo-env) and EAS_PROJECT_ID under strict envMode. Run: pnpm exec turbo run eas:builds --filter=@fleet/driver-app.",
       "cache": false,
-      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
+      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"],
     },
     "eas:build:ios": {
       "description": "Dispatch an iOS Ad Hoc (preview profile) EAS cloud build of the driver app via eas-cli build. --non-interactive auto-includes every device already registered on the ad hoc provisioning profile server-side (no App Store Connect API Key, no device-selection prompt), so a driver iPhone registered via the eas device:create QR flow is baked into the new .ipa. Waits for the build (no --no-wait) so the operator gets the install link; CI uses --no-wait for fire-and-forget. Remote build + Apple credential network mutation: cache:false, no build dependency (EAS builds remotely). passThroughEnv exposes EXPO_TOKEN (auth; set persistently via ~/.expo-env) and EAS_PROJECT_ID under strict envMode. Run: pnpm exec turbo run eas:build:ios --filter=@fleet/driver-app.",
       "cache": false,
-      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
+      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"],
     },
     "eas:build:ios:interactive": {
       "description": "Dispatch an iOS Ad Hoc EAS build INTERACTIVELY -- deliberately WITHOUT --non-interactive. This is the ONLY path that adds a newly-registered device to the ad hoc provisioning profile, and it exists because the omission cost a driver a working app. Expo documents the constraint: eas build --non-interactive reuses a valid provisioning profile WITHOUT updating its device list, so the build succeeds while the app will not install on devices registered after the profile was last updated. A driver self-registering via the eas device:create QR flow lands in the Apple Developer PORTAL, not in the EAS-stored profile, and the phone then fails install with 'khong the xac minh tinh toan ven' (cannot verify integrity) -- the Ad Hoc UDID allowlist gate, NOT Developer Mode, which shows a different message and only AFTER a successful install. --refresh-ad-hoc-provisioning-profile is NOT the answer: it was tried and REVERTED in PR #260 because in non-interactive CI it demands an App Store Connect API Key this cert-only remote-credentials setup does not have. Interactively, eas authenticates with Apple, reports 'The provisioning profile is missing the following devices', offers to choose devices again, and regenerates the profile so one install link covers every registered iPhone. MUST run on a bare TTY -- never piped through tail, or the prompts cannot be answered. Note two Apple-side latencies that are not build defects: registering with Expo does not register with Apple (the device is added on first inclusion in a build), and Apple may take 24-72h to process a new device, during which provisioning can fail. cache:false (remote build + Apple credential mutation), no build dependency (EAS builds remotely). passThroughEnv exposes EXPO_TOKEN and EAS_PROJECT_ID under strict envMode. Run: pnpm exec turbo run eas:build:ios:interactive --filter=@fleet/driver-app.",
       "cache": false,
       "interactive": true,
-      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
+      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"],
     },
     "eas:build:android": {
       "description": "Dispatch an Android (preview profile) EAS cloud build of the driver app via eas-cli build, producing an installable APK. --non-interactive requires no prompts (Android internal distribution is not device-UDID-scoped, unlike iOS Ad Hoc). Waits for the build (no --no-wait) so the operator gets the install link; CI uses --no-wait for fire-and-forget. Remote build network operation: cache:false, no build dependency (EAS builds remotely). passThroughEnv exposes EXPO_TOKEN (auth; set persistently via ~/.expo-env) and EAS_PROJECT_ID under strict envMode. Run: pnpm exec turbo run eas:build:android --filter=@fleet/driver-app.",
       "cache": false,
-      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
+      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"],
     },
     "test:coverage": {
       "description": "Coverage-gated tests — runs unit + integration with merged coverage thresholds. Owns coverage/merged/** + coverage/unit/**. Used by CI quality gate.",
@@ -247,10 +242,10 @@
         "vitest.config.*",
         "vitest.coverage.config.*",
         "vitest.integration.config.*",
-        "$TURBO_ROOT$/tsconfig.base.json"
+        "$TURBO_ROOT$/tsconfig.base.json",
       ],
       "env": ["DATABASE_URL", "REDIS_URL", "S3_ENDPOINT", "TESTCONTAINERS_*", "VITEST_*"],
-      "outputLogs": "new-only"
+      "outputLogs": "new-only",
     },
     "test:mutation": {
       "description": "Stryker mutation testing — slow (minutes per package). Each package config sets its own break threshold. Cache key includes src/** + test/** + stryker.config.json so a clean repo state replays from .stryker-tmp/incremental.json.",
@@ -260,214 +255,292 @@
         "$TURBO_DEFAULT$",
         "stryker.config.json",
         "vitest.config.*",
-        "$TURBO_ROOT$/tsconfig.base.json"
+        "$TURBO_ROOT$/tsconfig.base.json",
       ],
       "env": ["STRYKER_*"],
-      "outputLogs": "new-only"
+      "outputLogs": "new-only",
     },
     "//#test:e2e": {
       "description": "End-to-end tests (Playwright), repo-root task. The playwright config lives at the repo root (testDir ./e2e, workers 1) and the spec-runner is the root 'test:e2e' script, so this spans packages and MUST be root-scoped (the '//#' prefix). A prior package-level 'test:e2e' task was dead: no package exposes a test:e2e script, so 'turbo run test:e2e --filter=@fleet/ops-web' ran zero tasks. env declares the vars the e2e run actually reads (E2E_* base/api URLs, OIDC_* for the IdP authorize flow, PLAYWRIGHT_* runtime) so they pass the envMode:strict boundary; the old task listed DATABASE_URL/API_BASE_URL/TESTCONTAINERS_* which the Playwright run does not consume. Owns playwright-report/**. cache:false until a migration-hash key is wired (ADR-001).",
       "cache": false,
-      "env": ["E2E_*", "OIDC_*", "PLAYWRIGHT_*"]
+      "env": ["E2E_*", "OIDC_*", "PLAYWRIGHT_*"],
     },
     "//#stack:e2e:isolated": {
       "description": "Root-level task: raise the ISOLATED per-worktree browser-E2E stack (infra + api + ops-web, NO driver/expo/android) on this worktree deterministic compose ports (compose-identity), health-gated (docker compose up --wait), run Playwright via the existing ops-web-runner with identity-derived E2E_BASE_URL/E2E_API_URL, then tear the stack down (down -v). Prefix //# ensures repo-root-only (spans packages + the whole compose stack, not a per-package task). Replaces the ad-hoc docker compose + inline E2E_* env pattern with one rediscoverable op. env declares the vars the run reads so they pass envMode:strict. cache:false (side-effecting: docker + network). Run: pnpm exec turbo run stack:e2e:isolated -- e2e/dispatch-board-search.spec.ts.",
       "cache": false,
-      "env": ["E2E_*", "OIDC_*", "PLAYWRIGHT_*", "FLEET_*"]
+      "env": ["E2E_*", "OIDC_*", "PLAYWRIGHT_*", "FLEET_*"],
     },
     "//#stack:stop": {
       "description": "Root-level task: STOP every RUNNING fleet compose stack data-safely so its containers stop holding resident RAM. Prefix //# ensures repo-root-only (it spans the whole Docker host, belongs to no workspace package). STANDING RULE: never leave a fleet stack up-for-days idle -- each running container keeps its process memory resident and its JSON logs grow unbounded whether or not it is doing work. ROOT CAUSE THIS CLOSES: the task previously pinned the project to the literal fleet-pilot, matching what stack-up.ts hardcoded at the time. compose-identity.ts later began injecting a per-worktree project (fleet-<key>) into each worktree .env, so this planned docker compose -p fleet-pilot stop against a project that was not running; stopping an empty project is not an error, so it exited 0 printing STACK STOPPED while seven containers from a two-day-old stack:up stayed resident. Projects are now DISCOVERED via the shared primitive in docker-reclaim.ts (docker compose ls --format json -- compose reports its own project names; container names are never parsed, since hyphenated services like ops-web and mock-oauth2 break every split and a fleet-<hex> pattern silently skips fleet-pilot). Deliberately stop, NEVER down/-v: containers halt and release memory while named volumes + networks + container state survive for an instant restart (stack:up / stack:restart). Deliberately no cache pruning either -- that belongs to //#docker:reclaim, so this light done-for-now op cannot quietly delete build cache. FAILS CLOSED: the verdict comes from RE-READING the projects after stopping, never from the stop commands exit codes, and an unreachable daemon throws rather than parsing to an empty list (a broken read looks exactly like an idle host) -- exit 1 naming the survivors. Pure planners (stopComposeArgs, stackStopVerdict) are unit-tested under //#test:scripts. Data-safe and idempotent: a second run on an already-stopped stack is a no-op. cache:false (side-effecting docker, no cacheable output). Run after any local E2E/stack use: pnpm exec turbo run stack:stop.",
       "cache": false,
-      "persistent": false
+      "persistent": false,
     },
     "//#docker:reclaim": {
       "description": "Root-level task: reclaim host resources after local Docker use, and PROVE it. Prefix //# ensures repo-root-only (it spans the whole Docker host, belongs to no workspace package). Exists because //#stack:stop could not honour the standing never-leave-a-stack-idle rule: it planned -p fleet-pilot while compose-identity.ts injects a per-worktree project (fleet-<key>), so it targeted a project that was not running, docker compose stop on an empty project is not an error, and it exited 0 printing STACK STOPPED -- while seven containers from a stack:up two days earlier stayed resident. Projects are DISCOVERED from docker compose ls --format json, which reports project names directly; container names are deliberately never parsed (hyphenated services ops-web/mock-oauth2/driver-app break every split, and a fleet-<12hex> pattern silently skips the legacy shared fleet-pilot stack -- both failures are pinned as tests). Then trims the BuildKit cache by AGE, never -a/--all: a blanket prune wipes the pnpm store cache-mount (--mount=type=cache,id=pnpm) that stack-e2e-isolated deliberately preserves, forcing a ~1800-package re-download, while sparing nothing that matters (the bulk is one ~3GB builder snapshot per --no-cache run). FAILS CLOSED twice: unreadable docker output throws rather than parsing to an empty list (a broken read looks exactly like an idle host), and the verdict comes from RE-READING the projects after acting, never from the stop commands' exit codes -- exit 1 with the survivors named. Does NOT reclaim the Docker Desktop VM: that VM holds its memory while Docker Desktop is open regardless of containers, so quit Docker Desktop to return it. Pure planners (fleetProjectsFrom, stopArgsFor, cachePruneArgs, ageFilter, reclaimVerdict) unit-tested under //#test:scripts; only the driver touches docker. cache:false (side-effecting host state, no cacheable output). Run after any local stack/E2E use: pnpm exec turbo run docker:reclaim.",
       "cache": false,
-      "persistent": false
+      "persistent": false,
     },
     "__ci_fast__": {
       "description": "PR gate orchestration node — lint + typecheck + test:unit + codemod drift gate. Double-underscore prevents package-script collision. Expose via root package.json script 'ci:fast' for friendly CLI. CI workflow should matrix-split (ADR-001).",
-      "dependsOn": ["lint", "typecheck", "test:unit", "//#codemod:check", "//#test:scripts", "//#lint:scripts", "//#lint:e2e", "//#typecheck:scripts", "//#guard:local-secrets"],
-      "cache": false
+      "dependsOn": [
+        "lint",
+        "typecheck",
+        "test:unit",
+        "tokens:lint",
+        "//#codemod:check",
+        "//#test:scripts",
+        "//#lint:scripts",
+        "//#lint:e2e",
+        "//#typecheck:scripts",
+        "//#guard:local-secrets",
+        "//#format:check",
+      ],
+      "cache": false,
     },
     "__ci_full__": {
       "description": "Pre-merge gate orchestration node — cumulative on __ci_fast__ + build + test:integration.",
       "dependsOn": ["__ci_fast__", "build", "test:integration", "test:coverage"],
-      "cache": false
+      "cache": false,
     },
     "__ci_release__": {
       "description": "Release/nightly gate orchestration node — cumulative on __ci_full__ + test:e2e.",
       "dependsOn": ["__ci_full__", "//#test:e2e"],
-      "cache": false
+      "cache": false,
     },
     "__ci__": {
       "description": "Alias orchestration node for __ci_fast__ (GitFlow PR convention).",
       "dependsOn": ["__ci_fast__"],
-      "cache": false
+      "cache": false,
     },
     "//#codemod:check": {
       "description": "Root-level task: run the @fleet/codemods drift gate (extract-parse-one-number --check) across the worker tsconfig spanned with @fleet/domain source. Prefix '//#' ensures repo-root-only (it spans packages, so it is not a per-package task). Fails when source still has an un-migrated parseOneNumber outside @fleet/domain. Wired into __ci_fast__ so PRs fail on drift. cache:false — it is a fast in-memory AST pass with no cacheable output.",
-      "cache": false
+      "cache": false,
     },
     "//#typecheck:scripts": {
-      "description": "Root-level task: tsc --noEmit over the repo-level tooling in scripts/. Prefix //# ensures repo-root-only. Exists because NOTHING typechecked this tree: the package-scoped typecheck task cannot reach scripts/ (it belongs to no workspace package), and //#lint:scripts is TYPE-AWARE but reports lint rules only -- it builds a TS program and then never surfaces the general TS diagnostic set, so a noUncheckedIndexedAccess violation passed lint while silently returning undefined at runtime. That exact hole produced a FALSE MERGE: an unclassifiable check was dropped from every bucket, the rollup reported green, and a genuinely failed check would have been merged. ci.yml already recognises this shape and solves it for e2e/ with a dedicated tsc step (E2E Typecheck); scripts/ is the identical shape and had no equivalent. Completes the root-tooling triad with //#lint:scripts and //#test:scripts. Runs the committed root script typecheck:scripts verbatim -- it is NOT a second compiler invocation. WIRED INTO __ci_fast__ (2026-08-08). It was deliberately ungated at registration: the first run reported 89 pre-existing errors (58 after the scripts/tsconfig.json fix), and gating on that immediately would have made every branch in a ~50-worktree estate unmergeable at once and taught the team to ignore the tool -- the same adoption reasoning //#knip documents. scripts/typecheck-scripts-ratchet.guard.test.ts held the line meanwhile (errors may fall, never rise) and named this promotion as its own exit condition. The count reached 0 by fixing every error at its root -- no ceiling raised, no compiler flag disabled, no suppression pragma -- so the ratchet is deleted and the gate is live. ci-fast-covers-typecheck-scripts.guard.test.ts now asserts this wiring, so a future edit that drops it fails a test instead of silently reopening the hole. cache:false -- a pass/fail check with no cacheable output, matching lint:scripts and test:scripts. Run: pnpm exec turbo run typecheck:scripts.",
-      "cache": false
+      "dependsOn": ["@fleet/test-fixtures#build"],
+      "description": "dependsOn @fleet/test-fixtures#build for the SAME reason //#test:scripts documents: guards under scripts/ import readTurboTasks from @fleet/test-fixtures, whose package exports point at ./dist/index.js, and both eslint (type-aware rules) and tsc resolve a workspace package through its EMITTED entry rather than its source. With no edge the task runs before that dist exists; TypeScript then types readTurboTasks as an ERROR type and the failure surfaces as 18 no-unsafe-argument / dot-notation reports that name neither the package nor the missing build. It passed on every warm worktree and failed on the first COLD one -- the exact trap lint-e2e-depends-on-build was written to catch, and the one //#test:scripts already closed on 2026-08-23 for itself alone while its two siblings, which lint and typecheck the very same files, were left without it. A ROOT task cannot use ^build (it has no package dependencies to topologically precede it), so the edge names the package task explicitly. Root-level task: tsc --noEmit over the repo-level tooling in scripts/. Prefix //# ensures repo-root-only. Exists because NOTHING typechecked this tree: the package-scoped typecheck task cannot reach scripts/ (it belongs to no workspace package), and //#lint:scripts is TYPE-AWARE but reports lint rules only -- it builds a TS program and then never surfaces the general TS diagnostic set, so a noUncheckedIndexedAccess violation passed lint while silently returning undefined at runtime. That exact hole produced a FALSE MERGE: an unclassifiable check was dropped from every bucket, the rollup reported green, and a genuinely failed check would have been merged. ci.yml already recognises this shape and solves it for e2e/ with a dedicated tsc step (E2E Typecheck); scripts/ is the identical shape and had no equivalent. Completes the root-tooling triad with //#lint:scripts and //#test:scripts. Runs the committed root script typecheck:scripts verbatim -- it is NOT a second compiler invocation. WIRED INTO __ci_fast__ (2026-08-08). It was deliberately ungated at registration: the first run reported 89 pre-existing errors (58 after the scripts/tsconfig.json fix), and gating on that immediately would have made every branch in a ~50-worktree estate unmergeable at once and taught the team to ignore the tool -- the same adoption reasoning //#knip documents. scripts/typecheck-scripts-ratchet.guard.test.ts held the line meanwhile (errors may fall, never rise) and named this promotion as its own exit condition. The count reached 0 by fixing every error at its root -- no ceiling raised, no compiler flag disabled, no suppression pragma -- so the ratchet is deleted and the gate is live. ci-fast-covers-typecheck-scripts.guard.test.ts now asserts this wiring, so a future edit that drops it fails a test instead of silently reopening the hole. cache:false -- a pass/fail check with no cacheable output, matching lint:scripts and test:scripts. Run: pnpm exec turbo run typecheck:scripts.",
+      "cache": false,
     },
     "//#lint:scripts": {
-      "description": "Root-level task: ESLint the repo-level tooling in scripts/. Prefix //# ensures repo-root-only. Exists because the package-scoped lint task CANNOT reach scripts/: that tree belongs to no workspace package, so turbo run lint skipped it entirely and the only way to lint a root script was a bare eslint invocation -- an uncaptured, unrediscoverable op that no gate ran. Same shape as the guards being wired into a turbo node CI never invoked: the check existed in principle and nowhere in practice. Pairs with //#test:scripts (vitest) so root tooling gets the same lint+test treatment every package gets. cache:false -- a pass/fail check with no cacheable output, matching codemod:check and test:scripts. Run: pnpm exec turbo run lint:scripts.",
-      "cache": false
+      "dependsOn": ["@fleet/test-fixtures#build"],
+      "description": "dependsOn @fleet/test-fixtures#build for the SAME reason //#test:scripts documents: guards under scripts/ import readTurboTasks from @fleet/test-fixtures, whose package exports point at ./dist/index.js, and both eslint (type-aware rules) and tsc resolve a workspace package through its EMITTED entry rather than its source. With no edge the task runs before that dist exists; TypeScript then types readTurboTasks as an ERROR type and the failure surfaces as 18 no-unsafe-argument / dot-notation reports that name neither the package nor the missing build. It passed on every warm worktree and failed on the first COLD one -- the exact trap lint-e2e-depends-on-build was written to catch, and the one //#test:scripts already closed on 2026-08-23 for itself alone while its two siblings, which lint and typecheck the very same files, were left without it. A ROOT task cannot use ^build (it has no package dependencies to topologically precede it), so the edge names the package task explicitly. Root-level task: ESLint the repo-level tooling in scripts/. Prefix //# ensures repo-root-only. Exists because the package-scoped lint task CANNOT reach scripts/: that tree belongs to no workspace package, so turbo run lint skipped it entirely and the only way to lint a root script was a bare eslint invocation -- an uncaptured, unrediscoverable op that no gate ran. Same shape as the guards being wired into a turbo node CI never invoked: the check existed in principle and nowhere in practice. Pairs with //#test:scripts (vitest) so root tooling gets the same lint+test treatment every package gets. cache:false -- a pass/fail check with no cacheable output, matching codemod:check and test:scripts. Run: pnpm exec turbo run lint:scripts.",
+      "cache": false,
     },
     "//#eas:freshness": {
       "description": "DEAD-MAN'S SWITCH for native builds: assert a SUCCESSFUL EAS build exists within the policy window, per platform. Exists because iOS builds errored for ~2 MONTHS (15 consecutive, last success 2026-06-12) and nobody knew until a driver could not install the app. The alerting was NOT missing -- eas-inbound.controller.ts raised a Sentry fatal every time, so fifteen fatals fired correctly and were dismissed. What was absent is a check on the ABSENCE OF SUCCESS: the webhook records failure loudly (errored -> fatal) and success silently (finished -> 200), so nothing could answer 'when did iOS last succeed?'. The fingerprint short-circuit then hid it further -- runs either matched the stale finished build and skipped, or dispatched and errored, and a stream of errors plus skips is not silence. FAIL-CLOSED: only fresh exits 0; stale, never, unreadable evidence and our own misconfiguration all exit non-zero, because an inability to prove freshness must never quietly produce success. No SKIP_ escape hatch by design. Pure cores (eas-build-observation parses, eas-build-freshness decides) are exhaustively unit-tested offline; this task is orchestration only. cache:false -- queries a remote service, and a cached verdict is a stale verdict, which is the exact bug. Run: pnpm exec turbo run eas:freshness -- --max-age-days 14.",
       "cache": false,
-      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"]
+      "passThroughEnv": ["EXPO_TOKEN", "EAS_PROJECT_ID"],
+    },
+    "//#expo:doctor": {
+      "description": "Root-level task: run EXPO'S OWN dependency oracle against every Expo app, and classify what it finds by severity. Prefix //# ensures repo-root-only: it spans two workspaces and shells out to a CLI that belongs to neither. ROOT CAUSE THIS CLOSES, and it is a WRONG-ORACLE bug rather than a missing check. //#knip reported expo-system-ui as an UNLISTED dependency of both Expo apps, inferred from userInterfaceStyle:automatic in app.json -- a reasonable inference, and wrong: expo-doctor run against the same tree reports 19/20 checks passing with NO missing peer dependency at all. knip answers a JS IMPORT-GRAPH question, and Expo native-module correctness is not an import-graph question. Since SDK 54 autolinking links modules from an app's DIRECT AND NESTED DEPENDENCIES rather than scanning node_modules, so whether a native module is present, declared and version-matched is decided by rules only Expo's tooling models. Acting on knip's answer would have added a dependency nothing needs. WHAT THE RIGHT ORACLE FOUND ON ITS FIRST RUN: 15 packages drifted from the installed SDK pins, including expo itself (55.0.26 vs ~55.0.29) and react-native (0.83.6 vs 0.83.10). None of that is visible to knip, eslint, tsc or any other gate this repo owns; it accumulated silently because NOTHING ASKED. A June session proved the value by hand -- it found 'Missing peer dependency: expo-constants, Required by: expo-router', which was fixed and is declared today -- and then nothing made the check repeat, the decorative-control shape this repo has now closed five times. GRADED, NOT BOOLEAN, and that is the load-bearing design decision. A version drift and a MISSING NATIVE PEER are not the same severity: Expo documents the latter as 'your app may crash outside of Expo Go', while the former is hygiene. Collapsing them forces a choice between a gate born red on 15 patch drifts -- which teaches everyone to bypass it, the adoption failure //#typecheck:scripts and //#knip both document -- and no gate at all. So a missing peer BLOCKS and drift REPORTS, because the drift fix rewrites versions mobile-native-bundle-config.test.ts and eas-config.test.ts deliberately pin and belongs in its own reviewable bump. RUNS expo-doctor@latest VIA npx, deliberately not a declared devDependency: its checks track the SDK, so a lockfile-pinned copy would answer with last quarter's rules about this quarter's SDK -- the stale-instrument failure //#prod:db-url exists to prevent. --yes suppresses the install prompt so it can never block on stdin, the defect that hung //#secrets:baseline for eight hours. THE EXIT CODE IS NOT THE VERDICT: expo-doctor exits non-zero whenever any check fails, including for drift alone, so the summary is PARSED from stdout and classified here. FAILS CLOSED with unreadable DOMINATING: a run whose output could not be read cannot honestly report a pass or name a specific peer, and an empty app list is unreadable rather than ok -- the confident zero estate:verify refuses for a worktree list with no records. Pure cores (EXPO_APPS, doctorArgs, parseDoctorSummary, doctorVerdict, describeDoctor) are unit-tested under //#test:scripts against REAL output fixtures from this repo; only the driver spawns npx. Exit 0 ok, 1 a native peer is missing, 3 unreadable. cache:false -- it queries the npm registry and reads live manifests, and a cached verdict is a stale verdict. Run: pnpm exec turbo run expo:doctor.",
+      "cache": false,
+      "persistent": false,
+    },
+    "//#bump:expo": {
+      "description": "Root-level task: align every Expo app's dependencies with the versions the INSTALLED SDK expects -- the reviewable bump //#expo:doctor defers to. Prefix //# ensures repo-root-only: it spans both Expo workspaces and belongs to neither. WHY IT EXISTS: //#expo:doctor reports drift and deliberately does NOT block on it, because the fix rewrites dependency versions across the Frozen Stack and a gate born red on 26 patch drifts is one everybody works around -- the adoption failure //#typecheck:scripts and //#knip both document. But deferring to a reviewable bump only means something if the bump is a CAPTURED OP, and it was not: the sole way to do it was `expo install --check` typed by hand, the uncaptured idiom the rule forbids and exactly the shape //#bump:turbo and //#bump:pnpm were created to retire for their own toolchains. THE VERSIONS ARE EXPO'S, NOT OURS, and that is the design difference from //#bump:turbo. bump:turbo takes a target version because turbo is one package and the operator chooses when to move; here the correct version of every Expo package is a FACT the installed SDK already knows, and inventing one would reintroduce the very mismatch expo-doctor exists to find. So this op takes NO version argument: it reads the drift table expo-doctor prints -- name, expected, found -- and applies the EXPECTED column verbatim, range operator included, so an exact pin like react-native 0.83.10 stays exact while expo keeps its tilde. It therefore cannot silently move the SDK beyond what is installed, and re-running //#expo:doctor is the verification. ONLY DECLARED PACKAGES ARE TOUCHED: expo-doctor also reports drift for TRANSITIVE packages no manifest owns, and writing those in would mint a phantom direct dependency -- pinned by a tool, used by nobody, forever. EXACT-OCCURRENCE CONTRACT, inherited from bump:turbo: each package must appear as a declared key exactly once, so zero (the plan disagrees with the file) and two (dependencies and devDependencies both declare it, and a blind replace would rewrite the wrong one) both THROW rather than writing a manifest nobody predicted. DRY-RUN BY DEFAULT, matching //#deps:reconcile, //#worktree:preserve and every repair:* task -- --execute is the only consent, so an accidental invocation cannot rewrite a manifest. IDEMPOTENT by construction, so a second run is a verifiable no-op. Pure cores (planExpoBump, applyManifestVersions) are unit-tested under //#test:scripts against a REAL driver-app manifest fixture, including the catalog: protocol a naive semver rewrite would destroy; only the driver spawns pnpm. Exit 0 ok, 1 a manifest could not be rewritten as planned, 3 nothing to do. cache:false -- it reads live manifests and mutates them, and a cached verdict is a stale verdict. Run: pnpm exec turbo run bump:expo [-- --execute].",
+      "cache": false,
+      "persistent": false,
+    },
+    "//#worktree:stale-gate": {
+      "description": "Fail when a worktree is FINISHED and IDLE -- merged, clean, pushed and untouched past RECENT_IDLE_THRESHOLD_HOURS. Exists because closing t1-wt2-cf-beacon-no-transform reported ahead=117 contained=true idleH=604: every commit already in origin/develop, untouched 25 days, with six siblings identical. The predicate bug that REFUSED them is fixed (#550); nothing made anyone RECLAIM them, so residue accumulated until a census happened to be read. ONE THRESHOLD, NOT TWO: close-worktree.ts owns RECENT_IDLE_THRESHOLD_HOURS=24 as the LIVE/STALE line, worktree:close refuses to delete a live worktree, and this gate insists a stale one be reclaimed -- two halves of one invariant, sharing one constant so they cannot drift into an unresolvable state where a worktree is gate-flagged and close-refused at once. NOT stale ALONE: 38 of 48 worktrees here exceed 24h idle, so failing on all of them would be born red, make every branch unmergeable simultaneously, and teach everyone to ignore it -- the documented reason //#typecheck:scripts stayed ungated until zero. Long-lived idle WIP is legitimate; finished work nobody reclaimed is not. CLOSEABILITY IS DELEGATED to decideClose, never re-derived: a second opinion is how pr-follow/pr-automerge carried one bug twice and how sync:worktrees, worktree:close and `git branch -d` were each wrong about the same question. RUNS LOCALLY BY DESIGN -- a CI runner has zero worktrees, so a CI version would inspect an empty set and pass forever. cache:false (reads live reflogs). Run: pnpm exec turbo run worktree:stale-gate.",
+      "cache": false,
     },
     "//#terminal:census": {
       "description": "Root-level task: print the terminal-registry ceiling and the next free number. READ-ONLY. The registry supersedes the sync:worktrees census entirely: that census reads `git worktree list`, the LOCAL worktrees of ONE machine, so each of the two laptops sharing this remote sees only its own half of the sequence (the MacBook reported t77 while WSL2 was at t88, and t78 was cut on top of a terminal in use for ten allocations -- the same class forced t16 -> t19 three months earlier). It also FORGETS: closing a worktree drops the high-water, so a burned number gets re-issued. Terminal refs are never deleted, so the remote ceiling only rises. Reads refs/remotes/ LOCALLY via for-each-ref, so no network round-trip; run sync:worktrees first if the refs are stale. cache:false -- the answer changes whenever any machine claims. Run: pnpm exec turbo run terminal:census.",
-      "cache": false
+      "cache": false,
     },
     "//#terminal:claim": {
       "description": "Root-level task: claim the next terminal number and print the conventional worktree directory name. Exists because the pure core (terminal-registry.ts) was complete and unit-tested but NO TASK CALLED IT -- the rule was correct, verified and unreachable, so every claim was hand-typed from memory. Hand-typing lost three guarantees the core specifies: (1) the claim push carried NO --force-with-lease, so a concurrent claim from the other laptop would be silently overwritten, where git documents the lease as an atomic compare-and-swap and an EMPTY expected value as create-if-absent; (2) reads went over the network via ls-remote instead of local for-each-ref; (3) nothing guaranteed the claim object was unique, and two machines pushing an IDENTICAL object both report 'Everything up-to-date' and exit 0, defeating the lease -- so the blob carries host + timestamp. FETCHES BEFORE LEASING (the documented CI shape) because the lease compares against the last fetch. FAILS CLOSED on an empty registry after a successful fetch rather than answering t1, which would re-issue a burned number. cache:false -- it mutates the remote. Run: pnpm exec turbo run terminal:claim -- <slug>.",
-      "cache": false
+      "cache": false,
     },
     "//#lint:e2e": {
-      "description": "Root-level task: ESLint the Playwright acceptance suite in e2e/. Prefix //# ensures repo-root-only. EXISTS BECAUSE NOTHING LINTED THIS TREE. @fleet/e2e is a workspace member but declares only a typecheck script, so turbo run lint --filter=@fleet/e2e ran its DEPENDENCY and reported success without linting a single spec; ci.yml has a dedicated E2E Typecheck step for exactly this reason (the specs sit at the repo root, outside any package tsconfig) but had no lint equivalent. Meanwhile eslint.config.mjs carefully binds e2e/**/*.ts to e2e/tsconfig.json for type-aware rules -- configuration that was never executed. This is the THIRD instance of the same hole in this repo, after //#lint:scripts and //#typecheck:scripts: a check that exists in principle and nowhere in practice. Turborepo documents the root-scoped //# task as the answer for a tree that belongs to no package, since its conventions assume apps/ and packages/ and anything outside them is simply never visited. Wired into __ci_fast__ so an e2e lint violation fails the PR gate; the immediate motivation is the budget-SSOT rule (no-restricted-syntax on *_BUDGET_MS declarations), which would otherwise be inert config. cache:false -- a pass/fail check with no cacheable output, matching lint:scripts. Run: pnpm exec turbo run lint:e2e.",
-      "cache": false
+      "description": "Root-level task: ESLint the Playwright acceptance suite in e2e/. Prefix //# ensures repo-root-only. EXISTS BECAUSE NOTHING LINTED THIS TREE. @fleet/e2e is a workspace member but declares only a typecheck script, so turbo run lint --filter=@fleet/e2e ran its DEPENDENCY and reported success without linting a single spec; ci.yml has a dedicated E2E Typecheck step for exactly this reason (the specs sit at the repo root, outside any package tsconfig) but had no lint equivalent. Meanwhile eslint.config.mjs carefully binds e2e/**/*.ts to e2e/tsconfig.json for type-aware rules -- configuration that was never executed. This is the THIRD instance of the same hole in this repo, after //#lint:scripts and //#typecheck:scripts: a check that exists in principle and nowhere in practice. Turborepo documents the root-scoped //# task as the answer for a tree that belongs to no package, since its conventions assume apps/ and packages/ and anything outside them is simply never visited. Wired into __ci_fast__ so an e2e lint violation fails the PR gate; the immediate motivation is the budget-SSOT rule (no-restricted-syntax on *_BUDGET_MS declarations), which would otherwise be inert config. cache:false -- a pass/fail check with no cacheable output, matching lint:scripts. dependsOn ^build for the SAME reason lint and typecheck document: e2e/helpers/wait-for-projection.ts imports DispatchBoardResponseSchema from @fleet/sync-protocol, and the type-aware no-unsafe-* rules resolve that through the package EMITTED .d.ts, not its source. Without ^build a clean checkout has no dist/, the import resolves to any, and the rules fire -- observed 2026-08-20 as five no-unsafe-* errors on an unchanged file, immediately after a sync-protocol source edit staled the build. It had only ever passed by relying on a warm dist/ from an earlier run, the identical trap the typecheck description records. Run: pnpm exec turbo run lint:e2e.",
+      "dependsOn": ["^build"],
+      "cache": false,
     },
     "//#lint:e2e:fix": {
       "description": "Root-level task: ESLint --fix over e2e/. Mutates the source tree, so cache:false -- a cache replay could restore stale content. Companion to //#lint:e2e; local/manual invocation, NEVER wired into a gate, because a gate must verify and not rewrite (same contract as //#lint:scripts:fix). Exists because e2e/ went unlinted for the life of the repo -- @fleet/e2e declares only a typecheck script, so the package-scoped lint task never reached it -- and the first run of //#lint:e2e reported 35 violations, 25 of them mechanically fixable. Fixing in bulk is deliberately followed by READING THE DIFF: an unreviewed --fix across two dozen spec files could silently alter test semantics, and 2026 guidance is explicit that a blanket --fix over a whole tree is the wrong move even with a sound fixer. cache:false. Run: pnpm exec turbo run lint:e2e:fix.",
-      "cache": false
+      "cache": false,
+    },
+    "//#format:check": {
+      "description": "WIRED INTO __ci_fast__ (2026-08-24). Prettier, eslint-config-prettier and .prettierrc were all committed while NOTHING ran the formatter: 1202 files were unformatted when the burndown started. Driving that to zero is worth nothing if the next commit can reopen it, which is the decorative-control shape this repo has now closed six times (//#lint:scripts, //#typecheck:scripts, //#lint:e2e, //#estate:verify, //#worktree:stale-gate, //#test:scripts). VERIFIED NOT BORN RED before gating: format:check reports clean on develop, so this enforces the burndown rather than blocking every branch on day one -- gating an already-failing check is how a team learns to pass --no-verify reflexively. Root-level task: assert every file matches the committed Prettier style. Prefix //# ensures repo-root-only: .prettierrc governs the whole tree and belongs to no workspace package. ROOT CAUSE THIS CLOSES: the repo carried .prettierrc, .prettierignore and the prettier devDependency, AND eslint-config-prettier -- which exists precisely to TURN OFF every ESLint formatting rule so Prettier can own them. So ESLint was told to stop enforcing style, and Prettier was never run: no format script, no hook, no CI step. //#knip reported prettier as an unused devDependency and was right in the only sense that matters -- nothing invoked it. Formatting was enforced by NEITHER tool while two config files described it in detail, which is the decorative-control shape this repo has now closed seven times. 2026 guidance is explicit that ESLint and Prettier run as SEPARATE tools with eslint-config-prettier as the bridge; the bridge was built and the far side was missing. cache:false -- a pass/fail check over working-tree state, matching lint:scripts and test:scripts. Run: pnpm exec turbo run format:check.",
+      "cache": false,
+      "persistent": false,
+    },
+    "//#format": {
+      "description": "Root-level task: Prettier --write over the tree, TWICE. The repeat is fixpoint iteration, not superstition: Prettier is meant to be idempotent and mostly is, but it maintains an `area:idempotency` issue label -- re-printing its own output -- with open cases around comments in TypeScript constructs. Burning down the initial 1202 unformatted files hit exactly that: the first pass left 20 test files that //#format:check still rejected, and a second pass settled every one. Running once and stopping is the trap, because the next person would run //#format, see //#format:check still red, and conclude the gate is broken. The 2026 guidance for an idempotency-sensitive operation is to run it twice and assert the second run produces no change; here the second --write IS that iteration and //#format:check is the assertion. Prettier is fast enough that the extra pass costs seconds. Mutates source, so cache:false -- a cache replay could restore stale content. Companion to //#format:check; local/manual invocation, NEVER wired into a gate, because a gate must verify and not rewrite -- the identical contract //#lint:scripts:fix and //#lint:e2e:fix already carry. Reading the diff afterwards is mandatory: a blanket --write across 13 workspaces touches files nobody reviewed, and 2026 guidance says the same about bulk --fix. Run: pnpm exec turbo run format.",
+      "cache": false,
+      "persistent": false,
     },
     "//#lint:scripts:fix": {
       "description": "Root-level task: ESLint --fix over scripts/. Mutates the source tree, so cache:false -- a cache replay could restore stale content. Companion to lint:scripts; local/manual invocation, never wired into a gate (a gate must verify, not rewrite). Run: pnpm exec turbo run lint:scripts:fix.",
-      "cache": false
+      "cache": false,
+    },
+    "//#gate:coverage": {
+      "description": "Root-level task: the pre-push COVERAGE gate -- the recursive test:coverage run plus the 90/90/90/90 merge, serialized across worktrees. Prefix //# ensures repo-root-only: it spans every workspace and the host lock, so it belongs to no package. It existed as a committed root script from t86 but was NEVER a turbo task, reachable only through a bash string in .pre-commit-config.yaml -- the same hole //#lint:scripts, //#typecheck:scripts and //#lint:e2e each closed, where a check exists in principle and has no rediscoverable invocation. Registering it means the hook, the terminal and any future CI step run the identical op. TWO ROOT CAUSES IT NOW CARRIES. (1) OUTPUT VOLUME, from t86: the hook streamed every workspace vitest run through pre-commit captured pipe, the pipe filled, and a write to a non-blocking fd returned EAGAIN, killing the push three times on 2026-08-05 while the tests were PASSING. Output goes to a log file under HOME and is replayed IN FULL on failure, so the operator sees more than the streaming gate showed, not less. A quiet reporter was tried first and provably cannot work: test:coverage scripts are compound shell strings and recursive pnpm does not forward trailing args into them, so the unit test asserted intent rather than behaviour and passed while the push failed identically. (2) HOST PORTABILITY, from t122 (2026-08-15): the gate spawned flock(1), which is util-linux and does not exist on macOS -- so it had NEVER run on any Mac in the estate. spawnSync failed ENOENT, the child never started, the log stayed 0 bytes, and a status-coalesce collapsed never-ran into exited-non-zero, printing a coverage-FAILED banner with nothing under it. Every push from every Mac was blocked by what looked like a red suite and was a missing binary. The lock is now taken IN-PROCESS with mkdir, which is atomic on every filesystem including network ones, where O_EXCL is documented to race; the lock is released in a finally so a throw cannot strand the estate; and a spawn error is reported as a HOST problem with its own exit code (4) instead of masquerading as a failing test. Staleness uses mtime with a threshold set far beyond any physically possible run, because mkdir stamps mtime once and a heartbeat is impossible while spawnSync blocks the event loop -- a late reap of a dead holder is strictly safer than killing a live one. Contention QUEUES rather than fails: six worktree terminals share one host and concurrent coverage runs starve each other. Pure cores (coverageArgs, mergeArgs, gateLogPath, gateExitCode, decideLockAttempt, isStale, lockDirPath, spawnFailureMessage) are unit-tested under //#test:scripts, with an architectural guard reading the driver source so a future edit cannot silently shell out again. Exit 0 ok, 1 coverage, 3 merge, 4 host. cache:false -- it runs the suite and mutates host lock state; a cached verdict is a stale verdict. Run: pnpm exec turbo run gate:coverage.",
+      "cache": false,
+      "persistent": false,
     },
     "//#gate:agent": {
       "description": "Root-level agent that runs the heavy container-backed gate under the host-wide lock and reports its verdict as DATA. Supersedes reading gate output with human eyes: turbo --summarize writes execution.exitCode, per-task hash, cache.status and cache.timeSaved to .turbo/runs, and the agent parses THAT rather than scraping stdout through head/tail, which destroyed stack traces and exit codes. Emits one NDJSON event per state transition on stdout, each carrying a W3C traceparent so a whole run correlates as one trace; narration stays on stderr. State machine is an explicit table (pending, preflight, queued, running, completed, failed, aborted) whose illegal transitions THROW, so impossible states cannot occur; host saturation routes to queued, not failed, because contention is a wait; a lock timeout routes to aborted, kept distinct from failed, so a starved run can be retried without misreporting a red build. Fails CLOSED: an unreadable summary is never a pass. The lock is a swappable LockBackend so a distributed backend can be added for multi-host CI without a rewrite. cache:false (host state). Run: pnpm exec turbo run gate:agent -- --filter=@fleet/api.",
       "cache": false,
-      "persistent": false
+      "persistent": false,
     },
     "//#secrets:baseline": {
-      "description": "Root-level task: refresh (or audit) the tracked detect-secrets baseline that the pre-commit hook reads via --baseline .secrets.baseline. Prefix //# ensures repo-root-only: it scans the whole tree, so it belongs to no workspace package. WHY IT EXISTS: the hook blocks only findings absent from the baseline, so a branch that adds files containing credential-SHAPED but synthetic strings (randomBytes test passwords, RFC 2606 .invalid hosts, SHA-256 topology hashes, a task literally named guard:local-secrets) blocks EVERY worktree push until the baseline is refreshed -- observed 2026-07-23 when the security-guard arc landed seven scripts without regenerating it. Previously this refresh was an uncaptured CLI incantation, free to drift from the hook own flags; this task is the single definition. Scans IN PLACE with --baseline (never shell redirection, which silently discards the is_secret labels a prior audit recorded) and mirrors the hook exclude list. NOT a suppression tool: a real credential must be removed and rotated, never baselined -- run -- --audit to label each finding before committing. cache:false (mutates a tracked file, no cacheable output). Run: pnpm exec turbo run secrets:baseline [-- --audit].",
-      "cache": false
+      "description": "Root-level task: refresh (or audit) the tracked detect-secrets baseline that the pre-commit hook reads via --baseline .secrets.baseline. Prefix //# ensures repo-root-only: it scans the whole tree, so it belongs to no workspace package. WHY IT EXISTS: the hook blocks only findings absent from the baseline, so a branch that adds files containing credential-SHAPED but synthetic strings (randomBytes test passwords, RFC 2606 .invalid hosts, SHA-256 topology hashes, a task literally named guard:local-secrets) blocks EVERY worktree push until the baseline is refreshed -- observed 2026-07-23 when the security-guard arc landed seven scripts without regenerating it. Previously this refresh was an uncaptured CLI incantation, free to drift from the hook own flags; this task is the single definition. Scans IN PLACE with --baseline (never shell redirection, which silently discards the is_secret labels a prior audit recorded) and mirrors the hook exclude list. NOT a suppression tool: a real credential must be removed and rotated, never baselined -- run -- --audit to label each finding before committing. INTERACTIVE (2026-08-18): --audit is a TUI that prints one finding and blocks on stdin for (y)es/(n)o/(s)kip/(q)uit, and without this key turbo captures the child stdout to prefix it, so the prompt arrived buffered and unanswerable -- a run hung EIGHT HOURS AND FIVE MINUTES before it was killed, with no timeout and no diagnostic. The fix is the key turborepo provides for exactly this, already used by eas:build:ios:interactive for the same reason (its Apple device prompts cannot be answered through a pipe either); a TTY guard in the script was written first and was a workaround for a capability the tool already had. cache:false (mutates a tracked file, no cacheable output). Run: pnpm exec turbo run secrets:baseline [-- --audit].",
+      "cache": false,
+      "interactive": true,
     },
     "//#test:scripts": {
-      "description": "Root-level task: run the vitest suite that covers the repo-level tooling in scripts/ (sync-worktrees, sync-develop, close-worktree, worktree-close-cli, compose-identity, db-generate, railway-reference-guard, the e2e stack drivers, the ci-minutes reconciler). Prefix //# ensures repo-root-only: these scripts belong to no workspace package (2026 Turborepo guidance is package-tasks-first; this is the carve-out for genuinely repo-spanning tooling), so a per-package task would find nothing. Runs the committed root script 'test:scripts' (vitest run scripts) verbatim -- it is NOT a second runner. Wired into __ci_fast__ so a regression in the worktree-deletion logic (which removes branches) fails the PR gate instead of merging green; before this the suite passed but the gate never executed it. cache:false -- a pass/fail check with no cacheable output, matching codemod:check.",
-      "cache": false
+      "dependsOn": ["@fleet/test-fixtures#build"],
+      "description": "Root-level task: run the vitest suite that covers the repo-level tooling in scripts/ (sync-worktrees, sync-develop, close-worktree, worktree-close-cli, compose-identity, db-generate, railway-reference-guard, the e2e stack drivers, the ci-minutes reconciler). Prefix //# ensures repo-root-only: these scripts belong to no workspace package (2026 Turborepo guidance is package-tasks-first; this is the carve-out for genuinely repo-spanning tooling), so a per-package task would find nothing. Runs the committed root script 'test:scripts' (vitest run scripts) verbatim -- it is NOT a second runner. Wired into __ci_fast__ so a regression in the worktree-deletion logic (which removes branches) fails the PR gate instead of merging green; before this the suite passed but the gate never executed it. cache:false -- a pass/fail check with no cacheable output, matching codemod:check. dependsOn @fleet/test-fixtures#build (2026-08-23), for the SAME reason lint, typecheck and //#lint:e2e each document in their own descriptions: four guards here import readTurboTasks from @fleet/test-fixtures, whose package exports point at ./dist/index.js, and vite resolves a workspace package through its EMITTED entry rather than its source. With no edge the task ran before that dist existed and CI failed with a Failed-to-resolve-entry error on all four -- while the same command passed locally, because a warm dist from an earlier build was sitting there. That is the exact trap lint-e2e-depends-on-build was written to catch, walked into one hour after editing it. A ROOT task cannot use ^build (it has no package dependencies to topologically precede it), so the edge names the package task explicitly.",
+      "cache": false,
     },
     "//#audit:ci-minutes": {
       "description": "Root-level task: READ-ONLY audit attributing BILLABLE GitHub Actions minutes to the workflow that spent them, then reconciling the total against the enhanced billing platform. Prefix //# ensures repo-root-only (it spans no package; it reads the repo CI ledger). Computed from /actions/runs/{id}/jobs records, never /actions/workflows/{id}/timing -- that endpoint is closing down and returns 0ms while billing shows five figures. Billing meters JOB execution rounded UP per job, so a 4-way shard matrix cuts wall clock but not minutes, and a 12-second gate job still bills one. Absent data throws rather than scoring 0 (three confident-zero hazards observed in this domain, including GitHub docs saying product=Actions while the wire sends product=actions). Exits 2 when computed-vs-billed drift exceeds 5%: the instrument is wrong and no cut may be sized on it. cache:false (live network read, no cacheable output). passThroughEnv exposes the API token under strict envMode. Run: pnpm exec turbo run audit:ci-minutes [-- --year 2026 --month 7].",
       "cache": false,
       "persistent": false,
-      "passThroughEnv": ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_URL", "GITHUB_REPOSITORY"]
+      "passThroughEnv": ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_URL", "GITHUB_REPOSITORY"],
+    },
+    "//#audit:artifact": {
+      "description": "Root-level task: audit WHAT SHIPS -- the deploy tree each Dockerfile builds -- rather than the workspace dependency graph. Prefix //# ensures repo-root-only: it spans several packages and the container build, so it belongs to none of them. ROOT CAUSE THIS ENDS, and pnpm-workspace.yaml records it in that file's own comments: 'Seven of the last ten commits to this file are floor raises for advisories that never ship.' ci.yml gates merges on pnpm audit --audit-level=high --prod over the WORKSPACE, and that tree is not the tree that runs. pnpm materialises optional peers regardless (pnpm#11155), so apps/api pulls drizzle-orm -> expo-sqlite -> expo -> metro -> image-size even though apps/api declares no Expo dependency and never imports expo-sqlite -- while Dockerfile.api builds with pnpm --filter=@fleet/api deploy --prod --no-optional, which prunes exactly that subtree. So advisories against packages that CANNOT REACH PRODUCTION block every branch in the repo, and each one is answered with an override or an ignoreGhsas entry written, reviewed and merged for a package absent from every image -- crowding the allowlist a little more, which is how a real finding eventually slips past unread. Two attempted overrides are recorded there and both failed BY CONSTRUCTION: a convergence override on image-size is inert (metro declares ^1.0.2, and an exact 2.0.3 never satisfies it) and a bounded floor would drag metro across a major -- the exact failure the js-yaml comment records, where an unbounded floor pulled cosmiconfig into 5.x and imported a NEW advisory. The problem was never the override syntax; it was auditing the wrong tree. THIS IS A VEX-STYLE EXPLOITABILITY STATEMENT, 2026 practice: gate on what ships, and make the claim verifiable rather than asserted -- build the deploy tree the Dockerfile builds and audit THAT. TWO ARTIFACTS, derived from the Dockerfiles rather than intuition: @fleet/api and @fleet/main-worker, each built with pnpm deploy. ops-web is deliberately EXCLUDED because it ships a Next.js standalone bundle (module-traced, not a pnpm tree), so a deploy-tree audit there would pass on something nobody deploys -- worse than not auditing it here. NOT A WEAKENING: the full-tree advisory audit still runs and still reports; it simply stops BLOCKING for packages in no image, which is what ci.yml's second audit step already says in its own comment. POSITIVE CONTROLS ARE MANDATORY and are the part a naive version gets wrong: an audit of an EMPTY directory reports no vulnerabilities, and that reads exactly like success. The package count is therefore carried into the verdict, an implausibly small tree is UNVERIFIABLE rather than clean, and an empty outcome list is unverifiable too -- a loop that ran zero times is the confident zero estate:verify refuses for a worktree list with no records. FAILS CLOSED with unverifiable DOMINATING vulnerable: a run that could not build its artifacts cannot honestly name a specific finding either. Pure cores (SHIPPED_PACKAGES, deployArgs, auditArgs, artifactVerdict, describeArtifact, countPackages) are unit-tested under //#test:scripts; only the driver spawns pnpm. Exit 0 ok, 1 an advisory reaches production, 3 unverifiable. cache:false -- it builds a fresh tree and queries the advisory database, and a cached verdict is a stale verdict. Run: pnpm exec turbo run audit:artifact.",
+      "cache": false,
+      "persistent": false,
     },
     "//#pr:automerge": {
       "description": "Root-level task: merge an open PR the instant its ruleset-required checks go green -- the fix for the pr-merged stall that pr:follow reports. Prefix //# ensures repo-root-only (it acts on the repo PR ledger, spans no package). Deliberately a synchronous poll-then-merge, NOT gh pr merge --auto: GitHub native auto-merge is unreliable when required checks come from repository RULESETS rather than classic branch protection (community #162623, open in 2026) -- --auto enables, checks go green, and the merge never fires, recreating the very stall this removes. This repo gates develop and main with rulesets (develop-protection, main-protection), so the task polls mergeStateStatus + checks and, once the ruleset is satisfied, merges synchronously via gh pr merge --merge (a true merge commit, NEVER --squash/--rebase: preserving original commit SHAs keeps the promote pipeline SHA-ancestry checks reliable). GitHub still refuses if a required check is red. When checks are green but the branch is BEHIND (the ruleset requires up to date, the common case as develop moves), it runs gh pr update-branch and re-polls rather than stalling. Contained: it acts only on the PR base (feature -> develop), never promotes develop -> main, so it cannot race promote.yml. Pure cores decideAutoMerge (precondition guard: draft/conflict/closed/idempotent) and decideMergeReady (per-poll MERGE/UPDATE/WAIT/BLOCKED, reusing pr-follow summarizeChecks incl the zero-checks confident-zero guard) are unit-tested under //#test:scripts; only the driver touches gh. Exit 0 merged/skip, 1 blocked, 3 timeout. cache:false (live network mutation, no cacheable output). Run: pnpm exec turbo run pr:automerge -- 421.",
-      "cache": false
+      "cache": false,
     },
     "//#pr:follow": {
       "description": "Root-level task: READ-ONLY follower that watches a merged PR through the ENTIRE autonomous chain to a live Railway deploy, and exits non-zero if it stops anywhere. Prefix //# ensures repo-root-only (it reads the repo CI ledger, spans no package). Exists because a green PR is not a shipped PR: the chain is PR checks -> merge to develop -> develop CI + E2E -> promote.yml merges develop into main -> Release -> main E2E -> Deploy to Railway (workflow_run on main E2E). Any link can stall silently, and across hundreds of PRs a stalled link is invisible until production is quietly behind; following it by hand is what strands PRs in the open list forever. DELIBERATELY NOT A PROMOTER: it never merges, promotes or dispatches, so it cannot race promote.yml. release:promote remains the manual fallback that DRIVES a promote; this only observes. Two correlation rules are baked in, both from real bugs: runs are matched by HEAD SHA and never by recency (the a006e8b race that mis-tagged a release), and the deploy run is matched by time window rather than SHA because a workflow_run-triggered run is reported against the DEFAULT branch head, not the main commit being deployed. Pure decision core (summarizeChecks, runStateFor, deployRunAfter, computeVerdict) is unit-tested under //#test:scripts; only the driver touches gh and git. Verdicts: DEPLOYED exit 0, FAILED exit 1 naming the phase, WAITING exit 2, TIMEOUT exit 3 -- so it gates a script, not just prints. cache:false (live network read, no cacheable output). Run: pnpm exec turbo run pr:follow -- 424.",
       "cache": false,
-      "persistent": false
+      "persistent": false,
     },
     "//#inspect:prod-deploy": {
       "description": "Root-level task: READ-ONLY diagnostic answering whether a fix commit is actually RUNNING in a given live deploy and whether it is PROMOTED to the base branch. Prefix //# ensures repo-root-only (it reads the git/deploy ledger, spans no package). Pure git ancestry: fix-in-base (promoted?), fix-in-live (running?), base-ahead-of-live count. Verdict EFFECTIVE / REDEPLOY-NEEDED / NOT-PROMOTED with NON-ZERO exit unless EFFECTIVE, so it gates scripts and CI, not just prints. Always emits a RAILWAY MANUAL CHECK line for the one fact git cannot prove -- whether the container was BUILT after a required build var existed. Token-free (local git only): no passThroughEnv. cache:false (live git read, no cacheable output). Run: pnpm exec turbo run inspect:prod-deploy -- --live <sha> --fix <sha> [--base <ref>].",
       "cache": false,
-      "persistent": false
+      "persistent": false,
     },
     "//#prod:db-url": {
       "description": "Root-level task: print the CURRENT production Postgres DSN, read LIVE from Railway (the single system of record) at call time. Prefix //# ensures repo-root-only (it spans no package). Exists to kill a recurring class of failure: operators pasted a PROD_DATABASE_URL literal into a local .env, prod credentials rotated, the copy went stale, and every prod-ops task (audit:*, inspect:*, projection:rebuild, repair:*) failed authentication with an opaque error. A stored copy is a SECOND system of record and always rots; re-pasting is a treadmill. This is the local-ops mirror of guard:railway-references, which forbids the same literal-vs-reference anti-pattern in Railway service variables. ONLY the DSN goes to stdout (diagnostics to stderr) so it composes via command substitution. Retries transient Railway API errors; fails immediately on auth/linkage errors -- there is no safe fallback for a prod DSN. cache:false (live network read, no cacheable output). Run: DATABASE_URL=$(pnpm prod:db-url) pnpm exec turbo run audit:assignment-uniqueness --filter=@fleet/api.",
       "cache": false,
-      "persistent": false
+      "persistent": false,
     },
     "//#guard:local-secrets": {
       "description": "Root-level task: fail when a PRODUCTION credential literal sits in a local env file (.env, .env.local, .env.production, .env.prod). Prefix //# ensures repo-root-only. Covers a genuine blind spot rather than duplicating existing protection: pre-commit check-env-files blocks COMMITTING a .env and detect-secrets scans STAGED content, but a local .env is untracked BY DESIGN so neither ever inspects it -- which is exactly how a stale PROD_DATABASE_URL sat undetected until prod rotated. Only PROD/PRODUCTION-scoped variable names holding an inline-credential URL are flagged, so an ordinary local docker-compose DATABASE_URL stays legitimate. Reports file, line and variable NAME only, never the value. Exit 1 on violation, 2 on tooling error. cache:false (reads working-tree state outside the task graph). Run: pnpm exec turbo run guard:local-secrets.",
       "cache": false,
-      "persistent": false
+      "persistent": false,
     },
     "//#guard:local-secrets:baseline": {
       "description": "Root-level task: regenerate scripts/local-secret-guard.config.json, the SHA-256 hashes of production hostnames that must never appear in tracked source. Prefix //# ensures repo-root-only. The hash is DERIVED AT RUNTIME from the live Railway value via the same resolver the ops tasks use, so the plaintext hostname is never typed into a tracked file -- a guard whose own config leaked the topology it protects would be self-defeating. Mirrors the hashed_secret field in .secrets.baseline. Reports a hash prefix only, never the hostname. cache:false (live network read). Run: pnpm exec turbo run guard:local-secrets:baseline.",
       "cache": false,
-      "persistent": false
+      "persistent": false,
+    },
+    "//#doctor": {
+      "description": "Root-level task: READ-ONLY report of what this MACHINE can and cannot do, with an actionable fix per gap. Prefix //# ensures repo-root-only: it inspects the host and the clone, so it belongs to no workspace package. ROOT CAUSE THIS CLOSES: every defect found on 2026-08-15/16 surfaced as a DISGUISED RUNTIME FAILURE, discovered mid-task by whoever tripped over it. Absent pre-commit hooks let commit 88357d0 -- a change made entirely of age key material -- through with zero secret scanning, and nothing said so. An absent container runtime printed a coverage-FAILED banner over an empty log. A Linux-only flock binary masqueraded as a red test suite and blocked every push from every Mac for the life of that script. A machine that was not yet an age recipient learned so from a refusal in the middle of unrelated work. And //#git:merge-drivers, documented as run-once-per-clone, has never been surfaced by anything at all -- a declared-but-unregistered merge driver silently does nothing. The 2026 answer to this class is a doctor command: modular checks, a structured pass/fail report, and a remediation per finding, run BEFORE the work instead of discovered during it. CAPABILITIES, NOT FILES. The obvious check -- is there a .env -- would be WRONG and would red-flag a working machine. This laptop built 13 workspaces, passed the 90/90/90/90 gate against Testcontainers and shipped five PRs to production with NO copied .env, because compose.yaml hardcodes DATABASE_URL, REDIS_URL and the OIDC trio itself while compose:env generates the only values .env must carry. So the question is never which file is missing but which capability is unavailable and why. THREE STATES, and the third is load-bearing: ready, broken, blocked. BROKEN is fixable on this machine right now and exits non-zero; BLOCKED waits on an action only another host can take, such as the one-time env:encrypt from a machine holding the plaintext, and exits ZERO -- failing on somebody else pending action would keep the doctor red for days and train the operator to ignore it, the same adoption reasoning //#knip documents. READ-ONLY BY DESIGN: it diagnoses and never repairs, even though every remediation it prints is a registered op it could invoke. The repo already draws that line -- //#sync:worktrees reports drift and refuses to install, and //#deps:reconcile exists so that invoking it IS the operator deciding. A doctor that silently started Docker, generated an age identity or rewrote git config would be the same violation wearing a helpful face. Reads the git COMMON dir for hooks, since worktrees share one hooks directory, and counts a hook only when pre-commit wrote it, so a hand-rolled file of the same name cannot read as installed. Recipiency is matched by the age PUBLIC key derived from the local identity, never by hostname: a comment naming a host is prose, and prose doing an assertion job is the defect the roster guard was written to end. Pure cores (CAPABILITIES, capabilityStatus, diagnose, remediationFor, overallExit) are unit-tested under //#test:scripts. cache:false -- it reads live host state, and a cached verdict is a stale verdict. Run on any machine, any time: pnpm exec turbo run doctor.",
+      "cache": false,
+      "persistent": false,
+    },
+    "//#bootstrap:machine": {
+      "description": "Root-level task: make this MACHINE ready to commit safely -- verify the tools the git hooks shell out to, then install EVERY hook type .pre-commit-config.yaml declares. Prefix //# ensures repo-root-only (it configures the clone itself, belongs to no workspace package). ROOT CAUSE THIS CLOSES: every credential guard this repo owns -- detect-secrets, detect-private-key, check-env-files, block-large-binaries -- runs ONLY from pre-commit, and NOTHING installed pre-commit on a fresh clone. So a new machine could clone, install, build and commit with all four guards silently absent. Observed 2026-08-11: commit 88357d0, a change made entirely of age key material, was authored on a fresh machine with zero secret scanning. It passed because nothing ran, not because it was clean -- the same shape as //#lint:scripts and //#lint:e2e, a check that exists in principle and nowhere in practice. THE SUBTLER HALF: the config declares THREE hook types (pre-commit, pre-push for the build/test gates, commit-msg for commitlint) and bare pre-commit install installs only the first, with no default_install_hook_types key to widen it. Fixing it by hand on that machine left two of three still missing while looking finished, which is why the required set is DERIVED from the config rather than typed twice and the decision NAMES the missing types instead of reinstalling blindly. Reads the git COMMON dir, never the per-worktree git dir: worktrees share one hooks directory, so the per-worktree path would report hooks missing in every worktree forever. Counts a hook as installed only when pre-commit itself wrote it, so a hand-rolled or husky file of the same name cannot read as installed while running none of the configured guards. TOOLS ARE CHECKED BEFORE HOOKS: installing hooks whose binaries are absent produces a clone that fails at commit time with an opaque error, strictly worse than refusing and naming the remedy. ALSO WIRED AS THE package.json prepare SCRIPT, which is how a fresh clone self-heals without anyone remembering this task exists -- and prepare runs on EVERY pnpm install including all eight CI workflows, none of which pass --ignore-scripts, so the prepare path passes --soft and always exits 0 while CI is detected and skipped outright. Invoked directly it exits non-zero on a blocked machine, because there the operator asked and deserves a real answer. Pure cores (parseDeclaredStages, decideBootstrap, describeFinding) are unit-tested under //#test:scripts; only the driver spawns pre-commit. cache:false (mutates the clone hook state, no cacheable output). Run: pnpm exec turbo run bootstrap:machine.",
+      "cache": false,
+      "persistent": false,
     },
     "//#env:decrypt": {
       "description": "Root-level task: materialize .env on this machine by DECRYPTING the tracked .env.sops.yaml with this host age identity. Prefix //# ensures repo-root-only (the env file is the repo root env; it belongs to no workspace package). ROOT CAUSE THIS CLOSES: nothing in this repo could PRODUCE a .env. The blocking half was complete and layered -- .gitignore bars .env, the pre-commit check-env-files hook bars committing one, detect-secrets scans the index and //#guard:local-secrets scans the working tree -- but prevention without provisioning left exactly one way to start a new machine: copy the plaintext file by hand over AirDrop, USB or chat. That is the 2026-documented anti-pattern (plaintext on N laptops, no rotation path, no record of which host holds which vintage), and it is not a habit anyone chose; it was the only path available. Observed 2026-08-09 on a third machine whose fresh clone legitimately had no .env and could not obtain one from the repo. HOW: SOPS encrypts VALUES only, so field NAMES stay plaintext and the ciphertext diffs and reviews like ordinary config; age supplies the recipient scheme, one keypair per machine, so adding or revoking a laptop is a re-encrypt against .age-recipients rather than a re-copy. FAILS CLOSED, each refusal naming a condition and never a value: missing sops/age binary, missing identity file, missing ciphertext, and -- the destructive one -- an existing .env, which it REFUSES to overwrite because local edits that were never encrypted are unrecoverable. The private identity is passed via SOPS_AGE_KEY_FILE in the environment, NEVER as an argv flag, because argv is world-readable in the process table; the decrypted output is written to a mode-600 file and is never echoed to stdout, so plaintext cannot reach scrollback or a CI log. Pure cores (decideBootstrap, describeRefusal, decryptArgs) are unit-tested under //#test:scripts; only the driver spawns sops. cache:false (writes secret material outside the task graph; a cached replay would be a stale credential, which is the failure //#prod:db-url exists to prevent). Run on a new machine: pnpm exec turbo run env:decrypt.",
       "cache": false,
       "persistent": false,
-      "passThroughEnv": ["SOPS_AGE_KEY_FILE"]
+      "passThroughEnv": ["SOPS_AGE_KEY_FILE"],
     },
     "//#env:encrypt": {
       "description": "Root-level task: re-encrypt the local plaintext .env into the tracked .env.sops.yaml after a credential change, so every other machine picks it up by pulling. Prefix //# ensures repo-root-only. This is the WRITE half of the bootstrap pair and the reason rotation stops being a treadmill: one re-encrypt plus one commit replaces hunting through three laptops for stale copies. Writes a SEPARATE output file rather than encrypting in place -- an in-place failure would destroy the only plaintext copy on the machine. FAILS CLOSED when .env is absent rather than emitting an EMPTY ciphertext over a good one, which would silently strip every other machine of its ability to bootstrap and would look like a successful run. Requires no age identity: encryption needs only the PUBLIC recipients in .sops.yaml, so any machine can re-encrypt even before it can decrypt. ALWAYS commit .env.sops.yaml together with .age-recipients and .sops.yaml -- a recipient list that disagrees with the ciphertext locks somebody out silently. cache:false (mutates a tracked file from untracked secret input). Run: pnpm exec turbo run env:encrypt.",
       "cache": false,
-      "persistent": false
+      "persistent": false,
     },
     "//#env:recipients": {
       "description": "Root-level task: regenerate .sops.yaml from the tracked .age-recipients list. Prefix //# ensures repo-root-only. .age-recipients is the human-edited SSOT (one age PUBLIC key per line, comments allowed); .sops.yaml is GENERATED and must never be hand-edited, because sops reads it to decide who can decrypt and a hand-drift between the two files is invisible until a machine cannot open the ciphertext. Rendering is deterministic, so regenerating with an unchanged list produces an empty diff. Parsing FAILS CLOSED on any malformed entry rather than silently dropping it -- a dropped recipient is a machine that quietly loses access, discovered only later -- and refuses an EMPTY list rather than encrypting to nobody, which sops would otherwise accept as a valid no-recipient rule. The regex admits only age PUBLIC keys, so an age PRIVATE key pasted into the list by mistake is rejected instead of being published to git. After changing recipients ALWAYS run env:encrypt and commit all three files together. REVOCATION IS NOT RETROACTIVE: removing a line stops future decryption but git history still holds the old ciphertext that machine could already read, so a revocation must be followed by rotating the underlying credentials. Pure cores (parseRecipients, renderSopsConfig, validateAgeRecipient) are unit-tested under //#test:scripts. cache:false (mutates a tracked file). Run: pnpm exec turbo run env:recipients.",
       "cache": false,
-      "persistent": false
+      "persistent": false,
     },
     "//#knip": {
       "description": "Root-level task: dead-code gate -- report unused files, exports and dependencies across all 13 workspaces (knip). Prefix //# ensures repo-root-only: the analysis is whole-graph and cross-workspace, so a per-package task would see each package in isolation and mark every cross-workspace export dead. ROOT CAUSE THIS CLOSES: nothing in this repo could see a dead export. SUPPORTED_LOCALES in ops-web src/lib/i18n.ts had ZERO consumers repo-wide, and because nothing reported it, its sibling Locale union drifted into three independently hand-written copies (the union, the array, and the parseLocale equality check) where adding a third locale breaks NONE of them at compile time. eslint no-unused-vars cannot see this: it works within a file, never across the import graph. ADOPTION STAGE 1 of 3 (knip.dev/guides/adopt-gradually): every rule in knip.jsonc is warn, so this reports without failing while the config gaps are tuned -- on a legacy codebase the first run mostly surfaces unresolvable entry points and plugin-less deps, not real findings, and gating on that noise would make the branch unmergeable and teach the team to ignore the tool. Burn-down order is files -> dependencies -> exports (one unused FILE hides its own exports and deps, so files must go first), promoting each rule to error as it reaches zero, then ratcheting the remainder with --max-issues the way token-literal-ratchet does. NOT wired into __ci_fast__ yet: that happens in stage 3, when the first rule turns error. cache:false -- a pass/fail report over working-tree state, matching codemod:check and guard:local-secrets. Run: pnpm exec turbo run knip [-- --files | --dependencies | --exports].",
       "cache": false,
-      "persistent": false
+      "persistent": false,
     },
     "//#sync:worktrees": {
       "description": "Root-level task: fast-forward every git worktree local branch to its remote tracking branch, SAFELY. Prefix //# ensures repo-root-only (it spans all worktrees, not a per-package task). Fast-forwards only when a branch is purely behind (behind>0, ahead=0); REFUSES and warns on true divergence (ahead>0 AND behind>0), never force-merging/resetting, so unpushed local commits can never be lost. The autonomous pipeline converges the REMOTE branches but git never auto-updates LOCAL worktree branches, so this closes that gap. cache:false (side-effecting git operation, no cacheable output). Run: pnpm exec turbo run sync:worktrees.",
-      "cache": false
+      "cache": false,
     },
     "//#sync:develop": {
       "description": "Root-level task: merge origin/develop DOWN into the current feature branch (2026 conflict-prevention). Prefix //# ensures repo-root-only. Refuses on dirty tree; no-op on develop/main; on conflict exits 1 with the conflicted paths for evidence-driven resolution (rerere replays known hunks). STANDING RULE: run after every milestone push and immediately before gh pr create so every PR is born mergeable, never DIRTY. cache:false (side-effecting git operation). Run: pnpm exec turbo run sync:develop.",
-      "cache": false
+      "cache": false,
     },
     "//#bump:pnpm": {
       "description": "Root-level task: bump the corepack-pinned pnpm version for the whole repo via corepack use pnpm@<version|latest> -- resolves the version and rewrites the packageManager pin + sha512 in package.json itself (2026 canonical; never pnpm add -g, which fails on this box because the global bin dir is not on PATH and would only mutate one machine anyway). Script refuses on a dirty tree so the pin change is always an isolated, reviewable commit. Prefix //# ensures repo-root-only. cache:false (side-effecting, network-resolving). Run: pnpm exec turbo run bump:pnpm [-- <version>].",
-      "cache": false
+      "cache": false,
     },
     "//#bump:turbo": {
       "description": "Root-level task: bump the turbo devDependency version for the whole repo. Unlike bump:pnpm (which drives the corepack packageManager pin), turbo is an ordinary devDependency, so the correct bump is a spec rewrite in package.json plus a lockfile update -- not corepack use. The pure decision core (scripts/bump-turbo.ts planTurboBump) preserves the range operator (^, ~, or exact) and refuses a non-semver target; the thin driver refuses on a dirty tree so the bump is always an isolated, reviewable commit, then runs pnpm install --lockfile-only. Replaces the uncaptured hand-edit + bare pnpm install idiom that drifted (wrong range, forgotten lockfile, no runtime verification). Prefix //# ensures repo-root-only. cache:false (side-effecting, network-resolving). Run: pnpm exec turbo run bump:turbo -- <version>.",
-      "cache": false
+      "cache": false,
+    },
+    "//#worktree:preserve": {
+      "description": "Root-level task: PRESERVE uncommitted work in every git worktree that cannot yet be closed -- the rescue half worktree:close deliberately refuses to own. Prefix //# ensures repo-root-only (it spans all worktrees, not a per-package task). THE GAP IT CLOSES, measured: worktree:close REFUSES on dirty, which is correct -- it must never delete unpushed work -- but a refusal is not a resolution, and three TOOLCHAIN worktrees have carried staged files since 2026-07-11 with no captured way to rescue them. Those worktrees are ALSO pnpm-blocked (11.13.0 yanked), so they cannot install, cannot run a gate, and cannot reach a normal commit path at all. WHAT IT DOES: for each target, classify the dirty set, commit it to a wip/ branch and push, then VERIFY by asking git how many files actually landed -- an equality gate, so a surplus fails as loudly as a shortfall, because a plan that disagrees with the repository is a defect either way. Push is WITHHELD on shortfall: a partial preservation that reports success is worse than a refusal. --no-verify on commit and push is deliberate and narrow: WIP by definition cannot pass lint, and the alternative is that the work stays unrescued forever. Detached HEAD refuses outright. Per-target ISOLATION: one worktree throwing records a failed outcome and the sweep continues, and failed is distinct from shortfall because the work is uncommitted-but-intact rather than possibly gone. DRY-RUN BY DEFAULT, matching deps:reconcile and repair:*; --execute is the only consent, and a dry run is unreachable-by-construction rather than merely skipped -- the port call log is empty. Graded exits: 0 ok, 1 shortfall, 2 usage, 3 nothing-to-do, 4 failed. Pure cores (worktree-preserve.ts, worktree-preserve-runner.ts with an INJECTED write port, worktree-preserve-cli.ts argv/target assembly) are unit-tested under //#test:scripts at 73 tests; only the driver touches git. cache:false (side-effecting git mutation, no cacheable output). Run: pnpm exec turbo run worktree:preserve [-- <worktree-path>] [-- --execute].",
+      "cache": false,
+      "persistent": false,
     },
     "//#worktree:close": {
       "description": "Root-level task: close a git worktree SAFELY -- remove the worktree and delete its local branch, but ONLY when nothing can be lost. Prefix //# ensures repo-root-only (it spans all worktrees, not a per-package task). REFUSES on any loss risk and reports every reason at once: primary-clone, no-upstream, unpushed (ahead>0), dirty (any modified or untracked file), unmerged (commits not contained in origin/develop). Never passes --force, -D or -f, so git own merged-check is the last line of defence. Complements sync:worktrees, which fast-forwards but has no removal path -- closing a worktree was previously a hand-rolled git idiom, not a captured op. Decision core (scripts/close-worktree.ts) and parsers (scripts/worktree-close.ts) are pure and unit-tested; only the driver touches git. cache:false (side-effecting git mutation, no cacheable output). --done (2026-08-11) waives ONLY the recency guard, and ONLY when the work is already contained in origin/develop. Recency refuses a worktree whose per-worktree HEAD reflog shows activity within 24h, because a merged-and-clean worktree can still be the LIVE directory a terminal is coding in -- a real near-miss (t20-wt1) that keeps the guard. But it also made a FINISHED session uncloseable: t106-wt1-driver-delete-audit had every PR merged, production verified, contained=true, dirty=0, and was refused purely on idleH=0 because the operator was still at the keyboard. Waiting out 24h to reclaim finished work is a treadmill, and re-running later is the kind of uncaptured follow-up that gets forgotten. The 2026 industry criteria for safe worktree removal are merged + clean + not-primary; recency appears in none of them. idleHours is a PROXY for work-may-be-in-flight, containment is DIRECT EVIDENCE the work is finished -- a proxy must not outrank direct evidence, yet containment alone cannot waive it either, since the t20 near-miss was ALSO contained. So the operator supplies the one fact neither git nor a clock can know (the session is over) and the machine still demands its own evidence before honouring it. Every other guard still refuses: dirty, unpushed, no-upstream, primary-clone. Mirrors --retired exactly (opt-in, order-independent, unknown flags ignored), and the state line prints done= so a permitted close is auditable. Run: pnpm exec turbo run worktree:close -- <worktree-path> [--retired] [--done].",
-      "cache": false
+      "cache": false,
     },
     "//#deps:reconcile": {
       "description": "Root-level task: RECONCILE dependency drift across every git worktree -- the remediation half that //#sync:worktrees deliberately refuses to own. Prefix //# ensures repo-root-only (it spans all worktrees, not a per-package task). WHY A SEPARATE TASK: sync:worktrees documents 'Reports, never heals: the operator decides when to install', and its wiring guard asserts the source contains no frozen-lockfile or force install, because an implicit install across 45 worktrees on a 9.7GiB box is destructive. Bolting a --heal flag onto the detector would have turned that green contract red and invited deleting it -- suppressing a guard to fit a feature. Invoking THIS task is the operator deciding. THE GAP IT CLOSES, measured: a 45-worktree census reported 12 deps-stale under SIX distinct pnpm messages with no captured way to act on any of them, and seven of the last ten commits to pnpm-workspace.yaml are security override-floor raises, each of which stales every worktree at once -- drift is the steady state here, not an incident, and detection alone leaves twelve permanently yellow lines an operator learns to scroll past. INSTRUMENT: the frozen-lockfile install, chosen for two properties pnpm documents. It never generates a lockfile, so it cannot rewrite pnpm-lock.yaml and cannot resurrect the auto-install treadmill that verifyDepsBeforeRun:warn exists to suppress; and it FAILS when the lockfile is out of sync, so its outcome CLASSIFIES -- exit 0 means the tree merely lagged an already-correct lockfile, ERR_PNPM_OUTDATED_LOCKFILE means lockfile and manifests genuinely disagree, which is a human commit and never an auto-heal. Attempting the heal is therefore the discriminator, replacing prose-matching over six message strings any pnpm release may reword. Deliberately NOT pnpm ci: it purges first, and re-downloading 1807 packages across 45 worktrees is worse than the drift. DRY-RUN BY DEFAULT, matching repair:* and intake:redrive and the 2026 remediation-CLI convention; --execute is the only consent, parsed by node:util parseArgs so an unknown flag THROWS rather than yielding a confident no-op, and a positional path can never be mistaken for permission. NEVER heals a toolchain-blocked worktree: pnpm refuses to install v11.13.0 at all, so retrying there is a guaranteed-failing loop on every run forever. Sequential by design -- concurrent installs against one content-addressable store are safe (store operations are atomic) but memory contention on a 9.7GiB box is not, per the same SSOT that pins broad gates to concurrency 1. Every child is bounded at 300s with SIGTERM; one worktree failing records its outcome and the sweep continues. Graded exits: 0 ok, 1 divergent (go fix a lockfile and commit it), 2 usage, 3 failed (investigate the tool or network and re-run) -- failed DOMINATES divergent because a sweep that failed partway is untrustworthy. Pure cores (deps-reconcile.ts, deps-reconcile-runner.ts with an INJECTED spawn, deps-reconcile-cli.ts argv/target assembly) are unit-tested under //#test:scripts; the probe itself is the shared adapter worktree-deps-probe.ts, which sync:worktrees also wraps. cache:false (side-effecting install, no cacheable output). Run: pnpm exec turbo run deps:reconcile [-- <worktree-path>] [-- --execute].",
       "cache": false,
-      "persistent": false
+      "persistent": false,
     },
     "//#git:merge-drivers": {
       "description": "Root-level task: declare and REGISTER the keep-theirs merge driver for GENERATED files. Prefix //# ensures repo-root-only (it configures the repository itself, belongs to no workspace package). ROOT CAUSE THIS ELIMINATES: .secrets.baseline is generated -- detect-secrets rewrites generated_at on every refresh and shifts line_number whenever any scanned file gains a line -- so two branches that both touched it conflict on content carrying no meaning. It conflicted twice in one session on nothing but a timestamp, c074d43 shows another terminal spending a whole commit on the same churn, and five of the last twelve commits touching that file are develop merge-downs paying the same tax. Across fifty-plus live worktrees that is a standing cost on every merge, and hand-resolving a generated file is a treadmill by definition. git already solves this: .gitattributes declares the path, git config holds the driver body, and keep-theirs writes the incoming side (cp -f %B %A). Taking THEIRS is correct for this file specifically -- origin/develop is the integration truth, and the detect-secrets pre-commit hook plus //#secrets:baseline regenerate the line numbers locally straight after, so a stale timestamp self-heals while a hand-resolved conflict does not. WHY A TASK AND NOT A DOC: .gitattributes is versionable but merge.<name>.driver lives in git config, which is NOT versionable -- a declared-but-unregistered driver silently does nothing, so the registration must be an executable, rediscoverable op rather than a line in a setup guide nobody runs. Writes to --local, never --global: a driver in a developer's global config would silently change merge behaviour in unrelated projects. In this repo git config --local resolves to the SHARED .git/config (extensions.worktreeConfig is unset), so one run covers every worktree. Idempotent -- a second run reports already-registered, and a CHANGED driver body counts as unregistered so it is re-applied rather than left stale. SAFETY: the driver DISCARDS one side, so the allowlist is a short literal asserted list, never a glob; pnpm-lock.yaml is deliberately excluded because a wrong resolution there is a real dependency change, not noise. Pure cores (gitattributesContent, driverConfigEntries, gitConfigArgs, isRegistered) are unit-tested under //#test:scripts; only the registrar touches git. cache:false (mutates git config and a tracked file, no cacheable output). Run once per clone: pnpm exec turbo run git:merge-drivers.",
       "cache": false,
-      "persistent": false
+      "persistent": false,
+    },
+    "//#assert:parses": {
+      "description": "Root-level task: assert that one or more TypeScript files PARSE, EXPORT the intended names, and (for specs) declare at least N tests -- every question answered from the AST, never by matching text. Prefix //# ensures repo-root-only (it takes arbitrary paths and belongs to no workspace package). ROOT CAUSE THIS ELIMINATES: authoring-time gates verified freshly-written files by counting characters, and it failed three ways in one session. Brace counting balanced EXACTLY on a file containing a double else that does not parse, so the gate printed OK on broken source and the defect surfaced minutes later from lint:scripts as a parsing error far from the write that caused it; the same counting rejects the perfectly valid const brace = '{'. Export checks by substring were satisfied by the phrase appearing in a COMMENT and defeated by export { x }, by export const, and by every exported type. And a test count of /\\n  it\\(/g encoded TWO-SPACE INDENTATION as a contract -- verified scoring ZERO on a file holding four real tests written flush-left, deeply indented, as it.each and as the test alias. None is fixable with a better pattern, because none of the properties is lexical. ts.createSourceFile already builds the tree, so parseDiagnostics answers syntax, an export walk answers surface, and a CallExpression walk answers test count, all immune to formatting. NOT a substitute for //#typecheck:scripts or //#lint:scripts, which run in CI and check far more: this answers is-this-well-formed in milliseconds AT THE MOMENT OF WRITING, so a malformed heredoc fails immediately instead of surfacing from a gate later. Deliberately NOT wired into __ci_fast__ for that reason -- CI already covers these properties more thoroughly, and a duplicate gate there would add runtime without adding signal. Uses the raw compiler API rather than ts-morph: ts-morph wraps the same API this calls directly, so the dependency would buy nothing for a read-only traversal. OUTPUT IS A JSON ENVELOPE on stdout -- {event, file, reasons, agent_action} -- so an orchestrator routes on reason codes instead of parsing prose, the rule gate:agent already follows with NDJSON. FAILS CLOSED: an unreadable file is never a pass. cache:false (a pass/fail check over working-tree state, matching lint:scripts and test:scripts). Run: pnpm exec turbo run assert:parses -- --exports=foo,bar --min-tests=12 scripts/thing.test.ts.",
+      "cache": false,
+      "persistent": false,
+    },
+    "//#estate:verify": {
+      "description": "Root-level task: ASSERT the worktree estate is clean, and say exactly why when it is not. Prefix //# ensures repo-root-only (it spans every worktree, belonging to no workspace package). WHY IT EXISTS: verifying the estate was three commands read by human eyes -- git worktree list, git stash list, git status --porcelain -- the same hand-rolled-idiom shape worktree:close was created to retire. It also nearly shipped a false report: the worktree:sweep unmerged refusal, not those three commands, is what revealed PR #565 was still OPEN after a session summary had already called it deployed. FOUR PROPERTIES, not the three a hand check sees: dirty tree, unpushed commits, stashes, AND stale/locked worktrees -- git worktree list --porcelain reports prunable (gitdir points at a non-existent location) and locked, and GitLab records that git 2.16 fails badly when stale worktrees exist. STDOUT IS DATA, STDERR IS HUMANS: exactly one NDJSON estate_verified event on stdout so an orchestrator pipes to jq without stripping prose, and the readable summary on stderr -- the same split pr-automerge documents after a transient gh message landed in front of JSON and was misclassified as a permanent contract violation. GRADED EXITS so a caller branches on the failure MODE: 0 clean, 1 not clean, 2 usage, 3 unreadable, 4 stale. Four is the If-Match/412 case, reached only when --expect-digest is supplied and the estate has moved since the caller observed it: nothing is broken and no worktree needs attention, so the remediation is to re-read and re-plan rather than to repair. It exists because estate_digest let a caller RECORD what it observed while nothing let it BIND an action to that observation, and a check performed separately from the act is the split compare-and-swap closes -- two laptops and many worktrees mutate this estate concurrently. FAILS CLOSED at 3 -- an estate that cannot be queried must never report clean with 0 checked, the confident-zero hazard stack:stop and docker:reclaim both guard. The state shape is BRANDED (WorktreeStateSchema.brand), so the schema is the only constructor and a raw object literal cannot reach the classifier -- verified: tsc rejects it with Property '[$brand]' is missing. Pure cores (classifyEstate, describeEstate, estateTelemetry, parseWorktreeRecords, parseEstateArgv) are unit-tested under //#test:scripts; only the driver touches git, always via execFileSync with an argv array and no shell. cache:false -- the answer changes with every edit in every worktree, and a cached verdict is a stale verdict, which is the exact failure it exists to catch. Run: pnpm exec turbo run estate:verify [-- --quiet].",
+      "cache": false,
+      "persistent": false,
+      "passThroughEnv": ["TRACEPARENT"],
     },
     "//#worktree:sweep": {
       "description": "Root-level task: batch-close every merged worktree in the estate in one rediscoverable op. Prefix //# ensures repo-root-only (it spans all worktrees). Composes the pure planSweep candidate selector (scripts/sweep-worktrees.ts) with the EXISTING worktree:close pipeline -- decideClose/closePlan/resolveCloseInput are imported verbatim, never reimplemented, so a swept close is byte-identical to a single worktree:close and inherits every guard: it REFUSES per-candidate on primary-clone, no-upstream, unpushed, dirty, or unmerged (not contained in origin/develop). State is gathered AT ATTEMPT TIME, so a branch a concurrent terminal advanced since any census is re-checked and correctly refused -- the reason the sweep drives the guard rather than pre-trusting a snapshot. --dry-run prints the per-candidate verdict + a removed/refused/kept footer without mutating. Complements worktree:close (one path) and sync:worktrees (fast-forward, no removal). Pure core + report are unit-tested under //#test:scripts; only the driver touches git. Never passes --force/-D/-f. cache:false (side-effecting git mutation, no cacheable output). Run: pnpm exec turbo run worktree:sweep [-- --dry-run].",
-      "cache": false
-    },
-    "//#graph": {
-      "description": "Root-level task: generate pipeline DAG visualization (Mermaid for ADR/docs). Prefix '//#' ensures repo-root-only. For live operational inspection prefer 'turbo devtools' (2.7+) — browser-based package/task graph.",
-      "cache": false
+      "cache": false,
     },
     "tokens:build": {
       "description": "Package task: each consuming app regenerates its OWN design-token output from the @fleet/design-tokens SSOT (ops-web writes src/app/globals.css via node scripts/build-tokens.mts write; the RN apps will emit their theme tokens the same way). NOT a //# root task -- it is implemented per package so every app owns and rewrites a file inside its own boundary (2026 monorepo rule: no cross-package reach). dependsOn @fleet/design-tokens#build so the emitter dist exists before the .mts imports it via its public ./emit-ops-web subpath. cache:false (side-effecting file write). Run: pnpm exec turbo run tokens:build --filter=@fleet/ops-web.",
       "dependsOn": ["@fleet/design-tokens#build"],
-      "cache": false
+      "cache": false,
+    },
+    "tokens:lint": {
+      "description": "Package task: RATCHET guard forbidding any INCREASE in raw Tailwind colour literals inside JSX className attributes. Complements tokens:check, which proves globals.css matches the token SSOT but says nothing about whether COMPONENTS consume the roles -- so a page migrated to semantic roles can have a raw text-slate-900 reintroduced days later by another worktree with every gate green (16b0511 did exactly that to a page 5ae52ec had just cleaned). Deliberately NOT a boolean gate: develop carries 274 occurrences across 17 files, and a permanently-red gate gets switched off, which is worse than none. Instead a per-file budget in apps/ops-web/design-token-ratchet.tsv that may only DECREASE. TSV not JSON because every migrating worktree edits it and JSON conflicts on braces and commas when two worktrees migrate different components in parallel, the normal case here. Fails CLOSED: a file absent from the baseline has an implicit budget of zero, so a NEW file carrying literals is a regression, not a silent pass. Pure core is unit-tested in @fleet/design-tokens; only the .mts driver touches the filesystem, the same split as emit-ops-web plus build-tokens.mts. dependsOn @fleet/design-tokens#build so the guard dist exists before the driver imports its public ./literal-guard subpath. cache:false (pass/fail check). Refresh after a migration with -- --tighten, which refuses while a regression is outstanding so it can never launder new debt into the baseline.",
+      "dependsOn": ["@fleet/design-tokens#build"],
+      "cache": false,
     },
     "tokens:check": {
       "description": "Package task: drift guard -- regenerate the app design-token output in-memory and exit 1 when the on-disk file differs from the @fleet/design-tokens SSOT (node scripts/build-tokens.mts check). Implemented per consuming package. dependsOn @fleet/design-tokens#build. cache:false (pass/fail check). Wire into the app CI gate so a stale committed globals.css fails the build. Run: pnpm exec turbo run tokens:check --filter=@fleet/ops-web.",
       "dependsOn": ["@fleet/design-tokens#build"],
-      "cache": false
+      "cache": false,
     },
     "dev": {
       "description": "Local dev server (persistent, turbo watch-aware)",
       "cache": false,
       "persistent": true,
-      "interruptible": true
+      "interruptible": true,
     },
     "clean": {
       "description": "Remove build artifacts and caches",
-      "cache": false
-    }
-  }
+      "cache": false,
+    },
+  },
 }

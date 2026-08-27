@@ -58,7 +58,12 @@ describe('@fleet/ops-web - IdpClaimSchema', () => {
 
 describe('@fleet/ops-web - AccessTokenClaimsSchema', () => {
   it('parses a well-formed brokered+MFA payload', () => {
-    const c = AccessTokenClaimsSchema.parse({ acr: '2', idp: 'google', aud: 'fleet-pilot', exp: 9999999999 });
+    const c = AccessTokenClaimsSchema.parse({
+      acr: '2',
+      idp: 'google',
+      aud: 'fleet-pilot',
+      exp: 9999999999,
+    });
     expect(c.acr).toBe<LevelOfAssurance>('aal2');
     expect(c.idp).toBe('google');
     expect(c.aud).toEqual(['fleet-pilot']);

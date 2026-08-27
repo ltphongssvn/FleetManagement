@@ -80,7 +80,9 @@ describe('photoUrl accepts the schemes S3 actually serves', () => {
 
 describe('photoUrl REJECTS every scheme that is not http(s)', () => {
   it('rejects javascript: -- the stored-XSS vector into the href sink', () => {
-    expect(StopProofSchema.safeParse(makeProof({ photoUrl: 'javascript:alert(1)' })).success).toBe(false);
+    expect(StopProofSchema.safeParse(makeProof({ photoUrl: 'javascript:alert(1)' })).success).toBe(
+      false,
+    );
   });
 
   it('rejects data: -- an inline document rendered with page origin', () => {
@@ -89,16 +91,24 @@ describe('photoUrl REJECTS every scheme that is not http(s)', () => {
   });
 
   it('rejects mailto: -- the scheme Zod documents as passing a bare z.url()', () => {
-    expect(StopProofSchema.safeParse(makeProof({ photoUrl: 'mailto:a@example.com' })).success).toBe(false);
+    expect(StopProofSchema.safeParse(makeProof({ photoUrl: 'mailto:a@example.com' })).success).toBe(
+      false,
+    );
   });
 
   it('rejects file: -- local filesystem disclosure', () => {
-    expect(StopProofSchema.safeParse(makeProof({ photoUrl: 'file:///etc/passwd' })).success).toBe(false);
+    expect(StopProofSchema.safeParse(makeProof({ photoUrl: 'file:///etc/passwd' })).success).toBe(
+      false,
+    );
   });
 
   it('rejects an unknown future scheme -- ALLOWLIST, not denylist', () => {
-    expect(StopProofSchema.safeParse(makeProof({ photoUrl: 'ftp://example.com/p.jpg' })).success).toBe(false);
-    expect(StopProofSchema.safeParse(makeProof({ photoUrl: 'ws://example.com/p.jpg' })).success).toBe(false);
+    expect(
+      StopProofSchema.safeParse(makeProof({ photoUrl: 'ftp://example.com/p.jpg' })).success,
+    ).toBe(false);
+    expect(
+      StopProofSchema.safeParse(makeProof({ photoUrl: 'ws://example.com/p.jpg' })).success,
+    ).toBe(false);
   });
 
   it('still rejects a non-URL string', () => {
@@ -106,7 +116,9 @@ describe('photoUrl REJECTS every scheme that is not http(s)', () => {
   });
 
   it('rejects a scheme differing only by case (no case folding)', () => {
-    expect(StopProofSchema.safeParse(makeProof({ photoUrl: 'JavaScript:alert(1)' })).success).toBe(false);
+    expect(StopProofSchema.safeParse(makeProof({ photoUrl: 'JavaScript:alert(1)' })).success).toBe(
+      false,
+    );
   });
 });
 

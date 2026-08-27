@@ -26,8 +26,12 @@ vi.mock('../src/database/schema/transport.js', () => ({
 import { TenantPolicy, CrossTenantError } from '../src/auth/tenant-policy.js';
 import type { OperatorContext } from '../src/auth/operator-context.js';
 
-interface SelectCall { shape?: Record<string, unknown> | undefined }
-interface WhereCall { predicate: unknown }
+interface SelectCall {
+  shape?: Record<string, unknown> | undefined;
+}
+interface WhereCall {
+  predicate: unknown;
+}
 interface FakeDb {
   selectCalls: SelectCall[];
   whereCalls: WhereCall[];

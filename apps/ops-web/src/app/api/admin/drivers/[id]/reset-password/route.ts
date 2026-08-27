@@ -6,7 +6,9 @@
 import { type NextRequest, type NextResponse } from 'next/server';
 import { forwardWrite } from '@/app/api/_forward';
 
-interface Ctx { params: Promise<{ id: string }> }
+interface Ctx {
+  params: Promise<{ id: string }>;
+}
 
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const { id } = await ctx.params;

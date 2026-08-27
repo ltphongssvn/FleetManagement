@@ -16,5 +16,4 @@ import { ProjectionsModule } from './projections.module.js';
     ProjectionsModule,
   ],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class ProjectionRebuildModule {}

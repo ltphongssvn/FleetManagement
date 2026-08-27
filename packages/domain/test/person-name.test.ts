@@ -1,6 +1,10 @@
 // packages/domain/test/person-name.test.ts
 import { describe, it, expect } from 'vitest';
-import { normalizeDisplayName, personNameMatchKey, DriverNameSchema } from '../src/identity/person-name.js';
+import {
+  normalizeDisplayName,
+  personNameMatchKey,
+  DriverNameSchema,
+} from '../src/identity/person-name.js';
 
 describe('normalizeDisplayName', () => {
   it('collapses internal whitespace runs to a single space', () => {
@@ -65,7 +69,9 @@ describe('personNameMatchKey', () => {
   // The prod duplicate, stated as the invariant it violated: an invisible must
   // never buy a dispatcher a second identity for the same human.
   it('collides an invisible-bearing name with its clean twin (the prod duplicate)', () => {
-    expect(personNameMatchKey('NGUYỄN AN\u200e BÌNH\u00ad ĐỨC')).toBe(personNameMatchKey('NGUYỄN AN BÌNH ĐỨC'));
+    expect(personNameMatchKey('NGUYỄN AN\u200e BÌNH\u00ad ĐỨC')).toBe(
+      personNameMatchKey('NGUYỄN AN BÌNH ĐỨC'),
+    );
   });
 });
 

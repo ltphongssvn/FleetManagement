@@ -26,7 +26,9 @@ const DRIVER = {
   active: true,
 };
 
-function makeRepo(overrides: Partial<PasskeyCredentialRepository> = {}): PasskeyCredentialRepository {
+function makeRepo(
+  overrides: Partial<PasskeyCredentialRepository> = {},
+): PasskeyCredentialRepository {
   return {
     insert: vi.fn().mockResolvedValue(undefined),
     findByCredentialId: vi.fn().mockResolvedValue(null),
@@ -40,8 +42,15 @@ function makeRepo(overrides: Partial<PasskeyCredentialRepository> = {}): Passkey
 function makeStore(): ChallengeStore {
   const m = new Map<string, string>();
   return {
-    put: vi.fn((k: string, v: string) => { m.set(k, v); return Promise.resolve(); }),
-    take: vi.fn((k: string) => { const v = m.get(k); m.delete(k); return Promise.resolve(v ?? null); }),
+    put: vi.fn((k: string, v: string) => {
+      m.set(k, v);
+      return Promise.resolve();
+    }),
+    take: vi.fn((k: string) => {
+      const v = m.get(k);
+      m.delete(k);
+      return Promise.resolve(v ?? null);
+    }),
   };
 }
 
@@ -98,53 +107,69 @@ describe('PasskeyRegistrationService', () => {
 
     it('throws 403 when driver inactive', async () => {
       lookup = vi.fn().mockResolvedValue({ ...DRIVER, active: false });
-      await expect(svc().beginRegistration(DRIVER.driverId)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(svc().beginRegistration(DRIVER.driverId)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('throws 409 when driver already at credential limit', async () => {
-      repo = makeRepo({ countByDriverId: vi.fn().mockResolvedValue(10) } as Partial<PasskeyCredentialRepository>);
-      await expect(svc().beginRegistration(DRIVER.driverId)).rejects.toBeInstanceOf(ConflictException);
+      repo = makeRepo({
+        countByDriverId: vi.fn().mockResolvedValue(10),
+      } as Partial<PasskeyCredentialRepository>);
+      await expect(svc().beginRegistration(DRIVER.driverId)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
     });
   });
 
   describe('finishRegistration', () => {
     it('verifies response, persists credential, returns ok', async () => {
       await svc().beginRegistration(DRIVER.driverId);
-      const result = await svc().finishRegistration(DRIVER.driverId, { id: 'cred-id-b64url' } as never);
+      const result = await svc().finishRegistration(DRIVER.driverId, {
+        id: 'cred-id-b64url',
+      } as never);
       expect(result.verified).toBe(true);
-      expect(repo.insert).toHaveBeenCalledWith(expect.objectContaining({
-        driverId: DRIVER.driverId,
-        signCount: 0,
-        aaguid: 'adce0002-35bc-c60a-648b-0b25f1f05503',
-        transports: 'internal',
-      }));
+      expect(repo.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          driverId: DRIVER.driverId,
+          signCount: 0,
+          aaguid: 'adce0002-35bc-c60a-648b-0b25f1f05503',
+          transports: 'internal',
+        }),
+      );
     });
 
     it('throws 401 when no stored challenge for driver', async () => {
-      await expect(svc().finishRegistration(DRIVER.driverId, {} as never))
-        .rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(svc().finishRegistration(DRIVER.driverId, {} as never)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
     });
 
     it('throws 401 when @simplewebauthn verification returns verified=false', async () => {
       verifyResp = vi.fn().mockResolvedValue({ verified: false });
       await svc().beginRegistration(DRIVER.driverId);
-      await expect(svc().finishRegistration(DRIVER.driverId, {} as never))
-        .rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(svc().finishRegistration(DRIVER.driverId, {} as never)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
     });
 
     it('throws 409 when credentialId collides globally', async () => {
-      repo = makeRepo({ credentialIdExists: vi.fn().mockResolvedValue(true) } as Partial<PasskeyCredentialRepository>);
+      repo = makeRepo({
+        credentialIdExists: vi.fn().mockResolvedValue(true),
+      } as Partial<PasskeyCredentialRepository>);
       await svc().beginRegistration(DRIVER.driverId);
-      await expect(svc().finishRegistration(DRIVER.driverId, {} as never))
-        .rejects.toBeInstanceOf(ConflictException);
+      await expect(svc().finishRegistration(DRIVER.driverId, {} as never)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
     });
 
     it('challenge is single-use (second finish call has no stored challenge)', async () => {
       const s = svc();
       await s.beginRegistration(DRIVER.driverId);
       await s.finishRegistration(DRIVER.driverId, { id: 'cred-id-b64url' } as never);
-      await expect(s.finishRegistration(DRIVER.driverId, {} as never))
-        .rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(s.finishRegistration(DRIVER.driverId, {} as never)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
     });
 
     it('persists aaguid=null and transports=null when both are absent (lines 125-126 else arms)', async () => {
@@ -163,10 +188,12 @@ describe('PasskeyRegistrationService', () => {
       const s = svc();
       await s.beginRegistration(DRIVER.driverId);
       await s.finishRegistration(DRIVER.driverId, { id: 'cred-id-b64url' } as never);
-      expect(repo.insert).toHaveBeenCalledWith(expect.objectContaining({
-        aaguid: null,
-        transports: null,
-      }));
+      expect(repo.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          aaguid: null,
+          transports: null,
+        }),
+      );
     });
 
     it('persists transports=null when transports is an empty array (line 126 length>0 false)', async () => {

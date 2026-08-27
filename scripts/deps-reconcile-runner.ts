@@ -30,10 +30,23 @@ import {
   healArgs,
   interpretHealResult,
   reconcileExitCode,
-
+  verifyHeal,
   type ReconcileSummary,
 } from './deps-reconcile.js';
-import { buildProbeEnv, joinProbeStreams, type DepsProbe } from './worktree-deps-status.js';
+import {
+  buildProbeEnv,
+  interpretDepsProbe,
+  joinProbeStreams,
+  type DepsProbe,
+} from './worktree-deps-status.js';
+// The RE-READ. Identical to the probe the sweep already runs BEFORE healing,
+// so the after-state is judged by the same detector as the before-state -- a
+// second opinion here is how pr-follow and pr-automerge carried one bug in
+// two copies. Safe to repeat: a frozen install never writes a lockfile, so
+// verifying cannot mutate what it is verifying.
+function verifyArgs(): readonly string[] {
+  return ['install', '--frozen-lockfile', '--reporter=ndjson'];
+}
 // A heal is a frozen install: no resolution step, packages already in the
 // store. Five minutes is generous for the slowest cold worktree and still
 // finite, which is the point -- sync-worktrees.ts documents a 4h17m wedge
@@ -52,11 +65,7 @@ interface SpawnOptions {
 // The seam. Production passes a spawnSync wrapper; tests pass a recorder, so
 // "never spawn in dry run" is asserted as an empty call list rather than as the
 // absence of a substring.
-export type SpawnFn = (
-  cwd: string,
-  args: readonly string[],
-  opts: SpawnOptions,
-) => SpawnOutcome;
+export type SpawnFn = (cwd: string, args: readonly string[], opts: SpawnOptions) => SpawnOutcome;
 export interface ReconcileTarget {
   path: string;
   probe: DepsProbe;
@@ -108,9 +117,22 @@ export function runReconcile(
     );
     // One worktree's failure must never abandon the other 44: the sweep records
     // the outcome and moves on. The exit code carries the verdict at the end.
-    if (result.kind === 'reconciled') {
-      summary.reconciled += 1;
-      lines.push('reconciled ' + target.path);
+    // DETECT AGAIN. Exit 0 means the install ATTEMPT finished; the tree is
+    // re-read and THAT answer decides. Only an attempted heal reaches here,
+    // so a divergent or failed install is never re-probed -- there is nothing
+    // to verify and a second spawn would only cost time.
+    if (result.kind === 'heal-attempted') {
+      const after = spawn(target.path, verifyArgs(), { env, timeout, killSignal: 'SIGTERM' });
+      const verdict = verifyHeal(
+        interpretDepsProbe(after.status, joinProbeStreams(after.stderr, after.stdout)),
+      );
+      if (verdict.kind === 'reconciled') {
+        summary.reconciled += 1;
+        lines.push('reconciled ' + target.path + ' [verified]');
+      } else {
+        summary.failed += 1;
+        lines.push('STILL-STALE ' + target.path + ' [' + verdict.source + '] ' + verdict.reason);
+      }
       continue;
     }
     if (result.kind === 'divergent') {
@@ -118,8 +140,14 @@ export function runReconcile(
       lines.push('divergent  ' + target.path + ' [' + result.source + '] ' + result.reason);
       continue;
     }
-    summary.failed += 1;
-    lines.push('failed     ' + target.path + ' [' + result.source + '] ' + result.reason);
+    // heal-attempted and divergent both returned above, so only failed can
+    // reach here -- stated as a CHECK rather than an assertion, so a future
+    // variant added to HealResult fails the compile instead of falling
+    // through into a message that claims a failure it did not observe.
+    if (result.kind === 'failed') {
+      summary.failed += 1;
+      lines.push('failed     ' + target.path + ' [' + result.source + '] ' + result.reason);
+    }
   }
   return { planned, summary, exitCode: reconcileExitCode(summary), lines };
 }

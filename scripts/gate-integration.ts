@@ -127,9 +127,7 @@ function main(): void {
   // --filter ended up being handed to eslint:
   //   eslint . --filter=@fleet/domain -> Invalid option '--filter'
   // Strip every bare -- so the caller flags stay TURBO flags.
-  const passthrough = argv.filter(
-    (a) => a !== '--no-wait' && a !== '--force' && a !== '--',
-  );
+  const passthrough = argv.filter((a) => a !== '--no-wait' && a !== '--force' && a !== '--');
 
   if (!force) {
     const readiness = evaluateHostReadiness(snapshotHost());
@@ -149,8 +147,14 @@ function main(): void {
   // So passthrough args are spliced in as TURBO flags, right after the task
   // list, and we never append a bare -- ourselves.
   const turbo = [
-    'pnpm', 'exec', 'turbo', 'run',
-    'typecheck', 'lint', 'test:unit', 'test:integration',
+    'pnpm',
+    'exec',
+    'turbo',
+    'run',
+    'typecheck',
+    'lint',
+    'test:unit',
+    'test:integration',
     '--concurrency=1',
     ...passthrough,
   ];
@@ -163,8 +167,11 @@ function main(): void {
   mkdirSync(dirname(LOCK_PATH), { recursive: true });
   const flockArgs = buildFlockArgs(LOCK_PATH, noWait ? 1 : WAIT_SECONDS, turbo);
 
-  console.error('gate:integration: acquiring host lock ' + LOCK_PATH +
-    (noWait ? ' (no-wait)' : ' (queueing up to ' + String(WAIT_SECONDS) + 's)'));
+  console.error(
+    'gate:integration: acquiring host lock ' +
+      LOCK_PATH +
+      (noWait ? ' (no-wait)' : ' (queueing up to ' + String(WAIT_SECONDS) + 's)'),
+  );
 
   const child = spawn('flock', [...flockArgs], {
     stdio: 'inherit',

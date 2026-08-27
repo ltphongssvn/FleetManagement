@@ -51,10 +51,14 @@ describe('cancelOrder server action (T5)', () => {
   it('redirects to / and revalidates both the review page and the board on success', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'jwt-abc' });
-    const fetchMock = vi.fn(() => Promise.resolve(new Response(
-      JSON.stringify({ transportOrderId: VALID_ID, idempotent: false, state: 'cancelled' }),
-      { status: 200, headers: { 'content-type': 'application/json' } },
-    )));
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ transportOrderId: VALID_ID, idempotent: false, state: 'cancelled' }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const { cancelOrder } = await import('@/features/dispatch/cancel-order.action');
     const fd = new FormData();
@@ -72,7 +76,10 @@ describe('cancelOrder server action (T5)', () => {
     expect(revalidatePath).toHaveBeenCalledWith('/dispatch/orders/' + VALID_ID);
     expect(revalidatePath).toHaveBeenCalledWith('/');
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const calls = fetchMock.mock.calls as unknown as [string, { method: string; body: string; headers: Record<string, string> }][];
+    const calls = fetchMock.mock.calls as unknown as [
+      string,
+      { method: string; body: string; headers: Record<string, string> },
+    ][];
     const first = calls[0];
     if (!first) throw new Error('no fetch call');
     expect(first[0]).toBe('http://api:3000/transport-orders/' + VALID_ID + '/cancel');
@@ -84,10 +91,17 @@ describe('cancelOrder server action (T5)', () => {
   it('redirects to / on an idempotent retried cancel too', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'jwt' });
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(
-      JSON.stringify({ transportOrderId: VALID_ID, idempotent: true, state: 'cancelled' }),
-      { status: 200, headers: { 'content-type': 'application/json' } },
-    ))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({ transportOrderId: VALID_ID, idempotent: true, state: 'cancelled' }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          ),
+        ),
+      ),
+    );
     const { cancelOrder } = await import('@/features/dispatch/cancel-order.action');
     const fd = new FormData();
     fd.set('transportOrderId', VALID_ID);
@@ -134,7 +148,10 @@ describe('cancelOrder server action (T5)', () => {
     fd.set('transportOrderId', VALID_ID);
     fd.set('reason', 'customer_request');
     const r = await cancelOrder(undefined, fd);
-    expect(r).toEqual({ status: 'server_error', message: expect.stringContaining('chưa được cấu hình') });
+    expect(r).toEqual({
+      status: 'server_error',
+      message: expect.stringContaining('chưa được cấu hình'),
+    });
   });
   it('redirects to /login when the auth cookie is missing (expired session)', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
@@ -160,10 +177,17 @@ describe('cancelOrder server action (T5)', () => {
   it('returns not_found when the API returns 404', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'jwt' });
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(
-      JSON.stringify({ message: 'Transport order not found' }),
-      { status: 404, headers: { 'content-type': 'application/json' } },
-    ))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ message: 'Transport order not found' }), {
+            status: 404,
+            headers: { 'content-type': 'application/json' },
+          }),
+        ),
+      ),
+    );
     const { cancelOrder } = await import('@/features/dispatch/cancel-order.action');
     const fd = new FormData();
     fd.set('transportOrderId', VALID_ID);
@@ -175,10 +199,19 @@ describe('cancelOrder server action (T5)', () => {
   it('returns conflict when the API returns 409', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'jwt' });
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(
-      JSON.stringify({ message: 'Transport order cannot be cancelled from state: completed' }),
-      { status: 409, headers: { 'content-type': 'application/json' } },
-    ))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              message: 'Transport order cannot be cancelled from state: completed',
+            }),
+            { status: 409, headers: { 'content-type': 'application/json' } },
+          ),
+        ),
+      ),
+    );
     const { cancelOrder } = await import('@/features/dispatch/cancel-order.action');
     const fd = new FormData();
     fd.set('transportOrderId', VALID_ID);
@@ -190,10 +223,17 @@ describe('cancelOrder server action (T5)', () => {
   it('returns api_error for other non-2xx API responses', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'jwt' });
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(
-      JSON.stringify({ message: 'boom' }),
-      { status: 500, headers: { 'content-type': 'application/json' } },
-    ))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ message: 'boom' }), {
+            status: 500,
+            headers: { 'content-type': 'application/json' },
+          }),
+        ),
+      ),
+    );
     const { cancelOrder } = await import('@/features/dispatch/cancel-order.action');
     const fd = new FormData();
     fd.set('transportOrderId', VALID_ID);
@@ -209,7 +249,10 @@ describe('cancelOrder server action (T5)', () => {
   it('returns api_error with the status-class copy even when the error body cannot be read', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'jwt' });
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('not json', { status: 500 }))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response('not json', { status: 500 }))),
+    );
     const { cancelOrder } = await import('@/features/dispatch/cancel-order.action');
     const fd = new FormData();
     fd.set('transportOrderId', VALID_ID);
@@ -222,10 +265,14 @@ describe('cancelOrder server action (T5)', () => {
   it('drops a stale note when it is an empty string (treats it as unset)', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'jwt' });
-    const fetchMock = vi.fn(() => Promise.resolve(new Response(
-      JSON.stringify({ transportOrderId: VALID_ID, idempotent: false, state: 'cancelled' }),
-      { status: 200, headers: { 'content-type': 'application/json' } },
-    )));
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ transportOrderId: VALID_ID, idempotent: false, state: 'cancelled' }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const { cancelOrder } = await import('@/features/dispatch/cancel-order.action');
     const fd = new FormData();
@@ -263,10 +310,14 @@ describe('cancelOrder server action (T5)', () => {
   it('accepts reason=other WITH a note and forwards both to the API', async () => {
     vi.stubEnv('FLEET_API_URL', 'http://api:3000');
     cookieGet.mockReturnValue({ value: 'jwt' });
-    const fetchMock = vi.fn(() => Promise.resolve(new Response(
-      JSON.stringify({ transportOrderId: VALID_ID, idempotent: false, state: 'cancelled' }),
-      { status: 200, headers: { 'content-type': 'application/json' } },
-    )));
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ transportOrderId: VALID_ID, idempotent: false, state: 'cancelled' }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const { cancelOrder } = await import('@/features/dispatch/cancel-order.action');
     const fd = new FormData();

@@ -11,5 +11,4 @@ import { MetricsService } from './metrics.service.js';
   providers: [MetricsService],
   exports: [MetricsService],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class MetricsModule {}

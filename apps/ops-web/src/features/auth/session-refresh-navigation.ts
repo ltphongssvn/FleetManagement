@@ -21,7 +21,9 @@ export function sessionRefreshUrl(currentPath: string): string {
 }
 
 export function navigateToSessionRefresh(
-  navigate: NavigateFn = (url: string): void => { window.location.assign(url); },
+  navigate: NavigateFn = (url: string): void => {
+    window.location.assign(url);
+  },
   currentPath: string = window.location.pathname + window.location.search,
 ): void {
   navigate(sessionRefreshUrl(currentPath));

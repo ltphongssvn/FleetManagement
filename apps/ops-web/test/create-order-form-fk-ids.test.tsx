@@ -27,11 +27,17 @@ function requireInput(selector: string): Element {
 }
 describe('CreateOrderForm submits FK ids (T7)', () => {
   it('customer hidden input is named customer and submits the id', async () => {
-    render(<CreateOrderForm
-      drivers={drivers} vehicles={vehicles} customers={customers}
-      cargoTypes={cargoTypes} pickupWarehouses={pickupWarehouses}
-      deliveryWarehouses={deliveryWarehouses} driverVehicleAssignments={assignments}
-    />);
+    render(
+      <CreateOrderForm
+        drivers={drivers}
+        vehicles={vehicles}
+        customers={customers}
+        cargoTypes={cargoTypes}
+        pickupWarehouses={pickupWarehouses}
+        deliveryWarehouses={deliveryWarehouses}
+        driverVehicleAssignments={assignments}
+      />,
+    );
     const input = screen.getByLabelText(/khách hàng/i);
     const userEvent = (await import('@testing-library/user-event')).default;
     const ue = userEvent.setup();
@@ -40,11 +46,17 @@ describe('CreateOrderForm submits FK ids (T7)', () => {
     expect(hidden('customer')?.value).toBe('c-uuid-1');
   });
   it('cargo hidden input submits the cargo-type id', async () => {
-    render(<CreateOrderForm
-      drivers={drivers} vehicles={vehicles} customers={customers}
-      cargoTypes={cargoTypes} pickupWarehouses={pickupWarehouses}
-      deliveryWarehouses={deliveryWarehouses} driverVehicleAssignments={assignments}
-    />);
+    render(
+      <CreateOrderForm
+        drivers={drivers}
+        vehicles={vehicles}
+        customers={customers}
+        cargoTypes={cargoTypes}
+        pickupWarehouses={pickupWarehouses}
+        deliveryWarehouses={deliveryWarehouses}
+        driverVehicleAssignments={assignments}
+      />,
+    );
     const input = screen.getByLabelText(/tên hàng/i);
     const userEvent = (await import('@testing-library/user-event')).default;
     const ue = userEvent.setup();
@@ -53,11 +65,17 @@ describe('CreateOrderForm submits FK ids (T7)', () => {
     expect(hidden('cargo')?.value).toBe('cg-uuid-1');
   });
   it('pickupWarehouse_1 hidden input submits the warehouse id', async () => {
-    render(<CreateOrderForm
-      drivers={drivers} vehicles={vehicles} customers={customers}
-      cargoTypes={cargoTypes} pickupWarehouses={pickupWarehouses}
-      deliveryWarehouses={deliveryWarehouses} driverVehicleAssignments={assignments}
-    />);
+    render(
+      <CreateOrderForm
+        drivers={drivers}
+        vehicles={vehicles}
+        customers={customers}
+        cargoTypes={cargoTypes}
+        pickupWarehouses={pickupWarehouses}
+        deliveryWarehouses={deliveryWarehouses}
+        driverVehicleAssignments={assignments}
+      />,
+    );
     const input = requireInput('input#pickupWarehouse_1');
     const userEvent = (await import('@testing-library/user-event')).default;
     const ue = userEvent.setup();
@@ -66,11 +84,17 @@ describe('CreateOrderForm submits FK ids (T7)', () => {
     expect(hidden('pickupWarehouse_1')?.value).toBe('pw-uuid-1');
   });
   it('deliveryWarehouse_1 hidden input submits the warehouse id', async () => {
-    render(<CreateOrderForm
-      drivers={drivers} vehicles={vehicles} customers={customers}
-      cargoTypes={cargoTypes} pickupWarehouses={pickupWarehouses}
-      deliveryWarehouses={deliveryWarehouses} driverVehicleAssignments={assignments}
-    />);
+    render(
+      <CreateOrderForm
+        drivers={drivers}
+        vehicles={vehicles}
+        customers={customers}
+        cargoTypes={cargoTypes}
+        pickupWarehouses={pickupWarehouses}
+        deliveryWarehouses={deliveryWarehouses}
+        driverVehicleAssignments={assignments}
+      />,
+    );
     const input = requireInput('input#deliveryWarehouse_1');
     const userEvent = (await import('@testing-library/user-event')).default;
     const ue = userEvent.setup();

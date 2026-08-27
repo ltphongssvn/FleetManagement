@@ -1,11 +1,24 @@
 // apps/api/test/command-push-zero-accepted.test.ts
 import { describe, it, expect, vi } from 'vitest';
-import { CommandsGateway, COMMAND_DELIVERY_POLICY_VERSION } from '../src/commands/commands.gateway.js';
+import {
+  CommandsGateway,
+  COMMAND_DELIVERY_POLICY_VERSION,
+} from '../src/commands/commands.gateway.js';
 import type { IPushProvider } from '../src/push/push-provider.interface.js';
 import type { Clock } from '../src/common/clock.js';
 
 interface PendingMap {
-  readonly pending: Map<string, { operatorId: string; issuedAt: Date; attempts: number; pushAttempts: number; pushInFlight: boolean; policyVersion: string }>;
+  readonly pending: Map<
+    string,
+    {
+      operatorId: string;
+      issuedAt: Date;
+      attempts: number;
+      pushAttempts: number;
+      pushInFlight: boolean;
+      policyVersion: string;
+    }
+  >;
 }
 
 function seed(g: CommandsGateway, id: string): void {
@@ -21,7 +34,10 @@ function seed(g: CommandsGateway, id: string): void {
 
 describe('@fleet/api - push result.accepted=0 treated as failure', () => {
   it('retains pending when accepted=0 rejected>0 (all tokens rejected)', async () => {
-    const allRejected = vi.fn().mockResolvedValue({ accepted: 0, rejected: 1 }) as unknown as IPushProvider['sendToOperator'];
+    const allRejected = vi.fn().mockResolvedValue({
+      accepted: 0,
+      rejected: 1,
+    }) as unknown as IPushProvider['sendToOperator'];
     const fakeClock: Clock = { now: () => new Date('2026-05-02T10:00:00.000Z') };
     const gw = new CommandsGateway({ sendToOperator: allRejected }, fakeClock);
     seed(gw, 'cZero');
@@ -33,7 +49,10 @@ describe('@fleet/api - push result.accepted=0 treated as failure', () => {
   });
 
   it('DLQ after MAX attempts when accepted always 0', async () => {
-    const allRejected = vi.fn().mockResolvedValue({ accepted: 0, rejected: 1 }) as unknown as IPushProvider['sendToOperator'];
+    const allRejected = vi.fn().mockResolvedValue({
+      accepted: 0,
+      rejected: 1,
+    }) as unknown as IPushProvider['sendToOperator'];
     const fakeClock: Clock = { now: () => new Date('2026-05-02T10:00:00.000Z') };
     const gw = new CommandsGateway({ sendToOperator: allRejected }, fakeClock);
     seed(gw, 'cZeroDLQ');
@@ -46,7 +65,10 @@ describe('@fleet/api - push result.accepted=0 treated as failure', () => {
   });
 
   it('still deletes pending on accepted>0 even with rejected>0 (partial success)', async () => {
-    const partial = vi.fn().mockResolvedValue({ accepted: 1, rejected: 1 }) as unknown as IPushProvider['sendToOperator'];
+    const partial = vi.fn().mockResolvedValue({
+      accepted: 1,
+      rejected: 1,
+    }) as unknown as IPushProvider['sendToOperator'];
     const fakeClock: Clock = { now: () => new Date('2026-05-02T10:00:00.000Z') };
     const gw = new CommandsGateway({ sendToOperator: partial }, fakeClock);
     seed(gw, 'cPartial');

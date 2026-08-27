@@ -81,8 +81,38 @@ export {
   ManifestRejectionReasonSchema,
   type ManifestRejectionReason,
 } from './manifest/manifest-rejection-reason.js';
-export * from "./number-format/parse-one-number.js";
-export * from './manifest/manifest-extraction-status.js';
+// parseOneNumber is the pure Vietnamese/OCR number grammar the worker, the api
+// and the board all depend on. Named rather than wildcard: this barrel was
+// root-fixed once already for exactly this class of bug -- symbols missing from
+// the compiled dist that consumers resolve -- and a wildcard is what lets the
+// next relocation land without anyone noticing the surface changed.
+export { parseOneNumber } from './number-format/parse-one-number.js';
+export {
+  MANIFEST_EXTRACTION_STATUSES,
+  manifestExtractionStatusSchema,
+  type ManifestExtractionStatus,
+  isTerminalExtractionStatus,
+} from './manifest/manifest-extraction-status.js';
+
+// Dispatch-board projection policy. Pure event -> delta computation, moved here
+// from workers/main-worker because BOTH apps/api and the worker consume it, and
+// an app importing a deployable worker is an inverted edge: apps depend on
+// packages, nothing flows the other way. Exported from the barrel because both
+// consumers import from the package ROOT.
+export {
+  SyncFeedEventSchema,
+  type SyncFeedEvent,
+  PROJECTION_POLICY_VERSION,
+  DISPATCH_BOARD_PROJECTION_NAME,
+  type RoadRunStateValue,
+  type ObservedAggregateType,
+  type RoadRunProjectionRow,
+  ProjectionNoopReasonSchema,
+  type ProjectionNoopReason,
+  ProjectionDeltaSchema,
+  type ProjectionDelta,
+  applyDispatchBoardEvent,
+} from './projections/dispatch-board-projection.js';
 
 // T33: phieu-can STANDARD FORMAT SSOT + the pure goods-kg derivation rule.
 // Exported from the barrel because every consumer (worker extraction policy,
@@ -99,3 +129,28 @@ export {
   type GoodsDerivation,
   deriveGoodsKg,
 } from './manifest/phieu-can-format.js';
+
+// T70: UI AFFORDANCE SSOT -- tone, emphasis, empty-state reason, help topic and
+// the WCAG 2.5.8 target-size floor. Exported from the barrel because every
+// consumer (ops-web primitives, driver-app, owner-app) imports from the package
+// ROOT; a deep src path import is precisely what invites a screen to re-declare
+// its own one-off tone union and reopen the drift this arc closes.
+export {
+  ACTION_TONES,
+  ActionToneSchema,
+  type ActionTone,
+  ACTION_EMPHASES,
+  ActionEmphasisSchema,
+  type ActionEmphasis,
+  EMPTY_STATE_REASONS,
+  EmptyStateReasonSchema,
+  type EmptyStateReason,
+  type EmptyStateCopy,
+  EMPTY_STATE_VI,
+  HELP_TOPICS,
+  HelpTopicSchema,
+  type HelpTopic,
+  type HelpTopicCopy,
+  HELP_TOPIC_VI,
+  MIN_TARGET_SIZE_PX,
+} from './ui/affordance.js';

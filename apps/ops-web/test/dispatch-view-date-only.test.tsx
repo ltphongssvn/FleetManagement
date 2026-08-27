@@ -8,8 +8,13 @@ import { DispatchView } from '@/features/dispatch/DispatchView';
 import type { DispatchBoardRoadRun } from '@/features/dispatch/types';
 afterEach(cleanup);
 const refs = {
-  drivers: [], vehicles: [], customers: [], cargoTypes: [],
-  pickupWarehouses: [], deliveryWarehouses: [], driverVehicleAssignments: [],
+  drivers: [],
+  vehicles: [],
+  customers: [],
+  cargoTypes: [],
+  pickupWarehouses: [],
+  deliveryWarehouses: [],
+  driverVehicleAssignments: [],
 };
 const run: DispatchBoardRoadRun = {
   roadRunId: '33333333-3333-4333-8333-333333333333',

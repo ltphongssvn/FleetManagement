@@ -23,7 +23,10 @@ function parseFilename(contentDisposition: string | null): string {
 export async function exportOrdersExcel(range?: ExportDateRange): Promise<ExportOrdersExcelResult> {
   const apiUrl = process.env['FLEET_API_URL'];
   if (apiUrl === undefined || apiUrl.length === 0) {
-    return { status: 'server_error', message: 'Hệ thống chưa được cấu hình. Vui lòng liên hệ quản trị.' };
+    return {
+      status: 'server_error',
+      message: 'Hệ thống chưa được cấu hình. Vui lòng liên hệ quản trị.',
+    };
   }
   // Feature 4: optional dispatcher-selected inclusive day-range. Validate against
   // the SSOT before calling the API so an inverted/malformed range fails fast on

@@ -4,12 +4,14 @@
 
 export type TransitionResult<S extends string> =
   | { readonly allowed: true; readonly nextState: S }
-  | { readonly allowed: false; readonly reason: TransitionFailureReason; readonly attemptedFrom: S; readonly attemptedTo: S };
+  | {
+      readonly allowed: false;
+      readonly reason: TransitionFailureReason;
+      readonly attemptedFrom: S;
+      readonly attemptedTo: S;
+    };
 
-export type TransitionFailureReason =
-  | 'TERMINAL_STATE'
-  | 'INVALID_TRANSITION'
-  | 'SAME_STATE';
+export type TransitionFailureReason = 'TERMINAL_STATE' | 'INVALID_TRANSITION' | 'SAME_STATE';
 
 export interface FiniteStateMachine<S extends string> {
   readonly version: number;
@@ -38,7 +40,11 @@ export function createStateMachine<S extends string>(def: FsmDefinition<S>): Fin
     for (const target of targets) {
       if (!def.states.includes(target)) {
         throw new Error(
-          "createStateMachine: transition " + from + " -> " + target + " references undeclared state",
+          'createStateMachine: transition ' +
+            from +
+            ' -> ' +
+            target +
+            ' references undeclared state',
         );
       }
     }
@@ -50,7 +56,9 @@ export function createStateMachine<S extends string>(def: FsmDefinition<S>): Fin
     }
     const targets = def.transitions.get(t);
     if (targets && targets.size > 0) {
-      throw new Error("createStateMachine: terminal state '" + t + "' must have no outgoing transitions");
+      throw new Error(
+        "createStateMachine: terminal state '" + t + "' must have no outgoing transitions",
+      );
     }
   }
 

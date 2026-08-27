@@ -32,24 +32,34 @@ export interface RepairGhostRunsResult {
 // A run is BUSY-relevant only while it has >=1 linked order in a
 // non-terminal state (mirrors runHasLiveLinkedOrder in
 // reference.service). Ghost = non-terminal run failing that predicate.
-export async function findGhostRuns(db: FleetDb, companyId: string): Promise<readonly GhostRunRow[]> {
+export async function findGhostRuns(
+  db: FleetDb,
+  companyId: string,
+): Promise<readonly GhostRunRow[]> {
   return db
     .select({ roadRunId: roadRun.roadRunId, state: roadRun.state })
     .from(roadRun)
-    .where(and(
-      eq(roadRun.companyId, companyId),
-      inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
-      notExists(
-        db
-          .select({ one: roadRunTransportOrder.roadRunId })
-          .from(roadRunTransportOrder)
-          .innerJoin(transportOrder, eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId))
-          .where(and(
-            eq(roadRunTransportOrder.roadRunId, roadRun.roadRunId),
-            inArray(transportOrder.state, TRANSPORT_ORDER_NON_TERMINAL_STATES),
-          )),
+    .where(
+      and(
+        eq(roadRun.companyId, companyId),
+        inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
+        notExists(
+          db
+            .select({ one: roadRunTransportOrder.roadRunId })
+            .from(roadRunTransportOrder)
+            .innerJoin(
+              transportOrder,
+              eq(transportOrder.transportOrderId, roadRunTransportOrder.transportOrderId),
+            )
+            .where(
+              and(
+                eq(roadRunTransportOrder.roadRunId, roadRun.roadRunId),
+                inArray(transportOrder.state, TRANSPORT_ORDER_NON_TERMINAL_STATES),
+              ),
+            ),
+        ),
       ),
-    ));
+    );
 }
 export async function repairGhostRuns(
   db: FleetDb,
@@ -74,11 +84,13 @@ export async function repairGhostRuns(
     const moved = await tx
       .update(roadRun)
       .set({ state: 'cancelled' })
-      .where(and(
-        inArray(roadRun.roadRunId, [...roadRunIds]),
-        eq(roadRun.companyId, op.companyId),
-        inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
-      ))
+      .where(
+        and(
+          inArray(roadRun.roadRunId, [...roadRunIds]),
+          eq(roadRun.companyId, op.companyId),
+          inArray(roadRun.state, ROAD_RUN_NON_TERMINAL_STATES),
+        ),
+      )
       .returning({ roadRunId: roadRun.roadRunId });
     for (const { roadRunId: id } of moved) {
       const serverSeq = await allocateServerSeq(tx);

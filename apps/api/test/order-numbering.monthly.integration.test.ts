@@ -14,21 +14,33 @@
 // test would depend on the wall clock and would flake at month boundaries.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { OrderNumberingService, DEFAULT_ORDER_PREFIX } from '../src/transport-orders/order-numbering.service.js';
+import {
+  OrderNumberingService,
+  DEFAULT_ORDER_PREFIX,
+} from '../src/transport-orders/order-numbering.service.js';
 import { driver, vehicle } from '../src/database/schema/reference.js';
 import { transportOrder, roadRun } from '../src/database/schema/transport.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 const OP = createOperatorContext();
 const MONTHLY_REGEX = /^XTT\.(0[1-9]|1[0-2])-\d{3,}$/;
 function tenancy(): {
-  companyId: string; businessUnitId: string; depotId: string; legalEntityId: string;
+  companyId: string;
+  businessUnitId: string;
+  depotId: string;
+  legalEntityId: string;
 } {
   return {
-    companyId: OP.companyId, businessUnitId: OP.businessUnitId,
-    depotId: OP.depotId, legalEntityId: OP.legalEntityId,
+    companyId: OP.companyId,
+    businessUnitId: OP.businessUnitId,
+    depotId: OP.depotId,
+    legalEntityId: OP.legalEntityId,
   };
 }
 async function seedOrderWithRef(tx: TestTx, externalRef: string): Promise<void> {
@@ -38,10 +50,12 @@ async function seedOrderWithRef(tx: TestTx, externalRef: string): Promise<void> 
   // exercising the full service surface.
   const operatorId = randomUUID();
   const tn = tenancy();
-  const [d] = await tx.insert(driver)
+  const [d] = await tx
+    .insert(driver)
     .values({ ...tn, fullName: 'SEED-' + externalRef, operatorId })
     .returning({ driverId: driver.driverId });
-  const [v] = await tx.insert(vehicle)
+  const [v] = await tx
+    .insert(vehicle)
     .values({ ...tn, plate: 'SEED-' + externalRef })
     .returning({ vehicleId: vehicle.vehicleId });
   if (!d || !v) throw new Error('seed driver/vehicle failed');
@@ -56,8 +70,12 @@ async function seedOrderWithRef(tx: TestTx, externalRef: string): Promise<void> 
   });
 }
 describe('@fleet/api - OrderNumberingService monthly format XTT.MM-NNN', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('first allocation in June 2026 returns XTT.06-001', async () => {
     const captured = await withTxIsolation(testDb, async (tx) => {
       const svc = new OrderNumberingService();

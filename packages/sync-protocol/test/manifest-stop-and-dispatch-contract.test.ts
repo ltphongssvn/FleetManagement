@@ -89,16 +89,24 @@ const makeRow = (overrides: Fixture = {}): Fixture => ({
 
 describe('ManifestStopRefSchema', () => {
   it('accepts a stopId-only ref', () => {
-    expect(ManifestStopRefSchema.parse(makeStopRef())).toEqual({ stopId: UUID, stopSequence: null });
+    expect(ManifestStopRefSchema.parse(makeStopRef())).toEqual({
+      stopId: UUID,
+      stopSequence: null,
+    });
   });
   it('accepts a sequence-only ref', () => {
-    expect(ManifestStopRefSchema.parse(makeStopRef({ stopId: null, stopSequence: 2 }))).toEqual({ stopId: null, stopSequence: 2 });
+    expect(ManifestStopRefSchema.parse(makeStopRef({ stopId: null, stopSequence: 2 }))).toEqual({
+      stopId: null,
+      stopSequence: 2,
+    });
   });
   it('rejects when BOTH are null (kills .refine() removal)', () => {
     expect(() => ManifestStopRefSchema.parse(makeStopRef({ stopId: null }))).toThrow();
   });
   it('rejects a non-positive sequence', () => {
-    expect(() => ManifestStopRefSchema.parse(makeStopRef({ stopId: null, stopSequence: 0 }))).toThrow();
+    expect(() =>
+      ManifestStopRefSchema.parse(makeStopRef({ stopId: null, stopSequence: 0 })),
+    ).toThrow();
   });
   it('rejects a non-uuid stopId', () => {
     expect(() => ManifestStopRefSchema.parse(makeStopRef({ stopId: 'nope' }))).toThrow();
@@ -132,7 +140,9 @@ describe('DispatchStopViewSchema', () => {
     expect(DispatchStopViewSchema.parse(withProof)).toEqual(withProof);
   });
   it('accepts a null warehouseName (union branch)', () => {
-    expect(DispatchStopViewSchema.parse(makeStopView({ warehouseName: null })).warehouseName).toBeNull();
+    expect(
+      DispatchStopViewSchema.parse(makeStopView({ warehouseName: null })).warehouseName,
+    ).toBeNull();
   });
   it('rejects an unknown stopType (kills enum widening)', () => {
     expect(() => DispatchStopViewSchema.parse(makeStopView({ stopType: 'transfer' }))).toThrow();
@@ -171,7 +181,9 @@ describe('DispatchBoardStopSchema (tolerant loader shape)', () => {
     expect(parsed.warehouseName).toBe('Kho 1');
   });
   it('accepts a null warehouseName (union branch)', () => {
-    expect(DispatchBoardStopSchema.parse(makeBoardStop({ warehouseName: null })).warehouseName).toBeNull();
+    expect(
+      DispatchBoardStopSchema.parse(makeBoardStop({ warehouseName: null })).warehouseName,
+    ).toBeNull();
   });
   // stopType was z.string() here until the stop-type vocabulary arc. Tolerance
   // about UNKNOWN KEYS is the Postel property this shape wants; tolerance about a
@@ -214,7 +226,15 @@ describe('DispatchBoardRowSchema', () => {
     expect(parsed.roadRunId).toBe(UUID);
   });
   it('applies EXPAND defaults when nullable label fields are omitted', () => {
-    const minimal = { roadRunId: UUID, state: 'planned', assignedOperatorId: null, assignedAssetId: null, plannedStartAt: null, stopCount: 0, transportOrderRefs: [] };
+    const minimal = {
+      roadRunId: UUID,
+      state: 'planned',
+      assignedOperatorId: null,
+      assignedAssetId: null,
+      plannedStartAt: null,
+      stopCount: 0,
+      transportOrderRefs: [],
+    };
     const parsed = DispatchBoardRowSchema.parse(minimal);
     expect(parsed.driverName).toBeNull();
     expect(parsed.vehiclePlate).toBeNull();

@@ -7,7 +7,10 @@
 // --color-black (no base- prefix); semantic roles become kebab-cased custom
 // colors (bg-primary, bg-surface-root, ...). This function only builds a
 // string; writing the file is a separate I/O step (Turbo tokens:build).
-import { palette, semanticColors, SEMANTIC_ROLES } from './index.js';
+// Sibling modules directly. Importing the barrel from inside the package is a
+// cycle by construction: index.js re-exports this very file.
+import { palette } from './tokens.js';
+import { semanticColors, SEMANTIC_ROLES } from './semantic.js';
 
 const BANNER = [
   '/* apps/ops-web/src/app/globals.css */',
@@ -45,5 +48,14 @@ export function emitOpsWebThemeCss(): string {
     lines.push('  --color-' + kebab(role) + ': ' + semanticColors[role] + ';');
   }
   const theme = '@theme {\n' + lines.join('\n') + '\n}';
-  return BANNER + '\n\n@import ' + String.fromCharCode(34) + 'tailwindcss' + String.fromCharCode(34) + ';\n\n' + theme + '\n';
+  return (
+    BANNER +
+    '\n\n@import ' +
+    String.fromCharCode(34) +
+    'tailwindcss' +
+    String.fromCharCode(34) +
+    ';\n\n' +
+    theme +
+    '\n'
+  );
 }

@@ -5,40 +5,69 @@
 // primary suites.
 import { describe, expect, it, vi } from 'vitest';
 import { parseNetWeightKg } from '../src/extraction/extraction-policy.js';
-import { runExtraction, type ExtractionObjectStore, type VlmExtractorPort } from '../src/extraction/extraction-flow.js';
+import {
+  runExtraction,
+  type ExtractionObjectStore,
+  type VlmExtractorPort,
+} from '../src/extraction/extraction-flow.js';
 import { GeminiVlmExtractor } from '../src/extraction/gemini-vlm-extractor.js';
 import type { ExtractionJobDataWire } from '@fleet/sync-protocol';
 
 const JOB: ExtractionJobDataWire = {
   manifestId: '7b6a1c9e-2f4d-4a8b-9c0d-1e2f3a4b5c6d',
   uploadSessionId: '0a1b2c3d-4e5f-4a7b-8c9d-0e1f2a3b4c5d',
-  s3Key: 'k', s3Bucket: 'b', contentType: 'image/jpeg',
+  s3Key: 'k',
+  s3Bucket: 'b',
+  contentType: 'image/jpeg',
 };
 const BYTES = new Uint8Array([1]);
 
 describe('extraction-policy edge branches', () => {
   it('parses multi-group thousands and comma decimal', () => {
-    expect(parseNetWeightKg({ rawLabel: 'x', rawValues: ['1.234,5'] })).toEqual({ ok: true, kg: 1234.5 });
-    expect(parseNetWeightKg({ rawLabel: 'x', rawValues: ['12.345'] })).toEqual({ ok: true, kg: 12345 });
+    expect(parseNetWeightKg({ rawLabel: 'x', rawValues: ['1.234,5'] })).toEqual({
+      ok: true,
+      kg: 1234.5,
+    });
+    expect(parseNetWeightKg({ rawLabel: 'x', rawValues: ['12.345'] })).toEqual({
+      ok: true,
+      kg: 12345,
+    });
   });
   it('rejects empty-string and whitespace-only components', () => {
-    expect(parseNetWeightKg({ rawLabel: 'x', rawValues: [''] })).toEqual({ ok: false, reason: 'unparseable' });
-    expect(parseNetWeightKg({ rawLabel: 'x', rawValues: ['   kg '] })).toEqual({ ok: false, reason: 'unparseable' });
+    expect(parseNetWeightKg({ rawLabel: 'x', rawValues: [''] })).toEqual({
+      ok: false,
+      reason: 'unparseable',
+    });
+    expect(parseNetWeightKg({ rawLabel: 'x', rawValues: ['   kg '] })).toEqual({
+      ok: false,
+      reason: 'unparseable',
+    });
   });
   it('rejects negative values via sanity min', () => {
-    expect(parseNetWeightKg({ rawLabel: 'x', rawValues: ['-200'] })).toEqual({ ok: false, reason: 'below_sanity_min' });
+    expect(parseNetWeightKg({ rawLabel: 'x', rawValues: ['-200'] })).toEqual({
+      ok: false,
+      reason: 'below_sanity_min',
+    });
   });
   it('two-pass with an unparseable component fails as unparseable', () => {
-    expect(parseNetWeightKg({ rawLabel: 'x', rawValues: ['10.000', 'abc'] })).toEqual({ ok: false, reason: 'unparseable' });
+    expect(parseNetWeightKg({ rawLabel: 'x', rawValues: ['10.000', 'abc'] })).toEqual({
+      ok: false,
+      reason: 'unparseable',
+    });
   });
   it('rejects malformed groupings (12.34.56)', () => {
-    expect(parseNetWeightKg({ rawLabel: 'x', rawValues: ['12.34.56'] })).toEqual({ ok: false, reason: 'unparseable' });
+    expect(parseNetWeightKg({ rawLabel: 'x', rawValues: ['12.34.56'] })).toEqual({
+      ok: false,
+      reason: 'unparseable',
+    });
   });
 });
 
 describe('extraction-flow non-Error throw normalization', () => {
   it('wraps a thrown string into Error for the failed outcome', async () => {
-    const store: ExtractionObjectStore = { getObject: vi.fn().mockRejectedValue('s3 string blowup') };
+    const store: ExtractionObjectStore = {
+      getObject: vi.fn().mockRejectedValue('s3 string blowup'),
+    };
     const vlm: VlmExtractorPort = { extractNetWeight: vi.fn() };
     const out = await runExtraction(JOB, store, vlm);
     expect(out.kind).toBe('failed');
@@ -51,28 +80,60 @@ describe('extraction-flow non-Error throw normalization', () => {
 
 describe('GeminiVlmExtractor response-shape defenses', () => {
   function extractor(fetchFn: typeof globalThis.fetch, baseUrl?: string): GeminiVlmExtractor {
-    return new GeminiVlmExtractor({ apiKey: 'k', model: 'm', fetchFn, ...(baseUrl === undefined ? {} : { baseUrl }) });
+    return new GeminiVlmExtractor({
+      apiKey: 'k',
+      model: 'm',
+      fetchFn,
+      ...(baseUrl === undefined ? {} : { baseUrl }),
+    });
   }
   it('returns null when candidates are missing entirely', async () => {
     const fetchFn = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
-    expect(await extractor(fetchFn).extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' })).toBeNull();
+    expect(
+      await extractor(fetchFn).extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' }),
+    ).toBeNull();
   });
   it('returns null when found=true but rawLabel/rawValues are missing', async () => {
-    const payload = { candidates: [{ content: { parts: [{ text: JSON.stringify({ found: true }) }] } }] };
-    const fetchFn = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
-    expect(await extractor(fetchFn).extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' })).toBeNull();
+    const payload = {
+      candidates: [{ content: { parts: [{ text: JSON.stringify({ found: true }) }] } }],
+    };
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
+    expect(
+      await extractor(fetchFn).extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' }),
+    ).toBeNull();
   });
   it('returns rawValues shape and honors baseUrl override', async () => {
-    const payload = { candidates: [{ content: { parts: [{ text: JSON.stringify({ found: true, rawLabel: 'L', rawValues: ['V'] }) }] } }] };
-    const fetchFn = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
-    const out = await extractor(fetchFn, 'http://fake.local/v1beta').extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' });
+    const payload = {
+      candidates: [
+        {
+          content: {
+            parts: [{ text: JSON.stringify({ found: true, rawLabel: 'L', rawValues: ['V'] }) }],
+          },
+        },
+      ],
+    };
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
+    const out = await extractor(fetchFn, 'http://fake.local/v1beta').extractNetWeight({
+      bytes: BYTES,
+      contentType: 'image/jpeg',
+    });
     expect(out).toEqual({ rawLabel: 'L', rawValues: ['V'] });
     const [url] = fetchFn.mock.calls[0] as [string];
     expect(url).toBe('http://fake.local/v1beta/models/m:generateContent');
   });
   it('returns null when schema rejects the model JSON (wrong types)', async () => {
-    const payload = { candidates: [{ content: { parts: [{ text: JSON.stringify({ found: 'yes' }) }] } }] };
-    const fetchFn = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
-    expect(await extractor(fetchFn).extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' })).toBeNull();
+    const payload = {
+      candidates: [{ content: { parts: [{ text: JSON.stringify({ found: 'yes' }) }] } }],
+    };
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
+    expect(
+      await extractor(fetchFn).extractNetWeight({ bytes: BYTES, contentType: 'image/jpeg' }),
+    ).toBeNull();
   });
 });

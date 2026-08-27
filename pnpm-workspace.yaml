@@ -46,14 +46,84 @@
 verifyDepsBeforeRun: warn
 enableGlobalVirtualStore: false
 
+# --- pnpm 11 supply-chain controls (2026-08-19) ---
+# LOCKFILE INTEGRITY IS NOT ENOUGH, and the axios compromise of 2026-03-31 is
+# the proof. Sapphire Sleet published a malicious axios@1.14.1; the registry
+# computed and published the CORRECT SHA-512 for that malicious tarball; a
+# consumer running a frozen-lockfile install fetched it, compared the hash,
+# found a match, reported a clean install, and executed the embedded RAT. The
+# integrity system worked exactly as designed and protected nobody, because a
+# hash proves the bytes are UNCHANGED SINCE PUBLISH -- never that the publish
+# itself was legitimate.
+#
+# trustPolicy: no-downgrade closes precisely that gap, and pnpm is the only
+# package manager offering it consumer-side: it refuses a version whose
+# PUBLISHING AUTHENTICATION is weaker than the version already in the lockfile.
+# A maintainer account takeover almost always publishes with less assurance
+# than the maintainer's own trusted-publishing pipeline -- so the downgrade in
+# provenance is the signal, and it is detectable where the tarball hash is not.
+#
+# blockExoticSubdeps refuses git URLs and raw tarball URLs in TRANSITIVE
+# dependencies, so every transitive package must come from the registry where
+# the cooldown, the integrity hash and the trust policy all apply. Without it a
+# single dependency can pull arbitrary code from an arbitrary host, entirely
+# outside every control above -- the exact bypass minimumReleaseAgeExclude and
+# the audit gates are written to prevent.
+#
+# Both are DEFAULTS IN pnpm 11 rather than novelties, declared explicitly here
+# for the same reason remoteCache.signature is declared in turbo.jsonc: an
+# unstated default is an unrevisited one, and a security control nobody wrote
+# down is a control nobody can review.
+trustPolicy: no-downgrade
+blockExoticSubdeps: true
+trustPolicyExclude:
+  # FOUR ENTRIES, EACH A KNOWN UPSTREAM FALSE POSITIVE with a tracked issue and
+  # a removal condition. This list is the ONLY sanctioned response to a trust
+  # downgrade: the alternative pnpm offers, trustPolicyIgnoreAfter, silences
+  # EVERY package older than its window, so a genuine takeover of any long-lived
+  # package would pass unseen. A per-version allowlist keeps the control live
+  # for everything not named here -- the same contract auditConfig.ignoreGhsas
+  # already follows in this file, entry by entry, with its own REMOVE clause.
+  #
+  # THE SHARED ROOT CAUSE is stated in pnpm's own error text: "Trust checks are
+  # based solely on PUBLISH DATE, not semver." A package cannot install if any
+  # EARLIER-PUBLISHED version had stronger trust evidence -- so a project that
+  # maintains two major branches in parallel, publishing 7.x with provenance
+  # while still patching a 6.x that predates provenance entirely, trips the
+  # check on the older branch. That is a versioning shape, not an incident.
+  #
+  # semver@6.3.1 -- pnpm/pnpm#10202 and pnpm discussion #11084 both name this
+  # exact version. semver@6 was NEVER published with provenance, so nothing was
+  # downgraded; semver@7 carries provenance and some 7.x releases were published
+  # BEFORE 6.3.1, which is what the date-ordered check sees. Reached only
+  # through dev tooling (@babel/core, eslint plugins, semantic-release).
+  - 'semver@6.3.1'
+  # undici-types@6.21.0 -- nodejs/undici#4666, filed by the maintainers:
+  # "latest versions of undici-types@6 have been published without provenance,
+  # after it was published with provenance before." A REAL provenance loss,
+  # acknowledged upstream, in a TYPES-ONLY package that ships no runtime code
+  # and is pulled in transitively by @types/node. pnpm/pnpm#10329 records the
+  # same error from dedupe. REMOVE once undici-types@6 republishes with
+  # provenance or @types/node floors it at a provenanced release.
+  - 'undici-types@6.21.0'
+  # ua-parser-js 0.7.x and 1.0.x -- the parallel-major-branch shape again: 2.x
+  # carries provenance and was published across the same window in which the
+  # older branches were still being patched. Both lines predate provenance.
+  # This package's 2021 hijack is exactly why the check exists, so the entries
+  # are pinned to EXACT versions: a different version is not covered here and
+  # will still block, which is the property that makes this an allowlist rather
+  # than an off switch.
+  - 'ua-parser-js@0.7.41'
+  - 'ua-parser-js@1.0.41'
+
 packages:
-  - "apps/*"
-  - "workers/*"
-  - "packages/*"
+  - 'apps/*'
+  - 'workers/*'
+  - 'packages/*'
   # The top-level Playwright acceptance suite is a first-class workspace member
   # (@fleet/e2e) so its specs IMPORT shared contracts (e.g. the export-header SSOT)
   # via the workspace: protocol instead of re-declaring them and drifting.
-  - "e2e"
+  - 'e2e'
 # Single source of truth for the Zod version across every workspace package.
 # All @fleet/* packages reference this via the catalog: protocol in their
 # package.json (dependencies AND devDependencies), so the entire monorepo
@@ -66,8 +136,8 @@ catalog:
 # blocks all build scripts by default; these are the packages that
 # legitimately need to compile native addons or download prebuilt binaries.
 allowBuilds:
-  "@nestjs/core": true
-  "@sentry/cli": true
+  '@nestjs/core': true
+  '@sentry/cli': true
   cpu-features: true
   dtrace-provider: false
   esbuild: true
@@ -76,34 +146,84 @@ allowBuilds:
   sharp: true
   ssh2: true
 # Transitive-dependency version pins (security floors + tooling alignment).
+# WASM FALLBACK BINDINGS -- not installed (2026-08-22).
+#
+# THE SYMPTOM was two unmet peers: @napi-rs/wasm-runtime@1.2.0 declares
+# @emnapi/core and @emnapi/runtime as peers wanting ^2.0.0-alpha.3, while 1.11.2
+# resolves. Upstream bug, oxc-project/oxc#21038 -- @oxc-parser/binding-wasm32-wasi
+# neither declares nor passes the peers down, so every strict resolver reports it.
+#
+# THE ROOT CAUSE is one level up: we were installing a WebAssembly FALLBACK we can
+# never execute. NAPI-RS states its purpose plainly -- "a portable fallback when no
+# prebuilt native addon matches the host", plus browser/StackBlitz demos. Every host
+# in this estate HAS a native addon: darwin-arm64 for dev, linux-x64 for CI runners
+# and Railway containers. oxc-parser resolves @oxc-parser/binding-darwin-arm64 or
+# -linux-x64-gnu; the wasi artifact is dead weight that only ever contributed a
+# warning.
+#
+# So the fix is to stop installing it rather than to silence its complaint.
+# peerDependencyRules.allowedVersions was the obvious move and is the WRONG one: it
+# would quiet a package that should not be in the tree, and would keep quieting it
+# after upstream fixes the declaration. ignoredOptionalDependencies removes the
+# consumer, so the unmet peer cannot recur by construction.
+#
+# ALL THREE are listed, not just the offender. @oxc-resolver and @rolldown pull
+# @napi-rs/wasm-runtime 1.1.6 and 1.1.5, which do not yet carry the alpha peer range
+# -- but they are the same dead fallback, and leaving them installed means this
+# returns the day either bumps. Fixing one and waiting for the other two is the
+# treadmill this repo refuses.
+#
+# SAFE TO REMOVE if a host ever genuinely lacks a native binding: the failure is
+# loud and immediate (oxc throws "Cannot find native binding" at startup), never
+# silent. wasm-fallback-bindings.guard.test.ts pins the list.
+ignoredOptionalDependencies:
+  - '@oxc-parser/binding-wasm32-wasi'
+  - '@oxc-resolver/binding-wasm32-wasi'
+  - '@rolldown/binding-wasm32-wasi'
+  # @tailwindcss/oxide-wasm32-wasi is a FOURTH of the same class, found only by
+  # reading the lockfile after the first three were removed -- it does not
+  # currently trip the peer check, because it wants @emnapi/* ^1.11.1 (caret 1.x)
+  # rather than the ^2.0.0-alpha.3 that @napi-rs/wasm-runtime@1.2.0 demands. It is
+  # listed anyway: Tailwind added this target "to enable more environments to run
+  # Oxide, including StackBlitz", and its own PR says macOS AArch64 and Windows
+  # users should use the native modules instead. Leaving the one sibling that has
+  # not yet bumped is precisely how this recurs.
+  - '@tailwindcss/oxide-wasm32-wasi'
+  # @img/sharp-wasm32 is the FIFTH, reached via next -> sharp, and it was the last
+  # thing still pulling @emnapi/runtime into the tree. sharp resolves
+  # @img/sharp-darwin-arm64 / @img/sharp-linux-x64 on every host here; the wasm32
+  # build exists for runtimes with no native option. Removing it takes @emnapi out
+  # of the graph entirely rather than leaving one orphaned copy behind.
+  - '@img/sharp-wasm32'
+
 overrides:
-  "vite@<8.0.16": ">=8.0.16"
-  esbuild: ">=0.28.1"
+  'vite@<8.0.16': '>=8.0.16'
+  esbuild: '>=0.28.1'
   # GHSA-r28c-9q8g-f849: postcss <=8.5.17 path traversal in previous-source-map
   # auto-loading (sourceMappingURL) leaks arbitrary .map files. The tree carried
   # TWO resolutions -- 8.5.21 (already patched) and a stale 8.5.15 pinned through
   # the webpack/@sentry/nextjs peer chain that the old >=8.5.10 floor still
   # satisfied, so it never re-resolved. Raising the floor forces it forward; no
   # release-age exclude is needed because 8.5.21 already installs cleanly.
-  postcss: ">=8.5.18"
-  uuid: ">=14.0.0"
-  vitest: "4.1.5"
-  "@vitest/coverage-v8": "4.1.5"
-  "@vitest/coverage-istanbul": "4.1.5"
-  fast-xml-builder: ">=1.1.7"
+  postcss: '>=8.5.18'
+  uuid: '>=14.0.0'
+  vitest: '4.1.5'
+  '@vitest/coverage-v8': '4.1.5'
+  '@vitest/coverage-istanbul': '4.1.5'
+  fast-xml-builder: '>=1.1.7'
   # GHSA-6gpp-xcg3-4w24 / m99w-x7hq-7vfj / 89xv-2m56-2m9x / p9j2-gv94-2wf4:
   # next <16.2.11 middleware/proxy bypass + Server Action DoS + 2x SSRF.
-  next: ">=16.2.11"
-  "@opentelemetry/auto-instrumentations-node": ">=0.75.0"
-  "@opentelemetry/sdk-node": ">=0.217.0"
+  next: '>=16.2.11'
+  '@opentelemetry/auto-instrumentations-node': '>=0.75.0'
+  '@opentelemetry/sdk-node': '>=0.217.0'
   # GHSA-45rx-2jwx-cxfr (CVE-2026-59892): propagator-jaeger <2.9.0 uncaught URIError DoS on malformed uber-trace-id header. sdk-node 0.217.0 pins it to EXACT 2.7.1, so re-resolve cannot reach the patch -- scoped override is the last-resort fix.
-  "@opentelemetry/propagator-jaeger": ">=2.9.0"
-  "protobufjs@<7.5.6": ">=7.5.6"
-  "protobufjs@>=8.0.0 <=8.0.1": ">=8.0.2"
-  glob: ">=10.0.0"
-  rimraf: ">=4.0.0"
-  "@ungap/structured-clone": ">=1.3.0"
-  tmp: ">=0.2.6"
+  '@opentelemetry/propagator-jaeger': '>=2.9.0'
+  'protobufjs@<7.5.6': '>=7.5.6'
+  'protobufjs@>=8.0.0 <=8.0.1': '>=8.0.2'
+  glob: '>=10.0.0'
+  rimraf: '>=4.0.0'
+  '@ungap/structured-clone': '>=1.3.0'
+  tmp: '>=0.2.6'
   # GHSA-mh99-v99m-4gvg (CVE-2026-14257): brace-expansion <=5.0.7 memory
   # exhaustion. expand() caps the NUMBER of results (max, default 100000) but
   # not the LENGTH of each result string, so chained brace groups keep the
@@ -113,12 +233,12 @@ overrides:
   # one patch below the fix: GHSA-rgw5-rvv9-x895 reports a DoS via unbounded
   # intermediate arrays that BYPASSES the CVE-2026-14257 mitigation, so <5.0.9
   # is vulnerable despite the earlier patch. Same stale-floor shape, third time.
-  brace-expansion: ">=5.0.9"
-  ws: ">=8.20.1"
-  protobufjs: ">=8.2.0"
-  "@expo/dom-webview": "55.0.6"
-  qs: ">=6.15.2"
-  shell-quote: ">=1.8.5"
+  brace-expansion: '>=5.0.9'
+  ws: '>=8.20.1'
+  protobufjs: '>=8.2.0'
+  '@expo/dom-webview': '55.0.6'
+  qs: '>=6.15.2'
+  shell-quote: '>=1.8.5'
   '@grpc/grpc-js@>=1.14.0 <1.14.4': ^1.14.4
   '@babel/core@<=7.29.0': ^7.29.1
   '@opentelemetry/core@<2.8.0': ^2.8.0
@@ -157,32 +277,32 @@ overrides:
   # construction rather than by a selector the author remembered to bound.
   #
   # REMOVE once cosmiconfig and jsdom floor their own js-yaml ranges at >=4.3.1.
-  "js-yaml@": "4.3.1"
+  'js-yaml@': '4.3.1'
   protobufjs@>=8.0.0 <=8.5.0: ^8.5.1
   protobufjs@>=8.2.0 <=8.4.2: ^8.4.3
   tmp@>=0.2.6 <0.2.7: ^0.2.7
-  vite: ">=8.0.16"
-  multer: ">=2.2.0"
+  vite: '>=8.0.16'
+  multer: '>=2.2.0'
   # GHSA-2v37-7h3g-55p8: nanoid <3.3.17 loops forever when a custom generator
   # is called with size zero. Same optional-Expo-peer chain, via postcss and
   # @react-navigation. Bounded so majors 4+ are untouched.
-  "nanoid@<3.3.17": ">=3.3.17"
+  'nanoid@<3.3.17': '>=3.3.17'
   # GHSA-vmh5-mc38-953g: undici 7.23.0-7.27.x SOCKS5 ProxyAgent TLS bypass.
   # Transitive via @semantic-release/github + testcontainers; scoped to the
   # vulnerable 7.x range so undici 6.x (via @semantic-release/npm) is untouched.
-  "undici@>=7.23.0 <7.28.0": ">=7.28.0"
+  'undici@>=7.23.0 <7.28.0': '>=7.28.0'
   # GHSA-2m8v-j782-fhvr: socket.io-parser <4.2.7 zero-attachment memory
   # exhaustion -- a crafted packet makes the server wait on and buffer an
   # unbounded number of binary attachments. Reaches us through
   # @nestjs/platform-socket.io -> socket.io, so it is a RUNTIME path on the api
   # (the commands gateway), not dev-only. Scoped to the vulnerable range so
   # other majors are untouched.
-  "socket.io-parser@>=4.0.0 <4.2.7": ">=4.2.7"
+  'socket.io-parser@>=4.0.0 <4.2.7': '>=4.2.7'
   # GHSA-vxpw-j846-p89q: undici <6.27.0 WebSocket DoS via fragment count
   # bypass. Transitive via @semantic-release/* -> @actions/http-client (the
   # 6.x path the 7.x pin above intentionally left alone). Dev-only (Release
   # CI job). Scoped to the vulnerable 6.x range so other majors are untouched.
-  "undici@<6.27.0": ">=6.27.0"
+  'undici@<6.27.0': '>=6.27.0'
   # GHSA-7p8r-x3mc-p8w7: fast-uri <3.1.5 host confusion -- a backslash is
   # accepted as an authority introducer, so a crafted URI parses to an
   # unexpected host. PRODUCTION-reachable, verified with pnpm audit --prod:
@@ -194,7 +314,7 @@ overrides:
   # tried first and reported "Already up to date". Bounded selector so no
   # future consumer is dragged across a major (the js-yaml lesson above).
   # REMOVE once ajv ships a release whose own floor is >=3.1.5.
-  "fast-uri@>=3.0.0 <3.1.5": ">=3.1.5"
+  'fast-uri@>=3.0.0 <3.1.5': '>=3.1.5'
 # Accepted-risk allowlist (pnpm 11 filters audit by GHSA, not CVE).
 auditConfig:
   ignoreGhsas:
@@ -314,13 +434,13 @@ minimumReleaseAgeExclude:
   - brace-expansion@5.0.9
   - fast-uri@3.1.3 || 3.1.4 || 3.1.5 || 4.0.1 || 4.1.1
   - socket.io-parser@4.2.7
-  - '@turbo/darwin-64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9'
-  - '@turbo/darwin-arm64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9'
-  - '@turbo/linux-64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9'
-  - '@turbo/linux-arm64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9'
-  - '@turbo/windows-64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9'
-  - '@turbo/windows-arm64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9'
-  - turbo@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9
+  - '@turbo/darwin-64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9 || 2.10.10 || 2.10.11 || 2.10.12'
+  - '@turbo/darwin-arm64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9 || 2.10.10 || 2.10.11 || 2.10.12'
+  - '@turbo/linux-64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9 || 2.10.10 || 2.10.11 || 2.10.12'
+  - '@turbo/linux-arm64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9 || 2.10.10 || 2.10.11 || 2.10.12'
+  - '@turbo/windows-64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9 || 2.10.10 || 2.10.11 || 2.10.12'
+  - '@turbo/windows-arm64@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9 || 2.10.10 || 2.10.11 || 2.10.12'
+  - turbo@2.10.2 || 2.10.3 || 2.10.8 || 2.10.9 || 2.10.10 || 2.10.11 || 2.10.12
   - body-parser@2.3.0
   - '@opentelemetry/propagator-jaeger@2.9.0'
   - sharp@0.35.0

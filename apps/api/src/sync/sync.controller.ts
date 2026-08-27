@@ -16,10 +16,7 @@ export class SyncController {
   constructor(private readonly sync: SyncService) {}
 
   @Post()
-  async post(
-    @Body() body: unknown,
-    @CurrentOperator() op: OperatorContext,
-  ): Promise<SyncResponse> {
+  async post(@Body() body: unknown, @CurrentOperator() op: OperatorContext): Promise<SyncResponse> {
     const req: SyncRequestInput = SyncRequestDto.parse(body);
     return this.sync.processSync(req, op);
   }

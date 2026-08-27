@@ -29,15 +29,27 @@ export const DRIVER_ALERT_NAV_POLICY_VERSION = 'driver-alert-nav-v1' as const;
 const ASSIGNMENTS_FALLBACK_HREF = '/assignments' as const;
 
 export type DriverAlertNavDecision =
-  | { readonly action: 'navigate'; readonly href: string; readonly policyVersion: typeof DRIVER_ALERT_NAV_POLICY_VERSION }
-  | { readonly action: 'fallback'; readonly href: typeof ASSIGNMENTS_FALLBACK_HREF; readonly policyVersion: typeof DRIVER_ALERT_NAV_POLICY_VERSION };
+  | {
+      readonly action: 'navigate';
+      readonly href: string;
+      readonly policyVersion: typeof DRIVER_ALERT_NAV_POLICY_VERSION;
+    }
+  | {
+      readonly action: 'fallback';
+      readonly href: typeof ASSIGNMENTS_FALLBACK_HREF;
+      readonly policyVersion: typeof DRIVER_ALERT_NAV_POLICY_VERSION;
+    };
 
 /** Parse the untrusted notification data payload and decide where to go.
  *  Total function: every non-conforming input resolves to fallback. */
 export function decideDriverAlertNavigation(rawData: unknown): DriverAlertNavDecision {
   const parsed = DriverAlertPushDataSchema.safeParse(rawData);
   if (!parsed.success) {
-    return { action: 'fallback', href: ASSIGNMENTS_FALLBACK_HREF, policyVersion: DRIVER_ALERT_NAV_POLICY_VERSION };
+    return {
+      action: 'fallback',
+      href: ASSIGNMENTS_FALLBACK_HREF,
+      policyVersion: DRIVER_ALERT_NAV_POLICY_VERSION,
+    };
   }
   const data = parsed.data;
   // encodeURIComponent every value: order refs are dotted/slashed (XTT.07-001,
@@ -45,7 +57,9 @@ export function decideDriverAlertNavigation(rawData: unknown): DriverAlertNavDec
   // corrupt a raw query string.
   const href =
     ASSIGNMENTS_FALLBACK_HREF +
-    '?roadRunId=' + encodeURIComponent(data.roadRunId) +
-    '&externalRef=' + encodeURIComponent(data.externalRef);
+    '?roadRunId=' +
+    encodeURIComponent(data.roadRunId) +
+    '&externalRef=' +
+    encodeURIComponent(data.externalRef);
   return { action: 'navigate', href, policyVersion: DRIVER_ALERT_NAV_POLICY_VERSION };
 }

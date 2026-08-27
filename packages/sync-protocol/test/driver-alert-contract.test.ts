@@ -57,11 +57,15 @@ describe('@fleet/sync-protocol - DriverAlertJobSchema (alerts queue wire)', () =
     expect(parsed.externalRef).toBe('XTT.07-001');
   });
   it('is strict: rejects unknown keys (outbox envelope leak tripwire)', () => {
-    expect(DriverAlertJobSchema.safeParse({ ...VALID_JOB, aggregateType: 'driver_alert' }).success).toBe(false);
+    expect(
+      DriverAlertJobSchema.safeParse({ ...VALID_JOB, aggregateType: 'driver_alert' }).success,
+    ).toBe(false);
     expect(DriverAlertJobSchema.safeParse({ ...VALID_JOB, serverSeq: '42' }).success).toBe(false);
   });
   it('rejects non-guid operator and road run ids', () => {
-    expect(DriverAlertJobSchema.safeParse({ ...VALID_JOB, assignedOperatorId: 'driver-7' }).success).toBe(false);
+    expect(
+      DriverAlertJobSchema.safeParse({ ...VALID_JOB, assignedOperatorId: 'driver-7' }).success,
+    ).toBe(false);
     expect(DriverAlertJobSchema.safeParse({ ...VALID_JOB, roadRunId: 42 }).success).toBe(false);
   });
   it('rejects missing or empty externalRef', () => {
@@ -74,7 +78,9 @@ describe('@fleet/sync-protocol - DriverAlertJobSchema (alerts queue wire)', () =
     expect(DriverAlertJobSchema.safeParse({ ...VALID_JOB, externalRef: '' }).success).toBe(false);
   });
   it('rejects unknown alertKind', () => {
-    expect(DriverAlertJobSchema.safeParse({ ...VALID_JOB, alertKind: 'order_deleted' }).success).toBe(false);
+    expect(
+      DriverAlertJobSchema.safeParse({ ...VALID_JOB, alertKind: 'order_deleted' }).success,
+    ).toBe(false);
   });
 });
 
@@ -98,14 +104,14 @@ describe('@fleet/sync-protocol - DriverAlertPushDataSchema (notification data wi
   });
 });
 
-describe("@fleet/sync-protocol - driver alert Android channel contract (shared SSOT for api sender + driver-app channel setup)", () => {
-  it("versioned channel id is stable (channel config is immutable once created on-device)", () => {
-    expect(DRIVER_ALERT_ANDROID_CHANNEL_ID).toBe("transport-orders-v1");
+describe('@fleet/sync-protocol - driver alert Android channel contract (shared SSOT for api sender + driver-app channel setup)', () => {
+  it('versioned channel id is stable (channel config is immutable once created on-device)', () => {
+    expect(DRIVER_ALERT_ANDROID_CHANNEL_ID).toBe('transport-orders-v1');
   });
-  it("custom sound is the bundled base filename (no path, no extension assumptions beyond .wav)", () => {
-    expect(DRIVER_ALERT_SOUND).toBe("transport_alert.wav");
+  it('custom sound is the bundled base filename (no path, no extension assumptions beyond .wav)', () => {
+    expect(DRIVER_ALERT_SOUND).toBe('transport_alert.wav');
   });
-  it("vibration pattern is an assertive [wait, buzz, ...] ms sequence, distinct from a light notification buzz", () => {
+  it('vibration pattern is an assertive [wait, buzz, ...] ms sequence, distinct from a light notification buzz', () => {
     expect(Array.isArray(DRIVER_ALERT_VIBRATION_PATTERN)).toBe(true);
     expect(DRIVER_ALERT_VIBRATION_PATTERN.length).toBeGreaterThanOrEqual(4);
     expect(DRIVER_ALERT_VIBRATION_PATTERN.every((n) => Number.isInteger(n) && n >= 0)).toBe(true);

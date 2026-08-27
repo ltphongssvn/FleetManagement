@@ -11,28 +11,48 @@ const { mockWithIsolationScope, mockCaptureException, capturedTags } = vi.hoiste
   return {
     capturedTags,
     mockCaptureException: vi.fn(),
-    mockWithIsolationScope: vi.fn(async (fn: (s: { setTag: (k: string, v: unknown) => void }) => Promise<void>) => {
-      await fn({ setTag: (k, v) => { capturedTags.push({ key: k, value: v }); } });
-    }),
+    mockWithIsolationScope: vi.fn(
+      async (fn: (s: { setTag: (k: string, v: unknown) => void }) => Promise<void>) => {
+        await fn({
+          setTag: (k, v) => {
+            capturedTags.push({ key: k, value: v });
+          },
+        });
+      },
+    ),
   };
 });
-vi.mock('@sentry/nestjs', () => ({ withIsolationScope: mockWithIsolationScope, captureException: mockCaptureException }));
+vi.mock('@sentry/nestjs', () => ({
+  withIsolationScope: mockWithIsolationScope,
+  captureException: mockCaptureException,
+}));
 import { SchedulerService } from '../src/scheduler/scheduler.service.js';
 import { monitorTicker, coreTickers, INTERVALS } from './helpers/scheduler-ticker-factory.js';
 import type { SchedulerTicker } from '../src/scheduler/scheduler-ticker.js';
 
 const RESULT = { tenants: 0, repaired: 0 };
-const cores = (): SchedulerTicker[] => coreTickers({
-  outbox: () => undefined, projection: () => undefined, reconciler: () => undefined,
-});
+const cores = (): SchedulerTicker[] =>
+  coreTickers({
+    outbox: () => undefined,
+    projection: () => undefined,
+    reconciler: () => undefined,
+  });
 
 describe('@fleet/api - SchedulerService completion-reconcile tick (registry)', () => {
-  beforeEach(() => { vi.useFakeTimers(); capturedTags.length = 0; });
-  afterEach(() => { vi.useRealTimers(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    capturedTags.length = 0;
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it('drainByKey(completionReconcile) tags job=completion-reconcile and calls reconcileOnce', async () => {
     const reconcileOnce = vi.fn().mockResolvedValue(RESULT);
-    const svc = new SchedulerService([...cores(), monitorTicker('completionReconcile', () => reconcileOnce())]);
+    const svc = new SchedulerService([
+      ...cores(),
+      monitorTicker('completionReconcile', () => reconcileOnce()),
+    ]);
     await svc.drainByKey('completionReconcile');
     expect(reconcileOnce).toHaveBeenCalledTimes(1);
     expect(capturedTags.find((t) => t.key === 'job')?.value).toBe('completion-reconcile');
@@ -41,7 +61,10 @@ describe('@fleet/api - SchedulerService completion-reconcile tick (registry)', (
 
   it('onModuleInit schedules the completion reconcile at the 5-minute interval', async () => {
     const reconcileOnce = vi.fn().mockResolvedValue(RESULT);
-    const svc = new SchedulerService([...cores(), monitorTicker('completionReconcile', () => reconcileOnce())]);
+    const svc = new SchedulerService([
+      ...cores(),
+      monitorTicker('completionReconcile', () => reconcileOnce()),
+    ]);
     svc.onModuleInit();
     await vi.advanceTimersByTimeAsync(INTERVALS.completionReconcile - 1);
     expect(reconcileOnce).not.toHaveBeenCalled();
@@ -52,7 +75,10 @@ describe('@fleet/api - SchedulerService completion-reconcile tick (registry)', (
 
   it('keeps self-scheduling: a second tick fires another interval later', async () => {
     const reconcileOnce = vi.fn().mockResolvedValue(RESULT);
-    const svc = new SchedulerService([...cores(), monitorTicker('completionReconcile', () => reconcileOnce())]);
+    const svc = new SchedulerService([
+      ...cores(),
+      monitorTicker('completionReconcile', () => reconcileOnce()),
+    ]);
     svc.onModuleInit();
     await vi.advanceTimersByTimeAsync(INTERVALS.completionReconcile + 1);
     await vi.advanceTimersByTimeAsync(INTERVALS.completionReconcile + 1);

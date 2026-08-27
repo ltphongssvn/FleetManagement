@@ -130,10 +130,14 @@ function main(): void {
       process.exit(1);
     }
   }
-  console.error('git:merge-drivers: registered ' + DRIVER_NAME + ' for ' + GENERATED_FILES.join(', '));
+  console.error(
+    'git:merge-drivers: registered ' + DRIVER_NAME + ' for ' + GENERATED_FILES.join(', '),
+  );
 }
 
 const isEntry = process.argv[1] !== undefined && import.meta.url === 'file://' + process.argv[1];
-if (isEntry) { main(); }
+if (isEntry) {
+  main();
+}
 
 /* v8 ignore stop */

@@ -38,38 +38,62 @@ const LAYOUT = 'app/_layout.tsx';
 describe('@fleet/driver-app - notification boot wiring (root layout)', () => {
   it('imports the native alert setup entrypoint from the coverage-excluded adapter', () => {
     const s = src(LAYOUT);
-    expect(s.includes('setUpDriverAlerts'), 'the root layout must call the native bring-up on boot').toBe(true);
-    expect(s.includes('notification-setup-native'), 'the native entrypoints come from the coverage-excluded adapter, imported directly like startNativeSyncLoop').toBe(true);
+    expect(
+      s.includes('setUpDriverAlerts'),
+      'the root layout must call the native bring-up on boot',
+    ).toBe(true);
+    expect(
+      s.includes('notification-setup-native'),
+      'the native entrypoints come from the coverage-excluded adapter, imported directly like startNativeSyncLoop',
+    ).toBe(true);
   });
 
   it('invokes boot setup fire-and-forget (never awaited into render)', () => {
     const s = src(LAYOUT);
-    expect(s.includes('void setUpDriverAlerts('), 'boot setup is fire-and-forget: a slow/denied permission prompt must never block the first paint').toBe(true);
+    expect(
+      s.includes('void setUpDriverAlerts('),
+      'boot setup is fire-and-forget: a slow/denied permission prompt must never block the first paint',
+    ).toBe(true);
   });
 
   it('wires tap handling through the named adapter entrypoints (decision policy lives in the excluded adapter)', () => {
     const s = src(LAYOUT);
-    expect(s.includes('subscribeNotificationTaps') && s.includes('drainInitialNotificationResponse'), 'the layout wires the named wrappers; the raw expo API + decideDriverAlertNavigation routing live in notification-setup-native.ts (guarded by its own wiring test)').toBe(true);
+    expect(
+      s.includes('subscribeNotificationTaps') && s.includes('drainInitialNotificationResponse'),
+      'the layout wires the named wrappers; the raw expo API + decideDriverAlertNavigation routing live in notification-setup-native.ts (guarded by its own wiring test)',
+    ).toBe(true);
   });
 
   it('wires the live-tap subscription (fg/bg) via subscribeNotificationTaps', () => {
     const s = src(LAYOUT);
-    expect(s.includes('subscribeNotificationTaps('), 'a tap while foreground/background must be handled by the response-listener wrapper').toBe(true);
+    expect(
+      s.includes('subscribeNotificationTaps('),
+      'a tap while foreground/background must be handled by the response-listener wrapper',
+    ).toBe(true);
   });
 
   it('ALSO wires the cold-start drain on boot (killed app launched by tap)', () => {
     const s = src(LAYOUT);
-    expect(s.includes('drainInitialNotificationResponse('), 'the listener alone misses a cold-start tap; the boot drain wrapper (getLastNotificationResponseAsync inside the adapter) must be wired or a 4AM tap from a killed app opens the wrong screen').toBe(true);
+    expect(
+      s.includes('drainInitialNotificationResponse('),
+      'the listener alone misses a cold-start tap; the boot drain wrapper (getLastNotificationResponseAsync inside the adapter) must be wired or a 4AM tap from a killed app opens the wrong screen',
+    ).toBe(true);
   });
 
   it('supplies router.push as the navigate edge to both tap paths', () => {
     const s = src(LAYOUT);
-    expect(s.includes('router.push'), 'the layout injects router.push as the navigate function both wrappers call on a navigate decision').toBe(true);
+    expect(
+      s.includes('router.push'),
+      'the layout injects router.push as the navigate function both wrappers call on a navigate decision',
+    ).toBe(true);
   });
 
   it('removes the response subscription on cleanup (no leak across fast-refresh)', () => {
     const s = src(LAYOUT);
-    expect(s.includes('.remove()'), 'the response subscription must be removed on effect cleanup').toBe(true);
+    expect(
+      s.includes('.remove()'),
+      'the response subscription must be removed on effect cleanup',
+    ).toBe(true);
   });
 
   it('subscribes the live listener BEFORE draining the cold-start response', () => {
@@ -78,18 +102,29 @@ describe('@fleet/driver-app - notification boot wiring (root layout)', () => {
     const drainIdx = s.indexOf('drainInitialNotificationResponse(');
     expect(subIdx, 'the subscribe call must be present').toBeGreaterThan(-1);
     expect(drainIdx, 'the drain call must be present').toBeGreaterThan(-1);
-    expect(subIdx, 'Expo only reliably returns the last response once a response listener exists (expo/expo#36930,#37511), so subscribe must precede drain').toBeLessThan(drainIdx);
+    expect(
+      subIdx,
+      'Expo only reliably returns the last response once a response listener exists (expo/expo#36930,#37511), so subscribe must precede drain',
+    ).toBeLessThan(drainIdx);
   });
 
   it('keeps the fetch polyfill import first (regression guard on existing invariant)', () => {
     const s = src(LAYOUT);
-    const firstImportLine = s.split(String.fromCharCode(10)).find((l) => l.trimStart().startsWith('import '));
+    const firstImportLine = s
+      .split(String.fromCharCode(10))
+      .find((l) => l.trimStart().startsWith('import '));
     expect(firstImportLine, 'an import must exist').toBeDefined();
-    expect((firstImportLine ?? '').includes('install-fetch-polyfill'), 'the fetch polyfill must remain the very first import (RN 0.83 Bridgeless fix); alert wiring must not displace it').toBe(true);
+    expect(
+      (firstImportLine ?? '').includes('install-fetch-polyfill'),
+      'the fetch polyfill must remain the very first import (RN 0.83 Bridgeless fix); alert wiring must not displace it',
+    ).toBe(true);
   });
 
   it('is coverage-excluded (app/ native shell is not unit-runnable)', () => {
     const cfg = src('vitest.config.ts');
-    expect(cfg.includes('app/'), 'the app/ router shell renders native modules and must be outside the coverage include set').toBe(true);
+    expect(
+      cfg.includes('app/'),
+      'the app/ router shell renders native modules and must be outside the coverage include set',
+    ).toBe(true);
   });
 });

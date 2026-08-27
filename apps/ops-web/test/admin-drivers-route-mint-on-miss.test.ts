@@ -94,9 +94,7 @@ describe('/api/admin/drivers BFF rides the session-refresh seam', () => {
     expect(res.status).toBe(200);
     const tokenCalls = fetchMock.mock.calls.filter((c) => c[0] === TOKEN_EP);
     expect(tokenCalls).toHaveLength(0);
-    const backendCall = fetchMock.mock.calls.find(
-      (c) => String(c[0]).includes('/admin/drivers'),
-    );
+    const backendCall = fetchMock.mock.calls.find((c) => String(c[0]).includes('/admin/drivers'));
     expect(backendCall).toBeDefined();
     const init = (backendCall as unknown[])[1] as RequestInit;
     expect((init.headers as Record<string, string>)['Authorization']).toBe('Bearer live-token');
@@ -115,9 +113,7 @@ describe('/api/admin/drivers BFF rides the session-refresh seam', () => {
     const params = new URLSearchParams(tokenInit.body as string);
     expect(params.get('grant_type')).toBe('refresh_token');
     expect(params.get('refresh_token')).toBe('old-rt');
-    const backendCall = fetchMock.mock.calls.find(
-      (c) => String(c[0]).includes('/admin/drivers'),
-    );
+    const backendCall = fetchMock.mock.calls.find((c) => String(c[0]).includes('/admin/drivers'));
     expect(backendCall).toBeDefined();
     const init = (backendCall as unknown[])[1] as RequestInit;
     expect((init.headers as Record<string, string>)['Authorization']).toBe('Bearer ' + MINTED);
@@ -148,8 +144,8 @@ describe('/api/admin/drivers BFF rides the session-refresh seam', () => {
     expect(res.status).toBe(401);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body['code']).toBe('UNAUTHORIZED');
-    const backendCalls = fetchMock.mock.calls.filter(
-      (c) => String(c[0]).includes('/admin/drivers'),
+    const backendCalls = fetchMock.mock.calls.filter((c) =>
+      String(c[0]).includes('/admin/drivers'),
     );
     expect(backendCalls).toHaveLength(0);
   });
@@ -170,9 +166,7 @@ describe('/api/admin/drivers BFF rides the session-refresh seam', () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(201);
-    const backendCall = fetchMock.mock.calls.find(
-      (c) => String(c[0]).includes('/admin/drivers'),
-    );
+    const backendCall = fetchMock.mock.calls.find((c) => String(c[0]).includes('/admin/drivers'));
     expect(backendCall).toBeDefined();
     const init = (backendCall as unknown[])[1] as RequestInit;
     expect(init.method).toBe('POST');

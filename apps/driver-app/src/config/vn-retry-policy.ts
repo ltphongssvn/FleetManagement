@@ -22,10 +22,7 @@ export function adjustRetryForVn(entry: RetryEntry): RetryEntry {
   return {
     maxAttempts: Math.max(entry.maxAttempts, MIN_MAX_ATTEMPTS),
     baseSeconds: Math.max(entry.baseSeconds, MIN_BASE_SECONDS),
-    jitterRatio: Math.min(
-      MAX_JITTER_RATIO,
-      Math.max(entry.jitterRatio, MIN_JITTER_RATIO),
-    ),
+    jitterRatio: Math.min(MAX_JITTER_RATIO, Math.max(entry.jitterRatio, MIN_JITTER_RATIO)),
   };
 }
 

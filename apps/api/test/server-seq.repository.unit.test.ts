@@ -1,7 +1,10 @@
 // apps/api/test/server-seq.repository.unit.test.ts
 // Unit test for allocateServerSeq error path (no Testcontainers needed).
 import { describe, it, expect, vi } from 'vitest';
-import { allocateServerSeq, ServerSeqAllocationError } from '../src/database/server-seq.repository.js';
+import {
+  allocateServerSeq,
+  ServerSeqAllocationError,
+} from '../src/database/server-seq.repository.js';
 
 describe('@fleet/api - allocateServerSeq (unit)', () => {
   it('throws ServerSeqAllocationError when nextval returns no row', async () => {

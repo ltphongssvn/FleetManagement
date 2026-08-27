@@ -19,24 +19,37 @@ export class S3ExtractionObjectStore implements ExtractionObjectStore {
     if (config.client) {
       this.client = config.client;
     } else {
-      const cfg: Record<string, unknown> = { region: config.region, requestChecksumCalculation: 'WHEN_REQUIRED' };
+      const cfg: Record<string, unknown> = {
+        region: config.region,
+        requestChecksumCalculation: 'WHEN_REQUIRED',
+      };
       if (config.endpoint !== undefined && config.endpoint.length > 0) {
         cfg['endpoint'] = config.endpoint;
         cfg['forcePathStyle'] = true;
       }
       if (
-        config.accessKeyId !== undefined && config.accessKeyId.length > 0 &&
-        config.secretAccessKey !== undefined && config.secretAccessKey.length > 0
+        config.accessKeyId !== undefined &&
+        config.accessKeyId.length > 0 &&
+        config.secretAccessKey !== undefined &&
+        config.secretAccessKey.length > 0
       ) {
-        cfg['credentials'] = { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey };
+        cfg['credentials'] = {
+          accessKeyId: config.accessKeyId,
+          secretAccessKey: config.secretAccessKey,
+        };
       }
       this.client = new S3Client(cfg);
     }
   }
 
-  async getObject(input: { readonly bucket: string; readonly key: string }): Promise<Uint8Array | null> {
+  async getObject(input: {
+    readonly bucket: string;
+    readonly key: string;
+  }): Promise<Uint8Array | null> {
     try {
-      const res = await this.client.send(new GetObjectCommand({ Bucket: input.bucket, Key: input.key }));
+      const res = await this.client.send(
+        new GetObjectCommand({ Bucket: input.bucket, Key: input.key }),
+      );
       if (!res.Body) return null;
       return await res.Body.transformToByteArray();
     } catch (err: unknown) {

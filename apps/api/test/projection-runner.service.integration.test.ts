@@ -2,7 +2,11 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { ProjectionRunnerService } from '../src/projections/projection-runner.service.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+} from './helpers/migrate-test-db.js';
 import { rowsOf } from './helpers/integration-rows.js';
 
 let testDb: MigratedTestDb;
@@ -15,10 +19,16 @@ const ACTION_1 = '00000000-0000-0000-0000-0000000000a1';
 const ACTION_2 = '00000000-0000-0000-0000-0000000000a2';
 
 describe('@fleet/api - ProjectionRunnerService (integration)', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_proj_runner_int'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_proj_runner_int');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
   beforeEach(async () => {
-    await testDb.db.execute(sql`TRUNCATE TABLE sync_change_feed, dispatch_board_projection, projection_status CASCADE`);
+    await testDb.db.execute(
+      sql`TRUNCATE TABLE sync_change_feed, dispatch_board_projection, projection_status CASCADE`,
+    );
   });
 
   it('materializes dispatch_board_projection from a road_run delta', async () => {
@@ -31,7 +41,11 @@ describe('@fleet/api - ProjectionRunnerService (integration)', () => {
     const svc = new ProjectionRunnerService(testDb.db);
     const result = await svc.drainOnce(COMPANY);
     expect(result.applied).toBe(1);
-    const r = rowsOf<{ state: string }>(await testDb.db.execute(sql`SELECT state FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID}`) as unknown as { rows: readonly { state: string }[] });
+    const r = rowsOf<{ state: string }>(
+      (await testDb.db.execute(
+        sql`SELECT state FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID}`,
+      )) as unknown as { rows: readonly { state: string }[] },
+    );
     expect(r[0]?.state).toBe('started');
   });
 
@@ -44,7 +58,11 @@ describe('@fleet/api - ProjectionRunnerService (integration)', () => {
     `);
     const svc = new ProjectionRunnerService(testDb.db);
     await svc.drainOnce(COMPANY);
-    const r = rowsOf<{ watermark: string }>(await testDb.db.execute(sql`SELECT watermark FROM projection_status WHERE projection_name = 'dispatch_board' AND scope = ${COMPANY}`) as unknown as { rows: readonly { watermark: string }[] });
+    const r = rowsOf<{ watermark: string }>(
+      (await testDb.db.execute(
+        sql`SELECT watermark FROM projection_status WHERE projection_name = 'dispatch_board' AND scope = ${COMPANY}`,
+      )) as unknown as { rows: readonly { watermark: string }[] },
+    );
     expect(String(r[0]?.watermark)).toBe('5');
   });
 
@@ -60,9 +78,17 @@ describe('@fleet/api - ProjectionRunnerService (integration)', () => {
     const second = await svc.drainOnce(COMPANY);
     expect(second.applied).toBe(0);
     // #702: stronger - no duplicate row, watermark stable
-    const projRows = rowsOf<{ road_run_id: string }>(await testDb.db.execute(sql`SELECT road_run_id FROM dispatch_board_projection`) as unknown as { rows: readonly { road_run_id: string }[] });
+    const projRows = rowsOf<{ road_run_id: string }>(
+      (await testDb.db.execute(
+        sql`SELECT road_run_id FROM dispatch_board_projection`,
+      )) as unknown as { rows: readonly { road_run_id: string }[] },
+    );
     expect(projRows).toHaveLength(1);
-    const wmRows = rowsOf<{ watermark: string }>(await testDb.db.execute(sql`SELECT watermark FROM projection_status WHERE scope = ${COMPANY}`) as unknown as { rows: readonly { watermark: string }[] });
+    const wmRows = rowsOf<{ watermark: string }>(
+      (await testDb.db.execute(
+        sql`SELECT watermark FROM projection_status WHERE scope = ${COMPANY}`,
+      )) as unknown as { rows: readonly { watermark: string }[] },
+    );
     expect(String(wmRows[0]?.watermark)).toBe('1');
   });
 
@@ -79,9 +105,17 @@ describe('@fleet/api - ProjectionRunnerService (integration)', () => {
     const svc = new ProjectionRunnerService(testDb.db);
     const result = await svc.drainOnce(COMPANY);
     expect(result.applied).toBe(2);
-    const r = rowsOf<{ state: string }>(await testDb.db.execute(sql`SELECT state FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID}`) as unknown as { rows: readonly { state: string }[] });
+    const r = rowsOf<{ state: string }>(
+      (await testDb.db.execute(
+        sql`SELECT state FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID}`,
+      )) as unknown as { rows: readonly { state: string }[] },
+    );
     expect(r[0]?.state).toBe('started');
-    const w = rowsOf<{ watermark: string }>(await testDb.db.execute(sql`SELECT watermark FROM projection_status WHERE scope = ${COMPANY}`) as unknown as { rows: readonly { watermark: string }[] });
+    const w = rowsOf<{ watermark: string }>(
+      (await testDb.db.execute(
+        sql`SELECT watermark FROM projection_status WHERE scope = ${COMPANY}`,
+      )) as unknown as { rows: readonly { watermark: string }[] },
+    );
     expect(String(w[0]?.watermark)).toBe('2');
   });
 
@@ -96,7 +130,11 @@ describe('@fleet/api - ProjectionRunnerService (integration)', () => {
     const svc = new ProjectionRunnerService(testDb.db);
     const result = await svc.drainOnce(COMPANY);
     expect(result.applied).toBe(0);
-    const r = rowsOf<{ road_run_id: string }>(await testDb.db.execute(sql`SELECT road_run_id FROM dispatch_board_projection`) as unknown as { rows: readonly { road_run_id: string }[] });
+    const r = rowsOf<{ road_run_id: string }>(
+      (await testDb.db.execute(
+        sql`SELECT road_run_id FROM dispatch_board_projection`,
+      )) as unknown as { rows: readonly { road_run_id: string }[] },
+    );
     expect(r).toHaveLength(0);
   });
 
@@ -117,10 +155,18 @@ describe('@fleet/api - ProjectionRunnerService (integration)', () => {
     const result = await svc.drainOnce(COMPANY);
     expect(result.softDeletes).toBe(1);
     // The row is NOT physically removed: it still exists, but deleted_at is now set.
-    const total = rowsOf<{ count: string }>(await testDb.db.execute(sql`SELECT COUNT(*)::text as count FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID}`) as unknown as { rows: readonly { count: string }[] });
+    const total = rowsOf<{ count: string }>(
+      (await testDb.db.execute(
+        sql`SELECT COUNT(*)::text as count FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID}`,
+      )) as unknown as { rows: readonly { count: string }[] },
+    );
     expect(total[0]?.count).toBe('1');
     // Active (visible) rows filtered by deleted_at IS NULL: the row is hidden, so zero.
-    const active = rowsOf<{ count: string }>(await testDb.db.execute(sql`SELECT COUNT(*)::text as count FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID} AND deleted_at IS NULL`) as unknown as { rows: readonly { count: string }[] });
+    const active = rowsOf<{ count: string }>(
+      (await testDb.db.execute(
+        sql`SELECT COUNT(*)::text as count FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID} AND deleted_at IS NULL`,
+      )) as unknown as { rows: readonly { count: string }[] },
+    );
     expect(active[0]?.count).toBe('0');
   });
 
@@ -158,7 +204,11 @@ describe('@fleet/api - ProjectionRunnerService (integration)', () => {
     `);
     const result = await svc.drainOnce(COMPANY);
     expect(result.applied).toBe(1);
-    const r = rowsOf<{ state: string }>(await testDb.db.execute(sql`SELECT state FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID}`) as unknown as { rows: readonly { state: string }[] });
+    const r = rowsOf<{ state: string }>(
+      (await testDb.db.execute(
+        sql`SELECT state FROM dispatch_board_projection WHERE road_run_id = ${ROAD_RUN_ID}`,
+      )) as unknown as { rows: readonly { state: string }[] },
+    );
     expect(r[0]?.state).toBe('completed');
   });
 

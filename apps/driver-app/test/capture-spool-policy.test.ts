@@ -31,13 +31,19 @@ const BASE_NOW = 1_700_000_000_000;
 
 describe('@fleet/driver-app - createSpoolEntry', () => {
   it('returns entry with UUIDv7 captureId, pending_upload status, zero attempts', () => {
-    const deps: SpoolDeps = { now: () => 1_700_000_000_000, generateId: (n: number) => `t${String(n)}-uuid` };
-    const entry = createSpoolEntry({
-      manifestCorrelationId: '11111111-1111-4111-8111-111111111111',
-      localUri: 'file:///x.jpg',
-      mimeType: 'image/jpeg',
-      sizeBytes: 1_000,
-    }, deps);
+    const deps: SpoolDeps = {
+      now: () => 1_700_000_000_000,
+      generateId: (n: number) => `t${String(n)}-uuid`,
+    };
+    const entry = createSpoolEntry(
+      {
+        manifestCorrelationId: '11111111-1111-4111-8111-111111111111',
+        localUri: 'file:///x.jpg',
+        mimeType: 'image/jpeg',
+        sizeBytes: 1_000,
+      },
+      deps,
+    );
     expect(entry.status).toBe('pending_upload');
     expect(entry.attempts).toBe(0);
     expect(entry.createdAtMs).toBe(1_700_000_000_000);
@@ -47,16 +53,39 @@ describe('@fleet/driver-app - createSpoolEntry', () => {
   it('uses real UUIDv7 by default (no deps injected)', () => {
     const entry = createSpoolEntry({
       manifestCorrelationId: '11111111-1111-4111-8111-111111111111',
-      localUri: 'f', mimeType: 'image/jpeg', sizeBytes: 100,
+      localUri: 'f',
+      mimeType: 'image/jpeg',
+      sizeBytes: 100,
     });
-    expect(entry.captureId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(entry.captureId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
   });
 
   it('captureIds advance deterministically when deps.generateId returns sortable strings', () => {
     let counter = 0;
-    const deps: SpoolDeps = { now: () => 1_700_000_000_000 + counter++, generateId: (n: number) => `${String(n).padStart(15, '0')}-uuid` };
-    const a = createSpoolEntry({ manifestCorrelationId: '11111111-1111-4111-8111-111111111111', localUri: 'f', mimeType: 'image/jpeg', sizeBytes: 100 }, deps);
-    const b = createSpoolEntry({ manifestCorrelationId: '11111111-1111-4111-8111-111111111111', localUri: 'f', mimeType: 'image/jpeg', sizeBytes: 100 }, deps);
+    const deps: SpoolDeps = {
+      now: () => 1_700_000_000_000 + counter++,
+      generateId: (n: number) => `${String(n).padStart(15, '0')}-uuid`,
+    };
+    const a = createSpoolEntry(
+      {
+        manifestCorrelationId: '11111111-1111-4111-8111-111111111111',
+        localUri: 'f',
+        mimeType: 'image/jpeg',
+        sizeBytes: 100,
+      },
+      deps,
+    );
+    const b = createSpoolEntry(
+      {
+        manifestCorrelationId: '11111111-1111-4111-8111-111111111111',
+        localUri: 'f',
+        mimeType: 'image/jpeg',
+        sizeBytes: 100,
+      },
+      deps,
+    );
     expect(a.captureId < b.captureId).toBe(true);
   });
 });
@@ -165,9 +194,14 @@ describe('@fleet/driver-app - capture-spool-policy property invariants', () => {
         fc.integer({ min: 0, max: 50 }),
         (ageOffsetMs, attempts) => {
           const entry: SpoolEntry = {
-            captureId: 'x', manifestCorrelationId: 'y', localUri: 'f',
-            mimeType: 'image/jpeg', sizeBytes: 100,
-            status: 'uploaded', createdAtMs: 1_000_000, attempts,
+            captureId: 'x',
+            manifestCorrelationId: 'y',
+            localUri: 'f',
+            mimeType: 'image/jpeg',
+            sizeBytes: 100,
+            status: 'uploaded',
+            createdAtMs: 1_000_000,
+            attempts,
           };
           const r = classifyForRecovery(entry, 1_000_000 + ageOffsetMs);
           expect(r.action).toBe('cleanup');
@@ -184,9 +218,14 @@ describe('@fleet/driver-app - capture-spool-policy property invariants', () => {
         fc.integer({ min: 0, max: 50 }),
         (status, attempts) => {
           const entry: SpoolEntry = {
-            captureId: 'x', manifestCorrelationId: 'y', localUri: 'f',
-            mimeType: 'image/jpeg', sizeBytes: 100,
-            status, createdAtMs: 1_000_000, attempts,
+            captureId: 'x',
+            manifestCorrelationId: 'y',
+            localUri: 'f',
+            mimeType: 'image/jpeg',
+            sizeBytes: 100,
+            status,
+            createdAtMs: 1_000_000,
+            attempts,
           };
           const r = classifyForRecovery(entry, 1_000_000 + SPOOL_ENTRY_TTL_MS + 1);
           expect(r.action).toBe('abandon');
@@ -202,11 +241,20 @@ describe('@fleet/driver-app - capture-spool-policy precedence + boundaries', () 
     const calls: number[] = [];
     const deps: SpoolDeps = {
       now: () => 1_700_000_000_500,
-      generateId: (n: number) => { calls.push(n); return `seeded-${String(n)}`; },
+      generateId: (n: number) => {
+        calls.push(n);
+        return `seeded-${String(n)}`;
+      },
     };
-    const entry = createSpoolEntry({
-      manifestCorrelationId: 'm', localUri: 'f', mimeType: 'image/jpeg', sizeBytes: 100,
-    }, deps);
+    const entry = createSpoolEntry(
+      {
+        manifestCorrelationId: 'm',
+        localUri: 'f',
+        mimeType: 'image/jpeg',
+        sizeBytes: 100,
+      },
+      deps,
+    );
     expect(calls).toEqual([1_700_000_000_500]);
     expect(entry.createdAtMs).toBe(1_700_000_000_500);
     expect(entry.captureId).toBe('seeded-1700000000500');
@@ -261,7 +309,11 @@ describe('@fleet/driver-app - capture-spool-policy precedence + boundaries', () 
 
   it('resumes at attempts cap minus one (#397)', () => {
     const r = classifyForRecovery(
-      makeEntry({ status: 'pending_upload', attempts: SPOOL_MAX_ATTEMPTS - 1, createdAtMs: BASE_NOW }),
+      makeEntry({
+        status: 'pending_upload',
+        attempts: SPOOL_MAX_ATTEMPTS - 1,
+        createdAtMs: BASE_NOW,
+      }),
       BASE_NOW + 60_000,
     );
     expect(r.action).toBe('resume_upload');
@@ -297,7 +349,10 @@ describe('@fleet/driver-app - capture-spool-policy mutation-hardening', () => {
     // captureId format. Original produces a valid UUIDv7 whose timestamp is roughly Date.now().
     const before = Date.now();
     const entry = createSpoolEntry({
-      manifestCorrelationId: 'm', localUri: 'f', mimeType: 'image/jpeg', sizeBytes: 100,
+      manifestCorrelationId: 'm',
+      localUri: 'f',
+      mimeType: 'image/jpeg',
+      sizeBytes: 100,
     });
     const after = Date.now();
     // createdAtMs from REAL_DEPS.now() must be a real number in [before, after]
@@ -306,7 +361,9 @@ describe('@fleet/driver-app - capture-spool-policy mutation-hardening', () => {
     expect(entry.createdAtMs).toBeGreaterThanOrEqual(before);
     expect(entry.createdAtMs).toBeLessThanOrEqual(after);
     // captureId must be a valid UUIDv7 string
-    expect(entry.captureId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(entry.captureId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
   });
 
   it('classifyForRecovery on future-dated failed entry returns skip_in_progress, not resume_upload (kills L100 < 0 -> false / block-empty mutants)', () => {

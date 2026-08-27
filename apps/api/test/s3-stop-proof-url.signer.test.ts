@@ -17,7 +17,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const getObjectCommandCtorArgs: unknown[] = [];
 vi.mock('@aws-sdk/client-s3', () => ({
   S3Client: class {
-    destroy(): void { /* no-op */ }
+    destroy(): void {
+      /* no-op */
+    }
   },
   GetObjectCommand: class {
     readonly input: unknown;
@@ -39,9 +41,16 @@ describe('@fleet/api - S3StopProofUrlSigner', () => {
     mockGetSignedUrl.mockResolvedValue('https://signed.example/x');
     const client = {} as never;
     const signer = new S3StopProofUrlSigner(client);
-    await signer.presignProofUrl({ bucket: 'fleet-pilot-artifacts', key: 'manifests/co/m1/photo.jpg', ttlSeconds: 900 });
+    await signer.presignProofUrl({
+      bucket: 'fleet-pilot-artifacts',
+      key: 'manifests/co/m1/photo.jpg',
+      ttlSeconds: 900,
+    });
     expect(getObjectCommandCtorArgs).toHaveLength(1);
-    expect(getObjectCommandCtorArgs[0]).toEqual({ Bucket: 'fleet-pilot-artifacts', Key: 'manifests/co/m1/photo.jpg' });
+    expect(getObjectCommandCtorArgs[0]).toEqual({
+      Bucket: 'fleet-pilot-artifacts',
+      Key: 'manifests/co/m1/photo.jpg',
+    });
   });
   it('passes the client, command, and { expiresIn: ttlSeconds } to getSignedUrl (kills expiresIn ObjectLiteral mutant)', async () => {
     mockGetSignedUrl.mockResolvedValue('https://signed.example/y');
@@ -61,10 +70,18 @@ describe('@fleet/api - S3StopProofUrlSigner', () => {
     expect(url).toBe('https://signed.example/proof?sig=abc');
   });
   it('rewrites the signed origin to publicUrl, preserving path + query (T-proof-host)', async () => {
-    mockGetSignedUrl.mockResolvedValue('http://localstack:4566/fleet-pilot-artifacts/manifests/co/m1/p.jpg?X-Amz-Signature=abc&X-Amz-Expires=900');
+    mockGetSignedUrl.mockResolvedValue(
+      'http://localstack:4566/fleet-pilot-artifacts/manifests/co/m1/p.jpg?X-Amz-Signature=abc&X-Amz-Expires=900',
+    );
     const signer = new S3StopProofUrlSigner({} as never, 'http://localhost:4566');
-    const url = await signer.presignProofUrl({ bucket: 'fleet-pilot-artifacts', key: 'manifests/co/m1/p.jpg', ttlSeconds: 900 });
-    expect(url).toBe('http://localhost:4566/fleet-pilot-artifacts/manifests/co/m1/p.jpg?X-Amz-Signature=abc&X-Amz-Expires=900');
+    const url = await signer.presignProofUrl({
+      bucket: 'fleet-pilot-artifacts',
+      key: 'manifests/co/m1/p.jpg',
+      ttlSeconds: 900,
+    });
+    expect(url).toBe(
+      'http://localhost:4566/fleet-pilot-artifacts/manifests/co/m1/p.jpg?X-Amz-Signature=abc&X-Amz-Expires=900',
+    );
   });
   it('rewrite swaps protocol as well as host (https public origin)', async () => {
     mockGetSignedUrl.mockResolvedValue('http://localstack:4566/b/k?X-Amz-Signature=s');
@@ -73,10 +90,16 @@ describe('@fleet/api - S3StopProofUrlSigner', () => {
     expect(url).toBe('https://cdn.example.com/b/k?X-Amz-Signature=s');
   });
   it('returns the signed URL untouched when publicUrl is absent or empty (prod default chain)', async () => {
-    mockGetSignedUrl.mockResolvedValue('https://real-s3.ap-southeast-1.amazonaws.com/b/k?X-Amz-Signature=s');
+    mockGetSignedUrl.mockResolvedValue(
+      'https://real-s3.ap-southeast-1.amazonaws.com/b/k?X-Amz-Signature=s',
+    );
     const noArg = new S3StopProofUrlSigner({} as never);
-    expect(await noArg.presignProofUrl({ bucket: 'b', key: 'k', ttlSeconds: 60 })).toBe('https://real-s3.ap-southeast-1.amazonaws.com/b/k?X-Amz-Signature=s');
+    expect(await noArg.presignProofUrl({ bucket: 'b', key: 'k', ttlSeconds: 60 })).toBe(
+      'https://real-s3.ap-southeast-1.amazonaws.com/b/k?X-Amz-Signature=s',
+    );
     const emptyArg = new S3StopProofUrlSigner({} as never, '');
-    expect(await emptyArg.presignProofUrl({ bucket: 'b', key: 'k', ttlSeconds: 60 })).toBe('https://real-s3.ap-southeast-1.amazonaws.com/b/k?X-Amz-Signature=s');
+    expect(await emptyArg.presignProofUrl({ bucket: 'b', key: 'k', ttlSeconds: 60 })).toBe(
+      'https://real-s3.ap-southeast-1.amazonaws.com/b/k?X-Amz-Signature=s',
+    );
   });
 });

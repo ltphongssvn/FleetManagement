@@ -24,16 +24,20 @@ export type DriverAlertKind = (typeof DRIVER_ALERT_KINDS)[number];
 export const DriverAlertKindSchema = z.enum(DRIVER_ALERT_KINDS);
 
 /** Wire body of one 'alerts' queue job. Strict: envelope-key leaks must fail loudly. */
-export const DriverAlertJobSchema = z.object({
-  alertKind: DriverAlertKindSchema,
-  assignedOperatorId: z.guid(),
-  roadRunId: z.guid(),
-  externalRef: z.string().min(1).max(64),
-}).strict();
+export const DriverAlertJobSchema = z
+  .object({
+    alertKind: DriverAlertKindSchema,
+    assignedOperatorId: z.guid(),
+    roadRunId: z.guid(),
+    externalRef: z.string().min(1).max(64),
+  })
+  .strict();
 export type DriverAlertJob = z.infer<typeof DriverAlertJobSchema>;
 
 /** Device-facing notification data payload: the job body minus the server-side address. */
-export const DriverAlertPushDataSchema = DriverAlertJobSchema.omit({ assignedOperatorId: true }).strict();
+export const DriverAlertPushDataSchema = DriverAlertJobSchema.omit({
+  assignedOperatorId: true,
+}).strict();
 export type DriverAlertPushData = z.infer<typeof DriverAlertPushDataSchema>;
 
 // --- Android notification-channel contract (shared SSOT) --------------------
@@ -57,4 +61,6 @@ export const DRIVER_ALERT_SOUND = 'transport_alert.wav' as const;
  *  4AM driver feels it even pocketed / on a seat with sound suppressed --
  *  vibration is an INDEPENDENT delivery channel from sound. The driver-app
  *  registers this exact pattern with enableVibrate on the transport channel. */
-export const DRIVER_ALERT_VIBRATION_PATTERN: readonly number[] = [0, 600, 300, 600, 300, 600] as const;
+export const DRIVER_ALERT_VIBRATION_PATTERN: readonly number[] = [
+  0, 600, 300, 600, 300, 600,
+] as const;

@@ -23,7 +23,12 @@ import type { OperatorContext } from '../src/auth/operator-context.js';
 import type { IBlobStore, PresignedUpload } from '../src/storage/storage-provider.interface.js';
 import type { ConfigService } from '@nestjs/config';
 import type { Env } from '../src/config/env.config.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+  truncateAllTables,
+} from './helpers/migrate-test-db.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 vi.mock('@sentry/nestjs', () => ({ captureEvent: vi.fn() }));
 let testDb: MigratedTestDb;
@@ -32,12 +37,16 @@ const OP: OperatorContext = createOperatorContext();
 const AFTER = 15;
 const MAX = 5;
 function fakeBlobStore(): IBlobStore {
-  return { presignUpload: vi.fn().mockImplementation(() => Promise.resolve({
-    url: 'https://s3.example/presigned',
-    key: 'manifests/co/' + randomUUID() + '/x.jpg',
-    bucket: 'fleet-test',
-    expiresAt: new Date('2026-08-01T20:00:00Z'),
-  } satisfies PresignedUpload))};
+  return {
+    presignUpload: vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        url: 'https://s3.example/presigned',
+        key: 'manifests/co/' + randomUUID() + '/x.jpg',
+        bucket: 'fleet-test',
+        expiresAt: new Date('2026-08-01T20:00:00Z'),
+      } satisfies PresignedUpload),
+    ),
+  };
 }
 function fakeConfig(): ConfigService<Env, true> {
   return { getOrThrow: vi.fn().mockReturnValue(900) } as unknown as ConfigService<Env, true>;
@@ -52,41 +61,64 @@ async function seedVerifyingManifest(): Promise<string> {
   const transportOrderId = randomUUID();
   await testDb.db.insert(transportOrder).values({
     transportOrderId,
-    companyId: OP.companyId, businessUnitId: OP.businessUnitId,
-    depotId: OP.depotId, legalEntityId: OP.legalEntityId,
+    companyId: OP.companyId,
+    businessUnitId: OP.businessUnitId,
+    depotId: OP.depotId,
+    legalEntityId: OP.legalEntityId,
     state: 'assigned',
   });
-  const negotiated = await svc.negotiateUpload({
-    manifestCorrelationId: randomUUID(), transportOrderId,
-    contentType: 'image/jpeg', expectedSizeBytes: 1000,
-  }, OP);
+  const negotiated = await svc.negotiateUpload(
+    {
+      manifestCorrelationId: randomUUID(),
+      transportOrderId,
+      contentType: 'image/jpeg',
+      expectedSizeBytes: 1000,
+    },
+    OP,
+  );
   await svc.commitUpload({ uploadSessionId: negotiated.uploadSessionId, actualSizeBytes: 900 }, OP);
-  const rows = await testDb.db.select({ id: manifest.manifestId }).from(manifest).orderBy(asc(manifest.createdAt));
+  const rows = await testDb.db
+    .select({ id: manifest.manifestId })
+    .from(manifest)
+    .orderBy(asc(manifest.createdAt));
   const last = rows[rows.length - 1];
   if (!last) throw new Error('seed failed');
   return last.id;
 }
 async function ageManifest(id: string, createdMinutesAgo: number): Promise<void> {
-  await testDb.db.update(manifest).set({ createdAt: minutesAgo(createdMinutesAgo) })
+  await testDb.db
+    .update(manifest)
+    .set({ createdAt: minutesAgo(createdMinutesAgo) })
     .where(eq(manifest.manifestId, id));
 }
-async function manifestRow(id: string): Promise<{ state: string; attempts: number; lastAt: Date | null }> {
-  const [row] = await testDb.db.select({
-    state: manifest.state,
-    attempts: manifest.intakeReconcileAttempts,
-    lastAt: manifest.lastIntakeReconcileAt,
-  }).from(manifest).where(eq(manifest.manifestId, id));
+async function manifestRow(
+  id: string,
+): Promise<{ state: string; attempts: number; lastAt: Date | null }> {
+  const [row] = await testDb.db
+    .select({
+      state: manifest.state,
+      attempts: manifest.intakeReconcileAttempts,
+      lastAt: manifest.lastIntakeReconcileAt,
+    })
+    .from(manifest)
+    .where(eq(manifest.manifestId, id));
   if (!row) throw new Error('manifest missing');
   return row;
 }
 async function intakeOutboxBodies(): Promise<Record<string, unknown>[]> {
-  const rows = await testDb.db.select({ payload: outbox.payload }).from(outbox)
+  const rows = await testDb.db
+    .select({ payload: outbox.payload })
+    .from(outbox)
     .where(eq(outbox.queueName, 'intake'));
   return rows.map((r) => r.payload as Record<string, unknown>);
 }
 describe('@fleet/api - IntakeReconcilerService self-healing loop', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_intake_reconciler'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_test_intake_reconciler');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
   beforeEach(async () => {
     vi.mocked(Sentry.captureEvent).mockClear();
     svc = new ManifestService(testDb.db, fakeBlobStore(), fakeConfig());
@@ -102,7 +134,8 @@ describe('@fleet/api - IntakeReconcilerService self-healing loop', () => {
     for (const payload of bodies) {
       const { aggregateType: _a, eventType: _e, serverSeq: _s, ...body } = payload;
       const parsed = IntakeJobDataWireSchema.safeParse(body);
-      if (!parsed.success) throw new Error('intake body failed schema: ' + JSON.stringify(parsed.error.issues));
+      if (!parsed.success)
+        throw new Error('intake body failed schema: ' + JSON.stringify(parsed.error.issues));
     }
     const row = await manifestRow(id);
     expect(row.state).toBe('verifying');
@@ -120,7 +153,8 @@ describe('@fleet/api - IntakeReconcilerService self-healing loop', () => {
     expect(r2).toEqual({ eligible: 0, emitted: 0, exhausted: 0 });
     expect((await manifestRow(fresh)).attempts).toBe(0);
     expect((await manifestRow(stalled)).attempts).toBe(1);
-    await testDb.db.update(manifest)
+    await testDb.db
+      .update(manifest)
       .set({ lastIntakeReconcileAt: minutesAgo(2 * AFTER + 1) })
       .where(eq(manifest.manifestId, stalled));
     const r3 = await reconciler(25).reconcileOnce();
@@ -128,7 +162,11 @@ describe('@fleet/api - IntakeReconcilerService self-healing loop', () => {
     expect((await manifestRow(stalled)).attempts).toBe(2);
   }, 60_000);
   it('batch size is the per-tick retry budget', async () => {
-    const ids = [await seedVerifyingManifest(), await seedVerifyingManifest(), await seedVerifyingManifest()];
+    const ids = [
+      await seedVerifyingManifest(),
+      await seedVerifyingManifest(),
+      await seedVerifyingManifest(),
+    ];
     for (const id of ids) await ageManifest(id, AFTER + 10);
     const r1 = await reconciler(2).reconcileOnce();
     expect(r1.emitted).toBe(2);
@@ -146,7 +184,8 @@ describe('@fleet/api - IntakeReconcilerService self-healing loop', () => {
     if (!candidate) throw new Error('expected one eligible candidate');
     // Simulate a concurrent tick winning first: bump attempts in the DB so the
     // optimistic guard (attempts === candidate.attempts) no longer matches.
-    await testDb.db.update(manifest)
+    await testDb.db
+      .update(manifest)
       .set({ intakeReconcileAttempts: candidate.attempts + 1 })
       .where(eq(manifest.manifestId, id));
     const baseline = (await intakeOutboxBodies()).length;
@@ -157,7 +196,9 @@ describe('@fleet/api - IntakeReconcilerService self-healing loop', () => {
   it('max attempts quarantines in place: no emission, one fatal per episode, state untouched', async () => {
     const id = await seedVerifyingManifest();
     await ageManifest(id, AFTER + 30);
-    await testDb.db.update(manifest).set({ intakeReconcileAttempts: MAX })
+    await testDb.db
+      .update(manifest)
+      .set({ intakeReconcileAttempts: MAX })
       .where(eq(manifest.manifestId, id));
     const baseline = (await intakeOutboxBodies()).length;
     const r = reconciler(25);

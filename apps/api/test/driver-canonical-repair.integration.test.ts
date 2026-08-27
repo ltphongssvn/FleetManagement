@@ -67,17 +67,25 @@ async function dropConstraints(): Promise<void> {
   // A migration test must reproduce the schema the migration will ENCOUNTER.
   // Dropping a constraint to make a fixture insertable silently changes the
   // thing under test.
-  await testDb.db.execute(sql`ALTER TABLE driver DROP CONSTRAINT IF EXISTS driver_full_name_canonical`);
+  await testDb.db.execute(
+    sql`ALTER TABLE driver DROP CONSTRAINT IF EXISTS driver_full_name_canonical`,
+  );
   await testDb.db.execute(sql`DROP INDEX IF EXISTS driver_company_active_name_ci_uq`);
   await testDb.db.execute(sql`DROP INDEX IF EXISTS driver_company_active_phone_uq`);
   // Drop the phone constraint too before recreating it: the cloned template
   // still carries it on a fresh database, and the migration drops it only on
   // the runs that have already executed. Idempotent setup, so beforeEach can
   // run this whether or not a prior test applied the migration.
-  await testDb.db.execute(sql`ALTER TABLE driver DROP CONSTRAINT IF EXISTS driver_company_phone_uq`);
+  await testDb.db.execute(
+    sql`ALTER TABLE driver DROP CONSTRAINT IF EXISTS driver_company_phone_uq`,
+  );
   // Recreate the pre-migration indexes verbatim.
-  await testDb.db.execute(sql`CREATE UNIQUE INDEX driver_company_active_name_ci_uq ON driver (company_id, lower(full_name)) WHERE active = true`);
-  await testDb.db.execute(sql`ALTER TABLE driver ADD CONSTRAINT driver_company_phone_uq UNIQUE (company_id, phone)`);
+  await testDb.db.execute(
+    sql`CREATE UNIQUE INDEX driver_company_active_name_ci_uq ON driver (company_id, lower(full_name)) WHERE active = true`,
+  );
+  await testDb.db.execute(
+    sql`ALTER TABLE driver ADD CONSTRAINT driver_company_phone_uq UNIQUE (company_id, phone)`,
+  );
 }
 
 async function applyRepair(): Promise<void> {
@@ -87,8 +95,12 @@ async function applyRepair(): Promise<void> {
 }
 
 describe('@fleet/api - migration 20260810180000 repair path', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_canonrepair'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_test_canonrepair');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
   beforeEach(async () => {
     await truncateAllTables(testDb.db);
     await dropConstraints();
@@ -101,7 +113,9 @@ describe('@fleet/api - migration 20260810180000 repair path', () => {
   });
 
   it('trims a trailing space on an existing row', async () => {
-    await testDb.db.insert(driver).values({ ...TENANCY, fullName: CANONICAL + ' ', phone: '0907606776' });
+    await testDb.db
+      .insert(driver)
+      .values({ ...TENANCY, fullName: CANONICAL + ' ', phone: '0907606776' });
     await applyRepair();
     const rows = await testDb.db.select().from(driver).where(eq(driver.companyId, COMPANY));
     expect(rows).toHaveLength(1);
@@ -128,7 +142,9 @@ describe('@fleet/api - migration 20260810180000 repair path', () => {
       operatorId: '00000000-0000-0000-0000-0000000000cc',
     });
     await applyRepair();
-    const active = await testDb.db.select().from(driver)
+    const active = await testDb.db
+      .select()
+      .from(driver)
       .where(and(eq(driver.companyId, COMPANY), eq(driver.active, true)));
     expect(active).toHaveLength(1);
     expect(active[0]?.phone).toBe('0907606776');
@@ -149,19 +165,27 @@ describe('@fleet/api - migration 20260810180000 repair path', () => {
     const OTHER = '99999999-9999-4999-8999-999999999999';
     await testDb.db.insert(driver).values({ ...TENANCY, fullName: CANONICAL + ' ' });
     await testDb.db.insert(driver).values({
-      ...TENANCY, companyId: OTHER, fullName: CANONICAL,
+      ...TENANCY,
+      companyId: OTHER,
+      fullName: CANONICAL,
     });
     await applyRepair();
-    const mine = await testDb.db.select().from(driver)
+    const mine = await testDb.db
+      .select()
+      .from(driver)
       .where(and(eq(driver.companyId, COMPANY), eq(driver.active, true)));
-    const theirs = await testDb.db.select().from(driver)
+    const theirs = await testDb.db
+      .select()
+      .from(driver)
       .where(and(eq(driver.companyId, OTHER), eq(driver.active, true)));
     expect(mine).toHaveLength(1);
     expect(theirs).toHaveLength(1);
   });
 
   it('is idempotent -- a second application changes nothing', async () => {
-    await testDb.db.insert(driver).values({ ...TENANCY, fullName: CANONICAL + ' ', phone: '0907606776' });
+    await testDb.db
+      .insert(driver)
+      .values({ ...TENANCY, fullName: CANONICAL + ' ', phone: '0907606776' });
     await applyRepair();
     await dropConstraints();
     await applyRepair();
@@ -172,10 +196,16 @@ describe('@fleet/api - migration 20260810180000 repair path', () => {
   });
 
   it('frees a phone held by a soft-deleted row once the partial index lands', async () => {
-    await testDb.db.insert(driver).values({ ...TENANCY, fullName: 'OLD ONE', phone: '0384032759', active: false });
+    await testDb.db
+      .insert(driver)
+      .values({ ...TENANCY, fullName: 'OLD ONE', phone: '0384032759', active: false });
     await applyRepair();
-    await testDb.db.insert(driver).values({ ...TENANCY, fullName: 'NEW ONE', phone: '0384032759', active: true });
-    const active = await testDb.db.select().from(driver)
+    await testDb.db
+      .insert(driver)
+      .values({ ...TENANCY, fullName: 'NEW ONE', phone: '0384032759', active: true });
+    const active = await testDb.db
+      .select()
+      .from(driver)
       .where(and(eq(driver.companyId, COMPANY), eq(driver.active, true)));
     expect(active).toHaveLength(1);
   });

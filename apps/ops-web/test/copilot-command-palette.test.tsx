@@ -244,7 +244,9 @@ describe('CommandPalette', () => {
     const failed = {
       planId: PLAN.planId,
       status: 'failed',
-      results: [{ commandId: PLAN.commands[0]?.commandId, outcome: 'failed', errorCode: 'INTERNAL' }],
+      results: [
+        { commandId: PLAN.commands[0]?.commandId, outcome: 'failed', errorCode: 'INTERNAL' },
+      ],
     };
     const fetchFn = vi
       .fn()

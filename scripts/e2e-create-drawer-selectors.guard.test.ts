@@ -21,9 +21,25 @@
 //      event on the board beneath it. Headless UI Dialog replaces it (native
 //      dialog + showModal is the generic 2026 answer but would paint over the
 //      Floating UI portal that ComboboxField anchors its listbox into).
+//
+// PARSING (2026-08-23). Three cases below asserted markup with string
+// containment against a hard-coded quote character built from
+// String.fromCharCode(39) -- data-testid='dispatch-board', id='cargo',
+// role='status'. Quote style is PRESENTATION and Prettier owns it: this repo
+// commits singleQuote:true, which governs JS string literals, while JSX
+// attributes keep double quotes (jsxSingleQuote, default false). Formatting the
+// tree flipped every JSX attribute and all three failed at once with the
+// contract completely intact -- 7 of 7 field ids still present, still queryable.
+//
+// "This element carries this attribute with this value" is a STRUCTURAL claim,
+// so jsx-attributes.ts answers it from the AST. That also makes the guard
+// stronger than it was: id={'cargo'} and id="cargo" are the same contract to a
+// parser and different strings to a search, so the old version would have
+// reported a false regression on a purely syntactic edit.
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { hasJsxAttribute, jsxAttributes, liveRegionIsStatic } from './source-facts.js';
 
 const ROOT = join(import.meta.dirname, '..');
 const E2E_DIR = join(ROOT, 'e2e');
@@ -42,8 +58,13 @@ const CSS_FORM_LOCATOR = /locator\\('form'\\)/;
 
 // Every field id the e2e suite queries, unchanged since before T38.
 const REQUIRED_IDS = [
-  'plannedStartAt', 'pickupAt', 'deliveryAt',
-  'cargo', 'customer', 'vehiclePlate', 'assignedOperatorId',
+  'plannedStartAt',
+  'pickupAt',
+  'deliveryAt',
+  'cargo',
+  'customer',
+  'vehiclePlate',
+  'assignedOperatorId',
 ];
 
 function specFiles(): readonly string[] {
@@ -77,30 +98,37 @@ describe('dispatch board readiness and selector contract', () => {
   });
 
   it('the board root carries its own hydration-readiness signal', () => {
-    const src = readFileSync(VIEW, 'utf-8');
-    const q = String.fromCharCode(39);
-    expect(src).toContain('data-testid=' + q + 'dispatch-board' + q);
-    expect(src).toContain('data-hydrated=');
+    expect(hasJsxAttribute(VIEW, 'data-testid', 'dispatch-board')).toBe(true);
+    expect(jsxAttributes(VIEW).has('data-hydrated')).toBe(true);
   });
 
   it('the drawer form still exposes every queried field id', () => {
-    const src = readFileSync(NL_FORM, 'utf-8');
-    const q = String.fromCharCode(39);
-    const missing = REQUIRED_IDS.filter((f) => !src.includes('id=' + q + f + q));
+    const ids = jsxAttributes(NL_FORM).get('id') ?? new Set<string | null>();
+    // Vacuity guard: an empty id set would make the filter below trivially
+    // empty, which reads exactly like every id being present.
+    expect(ids.size).toBeGreaterThan(0);
+    const missing = REQUIRED_IDS.filter((f) => !ids.has(f));
     expect(missing).toEqual([]);
   });
 
   it('the success banner is a persistent live region on the board', () => {
-    const view = readFileSync(VIEW, 'utf-8');
-    const form = readFileSync(NL_FORM, 'utf-8');
-    const q = String.fromCharCode(39);
     // The board owns it, so it survives the drawer closing on success.
-    expect(view).toContain('role=' + q + 'status' + q);
-    expect(form).not.toContain('role=' + q + 'status' + q);
+    expect(hasJsxAttribute(VIEW, 'role', 'status')).toBe(true);
+    expect(hasJsxAttribute(NL_FORM, 'role', 'status')).toBe(false);
     // WCAG 4.1.3: the CONTAINER must exist from first paint; only its content
-    // may be conditional. A conditionally-mounted region is never monitored.
-    expect(view).not.toContain('{createdRef !== null ? (');
-    expect(view).toContain('{createdRef === null ? null : (');
+    // may be conditional, because assistive technology never begins monitoring
+    // a region that did not exist at load.
+    //
+    // Asserted STRUCTURALLY. The previous version pinned two exact source
+    // strings -- '{createdRef !== null ? (' and '{createdRef === null ? null :
+    // ('  -- which encode Prettier's line-breaking of a ternary, not the
+    // accessibility contract. A rewrap would have failed the guard while the
+    // markup was correct, and an equivalent rewrite (an && guard, say) would
+    // have passed while silently breaking WCAG. What actually matters is that
+    // the role=status element is NOT inside a conditional: liveRegionIsStatic
+    // walks up from the attribute to the enclosing JSX and reports whether any
+    // ancestor is a conditional expression.
+    expect(liveRegionIsStatic(VIEW)).toBe(true);
   });
 
   it('the drawer uses Headless UI Dialog, not a hand-rolled overlay', () => {

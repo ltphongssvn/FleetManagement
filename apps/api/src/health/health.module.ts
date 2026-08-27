@@ -36,5 +36,4 @@ import type { WorkerProvenanceReader } from './health.controller.js';
     },
   ],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class HealthModule {}

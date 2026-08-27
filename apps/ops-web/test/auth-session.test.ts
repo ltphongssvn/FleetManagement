@@ -27,11 +27,16 @@ function jwtWith(claims: Record<string, unknown>): string {
 }
 
 describe('decodeUsername', () => {
-  beforeEach(() => { cookieGet.mockReset(); vi.resetModules(); });
+  beforeEach(() => {
+    cookieGet.mockReset();
+    vi.resetModules();
+  });
 
   it('prefers preferred_username over sub', async () => {
     const { decodeUsername } = await import('@/features/auth/session');
-    expect(decodeUsername(jwtWith({ preferred_username: 'dieu-phoi', sub: 'uuid-1' }))).toBe('dieu-phoi');
+    expect(decodeUsername(jwtWith({ preferred_username: 'dieu-phoi', sub: 'uuid-1' }))).toBe(
+      'dieu-phoi',
+    );
   });
 
   it('falls back to sub when preferred_username is absent', async () => {
@@ -67,7 +72,10 @@ describe('decodeUsername', () => {
 });
 
 describe('getSessionUsername', () => {
-  beforeEach(() => { cookieGet.mockReset(); vi.resetModules(); });
+  beforeEach(() => {
+    cookieGet.mockReset();
+    vi.resetModules();
+  });
 
   it('reads the username from the fleet_session cookie', async () => {
     cookieGet.mockReturnValue({ value: jwtWith({ preferred_username: 'dieu-phoi' }) });

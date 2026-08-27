@@ -13,4 +13,4 @@ export const MUTATION_LOCK_STATES = [
 ] as const;
 
 /** Union type derived from the array — single source of truth. */
-export type MutationLockState = typeof MUTATION_LOCK_STATES[number];
+export type MutationLockState = (typeof MUTATION_LOCK_STATES)[number];

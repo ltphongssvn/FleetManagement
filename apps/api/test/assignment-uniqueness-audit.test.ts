@@ -12,8 +12,18 @@ const CO = randomUUID();
 describe('auditAssignmentUniqueness', () => {
   it('reports a clean bill for a valid 1:1 fleet', () => {
     const rows = [
-      { assignmentId: randomUUID(), companyId: CO, driverId: randomUUID(), vehicleId: randomUUID() },
-      { assignmentId: randomUUID(), companyId: CO, driverId: randomUUID(), vehicleId: randomUUID() },
+      {
+        assignmentId: randomUUID(),
+        companyId: CO,
+        driverId: randomUUID(),
+        vehicleId: randomUUID(),
+      },
+      {
+        assignmentId: randomUUID(),
+        companyId: CO,
+        driverId: randomUUID(),
+        vehicleId: randomUUID(),
+      },
     ];
     const r = auditAssignmentUniqueness(rows);
     expect(r.isClean).toBe(true);

@@ -78,11 +78,15 @@ function flagshipPlan(password: string | null): CopilotPlan {
     summaryVi: 'Sẽ tạo tài xế Nguyễn Văn A và gán vào xe 62H-05194',
     commands: [
       {
-        type: 'create_driver', commandId: GUID_CMD1,
-        fullName: 'Nguyễn Văn A', phone: '0900000123', password,
+        type: 'create_driver',
+        commandId: GUID_CMD1,
+        fullName: 'Nguyễn Văn A',
+        phone: '0900000123',
+        password,
       },
       {
-        type: 'assign_driver_to_vehicle', commandId: GUID_CMD2,
+        type: 'assign_driver_to_vehicle',
+        commandId: GUID_CMD2,
         driver: { kind: 'stepOutput', fromCommandId: GUID_CMD1, output: 'driverId' },
         vehicle: { kind: 'id', idSpace: 'vehicleId', id: GUID_VEHICLE },
       },
@@ -171,21 +175,19 @@ describe('@fleet/api CopilotExecutorService', () => {
   });
 
   it('stops on first error, maps 409 to INVALID_STATE_TRANSITION, skips the rest', async () => {
-    f.assignment.assign = vi.fn(() =>
-      Promise.reject(new HttpException('already assigned', 409)),
-    );
+    f.assignment.assign = vi.fn(() => Promise.reject(new HttpException('already assigned', 409)));
     const plan = flagshipPlan(null);
     plan.commands.push({
-      type: 'create_cargo_type', commandId: GUID_VEHICLE, name: 'Muối',
+      type: 'create_cargo_type',
+      commandId: GUID_VEHICLE,
+      name: 'Muối',
     });
     const out = await build(f).execute(plan, OP as never);
     expect(out.status).toBe('failed');
     expect(out.results[1]).toEqual(
       expect.objectContaining({ outcome: 'failed', errorCode: 'INVALID_STATE_TRANSITION' }),
     );
-    expect(out.results[2]).toEqual(
-      expect.objectContaining({ outcome: 'skipped' }),
-    );
+    expect(out.results[2]).toEqual(expect.objectContaining({ outcome: 'skipped' }));
     expect(f.store.complete).toHaveBeenCalledWith(GUID_PLAN, 'failed');
   });
 
@@ -195,9 +197,7 @@ describe('@fleet/api CopilotExecutorService', () => {
     [403, 'FORBIDDEN'],
     [404, 'NOT_FOUND'],
   ] as const)('maps HttpException %i to %s', async (status, code) => {
-    f.assignment.assign = vi.fn(() =>
-      Promise.reject(new HttpException('denied', status)),
-    );
+    f.assignment.assign = vi.fn(() => Promise.reject(new HttpException('denied', status)));
     const out = await build(f).execute(flagshipPlan(null), OP as never);
     expect(out.status).toBe('failed');
     expect(out.results[1]?.errorCode).toBe(code);
@@ -228,7 +228,8 @@ describe('@fleet/api CopilotExecutorService', () => {
       summaryVi: 'Gán xe',
       commands: [
         {
-          type: 'assign_driver_to_vehicle', commandId: GUID_CMD2,
+          type: 'assign_driver_to_vehicle',
+          commandId: GUID_CMD2,
           driver: { kind: 'stepOutput', fromCommandId: GUID_CMD1, output: 'driverId' },
           vehicle: { kind: 'id', idSpace: 'vehicleId', id: GUID_VEHICLE },
         },

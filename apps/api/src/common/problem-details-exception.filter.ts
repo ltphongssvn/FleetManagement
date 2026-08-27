@@ -46,14 +46,23 @@ function defaultCodeFor(status: number): FleetErrorCode | undefined {
  * never overwrite these (shield against producer bugs reinstating the
  * leak/overwrite class this filter exists to kill). */
 const RESERVED_MEMBERS: ReadonlySet<string> = new Set([
-  'type', 'title', 'status', 'detail', 'instance', 'code',
+  'type',
+  'title',
+  'status',
+  'detail',
+  'instance',
+  'code',
 ]);
 
 /** detail + optional explicit code + optional shielded extensions from an
  * HttpException response payload. Extensions are OPT-IN (a named object
  * member, never a blind spread of the response) -- the seam the 409
  * INVALID_STATE_TRANSITION / MANIFESTS_INCOMPLETE rejections use. */
-function extractHttp(ex: HttpException): { detail: string; code?: string; extensions?: Record<string, unknown> } {
+function extractHttp(ex: HttpException): {
+  detail: string;
+  code?: string;
+  extensions?: Record<string, unknown>;
+} {
   const raw: unknown = ex.getResponse();
   if (typeof raw === 'string') return { detail: raw };
   if (typeof raw === 'object' && raw !== null) {

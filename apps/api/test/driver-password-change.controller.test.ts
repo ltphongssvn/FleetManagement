@@ -22,7 +22,9 @@ describe('DriverPasswordChangeController', () => {
   };
   beforeEach(() => {
     changeFn = vi.fn();
-    controller = new DriverPasswordChangeController({ changePassword: changeFn } as unknown as DriverPasswordChangeService);
+    controller = new DriverPasswordChangeController({
+      changePassword: changeFn,
+    } as unknown as DriverPasswordChangeService);
   });
   it('delegates to service with operator identity + both passwords', async () => {
     changeFn.mockResolvedValue(undefined);
@@ -42,7 +44,10 @@ describe('DriverPasswordChangeController', () => {
   });
   it('rejects a missing currentPassword before hitting the service', async () => {
     await expect(
-      controller.change(op, { newPassword: 'newpass2' } as unknown as { currentPassword: string; newPassword: string }), // pragma: allowlist secret
+      controller.change(op, { newPassword: 'newpass2' } as unknown as {
+        currentPassword: string;
+        newPassword: string;
+      }), // pragma: allowlist secret
     ).rejects.toThrow();
     expect(changeFn).not.toHaveBeenCalled();
   });

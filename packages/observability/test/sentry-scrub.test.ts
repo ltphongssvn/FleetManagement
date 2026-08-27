@@ -91,14 +91,18 @@ describe('scrub (purity + structure)', () => {
   });
 
   it('caps recursion depth to prevent stack overflow', () => {
-    interface Node { next?: Node }
+    interface Node {
+      next?: Node;
+    }
     const root: Node = {};
     let cur: Node = root;
     for (let i = 0; i < 20; i++) {
       cur.next = {};
       cur = cur.next;
     }
-    expect(() => { scrub(root); }).not.toThrow();
+    expect(() => {
+      scrub(root);
+    }).not.toThrow();
   });
 
   it('returns UNSCRUBBABLE sentinel when Object.entries throws', () => {
@@ -239,14 +243,28 @@ describe('createScrubber', () => {
 
   it('returns UNSCRUBBABLE on throwing object', () => {
     const fn = createScrubber();
-    const trap = new Proxy({}, { ownKeys() { throw new Error('nope'); } });
+    const trap = new Proxy(
+      {},
+      {
+        ownKeys() {
+          throw new Error('nope');
+        },
+      },
+    );
     expect(fn(trap)).toBe(UNSCRUBBABLE);
   });
 
   it('calls onScrubError when scrub catches', () => {
     const errors: unknown[] = [];
     const fn = createScrubber({ onScrubError: (e) => errors.push(e) });
-    const trap = new Proxy({}, { ownKeys() { throw new Error('boom'); } });
+    const trap = new Proxy(
+      {},
+      {
+        ownKeys() {
+          throw new Error('boom');
+        },
+      },
+    );
     expect(fn(trap)).toBe(UNSCRUBBABLE);
     expect(errors).toHaveLength(1);
     expect((errors[0] as Error).message).toBe('boom');
@@ -266,7 +284,14 @@ describe('scrub error observability (top-level)', () => {
     const errors: unknown[] = [];
     setScrubErrorHandler((err) => errors.push(err));
     try {
-      const trap = new Proxy({}, { ownKeys() { throw new Error('boom-default'); } });
+      const trap = new Proxy(
+        {},
+        {
+          ownKeys() {
+            throw new Error('boom-default');
+          },
+        },
+      );
       expect(scrub(trap)).toBe(UNSCRUBBABLE);
       expect(errors).toHaveLength(1);
       expect((errors[0] as Error).message).toBe('boom-default');
@@ -277,7 +302,14 @@ describe('scrub error observability (top-level)', () => {
 
   it('default scrub() works with no handler set', () => {
     setScrubErrorHandler(undefined);
-    const trap = new Proxy({}, { ownKeys() { throw new Error('silent'); } });
+    const trap = new Proxy(
+      {},
+      {
+        ownKeys() {
+          throw new Error('silent');
+        },
+      },
+    );
     expect(scrub(trap)).toBe(UNSCRUBBABLE);
   });
 });
@@ -285,7 +317,11 @@ describe('scrub error observability (top-level)', () => {
 describe('createScrubber audit counts', () => {
   it('reports redactionCount via onRedact callback', () => {
     let count = 0;
-    const fn = createScrubber({ onRedact: () => { count++; } });
+    const fn = createScrubber({
+      onRedact: () => {
+        count++;
+      },
+    });
     fn({ password: 'p', email: 'a@b.co', user: 'alice' });
     // password key match + email value pattern in 'a@b.co'? value 'a@b.co' is under non-pii key,
     // so only key-match (password) counts. email key also matches PII_KEY_RE.
@@ -294,14 +330,22 @@ describe('createScrubber audit counts', () => {
 
   it('counts string-pattern redactions inside values', () => {
     let count = 0;
-    const fn = createScrubber({ onRedact: () => { count++; } });
+    const fn = createScrubber({
+      onRedact: () => {
+        count++;
+      },
+    });
     fn({ note: 'Bearer abc.def-ghi and jane@example.com' });
     expect(count).toBeGreaterThanOrEqual(2);
   });
 
   it('does not call onRedact for non-PII data', () => {
     let count = 0;
-    const fn = createScrubber({ onRedact: () => { count++; } });
+    const fn = createScrubber({
+      onRedact: () => {
+        count++;
+      },
+    });
     fn({ user: 'alice', count: 42 });
     expect(count).toBe(0);
   });
@@ -311,7 +355,10 @@ describe('mutation-hardening tests', () => {
   it('depthLimit boundary: at exact depth, value is still scrubbed (depth > limit, not >=)', () => {
     // depthLimit=2 means depths 0, 1, 2 are processed; depth 3 returns raw
     const fn = createScrubber({ depthLimit: 2 });
-    const out = fn({ a: { b: { password: 'p' } } }) as Record<string, Record<string, Record<string, unknown>>>;
+    const out = fn({ a: { b: { password: 'p' } } }) as Record<
+      string,
+      Record<string, Record<string, unknown>>
+    >;
     // path: depth 0 (root) -> 1 (a) -> 2 (b) -> 3 (password key check at depth 3?)
     // At root (depth 0) we recurse into 'a' at depth 1, then 'b' at depth 2.
     // Inside 'b' we iterate keys at depth 2; PII_KEY_RE check happens, password redacted.
@@ -352,7 +399,6 @@ describe('mutation-hardening tests', () => {
     expect(scrubString('call 415-555-0123')).toBe('call [redacted]');
     expect(scrubString('call (415)555-0123')).toBe('call [redacted]');
   });
-
 
   it('PII_KEY_RE: push.*token matches with multiple chars between (kills push.*token -> push.token mutant)', () => {
     // The . metacharacter alone matches exactly 1 char; .* matches zero or more.
@@ -411,9 +457,16 @@ describe('array redaction edge cases', () => {
   });
 
   it('redacts PII keys in objects nested in arrays', () => {
-    const out = scrub([{ password: 'p1' }, { password: 'p2' }, { user: 'alice' }]) as Record<string, unknown>[];
+    const out = scrub([{ password: 'p1' }, { password: 'p2' }, { user: 'alice' }]) as Record<
+      string,
+      unknown
+    >[];
     if (out.length !== 3) throw new Error('expected 3');
-    const [a, b, c] = out as [Record<string, unknown>, Record<string, unknown>, Record<string, unknown>];
+    const [a, b, c] = out as [
+      Record<string, unknown>,
+      Record<string, unknown>,
+      Record<string, unknown>,
+    ];
     expect(a['password']).toBe('[redacted]');
     expect(b['password']).toBe('[redacted]');
     expect(c['user']).toBe('alice');
@@ -453,14 +506,16 @@ describe('array redaction edge cases', () => {
   });
 });
 
-
 describe('drizzle failed-query exception values (2026-07-06 Sentry leak)', () => {
   it('redacts bcrypt hashes in strings', () => {
     const hash = '$2b$10$LBb70EYQ543VZVYZo8TVNOjK6TpOm9wEoksEtLM0yGwnDaO5lVXku';
     expect(scrubString('pw=' + hash)).not.toContain(hash);
   });
   it('truncates the params tail of drizzle Failed query messages (names, hashes, ids)', () => {
-    const msg = 'Failed query: insert into driver (...) values (...)' + String.fromCharCode(10) + 'params: abc-123,LE VAN CHAU,0913998879,$2b$10$LBb70EYQ543VZVYZo8TVNOjK6TpOm9wEoksEtLM0yGwnDaO5lVXku,18d6a077-2fd5-489d-872c-907da68fe373,true';
+    const msg =
+      'Failed query: insert into driver (...) values (...)' +
+      String.fromCharCode(10) +
+      'params: abc-123,LE VAN CHAU,0913998879,$2b$10$LBb70EYQ543VZVYZo8TVNOjK6TpOm9wEoksEtLM0yGwnDaO5lVXku,18d6a077-2fd5-489d-872c-907da68fe373,true';
     const out = scrubString(msg);
     expect(out).toContain('Failed query: insert into driver');
     expect(out).not.toContain('LE VAN CHAU');

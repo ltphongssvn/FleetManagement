@@ -19,7 +19,9 @@ describe('packages/domain/stryker.config.json', () => {
   it('mutates only src/ (excludes test/, dist/)', () => {
     const cfg = JSON.parse(readFileSync(path, 'utf8'));
     expect(cfg.mutate).toEqual(expect.arrayContaining(['src/**/*.ts']));
-    expect(cfg.mutate.some((p: string) => p.startsWith('!test') || p.includes('!**/test/'))).toBe(true);
+    expect(cfg.mutate.some((p: string) => p.startsWith('!test') || p.includes('!**/test/'))).toBe(
+      true,
+    );
   });
 
   it('enforces break threshold to fail CI on regression', () => {

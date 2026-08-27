@@ -1,0 +1,51 @@
+{
+  "_comment": "packages/sync-protocol/test/fixtures/railway-production-manifests.json -- captured from Railway project vominhchau/production via `railway deployment list --service <name> --json`. Refresh after any platform change; the policy tests assert against these values, so a stale fixture reports a stale verdict.",
+  "capturedAt": "2026-08-20T05:40:00Z",
+  "services": {
+    "Keycloak": {
+      "image": "quay.io/keycloak/keycloak@sha256:5fdbf2dbb5897cc34e82de49d13e23db011f9925089dbc555fc095f2c8bc1dac",
+      "build": {
+        "builder": "RAILPACK",
+        "watchPatterns": [],
+        "dockerfilePath": null
+      },
+      "deploy": {
+        "region": "asia-southeast1-eqsg3a",
+        "numReplicas": 1,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 3,
+        "sleepApplication": false,
+        "limitOverride": { "containers": { "memoryBytes": 1000000000 } },
+        "healthcheckPath": "/health/ready",
+        "healthcheckTimeout": 120,
+        "startCommand": "/opt/keycloak/bin/kc.sh start"
+      }
+    },
+    "worker": {
+      "image": null,
+      "build": {
+        "builder": "DOCKERFILE",
+        "watchPatterns": [
+          "workers/main-worker/**",
+          "packages/domain/**",
+          "packages/sync-protocol/**",
+          "packages/observability/**",
+          "Dockerfile.worker",
+          "pnpm-lock.yaml"
+        ],
+        "dockerfilePath": "Dockerfile.worker"
+      },
+      "deploy": {
+        "region": "asia-southeast1-eqsg3a",
+        "numReplicas": 1,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 3,
+        "sleepApplication": false,
+        "limitOverride": null,
+        "healthcheckPath": null,
+        "healthcheckTimeout": null,
+        "startCommand": null
+      }
+    }
+  }
+}

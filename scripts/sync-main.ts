@@ -53,11 +53,15 @@ function syncMain(): void {
   const behind =
     spawnSync('git', ['-C', wt, 'merge-base', '--is-ancestor', 'main', 'origin/main']).status === 0;
   if (!behind) {
-    console.error(`❌ main has DIVERGED (local commits not on origin) — manual reconcile required.`);
+    console.error(
+      `❌ main has DIVERGED (local commits not on origin) — manual reconcile required.`,
+    );
     process.exit(1);
   }
   const n = git(['rev-list', '--count', 'main..origin/main'], wt);
-  console.log(`⏩ main is BEHIND by ${n} — fast-forwarding ${short(local)} → ${short(remote)} (by path).`);
+  console.log(
+    `⏩ main is BEHIND by ${n} — fast-forwarding ${short(local)} → ${short(remote)} (by path).`,
+  );
   git(['merge', '--ff-only', 'origin/main'], wt);
 
   const after = git(['rev-parse', 'main'], wt);

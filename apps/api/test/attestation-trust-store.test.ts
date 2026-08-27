@@ -36,7 +36,9 @@ describe('attestation trust store (pinned roots)', () => {
     const algs = certs.map((c): string => (c.publicKey.algorithm as { name: string }).name);
     expect(algs.some((a) => a.includes('RSA'))).toBe(true);
     expect(algs.some((a) => a.includes('ECDSA'))).toBe(true);
-    const ec = certs.find((c) => (c.publicKey.algorithm as { name: string }).name.includes('ECDSA'));
+    const ec = certs.find((c) =>
+      (c.publicKey.algorithm as { name: string }).name.includes('ECDSA'),
+    );
     if (ec === undefined) throw new Error('expected an ECDSA Google root');
     const curve = (ec.publicKey.algorithm as { namedCurve?: string }).namedCurve;
     expect(curve).toBe('P-384');

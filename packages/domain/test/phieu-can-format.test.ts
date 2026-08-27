@@ -51,32 +51,38 @@ describe('PHIEU_CAN_FORMATS', () => {
 
 describe('deriveGoodsKg', () => {
   it('derives goods as gross minus tare for truck_and_goods', () => {
-    expect(deriveGoodsKg({ format: 'truck_and_goods', grossKg: 28450, tareKg: 8720, goodsKg: null }))
-      .toEqual({ ok: true, kg: 19730 });
+    expect(
+      deriveGoodsKg({ format: 'truck_and_goods', grossKg: 28450, tareKg: 8720, goodsKg: null }),
+    ).toEqual({ ok: true, kg: 19730 });
   });
 
   it('refuses truck_and_goods when tare exceeds gross', () => {
-    expect(deriveGoodsKg({ format: 'truck_and_goods', grossKg: 8000, tareKg: 9000, goodsKg: null }))
-      .toEqual({ ok: false, reason: 'inconsistent_weights' });
+    expect(
+      deriveGoodsKg({ format: 'truck_and_goods', grossKg: 8000, tareKg: 9000, goodsKg: null }),
+    ).toEqual({ ok: false, reason: 'inconsistent_weights' });
   });
 
   it('refuses truck_and_goods when either component is missing', () => {
-    expect(deriveGoodsKg({ format: 'truck_and_goods', grossKg: 28450, tareKg: null, goodsKg: null }))
-      .toEqual({ ok: false, reason: 'incomplete_format' });
+    expect(
+      deriveGoodsKg({ format: 'truck_and_goods', grossKg: 28450, tareKg: null, goodsKg: null }),
+    ).toEqual({ ok: false, reason: 'incomplete_format' });
   });
 
   it('yields no goods weight for truck_only so a dispatcher must enter it', () => {
-    expect(deriveGoodsKg({ format: 'truck_only', grossKg: null, tareKg: 8720, goodsKg: null }))
-      .toEqual({ ok: false, reason: 'no_goods_weight' });
+    expect(
+      deriveGoodsKg({ format: 'truck_only', grossKg: null, tareKg: 8720, goodsKg: null }),
+    ).toEqual({ ok: false, reason: 'no_goods_weight' });
   });
 
   it('reads goods directly for goods_only', () => {
-    expect(deriveGoodsKg({ format: 'goods_only', grossKg: null, tareKg: null, goodsKg: 19730 }))
-      .toEqual({ ok: true, kg: 19730 });
+    expect(
+      deriveGoodsKg({ format: 'goods_only', grossKg: null, tareKg: null, goodsKg: 19730 }),
+    ).toEqual({ ok: true, kg: 19730 });
   });
 
   it('refuses goods_only when the goods weight is absent', () => {
-    expect(deriveGoodsKg({ format: 'goods_only', grossKg: null, tareKg: null, goodsKg: null }))
-      .toEqual({ ok: false, reason: 'incomplete_format' });
+    expect(
+      deriveGoodsKg({ format: 'goods_only', grossKg: null, tareKg: null, goodsKg: null }),
+    ).toEqual({ ok: false, reason: 'incomplete_format' });
   });
 });

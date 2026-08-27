@@ -10,7 +10,11 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { DispatchController } from '../src/dispatch/dispatch.controller.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 import { DispatchBoardPageApiResponseSchema } from '@fleet/sync-protocol';
 
@@ -18,17 +22,40 @@ let testDb: PgliteTestDb;
 let ctrl: DispatchController;
 const OP = createOperatorContext({ companyId: '00000000-0000-0000-0000-000000000aaa' });
 
-function q(v: string): string { return String.fromCharCode(39) + v + String.fromCharCode(39); }
+function q(v: string): string {
+  return String.fromCharCode(39) + v + String.fromCharCode(39);
+}
 
-async function insertRow(roadRunId: string, state: string, plannedAt: string, opts: { companyId?: string } = {}): Promise<void> {
+async function insertRow(
+  roadRunId: string,
+  state: string,
+  plannedAt: string,
+  opts: { companyId?: string } = {},
+): Promise<void> {
   const co = opts.companyId ?? OP.companyId;
-  await testDb.db.execute(sql.raw(
-    'INSERT INTO dispatch_board_projection ' +
-    '(road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, stop_count, transport_order_refs, server_seq, planned_start_at) ' +
-    'VALUES (' +
-    q(roadRunId) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' + q(co) + ', ' +
-    q(state) + ', 1, ' + q('["TO-1"]') + '::jsonb, 1, ' + q(plannedAt) + ')'
-  ));
+  await testDb.db.execute(
+    sql.raw(
+      'INSERT INTO dispatch_board_projection ' +
+        '(road_run_id, company_id, business_unit_id, depot_id, legal_entity_id, state, stop_count, transport_order_refs, server_seq, planned_start_at) ' +
+        'VALUES (' +
+        q(roadRunId) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(co) +
+        ', ' +
+        q(state) +
+        ', 1, ' +
+        q('["TO-1"]') +
+        '::jsonb, 1, ' +
+        q(plannedAt) +
+        ')',
+    ),
+  );
 }
 
 // Deterministic per-index road_run UUID.
@@ -108,7 +135,9 @@ describe('@fleet/api - DispatchController.getBoardPage (paginated + status parti
 
   it('isolates by company_id (no cross-tenant leak)', async () => {
     await insertRow(rr(1), 'planned', plannedAt(1));
-    await insertRow(rr(2), 'planned', plannedAt(2), { companyId: '00000000-0000-0000-0000-000000000bbb' });
+    await insertRow(rr(2), 'planned', plannedAt(2), {
+      companyId: '00000000-0000-0000-0000-000000000bbb',
+    });
     const page = await ctrl.getBoardPage(OP, { group: 'active', page: 1, pageSize: 20 });
     expect(page.total).toBe(1);
     expect(page.data[0]?.roadRunId).toBe(rr(1));

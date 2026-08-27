@@ -20,32 +20,28 @@ export interface DriverAttentionPresentation {
 export const DRIVER_ATTENTION_QUEUE_HEADING = 'Cần xử lý';
 
 /** Generic presentation for codes this build does not know. */
-export const DRIVER_ATTENTION_FALLBACK: DriverAttentionPresentation =
-  Object.freeze({
-    label: 'Cần kiểm tra',
-    hint: 'Vui lòng kiểm tra thông tin tài xế.',
-  });
+export const DRIVER_ATTENTION_FALLBACK: DriverAttentionPresentation = Object.freeze({
+  label: 'Cần kiểm tra',
+  hint: 'Vui lòng kiểm tra thông tin tài xế.',
+});
 
-const PRESENTATIONS: Record<DriverAttentionReason, DriverAttentionPresentation> =
-  Object.freeze({
-    VEHICLE_UNASSIGNED: Object.freeze({
-      label: 'Chưa giao',
-      hint: 'Chọn số xe và bấm Phân công.',
-    }),
-    DEVICE_UNREGISTERED: Object.freeze({
-      label: 'Chưa đăng ký',
-      hint: 'Thiết bị sẽ tự đăng ký khi tài xế đăng nhập ứng dụng.',
-    }),
-  });
+const PRESENTATIONS: Record<DriverAttentionReason, DriverAttentionPresentation> = Object.freeze({
+  VEHICLE_UNASSIGNED: Object.freeze({
+    label: 'Chưa giao',
+    hint: 'Chọn số xe và bấm Phân công.',
+  }),
+  DEVICE_UNREGISTERED: Object.freeze({
+    label: 'Chưa đăng ký',
+    hint: 'Thiết bị sẽ tự đăng ký khi tài xế đăng nhập ứng dụng.',
+  }),
+});
 
 function isKnownReason(code: string): code is DriverAttentionReason {
   return Object.prototype.hasOwnProperty.call(PRESENTATIONS, code);
 }
 
 /** Loose in, immutable Vietnamese out; unknown -> generic fallback. */
-export function presentDriverAttentionReason(
-  code: string,
-): DriverAttentionPresentation {
+export function presentDriverAttentionReason(code: string): DriverAttentionPresentation {
   return isKnownReason(code) ? PRESENTATIONS[code] : DRIVER_ATTENTION_FALLBACK;
 }
 

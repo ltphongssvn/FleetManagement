@@ -44,9 +44,7 @@ export interface DriversByStatus {
   readonly active: readonly AdminDriverRow[];
 }
 
-export function partitionDriversByStatus(
-  rows: readonly AdminDriverRow[],
-): DriversByStatus {
+export function partitionDriversByStatus(rows: readonly AdminDriverRow[]): DriversByStatus {
   const unassigned: AdminDriverRow[] = [];
   const assigned: AdminDriverRow[] = [];
   const active: AdminDriverRow[] = [];

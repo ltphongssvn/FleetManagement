@@ -42,7 +42,12 @@ export type VerifyRegistrationResponseFn = (input: {
 }) => Promise<{
   verified: boolean;
   registrationInfo?: {
-    credential: { id: string; publicKey: Uint8Array; counter: number; transports?: readonly string[] };
+    credential: {
+      id: string;
+      publicKey: Uint8Array;
+      counter: number;
+      transports?: readonly string[];
+    };
     aaguid?: string;
   };
 }>;
@@ -73,10 +78,16 @@ export class PasskeyRegistrationService {
     private readonly config: PasskeyRegistrationConfig,
   ) {}
 
-  async beginRegistration(driverId: string): Promise<{ challenge: string; rp: unknown; user: unknown; pubKeyCredParams: unknown }> {
+  async beginRegistration(
+    driverId: string,
+  ): Promise<{ challenge: string; rp: unknown; user: unknown; pubKeyCredParams: unknown }> {
     const driver = await this.lookupDriver(driverId);
     const candidate = await this.buildCandidate(driver);
-    const outcome = decidePasskeyRegistrationOutcome(candidate, false, this.config.maxCredentialsPerDriver);
+    const outcome = decidePasskeyRegistrationOutcome(
+      candidate,
+      false,
+      this.config.maxCredentialsPerDriver,
+    );
     this.assertCandidateOk(outcome.kind);
     const opts = await this.generateOptions({
       rpID: this.config.rpId,
@@ -107,8 +118,13 @@ export class PasskeyRegistrationService {
     const candidate = await this.buildCandidate(driver);
     const credentialIdBuf = Buffer.from(verification.registrationInfo.credential.id, 'base64url');
     const collides = await this.repo.credentialIdExists(credentialIdBuf);
-    const outcome = decidePasskeyRegistrationOutcome(candidate, collides, this.config.maxCredentialsPerDriver);
-    if (outcome.kind === 'credential-collision') throw new ConflictException('credential_collision');
+    const outcome = decidePasskeyRegistrationOutcome(
+      candidate,
+      collides,
+      this.config.maxCredentialsPerDriver,
+    );
+    if (outcome.kind === 'credential-collision')
+      throw new ConflictException('credential_collision');
     this.assertCandidateOk(outcome.kind);
     /* c8 ignore next 2 -- defensive: assertCandidateOk throws for every non-ok,
        non-collision kind, so by here outcome.kind is necessarily 'ok' */
@@ -130,7 +146,9 @@ export class PasskeyRegistrationService {
     return { verified: true };
   }
 
-  private async buildCandidate(driver: DriverPasskeyContext | null): Promise<PasskeyRegistrationCandidate | null> {
+  private async buildCandidate(
+    driver: DriverPasskeyContext | null,
+  ): Promise<PasskeyRegistrationCandidate | null> {
     if (driver === null) return null;
     const count = await this.repo.countByDriverId(driver.driverId);
     return {

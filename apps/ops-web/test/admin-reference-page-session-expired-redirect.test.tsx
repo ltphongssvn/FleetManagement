@@ -16,7 +16,9 @@ import type * as ReferenceAdminClientModule from '@/features/admin/reference-adm
 const listMock = vi.fn();
 const updateMock = vi.fn();
 const removeMock = vi.fn();
-const { navigateToSessionRefreshMock } = vi.hoisted(() => ({ navigateToSessionRefreshMock: vi.fn() }));
+const { navigateToSessionRefreshMock } = vi.hoisted(() => ({
+  navigateToSessionRefreshMock: vi.fn(),
+}));
 vi.mock('@/features/auth/session-refresh-navigation', async (importOriginal) => {
   const actual = await importOriginal<typeof SessionRefreshNavigation>();
   return { ...actual, navigateToSessionRefresh: navigateToSessionRefreshMock };
@@ -34,7 +36,11 @@ vi.mock('@/features/admin/reference-admin-client', async (importOriginal) => {
   };
 });
 import ReferenceAdminPage from '@/app/admin/reference/page';
-const SESSION_EXPIRED = new ApiProblemError(401, 'UNAUTHORIZED', 'Phien dang nhap het han. Vui long dang nhap lai.');
+const SESSION_EXPIRED = new ApiProblemError(
+  401,
+  'UNAUTHORIZED',
+  'Phien dang nhap het han. Vui long dang nhap lai.',
+);
 function customerSection(): HTMLElement {
   const heading = screen.getAllByRole('heading', { name: 'Khách hàng' })[0];
   const section = heading?.closest('section') ?? null;
@@ -44,7 +50,11 @@ function customerSection(): HTMLElement {
 beforeEach(() => {
   vi.spyOn(window, 'confirm').mockReturnValue(true);
 });
-afterEach(() => { cleanup(); vi.clearAllMocks(); vi.restoreAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
+});
 describe('ReferenceAdminPage on idle-expired session (401)', () => {
   it('navigates to the silent-refresh route instead of rendering dead-end banners', async () => {
     listMock.mockRejectedValue(SESSION_EXPIRED);
@@ -78,7 +88,9 @@ describe('ReferenceAdminPage on idle-expired session (401)', () => {
     const accept = dialog.querySelector('[data-testid=confirm-accept]');
     if (accept === null) throw new Error('no confirm-accept');
     await user.click(accept as HTMLElement);
-    await waitFor(() => { expect(navigateToSessionRefreshMock).toHaveBeenCalled(); });
+    await waitFor(() => {
+      expect(navigateToSessionRefreshMock).toHaveBeenCalled();
+    });
   });
   it('navigates on a session-expired failure while saving an edited phone', async () => {
     listMock.mockResolvedValue([{ id: 'c1', label: 'ACME', meta: { phone: '0900000000' } }]);
@@ -90,6 +102,8 @@ describe('ReferenceAdminPage on idle-expired session (401)', () => {
     await user.click(within(sec).getByRole('button', { name: /Thao tác/ }));
     await user.click(await screen.findByRole('menuitem', { name: 'Sửa SĐT' }));
     await user.click(within(sec).getByRole('button', { name: 'Lưu' }));
-    await waitFor(() => { expect(navigateToSessionRefreshMock).toHaveBeenCalled(); });
+    await waitFor(() => {
+      expect(navigateToSessionRefreshMock).toHaveBeenCalled();
+    });
   });
 });

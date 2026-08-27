@@ -90,8 +90,12 @@ function census(): number {
   const fetched = fetchTerminalRefs();
   if (fetched.code !== 0) {
     // Report the staleness rather than printing a number that may be burned.
-    process.stderr.write('[terminal] fetch failed; the ceiling below may be ' +
-      'STALE and must not be used to allocate: ' + fetched.stderr.trim() + nl);
+    process.stderr.write(
+      '[terminal] fetch failed; the ceiling below may be ' +
+        'STALE and must not be used to allocate: ' +
+        fetched.stderr.trim() +
+        nl,
+    );
   }
   process.stdout.write(formatTerminalCensus(publishedTerminals()) + nl);
   return fetched.code === 0 ? 0 : 1;
@@ -100,8 +104,9 @@ function census(): number {
 function claim(slug: string): number {
   const fetched = fetchTerminalRefs();
   if (fetched.code !== 0) {
-    process.stderr.write('[terminal] fetch failed, refusing to allocate: ' +
-      fetched.stderr.trim() + nl);
+    process.stderr.write(
+      '[terminal] fetch failed, refusing to allocate: ' + fetched.stderr.trim() + nl,
+    );
     return 1;
   }
 
@@ -111,8 +116,11 @@ function claim(slug: string): number {
     // likely a refspec problem than a genuinely virgin repo, and answering t1
     // would re-issue a number in use -- the exact collision this registry
     // exists to end (t16->t19, t78->t89).
-    process.stderr.write('[terminal] registry empty after fetch -- refusing to ' +
-      'allocate t1 blindly. Verify refs/terminals/* exist on origin.' + nl);
+    process.stderr.write(
+      '[terminal] registry empty after fetch -- refusing to ' +
+        'allocate t1 blindly. Verify refs/terminals/* exist on origin.' +
+        nl,
+    );
     return 1;
   }
 
@@ -126,8 +134,7 @@ function claim(slug: string): number {
     claimBlobContent(hostname(), new Date().toISOString()),
   );
   if (written.code !== 0) {
-    process.stderr.write('[terminal] could not write claim blob: ' +
-      written.stderr.trim() + nl);
+    process.stderr.write('[terminal] could not write claim blob: ' + written.stderr.trim() + nl);
     return 1;
   }
   const sha = written.stdout.trim();
@@ -136,9 +143,15 @@ function claim(slug: string): number {
   // create-if-absent. A concurrent claim is REJECTED here, never overwritten.
   const pushed = git(claimTerminalArgs(terminal, sha));
   if (pushed.code !== 0) {
-    process.stderr.write('[terminal] claim of t' + String(terminal) + ' REJECTED -- ' +
-      'another machine took it first. Re-run to take the next number.' + nl +
-      pushed.stderr.trim() + nl);
+    process.stderr.write(
+      '[terminal] claim of t' +
+        String(terminal) +
+        ' REJECTED -- ' +
+        'another machine took it first. Re-run to take the next number.' +
+        nl +
+        pushed.stderr.trim() +
+        nl,
+    );
     return 1;
   }
 
@@ -162,4 +175,6 @@ function main(): number {
 }
 
 const isEntry = process.argv[1] !== undefined && import.meta.url === 'file://' + process.argv[1];
-if (isEntry) { process.exit(main()); }
+if (isEntry) {
+  process.exit(main());
+}

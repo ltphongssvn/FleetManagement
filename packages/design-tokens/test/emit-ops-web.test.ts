@@ -11,8 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { emitOpsWebThemeCss } from '../src/emit-ops-web.js';
 import { palette, semanticColors, SEMANTIC_ROLES } from '../src/index.js';
 
-const kebab = (s: string): string =>
-  s.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase());
+const kebab = (s: string): string => s.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase());
 
 describe('ops-web Tailwind v4 @theme emitter', () => {
   const css = emitOpsWebThemeCss();
@@ -21,7 +20,11 @@ describe('ops-web Tailwind v4 @theme emitter', () => {
     expect(css.startsWith('/* apps/ops-web/src/app/globals.css */')).toBe(true);
     expect(css.includes('AUTO-GENERATED')).toBe(true);
     expect(css.includes('@fleet/design-tokens')).toBe(true);
-    expect(css.includes('@import ' + String.fromCharCode(34) + 'tailwindcss' + String.fromCharCode(34) + ';')).toBe(true);
+    expect(
+      css.includes(
+        '@import ' + String.fromCharCode(34) + 'tailwindcss' + String.fromCharCode(34) + ';',
+      ),
+    ).toBe(true);
   });
 
   it('wraps tokens in a single @theme block', () => {

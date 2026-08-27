@@ -7,27 +7,65 @@
 // to a single pickupName/deliveryName. Business invariant: 1-1 match between
 // driver-app and the dispatch form workflow.
 import { describe, it, expect, vi } from 'vitest';
-import { createListAssignedRow } from '@fleet/test-fixtures';
+import { createListAssignedRow, createListAssignedStop } from '@fleet/test-fixtures';
 import { AssignmentsClient } from '../src/assignments/assignments-client.js';
 
 // Built THROUGH ListAssignedRowSchema: the previous literal omitted
 // externalRef, createdAt, cargoName, driverName, canCancel and
 // cancelBlockedReason, the same six the hand-rolled parser dropped.
 const multiStopRow = createListAssignedRow({
-  transportOrderId: 'to-ms', roadRunId: 'rr-ms', state: 'dispatched',
-  plannedStartAt: '2026-05-10T08:00:00Z', startedAt: null, completedAt: null,
-  plate: '62H-99999', orderRef: 'XTT.05-007', customerName: 'ABC',
-  pickupName: 'Kho nhận 1', deliveryName: 'Kho giao',
+  transportOrderId: 'to-ms',
+  roadRunId: 'rr-ms',
+  state: 'dispatched',
+  plannedStartAt: '2026-05-10T08:00:00Z',
+  startedAt: null,
+  completedAt: null,
+  plate: '62H-99999',
+  orderRef: 'XTT.05-007',
+  customerName: 'ABC',
+  pickupName: 'Kho nhận 1',
+  deliveryName: 'Kho giao',
+  // Stops go through the STOP factory, not inline literals. proof is
+  // .default(null) on ListAssignedRowStopSchema, so it is optional on input
+  // and REQUIRED on the z.infer output type -- a literal annotated as the
+  // contract type must supply it, while the factory parses the schema and
+  // lets the default apply. That asymmetry is what broke these four lines
+  // when this arc added proof; routing through the factory means the next
+  // contract field will not break them again.
   stops: [
-    { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-10T08:00:00Z', warehouseName: 'Kho nhận 1', arrivedAt: null, departedAt: null },
-    { sequence: 2, stopType: 'pickup', plannedAt: '2026-05-10T09:00:00Z', warehouseName: 'Kho nhận 2', arrivedAt: null, departedAt: null },
-    { sequence: 3, stopType: 'pickup', plannedAt: '2026-05-10T10:00:00Z', warehouseName: 'Kho nhận 3', arrivedAt: null, departedAt: null },
-    { sequence: 4, stopType: 'delivery', plannedAt: '2026-05-10T14:00:00Z', warehouseName: 'Kho giao', arrivedAt: null, departedAt: null },
+    createListAssignedStop({
+      sequence: 1,
+      stopType: 'pickup',
+      plannedAt: '2026-05-10T08:00:00Z',
+      warehouseName: 'Kho nhận 1',
+    }),
+    createListAssignedStop({
+      sequence: 2,
+      stopType: 'pickup',
+      plannedAt: '2026-05-10T09:00:00Z',
+      warehouseName: 'Kho nhận 2',
+    }),
+    createListAssignedStop({
+      sequence: 3,
+      stopType: 'pickup',
+      plannedAt: '2026-05-10T10:00:00Z',
+      warehouseName: 'Kho nhận 3',
+    }),
+    createListAssignedStop({
+      sequence: 4,
+      stopType: 'delivery',
+      plannedAt: '2026-05-10T14:00:00Z',
+      warehouseName: 'Kho giao',
+    }),
   ],
 });
 function clientFor(payload: unknown): AssignmentsClient {
   const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(payload) });
-  return new AssignmentsClient({ apiUrl: 'http://api', bearerToken: () => 't', fetchFn: fetchFn as never });
+  return new AssignmentsClient({
+    apiUrl: 'http://api',
+    bearerToken: () => 't',
+    fetchFn: fetchFn as never,
+  });
 }
 // Rejection assertions check THAT a malformed stops[] throws, not the wording.
 // The messages they matched ('stops must be array', and the sequence/stopType
@@ -39,8 +77,18 @@ describe('AssignmentsClient multi-stop parity (Lệnh điều xe workflow)', () 
     const rows = await clientFor({ rows: [multiStopRow] }).list();
     expect(rows[0]?.stops).toHaveLength(4);
     expect(rows[0]?.stops.map((s) => s.sequence)).toEqual([1, 2, 3, 4]);
-    expect(rows[0]?.stops.map((s) => s.stopType)).toEqual(['pickup', 'pickup', 'pickup', 'delivery']);
-    expect(rows[0]?.stops.map((s) => s.warehouseName)).toEqual(['Kho nhận 1', 'Kho nhận 2', 'Kho nhận 3', 'Kho giao']);
+    expect(rows[0]?.stops.map((s) => s.stopType)).toEqual([
+      'pickup',
+      'pickup',
+      'pickup',
+      'delivery',
+    ]);
+    expect(rows[0]?.stops.map((s) => s.warehouseName)).toEqual([
+      'Kho nhận 1',
+      'Kho nhận 2',
+      'Kho nhận 3',
+      'Kho giao',
+    ]);
   });
   it('preserves per-stop timing fields (plannedAt/arrivedAt/departedAt)', async () => {
     const rows = await clientFor({ rows: [multiStopRow] }).list();
@@ -56,7 +104,12 @@ describe('AssignmentsClient multi-stop parity (Lệnh điều xe workflow)', () 
   // ops-web paths already parse the strict contract. Tolerating client-side
   // what no producer emits IS the drift this refactor removes.
   it('carries a stopless row through as an empty list', async () => {
-    const stopless = createListAssignedRow({ transportOrderId: 'to', roadRunId: 'r', state: 's', stops: [] });
+    const stopless = createListAssignedRow({
+      transportOrderId: 'to',
+      roadRunId: 'r',
+      state: 's',
+      stops: [],
+    });
     const rows = await clientFor({ rows: [stopless] }).list();
     expect(rows[0]?.stops).toEqual([]);
   });
@@ -65,11 +118,35 @@ describe('AssignmentsClient multi-stop parity (Lệnh điều xe workflow)', () 
     await expect(clientFor({ rows: [bad] }).list()).rejects.toThrow();
   });
   it('rejects when a stop sequence is not a number', async () => {
-    const bad = { ...multiStopRow, stops: [{ sequence: 'x', stopType: 'pickup', plannedAt: null, warehouseName: null, arrivedAt: null, departedAt: null }] };
+    const bad = {
+      ...multiStopRow,
+      stops: [
+        {
+          sequence: 'x',
+          stopType: 'pickup',
+          plannedAt: null,
+          warehouseName: null,
+          arrivedAt: null,
+          departedAt: null,
+        },
+      ],
+    };
     await expect(clientFor({ rows: [bad] }).list()).rejects.toThrow();
   });
   it('rejects when a stop stopType is not a string', async () => {
-    const bad = { ...multiStopRow, stops: [{ sequence: 1, stopType: 99, plannedAt: null, warehouseName: null, arrivedAt: null, departedAt: null }] };
+    const bad = {
+      ...multiStopRow,
+      stops: [
+        {
+          sequence: 1,
+          stopType: 99,
+          plannedAt: null,
+          warehouseName: null,
+          arrivedAt: null,
+          departedAt: null,
+        },
+      ],
+    };
     await expect(clientFor({ rows: [bad] }).list()).rejects.toThrow();
   });
 });

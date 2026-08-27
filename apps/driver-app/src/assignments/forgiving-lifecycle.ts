@@ -49,7 +49,11 @@ function rank(state: string): number {
   return LADDER.indexOf(state as LadderState);
 }
 
-function run(client: LifecycleSource, kind: LifecycleKind, roadRunId: string): Promise<TransitionResult> {
+function run(
+  client: LifecycleSource,
+  kind: LifecycleKind,
+  roadRunId: string,
+): Promise<TransitionResult> {
   if (kind === 'accept') return client.accept(roadRunId);
   if (kind === 'start') return client.start(roadRunId);
   return client.complete(roadRunId);
@@ -60,7 +64,10 @@ export function planRecovery(
   kind: LifecycleKind,
   currentState: string,
   allowedActions: readonly string[],
-): { readonly outcome: 'already-there'; readonly state: string } | { readonly outcome: 'walk'; readonly steps: readonly LifecycleKind[] } | null {
+):
+  | { readonly outcome: 'already-there'; readonly state: string }
+  | { readonly outcome: 'walk'; readonly steps: readonly LifecycleKind[] }
+  | null {
   const cur = rank(currentState);
   const target = rank(TARGET_OF[kind]);
   if (cur < 0) return null;

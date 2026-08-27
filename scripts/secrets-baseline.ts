@@ -10,54 +10,62 @@
 // worktree's push is blocked -- not just the branch that introduced them.
 //
 // That is exactly what happened on 2026-07-23: the security-guard arc landed
-// seven new scripts (local-secret-guard, prod-db-url and their tests, plus a
-// hash config) whose contents are correct by design -- randomBytes passwords,
-// RFC 2606 .invalid hosts, SHA-256 topology hashes, and a task named
-// guard:local-secrets -- but never regenerated the baseline. Every subsequent
-// push failed the hook on files the pusher had not touched.
-//
-// Before this task the refresh was an un-captured CLI incantation: not
-// rediscoverable, and free to drift from the hook's own flags. Registering it
-// as //#secrets:baseline gives ONE definition of those flags and a name a
-// teammate can find.
+// seven new scripts whose contents are correct by design -- randomBytes
+// passwords, RFC 2606 .invalid hosts, SHA-256 topology hashes -- but never
+// regenerated the baseline. Every subsequent push failed the hook on files the
+// pusher had not touched.
 //
 // WHY A BASELINE RATHER THAN INLINE PRAGMAS. For genuine false positives both
 // are sanctioned, but the baseline is auditable: detect-secrets audit labels
 // each finding true/false positive and stores the decision, the file holds
 // HASHES not plaintext, and a change to it is reviewable in the PR diff.
 // Pragmas are detect-secrets-only (a cloud scanner such as GitGuardian still
-// flags the line), they scatter across files, and they drift silently. Use a
-// pragma only for a one-off line; use this task for a repo-wide refresh.
+// flags the line), they scatter across files, and they drift silently.
 //
 // WHY A LINE EXCLUSION RATHER THAN A BASELINE ENTRY, for age PUBLIC keys.
-// Added 2026-08-10 after the SOPS/age bootstrap arc: detect-secrets flagged
-// seven Base64HighEntropyString findings, every one an age PUBLIC key in
-// .sops.yaml or a test fixture. Publishing an age public key grants nothing --
-// that is the entire premise of the scheme, and the recipient list is tracked
-// in git ON PURPOSE.
-//
-// Baselining them would have worked and would have been a treadmill: the
-// recipient list GROWS by design, so every laptop ever added to
-// .age-recipients would mint another high-entropy finding, another refresh and
-// another audit round, forever, for values published deliberately. A baseline
-// crowded with benign entries is one nobody reads, which is how a real finding
-// slips past. detect-secrets has the right layer for a structurally-non-secret
-// shape -- filters, added expressly to weed out false positives -- and
-// --exclude-lines is its config-only form: declared once, applies to every file
-// and every future key.
+// Publishing an age public key grants nothing -- that is the entire premise of
+// the scheme. Baselining them would be a treadmill: the recipient list GROWS by
+// design, so every laptop ever added would mint another finding, another
+// refresh and another audit round, forever. A baseline crowded with benign
+// entries is one nobody reads, which is how a real finding slips past.
 //
 // The exclusion is deliberately narrow. ONLY the age PUBLIC key shape is
-// excluded; AGE-SECRET-KEY-* is NOT, and must never be. A private identity in
-// tracked source is a genuine incident, and both the PrivateKeyDetector plugin
-// and the detect-private-key hook must keep their shot at it.
+// excluded; AGE-SECRET-KEY-* is NOT, and must never be.
 //
 // NOT A SUPPRESSION TOOL. A real credential must be REMOVED and rotated, never
-// baselined. Run the audit mode before committing a refreshed baseline so every
-// new entry has been looked at by a human:
-//   pnpm exec turbo run secrets:baseline -- --audit
+// baselined.
 //
-// Pure planners (scanArgs / auditArgs / selectMode / pickDetectSecretsBinary)
-// are unit-tested; the side-effecting main() runs ONLY as entrypoint.
+// ---- AUDIT NEEDS A TERMINAL, AND THIS TASK USED TO HANG WITHOUT ONE ----
+//
+// THE OBSERVED FAILURE, 2026-08-18. `turbo run secrets:baseline -- --audit`
+// hung for EIGHT HOURS AND FIVE MINUTES before it was killed. detect-secrets
+// audit is an interactive TUI: it prints a finding and blocks on stdin for
+// (y)es/(n)o/(s)kip/(q)uit. Turbo CAPTURES its child's stdio to prefix output
+// with the task name, so `stdio: 'inherit'` below inherits a PIPE, not a TTY --
+// the prompt is buffered, arrives after the reader has given up, and the child
+// waits on a keystroke that can never come. Nothing timed out and nothing
+// reported a reason.
+//
+// Worse, this file's own success message TOLD the operator to run that exact
+// command. A task whose remedy cannot be executed is the same defect class as a
+// gate whose verdict nobody can act on.
+//
+// 2026 practice names this bug directly: a CLI that "falls through to
+// interactive mode without a real terminal attached hangs indefinitely with
+// zero diagnostic output", and the remedy is to GATE on stdin being a TTY and
+// take the non-interactive path otherwise -- the same fix pnpm applied to its
+// build-scripts approval prompt after it stalled CI runs. npm settled which
+// stream matters: "it's really only stdin that we care about there".
+//
+// So audit now REFUSES when stdin is not a TTY, names the reason, and prints
+// the invocation that does work. It does not attempt a non-interactive audit:
+// labelling a finding true or false positive is a HUMAN judgement, and a task
+// that auto-answered would be manufacturing the audit trail the baseline exists
+// to provide.
+//
+// Pure planners (scanArgs / auditArgs / selectMode / auditNeedsTty /
+// pickDetectSecretsBinary) are unit-tested; the side-effecting main() runs ONLY
+// as entrypoint.
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -118,13 +126,30 @@ export function selectMode(argv: readonly string[]): BaselineMode {
   return argv.some((a) => a === '--audit') ? 'audit' : 'scan';
 }
 
+/** Whether the requested mode can actually run here.
+ *
+ *  PURE, taking the TTY fact as an argument rather than reading process.stdin,
+ *  so the branch that hung for eight hours is reachable in a unit test. That is
+ *  the point: the original had no such branch, so no test could have caught it.
+ *
+ *  Only stdin matters. stdout may be redirected to a file or a pager while the
+ *  prompt still works, but a prompt with no keyboard behind it can never be
+ *  answered.
+ *
+ *  The caller passes process.stdin.isTTY DIRECTLY. An earlier revision wrote
+ *  `=== true`, defending against an undefined the type system had already
+ *  excluded -- the redundant-check anti-pattern this repo names elsewhere, and
+ *  the second time in one session that a lint rule caught me guarding a state
+ *  the types make unrepresentable. */
+export function auditNeedsTty(mode: BaselineMode, stdinIsTty: boolean): boolean {
+  return mode === 'audit' && !stdinIsTty;
+}
+
 // PURE: choose which detect-secrets to run. The baseline must be written by the
 // SAME version the hook enforces (.pre-commit-config.yaml pins rev v1.5.0), and
 // pre-commit already installs exactly that version into its managed virtualenv.
 // Preferring that binary removes version drift by construction; a separately
-// installed PATH copy could write a baseline the hook then rejects. Falls back
-// to the bare command name so the task still works wherever detect-secrets is
-// on PATH (e.g. CI images that install it directly).
+// installed PATH copy could write a baseline the hook then rejects.
 export function pickDetectSecretsBinary(found: readonly string[]): string {
   return found[0] ?? 'detect-secrets';
 }
@@ -156,29 +181,80 @@ function findPreCommitBinaries(): string[] {
 function mainSecretsBaseline(): number {
   const argv = process.argv.slice(2);
   const mode = selectMode(argv);
-  const args = mode === 'audit' ? auditArgs(BASELINE_FILE) : scanArgs(BASELINE_FILE);
-  const bin = pickDetectSecretsBinary(findPreCommitBinaries());
   const nl = String.fromCharCode(10);
+  const bin = pickDetectSecretsBinary(findPreCommitBinaries());
+
+  // REFUSE BEFORE SPAWNING. The child would block on a prompt nobody can answer,
+  // and an eight-hour stall reports nothing an operator can act on.
+  if (auditNeedsTty(mode, process.stdin.isTTY)) {
+    process.stderr.write(
+      '[secrets:baseline] CANNOT AUDIT: stdin is not a terminal.' +
+        nl +
+        '[secrets:baseline] detect-secrets audit is an interactive prompt, and this' +
+        nl +
+        '[secrets:baseline] process has no keyboard behind it -- most likely because' +
+        nl +
+        '[secrets:baseline] turbo captures child stdio to prefix output. Running it' +
+        nl +
+        '[secrets:baseline] anyway would block forever with no diagnostic.' +
+        nl +
+        '[secrets:baseline]' +
+        nl +
+        '[secrets:baseline] Run it directly, where stdio is inherited from your shell:' +
+        nl +
+        '[secrets:baseline]   pnpm run secrets:baseline -- --audit' +
+        nl +
+        '[secrets:baseline]' +
+        nl +
+        '[secrets:baseline] This is NOT auto-answered on purpose: labelling a finding a' +
+        nl +
+        '[secrets:baseline] true or false positive is a human judgement, and a task that' +
+        nl +
+        '[secrets:baseline] answered for you would manufacture the audit trail the' +
+        nl +
+        '[secrets:baseline] baseline exists to provide.' +
+        nl,
+    );
+    return 3;
+  }
+
+  const args = mode === 'audit' ? auditArgs(BASELINE_FILE) : scanArgs(BASELINE_FILE);
   process.stderr.write('[secrets:baseline] ' + bin + ' ' + args.join(' ') + nl);
   const r = spawnSync(bin, args, { stdio: 'inherit' });
   if (r.error !== undefined) {
     process.stderr.write(
-      '[secrets:baseline] could not run detect-secrets. It normally ships with the' + nl +
-      '[secrets:baseline] pre-commit environment; run "pre-commit install-hooks" to' + nl +
-      '[secrets:baseline] provision it, or install it directly (pipx install' + nl +
-      '[secrets:baseline] detect-secrets) matching the rev pinned in' + nl +
-      '[secrets:baseline] .pre-commit-config.yaml.' + nl,
+      '[secrets:baseline] could not run detect-secrets. It normally ships with the' +
+        nl +
+        '[secrets:baseline] pre-commit environment; run "pre-commit install-hooks" to' +
+        nl +
+        '[secrets:baseline] provision it, or install it directly (pipx install' +
+        nl +
+        '[secrets:baseline] detect-secrets) matching the rev pinned in' +
+        nl +
+        '[secrets:baseline] .pre-commit-config.yaml.' +
+        nl,
     );
     return 2;
   }
-  if (mode === 'scan' && (r.status ?? 1) === 0) {
+  // A null status with no error means a SIGNAL killed the child -- Ctrl-C on the
+  // audit prompt, most often. Not a scan failure, and not worth reporting as one.
+  if (r.status === null) {
+    process.stderr.write('[secrets:baseline] detect-secrets was terminated by a signal.' + nl);
+    return 130;
+  }
+  if (mode === 'scan' && r.status === 0) {
     process.stderr.write(
-      '[secrets:baseline] baseline refreshed. Review the diff, then AUDIT any new' + nl +
-      '[secrets:baseline] entry before committing:' + nl +
-      '[secrets:baseline]   pnpm exec turbo run secrets:baseline -- --audit' + nl,
+      '[secrets:baseline] baseline refreshed. Review the diff, then AUDIT any new' +
+        nl +
+        '[secrets:baseline] entry before committing:' +
+        nl +
+        '[secrets:baseline]   pnpm run secrets:baseline -- --audit' +
+        nl +
+        '[secrets:baseline] (directly, NOT through turbo: the audit prompt needs a TTY)' +
+        nl,
     );
   }
-  return r.status ?? 1;
+  return r.status;
 }
 
 const invoked = process.argv[1] ?? '';

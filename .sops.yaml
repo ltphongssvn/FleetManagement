@@ -6,4 +6,6 @@
 creation_rules:
   - path_regex: '[.]env$'
     age: >-
-        age1022fpw0nt5xdw5txz86cl5whgeq2u3cxhtx9anuvz0twawyh84lqwl0etj
+        age1022fpw0nt5xdw5txz86cl5whgeq2u3cxhtx9anuvz0twawyh84lqwl0etj,
+        age1wnuaupcuut6xkm4xr2v2sylpqe3746fa7rthgvqjenlx06krt9us4fdh66,
+        age1dhkddmzf5rv0gxq36r4ewuf45mzepyrt36wdgw4d3qzqmu3frd2qnlxzud

@@ -45,7 +45,9 @@ describe('AdminDeviceListQuerySchema', () => {
     expect(AdminDeviceListQuerySchema.safeParse({ status: 'approved' }).success).toBe(false);
   });
   it('caps pageSize at the server maximum', () => {
-    expect(AdminDeviceListQuerySchema.safeParse({ pageSize: ADMIN_DEVICE_PAGE_SIZE_MAX + 1 }).success).toBe(false);
+    expect(
+      AdminDeviceListQuerySchema.safeParse({ pageSize: ADMIN_DEVICE_PAGE_SIZE_MAX + 1 }).success,
+    ).toBe(false);
   });
   it('rejects a non-positive page', () => {
     expect(AdminDeviceListQuerySchema.safeParse({ page: 0 }).success).toBe(false);
@@ -86,7 +88,17 @@ describe('AdminDeviceListResponseSchema', () => {
     expect(AdminDeviceListResponseSchema.safeParse(bad).success).toBe(false);
   });
   it('accepts null attestation fields (a device pending first attest)', () => {
-    const nulls = { ...envelope, data: [{ ...row, attestationSecurityLevel: null, attestationEnvironment: null, attestationVerifiedAt: null }] };
+    const nulls = {
+      ...envelope,
+      data: [
+        {
+          ...row,
+          attestationSecurityLevel: null,
+          attestationEnvironment: null,
+          attestationVerifiedAt: null,
+        },
+      ],
+    };
     expect(AdminDeviceListResponseSchema.safeParse(nulls).success).toBe(true);
   });
 });

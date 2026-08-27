@@ -81,11 +81,13 @@ export const DriverRosterAuditReportSchema = z.object({
   exactNameCollisionGroups: z.array(NameCollisionGroupSchema),
   foldedNameCollisionGroups: z.array(NameCollisionGroupSchema),
   softDeletedWithLiveAssignment: z.array(z.guid()),
-  phonesHeldBySoftDeleted: z.array(z.object({
-    companyId: z.guid(),
-    phone: z.string(),
-    driverId: z.guid(),
-  })),
+  phonesHeldBySoftDeleted: z.array(
+    z.object({
+      companyId: z.guid(),
+      phone: z.string(),
+      driverId: z.guid(),
+    }),
+  ),
   isClean: z.boolean(),
 });
 export type DriverRosterAuditReport = z.infer<typeof DriverRosterAuditReportSchema>;
@@ -121,12 +123,14 @@ function collisionGroups(
       const first = g[0];
       /* c8 ignore next -- filtered g.length >= 2 guarantees a first element */
       if (first === undefined) return [];
-      return [{
-        companyId: first.companyId,
-        displayName: first.fullName,
-        driverIds: g.map((r) => r.driverId),
-        indexShouldHaveBlocked,
-      }];
+      return [
+        {
+          companyId: first.companyId,
+          displayName: first.fullName,
+          driverIds: g.map((r) => r.driverId),
+          indexShouldHaveBlocked,
+        },
+      ];
     });
 }
 

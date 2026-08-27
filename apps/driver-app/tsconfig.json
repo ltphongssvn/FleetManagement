@@ -9,15 +9,8 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "jsx": "react-native",
-    "lib": [
-      "ES2022",
-      "DOM"
-    ],
-    "types": [
-      "node",
-      "react",
-      "react-native"
-    ],
+    "lib": ["ES2022", "DOM"],
+    "types": ["node", "react", "react-native"],
     "allowSyntheticDefaultImports": true,
     "module": "ESNext",
     "moduleResolution": "Bundler"

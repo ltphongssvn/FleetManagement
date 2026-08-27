@@ -25,9 +25,14 @@ describe('KeycloakLoginEventSchema', () => {
   });
 
   it('preserves unknown top-level keys (loose: forward-compatible across Keycloak versions)', () => {
-    const parsed = KeycloakLoginEventSchema.safeParse({ ...loginEvent, brandNewKeycloakField: 'v27-only' });
+    const parsed = KeycloakLoginEventSchema.safeParse({
+      ...loginEvent,
+      brandNewKeycloakField: 'v27-only',
+    });
     expect(parsed.success).toBe(true);
-    expect(parsed.success && (parsed.data as Record<string, unknown>)['brandNewKeycloakField']).toBe('v27-only');
+    expect(
+      parsed.success && (parsed.data as Record<string, unknown>)['brandNewKeycloakField'],
+    ).toBe('v27-only');
   });
 
   it('captures details.username (the field the break-glass classifier matches on)', () => {
@@ -38,7 +43,8 @@ describe('KeycloakLoginEventSchema', () => {
   it('preserves unknown keys inside details too', () => {
     const parsed = KeycloakLoginEventSchema.safeParse(loginEvent);
     expect(
-      parsed.success && (parsed.data.details as Record<string, unknown> | undefined)?.['auth_method'],
+      parsed.success &&
+        (parsed.data.details as Record<string, unknown> | undefined)?.['auth_method'],
     ).toBe('openid-connect');
   });
 

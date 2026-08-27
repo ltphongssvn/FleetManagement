@@ -170,12 +170,22 @@ export class CopilotExecutorService {
       case 'create_customer': {
         const res = await this.reference.createCustomer(op, cmd.name, cmd.phone);
         outputs.set(cmd.commandId, { customerId: res.id });
-        return { commandId: cmd.commandId, outcome: 'ok', createdId: res.id, idSpace: 'customerId' };
+        return {
+          commandId: cmd.commandId,
+          outcome: 'ok',
+          createdId: res.id,
+          idSpace: 'customerId',
+        };
       }
       case 'create_cargo_type': {
         const res = await this.reference.createCargoType(op, cmd.name);
         outputs.set(cmd.commandId, { cargoTypeId: res.id });
-        return { commandId: cmd.commandId, outcome: 'ok', createdId: res.id, idSpace: 'cargoTypeId' };
+        return {
+          commandId: cmd.commandId,
+          outcome: 'ok',
+          createdId: res.id,
+          idSpace: 'cargoTypeId',
+        };
       }
       case 'create_vehicle': {
         const res = await this.reference.createVehicle(op, cmd.plate);
@@ -185,7 +195,12 @@ export class CopilotExecutorService {
       case 'create_warehouse': {
         const res = await this.reference.createWarehouse(op, cmd.name, cmd.role);
         outputs.set(cmd.commandId, { warehouseId: res.id });
-        return { commandId: cmd.commandId, outcome: 'ok', createdId: res.id, idSpace: 'warehouseId' };
+        return {
+          commandId: cmd.commandId,
+          outcome: 'ok',
+          createdId: res.id,
+          idSpace: 'warehouseId',
+        };
       }
       case 'assign_driver_to_vehicle': {
         const driverId = this.resolveId(cmd.driver, outputs);

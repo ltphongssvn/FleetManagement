@@ -25,7 +25,9 @@ describe('IdGenerator port', () => {
   it('a fake IdGenerator is substitutable and deterministic (the testability seam)', () => {
     class FixedIdGenerator implements IdGenerator {
       constructor(private readonly v: string) {}
-      uuid(): string { return this.v; }
+      uuid(): string {
+        return this.v;
+      }
     }
     const fixed: IdGenerator = new FixedIdGenerator('00000000-0000-4000-8000-000000000000');
     expect(fixed.uuid()).toBe('00000000-0000-4000-8000-000000000000');

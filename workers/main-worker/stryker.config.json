@@ -21,15 +21,9 @@
   },
   "incremental": true,
   "incrementalFile": ".stryker-tmp/incremental.json",
-  "reporters": [
-    "progress",
-    "clear-text",
-    "html"
-  ],
+  "reporters": ["progress", "clear-text", "html"],
   "concurrency": 4,
   "timeoutMS": 10000,
   "coverageAnalysis": "perTest",
-  "plugins": [
-    "@stryker-mutator/vitest-runner"
-  ]
+  "plugins": ["@stryker-mutator/vitest-runner"]
 }

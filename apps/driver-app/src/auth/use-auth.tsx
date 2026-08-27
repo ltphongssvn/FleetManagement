@@ -21,11 +21,7 @@ import {
   type JSX,
 } from 'react';
 import { loadToken, saveToken, clearToken } from './token-storage.js';
-import {
-  SessionManager,
-  NotAuthenticatedError,
-  SessionExpiredError,
-} from './session-manager.js';
+import { SessionManager, NotAuthenticatedError, SessionExpiredError } from './session-manager.js';
 import { getApiUrl } from '../config/api-url.js';
 export interface AuthState {
   readonly status: 'loading' | 'authenticated' | 'unauthenticated';
@@ -61,27 +57,36 @@ function useAuthEngine(): UseAuthResult {
       }
     })();
   }, []);
-  const login = useCallback(async (phone: string, password: string): Promise<void> => {
-    try {
-      const result = await manager.login(phone, password);
-      switch (result.kind) {
-        case 'ok':
-          setState({ status: 'authenticated', error: null });
-          return;
-        case 'invalid-credentials':
-          setState({ status: 'unauthenticated', error: 'Sai số điện thoại hoặc mật khẩu' });
-          return;
-        case 'protocol-error':
-          setState({ status: 'unauthenticated', error: 'Lỗi máy chủ: phản hồi không hợp lệ' });
-          return;
-        case 'http-error':
-          setState({ status: 'unauthenticated', error: 'Lỗi đăng nhập (HTTP ' + String(result.status) + ')' });
-          return;
+  const login = useCallback(
+    async (phone: string, password: string): Promise<void> => {
+      try {
+        const result = await manager.login(phone, password);
+        switch (result.kind) {
+          case 'ok':
+            setState({ status: 'authenticated', error: null });
+            return;
+          case 'invalid-credentials':
+            setState({ status: 'unauthenticated', error: 'Sai số điện thoại hoặc mật khẩu' });
+            return;
+          case 'protocol-error':
+            setState({ status: 'unauthenticated', error: 'Lỗi máy chủ: phản hồi không hợp lệ' });
+            return;
+          case 'http-error':
+            setState({
+              status: 'unauthenticated',
+              error: 'Lỗi đăng nhập (HTTP ' + String(result.status) + ')',
+            });
+            return;
+        }
+      } catch (e) {
+        setState({
+          status: 'unauthenticated',
+          error: e instanceof Error ? e.message : 'login error',
+        });
       }
-    } catch (e) {
-      setState({ status: 'unauthenticated', error: e instanceof Error ? e.message : 'login error' });
-    }
-  }, [manager]);
+    },
+    [manager],
+  );
   const logout = useCallback(async (): Promise<void> => {
     await manager.logout();
     setState({ status: 'unauthenticated', error: null });

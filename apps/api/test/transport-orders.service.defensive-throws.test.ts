@@ -14,7 +14,9 @@ import { describe, it, expect } from 'vitest';
 import { TransportOrdersService } from '../src/transport-orders/transport-orders.service.js';
 import type { OrderNumberingService } from '../src/transport-orders/order-numbering.service.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
-const stubNumbering = { allocate: (): Promise<string> => Promise.resolve('XT.0001') } as unknown as OrderNumberingService;
+const stubNumbering = {
+  allocate: (): Promise<string> => Promise.resolve('XT.0001'),
+} as unknown as OrderNumberingService;
 type ReturningFn = () => Promise<unknown[]>;
 type ValuesFn = (v: unknown) => { returning: ReturningFn } | Promise<unknown>;
 function makeTx(opts: { transportOrderRows: unknown[]; roadRunRows: unknown[] }): unknown {
@@ -60,7 +62,7 @@ function makeTx(opts: { transportOrderRows: unknown[]; roadRunRows: unknown[] })
 }
 function makeDb(opts: { transportOrderRows: unknown[]; roadRunRows: unknown[] }): unknown {
   return {
-    transaction: async <T,>(cb: (tx: unknown) => Promise<T>): Promise<T> => cb(makeTx(opts)),
+    transaction: async <T>(cb: (tx: unknown) => Promise<T>): Promise<T> => cb(makeTx(opts)),
   };
 }
 const op = createOperatorContext();
@@ -74,19 +76,23 @@ const validInput = {
 };
 describe('@fleet/api - TransportOrdersService defensive throws', () => {
   it('throws when transport_order insert returns no row (line 62 branch)', async () => {
-    const svc = new TransportOrdersService(makeDb({
-      transportOrderRows: [],
-      roadRunRows: [{ roadRunId: 'rr-x' }],
-    }) as never, stubNumbering);
-    await expect(svc.create(validInput, op))
-      .rejects.toThrow(/transport_order insert failed/);
+    const svc = new TransportOrdersService(
+      makeDb({
+        transportOrderRows: [],
+        roadRunRows: [{ roadRunId: 'rr-x' }],
+      }) as never,
+      stubNumbering,
+    );
+    await expect(svc.create(validInput, op)).rejects.toThrow(/transport_order insert failed/);
   });
   it('throws when road_run insert returns no row (line 80 branch)', async () => {
-    const svc = new TransportOrdersService(makeDb({
-      transportOrderRows: [{ transportOrderId: 'to-x' }],
-      roadRunRows: [],
-    }) as never, stubNumbering);
-    await expect(svc.create(validInput, op))
-      .rejects.toThrow(/road_run insert failed/);
+    const svc = new TransportOrdersService(
+      makeDb({
+        transportOrderRows: [{ transportOrderId: 'to-x' }],
+        roadRunRows: [],
+      }) as never,
+      stubNumbering,
+    );
+    await expect(svc.create(validInput, op)).rejects.toThrow(/road_run insert failed/);
   });
 });

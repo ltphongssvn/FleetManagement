@@ -42,7 +42,9 @@ import type { OperatorContext } from '../auth/operator-context.js';
 export const DEFAULT_ORDER_PREFIX = 'XTT';
 export const MONTHLY_PAD_WIDTH = 3;
 type Tx = FleetDb | Parameters<Parameters<FleetDb['transaction']>[0]>[0];
-function pad2(n: number): string { return String(n).padStart(2, '0'); }
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
 function formatMonthly(prefix: string, month: number, value: number): string {
   return prefix + '.' + pad2(month) + '-' + String(value).padStart(MONTHLY_PAD_WIDTH, '0');
 }
@@ -61,18 +63,23 @@ export class OrderNumberingService {
     // longer authoritative for the returned NNN (the monthly rebase below
     // is), so the initial value is informational only — kept at 1 for
     // backward compatibility with any tool that reads order_sequence.
-    await tx.insert(orderSequence).values({
-      companyId: op.companyId,
-      businessUnitId: op.businessUnitId,
-      depotId: op.depotId,
-      legalEntityId: op.legalEntityId,
-      prefix,
-      nextValue: 1,
-      padWidth: MONTHLY_PAD_WIDTH,
-    }).onConflictDoNothing({
-      target: [orderSequence.companyId, orderSequence.prefix],
-    });
-    const [row] = await tx.select().from(orderSequence)
+    await tx
+      .insert(orderSequence)
+      .values({
+        companyId: op.companyId,
+        businessUnitId: op.businessUnitId,
+        depotId: op.depotId,
+        legalEntityId: op.legalEntityId,
+        prefix,
+        nextValue: 1,
+        padWidth: MONTHLY_PAD_WIDTH,
+      })
+      .onConflictDoNothing({
+        target: [orderSequence.companyId, orderSequence.prefix],
+      });
+    const [row] = await tx
+      .select()
+      .from(orderSequence)
       .where(and(eq(orderSequence.companyId, op.companyId), eq(orderSequence.prefix, prefix)))
       .for('update');
     /* v8 ignore next -- defensive: the row was just upserted */
@@ -85,13 +92,25 @@ export class OrderNumberingService {
     // Postgres, so we ask for position prefix.length + 5 onwards.
     const suffixStart = monthPrefix.length + 1;
     const monthRegex = '^' + prefix + '\\.' + pad2(month) + '-[0-9]+$';
-    const maxRows = await tx.execute<{ max_num: number | null }>(sql.raw(
-      'SELECT MAX(CAST(SUBSTRING(external_ref FROM ' + String(suffixStart) +
-      ') AS INTEGER)) AS max_num FROM transport_order WHERE company_id = ' +
-      String.fromCharCode(39) + op.companyId + String.fromCharCode(39) +
-      ' AND external_ref LIKE ' + String.fromCharCode(39) + monthPrefix + '%' + String.fromCharCode(39) +
-      ' AND external_ref ~ ' + String.fromCharCode(39) + monthRegex + String.fromCharCode(39),
-    ));
+    const maxRows = await tx.execute<{ max_num: number | null }>(
+      sql.raw(
+        'SELECT MAX(CAST(SUBSTRING(external_ref FROM ' +
+          String(suffixStart) +
+          ') AS INTEGER)) AS max_num FROM transport_order WHERE company_id = ' +
+          String.fromCharCode(39) +
+          op.companyId +
+          String.fromCharCode(39) +
+          ' AND external_ref LIKE ' +
+          String.fromCharCode(39) +
+          monthPrefix +
+          '%' +
+          String.fromCharCode(39) +
+          ' AND external_ref ~ ' +
+          String.fromCharCode(39) +
+          monthRegex +
+          String.fromCharCode(39),
+      ),
+    );
     // Postgres MAX() always returns exactly one row with max_num either
     // a number (at least one matching row) or null (no matching rows). The
     // type assertion (the ...]) narrows the tuple to exactly one element so
@@ -102,7 +121,8 @@ export class OrderNumberingService {
     // Keep next_value moving forward across allocations within the lock
     // for legacy tooling; semantically the source of truth is the MAX
     // rebase above.
-    await tx.update(orderSequence)
+    await tx
+      .update(orderSequence)
       .set({ nextValue: Math.max(row.nextValue, value) + 1, updatedAt: new Date() })
       .where(eq(orderSequence.orderSequenceId, row.orderSequenceId));
     return formatMonthly(prefix, month, value);

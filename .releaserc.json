@@ -1,8 +1,6 @@
 {
   "_comment": "FleetManagement/.releaserc.json \u2014 semantic-release config. Branches off main only; npm publish disabled (private monorepo root). Protected main: @semantic-release/git is intentionally OMITTED \u2014 the default GITHUB_TOKEN cannot bypass branch protection (GitHub by design), and the deploy reads from the local worktree, not a committed CHANGELOG/version, so the GitHub Release + tag (via @semantic-release/github) are the changelog of record. No commit-back to main, no PAT/bypass actor. Plugin order is load-bearing: analyzer -> notes -> changelog -> github.",
-  "branches": [
-    "main"
-  ],
+  "branches": ["main"],
   "plugins": [
     [
       "@semantic-release/commit-analyzer",

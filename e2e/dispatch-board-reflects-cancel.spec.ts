@@ -15,18 +15,31 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { loginAs, mintDispatcherToken } from './helpers/auth';
 import { type z } from 'zod';
-import { parseJson, CreateDriverResponseSchema, ReferenceItemSchema, AssignmentResponseSchema, CreateTransportOrderResponseSchema } from './helpers/contracts';
+import {
+  parseJson,
+  CreateDriverResponseSchema,
+  ReferenceItemSchema,
+  AssignmentResponseSchema,
+  CreateTransportOrderResponseSchema,
+} from './helpers/contracts';
 
 const API_URL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const DOLLAR = String.fromCharCode(36);
 const BOARD_URL = new RegExp('/' + DOLLAR);
 
-async function apiPost<T>(api: APIRequestContext, token: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+async function apiPost<T>(
+  api: APIRequestContext,
+  token: string,
+  path: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+): Promise<T> {
   const res = await api.post(API_URL + path, {
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     data: JSON.stringify(body),
   });
-  if (!res.ok()) throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
+  if (!res.ok())
+    throw new Error('POST ' + path + ' failed ' + String(res.status()) + ': ' + (await res.text()));
   return parseJson(res, schema);
 }
 
@@ -43,20 +56,30 @@ async function seedOrder(api: APIRequestContext): Promise<SeededOrder> {
   const ts = String(Date.now());
   const phone = '09' + ts.slice(-8);
   const drv = await apiPost(
-    api, token, '/admin/drivers',
+    api,
+    token,
+    '/admin/drivers',
     { fullName: 'E2E-T5-CANCEL-' + ts, phone, password: 'e2e-pass-1234' }, // pragma: allowlist secret
     CreateDriverResponseSchema,
   );
   const veh = await apiPost(
-    api, token, '/reference/vehicles', { name: 'E2E-T5-CANCEL-' + ts },
+    api,
+    token,
+    '/reference/vehicles',
+    { name: 'E2E-T5-CANCEL-' + ts },
     ReferenceItemSchema,
   );
-  await apiPost(api, token, '/admin/driver-vehicle-assignments',
+  await apiPost(
+    api,
+    token,
+    '/admin/driver-vehicle-assignments',
     { driverId: drv.driverId, vehicleId: veh.id },
     AssignmentResponseSchema,
   );
   const order = await apiPost(
-    api, token, '/transport-orders',
+    api,
+    token,
+    '/transport-orders',
     {
       stops: [{ sequence: 1, stopType: 'pickup' }],
       roadRun: { assignedOperatorId: drv.operatorId, assignedAssetId: veh.id },
@@ -96,7 +119,10 @@ test.describe('dispatch board reflects cancellation (T5)', () => {
       if (o) await cleanupOrder(request, o);
     }
   });
-  test('cancelling from the review view navigates back to the board and the row shows cancelled', async ({ page, request }) => {
+  test('cancelling from the review view navigates back to the board and the row shows cancelled', async ({
+    page,
+    request,
+  }) => {
     // Seed our OWN order (parallel-safe, immune to cascade from sibling specs).
     const order = await seedOrder(request);
     seededOrders.push(order);
@@ -135,10 +161,14 @@ test.describe('dispatch board reflects cancellation (T5)', () => {
     // absent on Finished, present (with the localized badge) under Cancelled.
     // Each tab is a plain <a> (full navigation), so Playwright auto-waits for the
     // fresh SSR render.
-    await expect(page.getByTestId('dispatch-board-row-cancelled-' + order.externalRef)).toHaveCount(0);
+    await expect(page.getByTestId('dispatch-board-row-cancelled-' + order.externalRef)).toHaveCount(
+      0,
+    );
     await page.getByTestId('dispatch-board-filter-finished').click();
     await expect(page).toHaveURL(/group=finished/, { timeout: 10000 });
-    await expect(page.getByTestId('dispatch-board-row-cancelled-' + order.externalRef)).toHaveCount(0);
+    await expect(page.getByTestId('dispatch-board-row-cancelled-' + order.externalRef)).toHaveCount(
+      0,
+    );
     await page.getByTestId('dispatch-board-filter-cancelled').click();
     await expect(page).toHaveURL(/group=cancelled/, { timeout: 10000 });
     const cancelledMarker = page.getByTestId('dispatch-board-row-cancelled-' + order.externalRef);

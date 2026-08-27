@@ -19,7 +19,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps): Promi
   const errorCode = Array.isArray(rawError) ? rawError[0] : rawError;
   const initialError = loginErrorMessage(errorCode);
   return (
-    <main className='flex min-h-screen items-center justify-center bg-slate-50 p-6'>
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <LoginForm {...(initialError !== undefined ? { initialError } : {})} />
     </main>
   );

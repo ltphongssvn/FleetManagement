@@ -21,7 +21,11 @@ const pr511 = [
   { name: 'Install / Build / Lint / Typecheck', status: 'COMPLETED', conclusion: 'CANCELLED' },
   { name: 'Enforce reference variables', status: 'COMPLETED', conclusion: 'SUCCESS' },
   { name: 'Enforce reference variables', status: 'COMPLETED', conclusion: 'SUCCESS' },
-  { name: 'Security guards (secrets + prod topology)', status: 'COMPLETED', conclusion: 'CANCELLED' },
+  {
+    name: 'Security guards (secrets + prod topology)',
+    status: 'COMPLETED',
+    conclusion: 'CANCELLED',
+  },
   { name: 'API tests (shard 1/4)', status: 'COMPLETED', conclusion: 'SKIPPED' },
   { name: 'Workspace package tests (non-api)', status: 'COMPLETED', conclusion: 'SKIPPED' },
   { name: 'Coverage gate (merge + 90/90/90/90)', status: 'COMPLETED', conclusion: 'SKIPPED' },
@@ -35,11 +39,15 @@ describe('CheckRunSchema (Axis 1: parse at the gh trust boundary)', () => {
   });
 
   it('accepts a null conclusion (an in-flight run has not concluded)', () => {
-    expect(CheckRunSchema.parse({ name: 'x', status: 'IN_PROGRESS', conclusion: null }).conclusion).toBeNull();
+    expect(
+      CheckRunSchema.parse({ name: 'x', status: 'IN_PROGRESS', conclusion: null }).conclusion,
+    ).toBeNull();
   });
 
   it('rejects an unknown conclusion rather than guessing a verdict', () => {
-    expect(() => CheckRunSchema.parse({ name: 'x', status: 'COMPLETED', conclusion: 'BANANA' })).toThrow();
+    expect(() =>
+      CheckRunSchema.parse({ name: 'x', status: 'COMPLETED', conclusion: 'BANANA' }),
+    ).toThrow();
   });
 });
 
@@ -173,13 +181,15 @@ describe('run-level conclusion classification', () => {
 // from a PR that genuinely has no checks.
 describe('CheckRunSchema: unconcluded spellings', () => {
   it('accepts null, the documented in-flight value', () => {
-    expect(CheckRunSchema.safeParse({ name: 'x', status: 'IN_PROGRESS', conclusion: null }).success)
-      .toBe(true);
+    expect(
+      CheckRunSchema.safeParse({ name: 'x', status: 'IN_PROGRESS', conclusion: null }).success,
+    ).toBe(true);
   });
 
   it('accepts the EMPTY STRING GitHub returns for a queued check', () => {
-    expect(CheckRunSchema.safeParse({ name: 'x', status: 'QUEUED', conclusion: '' }).success)
-      .toBe(true);
+    expect(CheckRunSchema.safeParse({ name: 'x', status: 'QUEUED', conclusion: '' }).success).toBe(
+      true,
+    );
   });
 
   it('accepts an ABSENT conclusion key', () => {
@@ -203,8 +213,9 @@ describe('CheckRunSchema: unconcluded spellings', () => {
   // The tolerance must not become a hole: a value that is neither a known
   // conclusion nor an unconcluded spelling is still a contract violation.
   it('still rejects an unknown conclusion value', () => {
-    expect(CheckRunSchema.safeParse({ name: 'x', status: 'COMPLETED', conclusion: 'BANANA' }).success)
-      .toBe(false);
+    expect(
+      CheckRunSchema.safeParse({ name: 'x', status: 'COMPLETED', conclusion: 'BANANA' }).success,
+    ).toBe(false);
   });
 
   // The whole point: one in-flight entry must not sink the array.

@@ -30,7 +30,12 @@ export interface IntakeReconcileRepo {
   /** Stalled verifying manifests eligible NOW: older than afterMinutes,
    *  attempts < maxAttempts, and past the exponential-backoff gate from
    *  lastIntakeReconcileAt. Oldest-first, capped at limit (retry budget). */
-  findEligible(now: Date, afterMinutes: number, maxAttempts: number, limit: number): Promise<readonly IntakeReconcileCandidate[]>;
+  findEligible(
+    now: Date,
+    afterMinutes: number,
+    maxAttempts: number,
+    limit: number,
+  ): Promise<readonly IntakeReconcileCandidate[]>;
   /** ONE tx: optimistic attempts+1 (guarded on the read attempts value),
    *  lastIntakeReconcileAt=now, allocateServerSeq, outbox insert via
    *  buildIntakeRedriveOutboxValues. Returns true iff the event was
@@ -38,7 +43,11 @@ export interface IntakeReconcileRepo {
   redriveOnce(candidate: IntakeReconcileCandidate, now: Date): Promise<boolean>;
   /** Quarantined set: verifying rows older than afterMinutes with
    *  attempts >= maxAttempts; null when none. */
-  exhaustedSummary(now: Date, afterMinutes: number, maxAttempts: number): Promise<IntakeExhaustedSummary | null>;
+  exhaustedSummary(
+    now: Date,
+    afterMinutes: number,
+    maxAttempts: number,
+  ): Promise<IntakeExhaustedSummary | null>;
 }
 export interface IntakeReconcileResult {
   readonly eligible: number;
@@ -56,7 +65,12 @@ export class IntakeReconcilerService {
   ) {}
   async reconcileOnce(): Promise<IntakeReconcileResult> {
     const now = new Date(this.now());
-    const eligible = await this.repo.findEligible(now, this.afterMinutes, this.maxAttempts, this.batchSize);
+    const eligible = await this.repo.findEligible(
+      now,
+      this.afterMinutes,
+      this.maxAttempts,
+      this.batchSize,
+    );
     let emitted = 0;
     for (const candidate of eligible) {
       if (await this.repo.redriveOnce(candidate, now)) emitted += 1;

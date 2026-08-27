@@ -6,14 +6,20 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ReferenceAdminClient } from '@/features/admin/reference-admin-client';
 function jsonRes(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 describe('ReferenceAdminClient', () => {
   it('list() GETs the entity collection and returns items', async () => {
     const fetchFn = vi.fn(() => Promise.resolve(jsonRes({ items: [{ id: 'c1', label: 'Acme' }] })));
     const client = new ReferenceAdminClient('customers', fetchFn);
     const items = await client.list();
-    expect(fetchFn).toHaveBeenCalledWith('/api/reference/customers', expect.objectContaining({ method: 'GET' }));
+    expect(fetchFn).toHaveBeenCalledWith(
+      '/api/reference/customers',
+      expect.objectContaining({ method: 'GET' }),
+    );
     expect(items).toEqual([{ id: 'c1', label: 'Acme' }]);
   });
   it('list() returns [] when the response has no items field', async () => {
@@ -25,13 +31,19 @@ describe('ReferenceAdminClient', () => {
     const fetchFn = vi.fn(() => Promise.resolve(jsonRes({ items: [] })));
     const client = new ReferenceAdminClient('warehouses', fetchFn);
     await client.list('delivery');
-    expect(fetchFn).toHaveBeenCalledWith('/api/reference/warehouses?role=delivery', expect.objectContaining({ method: 'GET' }));
+    expect(fetchFn).toHaveBeenCalledWith(
+      '/api/reference/warehouses?role=delivery',
+      expect.objectContaining({ method: 'GET' }),
+    );
   });
   it('list() omits the query string when no role is given', async () => {
     const fetchFn = vi.fn(() => Promise.resolve(jsonRes({ items: [] })));
     const client = new ReferenceAdminClient('customers', fetchFn);
     await client.list();
-    expect(fetchFn).toHaveBeenCalledWith('/api/reference/customers', expect.objectContaining({ method: 'GET' }));
+    expect(fetchFn).toHaveBeenCalledWith(
+      '/api/reference/customers',
+      expect.objectContaining({ method: 'GET' }),
+    );
   });
   it('list() throws on a non-ok response', async () => {
     const fetchFn = vi.fn(() => Promise.resolve(jsonRes({ error: 'x' }, 500)));

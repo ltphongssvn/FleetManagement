@@ -52,16 +52,26 @@ describe('selectReleaseRunForSha', () => {
   // norm). Pure selector over a run list; main() polls with it until done+success.
   const sha = 'ef20534aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   const prev = 'b7b691cbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
-  const mk = (headSha: string, status: string, conclusion: string):
-    { databaseId: number; headSha: string; status: string; conclusion: string } =>
-    ({ databaseId: 1, headSha, status, conclusion });
+  const mk = (
+    headSha: string,
+    status: string,
+    conclusion: string,
+  ): { databaseId: number; headSha: string; status: string; conclusion: string } => ({
+    databaseId: 1,
+    headSha,
+    status,
+    conclusion,
+  });
 
   it('returns null when no run matches the merge SHA yet (run not created -> keep polling)', () => {
     const runs = [mk(prev, 'completed', 'success')];
     expect(selectReleaseRunForSha(runs, sha)).toBeNull();
   });
   it('matches the run whose headSha equals the merge commit (full SHA)', () => {
-    const runs = [mk(prev, 'completed', 'success'), { databaseId: 42, headSha: sha, status: 'in_progress', conclusion: '' }];
+    const runs = [
+      mk(prev, 'completed', 'success'),
+      { databaseId: 42, headSha: sha, status: 'in_progress', conclusion: '' },
+    ];
     expect(selectReleaseRunForSha(runs, sha)?.databaseId).toBe(42);
   });
   it('matches on a short SHA prefix (git rev-parse --short vs full API headSha)', () => {

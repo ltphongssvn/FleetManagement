@@ -19,11 +19,17 @@ const deliveryWarehouses = [{ id: 'dw-uuid-1', label: 'Delivery WH 1' }];
 const assignments = [{ operatorId: 'd-uuid-1', vehicleId: 'v-uuid-1' }];
 describe('CreateOrderForm exposes a hydration-ready signal (T7)', () => {
   it('sets data-hydrated=true on the form root after mount', async () => {
-    render(<CreateOrderForm
-      drivers={drivers} vehicles={vehicles} customers={customers}
-      cargoTypes={cargoTypes} pickupWarehouses={pickupWarehouses}
-      deliveryWarehouses={deliveryWarehouses} driverVehicleAssignments={assignments}
-    />);
+    render(
+      <CreateOrderForm
+        drivers={drivers}
+        vehicles={vehicles}
+        customers={customers}
+        cargoTypes={cargoTypes}
+        pickupWarehouses={pickupWarehouses}
+        deliveryWarehouses={deliveryWarehouses}
+        driverVehicleAssignments={assignments}
+      />,
+    );
     const form = screen.getByTestId('create-order-form');
     await waitFor(() => {
       expect(form.getAttribute('data-hydrated')).toBe('true');

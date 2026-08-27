@@ -17,13 +17,21 @@ import { sql } from 'drizzle-orm';
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '../src/database/migrations');
 let testDb: PgliteTestDb;
 describe('@fleet/api - clean-slate XTT.MM-NNN squash (T3 2026-Q2)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('no migration .sql file in the repo references the legacy XT prefix in an INSERT or UPDATE', () => {
     const files = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql'));
     const offenders: string[] = [];
@@ -31,7 +39,10 @@ describe('@fleet/api - clean-slate XTT.MM-NNN squash (T3 2026-Q2)', () => {
       const c = readFileSync(resolve(migrationsDir, f), 'utf8');
       // Match seed/update statements that target the legacy XT prefix.
       // Allow the string 'XT' to appear in comments (lines starting with --).
-      const codeOnly = c.split(/\r?\n/).filter((l) => !l.trim().startsWith('--')).join('\n');
+      const codeOnly = c
+        .split(/\r?\n/)
+        .filter((l) => !l.trim().startsWith('--'))
+        .join('\n');
       if (/\bprefix\s*=\s*'XT'\b/i.test(codeOnly) || /'XT'\s*,\s*\d/.test(codeOnly)) {
         offenders.push(f);
       }
@@ -40,7 +51,9 @@ describe('@fleet/api - clean-slate XTT.MM-NNN squash (T3 2026-Q2)', () => {
   });
   it('no order_number_seq legacy migration ships in the folder', () => {
     const files = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql'));
-    const legacy = files.filter((f) => f.endsWith('order_number_seq.sql') || f.endsWith('pad_width_default_4.sql'));
+    const legacy = files.filter(
+      (f) => f.endsWith('order_number_seq.sql') || f.endsWith('pad_width_default_4.sql'),
+    );
     expect(legacy).toEqual([]);
   });
   it('after fresh migrate, order_sequence contains exactly one row and its prefix is XTT', async () => {

@@ -19,10 +19,7 @@ const ENV = {
   OIDC_REDIRECT_URI: 'https://ops.example.com/api/auth/callback',
 };
 
-function makeReq(
-  query: Record<string, string>,
-  cookies: Record<string, string> = {},
-): NextRequest {
+function makeReq(query: Record<string, string>, cookies: Record<string, string> = {}): NextRequest {
   const url = new URL('https://ops.example.com/api/auth/callback');
   for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
   const req = new NextRequest(url);
@@ -50,14 +47,19 @@ const VALID_JWT = makeAccessJwt({ acr: 'aal3', idp: 'google' });
 // A deleted cookie is emitted as a Set-Cookie with an empty value + Max-Age=0; in
 // the NextResponse cookie jar it reads back as value ''. Treat present-with-''
 // as "cleared".
-function isCleared(res: { cookies: { get: (n: string) => { value: string } | undefined } }, name: string): boolean {
+function isCleared(
+  res: { cookies: { get: (n: string) => { value: string } | undefined } },
+  name: string,
+): boolean {
   const c = res.cookies.get(name);
   return c === undefined || c.value === '';
 }
 
 describe('GET /api/auth/callback (Authorization Code + PKCE)', () => {
   beforeEach(() => {
-    vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.resetModules();
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.resetModules();
     for (const [k, v] of Object.entries(ENV)) vi.stubEnv(k, v);
   });
 
@@ -106,7 +108,9 @@ describe('GET /api/auth/callback (Authorization Code + PKCE)', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const { GET } = await import('@/app/api/auth/callback/route');
-    const res = await GET(makeReq({ code: 'c', state: 'state-URL-DIFFERENT' }, transient('state-COOKIE')));
+    const res = await GET(
+      makeReq({ code: 'c', state: 'state-URL-DIFFERENT' }, transient('state-COOKIE')),
+    );
     expect(fetchMock).not.toHaveBeenCalled();
     expect(res.status).toBe(307);
     expect(res.headers.get('location')).toContain('/login');
@@ -128,7 +132,10 @@ describe('GET /api/auth/callback (Authorization Code + PKCE)', () => {
   });
 
   it('redirects to /login when the token exchange fails', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('nope', { status: 400 }))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response('nope', { status: 400 }))),
+    );
     const { GET } = await import('@/app/api/auth/callback/route');
     const res = await GET(makeReq({ code: 'c', state: 'state-1' }, transient()));
     expect(res.status).toBe(307);
@@ -178,7 +185,9 @@ describe('GET /api/auth/callback (Authorization Code + PKCE)', () => {
   it('falls back to OIDC_REDIRECT_URI origin (never 0.0.0.0) when no forwarded host', async () => {
     vi.stubGlobal('fetch', okTokenFetch());
     const { GET } = await import('@/app/api/auth/callback/route');
-    const res = await GET(makeReqInternalBind({ code: 'auth-code-1', state: 'state-1' }, transient()));
+    const res = await GET(
+      makeReqInternalBind({ code: 'auth-code-1', state: 'state-1' }, transient()),
+    );
     expect(res.status).toBe(307);
     // OIDC_REDIRECT_URI origin is https://ops.example.com -> redirect home there.
     expect(res.headers.get('location')).toBe('https://ops.example.com/');

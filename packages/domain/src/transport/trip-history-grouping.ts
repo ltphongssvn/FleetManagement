@@ -62,9 +62,7 @@ export function groupCompletedTripsByMonth<T>(
     // Newest completion first within the month. localeCompare on the ISO
     // timestamp string is branchless, so coverage does not depend on the
     // test data exercising every <, >, == ordering.
-    const sorted = [...bucket.entries].sort(
-      (a, b) => b.completedAt.localeCompare(a.completedAt),
-    );
+    const sorted = [...bucket.entries].sort((a, b) => b.completedAt.localeCompare(a.completedAt));
     months.push({
       monthKey,
       label: bucket.label,

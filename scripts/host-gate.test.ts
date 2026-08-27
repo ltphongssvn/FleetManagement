@@ -176,22 +176,24 @@ describe('resolveGateLockPath', () => {
   // never excluded each other and a sibling worktree still starved this one.
   // One exported resolver removes the possibility of that drift recurring.
   it('resolves under XDG_CACHE_HOME when set', () => {
-    expect(resolveGateLockPath({ XDG_CACHE_HOME: '/xdg' }, '/home/u'))
-      .toBe('/xdg/fleetmanagement/gate.lock');
+    expect(resolveGateLockPath({ XDG_CACHE_HOME: '/xdg' }, '/home/u')).toBe(
+      '/xdg/fleetmanagement/gate.lock',
+    );
   });
   it('falls back to HOME/.cache when XDG_CACHE_HOME is unset', () => {
-    expect(resolveGateLockPath({}, '/home/u'))
-      .toBe('/home/u/.cache/fleetmanagement/gate.lock');
+    expect(resolveGateLockPath({}, '/home/u')).toBe('/home/u/.cache/fleetmanagement/gate.lock');
   });
   it('ignores a non-absolute XDG_CACHE_HOME per the XDG spec', () => {
-    expect(resolveGateLockPath({ XDG_CACHE_HOME: 'relative/path' }, '/home/u'))
-      .toBe('/home/u/.cache/fleetmanagement/gate.lock');
+    expect(resolveGateLockPath({ XDG_CACHE_HOME: 'relative/path' }, '/home/u')).toBe(
+      '/home/u/.cache/fleetmanagement/gate.lock',
+    );
   });
   it('never returns a world-writable /tmp path (tmpfiles can sweep the inode)', () => {
     expect(resolveGateLockPath({}, '/home/u')).not.toContain('/tmp/');
   });
   it('matches the path the pre-push hook already locks', () => {
-    expect(resolveGateLockPath({}, '/home/lenovo'))
-      .toBe('/home/lenovo/.cache/fleetmanagement/gate.lock');
+    expect(resolveGateLockPath({}, '/home/lenovo')).toBe(
+      '/home/lenovo/.cache/fleetmanagement/gate.lock',
+    );
   });
 });

@@ -14,8 +14,6 @@ import { ProjectionRebuildModule } from '../projections/projection-rebuild.modul
 import { ProjectionRebuildService } from '../projections/projection-rebuild.service.js';
 import { resolveCliScope } from './resolve-cli-scope.js';
 
-
-
 async function main(): Promise<void> {
   const scope = resolveCliScope(process.argv.slice(2), process.env, { allowPositional: true });
   const app = await NestFactory.createApplicationContext(ProjectionRebuildModule, {
@@ -31,6 +29,8 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  process.stderr.write('projection-rebuild failed: ' + (err instanceof Error ? err.message : String(err)) + '\n');
+  process.stderr.write(
+    'projection-rebuild failed: ' + (err instanceof Error ? err.message : String(err)) + '\n',
+  );
   process.exitCode = 1;
 });

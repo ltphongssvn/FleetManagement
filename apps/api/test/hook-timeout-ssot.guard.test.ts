@@ -33,8 +33,15 @@ const LINE_COMMENT = SLASH + SLASH;
 // that merely mentions the pattern -- including this file's own header.
 const isCommentLine = (line: string): boolean => line.trimStart().startsWith(LINE_COMMENT);
 const codeOnly = (src: string): string =>
-  src.split(NL).filter((line) => !isCommentLine(line)).join(NL);
-const CONFIGS = ['vitest.config.ts', 'vitest.coverage.config.ts', 'vitest.integration.config.ts'] as const;
+  src
+    .split(NL)
+    .filter((line) => !isCommentLine(line))
+    .join(NL);
+const CONFIGS = [
+  'vitest.config.ts',
+  'vitest.coverage.config.ts',
+  'vitest.integration.config.ts',
+] as const;
 // PGlite WASM cold-start headroom under parallel-worktree load. Single value,
 // all configs: test:unit reads vitest.config.ts, and it flaked precisely
 // because 9710dd8 raised only the other two.
@@ -133,7 +140,9 @@ describe('no per-hook timeout literal overrides the config', () => {
   });
   it('no test file carries a per-hook timeout literal', () => {
     const offenders = testFiles.filter(
-      (f) => hookLiteralsIn(codeOnly(readFileSync(apiRoot + SLASH + 'test' + SLASH + f, 'utf8'))).length > 0,
+      (f) =>
+        hookLiteralsIn(codeOnly(readFileSync(apiRoot + SLASH + 'test' + SLASH + f, 'utf8')))
+          .length > 0,
     );
     expect(offenders).toEqual([]);
   });

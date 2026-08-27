@@ -23,7 +23,12 @@ const refs = {
 };
 function run(ref: string, state: DispatchBoardRoadRun['state']): DispatchBoardRoadRun {
   return {
-    roadRunId: '11111111-1111-4111-8111-' + ref.replace(/[^0-9a-f]/gi, '').padStart(12, '0').slice(-12),
+    roadRunId:
+      '11111111-1111-4111-8111-' +
+      ref
+        .replace(/[^0-9a-f]/gi, '')
+        .padStart(12, '0')
+        .slice(-12),
     state,
     assignedOperatorId: 'op-1',
     assignedAssetId: 'truck-7',
@@ -42,11 +47,20 @@ function run(ref: string, state: DispatchBoardRoadRun['state']): DispatchBoardRo
 
 describe('@fleet/ops-web - DispatchView pagination + status filter (L1)', () => {
   it('renders Active/Finished filter tabs with Active current by default', () => {
-    render(<DispatchView
-      initialRuns={[run('XTT.06-001', 'planned')]}
-      refs={refs}
-      pagination={{ group: 'active', page: 1, pageSize: 20, total: 1, totalPages: 1, hasMore: false }}
-    />);
+    render(
+      <DispatchView
+        initialRuns={[run('XTT.06-001', 'planned')]}
+        refs={refs}
+        pagination={{
+          group: 'active',
+          page: 1,
+          pageSize: 20,
+          total: 1,
+          totalPages: 1,
+          hasMore: false,
+        }}
+      />,
+    );
     const active = screen.getByTestId('dispatch-board-filter-active');
     const finished = screen.getByTestId('dispatch-board-filter-finished');
     expect(active).toBeTruthy();
@@ -62,11 +76,20 @@ describe('@fleet/ops-web - DispatchView pagination + status filter (L1)', () => 
   });
 
   it('renders a bottom pagination control with a total count and a jump-to-page search input', () => {
-    render(<DispatchView
-      initialRuns={[run('XTT.06-001', 'planned')]}
-      refs={refs}
-      pagination={{ group: 'active', page: 1, pageSize: 2, total: 5, totalPages: 3, hasMore: true }}
-    />);
+    render(
+      <DispatchView
+        initialRuns={[run('XTT.06-001', 'planned')]}
+        refs={refs}
+        pagination={{
+          group: 'active',
+          page: 1,
+          pageSize: 2,
+          total: 5,
+          totalPages: 3,
+          hasMore: true,
+        }}
+      />,
+    );
     const pager = screen.getByTestId('dispatch-board-pagination');
     expect(pager).toBeTruthy();
     // Total count reflects the envelope total.
@@ -80,24 +103,46 @@ describe('@fleet/ops-web - DispatchView pagination + status filter (L1)', () => 
   });
 
   it('marks the Finished tab current and preserves group in page links when group=finished', () => {
-    render(<DispatchView
-      initialRuns={[run('XTT.05-001', 'cancelled')]}
-      refs={refs}
-      pagination={{ group: 'finished', page: 1, pageSize: 2, total: 3, totalPages: 2, hasMore: true }}
-    />);
-    expect(screen.getByTestId('dispatch-board-filter-finished').getAttribute('aria-current')).toBe('page');
+    render(
+      <DispatchView
+        initialRuns={[run('XTT.05-001', 'cancelled')]}
+        refs={refs}
+        pagination={{
+          group: 'finished',
+          page: 1,
+          pageSize: 2,
+          total: 3,
+          totalPages: 2,
+          hasMore: true,
+        }}
+      />,
+    );
+    expect(screen.getByTestId('dispatch-board-filter-finished').getAttribute('aria-current')).toBe(
+      'page',
+    );
     const p2 = screen.getByTestId('dispatch-board-page-link-2');
     expect(p2.getAttribute('href')).toContain('group=finished');
     expect(p2.getAttribute('href')).toContain('page=2');
   });
 
   it('marks the Lenh Huy (cancelled) tab current and preserves group in page links when group=cancelled', () => {
-    render(<DispatchView
-      initialRuns={[run('XTT.05-002', 'cancelled')]}
-      refs={refs}
-      pagination={{ group: 'cancelled', page: 1, pageSize: 2, total: 3, totalPages: 2, hasMore: true }}
-    />);
-    expect(screen.getByTestId('dispatch-board-filter-cancelled').getAttribute('aria-current')).toBe('page');
+    render(
+      <DispatchView
+        initialRuns={[run('XTT.05-002', 'cancelled')]}
+        refs={refs}
+        pagination={{
+          group: 'cancelled',
+          page: 1,
+          pageSize: 2,
+          total: 3,
+          totalPages: 2,
+          hasMore: true,
+        }}
+      />,
+    );
+    expect(screen.getByTestId('dispatch-board-filter-cancelled').getAttribute('aria-current')).toBe(
+      'page',
+    );
     const p2 = screen.getByTestId('dispatch-board-page-link-2');
     expect(p2.getAttribute('href')).toContain('group=cancelled');
     expect(p2.getAttribute('href')).toContain('page=2');

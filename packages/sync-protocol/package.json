@@ -29,11 +29,13 @@
     "node": ">=22.0.0 <25.0.0"
   },
   "dependencies": {
+    "@fleet/domain": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
-    "fast-check": "^4.7.0"
+    "fast-check": "^4.7.0",
+    "vitest": "^4.1.4"
   }
 }

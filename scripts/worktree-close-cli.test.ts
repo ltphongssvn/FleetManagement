@@ -42,29 +42,33 @@ describe('worktree-close-cli: git argv is planned, not string-built', () => {
     expect(listWorktreesArgs()).toEqual(['worktree', 'list', '--porcelain']);
   });
   it('resolves the upstream symbolic name', () => {
-    expect(upstreamArgs()).toEqual([
-      'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}',
-    ]);
+    expect(upstreamArgs()).toEqual(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']);
   });
   it('counts ahead/behind against the resolved upstream', () => {
     expect(aheadBehindArgs('origin/feature/x')).toEqual([
-      'rev-list', '--left-right', '--count', 'HEAD...origin/feature/x',
+      'rev-list',
+      '--left-right',
+      '--count',
+      'HEAD...origin/feature/x',
     ]);
   });
   it('reports dirty files including every untracked one', () => {
-    expect(dirtyArgs()).toEqual([
-      'status', '--porcelain=v1', '--untracked-files=all',
-    ]);
+    expect(dirtyArgs()).toEqual(['status', '--porcelain=v1', '--untracked-files=all']);
   });
   it('tests containment as set subtraction against the integration ref', () => {
     expect(containmentArgs('origin/develop')).toEqual([
-      'rev-list', '--count', 'origin/develop..HEAD',
+      'rev-list',
+      '--count',
+      'origin/develop..HEAD',
     ]);
   });
   it('never plans a destructive git flag', () => {
     const flat = [
-      listWorktreesArgs(), upstreamArgs(), aheadBehindArgs('origin/x'),
-      dirtyArgs(), containmentArgs('origin/develop'),
+      listWorktreesArgs(),
+      upstreamArgs(),
+      aheadBehindArgs('origin/x'),
+      dirtyArgs(),
+      containmentArgs('origin/develop'),
     ].flat();
     for (const bad of ['--force', '-f', '-D', 'reset', 'clean', 'push']) {
       expect(flat.includes(bad)).toBe(false);
@@ -74,14 +78,17 @@ describe('worktree-close-cli: git argv is planned, not string-built', () => {
 
 describe('worktree-close-cli: target selection', () => {
   it('finds a worktree by exact path', () => {
-    expect(selectTarget(entries, '/home/u/code/t16-wt1-order-status-groups').branch)
-      .toBe('feature/order-status-groups');
+    expect(selectTarget(entries, '/home/u/code/t16-wt1-order-status-groups').branch).toBe(
+      'feature/order-status-groups',
+    );
   });
   it('throws on an unknown path rather than closing the wrong tree', () => {
     expect(() => selectTarget(entries, '/home/u/code/nope')).toThrow();
   });
   it('throws on a path that is not a worktree root', () => {
-    expect(() => selectTarget(entries, '/home/u/code/t16-wt1-order-status-groups/scripts')).toThrow();
+    expect(() =>
+      selectTarget(entries, '/home/u/code/t16-wt1-order-status-groups/scripts'),
+    ).toThrow();
   });
 });
 
@@ -154,36 +161,45 @@ describe('selectTarget path resolution', () => {
   ];
 
   it('accepts the absolute path (unchanged behaviour)', () => {
-    expect(selectTarget(entries, '/Users/dev/code/t89-wt1-turbo', '/Users/dev/code/FleetManagement').branch)
-      .toBe('chore/turbo');
+    expect(
+      selectTarget(entries, '/Users/dev/code/t89-wt1-turbo', '/Users/dev/code/FleetManagement')
+        .branch,
+    ).toBe('chore/turbo');
   });
 
   // The reported defect: this is what tab-completion produces from the root.
   it('accepts a RELATIVE path that resolves to a worktree root', () => {
-    expect(selectTarget(entries, '../t89-wt1-turbo', '/Users/dev/code/FleetManagement').branch)
-      .toBe('chore/turbo');
+    expect(
+      selectTarget(entries, '../t89-wt1-turbo', '/Users/dev/code/FleetManagement').branch,
+    ).toBe('chore/turbo');
   });
 
   it('accepts a path with a redundant segment', () => {
-    expect(selectTarget(entries, '/Users/dev/code/./t89-wt1-turbo', '/Users/dev/code/FleetManagement').branch)
-      .toBe('chore/turbo');
+    expect(
+      selectTarget(entries, '/Users/dev/code/./t89-wt1-turbo', '/Users/dev/code/FleetManagement')
+        .branch,
+    ).toBe('chore/turbo');
   });
 
   it('accepts a trailing slash', () => {
-    expect(selectTarget(entries, '/Users/dev/code/t89-wt1-turbo/', '/Users/dev/code/FleetManagement').branch)
-      .toBe('chore/turbo');
+    expect(
+      selectTarget(entries, '/Users/dev/code/t89-wt1-turbo/', '/Users/dev/code/FleetManagement')
+        .branch,
+    ).toBe('chore/turbo');
   });
 
   // Resolution must not become a wildcard: a genuinely unknown path still
   // throws, and the message still lists the known roots so the operator can see
   // what IS available.
   it('still throws for a path that is not a worktree root', () => {
-    expect(() => selectTarget(entries, '../nope', '/Users/dev/code/FleetManagement'))
-      .toThrow(/not a worktree root/);
+    expect(() => selectTarget(entries, '../nope', '/Users/dev/code/FleetManagement')).toThrow(
+      /not a worktree root/,
+    );
   });
 
   it('names the known roots in the failure, as before', () => {
-    expect(() => selectTarget(entries, '../nope', '/Users/dev/code/FleetManagement'))
-      .toThrow(/t89-wt1-turbo/);
+    expect(() => selectTarget(entries, '../nope', '/Users/dev/code/FleetManagement')).toThrow(
+      /t89-wt1-turbo/,
+    );
   });
 });

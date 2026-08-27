@@ -8,8 +8,9 @@ describe('@fleet/ops-web - PII scrubber', () => {
   });
 
   it('redacts email + JWT in strings', () => {
-    expect(scrubString('user a@b.com Bearer eyJhbGciOi.eyJzdWIiOi.X'))
-      .toBe('user [redacted] [redacted]');
+    expect(scrubString('user a@b.com Bearer eyJhbGciOi.eyJzdWIiOi.X')).toBe(
+      'user [redacted] [redacted]',
+    );
   });
 
   it('caps depth on circular refs', () => {
@@ -39,7 +40,12 @@ describe('@fleet/ops-web - PII scrubber', () => {
   });
 
   it('handles mixed arrays (primitives + objects + nulls)', () => {
-    expect(scrub([1, null, { token: 'x' }, 'plain string'])).toEqual([1, null, { token: '[redacted]' }, 'plain string']);
+    expect(scrub([1, null, { token: 'x' }, 'plain string'])).toEqual([
+      1,
+      null,
+      { token: '[redacted]' },
+      'plain string',
+    ]);
   });
 
   it('redacts strings inside nested arrays', () => {
@@ -63,20 +69,36 @@ describe('@fleet/ops-web - PII scrubber', () => {
     it('redacts string[] header values', () => {
       const e = { request: { headers: { Cookie: ['a=1', 'b=2'] } } };
       const r = scrubEvent(e as never) as unknown;
-      expect((r as { request: { headers: Record<string, string[]> } }).request.headers['Cookie']).toEqual(['[redacted]']);
+      expect(
+        (r as { request: { headers: Record<string, string[]> } }).request.headers['Cookie'],
+      ).toEqual(['[redacted]']);
     });
 
     it('scrubs request.data, extra, contexts', () => {
-      const e = { request: { data: { password: 'p' } }, extra: { token: 't' }, contexts: { user: { email: 'a@b.com' } } };
-      const r = scrubEvent(e as never) as unknown as { request: { data: { password: string } }; extra: { token: string }; contexts: { user: { email: string } } };
+      const e = {
+        request: { data: { password: 'p' } },
+        extra: { token: 't' },
+        contexts: { user: { email: 'a@b.com' } },
+      };
+      const r = scrubEvent(e as never) as unknown as {
+        request: { data: { password: string } };
+        extra: { token: string };
+        contexts: { user: { email: string } };
+      };
       expect(r.request.data.password).toBe('[redacted]');
       expect(r.extra.token).toBe('[redacted]');
       expect(r.contexts.user.email).toBe('[redacted]');
     });
 
     it('scrubs message and exception values', () => {
-      const e = { message: 'failed for a@b.com', exception: { values: [{ value: 'Bearer eyJ.x.y leaked' }] } };
-      const r = scrubEvent(e as never) as { message: string; exception: { values: { value: string }[] } };
+      const e = {
+        message: 'failed for a@b.com',
+        exception: { values: [{ value: 'Bearer eyJ.x.y leaked' }] },
+      };
+      const r = scrubEvent(e as never) as {
+        message: string;
+        exception: { values: { value: string }[] };
+      };
       expect(r.message).toBe('failed for [redacted]');
       expect(r.exception.values[0]?.value).toBe('[redacted] leaked');
     });

@@ -12,7 +12,11 @@ import { PUSH_PROVIDER } from '../src/push/push-provider.interface.js';
 import { CommandsGateway } from '../src/commands/commands.gateway.js';
 import type { CommandPayload } from '../src/commands/command.dto.js';
 import { createCommandPayload } from '@fleet/test-fixtures';
-import { IDENTITY_PROVIDER, type IIdentityProvider, type VerifiedIdentity } from '../src/auth/identity-provider.interface.js';
+import {
+  IDENTITY_PROVIDER,
+  type IIdentityProvider,
+  type VerifiedIdentity,
+} from '../src/auth/identity-provider.interface.js';
 
 function fakeIdp(): IIdentityProvider {
   return {
@@ -42,7 +46,10 @@ describe('@fleet/api - CommandsGateway (e2e)', () => {
     process.env['OIDC_AUDIENCE'] ??= 'fleet-api';
     process.env['OIDC_JWKS_URI'] ??= 'https://idp.example.com/.well-known/jwks.json';
     const moduleRef = await Test.createTestingModule({
-      imports: [ConfigModule.forRoot({ isGlobal: true, validate: validateEnv, cache: true }), CommandsModule],
+      imports: [
+        ConfigModule.forRoot({ isGlobal: true, validate: validateEnv, cache: true }),
+        CommandsModule,
+      ],
     })
       .overrideProvider(PUSH_PROVIDER)
       .useValue({ sendToOperator: () => Promise.resolve({ accepted: 0, rejected: 0 }) })
@@ -68,7 +75,9 @@ describe('@fleet/api - CommandsGateway (e2e)', () => {
         transports: ['websocket'],
         reconnection: false,
       });
-      s.once('connect', () => { resolve(s); });
+      s.once('connect', () => {
+        resolve(s);
+      });
       s.once('connect_error', reject);
     });
   }
@@ -86,10 +95,14 @@ describe('@fleet/api - CommandsGateway (e2e)', () => {
     });
 
     const received = new Promise<CommandPayload>((resolve) => {
-      client.once('command', (got: CommandPayload) => { resolve(got); });
+      client.once('command', (got: CommandPayload) => {
+        resolve(got);
+      });
     });
 
-    await new Promise((r) => { setTimeout(r, 50); });
+    await new Promise((r) => {
+      setTimeout(r, 50);
+    });
     const result = gateway.pushCommand(cmd);
     expect(result.status).toBe('emitted');
     if (result.status === 'emitted') expect(result.recipientCount).toBe(1);
@@ -103,7 +116,9 @@ describe('@fleet/api - CommandsGateway (e2e)', () => {
       status: 'received',
     });
 
-    await new Promise((r) => { setTimeout(r, 100); });
+    await new Promise((r) => {
+      setTimeout(r, 100);
+    });
     expect(gateway.pendingCount()).toBe(0);
     expect(gateway.getLatencySamples().length).toBeGreaterThan(0);
     client.close();
@@ -136,7 +151,9 @@ describe('@fleet/api - CommandsGateway (e2e)', () => {
       aggregateId: '44444444-4444-4444-8444-444444444444',
     });
 
-    await new Promise((r) => { setTimeout(r, 50); });
+    await new Promise((r) => {
+      setTimeout(r, 50);
+    });
     gateway.pushCommand(cmd);
     expect(gateway.pendingCount()).toBe(1);
 
@@ -145,7 +162,9 @@ describe('@fleet/api - CommandsGateway (e2e)', () => {
       other.emit(
         'command_ack',
         { commandId: cmd.commandId, ackedAt: new Date().toISOString(), status: 'received' },
-        (r: { ok: boolean; reason?: string }) => { resolve(r); },
+        (r: { ok: boolean; reason?: string }) => {
+          resolve(r);
+        },
       );
     });
     expect(ackResponse.ok).toBe(false);

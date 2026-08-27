@@ -7,6 +7,7 @@
 // typed events, UTC timestamps, admin-scoped. The API validates its OUTGOING
 // response against this; consumers parse the same schema so they cannot diverge.
 import { z } from 'zod';
+import { CancelReasonSchema } from '@fleet/domain';
 
 const at = z.iso.datetime();
 const seq = z.number().int().positive();
@@ -14,47 +15,74 @@ const seq = z.number().int().positive();
 /** Discriminated union of every business event the timeline can carry. */
 export const OrderTimelineEventSchema = z.discriminatedUnion('eventType', [
   z.object({ eventType: z.literal('order_created'), at }).strict(),
-  z.object({
-    eventType: z.literal('order_cancelled'), at,
-    reason: z.union([z.string(), z.null()]),
-    note: z.union([z.string(), z.null()]),
-  }).strict(),
+  z
+    .object({
+      eventType: z.literal('order_cancelled'),
+      at,
+      // The SHARED cancellation vocabulary, not a bare string. It was weakened to
+      // z.string() while apps/api and apps/ops-web both validated against
+      // CancelReasonSchema -- one contract, two strengths, so a mistyped code such
+      // as "custmer_request" parsed cleanly here and reached a consumer.
+      // null remains legitimate: rows cancelled before the vocabulary existed.
+      reason: z.union([CancelReasonSchema, z.null()]),
+      note: z.union([z.string(), z.null()]),
+    })
+    .strict(),
   z.object({ eventType: z.literal('run_created'), at, roadRunId: z.guid() }).strict(),
   z.object({ eventType: z.literal('run_started'), at, roadRunId: z.guid() }).strict(),
   z.object({ eventType: z.literal('run_completed'), at, roadRunId: z.guid() }).strict(),
-  z.object({
-    eventType: z.literal('stop_arrived'), at,
-    stopSequence: seq, stopType: z.string().min(1),
-  }).strict(),
-  z.object({
-    eventType: z.literal('stop_departed'), at,
-    stopSequence: seq, stopType: z.string().min(1),
-  }).strict(),
-  z.object({
-    eventType: z.literal('manifest_negotiated'), at,
-    manifestId: z.guid(),
-    // null => legacy client sent no stop ref at negotiate (back-compat truth,
-    // surfaced honestly instead of hidden — the XTT.06-006 lesson).
-    boundStopSequence: z.union([seq, z.null()]),
-  }).strict(),
-  z.object({
-    eventType: z.literal('manifest_committed'), at,
-    manifestId: z.guid(),
-    boundStopSequence: z.union([seq, z.null()]),
-  }).strict(),
-  z.object({
-    eventType: z.literal('manifest_rejected'), at,
-    manifestId: z.guid(),
-    boundStopSequence: z.union([seq, z.null()]),
-    reasonText: z.union([z.string(), z.null()]),
-  }).strict(),
+  z
+    .object({
+      eventType: z.literal('stop_arrived'),
+      at,
+      stopSequence: seq,
+      stopType: z.string().min(1),
+    })
+    .strict(),
+  z
+    .object({
+      eventType: z.literal('stop_departed'),
+      at,
+      stopSequence: seq,
+      stopType: z.string().min(1),
+    })
+    .strict(),
+  z
+    .object({
+      eventType: z.literal('manifest_negotiated'),
+      at,
+      manifestId: z.guid(),
+      // null => legacy client sent no stop ref at negotiate (back-compat truth,
+      // surfaced honestly instead of hidden — the XTT.06-006 lesson).
+      boundStopSequence: z.union([seq, z.null()]),
+    })
+    .strict(),
+  z
+    .object({
+      eventType: z.literal('manifest_committed'),
+      at,
+      manifestId: z.guid(),
+      boundStopSequence: z.union([seq, z.null()]),
+    })
+    .strict(),
+  z
+    .object({
+      eventType: z.literal('manifest_rejected'),
+      at,
+      manifestId: z.guid(),
+      boundStopSequence: z.union([seq, z.null()]),
+      reasonText: z.union([z.string(), z.null()]),
+    })
+    .strict(),
 ]);
 export type OrderTimelineEvent = z.infer<typeof OrderTimelineEventSchema>;
 
 /** The endpoint response: the order identity + its events sorted by `at` asc. */
-export const OrderTimelineSchema = z.object({
-  externalRef: z.string().min(1),
-  transportOrderId: z.guid(),
-  events: z.array(OrderTimelineEventSchema),
-}).strict();
+export const OrderTimelineSchema = z
+  .object({
+    externalRef: z.string().min(1),
+    transportOrderId: z.guid(),
+    events: z.array(OrderTimelineEventSchema),
+  })
+  .strict();
 export type OrderTimeline = z.infer<typeof OrderTimelineSchema>;

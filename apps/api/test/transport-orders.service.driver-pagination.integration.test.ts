@@ -28,7 +28,11 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { TransportOrdersService } from '../src/transport-orders/transport-orders.service.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { withTxIsolation, type TestTx } from './helpers/with-tx-isolation.js';
 import { driver, vehicle, customer } from '../src/database/schema/reference.js';
 import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
@@ -38,20 +42,32 @@ import { DriverCompletedPageResponseSchema } from '@fleet/sync-protocol';
 
 let testDb: PgliteTestDb;
 
-async function seedActivePair(tx: TestTx, op: ReturnType<typeof createOperatorContext>): Promise<{
-  operatorId: string; vehicleId: string;
+async function seedActivePair(
+  tx: TestTx,
+  op: ReturnType<typeof createOperatorContext>,
+): Promise<{
+  operatorId: string;
+  vehicleId: string;
 }> {
   const operatorId = op.operatorId;
   const tn = {
-    companyId: op.companyId, businessUnitId: op.businessUnitId,
-    depotId: op.depotId, legalEntityId: op.legalEntityId,
+    companyId: op.companyId,
+    businessUnitId: op.businessUnitId,
+    depotId: op.depotId,
+    legalEntityId: op.legalEntityId,
   };
-  const [d] = await tx.insert(driver).values({ ...tn, fullName: 'DP', operatorId })
+  const [d] = await tx
+    .insert(driver)
+    .values({ ...tn, fullName: 'DP', operatorId })
     .returning({ driverId: driver.driverId });
-  const [v] = await tx.insert(vehicle).values({ ...tn, plate: 'DP-' + randomUUID().slice(0, 4) })
+  const [v] = await tx
+    .insert(vehicle)
+    .values({ ...tn, plate: 'DP-' + randomUUID().slice(0, 4) })
     .returning({ vehicleId: vehicle.vehicleId });
   if (d === undefined || v === undefined) throw new Error('seed failed');
-  await tx.insert(driverVehicleAssignment).values({ ...tn, driverId: d.driverId, vehicleId: v.vehicleId });
+  await tx
+    .insert(driverVehicleAssignment)
+    .values({ ...tn, driverId: d.driverId, vehicleId: v.vehicleId });
   return { operatorId, vehicleId: v.vehicleId };
 }
 
@@ -72,20 +88,26 @@ async function orderedRunIds(tx: TestTx, operatorId: string): Promise<readonly s
 
 // Complete ALL road runs for an operator at one timestamp (Drizzle builder).
 async function completeAll(tx: TestTx, operatorId: string, completedAtIso: string): Promise<void> {
-  await tx.update(roadRun)
+  await tx
+    .update(roadRun)
     .set({ state: 'completed', completedAt: new Date(completedAtIso) })
     .where(eq(roadRun.assignedOperatorId, operatorId));
 }
 
 // Complete each run in creation order with a DISTINCT real ISO completedAt so
 // newest-first ordering is deterministic. isoList[i] applies to the i-th oldest.
-async function completeEachDistinct(tx: TestTx, operatorId: string, isoList: readonly string[]): Promise<void> {
+async function completeEachDistinct(
+  tx: TestTx,
+  operatorId: string,
+  isoList: readonly string[],
+): Promise<void> {
   const ids = await orderedRunIds(tx, operatorId);
   for (let i = 0; i < ids.length; i += 1) {
     const iso = isoList[i];
     const id = ids[i];
     if (iso === undefined || id === undefined) continue;
-    await tx.update(roadRun)
+    await tx
+      .update(roadRun)
       .set({ state: 'completed', completedAt: new Date(iso) })
       .where(eq(roadRun.roadRunId, id));
   }
@@ -93,34 +115,57 @@ async function completeEachDistinct(tx: TestTx, operatorId: string, isoList: rea
 
 // Complete ONLY the newest run (latest planned_start_at), leaving older runs
 // planned. Real ISO -> Date; no sentinel strings.
-async function completeNewest(tx: TestTx, operatorId: string, completedAtIso: string): Promise<void> {
+async function completeNewest(
+  tx: TestTx,
+  operatorId: string,
+  completedAtIso: string,
+): Promise<void> {
   const ids = await orderedRunIds(tx, operatorId);
   const newestId = ids[ids.length - 1];
   if (newestId === undefined) return;
-  await tx.update(roadRun)
+  await tx
+    .update(roadRun)
     .set({ state: 'completed', completedAt: new Date(completedAtIso) })
     .where(eq(roadRun.roadRunId, newestId));
 }
 
 describe('@fleet/api - TransportOrdersService driver pagination (RED)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
 
   it('(a) listAssigned returns only active runs — completed runs are excluded', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const svc = new TransportOrdersService(tx as never);
       const op = createOperatorContext();
       const { operatorId, vehicleId } = await seedActivePair(tx, op);
-      await svc.create({
-        externalRef: 'TO-ACTIVE',
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: { plannedStartAt: '2026-06-01T07:00:00.000Z', assignedOperatorId: operatorId, assignedAssetId: vehicleId },
-      }, op);
-      await svc.create({
-        externalRef: 'TO-DONE',
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: { plannedStartAt: '2026-06-02T07:00:00.000Z', assignedOperatorId: operatorId, assignedAssetId: vehicleId },
-      }, op);
+      await svc.create(
+        {
+          externalRef: 'TO-ACTIVE',
+          stops: [{ sequence: 1, stopType: 'pickup' }],
+          roadRun: {
+            plannedStartAt: '2026-06-01T07:00:00.000Z',
+            assignedOperatorId: operatorId,
+            assignedAssetId: vehicleId,
+          },
+        },
+        op,
+      );
+      await svc.create(
+        {
+          externalRef: 'TO-DONE',
+          stops: [{ sequence: 1, stopType: 'pickup' }],
+          roadRun: {
+            plannedStartAt: '2026-06-02T07:00:00.000Z',
+            assignedOperatorId: operatorId,
+            assignedAssetId: vehicleId,
+          },
+        },
+        op,
+      );
       // complete only the newer run (day 02), leaving day 01 planned
       await completeNewest(tx, operatorId, '2026-06-12T09:00:00.000Z');
       const active = await svc.listAssigned(op);
@@ -137,11 +182,18 @@ describe('@fleet/api - TransportOrdersService driver pagination (RED)', () => {
       const op = createOperatorContext();
       const { operatorId, vehicleId } = await seedActivePair(tx, op);
       for (let i = 1; i <= 3; i += 1) {
-        await svc.create({
-          externalRef: 'TO-C' + String(i),
-          stops: [{ sequence: 1, stopType: 'pickup' }],
-          roadRun: { plannedStartAt: '2026-06-0' + String(i) + 'T07:00:00.000Z', assignedOperatorId: operatorId, assignedAssetId: vehicleId },
-        }, op);
+        await svc.create(
+          {
+            externalRef: 'TO-C' + String(i),
+            stops: [{ sequence: 1, stopType: 'pickup' }],
+            roadRun: {
+              plannedStartAt: '2026-06-0' + String(i) + 'T07:00:00.000Z',
+              assignedOperatorId: operatorId,
+              assignedAssetId: vehicleId,
+            },
+          },
+          op,
+        );
       }
       await completeEachDistinct(tx, operatorId, [
         '2026-06-10T09:00:00.000Z',
@@ -164,11 +216,18 @@ describe('@fleet/api - TransportOrdersService driver pagination (RED)', () => {
       const op = createOperatorContext();
       const { operatorId, vehicleId } = await seedActivePair(tx, op);
       for (let i = 1; i <= 3; i += 1) {
-        await svc.create({
-          externalRef: 'TO-P' + String(i),
-          stops: [{ sequence: 1, stopType: 'pickup' }],
-          roadRun: { plannedStartAt: '2026-06-0' + String(i) + 'T07:00:00.000Z', assignedOperatorId: operatorId, assignedAssetId: vehicleId },
-        }, op);
+        await svc.create(
+          {
+            externalRef: 'TO-P' + String(i),
+            stops: [{ sequence: 1, stopType: 'pickup' }],
+            roadRun: {
+              plannedStartAt: '2026-06-0' + String(i) + 'T07:00:00.000Z',
+              assignedOperatorId: operatorId,
+              assignedAssetId: vehicleId,
+            },
+          },
+          op,
+        );
       }
       await completeAll(tx, operatorId, '2026-06-12T09:00:00.000Z');
       const p1 = await svc.listCompleted(op, { page: 1, pageSize: 2 });
@@ -187,23 +246,36 @@ describe('@fleet/api - TransportOrdersService driver pagination (RED)', () => {
       const svc = new TransportOrdersService(tx as never);
       const op = createOperatorContext();
       const { operatorId, vehicleId } = await seedActivePair(tx, op);
-      const tn = { companyId: op.companyId, businessUnitId: op.businessUnitId, depotId: op.depotId, legalEntityId: op.legalEntityId };
+      const tn = {
+        companyId: op.companyId,
+        businessUnitId: op.businessUnitId,
+        depotId: op.depotId,
+        legalEntityId: op.legalEntityId,
+      };
       const daiThanhId = '00000000-0000-0000-0000-0000000000e1';
       const otherId = '00000000-0000-0000-0000-0000000000e2';
       await tx.insert(customer).values([
         { ...tn, customerId: daiThanhId, name: 'ĐẠI THÀNH' },
         { ...tn, customerId: otherId, name: 'HIỀN NGUYỄN' },
       ]);
-      await svc.create({
-        externalRef: 'TO-S1', customerId: daiThanhId,
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: { assignedOperatorId: operatorId, assignedAssetId: vehicleId },
-      }, op);
-      await svc.create({
-        externalRef: 'TO-S2', customerId: otherId,
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: { assignedOperatorId: operatorId, assignedAssetId: vehicleId },
-      }, op);
+      await svc.create(
+        {
+          externalRef: 'TO-S1',
+          customerId: daiThanhId,
+          stops: [{ sequence: 1, stopType: 'pickup' }],
+          roadRun: { assignedOperatorId: operatorId, assignedAssetId: vehicleId },
+        },
+        op,
+      );
+      await svc.create(
+        {
+          externalRef: 'TO-S2',
+          customerId: otherId,
+          stops: [{ sequence: 1, stopType: 'pickup' }],
+          roadRun: { assignedOperatorId: operatorId, assignedAssetId: vehicleId },
+        },
+        op,
+      );
       await completeAll(tx, operatorId, '2026-06-12T09:00:00.000Z');
       const hit = await svc.listCompleted(op, { page: 1, pageSize: 20, search: 'đại thành' });
       expect(hit.total).toBe(1);
@@ -216,11 +288,14 @@ describe('@fleet/api - TransportOrdersService driver pagination (RED)', () => {
       const svc = new TransportOrdersService(tx as never);
       const op = createOperatorContext();
       const { operatorId, vehicleId } = await seedActivePair(tx, op);
-      await svc.create({
-        externalRef: 'TO-TH',
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: { assignedOperatorId: operatorId, assignedAssetId: vehicleId },
-      }, op);
+      await svc.create(
+        {
+          externalRef: 'TO-TH',
+          stops: [{ sequence: 1, stopType: 'pickup' }],
+          roadRun: { assignedOperatorId: operatorId, assignedAssetId: vehicleId },
+        },
+        op,
+      );
       await completeAll(tx, operatorId, '2026-06-12T09:00:00.000Z');
       const history = await svc.tripHistory(op);
       const totalTrips = history.months.reduce((n, m) => n + m.trips.length, 0);
@@ -234,11 +309,14 @@ describe('@fleet/api - TransportOrdersService driver pagination (RED)', () => {
       const svc = new TransportOrdersService(tx as never);
       const op = createOperatorContext();
       const { operatorId, vehicleId } = await seedActivePair(tx, op);
-      const created = await svc.create({
-        externalRef: 'TO-FIND',
-        stops: [{ sequence: 1, stopType: 'pickup' }],
-        roadRun: { assignedOperatorId: operatorId, assignedAssetId: vehicleId },
-      }, op);
+      const created = await svc.create(
+        {
+          externalRef: 'TO-FIND',
+          stops: [{ sequence: 1, stopType: 'pickup' }],
+          roadRun: { assignedOperatorId: operatorId, assignedAssetId: vehicleId },
+        },
+        op,
+      );
       await completeAll(tx, operatorId, '2026-06-12T09:00:00.000Z');
       const found = await svc.findById(created.transportOrderId, op);
       expect(found.transportOrderId).toBe(created.transportOrderId);

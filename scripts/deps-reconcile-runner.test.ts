@@ -55,7 +55,10 @@ const DIVERGENT: SpawnOutcome = {
   }),
   stderr: '',
 };
-const STALE = { kind: 'deps-stale', reason: 'The value of the overrides setting has changed' } as const;
+const STALE = {
+  kind: 'deps-stale',
+  reason: 'The value of the overrides setting has changed',
+} as const;
 const BLOCKED = { kind: 'toolchain-blocked', reason: 'pnpm v11.13.0 is a broken release' } as const;
 const FRESH = { kind: 'deps-ok' } as const;
 describe('runReconcile: consent gates every mutation', () => {
@@ -84,8 +87,10 @@ describe('runReconcile: consent gates every mutation', () => {
       fn,
       { execute: true },
     );
-    expect(calls.length).toBe(2);
-    expect(calls.map((c) => c.cwd)).toEqual(['/wt/a', '/wt/b']);
+    // TWO spawns per drifted worktree since verify-after landed: the heal,
+    // then the re-probe that decides whether it actually converged.
+    expect(calls.length).toBe(4);
+    expect(calls.map((c) => c.cwd)).toEqual(['/wt/a', '/wt/a', '/wt/b', '/wt/b']);
   });
 });
 describe('runReconcile: never touches what it must not touch', () => {
@@ -115,7 +120,9 @@ describe('runReconcile: never touches what it must not touch', () => {
       fn,
       { execute: true },
     );
-    expect(calls.map((c) => c.cwd)).toEqual(['/wt/drift']);
+    // Heal + verify, both scoped to the drifted worktree; the clean ones are
+    // still never touched, which is what this case exists to prove.
+    expect(calls.map((c) => c.cwd)).toEqual(['/wt/drift', '/wt/drift']);
     expect(report.summary).toEqual({ reconciled: 1, divergent: 0, failed: 0, skipped: 2 });
   });
 });
@@ -188,10 +195,7 @@ describe('runReconcile: classification and exit', () => {
       fn,
       { execute: true },
     );
-    expect(
-      n,
-      'one bad worktree must not abandon the other 44',
-      ).toBe(2);
+    expect(n, 'one bad worktree must not abandon the other 44').toBe(3);
     expect(r.summary).toEqual({ reconciled: 1, divergent: 0, failed: 1, skipped: 0 });
   });
   it('names every worktree it acted on so the report is auditable', () => {

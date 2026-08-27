@@ -53,7 +53,10 @@ const baseRun: DispatchBoardRoadRun = {
 const refs = {
   drivers: [{ id: 'op-1', label: 'Driver 1' }],
   vehicles: [{ id: 'veh-1', label: '62H 05194' }],
-  customers: [], cargoTypes: [], pickupWarehouses: [], deliveryWarehouses: [],
+  customers: [],
+  cargoTypes: [],
+  pickupWarehouses: [],
+  deliveryWarehouses: [],
   driverVehicleAssignments: [{ operatorId: 'op-1', vehicleId: 'veh-1' }],
   nextOrderRef: '',
 };
@@ -62,11 +65,20 @@ const { DispatchView } = await import('../src/features/dispatch/DispatchView');
 
 describe('DispatchView — no re-render loop while projection lags', () => {
   it('reaches a stable fixed point after pushing an optimistic row when initialRuns keeps arriving as a fresh reference without the new ref', () => {
-    let captured: ((ref: string, op: { operatorId: string; assetId: string }) => void) | null = null;
+    let captured: ((ref: string, op: { operatorId: string; assetId: string }) => void) | null =
+      null;
     const { rerender } = render(
-      <DispatchView initialRuns={[{ ...baseRun }]} refs={refs} onMountForTest={(push) => { captured = push; }} />,
+      <DispatchView
+        initialRuns={[{ ...baseRun }]}
+        refs={refs}
+        onMountForTest={(push) => {
+          captured = push;
+        }}
+      />,
     );
-    act(() => { if (captured) captured('XTT.05-002', { operatorId: 'op-1', assetId: 'veh-1' }); });
+    act(() => {
+      if (captured) captured('XTT.05-002', { operatorId: 'op-1', assetId: 'veh-1' });
+    });
     expect(screen.queryAllByTestId('dispatch-board-row-XTT.05-002').length).toBe(1);
 
     // Simulate several router.refresh() cycles where the projection has NOT yet
@@ -74,7 +86,17 @@ describe('DispatchView — no re-render loop while projection lags', () => {
     // lacking XTT.05-002. A converging effect must not keep mutating state.
     const origError = console.error;
     for (let i = 0; i < 5; i++) {
-      act(() => { rerender(<DispatchView initialRuns={[{ ...baseRun }]} refs={refs} onMountForTest={() => { /* noop */ }} />); });
+      act(() => {
+        rerender(
+          <DispatchView
+            initialRuns={[{ ...baseRun }]}
+            refs={refs}
+            onMountForTest={() => {
+              /* noop */
+            }}
+          />,
+        );
+      });
     }
     console.error = origError;
     // The optimistic row must still be present exactly once (not duplicated,
@@ -85,20 +107,44 @@ describe('DispatchView — no re-render loop while projection lags', () => {
   it('does not exceed React maximum update depth after an optimistic push with lagging projection', () => {
     const errors: string[] = [];
     const orig = console.error;
-    console.error = (...args: unknown[]) => { errors.push(String(args[0])); };
+    console.error = (...args: unknown[]) => {
+      errors.push(String(args[0]));
+    };
     try {
-      let captured: ((ref: string, op: { operatorId: string; assetId: string }) => void) | null = null;
+      let captured: ((ref: string, op: { operatorId: string; assetId: string }) => void) | null =
+        null;
       const { rerender } = render(
-        <DispatchView initialRuns={[{ ...baseRun }]} refs={refs} onMountForTest={(push) => { captured = push; }} />,
+        <DispatchView
+          initialRuns={[{ ...baseRun }]}
+          refs={refs}
+          onMountForTest={(push) => {
+            captured = push;
+          }}
+        />,
       );
-      act(() => { if (captured) captured('XTT.05-003', { operatorId: 'op-1', assetId: 'veh-1' }); });
+      act(() => {
+        if (captured) captured('XTT.05-003', { operatorId: 'op-1', assetId: 'veh-1' });
+      });
       for (let i = 0; i < 10; i++) {
-        act(() => { rerender(<DispatchView initialRuns={[{ ...baseRun }]} refs={refs} onMountForTest={() => { /* noop */ }} />); });
+        act(() => {
+          rerender(
+            <DispatchView
+              initialRuns={[{ ...baseRun }]}
+              refs={refs}
+              onMountForTest={() => {
+                /* noop */
+              }}
+            />,
+          );
+        });
       }
     } finally {
       console.error = orig;
     }
     const depthWarn = errors.find((e) => e.includes('Maximum update depth'));
-    expect(depthWarn, 'React must not warn about maximum update depth (effect loop)').toBeUndefined();
+    expect(
+      depthWarn,
+      'React must not warn about maximum update depth (effect loop)',
+    ).toBeUndefined();
   });
 });

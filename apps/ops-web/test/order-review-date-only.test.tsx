@@ -6,7 +6,9 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { OrderReview } from '@/features/dispatch/OrderReview';
 import type { ListAssignedRow } from '@/features/dispatch/types';
-afterEach(() => { cleanup(); });
+afterEach(() => {
+  cleanup();
+});
 const row: ListAssignedRow = {
   transportOrderId: '11111111-1111-1111-1111-111111111111',
   externalRef: 'XTT.05-001',
@@ -26,7 +28,15 @@ const row: ListAssignedRow = {
   canCancel: true,
   cancelBlockedReason: null,
   stops: [
-    { sequence: 1, stopType: 'pickup', plannedAt: '2026-05-31T11:20:00.000Z', warehouseName: 'Kho A', arrivedAt: null, departedAt: null },
+    {
+      sequence: 1,
+      stopType: 'pickup',
+      plannedAt: '2026-05-31T11:20:00.000Z',
+      warehouseName: 'Kho A',
+      arrivedAt: null,
+      departedAt: null,
+      proof: null,
+    },
   ],
 };
 describe('OrderReview date-only display', () => {

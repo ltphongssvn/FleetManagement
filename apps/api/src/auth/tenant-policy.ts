@@ -27,7 +27,9 @@ export class TenantPolicy {
     const rows = await this.db
       .select({ id: deviceRegistry.deviceId })
       .from(deviceRegistry)
-      .where(and(eq(deviceRegistry.operatorId, operatorId), eq(deviceRegistry.companyId, op.companyId)))
+      .where(
+        and(eq(deviceRegistry.operatorId, operatorId), eq(deviceRegistry.companyId, op.companyId)),
+      )
       .limit(1);
     if (rows.length === 0) throw new CrossTenantError('operator', operatorId);
   }
@@ -43,7 +45,11 @@ export class TenantPolicy {
   }
 
   /** Dispatches per aggregateType. Unknown types pass (other audits handle). */
-  async assertAggregateInTenant(aggregateType: string, aggregateId: string, op: OperatorContext): Promise<void> {
+  async assertAggregateInTenant(
+    aggregateType: string,
+    aggregateId: string,
+    op: OperatorContext,
+  ): Promise<void> {
     if (aggregateType === 'road_run') {
       await this.assertRoadRunInTenant(aggregateId, op);
     }

@@ -51,14 +51,19 @@ describe('@fleet/sync-protocol - NegotiateUploadResponseSchema', () => {
     expect(parsed.bucket).toBe('fleet-pilot-artifacts');
   });
   it('rejects a non-url url', () => {
-    expect(NegotiateUploadResponseSchema.safeParse({ ...negotiateResponse, url: 'not-a-url' }).success).toBe(false);
+    expect(
+      NegotiateUploadResponseSchema.safeParse({ ...negotiateResponse, url: 'not-a-url' }).success,
+    ).toBe(false);
   });
   it('rejects a missing uploadSessionId', () => {
     const { uploadSessionId: _omit, ...bad } = negotiateResponse;
     expect(NegotiateUploadResponseSchema.safeParse(bad).success).toBe(false);
   });
   it('accepts a plain-string expiresAt (EXPAND-only: not re-validated as datetime)', () => {
-    expect(NegotiateUploadResponseSchema.safeParse({ ...negotiateResponse, expiresAt: 'whenever' }).success).toBe(true);
+    expect(
+      NegotiateUploadResponseSchema.safeParse({ ...negotiateResponse, expiresAt: 'whenever' })
+        .success,
+    ).toBe(true);
   });
 });
 
@@ -73,9 +78,13 @@ describe('@fleet/sync-protocol - CommitUploadResponseSchema', () => {
     expect(CommitUploadResponseSchema.parse(withReason).state).toBe('verifying');
   });
   it('rejects a wrong state literal', () => {
-    expect(CommitUploadResponseSchema.safeParse({ ...commitResponse, state: 'done' }).success).toBe(false);
+    expect(CommitUploadResponseSchema.safeParse({ ...commitResponse, state: 'done' }).success).toBe(
+      false,
+    );
   });
   it('rejects a non-uuid manifestId', () => {
-    expect(CommitUploadResponseSchema.safeParse({ ...commitResponse, manifestId: 'bad' }).success).toBe(false);
+    expect(
+      CommitUploadResponseSchema.safeParse({ ...commitResponse, manifestId: 'bad' }).success,
+    ).toBe(false);
   });
 });

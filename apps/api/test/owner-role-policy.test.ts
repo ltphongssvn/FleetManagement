@@ -3,10 +3,7 @@
 // identity, decide whether the owner dashboard may be read. Keeps the HTTP
 // guard a thin adapter (mirrors step-up-policy vs step-up.guard split).
 import { describe, it, expect } from 'vitest';
-import {
-  FLEET_OWNER_ROLE,
-  decideOwnerAccess,
-} from '../src/owner/owner-role-policy.js';
+import { FLEET_OWNER_ROLE, decideOwnerAccess } from '../src/owner/owner-role-policy.js';
 
 describe('@fleet/api - decideOwnerAccess', () => {
   it('grants when the fleet-owner role is present', () => {
@@ -14,8 +11,9 @@ describe('@fleet/api - decideOwnerAccess', () => {
   });
 
   it('grants when fleet-owner is among several roles', () => {
-    expect(decideOwnerAccess(['offline_access', FLEET_OWNER_ROLE, 'uma_authorization']))
-      .toEqual({ outcome: 'granted' });
+    expect(decideOwnerAccess(['offline_access', FLEET_OWNER_ROLE, 'uma_authorization'])).toEqual({
+      outcome: 'granted',
+    });
   });
 
   it('denies when the role is absent', () => {
@@ -31,7 +29,8 @@ describe('@fleet/api - decideOwnerAccess', () => {
   });
 
   it('does not treat a lookalike role as owner', () => {
-    expect(decideOwnerAccess(['fleet-owner-readonly', 'not-fleet-owner']))
-      .toEqual({ outcome: 'denied' });
+    expect(decideOwnerAccess(['fleet-owner-readonly', 'not-fleet-owner'])).toEqual({
+      outcome: 'denied',
+    });
   });
 });

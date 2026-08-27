@@ -9,7 +9,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { AttestationRepositoryImpl } from '../src/device/attestation.repository.js';
 import { deviceRegistry } from '../src/database/schema/device.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 
 describe('AttestationRepositoryImpl (pglite)', () => {
   let testDb: PgliteTestDb;
@@ -19,15 +23,18 @@ describe('AttestationRepositoryImpl (pglite)', () => {
   beforeEach(async () => {
     testDb = await startPgliteTestDb();
     repo = new AttestationRepositoryImpl(testDb.db as never);
-    const r = await testDb.db.insert(deviceRegistry).values({
-      companyId: '00000000-0000-0000-0000-000000000001',
-      businessUnitId: '00000000-0000-0000-0000-000000000002',
-      depotId: '00000000-0000-0000-0000-000000000003',
-      legalEntityId: '00000000-0000-0000-0000-000000000004',
-      operatorId: '00000000-0000-0000-0000-0000000000a1',
-      platform: 'android',
-      appVersion: '1.0.0',
-    }).returning({ deviceId: deviceRegistry.deviceId });
+    const r = await testDb.db
+      .insert(deviceRegistry)
+      .values({
+        companyId: '00000000-0000-0000-0000-000000000001',
+        businessUnitId: '00000000-0000-0000-0000-000000000002',
+        depotId: '00000000-0000-0000-0000-000000000003',
+        legalEntityId: '00000000-0000-0000-0000-000000000004',
+        operatorId: '00000000-0000-0000-0000-0000000000a1',
+        platform: 'android',
+        appVersion: '1.0.0',
+      })
+      .returning({ deviceId: deviceRegistry.deviceId });
     const inserted = r[0];
     if (inserted === undefined) throw new Error('insert returned no row');
     deviceId = inserted.deviceId;
@@ -47,7 +54,10 @@ describe('AttestationRepositoryImpl (pglite)', () => {
       environment: 'production',
       keyId: null,
     });
-    const rows = await testDb.db.select().from(deviceRegistry).where(eq(deviceRegistry.deviceId, deviceId));
+    const rows = await testDb.db
+      .select()
+      .from(deviceRegistry)
+      .where(eq(deviceRegistry.deviceId, deviceId));
     const row = rows[0];
     if (row === undefined) throw new Error('expected device row');
     expect(row.attestationPlatform).toBe('android');
@@ -69,7 +79,10 @@ describe('AttestationRepositoryImpl (pglite)', () => {
       environment: 'development',
       keyId: 'a2V5LWlk',
     });
-    const rows = await testDb.db.select().from(deviceRegistry).where(eq(deviceRegistry.deviceId, deviceId));
+    const rows = await testDb.db
+      .select()
+      .from(deviceRegistry)
+      .where(eq(deviceRegistry.deviceId, deviceId));
     const row = rows[0];
     if (row === undefined) throw new Error('expected device row');
     expect(row.attestationSecurityLevel).toBeNull();
@@ -78,14 +91,36 @@ describe('AttestationRepositoryImpl (pglite)', () => {
   });
 
   it('updates timestamp on each call (re-attestation refreshes freshness window)', async () => {
-    await repo.markAttestationVerified({ deviceId, platform: 'android', tokenHashHex: 'a'.repeat(64), publicKeySpkiBase64: 'eA==', securityLevel: 'strongbox', environment: 'production', keyId: null });
-    const firstRows = await testDb.db.select().from(deviceRegistry).where(eq(deviceRegistry.deviceId, deviceId));
+    await repo.markAttestationVerified({
+      deviceId,
+      platform: 'android',
+      tokenHashHex: 'a'.repeat(64),
+      publicKeySpkiBase64: 'eA==',
+      securityLevel: 'strongbox',
+      environment: 'production',
+      keyId: null,
+    });
+    const firstRows = await testDb.db
+      .select()
+      .from(deviceRegistry)
+      .where(eq(deviceRegistry.deviceId, deviceId));
     const firstRow = firstRows[0];
     if (firstRow === undefined) throw new Error('expected first device row');
     const first = firstRow.attestationVerifiedAt;
     await new Promise((r) => setTimeout(r, 10));
-    await repo.markAttestationVerified({ deviceId, platform: 'android', tokenHashHex: 'b'.repeat(64), publicKeySpkiBase64: 'eQ==', securityLevel: 'strongbox', environment: 'production', keyId: null });
-    const secondRows = await testDb.db.select().from(deviceRegistry).where(eq(deviceRegistry.deviceId, deviceId));
+    await repo.markAttestationVerified({
+      deviceId,
+      platform: 'android',
+      tokenHashHex: 'b'.repeat(64),
+      publicKeySpkiBase64: 'eQ==',
+      securityLevel: 'strongbox',
+      environment: 'production',
+      keyId: null,
+    });
+    const secondRows = await testDb.db
+      .select()
+      .from(deviceRegistry)
+      .where(eq(deviceRegistry.deviceId, deviceId));
     const secondRow = secondRows[0];
     if (secondRow === undefined) throw new Error('expected second device row');
     const second = secondRow.attestationVerifiedAt;

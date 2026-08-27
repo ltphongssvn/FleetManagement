@@ -7,5 +7,4 @@ import { ConfigClientController } from './config-client.controller.js';
   imports: [AuthModule],
   controllers: [ConfigClientController],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class ConfigClientModule {}

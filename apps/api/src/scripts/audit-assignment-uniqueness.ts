@@ -20,8 +20,6 @@ import { auditAssignmentUniqueness } from '../admin/assignment-uniqueness-audit.
 import { resolveCliScope } from './resolve-cli-scope.js';
 import { formatDbError } from './format-db-error.js';
 
-
-
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const introspect = argv.includes('--introspect');
@@ -42,7 +40,9 @@ async function main(): Promise<void> {
           AND i.relname LIKE 'dva_one_active_%'
         ORDER BY i.relname
       `);
-      process.stdout.write('ASSIGNMENT_INDEX_INTROSPECT ' + JSON.stringify(idx.rows, null, 2) + '\n');
+      process.stdout.write(
+        'ASSIGNMENT_INDEX_INTROSPECT ' + JSON.stringify(idx.rows, null, 2) + '\n',
+      );
       return;
     }
     const rowsRes = await db.execute(sql`
@@ -55,7 +55,9 @@ async function main(): Promise<void> {
         AND revoked_at IS NULL
     `);
     const report = auditAssignmentUniqueness(rowsRes.rows);
-    process.stdout.write('ASSIGNMENT_UNIQUENESS_RESULT ' + JSON.stringify({ scope, ...report }, null, 2) + '\n');
+    process.stdout.write(
+      'ASSIGNMENT_UNIQUENESS_RESULT ' + JSON.stringify({ scope, ...report }, null, 2) + '\n',
+    );
   } finally {
     await app.close();
   }

@@ -96,12 +96,14 @@ type PnpmNdjsonRecord = z.infer<typeof PnpmNdjsonRecordSchema>;
 // into one field would hide from the operator which of those just happened.
 type HealSource =
   | 'exit-zero'
+  | 're-probe'
   | 'ndjson'
   | 'prose-fallback'
   | 'timeout'
   | 'unparseable';
 export type HealResult =
-  | { kind: 'reconciled'; source: 'exit-zero' }
+  | { kind: 'heal-attempted'; source: 'exit-zero' }
+  | { kind: 'reconciled'; source: 're-probe' }
   | { kind: 'divergent'; source: HealSource; reason: string }
   | { kind: 'failed'; source: HealSource; reason: string };
 const OUTDATED = 'ERR_PNPM_OUTDATED_LOCKFILE';
@@ -123,11 +125,11 @@ function findRecord(lines: readonly string[]): PnpmNdjsonRecord | null {
 // FAILS CLOSED, mirroring gate:agent and interpretDepsProbe: only an explicit
 // exit 0 is a pass. A null status (timeout SIGTERM) and unparseable output both
 // resolve to failed, never to reconciled.
-export function interpretHealResult(
-  exitCode: number | null,
-  output: string,
-): HealResult {
-  if (exitCode === 0) return { kind: 'reconciled', source: 'exit-zero' };
+export function interpretHealResult(exitCode: number | null, output: string): HealResult {
+  // Exit 0 means the install ATTEMPT completed, NOT that the tree converged.
+  // The caller must re-probe and pass the result to verifyHeal; this branch
+  // deliberately no longer returns a reconciled verdict of its own.
+  if (exitCode === 0) return { kind: 'heal-attempted', source: 'exit-zero' };
   if (exitCode === null) {
     return { kind: 'failed', source: 'timeout', reason: 'heal timed out and was killed' };
   }
@@ -150,6 +152,39 @@ export function interpretHealResult(
     reason: first ?? 'heal failed with no diagnostic output',
   };
 }
+// ---------------------------- VERIFY-AFTER ---------------------------------
+// A heal that EXITS ZERO is not a heal that WORKED. pnpm can exit 0 having
+// pruned the stale tree without completing the swap, which left worktrees
+// with no runnable turbo while this sweep printed reconciled -- three times
+// in one session, each needing a hand-run second install.
+//
+// So the verdict is taken from RE-READING the tree, never from the install's
+// exit code. That is the rule stack:stop and docker:reclaim already state in
+// their own descriptions, and the 2026 remediation loop everywhere else:
+// detect -> remediate -> DETECT AGAIN. The detector is interpretDepsProbe,
+// the same one the sweep runs BEFORE healing, so nothing new decides here.
+//
+// FAILS CLOSED: only an explicit deps-ok re-read converts an exit-zero heal
+// into reconciled. A tree that is still stale, or a probe that cannot answer,
+// is reported as FAILED and named, because the operator must know the
+// worktree is still unusable rather than believe it was fixed.
+// Return type is DELIBERATELY narrower than HealResult: a re-probe can only
+// conclude reconciled or failed, never divergent (a lockfile disagreement is
+// a property of the heal attempt, not of the tree after it) and never
+// heal-attempted (that is the input, not an outcome). Naming the narrow type
+// lets the caller destructure reason without a cast.
+export type VerifyResult =
+  | { kind: 'reconciled'; source: 're-probe' }
+  | { kind: 'failed'; source: 're-probe'; reason: string };
+export function verifyHeal(after: DepsProbe): VerifyResult {
+  if (after.kind === 'deps-ok') return { kind: 'reconciled', source: 're-probe' };
+  return {
+    kind: 'failed',
+    source: 're-probe',
+    reason: 'heal exited 0 but the tree is STILL not reconciled: ' + after.reason,
+  };
+}
+
 // ---------------------------- EXIT -----------------------------------------
 // GRADED, and the vocabulary lives HERE so the driver cannot invent its own.
 // The two failure modes need OPPOSITE responses -- divergent means go fix a

@@ -7,13 +7,27 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConflictException } from '@nestjs/common';
 import { DeviceService } from '../src/device/device.service.js';
 import type * as schema from '../src/database/schema/index.js';
-import { TEST_TENANT, TEST_DEVICE_ID, TEST_OPERATOR_ID, makeIssueInput } from './fixtures/device.fixtures.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
+import {
+  TEST_TENANT,
+  TEST_DEVICE_ID,
+  TEST_OPERATOR_ID,
+  makeIssueInput,
+} from './fixtures/device.fixtures.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+  truncateAllTables,
+} from './helpers/migrate-test-db.js';
 
 let testDb: MigratedTestDb;
 let service: DeviceService;
 
-async function seedDevice(d: NodePgDatabase<typeof schema>, deviceId: string, operatorId: string): Promise<void> {
+async function seedDevice(
+  d: NodePgDatabase<typeof schema>,
+  deviceId: string,
+  operatorId: string,
+): Promise<void> {
   await d.execute(sql`
     INSERT INTO device_registry (device_id, company_id, business_unit_id, depot_id, legal_entity_id, operator_id, platform, app_version)
     VALUES (${deviceId}::uuid, ${TEST_TENANT.companyId}::uuid, ${TEST_TENANT.businessUnitId}::uuid, ${TEST_TENANT.depotId}::uuid, ${TEST_TENANT.legalEntityId}::uuid, ${operatorId}::uuid, 'ios', '0.1.0')

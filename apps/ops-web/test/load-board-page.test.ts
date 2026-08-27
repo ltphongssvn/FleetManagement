@@ -67,17 +67,26 @@ describe('loadDispatchBoardPage', () => {
     expect(url).toContain('group=finished');
     expect(url).toContain('page=2');
     expect(url).toContain('pageSize=10');
-    expect(opts).toMatchObject({ cache: 'no-store', headers: { Authorization: 'Bearer test-token' } });
+    expect(opts).toMatchObject({
+      cache: 'no-store',
+      headers: { Authorization: 'Bearer test-token' },
+    });
   });
 
   it('returns the full pagination envelope parsed by the SSOT schema', async () => {
     Object.assign(process.env, { NODE_ENV: 'development' });
     process.env['FLEET_API_URL'] = 'http://api.test';
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve(envelope({ page: 3, pageSize: 2, total: 5, totalPages: 3, hasMore: false, data: [] })),
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve(
+            envelope({ page: 3, pageSize: 2, total: 5, totalPages: 3, hasMore: false, data: [] }),
+          ),
+      }),
+    );
     const { loadDispatchBoardPage } = await import('../src/features/dispatch/load-board-page.js');
     const result = await loadDispatchBoardPage({ group: 'active', page: 3, pageSize: 2 });
     expect(result.page).toBe(3);
@@ -108,24 +117,36 @@ describe('loadDispatchBoardPage', () => {
   it('throws in production when api response shape is invalid', async () => {
     Object.assign(process.env, { NODE_ENV: 'production' });
     process.env['FLEET_API_URL'] = 'http://api.test';
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ wrong: 'shape' }),
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ wrong: 'shape' }),
+      }),
+    );
     const { loadDispatchBoardPage } = await import('../src/features/dispatch/load-board-page.js');
-    await expect(loadDispatchBoardPage({ group: 'active', page: 1, pageSize: 20 })).rejects.toThrow(/shape invalid/);
+    await expect(loadDispatchBoardPage({ group: 'active', page: 1, pageSize: 20 })).rejects.toThrow(
+      /shape invalid/,
+    );
   });
 
   it('redirects to /login in production when api returns 401', async () => {
     Object.assign(process.env, { NODE_ENV: 'production' });
     process.env['FLEET_API_URL'] = 'http://api.test';
     cookieGet.mockReturnValueOnce({ value: 'expired-token' });
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, statusText: 'Unauthorized' }));
-    const redirectMock = vi.fn((u: string) => { throw new Error('NEXT_REDIRECT:' + u); });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, status: 401, statusText: 'Unauthorized' }),
+    );
+    const redirectMock = vi.fn((u: string) => {
+      throw new Error('NEXT_REDIRECT:' + u);
+    });
     vi.doMock('next/navigation', () => ({ redirect: redirectMock }));
     const { loadDispatchBoardPage } = await import('../src/features/dispatch/load-board-page.js');
-    await expect(loadDispatchBoardPage({ group: 'active', page: 1, pageSize: 20 })).rejects.toThrow('NEXT_REDIRECT:/login');
+    await expect(loadDispatchBoardPage({ group: 'active', page: 1, pageSize: 20 })).rejects.toThrow(
+      'NEXT_REDIRECT:/login',
+    );
     expect(redirectMock).toHaveBeenCalledWith('/login');
   });
 
@@ -133,7 +154,9 @@ describe('loadDispatchBoardPage', () => {
     Object.assign(process.env, { NODE_ENV: 'production' });
     delete process.env['FLEET_API_URL'];
     const { loadDispatchBoardPage } = await import('../src/features/dispatch/load-board-page.js');
-    await expect(loadDispatchBoardPage({ group: 'active', page: 1, pageSize: 20 })).rejects.toThrow('FLEET_API_URL');
+    await expect(loadDispatchBoardPage({ group: 'active', page: 1, pageSize: 20 })).rejects.toThrow(
+      'FLEET_API_URL',
+    );
   });
 
   it('returns an empty page in dev when FLEET_API_URL is unset', async () => {
@@ -151,10 +174,14 @@ describe('loadDispatchBoardPage', () => {
     Object.assign(process.env, { NODE_ENV: 'production' });
     process.env['FLEET_API_URL'] = 'http://api.test';
     cookieGet.mockReturnValueOnce(undefined as never);
-    const redirectMock = vi.fn((u: string) => { throw new Error('NEXT_REDIRECT:' + u); });
+    const redirectMock = vi.fn((u: string) => {
+      throw new Error('NEXT_REDIRECT:' + u);
+    });
     vi.doMock('next/navigation', () => ({ redirect: redirectMock }));
     const { loadDispatchBoardPage } = await import('../src/features/dispatch/load-board-page.js');
-    await expect(loadDispatchBoardPage({ group: 'active', page: 1, pageSize: 20 })).rejects.toThrow('NEXT_REDIRECT:/login');
+    await expect(loadDispatchBoardPage({ group: 'active', page: 1, pageSize: 20 })).rejects.toThrow(
+      'NEXT_REDIRECT:/login',
+    );
     expect(redirectMock).toHaveBeenCalledWith('/login');
   });
 
@@ -187,7 +214,10 @@ describe('loadDispatchBoardPage', () => {
   it('returns an empty page in dev when api returns 401 (no redirect outside prod)', async () => {
     Object.assign(process.env, { NODE_ENV: 'development' });
     process.env['FLEET_API_URL'] = 'http://api.test';
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, statusText: 'Unauthorized' }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, status: 401, statusText: 'Unauthorized' }),
+    );
     const { loadDispatchBoardPage } = await import('../src/features/dispatch/load-board-page.js');
     const result = await loadDispatchBoardPage({ group: 'active', page: 1, pageSize: 20 });
     expect(result.data).toEqual([]);
@@ -196,15 +226,23 @@ describe('loadDispatchBoardPage', () => {
   it('throws in production when api returns a non-401 error (e.g. 503)', async () => {
     Object.assign(process.env, { NODE_ENV: 'production' });
     process.env['FLEET_API_URL'] = 'http://api.test';
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503, statusText: 'Service Unavailable' }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, status: 503, statusText: 'Service Unavailable' }),
+    );
     const { loadDispatchBoardPage } = await import('../src/features/dispatch/load-board-page.js');
-    await expect(loadDispatchBoardPage({ group: 'active', page: 1, pageSize: 20 })).rejects.toThrow(/503/);
+    await expect(loadDispatchBoardPage({ group: 'active', page: 1, pageSize: 20 })).rejects.toThrow(
+      /503/,
+    );
   });
 
   it('returns an empty page in dev when api returns a non-401 error', async () => {
     Object.assign(process.env, { NODE_ENV: 'development' });
     process.env['FLEET_API_URL'] = 'http://api.test';
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500, statusText: 'Server Error' }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, status: 500, statusText: 'Server Error' }),
+    );
     const { loadDispatchBoardPage } = await import('../src/features/dispatch/load-board-page.js');
     const result = await loadDispatchBoardPage({ group: 'active', page: 1, pageSize: 20 });
     expect(result.data).toEqual([]);
@@ -213,11 +251,14 @@ describe('loadDispatchBoardPage', () => {
   it('returns an empty page in dev when the response shape is invalid', async () => {
     Object.assign(process.env, { NODE_ENV: 'development' });
     process.env['FLEET_API_URL'] = 'http://api.test';
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ wrong: 'shape' }),
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ wrong: 'shape' }),
+      }),
+    );
     const { loadDispatchBoardPage } = await import('../src/features/dispatch/load-board-page.js');
     const result = await loadDispatchBoardPage({ group: 'active', page: 1, pageSize: 20 });
     expect(result.data).toEqual([]);

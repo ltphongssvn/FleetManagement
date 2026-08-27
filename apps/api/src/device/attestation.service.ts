@@ -16,18 +16,12 @@
 // clientDataHash the device signed over. Security level / environment values
 // derive from the sync-protocol SSOT enums.
 import { createHash } from 'node:crypto';
-import type {
-  AttestationSecurityLevel,
-  AttestationEnvironment,
-} from '@fleet/sync-protocol';
+import type { AttestationSecurityLevel, AttestationEnvironment } from '@fleet/sync-protocol';
 import {
   type verifyAndroidKeyAttestation,
   type AndroidKeyAttestationOutcome,
 } from './android-key-attestation-verifier.js';
-import {
-  type verifyIosAppAttest,
-  type IosAppAttestOutcome,
-} from './ios-app-attest-verifier.js';
+import { type verifyIosAppAttest, type IosAppAttestOutcome } from './ios-app-attest-verifier.js';
 import type { AttestationOutcome } from './attestation-verification-policy.js';
 import type { AttestationPlatform } from './platform.js';
 export type VerifyAndroidFn = typeof verifyAndroidKeyAttestation;
@@ -73,7 +67,10 @@ function decodeBase64(value: string): Uint8Array | null {
   }
 }
 function decodeAndroidChain(token: string): Uint8Array[] | null {
-  const parts = token.split(String.fromCharCode(10)).map((s) => s.trim()).filter((s) => s.length > 0);
+  const parts = token
+    .split(String.fromCharCode(10))
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
   if (parts.length === 0) return null;
   const out: Uint8Array[] = [];
   for (const p of parts) {
@@ -84,7 +81,9 @@ function decodeAndroidChain(token: string): Uint8Array[] | null {
   }
   return out;
 }
-function mapAndroidRejection(kind: Exclude<AndroidKeyAttestationOutcome['kind'], 'ok'>): Exclude<AttestationOutcome, { kind: 'ok' }> {
+function mapAndroidRejection(
+  kind: Exclude<AndroidKeyAttestationOutcome['kind'], 'ok'>,
+): Exclude<AttestationOutcome, { kind: 'ok' }> {
   switch (kind) {
     case 'challenge-mismatch':
       return { kind: 'nonce-mismatch' };
@@ -98,7 +97,9 @@ function mapAndroidRejection(kind: Exclude<AndroidKeyAttestationOutcome['kind'],
       return { kind: 'invalid-platform-data' };
   }
 }
-function mapIosRejection(kind: Exclude<IosAppAttestOutcome['kind'], 'ok'>): Exclude<AttestationOutcome, { kind: 'ok' }> {
+function mapIosRejection(
+  kind: Exclude<IosAppAttestOutcome['kind'], 'ok'>,
+): Exclude<AttestationOutcome, { kind: 'ok' }> {
   switch (kind) {
     case 'nonce-mismatch':
       return { kind: 'nonce-mismatch' };

@@ -30,5 +30,4 @@ const alertsWorkerFactoryProvider: Provider = {
   providers: [alertsWorkerFactoryProvider, AlertsConsumerService],
   exports: [AlertsConsumerService],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class AlertsModule {}

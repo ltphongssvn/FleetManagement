@@ -5,7 +5,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DeviceBindingStatusAdapter } from '../src/device/device-binding-status.adapter.js';
 import { deviceRegistry } from '../src/database/schema/device.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 describe('DeviceBindingStatusAdapter (pglite)', () => {
   let testDb: PgliteTestDb;
   let adapter: DeviceBindingStatusAdapter;

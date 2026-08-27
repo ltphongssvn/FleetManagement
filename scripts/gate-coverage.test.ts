@@ -1,5 +1,5 @@
 // scripts/gate-coverage.test.ts
-// RED (t86, 2026-08-05): pure planners for //#gate:coverage -- the pre-push
+// RED (t86, 2026-08-05): pure planners for gate:coverage -- the pre-push
 // coverage gate, lifted out of an inline YAML bash string.
 //
 // WHY THIS EXISTS. The pre-push hook died THREE times on 2026-08-05 with
@@ -11,43 +11,29 @@
 // the remedy in every report is to reduce what crosses the pipe.
 //
 // WHY A TASK AND NOT A YAML EDIT. The gate lived as a ~300-character inline
-// bash string in .pre-commit-config.yaml: flock, the recursive coverage run
+// bash string in .pre-commit-config.yaml: the lock, the recursive coverage run
 // and the merge step all re-declared in YAML, untested and invisible to
-// //#test:scripts. Adding a reporter flag there would fix today's symptom and
-// leave the class -- the next change edits an untestable literal again. 2026
-// guidance is that hooks must be THIN and call a task, so hooks, terminal and
-// CI run the exact same checks with ONE place to change behaviour. That is
-// also this repo's own standing rule: every project op is a Turbo task or a
-// committed script.
+// test:scripts. Adding a reporter flag there would fix the symptom and leave
+// the class -- the next change edits an untestable literal again. 2026 guidance
+// is that hooks must be THIN and call a task, so hooks, terminal and CI run the
+// exact same checks with ONE place to change behaviour.
 //
-// THE GATE ITSELF IS UNCHANGED. Same tasks, same flock, same 90/90/90/90
-// merge, same non-zero propagation. Only the hook's shape and where output
-// goes differ.
+// UPDATED (t122, 2026-08-15): the lockArgs describe block is GONE because the
+// lock is no longer an external binary. It planned argv for flock(1), which is
+// util-linux and absent on macOS -- so the gate had never run on any Mac in the
+// estate. Its SEMANTICS are preserved and now asserted in
+// gate-coverage-lock.test.ts against the in-process mkdir lock: still queue on
+// contention, still a single HOME-scoped path every worktree contends for.
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   coverageArgs,
   GATE_COVERAGE_EXIT,
   gateExitCode,
   gateLogPath,
-  lockArgs,
   mergeArgs,
 } from './gate-coverage.js';
-describe('lockArgs (cross-worktree serialization is preserved)', () => {
-  it('waits rather than failing when another worktree holds the gate', () => {
-    const a = lockArgs('/home/u/.cache/fleetmanagement/gate.lock');
-    expect(a).toContain('-w');
-    expect(
-      Number(a[a.indexOf('-w') + 1]),
-      'six parallel worktrees starve an 8-core host; queueing is the documented design',
-    ).toBeGreaterThanOrEqual(3600);
-  });
-  it('locks a path under HOME, never repo-relative', () => {
-    expect(
-      lockArgs('/home/u/.cache/fleetmanagement/gate.lock').join(' '),
-      'worktrees have different paths, so a repo-local lock serializes nothing',
-    ).toContain('/home/u/.cache/fleetmanagement/gate.lock');
-  });
-});
 describe('coverageArgs (same gate, less pipe traffic)', () => {
   it('runs every workspace that defines the task', () => {
     const a = coverageArgs();
@@ -62,7 +48,7 @@ describe('coverageArgs (same gate, less pipe traffic)', () => {
     ).toContain('--workspace-concurrency=1');
   });
   // NO REPORTER FLAG, and its absence is the lesson. The first fix appended
-  // --reporter=dot through `pnpm -r ... --`. It never reached vitest: these
+  // --reporter=dot through recursive pnpm. It never reached vitest: these
   // test:coverage scripts are compound shell strings and recursive pnpm does
   // not forward trailing args into them. The unit test asserted the flag was
   // in the argv and PASSED, while the push failed again with the identical
@@ -107,7 +93,7 @@ describe('gateExitCode (a real failure must propagate)', () => {
   it('propagates a coverage failure', () => {
     expect(
       gateExitCode({ coverage: 1, merge: 0 }),
-      'the historical bug was a bash || echo swallowing a real failure into exit 0',
+      'the historical bug was a bash chain swallowing a real failure into exit 0',
     ).not.toBe(GATE_COVERAGE_EXIT.ok);
   });
   it('propagates a merge/threshold failure', () => {
@@ -119,5 +105,48 @@ describe('gateExitCode (a real failure must propagate)', () => {
   it('keeps every code distinct', () => {
     const codes = Object.values(GATE_COVERAGE_EXIT);
     expect(new Set(codes).size).toBe(codes.length);
+  });
+  it('carries a HOST code, distinct from a failing suite', () => {
+    expect(GATE_COVERAGE_EXIT.host).not.toBe(GATE_COVERAGE_EXIT.coverage);
+    expect(GATE_COVERAGE_EXIT.host).not.toBe(GATE_COVERAGE_EXIT.ok);
+  });
+});
+// ARCHITECTURAL GUARD. Reads the driver's SOURCE, because the failure being
+// prevented is an EDIT: importing would happily succeed against a file that had
+// gone back to shelling out. flock cost this estate every push from every Mac,
+// silently, for the life of the script.
+describe('the driver never shells out to a Linux-only binary again', () => {
+  const source = readFileSync(join(import.meta.dirname, 'gate-coverage.ts'), 'utf-8');
+  const code = source
+    .split(String.fromCharCode(10))
+    .filter((line) => !line.trimStart().startsWith('//') && !line.trimStart().startsWith('*'))
+    .join(String.fromCharCode(10));
+  it('does not spawn flock, which does not exist on macOS', () => {
+    expect(code.includes('flock')).toBe(false);
+  });
+  it('takes the lock in-process instead', () => {
+    expect(code).toContain('acquireLock');
+  });
+  it('reports a spawn error rather than folding it into an exit status', () => {
+    expect(code).toContain('spawnFailureMessage');
+    // Asserts the ORDER, not a spelling. An earlier version banned the literal
+    // .status coalesce, which collided head-on with the lint rule that PREFERS
+    // it -- a test and a linter demanding opposite code is a trap, not a guard.
+    // The real invariant is that a spawn error returns BEFORE any status is
+    // read, so an absent binary can never wear the costume of a failing suite.
+    const body = code.slice(code.indexOf('function run('));
+    expect(body.indexOf('hostError !== null')).toBeLessThan(body.indexOf('r.status'));
+  });
+  it('releases the lock in a finally, so a throw cannot strand the estate', () => {
+    const tail = code.slice(code.indexOf('finally'));
+    expect(tail).toContain('releaseLock');
+  });
+  it('also releases on catchable signals, the way the estate got stranded', () => {
+    expect(code).toContain('installCleanup');
+    expect(code).toContain('CLEANUP_SIGNALS');
+  });
+  it('reclaims by OWNER LIVENESS, never by a clock alone', () => {
+    expect(code).toContain('processAlive');
+    expect(code).toContain('decideReclaim');
   });
 });

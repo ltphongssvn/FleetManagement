@@ -11,7 +11,10 @@ import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { DispatchView } from '@/features/dispatch/DispatchView';
 import type { DispatchBoardRoadRun } from '@/features/dispatch/types';
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 const refs = {
   drivers: [{ id: 'op-1', label: 'NGUYEN THANH PHONG' }],
@@ -42,7 +45,14 @@ function run(ref: string, state: DispatchBoardRoadRun['state']): DispatchBoardRo
   };
 }
 
-const PAG = { group: 'active' as const, page: 1, pageSize: 20, total: 1, totalPages: 1, hasMore: false };
+const PAG = {
+  group: 'active' as const,
+  page: 1,
+  pageSize: 20,
+  total: 1,
+  totalPages: 1,
+  hasMore: false,
+};
 
 type AssignFn = (url: string | URL) => void;
 // Typed vi.fn (NOT vi.spyOn, whose return collapses to any under the strict
@@ -60,7 +70,14 @@ function spyAssign(): ReturnType<typeof vi.fn<AssignFn>> {
 
 describe('@fleet/ops-web - DispatchView search box (L1)', () => {
   it('renders the search input reflecting the current searchTerm', () => {
-    render(<DispatchView initialRuns={[run('XTT.06-001', 'planned')]} refs={refs} pagination={PAG} searchTerm={'chau'} />);
+    render(
+      <DispatchView
+        initialRuns={[run('XTT.06-001', 'planned')]}
+        refs={refs}
+        pagination={PAG}
+        searchTerm={'chau'}
+      />,
+    );
     const box = screen.getByTestId<HTMLInputElement>('dispatch-board-search');
     expect(box).toBeTruthy();
     expect(box.value).toBe('chau');
@@ -68,7 +85,9 @@ describe('@fleet/ops-web - DispatchView search box (L1)', () => {
 
   it('Enter navigates to ?search= at page 1 of the current group', () => {
     const assign = spyAssign();
-    render(<DispatchView initialRuns={[run('XTT.06-001', 'planned')]} refs={refs} pagination={PAG} />);
+    render(
+      <DispatchView initialRuns={[run('XTT.06-001', 'planned')]} refs={refs} pagination={PAG} />,
+    );
     const box = screen.getByTestId('dispatch-board-search');
     fireEvent.change(box, { target: { value: 'chau' } });
     fireEvent.keyDown(box, { key: 'Enter' });
@@ -83,7 +102,9 @@ describe('@fleet/ops-web - DispatchView search box (L1)', () => {
 
   it('a non-Enter key does not navigate', () => {
     const assign = spyAssign();
-    render(<DispatchView initialRuns={[run('XTT.06-001', 'planned')]} refs={refs} pagination={PAG} />);
+    render(
+      <DispatchView initialRuns={[run('XTT.06-001', 'planned')]} refs={refs} pagination={PAG} />,
+    );
     const box = screen.getByTestId('dispatch-board-search');
     fireEvent.change(box, { target: { value: 'chau' } });
     fireEvent.keyDown(box, { key: 'a' });
@@ -92,7 +113,14 @@ describe('@fleet/ops-web - DispatchView search box (L1)', () => {
 
   it('an empty term navigates without the search param', () => {
     const assign = spyAssign();
-    render(<DispatchView initialRuns={[run('XTT.06-001', 'planned')]} refs={refs} pagination={PAG} searchTerm={'chau'} />);
+    render(
+      <DispatchView
+        initialRuns={[run('XTT.06-001', 'planned')]}
+        refs={refs}
+        pagination={PAG}
+        searchTerm={'chau'}
+      />,
+    );
     const box = screen.getByTestId('dispatch-board-search');
     fireEvent.change(box, { target: { value: '   ' } });
     fireEvent.keyDown(box, { key: 'Enter' });
@@ -104,7 +132,14 @@ describe('@fleet/ops-web - DispatchView search box (L1)', () => {
 
   it('clearing the box (native clear -> empty change event) navigates without search when a term was active', () => {
     const assign = spyAssign();
-    render(<DispatchView initialRuns={[run('XTT.06-001', 'planned')]} refs={refs} pagination={PAG} searchTerm={'chau'} />);
+    render(
+      <DispatchView
+        initialRuns={[run('XTT.06-001', 'planned')]}
+        refs={refs}
+        pagination={PAG}
+        searchTerm={'chau'}
+      />,
+    );
     const box = screen.getByTestId('dispatch-board-search');
     // The native X clear fires an input event with an empty value and NO Enter
     // keydown. The board must return to the unfiltered view.
@@ -120,15 +155,40 @@ describe('@fleet/ops-web - DispatchView search box (L1)', () => {
 
   it('a non-empty change event does not navigate (typing does not trigger navigation)', () => {
     const assign = spyAssign();
-    render(<DispatchView initialRuns={[run('XTT.06-001', 'planned')]} refs={refs} pagination={PAG} searchTerm={'chau'} />);
+    render(
+      <DispatchView
+        initialRuns={[run('XTT.06-001', 'planned')]}
+        refs={refs}
+        pagination={PAG}
+        searchTerm={'chau'}
+      />,
+    );
     const box = screen.getByTestId('dispatch-board-search');
     fireEvent.change(box, { target: { value: 'cha' } });
     expect(assign).not.toHaveBeenCalled();
   });
 
   it('tab and page links preserve the active search term', () => {
-    render(<DispatchView initialRuns={[run('XTT.06-001', 'planned')]} refs={refs} pagination={{ group: 'active', page: 1, pageSize: 2, total: 5, totalPages: 3, hasMore: true }} searchTerm={'chau'} />);
-    expect(screen.getByTestId('dispatch-board-filter-finished').getAttribute('href')).toContain('search=chau');
-    expect(screen.getByTestId('dispatch-board-page-link-2').getAttribute('href')).toContain('search=chau');
+    render(
+      <DispatchView
+        initialRuns={[run('XTT.06-001', 'planned')]}
+        refs={refs}
+        pagination={{
+          group: 'active',
+          page: 1,
+          pageSize: 2,
+          total: 5,
+          totalPages: 3,
+          hasMore: true,
+        }}
+        searchTerm={'chau'}
+      />,
+    );
+    expect(screen.getByTestId('dispatch-board-filter-finished').getAttribute('href')).toContain(
+      'search=chau',
+    );
+    expect(screen.getByTestId('dispatch-board-page-link-2').getAttribute('href')).toContain(
+      'search=chau',
+    );
   });
 });

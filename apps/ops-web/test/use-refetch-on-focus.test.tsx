@@ -35,7 +35,7 @@ function setVisibility(state: 'visible' | 'hidden'): void {
 
 function Harness({ onFocus }: { onFocus: () => void }): JSX.Element {
   useRefetchOnFocus(onFocus);
-  return <div data-testid='harness' />;
+  return <div data-testid="harness" />;
 }
 
 describe('useRefetchOnFocus', () => {
@@ -96,9 +96,6 @@ describe('useRefetchOnFocus', () => {
     document.dispatchEvent(new Event('visibilitychange'));
     window.dispatchEvent(new Event('focus'));
 
-    expect(
-      onFocus.mock.calls.length,
-      'no listener may survive unmount',
-    ).toBe(0);
+    expect(onFocus.mock.calls.length, 'no listener may survive unmount').toBe(0);
   });
 });

@@ -8,10 +8,16 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { OwnerAdoptionMetricsSchema } from '@fleet/sync-protocol';
+import type { Platform } from '../src/device/platform.js';
 import { OwnerMetricsService } from '../src/owner/owner-metrics.service.js';
 import { driver } from '../src/database/schema/reference.js';
 import { deviceRegistry } from '../src/database/schema/device.js';
-import { startMigratedTestDb, stopMigratedTestDb, type MigratedTestDb, truncateAllTables } from './helpers/migrate-test-db.js';
+import {
+  startMigratedTestDb,
+  stopMigratedTestDb,
+  type MigratedTestDb,
+  truncateAllTables,
+} from './helpers/migrate-test-db.js';
 
 let testDb: MigratedTestDb;
 const COMPANY = '00000000-0000-0000-0000-000000000000';
@@ -24,20 +30,31 @@ const TENANCY = {
 };
 // 18:00 UTC = 01:00 the NEXT day in Asia/Ho_Chi_Minh (UTC+7).
 const NOW = new Date('2026-07-06T18:00:00.000Z');
-const SAME_VN_DAY = new Date('2026-07-06T17:30:00.000Z');   // 00:30 VN 07-07
-const PREV_VN_DAY = new Date('2026-07-06T16:30:00.000Z');   // 23:30 VN 07-06
+const SAME_VN_DAY = new Date('2026-07-06T17:30:00.000Z'); // 00:30 VN 07-07
+const PREV_VN_DAY = new Date('2026-07-06T16:30:00.000Z'); // 23:30 VN 07-06
 
-async function seedDriver(name: string, opts: { active?: boolean; operatorId?: string | null; companyId?: string } = {}): Promise<{ driverId: string; operatorId: string | null }> {
+async function seedDriver(
+  name: string,
+  opts: { active?: boolean; operatorId?: string | null; companyId?: string } = {},
+): Promise<{ driverId: string; operatorId: string | null }> {
   const operatorId = opts.operatorId === undefined ? randomUUID() : opts.operatorId;
-  const tenancy = opts.companyId === undefined ? TENANCY : { ...TENANCY, companyId: opts.companyId };
-  const [d] = await testDb.db.insert(driver)
+  const tenancy =
+    opts.companyId === undefined ? TENANCY : { ...TENANCY, companyId: opts.companyId };
+  const [d] = await testDb.db
+    .insert(driver)
     .values({ ...tenancy, fullName: name, operatorId, active: opts.active ?? true })
     .returning({ driverId: driver.driverId });
   if (d === undefined) throw new Error('seed failed');
   return { driverId: d.driverId, operatorId };
 }
 
-async function seedDevice(operatorId: string, platform: string, appVersion: string, lastSeenAt: Date | null, companyId: string = COMPANY): Promise<void> {
+async function seedDevice(
+  operatorId: string,
+  platform: Platform,
+  appVersion: string,
+  lastSeenAt: Date | null,
+  companyId: string = COMPANY,
+): Promise<void> {
   await testDb.db.insert(deviceRegistry).values({
     ...TENANCY,
     companyId,
@@ -49,9 +66,15 @@ async function seedDevice(operatorId: string, platform: string, appVersion: stri
 }
 
 describe('@fleet/api - OwnerMetricsService.adoption', () => {
-  beforeAll(async () => { testDb = await startMigratedTestDb('fleet_test_ownermetrics'); });
-  afterAll(async () => { await stopMigratedTestDb(testDb); });
-  beforeEach(async () => { await truncateAllTables(testDb.db); });
+  beforeAll(async () => {
+    testDb = await startMigratedTestDb('fleet_test_ownermetrics');
+  });
+  afterAll(async () => {
+    await stopMigratedTestDb(testDb);
+  });
+  beforeEach(async () => {
+    await truncateAllTables(testDb.db);
+  });
 
   function svc(): OwnerMetricsService {
     return new OwnerMetricsService(testDb.db as never, () => NOW);

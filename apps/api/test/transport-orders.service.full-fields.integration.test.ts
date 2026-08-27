@@ -14,13 +14,21 @@ import { randomUUID } from 'node:crypto';
 import { TransportOrdersService } from '../src/transport-orders/transport-orders.service.js';
 import { driver, vehicle } from '../src/database/schema/reference.js';
 import { driverVehicleAssignment } from '../src/database/schema/driver-vehicle-assignment.js';
-import { startPgliteTestDb, stopPgliteTestDb, type PgliteTestDb } from './helpers/pglite-test-db.js';
+import {
+  startPgliteTestDb,
+  stopPgliteTestDb,
+  type PgliteTestDb,
+} from './helpers/pglite-test-db.js';
 import { withTxIsolation } from './helpers/with-tx-isolation.js';
 import { createOperatorContext } from '@fleet/test-fixtures';
 let testDb: PgliteTestDb;
 describe('@fleet/api - TransportOrdersService (all optional fields populated)', () => {
-  beforeAll(async () => { testDb = await startPgliteTestDb(); });
-  afterAll(async () => { await stopPgliteTestDb(testDb); });
+  beforeAll(async () => {
+    testDb = await startPgliteTestDb();
+  });
+  afterAll(async () => {
+    await stopPgliteTestDb(testDb);
+  });
   it('create populates every optional field, listAssigned returns it with mixed stops', async () => {
     await withTxIsolation(testDb, async (tx) => {
       const svc = new TransportOrdersService(tx as never);
@@ -35,26 +43,31 @@ describe('@fleet/api - TransportOrdersService (all optional fields populated)', 
         legalEntityId: op.legalEntityId,
       };
       await tx.insert(vehicle).values({ ...tn, vehicleId: assetId, plate: 'FF-001' });
-      const [dRow] = await tx.insert(driver)
+      const [dRow] = await tx
+        .insert(driver)
         .values({ ...tn, fullName: 'FF-DRIVER', operatorId: op.operatorId })
         .returning({ driverId: driver.driverId });
       if (!dRow) throw new Error('seed failed');
-      await tx.insert(driverVehicleAssignment)
+      await tx
+        .insert(driverVehicleAssignment)
         .values({ ...tn, driverId: dRow.driverId, vehicleId: assetId });
-      const result = await svc.create({
-        // externalRef intentionally omitted — server assigns XTT.MM-NNN authoritatively (T3, 2026)
-        customerId,
-        metadata: { priority: 'high', note: 'full-fields path' },
-        stops: [
-          { sequence: 1, stopType: 'pickup', yardId, plannedAt: '2026-06-01T09:00:00.000Z' },
-          { sequence: 2, stopType: 'dropoff' },
-        ],
-        roadRun: {
-          plannedStartAt: '2026-06-01T08:00:00.000Z',
-          assignedOperatorId: op.operatorId,
-          assignedAssetId: assetId,
+      const result = await svc.create(
+        {
+          // externalRef intentionally omitted — server assigns XTT.MM-NNN authoritatively (T3, 2026)
+          customerId,
+          metadata: { priority: 'high', note: 'full-fields path' },
+          stops: [
+            { sequence: 1, stopType: 'pickup', yardId, plannedAt: '2026-06-01T09:00:00.000Z' },
+            { sequence: 2, stopType: 'dropoff' },
+          ],
+          roadRun: {
+            plannedStartAt: '2026-06-01T08:00:00.000Z',
+            assignedOperatorId: op.operatorId,
+            assignedAssetId: assetId,
+          },
         },
-      }, op);
+        op,
+      );
       expect(result.transportOrderId).toMatch(/^[0-9a-f-]{36}$/i);
       expect(result.roadRunId).toMatch(/^[0-9a-f-]{36}$/i);
       const list = await svc.listAssigned(op);

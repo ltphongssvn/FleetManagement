@@ -33,7 +33,11 @@ import { Pool } from 'pg';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as schema from '../../src/database/schema/index.js';
-import { TestPgConnectionSchema, TEST_PG_INJECT_KEY, type TestPgConnection } from './test-pg-connection-contract.js';
+import {
+  TestPgConnectionSchema,
+  TEST_PG_INJECT_KEY,
+  type TestPgConnection,
+} from './test-pg-connection-contract.js';
 import { worktreeKey, pgContainerName, WORKTREE_LABEL_KEY } from './worktree-container-identity.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -46,7 +50,6 @@ export const TEMPLATE_DB_NAME = 'fleet_test_template';
 // per worktree isolates them by construction; teardown filters on the label.
 const WORKTREE_ROOT = resolve(here, '../../../..');
 const WT_KEY = worktreeKey(WORKTREE_ROOT);
-
 
 // Pre-start reap (root-cause fix 2026-07-11, SECOND orphan class, distinct
 // from the .withReuse() one): a CANCELLED run -- e.g. turbo cascade-cancel
@@ -63,16 +66,27 @@ function reapOrphanedWorktreeContainers(wtKey: string): void {
     const raw = execFileSync(
       'docker',
       [
-        'ps', '-aq',
-        '--filter', 'label=org.testcontainers=true',
-        '--filter', 'label=' + WORKTREE_LABEL_KEY + '=' + wtKey,
+        'ps',
+        '-aq',
+        '--filter',
+        'label=org.testcontainers=true',
+        '--filter',
+        'label=' + WORKTREE_LABEL_KEY + '=' + wtKey,
       ],
       { stdio: ['ignore', 'pipe', 'pipe'] },
-    ).toString().trim();
+    )
+      .toString()
+      .trim();
     const ids = raw.length === 0 ? [] : raw.split(/\s+/);
     if (ids.length === 0) return;
     execFileSync('docker', ['rm', '-f', ...ids], { stdio: ['ignore', 'pipe', 'pipe'] });
-    process.stderr.write('[pg-global-setup] pre-start reap removed ' + String(ids.length) + ' orphaned container(s) for worktree ' + wtKey + '\n');
+    process.stderr.write(
+      '[pg-global-setup] pre-start reap removed ' +
+        String(ids.length) +
+        ' orphaned container(s) for worktree ' +
+        wtKey +
+        '\n',
+    );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     process.stderr.write('[pg-global-setup] pre-start reap failed (non-fatal): ' + msg + '\n');
@@ -134,27 +148,27 @@ export default async function setup(project: TestProject): Promise<() => Promise
     // when other dev containers were active on the host. Postgres now has
     // GUARANTEED resources and cannot be starved by neighbors.
     .withSharedMemorySize(512 * 1024 * 1024) // 512 MB /dev/shm. Docker default
-                                              // is 64 MB; Postgres uses /dev/shm
-                                              // for dynamic shared memory
-                                              // (parallel queries, large index
-                                              // builds, many concurrent
-                                              // connections) and exhausts under
-                                              // sustained test load.
+    // is 64 MB; Postgres uses /dev/shm
+    // for dynamic shared memory
+    // (parallel queries, large index
+    // builds, many concurrent
+    // connections) and exhausts under
+    // sustained test load.
     .withResourcesQuota({ memory: 2, cpu: 2 }) // 2 GB RAM hard cap + 2 CPUs
-                                                // reserved. Fits 9.7 GiB host
-                                                // alongside 7 dev containers
-                                                // and the test process.
+    // reserved. Fits 9.7 GiB host
+    // alongside 7 dev containers
+    // and the test process.
     .withTmpFs({ '/var/lib/postgresql/data': 'rw' }) // 2026 universal testcontainer
-                                                     // pattern (zenn.dev May 2025,
-                                                     // ivandotv/vitest-database-containers,
-                                                     // codepunkt.de Dec 2025).
-                                                     // Postgres data files live in
-                                                     // RAM instead of the container
-                                                     // overlay FS: ~10x faster I/O,
-                                                     // naturally bounded by the
-                                                     // 2 GB memory cap above, and
-                                                     // durability does not matter
-                                                     // for an ephemeral test DB.
+    // pattern (zenn.dev May 2025,
+    // ivandotv/vitest-database-containers,
+    // codepunkt.de Dec 2025).
+    // Postgres data files live in
+    // RAM instead of the container
+    // overlay FS: ~10x faster I/O,
+    // naturally bounded by the
+    // 2 GB memory cap above, and
+    // durability does not matter
+    // for an ephemeral test DB.
     .start();
 
   const host = container.getHost();
@@ -183,7 +197,16 @@ export default async function setup(project: TestProject): Promise<() => Promise
   }
 
   const templateUri =
-    'postgres://' + user + ':' + password + '@' + host + ':' + String(port) + '/' + TEMPLATE_DB_NAME;
+    'postgres://' +
+    user +
+    ':' +
+    password +
+    '@' +
+    host +
+    ':' +
+    String(port) +
+    '/' +
+    TEMPLATE_DB_NAME;
   const templatePool = new Pool({ connectionString: templateUri, connectionTimeoutMillis: 10_000 });
   try {
     const db = drizzle(templatePool, { schema, casing: 'snake_case' });

@@ -30,11 +30,7 @@ export const SPOOL_ENTRY_MIN_AGE_MS = 5 * 1000;
 /** Max upload attempts before abandon. Mirrors outbox-policy.ts maxAttempts=5. */
 export const SPOOL_MAX_ATTEMPTS = 5 as const;
 
-export type SpoolEntryStatus =
-  | 'pending_upload'
-  | 'uploading'
-  | 'uploaded'
-  | 'failed';
+export type SpoolEntryStatus = 'pending_upload' | 'uploading' | 'uploaded' | 'failed';
 
 export interface SpoolEntry {
   readonly captureId: string;
@@ -58,7 +54,10 @@ export interface NewSpoolEntryInput {
  * Create a fresh spool entry at shutter. captureId is UUIDv7 so spool sort
  * order matches capture order without needing a separate sequence column.
  */
-export function createSpoolEntry(input: NewSpoolEntryInput, deps: SpoolDeps = REAL_DEPS): SpoolEntry {
+export function createSpoolEntry(
+  input: NewSpoolEntryInput,
+  deps: SpoolDeps = REAL_DEPS,
+): SpoolEntry {
   const nowMs = deps.now();
   return {
     captureId: deps.generateId(nowMs),
@@ -124,6 +123,9 @@ export interface SweepDecision {
 }
 
 /** Sweep a batch of entries. Returns decisions in same order. */
-export function sweepSpool(entries: readonly SpoolEntry[], nowMs: number): readonly SweepDecision[] {
+export function sweepSpool(
+  entries: readonly SpoolEntry[],
+  nowMs: number,
+): readonly SweepDecision[] {
   return entries.map((e) => ({ entry: e, classification: classifyForRecovery(e, nowMs) }));
 }

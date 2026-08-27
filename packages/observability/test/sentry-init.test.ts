@@ -1,6 +1,11 @@
 // packages/observability/test/sentry-init.test.ts
 import { describe, it, expect } from 'vitest';
-import { buildSentryOptions, parseTracesSampleRate, createBeforeSend, readDepthLimitFromEnv } from '../src/sentry-init.ts';
+import {
+  buildSentryOptions,
+  parseTracesSampleRate,
+  createBeforeSend,
+  readDepthLimitFromEnv,
+} from '../src/sentry-init.ts';
 import { scrubEvent } from '../src/sentry-scrub.ts';
 
 describe('parseTracesSampleRate', () => {
@@ -112,7 +117,10 @@ describe('createBeforeSend factory', () => {
     const beforeSend = createBeforeSend({
       auditLog: (count: number) => counts.push(count),
     });
-    beforeSend({ message: 'Bearer abc.def-ghi and jane@example.com', request: { data: { password: 'p' } } });
+    beforeSend({
+      message: 'Bearer abc.def-ghi and jane@example.com',
+      request: { data: { password: 'p' } },
+    });
     expect(counts).toHaveLength(1);
     expect(counts[0]).toBeGreaterThanOrEqual(2);
   });
@@ -279,10 +287,18 @@ describe('createBeforeSend mutation-hardening', () => {
     }) as { exception?: { values?: { value?: string; type?: string; mechanism?: unknown }[] } };
     // Re-build a richer event via JSON to get the extra fields without
     // tripping the strict ScrubbableEvent type.
-    const richEvent = JSON.parse(JSON.stringify({
-      exception: { values: [{ value: 'Bearer abc.def-ghi', type: 'AuthError', mechanism: { handled: false } }] },
-    })) as Parameters<typeof beforeSend>[0];
-    const out2 = beforeSend(richEvent) as { exception?: { values?: { value?: string; type?: string; mechanism?: unknown }[] } };
+    const richEvent = JSON.parse(
+      JSON.stringify({
+        exception: {
+          values: [
+            { value: 'Bearer abc.def-ghi', type: 'AuthError', mechanism: { handled: false } },
+          ],
+        },
+      }),
+    ) as Parameters<typeof beforeSend>[0];
+    const out2 = beforeSend(richEvent) as {
+      exception?: { values?: { value?: string; type?: string; mechanism?: unknown }[] };
+    };
     const ex = out2.exception?.values?.[0];
     expect(ex?.value).toBe('[redacted]');
     expect(ex?.type).toBe('AuthError');

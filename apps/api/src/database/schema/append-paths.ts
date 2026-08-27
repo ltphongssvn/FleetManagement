@@ -2,7 +2,16 @@
 // Three append paths in same tx per Frozen Stack PDF:
 // fleet_audit_log + sync_change_feed + outbox.
 // Monotonic gap-tolerant server_seq bigint; Postgres uniqueness on action_id.
-import { pgTable, uuid, varchar, jsonb, timestamp, bigint, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  varchar,
+  jsonb,
+  timestamp,
+  bigint,
+  index,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { tenancyColumns } from './tenancy.js';
 
 export const fleetAuditLog = pgTable(

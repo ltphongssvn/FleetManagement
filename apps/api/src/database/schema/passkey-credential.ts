@@ -6,18 +6,32 @@
 // model (e.g. Apple Passkey AAGUID = adce0002-...). transports advertises usable methods.
 // device_id is nullable: a passkey may be platform-synced (iCloud/Google Password Manager)
 // and outlive any specific device_registry row.
-import { pgTable, uuid, varchar, timestamp, bigint, index, uniqueIndex, customType } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  varchar,
+  timestamp,
+  bigint,
+  index,
+  uniqueIndex,
+  customType,
+} from 'drizzle-orm/pg-core';
 import { tenancyColumns } from './tenancy.js';
 import { deviceRegistry } from './device.js';
 import { driver } from './reference.js';
 // PGlite returns bytea as Uint8Array; node-postgres returns Buffer. Normalize to Buffer
 // on read so callers can rely on Buffer methods (equals, toString, etc.).
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
-  dataType() { return 'bytea'; },
-  toDriver(value: Buffer): Buffer { return value; },
+  dataType() {
+    return 'bytea';
+  },
+  toDriver(value: Buffer): Buffer {
+    return value;
+  },
   fromDriver(value: unknown): Buffer {
     if (Buffer.isBuffer(value)) return value;
-    if (value instanceof Uint8Array) return Buffer.from(value.buffer, value.byteOffset, value.byteLength);
+    if (value instanceof Uint8Array)
+      return Buffer.from(value.buffer, value.byteOffset, value.byteLength);
     throw new Error('bytea fromDriver: expected Buffer or Uint8Array, got ' + typeof value);
   },
 });
@@ -26,7 +40,9 @@ export const passkeyCredential = pgTable(
   {
     passkeyCredentialId: uuid('passkey_credential_id').primaryKey().defaultRandom(),
     ...tenancyColumns,
-    driverId: uuid('driver_id').notNull().references(() => driver.driverId),
+    driverId: uuid('driver_id')
+      .notNull()
+      .references(() => driver.driverId),
     deviceId: uuid('device_id').references(() => deviceRegistry.deviceId),
     credentialId: bytea('credential_id').notNull(),
     publicKey: bytea('public_key').notNull(),
