@@ -28,11 +28,7 @@
 // weight reconciliation and, once the accounting columns land, the billable
 // total. Same question, different consequence, so a different answer.
 import { describe, it, expect } from 'vitest';
-import {
-  STOP_TYPES,
-  STOP_ROLES,
-  classifyRawStopRole,
-} from '../src/dispatch-stop-view-contract.js';
+import { STOP_TYPES, STOP_ROLES, classifyRawStopRole } from '../src/dispatch-stop-view-contract.js';
 
 describe('classifyRawStopRole accepts what the database actually stores', () => {
   it('classifies every persisted value to a declared role', () => {
