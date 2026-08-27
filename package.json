@@ -70,6 +70,7 @@
     "gate:coverage": "tsx scripts/gate-coverage.ts",
     "gate:agent": "tsx scripts/gate-agent.ts",
     "prod:db-url": "tsx scripts/prod-db-url.ts",
+    "guard:env-files": "tsx scripts/env-file-guard-cli.ts",
     "guard:local-secrets": "tsx scripts/local-secret-guard.ts",
     "guard:local-secrets:baseline": "tsx scripts/local-secret-guard-baseline.ts",
     "env:decrypt": "tsx scripts/env-bootstrap-cli.ts decrypt",
