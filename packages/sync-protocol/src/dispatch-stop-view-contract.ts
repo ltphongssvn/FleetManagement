@@ -35,7 +35,7 @@ import { ProofUrlSchema } from './proof-url.js';
 //      is typed 'dropoff' returned null -- indistinguishable from the legitimate
 //      "weight not extracted yet" null, so the Chenh lech column was silently
 //      blank for those orders with nothing to indicate why.
-//   2. Three call sites independently aliased delivery || dropoff, which is the
+//   2. Five call sites independently aliased delivery || dropoff, which is the
 //      per-call-site duplication the SSOT rule exists to forbid.
 //   3. Two read paths CAST a raw DB string into this union rather than parsing
 //      it, silencing the compiler exactly where validation was required.
@@ -48,11 +48,40 @@ import { ProofUrlSchema } from './proof-url.js';
 export const STOP_TYPES = Object.freeze(['pickup', 'delivery', 'dropoff', 'return'] as const);
 export type StopType = (typeof STOP_TYPES)[number];
 
-/** Parses an untrusted stop_type. The column is varchar(32) with no database
- *  constraint, so every read from it crosses a trust boundary and must be parsed
- *  rather than asserted. z.enum matches literally -- no trim, no case folding --
- *  and those absences are the property: 'Delivery' is not 'delivery'. */
-export const StopTypeSchema = z.enum(STOP_TYPES);
+/** Parses an untrusted stop_type, NORMALIZING before matching.
+ *
+ *  The column is varchar(32) with no database constraint and the create DTO
+ *  accepts any string up to 32 characters, so every read crosses a trust
+ *  boundary and mixed case or stray whitespace is reachable by construction --
+ *  not hypothetically: three services already call .toLowerCase() before
+ *  comparing, which is only rational if someone believed it possible.
+ *
+ *  A STRICT z.enum HERE WOULD HAVE BEEN A PRODUCTION BREAK. It would reject any
+ *  legacy 'Delivery' row, and DispatchBoardStopSchema parses this on the read
+ *  path, so the board would blank rather than render. No test would have caught
+ *  it: every fixture in this repo is lowercase. That is precisely why the first
+ *  draft of this schema -- which asserted rejection, on an unevidenced comment
+ *  claiming the column is stored lowercase -- was wrong.
+ *
+ *  Normalizing at the boundary is the house pattern; normalizeDisplayName states
+ *  it as "normalize at ingestion so a name is byte-stable regardless of keying
+ *  style". It also makes the ad-hoc .toLowerCase() call sites redundant, which
+ *  is the actual SSOT win rather than a defensive nicety.
+ *
+ *  ORDER IS LOAD-BEARING: trim and lower-case run BEFORE the enum, so a padded
+ *  or capitalised known value normalizes and passes, while an unknown value
+ *  still FAILS after normalizing -- tolerance about spelling is not tolerance
+ *  about vocabulary.
+ *
+ *  CONTRAST WITH FLEET_ROLES, deliberately opposite: role names REJECT case
+ *  folding, because folding an authorization token lets a lookalike grant
+ *  access. Stop types NORMALIZE it, because this is a data vocabulary and not a
+ *  credential. Same shape, opposite answer, for a reason. */
+export const StopTypeSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .pipe(z.enum(STOP_TYPES));
 
 // STOP ROLE -- the SEMANTIC classification consumers branch on, distinct from the
 // persisted spelling above. Two concepts, deliberately separate: adding a synonym
@@ -69,7 +98,7 @@ export const StopRoleSchema = z.enum(STOP_ROLES);
 /** TOTAL classification of a persisted stop type into its semantic role.
  *
  *  'dropoff' folds onto 'delivery': the two are spellings of the same leg, which
- *  is why three call sites had each grown their own alias. That aliasing now
+ *  is why five call sites had each grown their own alias. That aliasing now
  *  lives here, once.
  *
  *  EXHAUSTIVE BY CONSTRUCTION: the switch covers the StopType union with no
@@ -88,6 +117,37 @@ export function classifyStopRole(stopType: StopType): StopRole {
     case 'return':
       return 'return';
   }
+}
+
+/** Parse-then-classify for a RAW persisted stop_type, as DB read paths need it.
+ *
+ *  WHY THIS EXISTS RATHER THAN LETTING CALLERS COMPOSE THE TWO STEPS. Five call
+ *  sites in apps/api read stop.stop_type as an unconstrained varchar(32) and
+ *  must turn it into a semantic role -- two pickup lookups and two delivery
+ *  lookups in transport-orders.service.ts, plus the slot filter in
+ *  transport-orders-export.service.ts. Each had independently grown the same
+ *  pair of steps, .toLowerCase() then compare against delivery || dropoff, which
+ *  is exactly the per-call-site duplication the SSOT rule forbids. Exposing only
+ *  StopTypeSchema and classifyStopRole would leave every caller to re-pair them,
+ *  with five chances to pair them differently.
+ *
+ *  RETURNS null RATHER THAN THROWING. These are READ paths that render the
+ *  dispatch board and build the Excel export. StopTypeSchema.parse would throw
+ *  on a single unrecognised row and blank the ENTIRE board for every user --
+ *  a catastrophic failure mode for a display query. null propagates instead,
+ *  which is the rule computeWeightDiffKg already documents: never report a
+ *  partial aggregate as if complete. An unclassifiable stop matches no slot and
+ *  contributes to no total rather than being silently miscounted.
+ *
+ *  DELIBERATELY NOT FAIL-SAFE-TO-PICKUP. The delivery-capture gate classifies an
+ *  unknown type as 'pickup', and for a PHOTO GATE that is the conservative
+ *  choice: it adds an obligation and cannot be bypassed. Here the same default
+ *  would be actively wrong -- an unknown stop counted as a pickup skews the
+ *  weight reconciliation and, once the accounting columns land, the billable
+ *  total. Same question, different consequence, different answer. */
+export function classifyRawStopRole(rawStopType: string): StopRole | null {
+  const parsed = StopTypeSchema.safeParse(rawStopType);
+  return parsed.success ? classifyStopRole(parsed.data) : null;
 }
 
 // Road-run lifecycle vocabulary. SSOT is @fleet/domain RoadRunStateSchema
@@ -246,10 +306,10 @@ export type DispatchStopView = z.infer<typeof DispatchStopViewSchema>;
  *  ops-web actually parses before rendering, so it is the boundary that protects
  *  every downstream sink. Two independent arcs found the same lesson here:
  *
- *    - stopType was z.string(), enforcing nothing. It is now the SSOT enum.
- *      Widening STOP_TYPES to the four PERSISTED values is what made enforcing
- *      it safe: the previous two-value union would have rejected live dropoff
- *      rows outright.
+ *    - stopType was z.string(), enforcing nothing. It is now the SSOT schema,
+ *      which NORMALIZES case and whitespace before matching the four PERSISTED
+ *      values. Widening the vocabulary is what made enforcing it safe at all:
+ *      the previous two-value union would have rejected live dropoff rows.
  *    - photoUrl was a bare z.url(), which Zod documents as permissive enough to
  *      accept javascript: and data:. The nested StopProofSchema now enforces the
  *      http(s) scheme allowlist here too, guarding the anchor href ops-web

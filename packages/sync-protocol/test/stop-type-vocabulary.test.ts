@@ -1,13 +1,13 @@
 // packages/sync-protocol/test/stop-type-vocabulary.test.ts
-// RED-first contract for the STOP TYPE vocabulary and its role classification.
+// Contract for the STOP TYPE vocabulary and its role classification.
 //
 // ROOT CAUSE THIS CLOSES. STOP_TYPES declared ['pickup','delivery'] while the
 // production database holds FOUR values -- pickup, delivery, dropoff, return
 // (verified by SELECT DISTINCT stop_type FROM stop). The contract has never
 // matched reality, and three consequences followed:
 //
-//   1. computeWeightDiffKg matches stopType === 'delivery' by direct equality
-//      and its comment asserts that is exhaustive. For every order whose
+//   1. computeWeightDiffKg matched stopType === 'delivery' by direct equality
+//      and its comment asserted that is exhaustive. For every order whose
 //      delivery leg is typed 'dropoff' it returns null -- indistinguishable
 //      from the legitimate "weight not extracted yet" null. The Chenh lech
 //      column has been silently blank for those orders.
@@ -32,6 +32,27 @@
 // fifth persisted value makes the switch non-exhaustive and fails the build,
 // so a new stop type can never silently fall through to a wrong role -- the
 // same compile-time guarantee deriveGoodsKg documents for phieu can layouts.
+//
+// CASE IS NORMALIZED, NOT REJECTED -- and this assertion was CORRECTED after
+// being written on an assumption. The first draft asserted that 'Delivery' must
+// be rejected, with a comment claiming stop_type is stored lowercase. No
+// evidence supported that claim. Investigation found: the column is an
+// unconstrained varchar(32); the DTO accepts any string up to 32 chars; three
+// services already call .toLowerCase() before comparing, which is only rational
+// if someone believed mixed case reachable; and a prior session characterised
+// the runtime vocabulary as mixed-case. A strict schema would therefore have
+// REJECTED live rows and blanked the board, and no test here would have caught
+// it because every fixture is lowercase.
+//
+// Normalizing at the parse boundary is also the house pattern -- see
+// normalizeDisplayName: "Normalize at ingestion so a name is byte-stable
+// regardless of keying style" -- and it makes all three ad-hoc .toLowerCase()
+// call sites redundant, which is the actual SSOT win.
+//
+// CONTRAST WITH FLEET_ROLES, deliberately opposite: role names REJECT case
+// folding, because folding an authorization token is a bypass risk. Stop types
+// NORMALIZE it, because this is a data vocabulary and not a credential. Same
+// shape, opposite answer, for a reason.
 import { describe, it, expect } from 'vitest';
 import {
   STOP_TYPES,
@@ -69,9 +90,22 @@ describe('StopTypeSchema parses at the persistence boundary', () => {
     expect(StopTypeSchema.safeParse('').success).toBe(false);
   });
 
-  it('rejects case variants -- stop_type is stored lowercase', () => {
-    expect(StopTypeSchema.safeParse('Delivery').success).toBe(false);
-    expect(StopTypeSchema.safeParse('PICKUP').success).toBe(false);
+  // NORMALIZES rather than rejects. A strict enum would reject any legacy
+  // mixed-case row and blank the board; the column has no constraint and the
+  // DTO has never enforced one, so mixed case is reachable by construction.
+  it('normalizes case variants to the canonical lowercase value', () => {
+    expect(StopTypeSchema.parse('Delivery')).toBe('delivery');
+    expect(StopTypeSchema.parse('PICKUP')).toBe('pickup');
+    expect(StopTypeSchema.parse('DropOff')).toBe('dropoff');
+  });
+
+  it('trims surrounding whitespace before matching', () => {
+    expect(StopTypeSchema.parse('  delivery  ')).toBe('delivery');
+    expect(StopTypeSchema.parse('pickup\n')).toBe('pickup');
+  });
+
+  it('still rejects an unknown value even after normalizing', () => {
+    expect(StopTypeSchema.safeParse('  Transfer  ').success).toBe(false);
   });
 
   it('rejects non-strings, which a raw DB row can be', () => {

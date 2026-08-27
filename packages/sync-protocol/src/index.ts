@@ -48,9 +48,26 @@ export {
   CommitUploadResponseSchema,
   type CommitUploadResponse,
 } from './manifest-response-contract.js';
+// STOP TYPE + STOP ROLE are exported from the barrel because the vocabulary
+// crosses every boundary that touches a stop: the api dispatch controller, the
+// Excel export service, the driver read paths and ops-web all resolve the same
+// raw stop_type into the same semantic leg. A deep src path import is what
+// invites a downstream re-declaration -- and the re-declarations are exactly
+// what this SSOT replaces: five call sites had each grown their own
+// .toLowerCase() plus delivery || dropoff alias.
+//
+// classifyRawStopRole is the entry point DB read paths want (parse-then-classify
+// over an unconstrained varchar, null rather than throw); classifyStopRole is
+// the total function over an already-parsed StopType.
 export {
   STOP_TYPES,
   type StopType,
+  StopTypeSchema,
+  STOP_ROLES,
+  type StopRole,
+  StopRoleSchema,
+  classifyStopRole,
+  classifyRawStopRole,
   netWeightKgSchema,
   type NetWeightKg,
   weightDiffKgSchema,

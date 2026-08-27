@@ -23,6 +23,18 @@
 // the row shape + enrichment can never diverge across the driver reads; each
 // caller passes its own state slice / ordering / paging. The active/finished
 // partition derives from the SSOT statesForStatusGroup (never hardcoded here).
+//
+// STOP LEG RESOLUTION (2026 stop-type vocabulary arc): pickup and delivery legs
+// are resolved through classifyRawStopRole from @fleet/sync-protocol, never by
+// comparing stop_type here. This file previously carried FOUR hand-rolled
+// copies of the same two steps -- .toLowerCase() then compare against
+// 'delivery' || 'dropoff' -- two in findByCompanyIdOrRef and two in
+// buildDriverRows. Four copies of a rule is four chances for it to drift, and
+// the export service held a fifth. The vocabulary (pickup | delivery | dropoff
+// | return), the normalization, and the dropoff->delivery fold now live in one
+// place; 'return' resolves to its own role and therefore matches neither leg,
+// which is correct: a returned load is neither picked up for the customer nor
+// delivered to them.
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DRIZZLE_DB } from '../database/database.tokens.js';
@@ -40,7 +52,7 @@ import type { CreateTransportOrderInput, CreateTransportOrderResponse, ListAssig
 import { DriverVehicleAssignmentRequiredError, TransportOrderNotFoundError } from './transport-orders.errors.js';
 import { OrderNumberingService } from './order-numbering.service.js';
 import { groupCompletedTripsByMonth, MANIFEST_PHOTO_RECEIVED_STATES } from '@fleet/domain';
-import { OUTBOX_QUEUES, statesForStatusGroup } from '@fleet/sync-protocol';
+import { OUTBOX_QUEUES, statesForStatusGroup, classifyRawStopRole } from '@fleet/sync-protocol';
 import type { DriverAlertJob, DriverCompletedPageQuery, DriverCompletedPageResponse, RoadRunStateName } from '@fleet/sync-protocol';
 
 // The active (non-terminal) road-run states, from the SSOT partition. Used to
@@ -63,6 +75,31 @@ interface DriverRowsOptions {
   readonly orderByCompletedDesc?: boolean;
   readonly limit?: number;
   readonly offset?: number;
+}
+
+// Minimal shape the leg-name helpers read. Internal, single-use, crosses no
+// trust boundary -> plain TypeScript by the two-axis rule. stopType stays a raw
+// string here on purpose: it is the UNPARSED database value, and naming it
+// StopType would assert a guarantee the varchar(32) column does not provide.
+// classifyRawStopRole is what turns it into a role.
+interface LegStop {
+  readonly stopType: string;
+  readonly warehouseName: string | null;
+}
+
+// The pickup warehouse name for an order: the first stop whose role is pickup.
+// ONE definition shared by findByCompanyIdOrRef and buildDriverRows, which
+// previously carried a copy each.
+function pickupNameOf(stops: readonly LegStop[]): string | null {
+  return stops.find((x) => classifyRawStopRole(x.stopType) === 'pickup')?.warehouseName ?? null;
+}
+
+// The delivery warehouse name for an order: the LAST stop whose role is
+// delivery. 'dropoff' folds onto delivery inside classifyRawStopRole; 'return'
+// does NOT, so a return leg can never be reported as the delivery destination.
+function deliveryNameOf(stops: readonly LegStop[]): string | null {
+  const drops = stops.filter((x) => classifyRawStopRole(x.stopType) === 'delivery');
+  return drops[drops.length - 1]?.warehouseName ?? null;
 }
 
 @Injectable()
@@ -260,12 +297,6 @@ export class TransportOrdersService {
       arrivedAt: s.arrivedAt ? s.arrivedAt.toISOString() : null,
       departedAt: s.departedAt ? s.departedAt.toISOString() : null,
     }));
-    const pickupName = stops.find((x) => x.stopType.toLowerCase() === 'pickup')?.warehouseName ?? null;
-    const drops = stops.filter((x) => {
-      const t = x.stopType.toLowerCase();
-      return t === 'delivery' || t === 'dropoff';
-    });
-    const deliveryName = drops[drops.length - 1]?.warehouseName ?? null;
     const cancelMap = await this.computeCancelEligibility(op, [head.transportOrderId]);
     const cancelInfo = cancelMap.get(head.transportOrderId) ?? { canCancel: true, cancelBlockedReason: null };
     return {
@@ -282,8 +313,8 @@ export class TransportOrdersService {
       customerName: head.customerName,
       cargoName: head.cargoName,
       driverName: head.driverName,
-      pickupName,
-      deliveryName,
+      pickupName: pickupNameOf(stops),
+      deliveryName: deliveryNameOf(stops),
       canCancel: cancelInfo.canCancel,
       cancelBlockedReason: cancelInfo.cancelBlockedReason,
       stops,
@@ -396,18 +427,6 @@ export class TransportOrdersService {
       });
       stopsByOrder.set(sr.transportOrderId, list);
     }
-    const pickupNameOf = (stops: readonly StopRow[]): string | null => {
-      const s = stops.find((x) => x.stopType.toLowerCase() === 'pickup');
-      return s?.warehouseName ?? null;
-    };
-    const deliveryNameOf = (stops: readonly StopRow[]): string | null => {
-      const drops = stops.filter((x) => {
-        const t = x.stopType.toLowerCase();
-        return t === 'delivery' || t === 'dropoff';
-      });
-      const last = drops[drops.length - 1];
-      return last?.warehouseName ?? null;
-    };
     const cancelMap = await this.computeCancelEligibility(op, transportOrderIds);
     return rows.map((r) => {
       const stops = stopsByOrder.get(r.transportOrderId) ?? [];
